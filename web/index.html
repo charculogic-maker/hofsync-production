@@ -204,7 +204,7 @@
 
                     <div class="customer-order-ready-grid">
                       <label class="form-label" for="order-ready-date">Bereit am</label>
-                      <input type="date" id="order-ready-date" class="input-text-touch" required>
+                      <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
                       <label class="form-label" for="order-ready-time">Uhrzeit</label>
                       <input type="time" id="order-ready-time" class="input-text-touch" required>
                     </div>
@@ -1065,9 +1065,9 @@
         </select>
         <div class="task-date-range-grid">
           <label class="form-label">Anzeigen ab (optional)</label>
-          <input type="date" name="person-valid-from" class="input-text-touch">
+          <input type="text" name="person-valid-from" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
           <label class="form-label">Anzeigen bis (optional)</label>
-          <input type="date" name="person-valid-until" class="input-text-touch">
+          <input type="text" name="person-valid-until" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
         </div>
       </div>
 
@@ -1079,14 +1079,14 @@
         </select>
         <div class="task-date-range-grid">
           <label class="form-label">Zeitraum von</label>
-          <input type="date" name="valid-from" class="input-text-touch">
+          <input type="text" name="valid-from" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
           <label class="form-label">Zeitraum bis</label>
-          <input type="date" name="valid-until" class="input-text-touch">
+          <input type="text" name="valid-until" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
         </div>
       </div>
 
       <label class="form-label">Fällig bis (optional)</label>
-      <input type="date" name="due-date" class="input-text-touch">
+      <input type="text" name="due-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
 
       <div data-compose-priority class="task-priority-picker" role="group" aria-label="Priorität">
         <input type="hidden" name="priority-value" value="Gelb">

@@ -4,6 +4,7 @@
 
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getActiveEmployeeName } from './teamboard.js';
+import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
 
 const ORDER_STATUS_LABELS = {
   open: 'Offen',
@@ -169,7 +170,7 @@ function resetOrderForm() {
   ensureDefaultOrderLine();
   const readyDate = document.getElementById('order-ready-date');
   const readyTime = document.getElementById('order-ready-time');
-  if (readyDate) readyDate.value = todayIsoLocal();
+  if (readyDate) setGermanDateField(readyDate, todayIsoLocal());
   if (readyTime) readyTime.value = defaultReadyTimeLocal();
 }
 
@@ -349,7 +350,7 @@ async function createOrderFromForm() {
   let customerName = document.getElementById('order-customer-name')?.value?.trim() || '';
   const callbackPhone = document.getElementById('order-callback-phone')?.value?.trim() || '';
   const customerEmail = document.getElementById('order-customer-email')?.value?.trim() || '';
-  const readyDate = document.getElementById('order-ready-date')?.value?.trim() || '';
+  const readyDate = readGermanDateField(document.getElementById('order-ready-date')) || '';
   const readyTime = document.getElementById('order-ready-time')?.value?.trim() || '';
   const hasSlips = orderState.pendingSlips.length > 0;
 
@@ -493,7 +494,7 @@ function bindOrderForm() {
   ensureDefaultOrderLine();
   const readyDate = document.getElementById('order-ready-date');
   const readyTime = document.getElementById('order-ready-time');
-  if (readyDate && !readyDate.value) readyDate.value = todayIsoLocal();
+  if (readyDate && !readGermanDateField(readyDate)) setGermanDateField(readyDate, todayIsoLocal());
   if (readyTime && !readyTime.value) readyTime.value = defaultReadyTimeLocal();
 
   document.getElementById('order-add-line-btn')?.addEventListener('click', () => addOrderLine());
@@ -589,6 +590,7 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
   bindOrderForm();
   bindOrderListActions();
   subscribeOrders();
+  initGermanDateInputs(document);
 }
 
 export function activateCustomerOrdersTab() {

@@ -6,6 +6,13 @@ import { getAuthContext, verifyAdminAction } from './auth.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getTeamEmployees, getTeamGroups } from './team-config.js';
 import { handleTasksSnapshotForNotify, resetTeamNotifyBootstrap } from './team-notify.js';
+import {
+  formatIsoToGerman,
+  initGermanDateInputs,
+  parseGermanDateToIso,
+  readGermanDateField,
+  setGermanDateField,
+} from './date-input.js';
 
 export const TEAM_SHIFTS = ['Frühschicht', 'Spätschicht'];
 export const TASK_PRIORITIES = ['Rot', 'Gelb', 'Grün'];
@@ -62,20 +69,11 @@ function todayIsoLocal() {
   return `${y}-${m}-${day}`;
 }
 
-/** Firestore-Regeln erwarten kurze ISO-Datumsstrings (YYYY-MM-DD). */
+/** Firestore-Regeln erwarten ISO-Datumsstrings (YYYY-MM-DD). */
 function normalizeDateField(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (us) {
-    return `${us[3]}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
-  }
-  const de = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (de) {
-    return `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}`;
-  }
-  return null;
+  return parseGermanDateToIso(raw) || null;
 }
 
 function isIsoDateInRange(dayIso, fromIso, untilIso) {
@@ -137,13 +135,15 @@ function formatTaskScheduleLabel(task) {
   const parts = [];
   const from = task.validFrom || task.targetDate;
   const until = task.validUntil;
-  if (from && until && from !== until) {
-    parts.push(`${from} – ${until}`);
-  } else if (from) {
-    parts.push(from);
+  const fromDe = from ? (formatIsoToGerman(from) || from) : null;
+  const untilDe = until ? (formatIsoToGerman(until) || until) : null;
+  if (fromDe && untilDe && fromDe !== untilDe) {
+    parts.push(`${fromDe} – ${untilDe}`);
+  } else if (fromDe) {
+    parts.push(fromDe);
   }
   if (task.dueDate) {
-    parts.push(`fällig ${task.dueDate}`);
+    parts.push(`fällig ${formatIsoToGerman(task.dueDate) || task.dueDate}`);
   }
   return parts.join(' · ');
 }
@@ -748,8 +748,8 @@ function readAudienceFromForm(form) {
     result.audienceMembers = picked;
   } else if (audienceType === 'shift') {
     result.context = form.querySelector('[name="shift-context"]')?.value || null;
-    result.validFrom = normalizeDateField(form.querySelector('[name="valid-from"]')?.value) || today;
-    result.validUntil = normalizeDateField(form.querySelector('[name="valid-until"]')?.value) || result.validFrom;
+    result.validFrom = readGermanDateField(form.querySelector('[name="valid-from"]')) || today;
+    result.validUntil = readGermanDateField(form.querySelector('[name="valid-until"]')) || result.validFrom;
     if (!result.context) return { error: 'Bitte Schicht wählen.' };
     if (result.validFrom > result.validUntil) {
       return { error: 'Zeitraum „bis“ muss am oder nach „von“ liegen.' };
@@ -764,8 +764,8 @@ function readAudienceFromForm(form) {
   } else if (audienceType === 'person') {
     result.assignedTo = form.querySelector('[name="audience-person-single"]')?.value || null;
     if (!result.assignedTo) return { error: 'Bitte Kollegen wählen.' };
-    result.validFrom = normalizeDateField(form.querySelector('[name="person-valid-from"]')?.value);
-    result.validUntil = normalizeDateField(form.querySelector('[name="person-valid-until"]')?.value);
+    result.validFrom = readGermanDateField(form.querySelector('[name="person-valid-from"]'));
+    result.validUntil = readGermanDateField(form.querySelector('[name="person-valid-until"]'));
     if (result.validFrom && result.validUntil && result.validFrom > result.validUntil) {
       return { error: '„Anzeigen bis“ muss am oder nach „Anzeigen ab“ liegen.' };
     }
@@ -833,6 +833,7 @@ export function mountComposeForms() {
   });
   refreshAudienceGroupOptions();
   bindComposeForms();
+  initGermanDateInputs(document);
 }
 
 function bindComposeForm(form) {
@@ -849,8 +850,9 @@ function bindComposeForm(form) {
 
   const today = todayIsoLocal();
   form.querySelectorAll('[name="valid-from"], [name="valid-until"], [name="due-date"]').forEach((el) => {
-    if (el && !el.value) el.value = today;
+    if (el && !readGermanDateField(el)) setGermanDateField(el, today);
   });
+  initGermanDateInputs(form);
 
   form.querySelectorAll('[data-priority-pick]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -903,7 +905,12 @@ async function createTeamEntryFromForm(form) {
   }
   const audience = audienceResult.data;
   const body = form.querySelector('[name="compose-body"]')?.value?.trim() || null;
-  const dueDate = normalizeDateField(form.querySelector('[name="due-date"]')?.value);
+  const dueDateEl = form.querySelector('[name="due-date"]');
+  if (dueDateEl?.classList.contains('input-date-de--invalid')) {
+    window.showToast?.('Bitte „Fällig bis“ als TT.MM.JJJJ eingeben.', 'warning');
+    return;
+  }
+  const dueDate = readGermanDateField(dueDateEl);
 
   const taskId = typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
@@ -963,7 +970,7 @@ async function createTeamEntryFromForm(form) {
     syncAudiencePanels(form);
     const resetToday = todayIsoLocal();
     form.querySelectorAll('[name="valid-from"], [name="valid-until"], [name="due-date"]').forEach((el) => {
-      if (el) el.value = resetToday;
+      setGermanDateField(el, resetToday);
     });
     form.querySelectorAll('[name="person-valid-from"], [name="person-valid-until"]').forEach((el) => {
       if (el) el.value = '';

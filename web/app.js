@@ -64,6 +64,7 @@ import {
   refreshAdminTeamConfigPanel,
   syncPushRegistration,
 } from './team-config.js';
+import { initGermanDateInputs } from './date-input.js';
 
 // ============================================================================
 // GLOBALE UI-HILFSFUNKTIONEN (vor allen Modulen und IIFEs definiert)
@@ -1132,6 +1133,7 @@ async function bootstrapAuthenticatedApp() {
   refreshTeamboardAdminPanel();
   refreshAdminTeamConfigPanel();
   syncPushRegistration();
+  initGermanDateInputs(document);
 
   updateSyncIndicator();
   loadMhdFromCloud();

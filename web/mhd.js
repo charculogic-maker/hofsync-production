@@ -1,5 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
+import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+
 const EMPLOYEE_PINS = {
   "1122": "Stephie",
   "2233": "Finn",
@@ -1100,7 +1102,7 @@ function showLearnModeDialog(ean) {
       </label>
       <label class="learn-mode-label">
         MHD-Datum
-        <input type="date" id="learn-product-mhd" class="input-text-touch" value="${today}">
+        <input type="text" id="learn-product-mhd" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" value="${formatIsoToGerman(today)}">
       </label>
       <label class="learn-mode-label">
         LOT / Chargen-Nr.
@@ -1136,9 +1138,12 @@ function showLearnModeDialog(ean) {
   if (btnLearnSave) btnLearnSave.textContent = 'Wareneingang speichern';
   if (inputName) inputName.value = productInfo?.name || document.getElementById('we-product-manual')?.value.trim() || '';
   if (inputBrand) inputBrand.value = productInfo?.brand || document.getElementById('we-supplier')?.value.trim() || '';
+  initGermanDateInputs(learnModeOverlay);
   if (inputMhd && document.getElementById('we-mhd')?.value) {
     const isoMhd = normalizeDateInputToIso(document.getElementById('we-mhd').value);
-    if (isoMhd) inputMhd.value = isoMhd;
+    if (isoMhd) setGermanDateField(inputMhd, isoMhd);
+  } else if (inputMhd) {
+    setGermanDateField(inputMhd, today);
   }
   if (inputQty && document.getElementById('we-qty')?.value) {
     inputQty.value = String(Math.max(1, parseFloat(document.getElementById('we-qty').value) || 1));
@@ -1195,7 +1200,7 @@ function showLearnModeDialog(ean) {
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
     const qty = Math.max(1, parseFloat(String(inputQty?.value || '1').replace(',', '.')) || 1);
-    const mhdDate = inputMhd?.value || today;
+    const mhdDate = readGermanDateField(inputMhd) || today;
     const lot = inputLot?.value.trim() || '';
     const kategorie = normalizeMhdCategory(inputCategory?.value || '📦 Trockenware');
     const barcodeForSave = currentBarcode || cleanScannedBarcode(ean);
