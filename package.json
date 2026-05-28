@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "build-data": "node build-data.js",
+    "prebuild": "npm run build-data",
+    "build": "node tools/check-web-app.mjs",
+    "deploy": "npm run build && firebase deploy",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^12.13.0",
+    "firebase-admin": "^13.10.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
+  }
+}

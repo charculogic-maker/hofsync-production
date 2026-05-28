@@ -1,0 +1,344 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // GLOBAL AUTH & ROLE FUNCTIONS
+    // =========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasTenantClaim(tenantId) {
+      return isAuthenticated()
+        && request.auth.token.tenantId is string
+        && request.auth.token.tenantId == tenantId;
+    }
+
+    function hasTenantProfile(tenantId) {
+      return isAuthenticated()
+        && exists(profilePath())
+        && get(profilePath()).data.tenantId is string
+        && get(profilePath()).data.tenantId == tenantId;
+    }
+
+    function isTenantUser(tenantId) {
+      return hasTenantClaim(tenantId) || hasTenantProfile(tenantId);
+    }
+
+    function isAdmin(tenantId) {
+      return isTenantUser(tenantId)
+        && (
+          request.auth.token.role == 'admin'
+          || request.auth.token.admin == true
+          || (
+            exists(profilePath())
+            && get(profilePath()).data.role == 'admin'
+          )
+        );
+    }
+
+    // =========================================================================
+    // SCHEMA VALIDATION HELPERS
+    // =========================================================================
+
+    function isNonEmptyString(field) {
+      return field is string && field.size() > 0;
+    }
+
+    function isOptionalString(field) {
+      return field == null || field is string;
+    }
+
+    function isNumericOrNull(field) {
+      return field == null || field is int || field is float;
+    }
+
+    function isIntGteZero(field) {
+      return (field is int || field is float) && field >= 0;
+    }
+
+    function isBoolOrNull(field) {
+      return field == null || field is bool;
+    }
+
+    function isDateStringOrNull(field) {
+      return field == null || (field is string && field.size() >= 8 && field.size() <= 10);
+    }
+
+    function hasOnly(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    // =========================================================================
+    // USER PROFILES (read-only for the user, admin-managed)
+    // =========================================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /userTenants/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // STAMMDATEN (admin-only writes)
+    // =========================================================================
+
+    match /tenants/{tenantId}/stammdaten/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow write: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // MHD-POSTEN (mhd_liste) – Schema-validierte Schreibzugriffe
+    // =========================================================================
+
+    match /tenants/{tenantId}/mhd_liste/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isTenantUser(tenantId)
+        && hasOnly([
+          'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+          'produkt', 'name', 'marke', 'brand',
+          'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+          'tage', 'resttage', 'status',
+          'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+          'kategorie', 'warenKategorie', 'soldOut',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'erfassungsDatum', 'meisterOverrideReason',
+          'vpeBarcode', 'vpeInhalt',
+          'source', 'postentyp', 'wareneingangAt',
+          'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+          'rabattiert', 'rabattiertAt',
+          'kuecheAngefragt', 'kuecheAngefragtAt', 'lieferungId'
+        ])
+        && (
+          isNonEmptyString(request.resource.data.name)
+          || isNonEmptyString(request.resource.data.produkt)
+        )
+        && isIntGteZero(request.resource.data.qty)
+        && request.resource.data.tenantId == tenantId;
+
+      allow update: if isTenantUser(tenantId)
+        && hasOnly([
+          'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+          'produkt', 'name', 'marke', 'brand',
+          'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+          'tage', 'resttage', 'status',
+          'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+          'kategorie', 'warenKategorie', 'soldOut',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'erfassungsDatum', 'meisterOverrideReason',
+          'vpeBarcode', 'vpeInhalt',
+          'source', 'postentyp', 'wareneingangAt',
+          'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+          'rabattiert', 'rabattiertAt',
+          'kuecheAngefragt', 'kuecheAngefragtAt', 'lieferungId'
+        ])
+        && (
+          !('tenantId' in request.resource.data)
+          || request.resource.data.tenantId == tenantId
+        );
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // WARENEINGANG-LIEFERUNGEN (Kopf + Posten + Lieferschein-Fotos)
+    // =========================================================================
+
+    match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isTenantUser(tenantId)
+        && hasOnly([
+          'id', 'lieferant', 'warenKategorie', 'temperatur',
+          'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
+          'fotos', 'items', 'itemCount',
+          'source', 'scannedBy', 'tenantId',
+          'createdAt', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.lieferant)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(request.resource.data.itemCount);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // REZEPTE (admin-only writes)
+    // =========================================================================
+
+    match /tenants/{tenantId}/rezepte/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow write: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // FLEISCHPREISE (KI-Wochennotierung, nur Cloud Functions schreiben)
+    // =========================================================================
+
+    match /tenants/{tenantId}/fleischpreise/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // PRODUKTIONS-CHARGEN
+    // =========================================================================
+
+    match /tenants/{tenantId}/produktion_chargen/{document} {
+      allow read, create: if isTenantUser(tenantId);
+      allow update, delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // HACCP-GERÄTE – Ausschließlich Admin-Zugriff für Schreiboperationen
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_geraete/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isAdmin(tenantId)
+        && hasOnly([
+          'name', 'protokollTyp', 'bereich', 'geraeteTyp',
+          'sollMin', 'sollMax', 'einheit', 'intervall',
+          'aktiv', 'tenantId', 'updatedAt', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.name)
+        && request.resource.data.tenantId == tenantId;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // HACCP-LOGS – Validierte Protokolleinträge (unveränderlich nach Anlage)
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_logs/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isTenantUser(tenantId)
+        && hasOnly([
+          'logTyp', 'deviceId', 'deviceName', 'bereich',
+          'wert', 'temperatur', 'ph',
+          'einheit', 'sollMin', 'sollMax',
+          'status', 'massnahme',
+          'chargenNummer',
+          'tenantId', 'datum', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.logTyp)
+        && isNonEmptyString(request.resource.data.datum)
+        && request.resource.data.tenantId == tenantId
+        && isNumericOrNull(request.resource.data.wert)
+        && isNumericOrNull(request.resource.data.temperatur)
+        && isNumericOrNull(request.resource.data.ph)
+        && (
+          request.resource.data.createdAt == request.time
+          || (
+            request.resource.data.createdAt is timestamp
+            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
+          )
+          || (
+            request.resource.data.createdAt is string
+            && request.resource.data.createdAt.size() >= 20
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // HACCP STALE ARCHIVE – Cold-Storage für veraltete, abgewiesene Protokolle
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_stale_archive/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isTenantUser(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data._reason);
+
+      allow update, delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // SCHWARZES BRETT (bulletinBoard/current)
+    // =========================================================================
+
+    match /tenants/{tenantId}/bulletinBoard/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isAdmin(tenantId)
+        && hasOnly([
+          'message', 'attachments', 'updatedAt', 'author', 'tenantId'
+        ])
+        && isOptionalString(request.resource.data.message)
+        && request.resource.data.tenantId == tenantId;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // AUFGABEN-TOKENS (tasks)
+    // =========================================================================
+
+    function isTaskCompletionOnly() {
+      return resource.data.status == 'open'
+        && request.resource.data.status == 'completed'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'completedBy', 'completedAt'
+        ])
+        && isNonEmptyString(request.resource.data.completedBy);
+    }
+
+    match /tenants/{tenantId}/tasks/{taskId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isAdmin(tenantId)
+        && hasOnly([
+          'title', 'assignedTo', 'context', 'targetDate', 'priority',
+          'status', 'completedBy', 'completedAt', 'tenantId', 'author', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.title)
+        && request.resource.data.status == 'open'
+        && request.resource.data.tenantId == tenantId
+        && isOptionalString(request.resource.data.assignedTo)
+        && isOptionalString(request.resource.data.context)
+        && isDateStringOrNull(request.resource.data.targetDate);
+
+      allow update: if isTenantUser(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isTaskCompletionOnly()
+        );
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // SYSTEM ERRORS – Zentrales Error-Reporting (append-only Telemetrie)
+    // =========================================================================
+
+    match /system_errors/{document} {
+      allow read: if false;
+
+      allow create: if isAuthenticated()
+        && isNonEmptyString(request.resource.data.type)
+        && request.resource.data.keys().hasAll(['tenantId', 'reportedAt', 'type']);
+
+      allow update, delete: if false;
+    }
+  }
+}

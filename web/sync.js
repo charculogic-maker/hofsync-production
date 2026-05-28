@@ -1,0 +1,557 @@
+const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
+const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
+const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
+
+let flushInFlight = false;
+let syncContext = {
+  getDatabase: () => null,
+  isFirebaseReady: () => false,
+  getFirebase: () => null,
+  getTenantId: () => '',
+  appsScriptWebAppUrl: '',
+  showHUD: () => {},
+};
+
+// QA Simulation State — zero overhead in production (localhost gate in app.js)
+export const qaState = {
+  active: false,
+  latency: false,
+  teardown: false,
+  log: () => {},
+};
+
+export function initSyncEngine({ getDatabase, isFirebaseReady, getFirebase, getTenantId, appsScriptWebAppUrl, showHUD } = {}) {
+  syncContext = {
+    getDatabase: typeof getDatabase === 'function' ? getDatabase : syncContext.getDatabase,
+    isFirebaseReady: typeof isFirebaseReady === 'function' ? isFirebaseReady : syncContext.isFirebaseReady,
+    getFirebase: typeof getFirebase === 'function' ? getFirebase : syncContext.getFirebase,
+    getTenantId: typeof getTenantId === 'function' ? getTenantId : syncContext.getTenantId,
+    appsScriptWebAppUrl: appsScriptWebAppUrl || syncContext.appsScriptWebAppUrl,
+    showHUD: typeof showHUD === 'function' ? showHUD : syncContext.showHUD,
+  };
+}
+
+function currentTenantId() {
+  return typeof syncContext.getTenantId === 'function' ? String(syncContext.getTenantId() || '').trim() : '';
+}
+
+function pendingSyncsKey() {
+  const tenantId = currentTenantId();
+  return tenantId ? `${PENDING_SYNCS_KEY_PREFIX}${tenantId}` : '';
+}
+
+function deadPendingSyncsKey() {
+  const tenantId = currentTenantId();
+  return tenantId ? `${DEAD_PENDING_SYNCS_KEY_PREFIX}${tenantId}` : '';
+}
+
+function requireTenantId() {
+  const tenantId = currentTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt: Sync ist ohne Firebase-Auth gesperrt.');
+  return tenantId;
+}
+
+function normalizeTenantCollectionPath(collectionPath) {
+  const tenantId = requireTenantId();
+  const path = String(collectionPath || '').replace(/^\/+|\/+$/g, '');
+  if (!path) throw new Error('Firestore-Ziel fehlt');
+
+  if (path.startsWith('tenants/')) {
+    const [, pathTenantId] = path.split('/');
+    if (pathTenantId !== tenantId) {
+      throw new Error('Mandantenkonflikt: Firestore-Pfad passt nicht zum angemeldeten Betrieb.');
+    }
+    return path;
+  }
+
+  return `tenants/${tenantId}/${path}`;
+}
+
+export function getPendingSyncs() {
+  const key = pendingSyncsKey();
+  if (!key) return [];
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    try {
+      localStorage.setItem(`${key}.corrupt.${Date.now()}`, raw);
+      localStorage.removeItem(key);
+    } catch (storageErr) {
+      console.error('[CharcuLogic Offline] Beschadigte Queue konnte nicht gesichert werden:', storageErr);
+    }
+    console.error('[CharcuLogic Offline] Sync-Queue beschadigt:', err);
+    window.showToast?.("Sync-Queue wurde isoliert.", "warning");
+    return [];
+  }
+}
+
+export function getDeadPendingSyncs() {
+  const key = deadPendingSyncsKey();
+  if (!key) return [];
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('[CharcuLogic Offline] Dead-Letter Queue beschadigt:', err);
+    return [];
+  }
+}
+
+export function savePendingSyncs(queue) {
+  const key = pendingSyncsKey();
+  if (!key) {
+    window.showToast?.("Sync wartet auf Mandanten-Anmeldung.", "warning");
+    return false;
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(queue));
+    return true;
+  } catch (err) {
+    console.error('[CharcuLogic Offline] localStorage-Schreiben fehlgeschlagen:', err);
+    window.showToast?.("Fehler: Offline-Aktion wurde nicht gesichert.", "error");
+    return false;
+  }
+}
+
+export function addPendingSync(entry) {
+  const queue = getPendingSyncs();
+  queue.push({ ...entry, _queuedAt: Date.now(), _id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  const saved = savePendingSyncs(queue);
+  updateSyncIndicator();
+  return saved;
+}
+
+function saveDeadPendingSync(item, error) {
+  const key = deadPendingSyncsKey();
+  if (!key) return;
+  const deadEntry = {
+    ...item,
+    _deadAt: Date.now(),
+    _lastError: error?.message || String(error || 'Unbekannter Fehler'),
+    _errorCode: error?.code || '',
+  };
+  try {
+    const dead = JSON.parse(localStorage.getItem(key) || '[]');
+    dead.push(deadEntry);
+    localStorage.setItem(key, JSON.stringify(dead.slice(-100)));
+  } catch (err) {
+    console.error('[CharcuLogic Offline] Dead-Letter konnte nicht geschrieben werden:', err);
+  }
+  reportCriticalError({
+    type: 'dead-letter',
+    syncType: item._syncType,
+    collectionPath: item._collectionPath,
+    docId: item._docId,
+    op: item._op,
+    attempts: item._attempts || 0,
+    errorMessage: error?.message || String(error || ''),
+    errorCode: error?.code || '',
+    queuedAt: item._queuedAt || null,
+    deadAt: deadEntry._deadAt,
+    payload: item.data || null,
+  });
+}
+
+function errorTelemetryKey() {
+  const tenantId = currentTenantId();
+  return tenantId ? `${ERROR_TELEMETRY_KEY_PREFIX}${tenantId}` : '';
+}
+
+function getErrorTelemetryQueue() {
+  const key = errorTelemetryKey();
+  if (!key) return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('[CharcuLogic Telemetrie] Error-Queue konnte nicht gelesen werden:', err);
+    return [];
+  }
+}
+
+function saveErrorTelemetryQueue(queue) {
+  const key = errorTelemetryKey();
+  if (!key) return false;
+  try {
+    if (!queue.length) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(queue.slice(-200)));
+    }
+    return true;
+  } catch (err) {
+    console.warn('[CharcuLogic Telemetrie] Error-Queue konnte nicht geschrieben werden:', err);
+    return false;
+  }
+}
+
+export function reportCriticalError(errorContext) {
+  let userId = null;
+  try {
+    const firebase = syncContext.getFirebase();
+    userId = firebase?.auth()?.currentUser?.uid || null;
+  } catch (_) { /* noop */ }
+
+  const entry = {
+    ...errorContext,
+    tenantId: currentTenantId() || 'unknown',
+    userId,
+    reportedAt: new Date().toISOString(),
+    userAgent: navigator.userAgent || '',
+    url: window.location.href || '',
+    _telemetryId: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  };
+
+  console.error('[CharcuLogic CriticalError]', entry);
+
+  const queue = getErrorTelemetryQueue();
+  queue.push(entry);
+  saveErrorTelemetryQueue(queue);
+}
+
+let telemetryFlushInFlight = false;
+
+export async function flushErrorTelemetry() {
+  if (telemetryFlushInFlight) return;
+  if (!navigator.onLine) return;
+
+  const db = syncContext.getDatabase();
+  const firebase = syncContext.getFirebase();
+  if (!db || !firebase || !syncContext.isFirebaseReady()) return;
+
+  const queue = getErrorTelemetryQueue();
+  if (!queue.length) return;
+
+  telemetryFlushInFlight = true;
+  const remaining = [];
+
+  try {
+    for (const entry of queue) {
+      try {
+        await db.collection('system_errors').add({
+          ...entry,
+          serverTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (writeErr) {
+        console.warn('[CharcuLogic Telemetrie] system_errors Schreiben fehlgeschlagen:', writeErr);
+        remaining.push(entry);
+      }
+    }
+    saveErrorTelemetryQueue(remaining);
+  } finally {
+    telemetryFlushInFlight = false;
+  }
+}
+
+function isValidPendingSync(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item._syncType === 'haccp') return Boolean(item._collectionPath);
+  if (item._syncType === 'appsScript') return true;
+  if (item._syncType === 'firestore-doc') {
+    return Boolean(item._collectionPath && item._docId && ['set', 'update', 'delete'].includes(item._op));
+  }
+  return false;
+}
+
+function isPermissionOrExistsError(err) {
+  const code = err?.code || '';
+  return code === 'permission-denied'
+    || code === 'already-exists'
+    || code === 'PERMISSION_DENIED'
+    || code === 'ALREADY_EXISTS';
+}
+
+class ServerGetFailedError extends Error {
+  constructor(cause) {
+    super('Server-Get fehlgeschlagen — kein inhaltlicher Vergleich möglich');
+    this.name = 'ServerGetFailedError';
+    this.cause = cause;
+  }
+}
+
+async function verifyDocContentOnServer(ref, payload) {
+  let snap;
+  try {
+    snap = await ref.get({ source: 'server' });
+  } catch (readErr) {
+    throw new ServerGetFailedError(readErr);
+  }
+  if (!snap.exists) return false;
+  const remote = snap.data();
+  const keysToCheck = Object.keys(payload).filter((k) =>
+    !k.startsWith('_') && k !== 'createdAt' && k !== 'updatedAt'
+  );
+  return keysToCheck.every((k) => {
+    const local = payload[k];
+    const server = remote[k];
+    if (local === server) return true;
+    if (local == null && server == null) return true;
+    if (typeof local === 'number' && typeof server === 'number') return Math.abs(local - server) < 0.001;
+    return String(local) === String(server);
+  });
+}
+
+function isStaleHaccpPayload(item) {
+  const collPath = item._collectionPath || '';
+  if (!collPath.includes('haccp_logs')) return false;
+  const queuedAt = item._queuedAt || 0;
+  return queuedAt > 0 && (Date.now() - queuedAt) > 48 * 60 * 60 * 1000;
+}
+
+async function tryStaleArchiveFallback(item) {
+  const db = syncContext.getDatabase();
+  const firebase = syncContext.getFirebase();
+  if (!db || !firebase) return false;
+
+  const tenantId = currentTenantId();
+  if (!tenantId) return false;
+
+  const archivePath = `tenants/${tenantId}/haccp_stale_archive`;
+  const payload = item.data || {};
+  const archiveDoc = {
+    ...payload,
+    _originalDocId: item._docId || '',
+    _originalCollection: item._collectionPath || '',
+    _queuedAt: item._queuedAt || null,
+    _archivedAt: new Date().toISOString(),
+    _reason: 'stale-payload-rejected-by-rules',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  try {
+    await db.collection(archivePath).add(archiveDoc);
+    console.info(`[CharcuLogic Sync] Stale HACCP-Eintrag in ${archivePath} archiviert.`);
+    if (qaState.active) qaState.log(`[QA] Stale-Archiv: ${item._docId}`);
+    return true;
+  } catch (archiveErr) {
+    console.warn('[CharcuLogic Sync] Stale-Archiv-Fallback fehlgeschlagen:', archiveErr);
+    return false;
+  }
+}
+
+export async function flushOnePendingSync(item) {
+  const db = syncContext.getDatabase();
+  const firebase = syncContext.getFirebase();
+  const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _attempts, data, ...legacyData } = item;
+  if (_syncType === 'haccp' && _collectionPath) {
+    const collectionPath = normalizeTenantCollectionPath(_collectionPath);
+    await db.collection(collectionPath).add({
+      ...legacyData,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  if (_syncType === 'appsScript') {
+    await fetch(syncContext.appsScriptWebAppUrl, {
+      method: 'POST', mode: 'no-cors', keepalive: true,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(data || legacyData),
+    });
+    return;
+  }
+  if (_syncType === 'firestore-doc') {
+    const collectionPath = normalizeTenantCollectionPath(_collectionPath);
+    const ref = db.collection(collectionPath).doc(_docId);
+    try {
+      if (_op === 'delete') {
+        await ref.delete();
+      } else if (_op === 'set') {
+        await ref.set(data || {}, { merge: false });
+      } else {
+        await ref.update(data || {});
+      }
+    } catch (err) {
+      if (isPermissionOrExistsError(err) && _op !== 'delete') {
+        if (isStaleHaccpPayload(item)) {
+          const archived = await tryStaleArchiveFallback(item);
+          if (archived) return;
+        }
+
+        try {
+          const match = await verifyDocContentOnServer(ref, data || {});
+          if (match) {
+            console.info(`[CharcuLogic Sync] Idempotent-Retry: ${_docId} bereits identisch auf Server, Queue-Eintrag aufgelöst.`);
+            if (qaState.active) qaState.log(`[QA] Idempotent-OK: ${_docId}`);
+            return;
+          }
+        } catch (verifyErr) {
+          if (verifyErr instanceof ServerGetFailedError) {
+            console.warn(`[CharcuLogic Sync] Server-Get für ${_docId} fehlgeschlagen — Eintrag bleibt sicher in Queue.`);
+            if (qaState.active) qaState.log(`[QA] Server-Get fehlgeschlagen: ${_docId} bleibt in Queue`);
+            throw verifyErr;
+          }
+          throw err;
+        }
+      }
+      throw err;
+    }
+  }
+}
+
+// Lie-Fi Schutz: Hartes Timeout für alle Firestore-Schreiboperationen.
+// Verhindert, dass das SDK bei Schein-Online (navigator.onLine === true,
+// aber kein echtes Netz) unendlich blockiert und die UI einfriert.
+const WRITE_TIMEOUT_MS = 3500;
+
+class NetworkTimeoutError extends Error {
+  constructor(ms) {
+    super(`Firestore-Schreibvorgang hat nach ${ms}ms nicht geantwortet (Lie-Fi vermutet).`);
+    this.name = 'NetworkTimeoutError';
+    this.code = 'network-timeout';
+  }
+}
+
+function withTimeout(promise, ms = WRITE_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new NetworkTimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+export async function safeServerWrite(collectionPath, payload) {
+  const db = syncContext.getDatabase();
+  if (!navigator.onLine || !syncContext.isFirebaseReady() || !db) {
+    if (typeof window.updateOnlineStatusUi === 'function') window.updateOnlineStatusUi(false);
+    throw new NetworkTimeoutError(0);
+  }
+  const normalized = normalizeTenantCollectionPath(collectionPath);
+  try {
+    return await withTimeout(db.collection(normalized).add(payload));
+  } catch (err) {
+    if (err?.name === 'NetworkTimeoutError' && typeof window.updateOnlineStatusUi === 'function') {
+      window.updateOnlineStatusUi(false);
+    }
+    throw err;
+  }
+}
+
+export async function writeFirestoreDocOrQueue({ collectionPath, docId, op = 'update', onlineData = {}, queueData = onlineData, offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfugbar." }) {
+  const db = syncContext.getDatabase();
+  if (!collectionPath || !docId) throw new Error('Firestore-Ziel fehlt');
+  const normalizedCollectionPath = normalizeTenantCollectionPath(collectionPath);
+
+  if (!navigator.onLine || !syncContext.isFirebaseReady() || !db) {
+    const saved = addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: normalizedCollectionPath,
+      _docId: docId,
+      _op: op,
+      data: queueData,
+    });
+    if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
+    window.showToast?.("MHD offline gespeichert (Warteschlange)", "warning");
+    return 'queued';
+  }
+
+  try {
+    if (qaState.active && qaState.latency) {
+      qaState.log(`[QA] Latenz 5000ms auf ${op} ${docId}`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+
+    const ref = db.collection(normalizedCollectionPath).doc(docId);
+    let writePromise;
+    if (op === 'delete') {
+      writePromise = ref.delete();
+    } else if (op === 'set') {
+      writePromise = ref.set(onlineData, { merge: false });
+    } else {
+      writePromise = ref.update(onlineData);
+    }
+    await withTimeout(writePromise);
+
+    if (qaState.active && qaState.teardown) {
+      qaState.log(`[QA] Abreißer: Schreiben für ${docId} lokal als gescheitert simuliert`);
+      throw new Error('[QA-Teardown] Simulierter Netzwerk-Abreißer nach Firebase-Trigger');
+    }
+
+    return 'written';
+  } catch (err) {
+    const errorCode = String(err?.code || '').toLowerCase();
+    if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
+      window.showToast?.("Keine Schreibberechtigung für diesen Datensatz.", "error");
+      throw err;
+    }
+    const saved = addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: normalizedCollectionPath,
+      _docId: docId,
+      _op: op,
+      data: queueData,
+    });
+    if (!saved) throw err;
+    const isTimeout = err?.name === 'NetworkTimeoutError';
+    if (isTimeout && typeof window.updateOnlineStatusUi === 'function') {
+      window.updateOnlineStatusUi(false);
+    }
+    window.showToast?.("MHD offline gespeichert (Warteschlange)", "warning");
+    return 'queued';
+  }
+}
+
+export async function flushPendingSyncs() {
+  if (flushInFlight) return;
+  flushInFlight = true;
+  const queue = getPendingSyncs();
+  try {
+    if (!queue.length) return;
+    if (!syncContext.isFirebaseReady() || !syncContext.getDatabase()) return;
+    requireTenantId();
+
+    const failed = [];
+    for (const item of queue) {
+      if (!isValidPendingSync(item)) {
+        saveDeadPendingSync(item, new Error('Ungultiger Queue-Eintrag'));
+        continue;
+      }
+      try {
+        await flushOnePendingSync(item);
+      } catch (err) {
+        console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
+        const attempts = (item._attempts || 0) + 1;
+        if (attempts >= 5) {
+          saveDeadPendingSync({ ...item, _attempts: attempts }, err);
+        } else {
+          failed.push({ ...item, _attempts: attempts });
+        }
+      }
+    }
+    savePendingSyncs(failed);
+    updateSyncIndicator();
+    if (failed.length === 0 && queue.length > 0) {
+      window.showToast?.("Alle Offline-Daten synchronisiert!", "success");
+    }
+  } finally {
+    flushInFlight = false;
+  }
+}
+
+export function updateSyncIndicator() {
+  const dot = document.getElementById('sync-status-dot');
+  const count = document.getElementById('sync-pending-count');
+  if (!dot) return;
+  const pending = getPendingSyncs();
+  const isOnline = navigator.onLine;
+
+  if (pending.length > 0) {
+    dot.className = 'sync-dot sync-dot--pending';
+    dot.title = `${pending.length} Eintrage warten auf Sync`;
+    if (count) { count.textContent = pending.length; count.style.display = 'inline'; }
+  } else if (!isOnline) {
+    dot.className = 'sync-dot sync-dot--offline';
+    dot.title = 'Offline';
+    if (count) count.style.display = 'none';
+  } else {
+    dot.className = 'sync-dot sync-dot--ok';
+    dot.title = 'Online & synchronisiert';
+    if (count) count.style.display = 'none';
+  }
+}
