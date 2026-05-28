@@ -1881,24 +1881,22 @@ async function markMhdAction(id, actionStatus) {
   }
 };
 
-function deleteMhdPosten(id) {
-  mhdState.verifyAdminAction(async () => {
-    try {
-      await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdCollectionPath(),
-        docId: id,
-        op: 'delete',
-        onlineData: {},
-        queueData: {},
-        offlineMessage: "Löschung wird nachträglich synchronisiert.",
-      });
-      mhdState.showHUD("Gelöscht", "Der Posten wurde entfernt oder zur Löschung vorgemerkt.");
-      resetScanState({ keepLearnOverlay: false });
-    } catch (err) {
-      console.error('[CharcuLogic Firebase] Posten löschen fehlgeschlagen:', err);
-      mhdState.showHUD("Fehler", "Posten konnte nicht gelöscht werden.", "!");
-    }
-  });
+async function deleteMhdPosten(id) {
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: id,
+      op: 'delete',
+      onlineData: {},
+      queueData: {},
+      offlineMessage: "Löschung wird nachträglich synchronisiert.",
+    });
+    mhdState.showHUD("Gelöscht", "Der Posten wurde entfernt oder zur Löschung vorgemerkt.");
+    resetScanState({ keepLearnOverlay: false });
+  } catch (err) {
+    console.error('[CharcuLogic Firebase] Posten löschen fehlgeschlagen:', err);
+    mhdState.showHUD("Fehler", "Posten konnte nicht gelöscht werden.", "!");
+  }
 };
 
 function showRecentReceipts() {

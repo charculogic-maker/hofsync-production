@@ -151,7 +151,7 @@ service cloud.firestore {
           || request.resource.data.tenantId == tenantId
         );
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isTenantUser(tenantId);
     }
 
     // =========================================================================
@@ -173,7 +173,7 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId
         && isIntGteZero(request.resource.data.itemCount);
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isTenantUser(tenantId);
     }
 
     // =========================================================================

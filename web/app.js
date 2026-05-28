@@ -1137,7 +1137,11 @@ async function bootstrapAuthenticatedApp() {
   updateSyncIndicator();
   loadMhdFromCloud();
   importMhdBestandToCloud();
-  importBratwurstRecipesToCloud().then(() => loadRecipesFromCloud());
+  if (authSession?.isAdmin) {
+    importBratwurstRecipesToCloud().then(() => loadRecipesFromCloud());
+  } else {
+    loadRecipesFromCloud();
+  }
   loadProductionBatchesFromCloud();
   flushPendingSyncs();
   flushErrorTelemetry();
