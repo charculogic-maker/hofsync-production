@@ -448,9 +448,9 @@ body {
 }
 
 .nav-item span {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   text-transform: uppercase;
 }
 
@@ -471,6 +471,37 @@ body {
   height: 5px;
   border-radius: 50%;
   background-color: var(--primary-color);
+}
+
+.nav-unread-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 22px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #c62828;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.team-inbox-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-sm);
+  background: #fff8e1;
+  border: 1px solid rgba(245, 124, 0, 0.35);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.team-inbox-section {
+  margin-bottom: 14px;
 }
 
 /* Home Indicator Overlay */
@@ -4226,4 +4257,322 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 [data-theme="dark"] .task-token--gruen {
   background: rgba(46, 125, 50, 0.12);
+}
+
+.task-token--overdue {
+  box-shadow: inset 0 0 0 2px rgba(183, 28, 28, 0.45);
+}
+
+.task-date-range-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.customer-order-section {
+  margin-bottom: 14px;
+}
+
+.customer-order-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.customer-order-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.customer-order-contact-grid,
+.customer-order-ready-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.customer-order-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.customer-order-lines-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.order-lines-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-line-card {
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.order-line-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.order-line-remove {
+  margin-top: 8px;
+}
+
+.customer-order-wish-tags {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.customer-order-notes {
+  min-height: 64px;
+}
+
+.customer-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.customer-order-card {
+  padding: 12px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.customer-order-card--open {
+  border-left: 4px solid #f57f17;
+}
+
+.customer-order-card--ready {
+  border-left: 4px solid #2e7d32;
+}
+
+.customer-order-card--picked_up,
+.customer-order-card--cancelled {
+  border-left: 4px solid #9e9e9e;
+  opacity: 0.85;
+}
+
+.customer-order-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.customer-order-badge {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.customer-order-meta {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.customer-order-items {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.customer-order-item-meta {
+  color: var(--text-muted);
+}
+
+.customer-order-wishes {
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.customer-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-compact {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.team-compose-section {
+  margin-bottom: 14px;
+}
+
+.team-info-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.team-info-card {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--border-radius-sm);
+  background: #e3f2fd;
+  border: 1px solid rgba(21, 101, 192, 0.2);
+}
+
+.team-info-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-info-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.team-info-title {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.team-info-body {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.team-info-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.task-token-overdue-label {
+  color: #b71c1c;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.order-slip-upload {
+  margin-top: 4px;
+}
+
+.customer-order-slips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.customer-order-slip-thumb img {
+  max-width: 120px;
+  max-height: 80px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.customer-order-slip-link {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .team-info-card {
+  background: rgba(21, 101, 192, 0.15);
+}
+
+.team-push-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.team-push-toggle-wrap input {
+  width: 20px;
+  height: 20px;
+}
+
+.team-config-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.team-config-group-row {
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 6px;
+}
+
+.admin-team-config-block {
+  margin-bottom: 16px;
+}
+
+.team-hub-panel {
+  padding-bottom: 8px;
+}
+
+.team-login-reminder {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-sm);
+  background: #fff8e1;
+  border: 1px solid rgba(245, 127, 23, 0.35);
+  font-size: 13px;
+}
+
+.team-login-reminder.hidden {
+  display: none;
+}
+
+.team-subnav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.team-subnav-btn {
+  min-height: var(--touch-target-size);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.team-subnav-btn.active {
+  border-color: var(--primary-color);
+  background: var(--primary-subtle);
+  color: var(--primary-color);
+}
+
+.team-panel.hidden {
+  display: none;
 }

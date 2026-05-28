@@ -1136,7 +1136,10 @@ function showLearnModeDialog(ean) {
   if (btnLearnSave) btnLearnSave.textContent = 'Wareneingang speichern';
   if (inputName) inputName.value = productInfo?.name || document.getElementById('we-product-manual')?.value.trim() || '';
   if (inputBrand) inputBrand.value = productInfo?.brand || document.getElementById('we-supplier')?.value.trim() || '';
-  if (inputMhd && document.getElementById('we-mhd')?.value) inputMhd.value = document.getElementById('we-mhd').value;
+  if (inputMhd && document.getElementById('we-mhd')?.value) {
+    const isoMhd = normalizeDateInputToIso(document.getElementById('we-mhd').value);
+    if (isoMhd) inputMhd.value = isoMhd;
+  }
   if (inputQty && document.getElementById('we-qty')?.value) {
     inputQty.value = String(Math.max(1, parseFloat(document.getElementById('we-qty').value) || 1));
   }
@@ -2089,8 +2092,7 @@ function readDeliveryHeadValues() {
   const supplier = document.getElementById('we-supplier')?.value.trim() || '';
   const warenKategorie = document.getElementById('we-category-quick')?.value || 'Trockenware';
   const warenKategorieMetzgerei = document.getElementById('we-category')?.value || 'Fremdfleisch';
-  const tempRaw = String(document.getElementById('we-temperature')?.value ?? '').trim();
-  const temperatur = tempRaw === '' ? null : parseFloat(tempRaw.replace(',', '.'));
+  const temperatur = getReceivingTemperatureValue();
   return { supplier, warenKategorie, warenKategorieMetzgerei, temperatur };
 }
 
@@ -2110,6 +2112,109 @@ function getReceivingQtyUnitFromCategory(warenKategorie = '') {
     return 'Stk';
   }
   return 'kg';
+}
+
+function isIsoDateLike(value = '') {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+}
+
+function isDottedDateLike(value = '') {
+  return /^\d{2}\.\d{2}\.\d{4}$/.test(String(value).trim());
+}
+
+function isValidDateParts(year, month, day) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() + 1 === month && parsed.getUTCDate() === day;
+}
+
+function dottedDateToIso(value = '') {
+  const raw = String(value).trim();
+  if (!isDottedDateLike(raw)) return '';
+  const [dayStr, monthStr, yearStr] = raw.split('.');
+  const day = Number.parseInt(dayStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  const year = Number.parseInt(yearStr, 10);
+  if (!isValidDateParts(year, month, day)) return '';
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function isoDateToDotted(value = '') {
+  const raw = String(value).trim();
+  if (!isIsoDateLike(raw)) return '';
+  const [yearStr, monthStr, dayStr] = raw.split('-');
+  const year = Number.parseInt(yearStr, 10);
+  const month = Number.parseInt(monthStr, 10);
+  const day = Number.parseInt(dayStr, 10);
+  if (!isValidDateParts(year, month, day)) return '';
+  return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).padStart(4, '0')}`;
+}
+
+function normalizeDateInputToIso(value = '') {
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (isIsoDateLike(raw)) return isoDateToDotted(raw) ? raw : '';
+  if (isDottedDateLike(raw)) return dottedDateToIso(raw);
+  return '';
+}
+
+function normalizeDateInputToDotted(value = '') {
+  const raw = String(value).trim();
+  if (!raw) return '';
+  if (isDottedDateLike(raw)) return dottedDateToIso(raw) ? raw : '';
+  if (isIsoDateLike(raw)) return isoDateToDotted(raw);
+  return '';
+}
+
+function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
+  const normalized = String(warenKategorie).trim().toLowerCase();
+  return normalized.includes('kühl') || normalized.includes('kuehl') || normalized === 'tk';
+}
+
+function getReceivingTemperatureInputs() {
+  return {
+    quick: document.getElementById('we-temperature'),
+    metz: document.getElementById('we-temperature-metz'),
+  };
+}
+
+function readTemperatureFromInput(inputEl) {
+  if (!inputEl) return null;
+  const raw = String(inputEl.value ?? '').trim();
+  if (!raw) return null;
+  const parsed = parseFloat(raw.replace(',', '.'));
+  return Number.isNaN(parsed) ? Number.NaN : parsed;
+}
+
+function getReceivingTemperatureValue() {
+  const { quick, metz } = getReceivingTemperatureInputs();
+  const quickValue = readTemperatureFromInput(quick);
+  if (quickValue !== null) return quickValue;
+  return readTemperatureFromInput(metz);
+}
+
+function setReceivingTemperatureValue(value) {
+  const { quick, metz } = getReceivingTemperatureInputs();
+  const next = value == null || Number.isNaN(value) ? '' : String(value);
+  if (quick) quick.value = next;
+  if (metz) metz.value = next;
+}
+
+function updateReceivingTemperatureFieldUi() {
+  const categoryQuickSelect = document.getElementById('we-category-quick');
+  const wrap = document.getElementById('we-temperature-quick-wrap');
+  const { quick } = getReceivingTemperatureInputs();
+  const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
+  if (wrap) {
+    wrap.classList.toggle('hidden', !requiresTemperature);
+    wrap.hidden = !requiresTemperature;
+  }
+  if (quick) {
+    quick.required = requiresTemperature;
+    quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
+    if (!requiresTemperature) quick.value = '';
+  }
 }
 
 function updateReceivingQtyFieldUi() {
@@ -2158,7 +2263,8 @@ function readDeliveryItemDraftValues() {
   const qtyUnit = getReceivingQtyUnitFromCategory(category);
   const qtyRaw = parseFloat(String(document.getElementById('we-qty')?.value || '').replace(',', '.'));
   const qtyValue = qtyUnit === 'Stk' ? Math.round(qtyRaw) : qtyRaw;
-  const mhdDate = document.getElementById('we-mhd')?.value || '';
+  const mhdRaw = document.getElementById('we-mhd')?.value || '';
+  const mhdDate = normalizeDateInputToIso(mhdRaw);
   return { product, barcode, qtyValue, qtyUnit, mhdDate };
 }
 
@@ -2221,13 +2327,15 @@ async function loadDeliveryDraftFromIndexedDB() {
       const supplierEl = document.getElementById('we-supplier');
       const categoryEl = document.getElementById('we-category');
       const categoryQuickEl = document.getElementById('we-category-quick');
-      const tempEl = document.getElementById('we-temperature');
       if (supplierEl && payload.head.supplier) supplierEl.value = payload.head.supplier;
       if (categoryEl && payload.head.warenKategorieMetzgerei) categoryEl.value = payload.head.warenKategorieMetzgerei;
       if (categoryQuickEl && payload.head.warenKategorie) categoryQuickEl.value = payload.head.warenKategorie;
-      if (tempEl && payload.head.temperatur != null && !Number.isNaN(payload.head.temperatur)) {
-        tempEl.value = String(payload.head.temperatur);
+      if (payload.head.temperatur != null && !Number.isNaN(payload.head.temperatur)) {
+        setReceivingTemperatureValue(payload.head.temperatur);
+      } else {
+        setReceivingTemperatureValue('');
       }
+      updateReceivingTemperatureFieldUi();
     }
     renderDeliveryPhotoPreviews();
     renderDeliveryItemsTable();
@@ -2331,7 +2439,7 @@ function clearDeliveryItemFields() {
   if (eanEl) eanEl.value = '';
   if (manualEl) manualEl.value = '';
   if (qtyEl) qtyEl.value = '1';
-  if (mhdEl) mhdEl.value = new Date().toISOString().slice(0, 10);
+  if (mhdEl) mhdEl.value = isoDateToDotted(new Date().toISOString().slice(0, 10));
   updateDeliveryItemProductUi();
 }
 
@@ -2353,7 +2461,7 @@ function addDeliveryItem() {
     return;
   }
   if (!mhdDate) {
-    mhdState.showHUD('MHD fehlt', 'Bitte ein MHD-Datum wählen.', '!');
+    mhdState.showHUD('MHD fehlt', 'Bitte MHD im Format dd.mm.yyyy eingeben.', '!');
     document.getElementById('we-mhd')?.focus();
     return;
   }
@@ -2528,12 +2636,9 @@ function updateDraftEditingBanner() {
 }
 
 async function applyDeliveryTemperatureGuard(head) {
-  const tempRelevantCategory = String(head.warenKategorieMetzgerei || head.warenKategorie || '').toLowerCase();
-  const isDryGoods = tempRelevantCategory.includes('trocken')
-    || tempRelevantCategory.includes('gewürze')
-    || tempRelevantCategory.includes('gewuerze');
-  if (!isDryGoods && (head.temperatur === null || Number.isNaN(head.temperatur))) {
-    mhdState.showHUD('Temperatur fehlt', 'Bei dieser Waren-Kategorie ist die Temperatur Pflicht.', '!');
+  const requiresTemperature = isTemperatureCheckRequiredForCategory(head.warenKategorie);
+  if (requiresTemperature && (head.temperatur === null || Number.isNaN(head.temperatur))) {
+    mhdState.showHUD('Temperatur fehlt', 'Bei TK/Kühlware ist die initiale Temperatur Pflicht.', '!');
     document.getElementById('we-temperature')?.focus();
     return null;
   }
@@ -2541,7 +2646,7 @@ async function applyDeliveryTemperatureGuard(head) {
   let mhdItemStatus = 'aktiv';
   let meisterOverrideReason = '';
 
-  if (!isDryGoods && head.temperatur > HACCP_TEMP_LIMIT_C) {
+  if (requiresTemperature && head.temperatur > HACCP_TEMP_LIMIT_C) {
     const override = await showMeisterOverrideModal(head.temperatur);
     if (!override.approved) return null;
     mhdItemStatus = 'APPROVED_WITH_OVERRIDE';
@@ -2657,15 +2762,15 @@ function openDraftForEditing(draft) {
   const supplierEl = document.getElementById('we-supplier');
   const categoryEl = document.getElementById('we-category');
   const categoryQuickEl = document.getElementById('we-category-quick');
-  const tempEl = document.getElementById('we-temperature');
   if (supplierEl) supplierEl.value = draft.lieferant || '';
   if (categoryEl) categoryEl.value = draft.warenKategorieMetzgerei || 'Fremdfleisch';
   if (categoryQuickEl) categoryQuickEl.value = draft.warenKategorie || 'Trockenware';
-  if (tempEl && draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
-    tempEl.value = String(draft.temperatur);
-  } else if (tempEl) {
-    tempEl.value = '';
+  if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
+    setReceivingTemperatureValue(draft.temperatur);
+  } else {
+    setReceivingTemperatureValue('');
   }
+  updateReceivingTemperatureFieldUi();
 
   loadDraftPhotosFromBundle(draft.fotos);
   renderDeliveryItemsTable();
@@ -2763,7 +2868,7 @@ function resetReceivingForm() {
     'we-ean': '',
     'we-product-manual': '',
     'we-qty': '1',
-    'we-mhd': today,
+    'we-mhd': isoDateToDotted(today),
     'we-supplier': '',
     'we-category': 'Fremdfleisch',
     'we-category-quick': 'Trockenware',
@@ -2773,6 +2878,8 @@ function resetReceivingForm() {
     const el = document.getElementById(id);
     if (el) el.value = value;
   });
+  setReceivingTemperatureValue('');
+  updateReceivingTemperatureFieldUi();
 
   const photoInput = document.getElementById('we-photo-input');
   if (photoInput) photoInput.value = '';
@@ -2963,14 +3070,15 @@ async function saveManualReceiving() {
 
 function mhdDateToDisplay(mhdDate) {
   if (!mhdDate) return new Date().toLocaleDateString('de-DE');
-  const parsed = new Date(`${mhdDate}T00:00:00`);
+  const isoDate = normalizeDateInputToIso(mhdDate);
+  const parsed = new Date(`${isoDate}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? new Date().toLocaleDateString('de-DE') : parsed.toLocaleDateString('de-DE');
 }
 
 function ensureReceivingFormDefaults() {
   const mhdInput = document.getElementById('we-mhd');
   if (mhdInput && !mhdInput.value) {
-    mhdInput.value = new Date().toISOString().slice(0, 10);
+    mhdInput.value = isoDateToDotted(new Date().toISOString().slice(0, 10));
   }
 }
 
@@ -3074,6 +3182,9 @@ function bindReceivingControls() {
   const fallbackManualBarcodeInput = document.getElementById('manual-barcode-input');
   const btnFallbackManualBarcodeSubmit = document.getElementById('btn-manual-barcode-fallback-submit');
   const scannerManualEntry = document.getElementById('scanner-manual-entry');
+  const mhdInput = document.getElementById('we-mhd');
+  const temperatureQuickInput = document.getElementById('we-temperature');
+  const temperatureMetzInput = document.getElementById('we-temperature-metz');
   const openScannerOrFallback = async () => {
     updateManualBarcodeFallback();
     if (isCameraBlockedForPwa()) {
@@ -3091,11 +3202,58 @@ function bindReceivingControls() {
     }
   };
   updateReceivingSaveButtonState();
+  if (mhdInput && mhdInput.dataset.mhdDateFormatBound !== '1') {
+    mhdInput.dataset.mhdDateFormatBound = '1';
+    const initialDotted = normalizeDateInputToDotted(mhdInput.value);
+    if (initialDotted) mhdInput.value = initialDotted;
+    mhdInput.addEventListener('input', () => {
+      const digits = String(mhdInput.value || '').replace(/\D/g, '').slice(0, 8);
+      let formatted = digits;
+      if (digits.length > 2 && digits.length <= 4) {
+        formatted = `${digits.slice(0, 2)}.${digits.slice(2)}`;
+      } else if (digits.length > 4) {
+        formatted = `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+      }
+      if (mhdInput.value !== formatted) mhdInput.value = formatted;
+    });
+    mhdInput.addEventListener('blur', () => {
+      const dotted = normalizeDateInputToDotted(mhdInput.value);
+      if (dotted) {
+        mhdInput.value = dotted;
+        return;
+      }
+      if (mhdInput.value) {
+        window.showToast?.('Bitte MHD im Format dd.mm.yyyy eingeben.', 'warning');
+      }
+    });
+  }
   if (categoryQuickSelect && categoryQuickSelect.dataset.mhdBound !== '1') {
     categoryQuickSelect.dataset.mhdBound = '1';
     categoryQuickSelect.value = categoryQuickSelect.value || 'Trockenware';
-    categoryQuickSelect.addEventListener('change', updateReceivingSaveButtonState);
+    categoryQuickSelect.addEventListener('change', () => {
+      updateReceivingTemperatureFieldUi();
+      updateReceivingSaveButtonState();
+    });
   }
+  if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
+    temperatureQuickInput.dataset.mhdBound = '1';
+    temperatureQuickInput.addEventListener('input', () => {
+      if (temperatureMetzInput && temperatureMetzInput.value !== temperatureQuickInput.value) {
+        temperatureMetzInput.value = temperatureQuickInput.value;
+      }
+      updateReceivingSaveButtonState();
+    });
+  }
+  if (temperatureMetzInput && temperatureMetzInput.dataset.mhdBound !== '1') {
+    temperatureMetzInput.dataset.mhdBound = '1';
+    temperatureMetzInput.addEventListener('input', () => {
+      if (temperatureQuickInput && temperatureQuickInput.value !== temperatureMetzInput.value) {
+        temperatureQuickInput.value = temperatureMetzInput.value;
+      }
+      updateReceivingSaveButtonState();
+    });
+  }
+  updateReceivingTemperatureFieldUi();
   RECEIVING_FORM_IDS.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
     if (!field || field.dataset.mhdBound === '1') return;

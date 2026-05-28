@@ -2,51 +2,28 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    function isAuthenticated() {
+    // --- HILFSFUNKTIONEN ---
+    function istAngemeldet() {
       return request.auth != null;
     }
-
-    function hasTenantClaim(tenantId) {
-      return isAuthenticated()
-        && request.auth.token.tenantId is string
-        && request.auth.token.tenantId == tenantId;
+    
+    function istAdmin() {
+      return istAngemeldet() && request.auth.token.isAdmin == true;
     }
 
-    function profilePath() {
-      return /databases/(default)/documents/users/$(request.auth.uid);
+    // --- BULLETIN UPLOADS ---
+    match /tenants/{tenantId}/bulletin/{allPaths=**} {
+      allow read: if istAngemeldet();
+      allow write: if istAdmin()
+                   && request.resource.size < 12 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
     }
 
-    function hasTenantProfile(tenantId) {
-      return isAuthenticated()
-        && firestore.exists(profilePath())
-        && firestore.get(profilePath()).data.tenantId is string
-        && firestore.get(profilePath()).data.tenantId == tenantId;
-    }
-
-    function isTenantUser(tenantId) {
-      return hasTenantClaim(tenantId) || hasTenantProfile(tenantId);
-    }
-
-    function isAdmin(tenantId) {
-      return isTenantUser(tenantId)
-        && (
-          request.auth.token.role == 'admin'
-          || request.auth.token.admin == true
-          || (
-            firestore.exists(profilePath())
-            && firestore.get(profilePath()).data.role == 'admin'
-          )
-        );
-    }
-
-    match /tenants/{tenantId}/bulletin/{fileName} {
-      allow read: if isTenantUser(tenantId);
-      allow write: if isAdmin(tenantId)
-        && request.resource.size < 12 * 1024 * 1024
-        && (
-          request.resource.contentType.matches('image/.*')
-          || request.resource.contentType == 'application/pdf'
-        );
+    match /tenants/{tenantId}/order_slips/{allPaths=**} {
+      allow read: if istAngemeldet();
+      allow write: if istAngemeldet()
+                   && request.resource.size < 12 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
     }
   }
 }

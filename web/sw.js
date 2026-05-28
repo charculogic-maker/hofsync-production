@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260528-48';
+const CACHE_NAME = 'charculogic-v20260528-50';
 const CACHE_SCHEMA = 'phase-5-ui-refresh-foundation';
 
 const CRITICAL_ASSETS = [
@@ -11,6 +11,10 @@ const CRITICAL_ASSETS = [
   '/libs/firebase-storage.js',
   '/app.js',
   '/teamboard.js',
+  '/team-tab.js',
+  '/team-config.js',
+  '/team-notify.js',
+  '/customer-orders.js',
   '/auth.js',
   '/scanner.js',
   '/mhd.js',
@@ -92,6 +96,32 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+
+  if (event.data?.type === 'SHOW_NOTIFICATION') {
+    const payload = event.data.payload || {};
+    const title = payload.title || 'CharcuLogic Team';
+    const options = {
+      body: payload.body || '',
+      tag: payload.tag || 'team-entry',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: payload.url || '/' },
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  }
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((c) => c.url && 'focus' in c);
+      if (existing) return existing.focus();
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+      return undefined;
+    }),
+  );
 });
 
 const OFFLINE_FALLBACK_HTML = [

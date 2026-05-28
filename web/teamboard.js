@@ -4,10 +4,19 @@
 
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
+import { getTeamEmployees, getTeamGroups } from './team-config.js';
+import { handleTasksSnapshotForNotify, resetTeamNotifyBootstrap } from './team-notify.js';
 
-export const TEAM_EMPLOYEES = ['Stephie', 'Finn', 'Nicole', 'Bettina', 'Heiko', 'Paddy'];
 export const TEAM_SHIFTS = ['Frühschicht', 'Spätschicht'];
 export const TASK_PRIORITIES = ['Rot', 'Gelb', 'Grün'];
+
+export function getTeamEmployeesList() {
+  return getTeamEmployees();
+}
+
+export function getTeamGroupsMap() {
+  return getTeamGroups();
+}
 const EMPLOYEE_PINS = {
   Stephie: '1122',
   Finn: '2233',
@@ -51,6 +60,141 @@ function todayIsoLocal() {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** Firestore-Regeln erwarten kurze ISO-Datumsstrings (YYYY-MM-DD). */
+function normalizeDateField(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (us) {
+    return `${us[3]}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
+  }
+  const de = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (de) {
+    return `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}`;
+  }
+  return null;
+}
+
+function isIsoDateInRange(dayIso, fromIso, untilIso) {
+  if (!dayIso) return false;
+  const from = fromIso || untilIso || dayIso;
+  const until = untilIso || fromIso || from;
+  return dayIso >= from && dayIso <= until;
+}
+
+function toIsoDateString(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') return normalizeDateField(value);
+  if (typeof value?.toDate === 'function') {
+    const d = value.toDate();
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return null;
+}
+
+function employeeNameMatch(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function normalizeTaskRecord(task) {
+  if (!task) return task;
+  return {
+    ...task,
+    validFrom: toIsoDateString(task.validFrom),
+    validUntil: toIsoDateString(task.validUntil),
+    targetDate: toIsoDateString(task.targetDate),
+    dueDate: toIsoDateString(task.dueDate),
+  };
+}
+
+function taskVisibleOnDay(task, dayIso) {
+  if (!task) return false;
+  const today = dayIso || todayIsoLocal();
+  const from = toIsoDateString(task.validFrom);
+  const until = toIsoDateString(task.validUntil);
+  const target = toIsoDateString(task.targetDate);
+
+  if (from || until) {
+    return isIsoDateInRange(today, from || target, until || target);
+  }
+  if (target) return target === today;
+  return true;
+}
+
+function isTaskOverdue(task) {
+  if (!task || task.status !== 'open' || !task.dueDate) return false;
+  return task.dueDate < todayIsoLocal();
+}
+
+function formatTaskScheduleLabel(task) {
+  const parts = [];
+  const from = task.validFrom || task.targetDate;
+  const until = task.validUntil;
+  if (from && until && from !== until) {
+    parts.push(`${from} – ${until}`);
+  } else if (from) {
+    parts.push(from);
+  }
+  if (task.dueDate) {
+    parts.push(`fällig ${task.dueDate}`);
+  }
+  return parts.join(' · ');
+}
+
+function getNextShiftInfo() {
+  const now = new Date();
+  const hour = now.getHours();
+  const today = todayIsoLocal();
+  if (hour < 14) {
+    return { context: 'Spätschicht', validFrom: today, validUntil: today };
+  }
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const y = tomorrow.getFullYear();
+  const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const d = String(tomorrow.getDate()).padStart(2, '0');
+  return { context: 'Frühschicht', validFrom: `${y}-${m}-${d}`, validUntil: `${y}-${m}-${d}` };
+}
+
+function resolveAudienceMembers(task) {
+  const type = task?.audienceType || null;
+  const employees = getTeamEmployees();
+  const groups = getTeamGroups();
+  if (type === 'all') return [...employees];
+  if (type === 'group' && task.audienceGroup && groups[task.audienceGroup]) {
+    return [...groups[task.audienceGroup].members];
+  }
+  if (type === 'persons' && Array.isArray(task.audienceMembers)) {
+    return task.audienceMembers.filter((n) => employees.includes(n));
+  }
+  if (type === 'person' && task.assignedTo) return [task.assignedTo];
+  return [];
+}
+
+export function formatAudienceLabel(task) {
+  const type = task?.audienceType || null;
+  if (type === 'all') return 'Alle';
+  if (type === 'group' && task.audienceGroup) {
+    return getTeamGroups()[task.audienceGroup]?.label || task.audienceGroup;
+  }
+  if (type === 'persons' && Array.isArray(task.audienceMembers) && task.audienceMembers.length) {
+    return task.audienceMembers.join(', ');
+  }
+  if (type === 'next_shift') return `Nächste Schicht (${task.context || '–'})`;
+  if (type === 'shift' || task.context) return task.context || 'Schicht';
+  if (task.assignedTo) return task.assignedTo;
+  return 'Team';
+}
+
+function entryKindOf(task) {
+  return task?.entryKind === 'info' ? 'info' : 'task';
 }
 
 export function getActiveEmployeeName() {
@@ -107,13 +251,26 @@ function resolveAuthorName() {
 function taskMatchesViewer(task) {
   if (!task || task.status !== 'open') return false;
   const employee = getActiveEmployeeName();
+  if (!employee) return false;
   const shift = getActiveShift();
   const today = todayIsoLocal();
+  if (!taskVisibleOnDay(task, today)) return false;
 
-  if (task.assignedTo && employee && task.assignedTo === employee) return true;
-  if (!task.assignedTo && task.context === shift) {
-    const targetDate = task.targetDate || today;
-    return targetDate === today;
+  const audienceType = task.audienceType || (task.assignedTo ? 'person' : task.context ? 'shift' : null);
+
+  if (audienceType === 'all') return true;
+  if (audienceType === 'group' || audienceType === 'persons') {
+    return resolveAudienceMembers(task).some((name) => employeeNameMatch(name, employee));
+  }
+  if (audienceType === 'next_shift') {
+    const next = getNextShiftInfo();
+    return task.context === next.context && isIsoDateInRange(today, next.validFrom, next.validUntil);
+  }
+  if (audienceType === 'shift' || (!audienceType && task.context)) {
+    return task.context === shift;
+  }
+  if (audienceType === 'person' || task.assignedTo) {
+    return employeeNameMatch(task.assignedTo, employee);
   }
   return false;
 }
@@ -121,11 +278,13 @@ function taskMatchesViewer(task) {
 function completedTaskMatchesViewer(task) {
   if (!task || task.status !== 'completed') return false;
   const employee = getActiveEmployeeName();
-  const shift = getActiveShift();
-  const completedByViewer = employee && task.completedBy === employee;
-  const assignedToViewer = employee && task.assignedTo === employee;
-  const shiftContextMatch = !task.assignedTo && task.context === shift;
-  return !!(completedByViewer || assignedToViewer || shiftContextMatch);
+  if (!employee) return false;
+  if (employeeNameMatch(task.completedBy, employee)) return true;
+  if (employeeNameMatch(task.assignedTo, employee)) return true;
+  if (task.audienceType === 'all') return true;
+  if (resolveAudienceMembers(task).some((name) => employeeNameMatch(name, employee))) return true;
+  if (!task.assignedTo && task.context && task.context === getActiveShift()) return true;
+  return false;
 }
 
 function toEpochMs(value) {
@@ -213,12 +372,103 @@ function renderBulletinCard(data) {
   `;
 }
 
+function sortOpenEntries(entries) {
+  const prioOrder = { Rot: 0, Gelb: 1, Grün: 2 };
+  return [...entries].sort((a, b) => {
+    const aOver = isTaskOverdue(a) ? 0 : 1;
+    const bOver = isTaskOverdue(b) ? 0 : 1;
+    if (aOver !== bOver) return aOver - bOver;
+    return (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9);
+  });
+}
+
+function renderInfoFeed(tasks) {
+  const lists = [
+    document.getElementById('team-info-feed'),
+    document.getElementById('team-info-feed-start'),
+  ].filter(Boolean);
+  const empties = [
+    document.getElementById('team-info-empty'),
+    document.getElementById('team-info-empty-start'),
+  ].filter(Boolean);
+  if (!lists.length) return;
+
+  const visible = sortOpenEntries(
+    (tasks || []).filter((t) => entryKindOf(t) === 'info' && taskMatchesViewer(t)),
+  );
+
+  if (visible.length === 0) {
+    lists.forEach((list) => { list.innerHTML = ''; });
+    empties.forEach((el) => el.classList.remove('hidden'));
+    updateTeamInboxUi();
+    return;
+  }
+  empties.forEach((el) => el.classList.add('hidden'));
+  const html = visible.map((entry) => {
+    const schedule = formatTaskScheduleLabel(entry);
+    return `
+    <article class="team-info-card" data-task-id="${escapeHtml(entry.id)}">
+      <div class="team-info-card-body">
+        <span class="team-info-kicker">Info · ${escapeHtml(formatAudienceLabel(entry))}${entry.author ? ` · ${escapeHtml(entry.author)}` : ''}</span>
+        <strong class="team-info-title">${escapeHtml(entry.title)}</strong>
+        ${entry.body ? `<p class="team-info-body">${escapeHtml(entry.body).replace(/\n/g, '<br>')}</p>` : ''}
+        ${schedule ? `<span class="team-info-meta">${escapeHtml(schedule)}</span>` : ''}
+      </div>
+      <button type="button" class="task-token-done team-info-quitt" data-task-complete="${escapeHtml(entry.id)}" aria-label="Gelesen quittieren">✓</button>
+    </article>
+  `;
+  }).join('');
+  lists.forEach((list) => { list.innerHTML = html; });
+  updateTeamInboxUi();
+}
+
+function countOpenTeamInbox() {
+  const all = teamboardState.allTasks || [];
+  const infoCount = all.filter((t) => entryKindOf(t) === 'info' && taskMatchesViewer(t)).length;
+  const taskCount = (teamboardState.openTasks || []).length;
+  return { infoCount, taskCount, total: infoCount + taskCount };
+}
+
+function updateTeamInboxUi() {
+  const { infoCount, taskCount, total } = countOpenTeamInbox();
+  const startTab = document.getElementById('tab-teamboard');
+  if (startTab) {
+    let badge = startTab.querySelector('.nav-unread-badge');
+    if (total > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'nav-unread-badge';
+        badge.setAttribute('aria-label', `${total} offene Team-Einträge`);
+        startTab.appendChild(badge);
+      }
+      badge.textContent = String(total);
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  const banner = document.getElementById('team-inbox-banner-start');
+  if (!banner) return;
+  if (!getActiveEmployeeName() || total === 0) {
+    banner.classList.add('hidden');
+    banner.textContent = '';
+    return;
+  }
+  const parts = [];
+  if (infoCount > 0) parts.push(`${infoCount} Info${infoCount > 1 ? 's' : ''}`);
+  if (taskCount > 0) parts.push(`${taskCount} Aufgabe${taskCount > 1 ? 'n' : ''}`);
+  banner.classList.remove('hidden');
+  banner.innerHTML = `<strong>${total} offen für dich:</strong> ${parts.join(' · ')} – siehe unten.`;
+}
+
 function renderTaskTokens(tasks) {
   const list = document.getElementById('task-token-list');
   const empty = document.getElementById('task-token-empty');
   if (!list) return;
 
-  const visible = (tasks || []).filter(taskMatchesViewer);
+  const visible = sortOpenEntries(
+    (tasks || []).filter((t) => entryKindOf(t) === 'task' && taskMatchesViewer(t)),
+  );
   teamboardState.openTasks = visible;
 
   if (visible.length === 0) {
@@ -228,20 +478,26 @@ function renderTaskTokens(tasks) {
   }
 
   if (empty) empty.classList.add('hidden');
-  list.innerHTML = visible.map((task) => `
-    <article class="task-token ${priorityClass(task.priority)}" data-task-id="${escapeHtml(task.id)}">
+  list.innerHTML = visible.map((task) => {
+    const schedule = formatTaskScheduleLabel(task);
+    const overdueClass = isTaskOverdue(task) ? ' task-token--overdue' : '';
+    const overdueLabel = isTaskOverdue(task) ? '<span class="task-token-overdue-label">Überfällig</span>' : '';
+    return `
+    <article class="task-token ${priorityClass(task.priority)}${overdueClass}" data-task-id="${escapeHtml(task.id)}">
       <div class="task-token-body">
         <div class="task-token-prio" aria-hidden="true">${task.priority === 'Rot' ? '🔴' : task.priority === 'Gelb' ? '🟡' : '🟢'}</div>
         <div class="task-token-text">
           <strong class="task-token-title">${escapeHtml(task.title)}</strong>
-          <span class="task-token-route">${escapeHtml(task.assignedTo || task.context || 'Team')}${task.targetDate ? ` · ${escapeHtml(task.targetDate)}` : ''}</span>
+          <span class="task-token-route">${escapeHtml(formatAudienceLabel(task))}${schedule ? ` · ${escapeHtml(schedule)}` : ''} ${overdueLabel}</span>
         </div>
       </div>
-      <button type="button" class="task-token-done" data-task-complete="${escapeHtml(task.id)}" aria-label="Aufgabe erledigt">
+      <button type="button" class="task-token-done" data-task-complete="${escapeHtml(task.id)}" aria-label="Aufgabe erledigt quittieren">
         ✓
       </button>
     </article>
-  `).join('');
+  `;
+  }).join('');
+  updateTeamInboxUi();
 }
 
 function renderTaskHistory(tasks) {
@@ -298,7 +554,7 @@ function renderAdminTaskList(tasks) {
     <div class="admin-task-row ${priorityClass(task.priority)}">
       <div>
         <strong>${escapeHtml(task.title)}</strong>
-        <span>${escapeHtml(task.assignedTo || task.context || '–')} · ${escapeHtml(task.priority)} · ${escapeHtml(task.targetDate || '–')}</span>
+        <span>${escapeHtml(formatAudienceLabel(task))} · ${escapeHtml(task.priority)} · ${escapeHtml(formatTaskScheduleLabel(task) || task.targetDate || '–')}</span>
       </div>
     </div>
   `).join('');
@@ -387,19 +643,40 @@ function bindHistoryFilter() {
 }
 
 function bindTeamHomeEvents() {
+  const onCompleteClick = (event) => {
+    const taskId = event.target.closest('[data-task-complete]')?.dataset.taskComplete;
+    if (taskId) completeTask(taskId);
+  };
+
   const list = document.getElementById('task-token-list');
   if (list && list.dataset.teamboardBound !== '1') {
     list.dataset.teamboardBound = '1';
-    list.addEventListener('click', (event) => {
-      const taskId = event.target.closest('[data-task-complete]')?.dataset.taskComplete;
-      if (taskId) completeTask(taskId);
-    });
+    list.addEventListener('click', onCompleteClick);
   }
 
+  ['team-info-feed', 'team-info-feed-start'].forEach((id) => {
+    const infoFeed = document.getElementById(id);
+    if (infoFeed && infoFeed.dataset.teamboardBound !== '1') {
+      infoFeed.dataset.teamboardBound = '1';
+      infoFeed.addEventListener('click', onCompleteClick);
+    }
+  });
+
   window.addEventListener('charculogic:active-employee-changed', () => {
+    resetTeamNotifyBootstrap();
     subscribeTasks();
     renderTaskHistory(teamboardState.completedTasks);
     refreshTeamLoginUi();
+  });
+  window.addEventListener('charculogic:team-config-changed', () => {
+    refreshAudienceGroupOptions();
+    document.querySelectorAll('[data-audience-persons-list]').forEach((el) => {
+      delete el.dataset.filled;
+    });
+    document.querySelectorAll('form.team-compose-form').forEach((form) => {
+      fillAudiencePersonCheckboxes(form);
+    });
+    subscribeTasks();
   });
   window.addEventListener('charculogic:active-shift-changed', () => {
     const select = document.getElementById('team-shift-select');
@@ -442,6 +719,271 @@ function renderPendingAttachments() {
   `).join('');
 }
 
+function readAudienceFromForm(form) {
+  const audienceType = form.querySelector('[name="audience-type"]')?.value || 'all';
+  const today = todayIsoLocal();
+  const result = {
+    audienceType,
+    audienceGroup: null,
+    audienceMembers: null,
+    assignedTo: null,
+    context: null,
+    targetDate: null,
+    validFrom: null,
+    validUntil: null,
+  };
+
+  if (audienceType === 'group') {
+    result.audienceGroup = form.querySelector('[name="audience-group"]')?.value || null;
+    if (!result.audienceGroup || !getTeamGroups()[result.audienceGroup]) {
+      return { error: 'Bitte Team-Gruppe wählen.' };
+    }
+  } else if (audienceType === 'persons') {
+    const picked = Array.from(form.querySelectorAll('[name="audience-person"]:checked'))
+      .map((el) => el.value)
+      .filter((n) => getTeamEmployees().includes(n));
+    if (picked.length === 0) {
+      return { error: 'Bitte mindestens einen Kollegen auswählen.' };
+    }
+    result.audienceMembers = picked;
+  } else if (audienceType === 'shift') {
+    result.context = form.querySelector('[name="shift-context"]')?.value || null;
+    result.validFrom = normalizeDateField(form.querySelector('[name="valid-from"]')?.value) || today;
+    result.validUntil = normalizeDateField(form.querySelector('[name="valid-until"]')?.value) || result.validFrom;
+    if (!result.context) return { error: 'Bitte Schicht wählen.' };
+    if (result.validFrom > result.validUntil) {
+      return { error: 'Zeitraum „bis“ muss am oder nach „von“ liegen.' };
+    }
+    result.targetDate = result.validFrom;
+  } else if (audienceType === 'next_shift') {
+    const next = getNextShiftInfo();
+    result.context = next.context;
+    result.validFrom = next.validFrom;
+    result.validUntil = next.validUntil;
+    result.targetDate = next.validFrom;
+  } else if (audienceType === 'person') {
+    result.assignedTo = form.querySelector('[name="audience-person-single"]')?.value || null;
+    if (!result.assignedTo) return { error: 'Bitte Kollegen wählen.' };
+    result.validFrom = normalizeDateField(form.querySelector('[name="person-valid-from"]')?.value);
+    result.validUntil = normalizeDateField(form.querySelector('[name="person-valid-until"]')?.value);
+    if (result.validFrom && result.validUntil && result.validFrom > result.validUntil) {
+      return { error: '„Anzeigen bis“ muss am oder nach „Anzeigen ab“ liegen.' };
+    }
+    if (result.validFrom && !result.validUntil) result.validUntil = result.validFrom;
+    if (!result.validFrom && result.validUntil) result.validFrom = result.validUntil;
+    result.targetDate = result.validFrom;
+  }
+
+  return { data: result };
+}
+
+function syncAudiencePanels(form) {
+  const type = form.querySelector('[name="audience-type"]')?.value || 'all';
+  form.querySelectorAll('[data-audience-panel]').forEach((panel) => {
+    const show = panel.dataset.audiencePanel === type;
+    panel.classList.toggle('hidden', !show);
+  });
+  const prioWrap = form.querySelector('[data-compose-priority]');
+  const entryKind = form.querySelector('[name="entry-kind"]:checked')?.value
+    || form.querySelector('[name="entry-kind"]')?.value
+    || 'task';
+  if (prioWrap) prioWrap.classList.toggle('hidden', entryKind === 'info');
+}
+
+function fillAudiencePersonCheckboxes(form) {
+  const container = form.querySelector('[data-audience-persons-list]');
+  if (!container || container.dataset.filled === '1') return;
+  container.dataset.filled = '1';
+  container.innerHTML = getTeamEmployees().map((name) => `
+    <label class="task-routing-option">
+      <input type="checkbox" name="audience-person" value="${escapeHtml(name)}">
+      <span>${escapeHtml(name)}</span>
+    </label>
+  `).join('');
+}
+
+function refreshAudienceGroupOptions() {
+  const groups = getTeamGroups();
+  document.querySelectorAll('select[name="audience-group"]').forEach((select) => {
+    const current = select.value;
+    select.innerHTML = Object.entries(groups)
+      .map(([id, group]) => `<option value="${escapeHtml(id)}">${escapeHtml(group.label)}</option>`)
+      .join('');
+    if (groups[current]) select.value = current;
+  });
+
+  document.querySelectorAll('select[name="audience-person-single"]').forEach((select) => {
+    const current = select.value;
+    const employees = getTeamEmployees();
+    select.innerHTML = `<option value="">Bitte wählen…</option>${employees
+      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+      .join('')}`;
+    if (employees.includes(current)) select.value = current;
+  });
+}
+
+export function mountComposeForms() {
+  const tpl = document.getElementById('team-compose-template');
+  if (!tpl) return;
+  ['team-compose-mount', 'admin-compose-mount'].forEach((mountId) => {
+    const mount = document.getElementById(mountId);
+    if (!mount || mount.dataset.mounted === '1') return;
+    mount.appendChild(tpl.content.cloneNode(true));
+    mount.dataset.mounted = '1';
+  });
+  refreshAudienceGroupOptions();
+  bindComposeForms();
+}
+
+function bindComposeForm(form) {
+  if (!form || form.dataset.composeBound === '1') return;
+  form.dataset.composeBound = '1';
+  fillAudiencePersonCheckboxes(form);
+
+  const audienceSelect = form.querySelector('[name="audience-type"]');
+  audienceSelect?.addEventListener('change', () => syncAudiencePanels(form));
+  form.querySelectorAll('[name="entry-kind"]').forEach((radio) => {
+    radio.addEventListener('change', () => syncAudiencePanels(form));
+  });
+  syncAudiencePanels(form);
+
+  const today = todayIsoLocal();
+  form.querySelectorAll('[name="valid-from"], [name="valid-until"], [name="due-date"]').forEach((el) => {
+    if (el && !el.value) el.value = today;
+  });
+
+  form.querySelectorAll('[data-priority-pick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      form.querySelectorAll('[data-priority-pick]').forEach((b) => b.classList.remove('is-selected'));
+      btn.classList.add('is-selected');
+      const hidden = form.querySelector('[name="priority-value"]');
+      if (hidden) hidden.value = btn.dataset.priorityPick || 'Gelb';
+      teamboardState.playClickSound(700, 0.04, 0.1);
+    });
+  });
+  const defaultPrio = form.querySelector('[data-priority-pick="Gelb"]');
+  defaultPrio?.classList.add('is-selected');
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    createTeamEntryFromForm(form);
+  });
+}
+
+function bindComposeForms() {
+  document.querySelectorAll('form.team-compose-form').forEach(bindComposeForm);
+}
+
+async function createTeamEntryFromForm(form) {
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden (Name + PIN).', 'warning');
+    return;
+  }
+
+  const title = form.querySelector('[name="compose-title"]')?.value?.trim();
+  if (!title) {
+    window.showToast?.('Bitte einen Titel eingeben.', 'warning');
+    return;
+  }
+
+  const entryKind = form.querySelector('[name="entry-kind"]:checked')?.value
+    || form.querySelector('[name="entry-kind"]')?.value
+    || 'task';
+  const priority = form.querySelector('[name="priority-value"]')?.value || 'Gelb';
+  if (entryKind === 'task' && !TASK_PRIORITIES.includes(priority)) {
+    window.showToast?.('Bitte Priorität wählen.', 'warning');
+    return;
+  }
+
+  const audienceResult = readAudienceFromForm(form);
+  if (audienceResult.error) {
+    window.showToast?.(audienceResult.error, 'warning');
+    return;
+  }
+  const audience = audienceResult.data;
+  const body = form.querySelector('[name="compose-body"]')?.value?.trim() || null;
+  const dueDate = normalizeDateField(form.querySelector('[name="due-date"]')?.value);
+
+  const taskId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const firebase = teamboardState.getFirebase();
+  const payload = {
+    title,
+    entryKind,
+    audienceType: audience.audienceType,
+    priority: entryKind === 'info' ? 'Grün' : priority,
+    status: 'open',
+    tenantId: teamboardState.tenantId,
+    author: employee,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  if (body) payload.body = body;
+  if (audience.audienceGroup) payload.audienceGroup = audience.audienceGroup;
+  if (audience.audienceMembers?.length) payload.audienceMembers = audience.audienceMembers;
+  if (audience.assignedTo) payload.assignedTo = audience.assignedTo;
+  if (audience.context) payload.context = audience.context;
+  if (audience.targetDate) payload.targetDate = audience.targetDate;
+  if (audience.validFrom) payload.validFrom = audience.validFrom;
+  if (audience.validUntil) payload.validUntil = audience.validUntil;
+  if (dueDate) payload.dueDate = dueDate;
+
+  const queueData = {
+    title: payload.title,
+    entryKind: payload.entryKind,
+    audienceType: payload.audienceType,
+    priority: payload.priority,
+    status: payload.status,
+    tenantId: payload.tenantId,
+    author: payload.author,
+    createdAt: new Date().toISOString(),
+  };
+  if (payload.body) queueData.body = payload.body;
+  if (payload.audienceGroup) queueData.audienceGroup = payload.audienceGroup;
+  if (payload.audienceMembers) queueData.audienceMembers = payload.audienceMembers;
+  if (payload.assignedTo) queueData.assignedTo = payload.assignedTo;
+  if (payload.context) queueData.context = payload.context;
+  if (payload.targetDate) queueData.targetDate = payload.targetDate;
+  if (payload.validFrom) queueData.validFrom = payload.validFrom;
+  if (payload.validUntil) queueData.validUntil = payload.validUntil;
+  if (payload.dueDate) queueData.dueDate = payload.dueDate;
+
+  try {
+    await writeFirestoreDocOrQueue({
+      collectionPath: 'tasks',
+      docId: taskId,
+      op: 'set',
+      onlineData: payload,
+      queueData,
+      offlineMessage: 'Eintrag wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    form.reset();
+    syncAudiencePanels(form);
+    const resetToday = todayIsoLocal();
+    form.querySelectorAll('[name="valid-from"], [name="valid-until"], [name="due-date"]').forEach((el) => {
+      if (el) el.value = resetToday;
+    });
+    form.querySelectorAll('[name="person-valid-from"], [name="person-valid-until"]').forEach((el) => {
+      if (el) el.value = '';
+    });
+    const hiddenPrio = form.querySelector('[name="priority-value"]');
+    if (hiddenPrio) hiddenPrio.value = 'Gelb';
+    form.querySelectorAll('[data-priority-pick]').forEach((b) => b.classList.remove('is-selected'));
+    form.querySelector('[data-priority-pick="Gelb"]')?.classList.add('is-selected');
+    const kindTask = form.querySelector('[name="entry-kind"][value="task"]');
+    if (kindTask) kindTask.checked = true;
+    window.showToast?.(entryKind === 'info' ? 'Info gesendet.' : 'Aufgaben-Token erstellt.', 'success');
+  } catch (err) {
+    console.error('[Teamboard] Eintrag anlegen fehlgeschlagen:', err);
+    const code = String(err?.code || '');
+    if (!code.includes('permission-denied')) {
+      window.showToast?.('Eintrag konnte nicht gespeichert werden.', 'error');
+    }
+  }
+}
+
 function updateAdminPanelVisibility() {
   const panel = document.getElementById('admin-leitstand-panel');
   if (!panel) return;
@@ -464,25 +1006,6 @@ function bindAdminPanel() {
   const fileInput = document.getElementById('bulletin-file-input');
   const preview = document.getElementById('bulletin-upload-preview');
   const saveBtn = document.getElementById('bulletin-save-btn');
-  const taskForm = document.getElementById('admin-task-form');
-  const routingRadios = document.querySelectorAll('input[name="task-routing"]');
-  const personWrap = document.getElementById('task-routing-person');
-  const contextWrap = document.getElementById('task-routing-context');
-
-  function syncRoutingVisibility() {
-    const mode = document.querySelector('input[name="task-routing"]:checked')?.value || 'person';
-    personWrap?.classList.toggle('hidden', mode !== 'person');
-    contextWrap?.classList.toggle('hidden', mode !== 'context');
-  }
-
-  routingRadios.forEach((radio) => {
-    radio.addEventListener('change', syncRoutingVisibility);
-  });
-  syncRoutingVisibility();
-
-  const dateInput = document.getElementById('task-target-date');
-  if (dateInput && !dateInput.value) dateInput.value = todayIsoLocal();
-
   if (dropzone && fileInput && dropzone.dataset.teamboardBound !== '1') {
     dropzone.dataset.teamboardBound = '1';
     dropzone.addEventListener('click', () => fileInput.click());
@@ -510,24 +1033,6 @@ function bindAdminPanel() {
   });
 
   saveBtn?.addEventListener('click', () => saveBulletin());
-
-  taskForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    createTaskFromForm();
-  });
-
-  document.querySelectorAll('[data-priority-pick]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-priority-pick]').forEach((b) => b.classList.remove('is-selected'));
-      btn.classList.add('is-selected');
-      const hidden = document.getElementById('task-priority-value');
-      if (hidden) hidden.value = btn.dataset.priorityPick || 'Gelb';
-      teamboardState.playClickSound(700, 0.04, 0.1);
-    });
-  });
-
-  const defaultPrio = document.querySelector('[data-priority-pick="Gelb"]');
-  defaultPrio?.classList.add('is-selected');
 }
 
 async function handleBulletinFiles(fileList) {
@@ -621,81 +1126,6 @@ async function saveBulletin() {
   });
 }
 
-async function createTaskFromForm() {
-  verifyAdminAction(async () => {
-    const title = document.getElementById('task-title-input')?.value?.trim();
-    if (!title) {
-      window.showToast?.('Bitte einen Aufgabentitel eingeben.', 'warning');
-      return;
-    }
-
-    const routing = document.querySelector('input[name="task-routing"]:checked')?.value || 'person';
-    const priority = document.getElementById('task-priority-value')?.value || 'Gelb';
-    if (!TASK_PRIORITIES.includes(priority)) {
-      window.showToast?.('Bitte Priorität wählen.', 'warning');
-      return;
-    }
-
-    let assignedTo = null;
-    let context = null;
-    let targetDate = todayIsoLocal();
-
-    if (routing === 'person') {
-      assignedTo = document.getElementById('task-assignee-select')?.value || null;
-      if (!assignedTo) {
-        window.showToast?.('Bitte Kollegen auswählen.', 'warning');
-        return;
-      }
-    } else {
-      context = document.getElementById('task-context-select')?.value || null;
-      targetDate = document.getElementById('task-target-date')?.value || todayIsoLocal();
-      if (!context) {
-        window.showToast?.('Bitte Schicht-Kontext wählen.', 'warning');
-        return;
-      }
-    }
-
-    const taskId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-    const firebase = teamboardState.getFirebase();
-    const payload = {
-      title,
-      assignedTo,
-      context,
-      targetDate,
-      priority,
-      status: 'open',
-      completedBy: null,
-      completedAt: null,
-      tenantId: teamboardState.tenantId,
-      author: resolveAuthorName(),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-
-    try {
-      await writeFirestoreDocOrQueue({
-        collectionPath: 'tasks',
-        docId: taskId,
-        op: 'set',
-        onlineData: payload,
-        queueData: { ...payload, createdAt: new Date().toISOString() },
-        offlineMessage: 'Aufgabe wird synchronisiert, sobald WLAN verfügbar ist.',
-      });
-      document.getElementById('admin-task-form')?.reset();
-      document.getElementById('task-target-date').value = todayIsoLocal();
-      document.querySelectorAll('[data-priority-pick]').forEach((b) => b.classList.remove('is-selected'));
-      document.querySelector('[data-priority-pick="Gelb"]')?.classList.add('is-selected');
-      document.getElementById('task-priority-value').value = 'Gelb';
-      window.showToast?.('Aufgaben-Token erstellt.', 'success');
-    } catch (err) {
-      console.error('[Teamboard] Task anlegen fehlgeschlagen:', err);
-      window.showToast?.('Aufgabe konnte nicht gespeichert werden.', 'error');
-    }
-  });
-}
-
 async function completeTask(taskId) {
   const employee = getActiveEmployeeName();
   if (!employee) {
@@ -720,7 +1150,11 @@ async function completeTask(taskId) {
       queueData: { ...payload, completedAt: new Date().toISOString() },
       offlineMessage: 'Erledigt-Markierung wird synchronisiert.',
     });
-    window.showToast?.(`Erledigt – ${employee}`, 'success');
+    const kind = entryKindOf(teamboardState.allTasks.find((t) => t.id === taskId));
+    window.showToast?.(
+      kind === 'info' ? `Quittiert – ${employee}` : `Erledigt & quittiert – ${employee}`,
+      'success',
+    );
   } catch (err) {
     console.error('[Teamboard] Task abschließen fehlgeschlagen:', err);
     window.showToast?.('Konnte nicht als erledigt markiert werden.', 'error');
@@ -754,16 +1188,18 @@ function subscribeTasks() {
 
   teamboardState.tasksUnsubscribe = col.onSnapshot(
     (snap) => {
-      const all = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const all = snap.docs.map((doc) => normalizeTaskRecord({ id: doc.id, ...doc.data() }));
       teamboardState.allTasks = all;
       const open = all.filter((t) => t.status === 'open');
       open.sort((a, b) => {
         const prioOrder = { Rot: 0, Gelb: 1, Grün: 2 };
         return (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9);
       });
+      renderInfoFeed(all);
       renderTaskTokens(open);
       renderTaskHistory(all);
       renderAdminTaskList(open);
+      handleTasksSnapshotForNotify(all, { matchesViewer: taskMatchesViewer });
     },
     (err) => console.warn('[Teamboard] Tasks-Stream:', err)
   );
@@ -780,6 +1216,7 @@ export function initTeamboardModule(databaseInstance, options = {}) {
   bindTeamLogin();
   bindHistoryFilter();
   bindTeamHomeEvents();
+  mountComposeForms();
   bindAdminPanel();
   subscribeBulletin();
   subscribeTasks();
@@ -791,8 +1228,10 @@ export function activateTeamboardTab() {
   // whenever the tab becomes visible again.
   bindShiftSelector();
   bindHistoryFilter();
+  mountComposeForms();
   refreshTeamLoginUi();
   renderBulletinCard(teamboardState.currentBulletin);
+  renderInfoFeed(teamboardState.allTasks);
   renderTaskTokens(teamboardState.openTasks);
   renderTaskHistory(teamboardState.allTasks);
 
@@ -803,5 +1242,6 @@ export function activateTeamboardTab() {
 
 export function refreshTeamboardAdminPanel() {
   updateAdminPanelVisibility();
+  mountComposeForms();
   bindAdminPanel();
 }

@@ -14,6 +14,7 @@
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -103,6 +104,16 @@
                 </div>
                 <p class="team-login-status" id="team-login-status">Angemeldet als: —</p>
               </div>
+
+              <div id="team-inbox-banner-start" class="team-inbox-banner hidden" role="status" aria-live="polite"></div>
+
+              <div class="task-token-section team-inbox-section" id="team-inbox-start-section">
+                <h2 class="task-token-heading">Team-Infos für mich</h2>
+                <p class="customer-order-hint">Gleiche Nachrichten wie unter Tab „Team“ – direkt hier auf Start.</p>
+                <p class="task-token-empty hidden" id="team-info-empty-start">Keine offenen Infos für dich.</p>
+                <div id="team-info-feed-start" class="team-info-feed"></div>
+              </div>
+
               <article class="bulletin-card hidden" id="bulletin-card"></article>
               <div class="team-shift-bar">
                 <label class="team-shift-label" for="team-shift-select">Meine Schicht</label>
@@ -136,6 +147,108 @@
           </div>
 
           <!-- ============================================== -->
+          <!-- SCREEN: TEAM (Nachrichten & Bestellungen)        -->
+          <!-- ============================================== -->
+          <div class="page" id="page-team">
+            <section class="team-hub-panel" aria-label="Team Kommunikation und Bestellungen">
+              <p class="team-login-reminder hidden" id="team-login-reminder">
+                Bitte zuerst unter <strong>Start</strong> mit Name und PIN anmelden.
+              </p>
+
+              <div class="team-subnav" role="tablist" aria-label="Team-Bereiche">
+                <button type="button" class="team-subnav-btn active" data-team-panel="messages" role="tab" aria-selected="true" id="team-subnav-messages">
+                  💬 Nachrichten
+                </button>
+                <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
+                  🛒 Bestellungen
+                </button>
+              </div>
+
+              <div class="team-panel active" id="team-panel-messages" data-team-panel="messages" role="tabpanel">
+                <section class="team-push-section task-token-section" aria-label="Benachrichtigungen">
+                  <h2 class="task-token-heading">Benachrichtigungen</h2>
+                  <label class="team-push-toggle-wrap">
+                    <input type="checkbox" id="team-push-toggle">
+                    <span>Push für neue Team-Infos &amp; Aufgaben</span>
+                  </label>
+                  <p class="customer-order-hint" id="team-push-status">Push aus – nur Anzeige in der App.</p>
+                </section>
+
+                <section class="team-compose-section task-token-section" aria-label="Team-Nachricht senden">
+                  <h2 class="task-token-heading">Nachricht senden</h2>
+                  <p class="customer-order-hint">Info oder Aufgabe – für alle, Gruppen, Kollegen oder Schichten.</p>
+                  <div id="team-compose-mount"></div>
+                </section>
+
+                <div class="task-token-section">
+                  <h2 class="task-token-heading">Team-Infos für mich</h2>
+                  <p class="task-token-empty hidden" id="team-info-empty">Keine offenen Infos für dich.</p>
+                  <div id="team-info-feed" class="team-info-feed"></div>
+                </div>
+              </div>
+
+              <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
+                <div class="customer-order-section task-token-section" id="customer-order-section">
+                  <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
+                  <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
+                  <form id="customer-order-form" class="customer-order-form">
+                    <label class="form-label" for="order-customer-name">Name des Kunden</label>
+                    <input type="text" id="order-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+
+                    <div class="customer-order-contact-grid">
+                      <label class="form-label" for="order-callback-phone">Rückrufnummer</label>
+                      <input type="tel" id="order-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                      <label class="form-label" for="order-customer-email">oder E-Mail</label>
+                      <input type="email" id="order-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                    </div>
+
+                    <div class="customer-order-ready-grid">
+                      <label class="form-label" for="order-ready-date">Bereit am</label>
+                      <input type="date" id="order-ready-date" class="input-text-touch" required>
+                      <label class="form-label" for="order-ready-time">Uhrzeit</label>
+                      <input type="time" id="order-ready-time" class="input-text-touch" required>
+                    </div>
+
+                    <div class="customer-order-lines-head">
+                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
+                      <button type="button" class="btn btn-secondary btn-compact" id="order-add-line-btn">+ Position</button>
+                    </div>
+                    <div id="order-lines-container" class="order-lines-container"></div>
+
+                    <fieldset class="customer-order-wish-tags">
+                      <legend>Weitere Wünsche</legend>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="mariniert"> mariniert</label>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="vakuumiert"> vakuumiert</label>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="TK"> TK</label>
+                    </fieldset>
+                    <label class="form-label" for="order-additional-wishes">Sonstige Hinweise</label>
+                    <textarea id="order-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. dünn geschnitten, ohne Knoblauch"></textarea>
+
+                    <div class="order-slip-upload">
+                      <label class="form-label">Bestellzettel (Foto / PDF)</label>
+                      <div class="bulletin-dropzone order-slip-dropzone" id="order-slip-dropzone" tabindex="0" role="button" aria-label="Bestellzettel hochladen">
+                        <span class="bulletin-dropzone-icon">📷</span>
+                        <span>Zettel fotografieren oder PDF wählen</span>
+                        <span class="bulletin-dropzone-hint">Übergang: Zettel reicht – Details können später ergänzt werden</span>
+                      </div>
+                      <input type="file" id="order-slip-file-input" class="visually-hidden" accept="image/*,application/pdf" multiple>
+                      <div class="bulletin-upload-preview hidden" id="order-slip-preview"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Bestellung speichern</button>
+                  </form>
+                </div>
+
+                <div class="customer-order-section task-token-section">
+                  <h2 class="task-token-heading">Offene Bestellungen</h2>
+                  <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
+                  <div id="customer-order-list" class="customer-order-list"></div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- ============================================== -->
           <!-- SCREEN 2: MHD-MONITOR PAGE                     -->
           <!-- ============================================== -->
           <div class="page" id="page-mhd">
@@ -150,7 +263,34 @@
                 </div>
               </div>
 
-              <button id="btn-open-filters" class="btn btn-secondary mhd-open-filters-btn" type="button">⚙️ Filter anpassen</button>
+              <div class="mhd-filter-row">
+                <label class="mhd-filter-field mhd-filter-field--bereich" for="mhd-subtab-select">
+                  <span class="mhd-filter-label">Bereich</span>
+                  <select id="mhd-subtab-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Bereich">
+                    <option value="mopro" selected>🥛 Frische &amp; Kühlung</option>
+                    <option value="trocken">📦 Trockenware</option>
+                  </select>
+                </label>
+                <label class="mhd-filter-field mhd-filter-field--ansicht" for="mhd-urgency-select">
+                  <span class="mhd-filter-label">Ansicht</span>
+                  <select id="mhd-urgency-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Dringlichkeit">
+                    <option value="alarm" selected>🚨 ALARM</option>
+                    <option value="action">🏷️ AKTION</option>
+                    <option value="all">📋 ALLE</option>
+                    <option value="done">✅ ERLEDIGT</option>
+                  </select>
+                </label>
+                <label class="mhd-filter-field mhd-filter-field--category" id="mhd-fresh-filter-field" for="mhd-fresh-filter-select">
+                  <span class="mhd-filter-label">Kategorie</span>
+                  <select id="mhd-fresh-filter-select" class="input-text-touch mhd-filter-select" aria-label="Frische-Kategorie">
+                    <option value="all" selected>Alle</option>
+                    <option value="frische">🍎 Frische</option>
+                    <option value="mopro">🥛 MoPro</option>
+                    <option value="kuehlware">❄️ Kühlware</option>
+                    <option value="tk">🧊 TK</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div class="mhd-list" id="mhd-items-container">
@@ -197,6 +337,10 @@
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
                     </select>
                   </label>
+                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
+                    <span>Initiale Temperatur (°C) · nur TK/Kühlware</span>
+                    <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                  </label>
                   <button class="btn btn-primary btn-receiving-scan" id="btn-receiving-scan" type="button">
                     Barcode scannen
                   </button>
@@ -221,7 +365,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="date" id="we-mhd" class="gastro-input">
+                    <input type="text" id="we-mhd" class="gastro-input" placeholder="dd.mm.yyyy" inputmode="numeric" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" maxlength="10" autocomplete="off">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -274,9 +418,9 @@
                       <option value="Gewürze Metzgerei">Gewürze Metzgerei</option>
                     </select>
                   </label>
-                  <label class="receiving-field" for="we-temperature">
+                  <label class="receiving-field" for="we-temperature-metz">
                     <span>Temperatur (°C)</span>
-                    <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                    <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                 </div>
                 <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="image/*" capture="environment">
@@ -495,61 +639,33 @@
                 <button type="button" class="btn btn-primary bulletin-save-btn" id="bulletin-save-btn">Nachricht veröffentlichen</button>
               </div>
 
+              <div class="admin-leitstand-block admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
+                <h3>Team-Gruppen &amp; Mitarbeiter</h3>
+                <p class="admin-leitstand-hint">Namen und Gruppen für Empfänger-Auswahl – ohne Code-Anpassung.</p>
+                <label class="form-label" for="team-config-employees">Mitarbeiter (kommagetrennt)</label>
+                <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="Stephie, Finn, Nicole…"></textarea>
+                <div id="team-config-groups" class="team-config-groups"></div>
+                <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
+                <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
+                <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
+                <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
+                <button type="button" class="btn btn-primary" id="team-config-save-btn">Konfiguration speichern</button>
+              </div>
+
               <div class="admin-leitstand-block">
-                <h3>Neues Aufgaben-Token</h3>
-                <form id="admin-task-form" class="admin-task-form">
-                  <label class="form-label" for="task-title-input">Aufgabe</label>
-                  <input type="text" id="task-title-input" class="input-text-touch" required placeholder="z. B. MHD-Runde drehen">
-
-                  <fieldset class="task-routing-fieldset">
-                    <legend>Zuweisung</legend>
-                    <label class="task-routing-option">
-                      <input type="radio" name="task-routing" value="person" checked>
-                      <span>Person (z. B. Stephie, Finn)</span>
-                    </label>
-                    <label class="task-routing-option">
-                      <input type="radio" name="task-routing" value="context">
-                      <span>Schicht + Datum</span>
-                    </label>
-                  </fieldset>
-
-                  <div id="task-routing-person">
-                    <label class="form-label" for="task-assignee-select">Kollege</label>
-                    <select id="task-assignee-select" class="input-text-touch">
-                      <option value="">Bitte wählen…</option>
-                      <option value="Stephie">Stephie</option>
-                      <option value="Finn">Finn</option>
-                      <option value="Nicole">Nicole</option>
-                      <option value="Bettina">Bettina</option>
-                      <option value="Heiko">Heiko</option>
-                      <option value="Paddy">Paddy</option>
-                    </select>
-                  </div>
-
-                  <div id="task-routing-context" class="hidden">
-                    <label class="form-label" for="task-context-select">Schicht</label>
-                    <select id="task-context-select" class="input-text-touch">
-                      <option value="Frühschicht">Frühschicht</option>
-                      <option value="Spätschicht">Spätschicht</option>
-                    </select>
-                    <label class="form-label" for="task-target-date">Datum</label>
-                    <input type="date" id="task-target-date" class="input-text-touch">
-                  </div>
-
-                  <div class="task-priority-picker" role="group" aria-label="Priorität">
-                    <input type="hidden" id="task-priority-value" value="Gelb">
-                    <button type="button" class="task-priority-tile task-priority-tile--rot" data-priority-pick="Rot">🔴 Kritisch</button>
-                    <button type="button" class="task-priority-tile task-priority-tile--gelb" data-priority-pick="Gelb">🟡 Wichtig</button>
-                    <button type="button" class="task-priority-tile task-priority-tile--gruen" data-priority-pick="Grün">🟢 Routine</button>
-                  </div>
-
-                  <button type="submit" class="btn btn-primary">Token erstellen</button>
-                </form>
+                <h3>Team-Nachricht / Aufgabe (Büro)</h3>
+                <div id="admin-compose-mount"></div>
               </div>
 
               <div class="admin-leitstand-block">
                 <h3>Offene Tokens</h3>
                 <div id="admin-task-list" class="admin-task-list"></div>
+              </div>
+
+              <div class="admin-leitstand-block">
+                <h3>Kundenbestellungen (Übersicht)</h3>
+                <p class="admin-leitstand-hint">Alle angenommenen Bestellungen – auch erledigte der letzten Tage.</p>
+                <div id="admin-customer-order-list" class="customer-order-list customer-order-list--admin"></div>
               </div>
             </section>
 
@@ -726,6 +842,10 @@
             <i>📌</i>
             <span>Start</span>
           </button>
+          <button class="nav-item" data-tab="team" id="tab-team">
+            <i>💬</i>
+            <span>Team</span>
+          </button>
           <button class="nav-item" data-tab="mhd" id="tab-mhd">
             <i>📅</i>
             <span>MHD</span>
@@ -898,48 +1018,87 @@
       <div class="qa-panel-row qa-panel-log" id="qa-log">Bereit.</div>
     </div>
   </div>
-  <div id="filter-sheet-backdrop" class="sheet-backdrop hidden"></div>
-  <div id="filter-sheet" class="bottom-sheet hidden closed" role="dialog" aria-modal="true" aria-label="MHD Filter auswählen">
-    <div class="sheet-header">
-      <div class="sheet-handle"></div>
-      <h3>Filter auswählen</h3>
-      <button id="btn-close-filters" class="sheet-close-btn" type="button">Fertig</button>
-    </div>
-    <div class="sheet-content">
-      <div class="filter-group">
-        <label class="mhd-filter-field mhd-filter-field--bereich" for="mhd-subtab-select">
-          <span class="mhd-filter-label">Bereich</span>
-          <select id="mhd-subtab-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Bereich">
-            <option value="mopro" selected>🥛 Frische &amp; Kühlung</option>
-            <option value="trocken">📦 Trockenware</option>
-          </select>
+  <template id="team-compose-template">
+    <form class="team-compose-form admin-task-form">
+      <fieldset class="task-routing-fieldset">
+        <legend>Art</legend>
+        <label class="task-routing-option">
+          <input type="radio" name="entry-kind" value="info">
+          <span>Info (ohne Pflicht-Abarbeitung)</span>
         </label>
-      </div>
-      <div class="filter-group">
-        <label class="mhd-filter-field mhd-filter-field--ansicht" for="mhd-urgency-select">
-          <span class="mhd-filter-label">Ansicht</span>
-          <select id="mhd-urgency-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Dringlichkeit">
-            <option value="alarm" selected>🚨 ALARM</option>
-            <option value="action">🏷️ AKTION</option>
-            <option value="all">📋 ALLE</option>
-            <option value="done">✅ ERLEDIGT</option>
-          </select>
+        <label class="task-routing-option">
+          <input type="radio" name="entry-kind" value="task" checked>
+          <span>Aufgabe / Token (quittieren)</span>
         </label>
+      </fieldset>
+
+      <label class="form-label">Titel</label>
+      <input type="text" name="compose-title" class="input-text-touch" required placeholder="Kurz &amp; klar">
+
+      <label class="form-label">Details (optional)</label>
+      <textarea name="compose-body" class="bulletin-message-input" rows="2" placeholder="Zusatzinfos…"></textarea>
+
+      <label class="form-label">Empfänger</label>
+      <select name="audience-type" class="input-text-touch">
+        <option value="all">Alle</option>
+        <option value="group">Team-Gruppe</option>
+        <option value="persons">Bestimmte Kollegen</option>
+        <option value="person">Eine Person</option>
+        <option value="shift">Schicht + Zeitraum</option>
+        <option value="next_shift">Nächste Schicht</option>
+      </select>
+
+      <div data-audience-panel="group" class="hidden">
+        <label class="form-label">Gruppe</label>
+        <select name="audience-group" class="input-text-touch"></select>
       </div>
-      <div class="filter-group">
-        <label class="mhd-filter-field mhd-filter-field--category" id="mhd-fresh-filter-field" for="mhd-fresh-filter-select">
-          <span class="mhd-filter-label">Kategorie</span>
-          <select id="mhd-fresh-filter-select" class="input-text-touch mhd-filter-select" aria-label="Frische-Kategorie">
-            <option value="all" selected>Alle</option>
-            <option value="frische">🍎 Frische</option>
-            <option value="mopro">🥛 MoPro</option>
-            <option value="kuehlware">❄️ Kühlware</option>
-            <option value="tk">🧊 TK</option>
-          </select>
-        </label>
+
+      <div data-audience-panel="persons" class="hidden task-routing-fieldset">
+        <legend>Kollegen</legend>
+        <div data-audience-persons-list></div>
       </div>
-    </div>
-  </div>
+
+      <div data-audience-panel="person" class="hidden">
+        <label class="form-label">Kollege</label>
+        <select name="audience-person-single" class="input-text-touch">
+          <option value="">Bitte wählen…</option>
+        </select>
+        <div class="task-date-range-grid">
+          <label class="form-label">Anzeigen ab (optional)</label>
+          <input type="date" name="person-valid-from" class="input-text-touch">
+          <label class="form-label">Anzeigen bis (optional)</label>
+          <input type="date" name="person-valid-until" class="input-text-touch">
+        </div>
+      </div>
+
+      <div data-audience-panel="shift" class="hidden">
+        <label class="form-label">Schicht</label>
+        <select name="shift-context" class="input-text-touch">
+          <option value="Frühschicht">Frühschicht</option>
+          <option value="Spätschicht">Spätschicht</option>
+        </select>
+        <div class="task-date-range-grid">
+          <label class="form-label">Zeitraum von</label>
+          <input type="date" name="valid-from" class="input-text-touch">
+          <label class="form-label">Zeitraum bis</label>
+          <input type="date" name="valid-until" class="input-text-touch">
+        </div>
+      </div>
+
+      <label class="form-label">Fällig bis (optional)</label>
+      <input type="date" name="due-date" class="input-text-touch">
+
+      <div data-compose-priority class="task-priority-picker" role="group" aria-label="Priorität">
+        <input type="hidden" name="priority-value" value="Gelb">
+        <button type="button" class="task-priority-tile task-priority-tile--rot" data-priority-pick="Rot">🔴 Kritisch</button>
+        <button type="button" class="task-priority-tile task-priority-tile--gelb" data-priority-pick="Gelb">🟡 Wichtig</button>
+        <button type="button" class="task-priority-tile task-priority-tile--gruen" data-priority-pick="Grün">🟢 Routine</button>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Senden</button>
+    </form>
+  </template>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

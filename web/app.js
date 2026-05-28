@@ -12,6 +12,7 @@ import {
   getPendingSyncs,
   initSyncEngine,
   qaState,
+  requeueDeadPendingSyncs,
   reportCriticalError,
   savePendingSyncs,
   updateSyncIndicator,
@@ -54,6 +55,15 @@ import {
   initTeamboardModule,
   refreshTeamboardAdminPanel,
 } from './teamboard.js';
+import {
+  initCustomerOrdersModule,
+} from './customer-orders.js';
+import { activateTeamHubTab } from './team-tab.js';
+import {
+  initTeamConfigModule,
+  refreshAdminTeamConfigPanel,
+  syncPushRegistration,
+} from './team-config.js';
 
 // ============================================================================
 // GLOBALE UI-HILFSFUNKTIONEN (vor allen Modulen und IIFEs definiert)
@@ -717,7 +727,6 @@ tabs.forEach(tab => {
 
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
     playClickSound(800, 0.05, 0.15);
-    closeFilterSheet();
 
     // Navigationselemente aktualisieren
     tabs.forEach(t => t.classList.remove('active'));
@@ -726,8 +735,12 @@ tabs.forEach(tab => {
     // Seite + Header immer zuerst stabil umschalten
     if (targetTab === 'teamboard') {
       showPage('page-teamboard');
-      headerTitle.textContent = "Schwarzes Brett";
-      headerSubtitle.textContent = "Team & Aufgaben";
+      headerTitle.textContent = "Start";
+      headerSubtitle.textContent = "Aufgaben & Tagesinfo";
+    } else if (targetTab === 'team') {
+      showPage('page-team');
+      headerTitle.textContent = "Team";
+      headerSubtitle.textContent = "Nachrichten & Bestellungen";
     } else if (targetTab === 'mhd') {
       showPage('page-mhd');
       headerTitle.textContent = "MHD-Monitor";
@@ -757,6 +770,7 @@ tabs.forEach(tab => {
     // Modul-Aktivierung defensiv: bei Fehler nicht auf Start zurückspringen.
     try {
       if (targetTab === 'teamboard') activateTeamboardTab();
+      if (targetTab === 'team') activateTeamHubTab();
       if (targetTab === 'mhd') activateMhdTab();
       if (targetTab === 'receiving') activateReceivingTab();
       if (targetTab === 'kitchen') activateKitchenTab();
@@ -764,6 +778,7 @@ tabs.forEach(tab => {
       if (targetTab === 'batches') {
         activateBatchesTab();
         refreshTeamboardAdminPanel();
+        refreshAdminTeamConfigPanel();
       }
     } catch (err) {
       console.error(`[CharcuLogic Tabs] Aktivierung fehlgeschlagen für "${targetTab}":`, err);
@@ -869,6 +884,7 @@ function showSyncQueueDialog() {
       <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
         <div style="font-weight:700;font-size:12px;">${item._op || 'update'} · ${item._docId || 'ohne-id'}</div>
         <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${item._attempts || 0}</div>
+        ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${item._lastError}${item._errorCode ? ` (${item._errorCode})` : ''}</div>` : ''}
       </div>
     `).join('')
     : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine wartenden Einträge.</div>';
@@ -910,10 +926,16 @@ function showSyncQueueDialog() {
     if (event.target === overlay) close();
   });
   document.getElementById('sync-queue-retry')?.addEventListener('click', async () => {
+    const requeued = requeueDeadPendingSyncs();
     await flushPendingSyncs();
     updateSyncIndicator();
     close();
-    showToast('Sync erneut angestoßen.', 'success');
+    showToast(
+      requeued > 0
+        ? `${requeued} Dead-Letter-Einträge erneut eingeplant, Sync läuft.`
+        : 'Sync erneut angestoßen.',
+      'success',
+    );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
     savePendingSyncs([]);
@@ -938,39 +960,6 @@ const btnManualBarcodeSubmit = document.getElementById('btn-manual-barcode-submi
 const manualBarcodeInput = document.getElementById('scanner-manual-barcode-input');
 const scannerManualEntry = document.getElementById('scanner-manual-entry');
 const scannerStatusText = document.getElementById('scanner-status-text');
-const btnOpenFilters = document.getElementById('btn-open-filters');
-const btnCloseFilters = document.getElementById('btn-close-filters');
-const filterSheetBackdrop = document.getElementById('filter-sheet-backdrop');
-const filterSheet = document.getElementById('filter-sheet');
-
-let filterSheetHideTimer = null;
-
-function openFilterSheet() {
-  if (!filterSheet || !filterSheetBackdrop) return;
-  if (filterSheetHideTimer) {
-    clearTimeout(filterSheetHideTimer);
-    filterSheetHideTimer = null;
-  }
-  filterSheetBackdrop.classList.remove('hidden');
-  filterSheet.classList.remove('hidden');
-  requestAnimationFrame(() => {
-    filterSheet.classList.remove('closed');
-  });
-}
-
-function closeFilterSheet() {
-  if (!filterSheet || !filterSheetBackdrop) return;
-  filterSheet.classList.add('closed');
-  filterSheetHideTimer = setTimeout(() => {
-    filterSheet.classList.add('hidden');
-    filterSheetBackdrop.classList.add('hidden');
-  }, 300);
-}
-
-btnOpenFilters?.addEventListener('click', openFilterSheet);
-btnCloseFilters?.addEventListener('click', closeFilterSheet);
-filterSheetBackdrop?.addEventListener('click', closeFilterSheet);
-
 function updateScannerButtonVisibility() {
   if (!btnOpenScanner) return;
   btnOpenScanner.classList.add('hidden');
@@ -1132,7 +1121,17 @@ async function bootstrapAuthenticatedApp() {
     showHUD,
     playClickSound,
   });
+  initCustomerOrdersModule(db, {
+    tenantId: currentTenantId,
+    getFirebase: () => firebase,
+  });
+  initTeamConfigModule(db, {
+    tenantId: currentTenantId,
+    getFirebase: () => firebase,
+  });
   refreshTeamboardAdminPanel();
+  refreshAdminTeamConfigPanel();
+  syncPushRegistration();
 
   updateSyncIndicator();
   loadMhdFromCloud();

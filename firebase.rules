@@ -14,17 +14,29 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
+    function userTenantsPath() {
+      return /databases/$(database)/documents/userTenants/$(request.auth.uid);
+    }
+
+    function profileDocMatchesTenant(data, tenantId) {
+      return (data.tenantId is string && data.tenantId == tenantId)
+        || (data.tenant_id is string && data.tenant_id == tenantId);
+    }
+
     function hasTenantClaim(tenantId) {
       return isAuthenticated()
-        && request.auth.token.tenantId is string
-        && request.auth.token.tenantId == tenantId;
+        && (
+          (request.auth.token.tenantId is string && request.auth.token.tenantId == tenantId)
+          || (request.auth.token.tenant_id is string && request.auth.token.tenant_id == tenantId)
+        );
     }
 
     function hasTenantProfile(tenantId) {
       return isAuthenticated()
-        && exists(profilePath())
-        && get(profilePath()).data.tenantId is string
-        && get(profilePath()).data.tenantId == tenantId;
+        && (
+          (exists(profilePath()) && profileDocMatchesTenant(get(profilePath()).data, tenantId))
+          || (exists(userTenantsPath()) && profileDocMatchesTenant(get(userTenantsPath()).data, tenantId))
+        );
     }
 
     function isTenantUser(tenantId) {
@@ -39,6 +51,10 @@ service cloud.firestore {
           || (
             exists(profilePath())
             && get(profilePath()).data.role == 'admin'
+          )
+          || (
+            exists(userTenantsPath())
+            && get(userTenantsPath()).data.role == 'admin'
           )
         );
     }
@@ -63,12 +79,9 @@ service cloud.firestore {
       return (field is int || field is float) && field >= 0;
     }
 
-    function isBoolOrNull(field) {
-      return field == null || field is bool;
-    }
-
     function isDateStringOrNull(field) {
-      return field == null || (field is string && field.size() >= 8 && field.size() <= 10);
+      return field == null
+        || (field is string && field.size() >= 8 && field.size() <= 24);
     }
 
     function hasOnly(allowedFields) {
@@ -96,6 +109,25 @@ service cloud.firestore {
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+    }
+
+    match /tenants/{tenantId}/settings/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow create, update: if isAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.keys().hasOnly([
+          'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy'
+        ]);
+      allow delete: if isAdmin(tenantId);
+    }
+
+    match /tenants/{tenantId}/pushTokens/{tokenId} {
+      allow read: if isTenantUser(tenantId);
+      allow create, update: if isTenantUser(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.token)
+        && isNonEmptyString(request.resource.data.employeeName);
+      allow delete: if isTenantUser(tenantId);
     }
 
     // =========================================================================
@@ -130,7 +162,7 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId;
 
       allow update: if isTenantUser(tenantId)
-        && hasOnly([
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
           'produkt', 'name', 'marke', 'brand',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
@@ -147,7 +179,7 @@ service cloud.firestore {
           'kuecheAngefragt', 'kuecheAngefragtAt', 'lieferungId'
         ])
         && (
-          !('tenantId' in request.resource.data)
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tenantId'])
           || request.resource.data.tenantId == tenantId
         );
 
@@ -306,22 +338,99 @@ service cloud.firestore {
     match /tenants/{tenantId}/tasks/{taskId} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isAdmin(tenantId)
-        && hasOnly([
-          'title', 'assignedTo', 'context', 'targetDate', 'priority',
-          'status', 'completedBy', 'completedAt', 'tenantId', 'author', 'createdAt'
-        ])
-        && isNonEmptyString(request.resource.data.title)
-        && request.resource.data.status == 'open'
+      allow create: if isTenantUser(tenantId)
         && request.resource.data.tenantId == tenantId
-        && isOptionalString(request.resource.data.assignedTo)
-        && isOptionalString(request.resource.data.context)
-        && isDateStringOrNull(request.resource.data.targetDate);
+        && isNonEmptyString(request.resource.data.title)
+        && isNonEmptyString(request.resource.data.author)
+        && request.resource.data.status == 'open'
+        && (
+          !('audienceMembers' in request.resource.data)
+          || request.resource.data.audienceMembers is list
+        );
 
       allow update: if isTenantUser(tenantId)
         && (
           isAdmin(tenantId)
           || isTaskCompletionOnly()
+        );
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // KUNDENBESTELLUNGEN (customerOrders)
+    // =========================================================================
+
+    function hasCustomerContact() {
+      return (request.resource.data.callbackPhone is string
+          && request.resource.data.callbackPhone.size() > 0)
+        || (request.resource.data.customerEmail is string
+          && request.resource.data.customerEmail.size() > 3);
+    }
+
+    function isCustomerOrderItemsList(items) {
+      return items is list && items.size() >= 1 && items.size() <= 40;
+    }
+
+    function isCustomerOrderStatusUpdate() {
+      return resource.data.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+        ])
+        && isNonEmptyString(request.resource.data.status)
+        && (
+          (resource.data.status == 'open' && request.resource.data.status == 'ready')
+          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+        );
+    }
+
+    match /tenants/{tenantId}/customerOrders/{orderId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isTenantUser(tenantId)
+        && hasOnly([
+          'customerName', 'callbackPhone', 'customerEmail', 'readyAt',
+          'items', 'additionalWishes', 'orderSlipAttachments', 'inputMode',
+          'acceptedBy', 'acceptedAt', 'status', 'tenantId', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.acceptedBy)
+        && isNonEmptyString(request.resource.data.readyAt)
+        && request.resource.data.status == 'open'
+        && request.resource.data.tenantId == tenantId
+        && isOptionalString(request.resource.data.customerName)
+        && isOptionalString(request.resource.data.additionalWishes)
+        && isOptionalString(request.resource.data.callbackPhone)
+        && isOptionalString(request.resource.data.customerEmail)
+        && isOptionalString(request.resource.data.inputMode)
+        && (
+          isCustomerOrderItemsList(request.resource.data.items)
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        )
+        && (
+          !('customerName' in request.resource.data)
+          || isNonEmptyString(request.resource.data.customerName)
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        )
+        && (
+          hasCustomerContact()
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        );
+
+      allow update: if isTenantUser(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isCustomerOrderStatusUpdate()
         );
 
       allow delete: if isAdmin(tenantId);

@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- HILFSFUNKTIONEN ---
+    function istAngemeldet() {
+      return request.auth != null;
+    }
+    
+    function istAdmin() {
+      return istAngemeldet() && request.auth.token.isAdmin == true;
+    }
+
+    // --- MANDANTEN-STRUKTUR ---
+    match /tenants/{tenantId} {
+      
+      // 1. MHD-Monitor & Wareneingang
+      // Mitarbeiter müssen lesen, erstellen (neue Ware) und updaten (MHD-Kontrolle) können.
+      match /mhdItems/{itemId} {
+        allow read, write: if istAngemeldet();
+      }
+      
+      // 2. Aufgaben-Tokens (Spiegel zu firebase.rules – nur firebase.rules wird deployed)
+      match /tasks/{taskId} {
+        allow read: if istAngemeldet();
+        allow create: if istAngemeldet()
+          && request.resource.data.tenantId == tenantId
+          && request.resource.data.status == 'open';
+        allow update: if istAngemeldet();
+        allow delete: if istAdmin();
+      }
+
+      // 2b. Kundenbestellungen – alle Mitarbeiter dürfen annehmen und Status setzen
+      match /customerOrders/{orderId} {
+        allow read, create, update: if istAngemeldet();
+        allow delete: if istAdmin();
+      }
+
+      match /settings/{document} {
+        allow read: if istAngemeldet();
+        allow write: if istAdmin();
+      }
+
+      match /pushTokens/{tokenId} {
+        allow read, create, update, delete: if istAngemeldet();
+      }
+
+      // 3. Digitales Schwarzes Brett
+      // Alle lesen die Tagesnachricht, aber nur Admins dürfen sie ändern/veröffentlichen.
+      match /bulletinBoard/current {
+        allow read: if istAngemeldet();
+        allow write: if istAdmin();
+      }
+
+      // 4. Fleischpreise
+      // Die App liest die Marktnotierungen live. Schreibrechte sind für Admins (oder die Pipeline).
+      match /fleischpreise/{kw} {
+        allow read: if istAngemeldet();
+        allow write: if istAdmin();
+      }
+    }
+  }
+}
