@@ -5,7 +5,7 @@ const BRANDING = {
     appName: "CharcuLogic",
     
     // Spezifischer Name des Betriebs
-    betriebsName: "Hofladen Leitstand",
+    betriebsName: "StevesHof Hofladen",
 
     // PWA / Theme (Homescreen, Statusleiste)
     primaryColor: "#28a745",
