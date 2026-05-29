@@ -4,6 +4,7 @@
 
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
+import { getTenantCollection } from './tenant-db.js';
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 
 function getActiveEmployeeNameLocal() {
@@ -74,11 +75,11 @@ function escapeHtml(value) {
 
 function configRef() {
   if (!configState.db || !configState.tenantId) return null;
-  return configState.db
-    .collection('tenants')
-    .doc(configState.tenantId)
-    .collection('settings')
-    .doc(TEAM_CONFIG_DOC_ID);
+  try {
+    return getTenantCollection('settings').doc(TEAM_CONFIG_DOC_ID);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeConfig(data) {

@@ -1,119 +1,184 @@
-# Hofladen-App: Walkthrough fuer das Team
+# Hofladen-App: Walkthrough für das Team
 
-Diese Anleitung fuehrt Schritt fuer Schritt durch den Tagesablauf in der aktuellen App-Version.
+Diese Anleitung führt Schritt für Schritt durch den Tagesablauf in der aktuellen **CharcuLogic**-App (iPhone / PWA).
 
-**Ausfuehrliche Modulanleitungen (alle Details):** [modulanleitungen/README.md](./modulanleitungen/README.md)
+**Ausführliche Modulanleitungen (alle Details):** [modulanleitungen/README.md](./modulanleitungen/README.md)
+
+## Tabs in der unteren Leiste
+
+| Tab | Zweck |
+|-----|--------|
+| **Start** | Anmeldung, Nachricht des Tages, Aufgaben, Historie |
+| **Team** | Nachrichten senden, Team-Infos, Kundenbestellungen |
+| **MHD** | Morgencheck Verkauf & Kühlung |
+| **Neu** | Wareneingang Laden & Metzgerei |
+| **Prod.** | Rezepte, Produktion, WRS-Kalkulation |
+| **HACCP** | Produktionsprotokoll & Tageskontrollen |
+| **Büro** | Chargen, Rezept-Sync, Leitstand (Admin) |
+
+---
 
 ## 1. Start (Schwarzes Brett + Aufgaben)
 
-Der Tab **Start** ist jetzt der Einstieg fuer das Team.
+Der Tab **Start** ist der Einstieg für das Team.
 
-1. App oeffnen und im **Start**-Tab bleiben.
-2. Mitarbeitername eintippen (Vorschlaege erscheinen automatisch) und PIN eingeben.
-3. Auf **Anmelden** tippen.
-4. **Nachricht des Tages** lesen (inkl. Bilder/PDF-Anhaenge).
-5. Offene Aufgaben in **Meine Aufgaben** nacheinander mit **Erledigt** abschliessen.
-6. Erledigte Aufgaben in der **Historie** pruefen, bei Bedarf Zeitraum filtern.
+1. App öffnen und im Tab **Start** bleiben.
+2. **Mitarbeiter** eintippen (Vorschläge aus der Liste) und **PIN** (4-stellig) eingeben.
+3. Auf **Anmelden** tippen – unter **Angemeldet als:** erscheint der Name.
+4. **Nachricht des Tages** lesen (inkl. Bilder/PDF-Anhänge).
+5. **Meine Schicht** prüfen (Früh- oder Spätschicht).
+6. Offene Punkte unter **Meine Aufgaben** mit **✓** quittieren.
+7. Erledigte Aufgaben in der **Erledigt-Historie** nachsehen (Zeitraum: **Heute**, **7 Tage**, **30 Tage**, **Alle**).
 
-![Start-Tab mit Team-Login und Tagesbereich](./modulanleitungen/screenshots/00-start.png)
+Unter **Team-Infos für mich** seht ihr dieselben Nachrichten wie im Tab **Team** – ohne Tabwechsel.
 
-Hinweise:
-- Unter **Angemeldet als** seht ihr, wer aktiv ist.
-- Aufgaben koennen personengebunden oder schichtbezogen sein.
-- Historie-Filter: **Heute**, **7 Tage**, **30 Tage**, **Alle**.
+![Start-Tab mit Anmeldung, Nachricht und Aufgaben](./modulanleitungen/screenshots/00-start.png)
 
-## 2. MHD (taeglicher Morgencheck)
+---
 
-Im Tab **MHD** prueft ihr, welche Ware sofort bearbeitet werden muss.
+## 2. Team (Nachrichten & Bestellungen)
 
-1. Tab **MHD** oeffnen.
-2. Auf **Filter anpassen** tippen.
-3. Im Bottom-Sheet **Bereich**, **Kategorie** und **Ansicht** waehlen.
-4. Mit **Fertig** schliessen.
-5. Karten nacheinander bearbeiten:
+Für Kommunikation und Kundenaufträge.
+
+### Nachrichten
+
+1. Tab **Team** öffnen (ohne Anmeldung erscheint ein Hinweis – zuerst unter **Start** anmelden).
+2. Optional: **Push** für neue Infos aktivieren.
+3. Unter **Nachricht senden** Info oder Aufgabe an Kollegen, Gruppen oder Schichten schicken.
+4. Eingehende Einträge unter **Team-Infos für mich** mit **✓** quittieren.
+
+### Bestellungen
+
+1. Im Team-Tab auf **🛒 Bestellungen** wechseln.
+2. Kunde, Rückruf, **Bereit am** und Positionen erfassen.
+3. Optional Bestellzettel fotografieren oder PDF anhängen.
+4. **Bestellung speichern** – offene Bestellungen stehen darunter zur Bearbeitung.
+
+![Team-Tab Nachrichten und Bestellungen](./modulanleitungen/screenshots/07-team.png)
+
+---
+
+## 3. MHD (täglicher Morgencheck)
+
+Im Tab **MHD** prüft ihr, welche Ware sofort bearbeitet werden muss.
+
+1. Tab **MHD** öffnen.
+2. In der Toolbar **Bereich**, **Ansicht** und (bei Frische) **Kategorie** wählen – typisch morgens: **Frische & Kühlung · ALARM · Alle**.
+3. Optional **🔍 Artikel suchen** für gezielte Suche.
+4. Karten nacheinander bearbeiten:
    - **✓ OK**
    - **↩️ Raus**
-   - **🥣 Kueche**
+   - **🥣 Küche**
    - **🗑️ Ausverkauft**
-6. Optional Menge ueber **+ / -** korrigieren.
+5. Menge bei Bedarf mit **− / +** korrigieren.
+6. Am Ende **💾 Änderungen speichern** (bei Cloud-Sync).
 
-![MHD Uebersicht](./modulanleitungen/screenshots/01-mhd-monitor.png)
-![MHD Kartenbeispiel mit Aktionen](./modulanleitungen/screenshots/01b-mhd-karte.png)
-![MHD Suche geoeffnet](./modulanleitungen/screenshots/01c-mhd-suche-offen.png)
+![MHD Übersicht](./modulanleitungen/screenshots/01-mhd-monitor.png)
+![MHD Kartenbeispiel](./modulanleitungen/screenshots/01b-mhd-karte.png)
+![MHD Suche geöffnet](./modulanleitungen/screenshots/01c-mhd-suche-offen.png)
 
-## 3. Neu (Wareneingang)
+---
 
-Der Tab **Neu** ist fuer neue Lieferungen und Erfassungen.
+## 4. Neu (Wareneingang)
 
-### Laden
+Der Tab **Neu** erfasst Lieferungen – oben wählt ihr **Laden** oder **Metzgerei**.
 
-1. Tab **Neu** oeffnen, Modus **Laden** aktivieren.
-2. Barcode scannen oder EAN eintippen.
-3. Artikel pruefen bzw. Namen ergaenzen.
-4. Menge und MHD eintragen.
-5. **Posten hinzufuegen**.
+### Laden (Schnellerfassung)
+
+1. Tab **Neu** → **Laden**.
+2. **Kategorie** setzen, **Barcode scannen** oder **EAN** eintippen und **OK**.
+3. Bei bekannter EAN: grüne Zeile **Erkannt:** – sonst **Produktname** ergänzen.
+4. **Menge** und **MHD** eintragen.
+5. **➕ Posten hinzufügen** – weitere Artikel wiederholen.
+6. Optional **Letzte Eingänge** / **Stammdaten**.
 
 ### Metzgerei
 
 1. Auf **Metzgerei** wechseln.
-2. Lieferant, Kategorie und Temperatur eintragen.
-3. Lieferscheinfotos aufnehmen.
-4. Als Entwurf speichern oder gesamte Lieferung abschliessen.
+2. **Lieferant** (oder **🏠 Eigenproduktion**), **Waren-Kategorie**, **Temperatur**.
+3. **📸 Lieferscheine fotografieren** (morgens reicht oft ein Entwurf).
+4. **📝 Als offenen Entwurf speichern** oder mit Posten **💾 Gesamte Lieferung abschließen**.
+5. Offene Entwürfe unten unter **📋 Offene Lieferungen zur Nachbearbeitung** fortsetzen.
 
-![Neu - Laden](./modulanleitungen/screenshots/02-wareneingang-schnell.png)
+![Neu – Laden](./modulanleitungen/screenshots/02-wareneingang-schnell.png)
 ![Barcode-Scanner](./modulanleitungen/screenshots/02b-barcode-scanner.png)
 ![Erkannter Posten](./modulanleitungen/screenshots/02c-posten-erkannt.png)
-![Neu - Metzgerei](./modulanleitungen/screenshots/03-wareneingang-metzgerei.png)
+![Neu – Metzgerei](./modulanleitungen/screenshots/03-wareneingang-metzgerei.png)
 ![Lieferscheinfotos](./modulanleitungen/screenshots/03b-lieferschein-fotos.png)
 
-## 4. Prod. (Wurstkueche)
+---
 
-Der Tab **Prod.** ist in zwei aufklappbare Bereiche unterteilt:
-- **Rezepte** (standardmaessig offen)
-- **WRS Kalkulation** (standardmaessig zugeklappt)
+## 5. Prod. (Wurstküche)
 
-Ablauf:
-1. Rezept auswaehlen.
-2. Zielmenge einstellen.
-3. Zutaten/Schritte pruefen.
-4. Produktion und Verkaufseinheiten dokumentieren.
+Der Tab **Prod.** hat zwei aufklappbare Bereiche:
 
-![Produktion - Uebersicht](./modulanleitungen/screenshots/04-wurstkueche.png)
-![Produktion - Rezeptdetail](./modulanleitungen/screenshots/04b-rezept-detail.png)
+- **Rezepte** (standardmäßig offen) – Suche, Kategorien, Rezeptliste, Detail mit Produktionsmenge und Verkaufseinheiten.
+- **WRS Kalkulation** (standardmäßig zu) – BEFFE-Skalierer, Kosten, Einwiege-Packliste.
 
-## 5. HACCP
+Ablauf Produktion:
 
-Im Tab **HACCP** werden Kontrollen dokumentiert.
+1. Rezept antippen → Detail öffnen.
+2. **Tagesproduktion (kg)** einstellen, Zutaten und Schritte prüfen.
+3. **Charge dokumentieren** – Daten erscheinen später unter **Büro**.
 
-1. Tab **HACCP** oeffnen.
-2. Temperaturbereich bearbeiten.
-3. Kerntemperatur eintragen, danach pH-Wert erfassen.
-4. Speichern.
-5. Bei Bedarf Reinigungsdokumentation erledigen.
+![Prod. – Rezeptliste](./modulanleitungen/screenshots/04-wurstkueche.png)
+![Prod. – Rezeptdetail](./modulanleitungen/screenshots/04b-rezept-detail.png)
 
-![HACCP Uebersicht](./modulanleitungen/screenshots/05-haccp.png)
+---
+
+## 6. HACCP
+
+Im Tab **HACCP** dokumentiert ihr Produktion und Tageskontrollen.
+
+### Produktions-Protokoll (oben)
+
+1. **Kerntemperatur** und **pH-Wert** einstellen.
+2. **Chargen-Nummer** prüfen oder mit **⚡ Neu** erzeugen.
+3. **📝 Protokoll eintragen**.
+
+### Tageskontrollen (Mitte)
+
+Umschalter **Temperaturen** · **Reinigung** · **Geräte** – Messwerte eintragen und mit **OK** bzw. **Reinigung erledigt** bestätigen.
+
+### Export (unten)
+
+**🖨️ Druckansicht generieren** – Protokolle der letzten 7 Tage für Behördenkontrollen.
+
+![HACCP Übersicht](./modulanleitungen/screenshots/05-haccp.png)
 ![HACCP Temperaturen](./modulanleitungen/screenshots/05b-haccp-temperaturen.png)
 ![HACCP Reinigung](./modulanleitungen/screenshots/05c-haccp-reinigung.png)
 
-## 6. Buero (Chargen)
+---
 
-Der Tab **Buero** dient der Rueckverfolgung.
+## 7. Büro (Chargen & Leitstand)
 
-1. Tab **Buero** oeffnen.
-2. Nach Charge, Rezept oder Mitarbeiter suchen.
-3. Chargendetails kontrollieren.
+Der Tab **Büro** dient der Rückverfolgung und (mit Admin-Rechten) der Pflege von Nachricht und Team-Konfiguration.
 
-![Buero - Chargenuebersicht](./modulanleitungen/screenshots/06-chargen.png)
-![Buero - Chargenliste](./modulanleitungen/screenshots/06b-chargen-liste.png)
+1. Tab **Büro** öffnen.
+2. **Rezeptdaten-Prüfung**: Masterliste vs. Cloud prüfen.
+3. Nach **Charge, Rezept oder Macher** suchen und Einträge kontrollieren.
+4. Admins: **Leitstand** – Nachricht des Tages veröffentlichen, Team-Gruppen pflegen.
+
+![Büro – Chargenübersicht](./modulanleitungen/screenshots/06-chargen.png)
+![Büro – Chargenliste](./modulanleitungen/screenshots/06b-chargen-liste.png)
+
+---
 
 ## Morgenroutine (Kurz)
 
-1. **Start**: anmelden, Nachricht lesen, Aufgaben pruefen.
-2. **MHD**: Filter setzen, kritische Karten bearbeiten.
-3. **HACCP**: Temperaturen, Kernwerte und Reinigung dokumentieren.
+1. **Start**: anmelden, Nachricht lesen, Aufgaben abarbeiten.
+2. **MHD**: Filter **ALARM**, Karten bearbeiten, speichern.
+3. **HACCP**: **Temperaturen** (und bei Bedarf **Reinigung**) dokumentieren.
+4. **Neu > Metzgerei**: Lieferschein-Fotos als Entwurf, Posten nachmittags nachziehen.
 
 ## Liefertag (Kurz)
 
-1. **Neu > Laden**: Ware erfassen.
-2. **Neu > Metzgerei**: Lieferdaten/Fotos dokumentieren.
-3. Lieferung abschliessen und in Verlauf pruefen.
+1. **Neu > Laden**: Ware per Scan erfassen.
+2. **Neu > Metzgerei**: Lieferant, Temperatur, Fotos.
+3. **Gesamte Lieferung abschließen** – Status und offene Entwürfe prüfen.
+
+## Kundenbestellung (Kurz)
+
+1. **Start** anmelden.
+2. **Team > Bestellungen**: Auftrag aufnehmen, Zettel anhängen.
+3. Produktion plant über **Prod.** / Team-Infos.

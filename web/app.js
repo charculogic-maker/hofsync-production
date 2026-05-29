@@ -65,6 +65,20 @@ import {
   syncPushRegistration,
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
+import {
+  getGlobalTenantId,
+  getTenantCollection,
+  getTenantCollectionPath,
+  initTenantDb,
+  setGlobalTenantId,
+} from './tenant-db.js';
+
+export {
+  getGlobalTenantId,
+  getTenantCollection,
+  getTenantCollectionPath,
+  setGlobalTenantId,
+} from './tenant-db.js';
 
 // ============================================================================
 // GLOBALE UI-HILFSFUNKTIONEN (vor allen Modulen und IIFEs definiert)
@@ -107,6 +121,28 @@ function showHUD(title, desc, icon) {
 }
 window.showHUD = showHUD;
 
+function applyBranding() {
+  const branding = window.BRANDING || {};
+  const appName = branding.appName || 'CharcuLogic';
+  const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
+  const primaryColor = branding.primaryColor || '#28a745';
+
+  document.querySelectorAll('.brand-app-name').forEach((el) => { el.textContent = appName; });
+  document.querySelectorAll('.brand-betriebs-name').forEach((el) => { el.textContent = betriebsName; });
+  document.querySelectorAll('.auth-lock-brand').forEach((el) => { el.textContent = appName; });
+
+  const titleEl = document.querySelector('title');
+  const titleSuffix = titleEl?.dataset?.brandTitleSuffix ?? '';
+  document.title = `${appName}${titleSuffix}`;
+
+  const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appleTitleMeta) appleTitleMeta.setAttribute('content', appName);
+
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute('content', primaryColor);
+}
+window.applyBranding = applyBranding;
+
 // --- DARK MODE ---
 (function initTheme() {
   const THEME_KEY = 'charculogic.theme';
@@ -138,7 +174,6 @@ window.showHUD = showHUD;
 // FIREBASE / FIRESTORE (White-Label Mandanten-Architektur)
 // ============================================================================
 
-let currentTenantId = '';
 const appsScriptWebAppUrl = 'https://script.google.com/macros/s/AKfycbzzSzR4isL2meZGxsA5tMJ7ShPko47T6I7n_izcAWQ3FgIdajKaMUE2Nw_H9fu9H3RI/exec';
 
 
@@ -159,7 +194,7 @@ initSyncEngine({
   getDatabase: () => db,
   isFirebaseReady: () => firebaseReady,
   getFirebase: () => firebase,
-  getTenantId: () => getTenantId(),
+  getTenantId: () => getGlobalTenantId() || getTenantId(),
   appsScriptWebAppUrl,
   showHUD,
 });
@@ -196,6 +231,7 @@ function initFirebase() {
       firebase.initializeApp(firebaseConfig);
     }
     db = firebase.firestore();
+    initTenantDb(db);
     db.enablePersistence().catch((err) => {
       console.warn("Firestore Persistence Error:", err.code);
     });
@@ -230,8 +266,6 @@ const wrsState = {
   priceSource: 'fallback',
 };
 
-const FLEISCHPREISE_FALLBACK_TENANT = 'StevesHof_Hauptbetrieb';
-
 async function loadWrsFallbackData() {
   const response = await fetch('/data/beffe_data.json', { cache: 'no-store' });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -239,7 +273,7 @@ async function loadWrsFallbackData() {
 }
 
 function resolveFleischpreiseTenantId() {
-  return currentTenantId || getTenantId() || FLEISCHPREISE_FALLBACK_TENANT;
+  return getGlobalTenantId() || getTenantId();
 }
 
 function applyFleischpreiseSnapshot(snapshot, sourceLabel = 'cloud') {
@@ -266,52 +300,32 @@ function applyFleischpreiseSnapshot(snapshot, sourceLabel = 'cloud') {
 
 function subscribeFleischpreise() {
   if (!firebaseReady || !db) return;
+  const tenantId = resolveFleischpreiseTenantId();
+  if (!tenantId) return;
+
   wrsState.fleischpreiseUnsubscribe?.();
   wrsState.fleischpreiseUnsubscribe = null;
 
-  const tenantCandidates = [...new Set([
-    resolveFleischpreiseTenantId(),
-    FLEISCHPREISE_FALLBACK_TENANT,
-  ])];
+  let collectionRef;
+  try {
+    collectionRef = getTenantCollection('fleischpreise');
+  } catch (err) {
+    console.warn('[CharcuLogic WRS] Fleischpreise-Listener ohne Mandant:', err);
+    return;
+  }
 
-  const trySubscribe = (index = 0) => {
-    if (index >= tenantCandidates.length) return;
-    const tenantId = tenantCandidates[index];
-    const collectionRef = db.collection('tenants').doc(tenantId).collection('fleischpreise');
-
-    wrsState.fleischpreiseUnsubscribe = collectionRef.onSnapshot(
-      (snapshot) => {
-        if (snapshot.empty) {
-          if (index + 1 < tenantCandidates.length) {
-            wrsState.fleischpreiseUnsubscribe?.();
-            wrsState.fleischpreiseUnsubscribe = null;
-            trySubscribe(index + 1);
-          }
-          return;
-        }
-        const applied = applyFleischpreiseSnapshot(snapshot, `cloud:${tenantId}`);
-        if (!applied && index + 1 < tenantCandidates.length) {
-          wrsState.fleischpreiseUnsubscribe?.();
-          wrsState.fleischpreiseUnsubscribe = null;
-          trySubscribe(index + 1);
-        }
-      },
-      (err) => {
-        console.warn(`[CharcuLogic WRS] Fleischpreise-Listener (${tenantId}) fehlgeschlagen:`, err);
-        if (index + 1 < tenantCandidates.length) {
-          wrsState.fleischpreiseUnsubscribe?.();
-          wrsState.fleischpreiseUnsubscribe = null;
-          trySubscribe(index + 1);
-          return;
-        }
-        if (wrsState.priceSource === 'fallback') {
-          setWrsStatus('Offline (Fallback)', 'error');
-        }
-      },
-    );
-  };
-
-  trySubscribe(0);
+  wrsState.fleischpreiseUnsubscribe = collectionRef.onSnapshot(
+    (snapshot) => {
+      if (snapshot.empty) return;
+      applyFleischpreiseSnapshot(snapshot, `cloud:${tenantId}`);
+    },
+    (err) => {
+      console.warn(`[CharcuLogic WRS] Fleischpreise-Listener (${tenantId}) fehlgeschlagen:`, err);
+      if (wrsState.priceSource === 'fallback') {
+        setWrsStatus('Offline (Fallback)', 'error');
+      }
+    },
+  );
 }
 
 function setWrsStatus(text, type = 'ok') {
@@ -1075,6 +1089,7 @@ if ('serviceWorker' in navigator) {
 
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
+  applyBranding();
   updateOnlineStatusUi(navigator.onLine);
 
   if (!initFirebase()) {
@@ -1087,10 +1102,11 @@ async function bootstrapAuthenticatedApp() {
   setSyncStatus('online');
   initAuthModule(firebase, db, { showHUD });
   const authSession = await waitForAuthReady();
-  currentTenantId = authSession.tenantId;
+  setGlobalTenantId(authSession.tenantId);
+  const tenantId = getGlobalTenantId();
 
   initProductionModule(db, writeFirestoreDocOrQueue, { playClickSound, playFeedbackSound }, showHUD, {
-    tenantId: currentTenantId,
+    tenantId,
     getFirebase: () => firebase,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
@@ -1099,7 +1115,7 @@ async function bootstrapAuthenticatedApp() {
   initMhdModule(db, { writeOrQueueFirestore: writeFirestoreDocOrQueue, addPendingSync }, { playFeedbackSound, playClickSound }, {
     showHUD,
     verifyAdminAction,
-    tenantId: currentTenantId,
+    tenantId,
     appsScriptWebAppUrl,
     getFirebase: () => firebase,
     isFirebaseReady: () => firebaseReady,
@@ -1109,7 +1125,7 @@ async function bootstrapAuthenticatedApp() {
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {
-    tenantId: currentTenantId,
+    tenantId,
     getFirebase: () => firebase,
     playClickSound,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
@@ -1117,17 +1133,17 @@ async function bootstrapAuthenticatedApp() {
   });
 
   initTeamboardModule(db, {
-    tenantId: currentTenantId,
+    tenantId,
     getFirebase: () => firebase,
     showHUD,
     playClickSound,
   });
   initCustomerOrdersModule(db, {
-    tenantId: currentTenantId,
+    tenantId,
     getFirebase: () => firebase,
   });
   initTeamConfigModule(db, {
-    tenantId: currentTenantId,
+    tenantId,
     getFirebase: () => firebase,
   });
   refreshTeamboardAdminPanel();
@@ -1191,7 +1207,7 @@ function initQaPanel() {
 
   btnInjectStale?.addEventListener('click', () => {
     const staleTimestamp = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-    const tenantId = currentTenantId || 'qa-tenant';
+    const tenantId = getGlobalTenantId() || 'qa-tenant';
     const staleEntry = {
       _syncType: 'firestore-doc',
       _collectionPath: `tenants/${tenantId}/haccp_logs`,
@@ -1217,7 +1233,7 @@ function initQaPanel() {
   });
 
   btnInjectBadSchema?.addEventListener('click', () => {
-    const tenantId = currentTenantId || 'qa-tenant';
+    const tenantId = getGlobalTenantId() || 'qa-tenant';
     const badEntry = {
       _syncType: 'firestore-doc',
       _collectionPath: `tenants/${tenantId}/mhd_liste`,
@@ -1243,6 +1259,8 @@ function initQaPanel() {
   qaState.log('QA-Panel bereit');
 }
 initQaPanel();
+
+applyBranding();
 
 initWrsModule();
 

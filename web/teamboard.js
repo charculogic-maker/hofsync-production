@@ -3,6 +3,7 @@
  */
 
 import { getAuthContext, verifyAdminAction } from './auth.js';
+import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getTeamEmployees, getTeamGroups } from './team-config.js';
 import { handleTasksSnapshotForNotify, resetTeamNotifyBootstrap } from './team-notify.js';
@@ -224,19 +225,20 @@ function setActiveShift(shift) {
 
 function bulletinRef() {
   if (!teamboardState.db || !teamboardState.tenantId) return null;
-  return teamboardState.db
-    .collection('tenants')
-    .doc(teamboardState.tenantId)
-    .collection('bulletinBoard')
-    .doc(BULLETIN_DOC_ID);
+  try {
+    return getTenantCollection('bulletinBoard').doc(BULLETIN_DOC_ID);
+  } catch {
+    return null;
+  }
 }
 
 function tasksCollectionRef() {
   if (!teamboardState.db || !teamboardState.tenantId) return null;
-  return teamboardState.db
-    .collection('tenants')
-    .doc(teamboardState.tenantId)
-    .collection('tasks');
+  try {
+    return getTenantCollection('tasks');
+  } catch {
+    return null;
+  }
 }
 
 function resolveAuthorName() {

@@ -2,7 +2,7 @@
 
 Dokumentation für Produktion (pH, Kerntemperatur, Charge) und **tägliche Betriebskontrollen** (Temperaturen, Reinigung, Geräte).
 
-![HACCP – Messwerte und Tagesbereiche](./screenshots/05-haccp.png)
+![HACCP – Produktions-Protokoll](./screenshots/05-haccp.png)
 
 ## Bereich 1: Produktions-Protokoll (oben)
 
@@ -10,8 +10,8 @@ Für einzelne Chargen / Produktionsschritte:
 
 | Feld | Bedeutung |
 |------|-----------|
-| **pH-Wert** | Slider 4,0 – 7,0 (optimal ca. 5,2–5,8) |
 | **Kerntemperatur** | Garziel u. a. > 72 °C |
+| **pH-Wert** | Slider 4,0 – 7,0 (optimal ca. 5,2–5,8) |
 | **Chargen-Nummer** | z. B. CH-2026-0523 – **⚡ Neu** erzeugt Nummer |
 | **📝 Protokoll eintragen** | Speichern |
 
@@ -37,7 +37,7 @@ Messwert eintragen → **OK**. Optional Notiz bei Abweichung.
 
 Pro Aufgabe **Reinigung erledigt** tippen.
 
-Morgens typisch: **Temperaturen** → Werte eintragen → **Speichern** → optional **Reinigung**.
+Morgens typisch: **Temperaturen** → Werte eintragen → optional **Reinigung**.
 
 ## Bereich 3: Export / Büro (unten)
 
@@ -46,6 +46,6 @@ Morgens typisch: **Temperaturen** → Werte eintragen → **Speichern** → opti
 ## Morgenroutine (Kurz)
 
 1. Tab **HACCP**
-2. **Temperaturen** prüfen und speichern
+2. **Temperaturen** prüfen und bestätigen
 3. **Reinigung** dokumentieren
 4. Bei Produktion: pH, Kerntemperatur und Charge im oberen Bereich erfassen

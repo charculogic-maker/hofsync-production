@@ -1,3 +1,5 @@
+import { getGlobalTenantId } from './tenant-db.js';
+
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
 const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
 const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
@@ -32,6 +34,8 @@ export function initSyncEngine({ getDatabase, isFirebaseReady, getFirebase, getT
 }
 
 function currentTenantId() {
+  const fromGlobal = getGlobalTenantId();
+  if (fromGlobal) return fromGlobal;
   return typeof syncContext.getTenantId === 'function' ? String(syncContext.getTenantId() || '').trim() : '';
 }
 

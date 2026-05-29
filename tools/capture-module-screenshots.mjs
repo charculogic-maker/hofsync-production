@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Erzeugt Übersichts- und Detail-Screenshots für docs/modulanleitungen/
- * Voraussetzung: python -m http.server 5173 im Ordner web/
+ * Voraussetzung: python -m http.server 5173 --bind 127.0.0.1 im Ordner web/
  * Aufruf: node tools/capture-module-screenshots.mjs
  */
 import { chromium } from 'playwright';
@@ -16,13 +16,85 @@ const baseUrl = process.env.APP_URL || 'http://127.0.0.1:5173/index.html';
 
 /** @typedef {{ file: string, fullPage?: boolean, prepare: (page: import('playwright').Page) => Promise<void> }} Shot */
 
+function injectTeamboardDemo() {
+  const status = document.getElementById('team-login-status');
+  if (status) status.textContent = 'Angemeldet als: Stephie';
+  const employee = document.getElementById('team-login-employee');
+  if (employee) employee.value = 'Stephie';
+  const card = document.getElementById('bulletin-card');
+  if (card) {
+    card.classList.remove('hidden');
+    card.innerHTML = `
+      <div class="bulletin-card-header">
+        <span class="bulletin-card-kicker">Nachricht des Tages</span>
+        <span class="bulletin-card-meta">Heute · Meister</span>
+      </div>
+      <p class="bulletin-card-message">Schlachtplan: Gallo-Patties zuerst. TK-Lager nach Wareneingang prüfen.</p>`;
+  }
+  const empty = document.getElementById('task-token-empty');
+  const list = document.getElementById('task-token-list');
+  if (list) {
+    list.innerHTML = `
+      <article class="task-token task-token--rot">
+        <div class="task-token-body">
+          <div class="task-token-prio" aria-hidden="true">🔴</div>
+          <div class="task-token-text">
+            <strong class="task-token-title">MHD-Alarm Frische durchgehen</strong>
+            <span class="task-token-route">Frühschicht · bis 09:00</span>
+          </div>
+        </div>
+        <button type="button" class="task-token-done" aria-label="Aufgabe erledigt">✓</button>
+      </article>
+      <article class="task-token task-token--gelb">
+        <div class="task-token-body">
+          <div class="task-token-prio" aria-hidden="true">🟡</div>
+          <div class="task-token-text">
+            <strong class="task-token-title">Lieferschein Metzgerei fotografieren</strong>
+            <span class="task-token-route">Alle · heute</span>
+          </div>
+        </div>
+        <button type="button" class="task-token-done" aria-label="Aufgabe erledigt">✓</button>
+      </article>`;
+    if (empty) empty.classList.add('hidden');
+  }
+}
+
 /** @type {Shot[]} */
 const overviewShots = [
-  { file: '00-start.png', async prepare(page) { await page.locator('#tab-teamboard').click({ force: true }); } },
+  {
+    file: '00-start.png',
+    async prepare(page) {
+      await page.locator('#tab-teamboard').click({ force: true });
+      await page.evaluate(injectTeamboardDemo);
+    },
+  },
+  {
+    file: '07-team.png',
+    async prepare(page) {
+      await page.locator('#tab-team').click({ force: true });
+      await page.evaluate(injectTeamboardDemo);
+      await page.evaluate(() => {
+        const reminder = document.getElementById('team-login-reminder');
+        if (reminder) reminder.classList.add('hidden');
+        document.getElementById('team-subnav-messages')?.click();
+      });
+    },
+  },
   { file: '01-mhd-monitor.png', async prepare(page) { await page.locator('#tab-mhd').click({ force: true }); } },
   { file: '02-wareneingang-schnell.png', async prepare(page) { await page.locator('#tab-receiving').click({ force: true }); await page.locator('#receiving-mode-schnell').click({ force: true }); } },
   { file: '03-wareneingang-metzgerei.png', async prepare(page) { await page.locator('#tab-receiving').click({ force: true }); await page.locator('#receiving-mode-metzgerei').click({ force: true }); } },
-  { file: '04-wurstkueche.png', async prepare(page) { await page.locator('#tab-kitchen').click({ force: true }); } },
+  {
+    file: '04-wurstkueche.png',
+    async prepare(page) {
+      await page.locator('#tab-kitchen').click({ force: true });
+      await page.evaluate(() => {
+        const recipes = document.getElementById('kitchen-recipes-panel');
+        const wrs = document.getElementById('kitchen-wrs-panel');
+        if (recipes) recipes.open = true;
+        if (wrs) wrs.open = false;
+      });
+    },
+  },
   { file: '05-haccp.png', async prepare(page) { await page.locator('#tab-haccp').click({ force: true }); } },
   { file: '06-chargen.png', async prepare(page) { await page.locator('#tab-batches').click({ force: true }); } },
 ];

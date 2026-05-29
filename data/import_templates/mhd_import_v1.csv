@@ -1,0 +1,4 @@
+ID,Barcode,Marke,Produktname,MHD,Menge,kategorie,abverkauft
+beispiel-001,4000000000011,Beispielmarke,Joghurt natur,28.05.2026,12,MoPro,FALSE
+beispiel-002,4000000000028,Beispielhof,Frischkäse Kräuter,30.05.2026,6,Kühlware,FALSE
+beispiel-003,4000000000035,Beispielmanufaktur,Nudeln Dinkel,01.11.2028,10,Trockenware,FALSE

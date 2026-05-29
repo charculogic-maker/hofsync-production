@@ -1,5 +1,11 @@
 // Wurstkueche-, Rezept- und Chargen-Modul
 
+import {
+  getGlobalTenantId,
+  getTenantCollection,
+  getTenantCollectionPath,
+} from './tenant-db.js';
+
 const productionState = {
   db: null,
   tenantId: '',
@@ -28,7 +34,7 @@ const productionState = {
 function getFirebase() { return productionState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(productionState.db && getFirebase()); }
 function requireProductionTenantId() {
-  const tenantId = String(productionState.tenantId || '').trim();
+  const tenantId = getGlobalTenantId() || String(productionState.tenantId || '').trim();
   if (!tenantId) {
     console.error('[CharcuLogic Firebase] Production-Modul ohne Mandanten-ID initialisiert.');
     return null;
@@ -36,17 +42,26 @@ function requireProductionTenantId() {
   return tenantId;
 }
 function productionBatchesCollectionPath() {
-  const tenantId = requireProductionTenantId();
-  return tenantId ? `tenants/${tenantId}/produktion_chargen` : null;
+  try {
+    return getTenantCollectionPath('produktion_chargen');
+  } catch {
+    return null;
+  }
 }
 function rezepteCollectionPath() {
-  const tenantId = requireProductionTenantId();
-  return tenantId ? `tenants/${tenantId}/rezepte` : null;
+  try {
+    return getTenantCollectionPath('rezepte');
+  } catch {
+    return null;
+  }
 }
 function rezepteCollectionRef() {
-  const tenantId = requireProductionTenantId();
-  if (!tenantId || !productionState.db) return null;
-  return productionState.db.collection('tenants').doc(tenantId).collection('rezepte');
+  if (!productionState.db) return null;
+  try {
+    return getTenantCollection('rezepte');
+  } catch {
+    return null;
+  }
 }
 function serverTimestampFallback() {
   const firebaseInstance = getFirebase();

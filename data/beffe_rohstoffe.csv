@@ -1,0 +1,57 @@
+Quelle,Kategorie,MaterialNr,Material,Preis_kg,Wasser_Prozent,BEFFE_Prozent,BE_Prozent,Fett_Prozent
+kochwurst,Kochwurst,1,S I,3.1,69.3,24.5,1.1,5.1
+kochwurst,Kochwurst,2,S II,2.6,66.7,23.7,1.4,8.2
+kochwurst,Kochwurst,3,S III,2.1,64.8,19.9,3.4,11.9
+kochwurst,Kochwurst,4,R I,4.7,69.4,23.8,1.8,5
+kochwurst,Kochwurst,5,R II,3.6,65.8,21.9,4,8.3
+kochwurst,Kochwurst,6,R III,2.8,51.98,12.92,1.61,29.83
+kochwurst,Kochwurst,7,S IV Bauch,2.1,45.6,15,2.4,37
+kochwurst,Kochwurst,8,S V Bauch Fett,1.8,20.1,9,1.4,69.5
+kochwurst,Kochwurst,9,,1.1,27.5,11.6,2.7,58.2
+kochwurst,Kochwurst,10,S V II Speck,0.8,7.3,0.9,1.8,90
+kochwurst,Kochwurst,11,S V III Kutterfett,0.6,100,0,0,0
+kochwurst,Kochwurst,12,Leber,1.1,76,17.9,1.1,5
+kochwurst,Kochwurst,13,Kopffleisch,0.8,51,14.9,5.1,29
+kochwurst,Kochwurst,14,Zunge,2.1,61.2,15.4,3.4,20
+kochwurst,Kochwurst,15,Schwarten,0.05,55,0,30,15
+kochwurst,Kochwurst,16,Einlage S I,3.8,69.3,24.5,1.1,5.1
+kochwurst,Kochwurst,17,Einlage S II,2.9,66.7,23.7,1.4,8.2
+kochwurst,Kochwurst,18,Einlage SIV Bauch,2.6,45.6,15,2.4,37
+kochwurst,Kochwurst,19,Einlage Wamme,1.1,27.5,11.6,2.7,58.2
+kochwurst,Kochwurst,20,Einlage Speck,0.8,7.3,0.9,1.8,90
+kochwurst,Kochwurst,21,Eis / Brühe,0.05,100,0,0,0
+kochwurst,Kochwurst,22,Blut,0.1,76.4,21,1.8,0.8
+kochwurst,Kochwurst,23,,0.25,,,,
+kochwurst,Kochwurst,24,,5.5,,,,
+kochwurst,Kochwurst,25,,11,,,,
+kochwurst,Kochwurst,26,,1,,,,
+kochwurst,Kochwurst,27,,6,,,,
+kochwurst,Kochwurst,28,,5,,,,
+kochwurst,Kochwurst,29,,4,,,,
+kochwurst,Kochwurst,30,,3,,,,
+kochwurst,Kochwurst,31,,2,,,,
+kochwurst,Kochwurst,32,,1,,,,
+kochwurst,Kochwurst,33,,15,,,,
+kochwurst,Kochwurst,34,,10,,,,
+bruehwurst,Bruehwurst,1,S I,3.8,75,19,1,5
+bruehwurst,Bruehwurst,2,S II,2.6,73,17.5,1.5,8
+bruehwurst,Bruehwurst,3,S III,2.1,70,16.1,2.9,11
+bruehwurst,Bruehwurst,4,R I,4.7,75,19.5,1.5,4
+bruehwurst,Bruehwurst,5,R II,3.6,72,17,3,8
+bruehwurst,Bruehwurst,6,R III,2.8,69,15.6,3.4,12
+bruehwurst,Bruehwurst,7,S IV Bauch,2.1,53,11.9,2.1,33
+bruehwurst,Bruehwurst,8,S V Bauch Fett,1.8,32,6.8,1.2,60
+bruehwurst,Bruehwurst,9,,1.1,40,7,3,50
+bruehwurst,Bruehwurst,10,S V II Speck,0.8,8,0.3,1.7,90
+bruehwurst,Bruehwurst,11,S V III Kutterfett,0.6,25,2.5,2.5,70
+bruehwurst,Bruehwurst,12,Leber,1.1,76,17.9,1.1,5
+bruehwurst,Bruehwurst,13,Schwarten,0.8,55,0,30,15
+bruehwurst,Bruehwurst,14,,4.7,75,19.5,1.5,4
+bruehwurst,Bruehwurst,15,,3.6,72,17,3,8
+bruehwurst,Bruehwurst,16,Einlage S I,3.8,75,19,1,5
+bruehwurst,Bruehwurst,17,Einlage S II,2.6,73,17.5,1.5,8
+bruehwurst,Bruehwurst,18,,2.3,53,11.9,2.1,33
+bruehwurst,Bruehwurst,19,,1.1,40,7,3,50
+bruehwurst,Bruehwurst,20,Einlage Speck,0.8,8,0.3,1.7,90
+bruehwurst,Bruehwurst,21,Eis / Brühe,0.1,100,0,0,0
+bruehwurst,Bruehwurst,22,Blut,0.05,76.4,21,1.8,0.8

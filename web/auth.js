@@ -1,3 +1,5 @@
+import { setGlobalTenantId } from './tenant-db.js';
+
 let authContext = null;
 let authReadyPromise = null;
 let resolveAuthReady = null;
@@ -81,9 +83,9 @@ function ensureLoginOverlay() {
     overlay.id = 'auth-lock-screen';
     overlay.innerHTML = `
       <div class="auth-lock-card" role="dialog" aria-modal="true" aria-labelledby="auth-lock-title">
-        <div class="auth-lock-brand">CharcuLogic</div>
-        <h1 id="auth-lock-title">Betriebs-Login</h1>
-        <p>HofSync wird initialisiert und laedt die Mandantendaten fuer dieses Geraet.</p>
+        <div class="auth-lock-brand brand-app-name"></div>
+        <h1 id="auth-lock-title"><span class="brand-betriebs-name"></span></h1>
+        <p class="auth-lock-tagline">Betriebs-Login · HofSync wird initialisiert und laedt die Mandantendaten fuer dieses Geraet.</p>
         <form id="auth-login-form" class="auth-lock-form">
           <label>
             <span>E-Mail</span>
@@ -203,6 +205,10 @@ function ensureLoginOverlay() {
   authState.overlay = overlay;
   authState.errorBox = document.getElementById('auth-login-error');
 
+  if (typeof window.applyBranding === 'function') {
+    window.applyBranding();
+  }
+
   document.getElementById('auth-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     setAuthError('');
@@ -307,6 +313,7 @@ async function buildAuthContext(user) {
     throw new Error('Fuer diesen Login ist kein Mandant hinterlegt. Bitte Tenant-ID als Custom Claim oder Nutzerprofil setzen.');
   }
   cacheTenantId(tenantId);
+  setGlobalTenantId(tenantId);
 
   const role = normalizeRole(claims.role || profile.role, claims);
   return {
@@ -341,6 +348,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   authState.firebase.auth().onAuthStateChanged(async (user) => {
     if (!user) {
       authContext = null;
+      setGlobalTenantId(null);
       showLoginOverlay();
       return;
     }
@@ -357,6 +365,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       }
     } catch (err) {
       authContext = null;
+      setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
       showLoginOverlay('Mandantendaten werden geladen. Bitte Verbindung pruefen oder erneut anmelden.');
     }

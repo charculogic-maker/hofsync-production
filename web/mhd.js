@@ -1,6 +1,11 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
 import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import {
+  getGlobalTenantId,
+  getTenantCollection,
+  getTenantCollectionPath,
+} from './tenant-db.js';
 
 const EMPLOYEE_PINS = {
   "1122": "Stephie",
@@ -207,12 +212,25 @@ const mhdState = {
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 function requireMhdTenantId() {
-  const tenantId = String(mhdState.tenantId || '').trim();
+  const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
   if (!tenantId) { console.error('[CharcuLogic Firebase] MHD-Modul ohne Mandanten-ID initialisiert.'); return null; }
   return tenantId;
 }
-function mhdCollectionPath() { const tenantId = requireMhdTenantId(); return tenantId ? `tenants/${tenantId}/mhd_liste` : null; }
-function mhdDocRef(docId) { return mhdState.db.doc(`${mhdCollectionPath()}/${docId}`); }
+function mhdCollectionPath() {
+  if (!requireMhdTenantId()) return null;
+  try {
+    return getTenantCollectionPath('mhd_liste');
+  } catch {
+    return null;
+  }
+}
+function mhdDocRef(docId) {
+  try {
+    return getTenantCollection('mhd_liste').doc(docId);
+  } catch {
+    return null;
+  }
+}
 
 function serverTimestampFallback() {
   const firebaseInstance = getFirebase();
@@ -296,6 +314,8 @@ const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 const VPE_MASTER_CSV_URL = 'vpe-master.csv';
 
+let lastReceivingHeadCategory = '';
+let lastMhdScanCategory = '';
 let learnModeOverlay = null;
 let currentBarcode = '';
 let activeScan = null;
@@ -323,6 +343,83 @@ function renderReceivingStatus({ status } = {}) {
 
 function cleanScannedBarcode(rawCode) {
   return String(rawCode || '').trim().replace(/[^0-9]/g, '');
+}
+
+function rememberReceivingHeadCategory(category) {
+  const value = String(category || '').trim();
+  if (!value) return;
+  lastReceivingHeadCategory = value;
+}
+
+function rememberMhdScanCategory(category) {
+  const normalized = normalizeMhdCategory(category || '');
+  if (!normalized) return;
+  lastMhdScanCategory = normalized;
+}
+
+function applyLastReceivingHeadCategory() {
+  const categorySelect = document.getElementById('we-category-quick');
+  if (!categorySelect || !lastReceivingHeadCategory) return;
+  const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === lastReceivingHeadCategory);
+  if (hasOption) {
+    categorySelect.value = lastReceivingHeadCategory;
+    updateReceivingQtyFieldUi();
+    updateReceivingTemperatureFieldUi();
+  }
+}
+
+function parseReceivingQty(rawValue, qtyUnit = 'Stk') {
+  const trimmed = String(rawValue ?? '').trim();
+  if (!trimmed) return 1;
+  const parsed = parseFloat(trimmed.replace(',', '.'));
+  if (!Number.isFinite(parsed) || parsed <= 0) return Number.NaN;
+  if (qtyUnit === 'Stk') return Math.max(1, Math.round(parsed));
+  return Math.round(parsed * 100) / 100;
+}
+
+function dismissUnknownBarcodePrompt() {
+  document.getElementById('mhd-unknown-barcode-prompt')?.remove();
+}
+
+function showUnknownBarcodePromptForMhd(ean) {
+  dismissUnknownBarcodePrompt();
+  const code = cleanScannedBarcode(ean);
+  if (!code) return;
+
+  const prompt = document.createElement('div');
+  prompt.id = 'mhd-unknown-barcode-prompt';
+  prompt.className = 'mhd-unknown-barcode-prompt';
+  prompt.innerHTML = `
+    <p class="mhd-unknown-barcode-text">Unbekannter Barcode <strong>${escapeHtml(code)}</strong></p>
+    <div class="mhd-unknown-barcode-actions">
+      <button type="button" class="btn btn-primary" id="btn-mhd-manual-create">Artikel manuell anlegen</button>
+      <button type="button" class="btn btn-secondary" id="btn-mhd-unknown-dismiss">Später</button>
+    </div>
+  `;
+
+  const container = document.getElementById('page-mhd') || document.querySelector('.app-content') || document.body;
+  container.prepend(prompt);
+
+  document.getElementById('btn-mhd-manual-create')?.addEventListener('click', () => {
+    dismissUnknownBarcodePrompt();
+    showLearnModeDialog(code);
+  });
+  document.getElementById('btn-mhd-unknown-dismiss')?.addEventListener('click', () => {
+    dismissUnknownBarcodePrompt();
+    resetScanState({ keepLearnOverlay: false });
+    mhdState.playClickSound(700, 0.04, 0.12);
+  });
+}
+
+function openReceivingManualCreateForm() {
+  const eanEl = document.getElementById('we-ean');
+  if (eanEl && currentDeliveryItemBarcode && !eanEl.value) {
+    eanEl.value = currentDeliveryItemBarcode;
+  }
+  document.getElementById('we-product-manual-wrap')?.classList.add('is-manual-open');
+  updateDeliveryItemProductUi();
+  document.getElementById('we-product-manual')?.focus();
+  setReceivingMode('schnell');
 }
 
 function getActiveEmployee() {
@@ -422,6 +519,7 @@ function resetScanState({ keepLearnOverlay = false } = {}) {
   activeScan = null;
   selectedProduct = null;
   lastScanInputSource = 'camera';
+  dismissUnknownBarcodePrompt();
 
   if (!keepLearnOverlay && learnModeOverlay) {
     learnModeOverlay.remove();
@@ -758,11 +856,13 @@ function lookupScannedProduct(scannedCode) {
 }
 
 function buildCategoryOptions(selectedCategory) {
-  const normalized = normalizeMhdCategory(selectedCategory || '📦 Trockenware');
-  return RECEIVING_CATEGORIES.map((category) => {
-    const selected = normalizeMhdCategory(category.value) === normalized ? ' selected' : '';
+  const normalized = selectedCategory ? normalizeMhdCategory(selectedCategory) : '';
+  const emptySelected = !normalized ? ' selected' : '';
+  const options = RECEIVING_CATEGORIES.map((category) => {
+    const selected = normalized && normalizeMhdCategory(category.value) === normalized ? ' selected' : '';
     return `<option value="${escapeHtml(category.value)}"${selected}>${escapeHtml(category.label)}</option>`;
   }).join('');
+  return `<option value=""${emptySelected}>-- Kategorie wählen --</option>${options}`;
 }
 
 function isReceivingPageActive() {
@@ -773,10 +873,16 @@ function updateDeliveryItemProductUi() {
   const resolved = document.getElementById('we-product-resolved');
   const resolvedName = document.getElementById('we-product-resolved-name');
   const manualWrap = document.getElementById('we-product-manual-wrap');
+  const unknownActions = document.getElementById('we-unknown-barcode-actions');
   const hasName = Boolean(currentDeliveryItemProduct);
+  const hasBarcode = Boolean(currentDeliveryItemBarcode);
+  const isUnknown = hasBarcode && !hasName;
+  const manualOpen = manualWrap?.classList.contains('is-manual-open');
+
   resolved?.classList.toggle('hidden', !hasName);
   if (resolvedName) resolvedName.textContent = currentDeliveryItemProduct;
-  manualWrap?.classList.toggle('hidden', hasName || !currentDeliveryItemBarcode);
+  unknownActions?.classList.toggle('hidden', !isUnknown || manualOpen);
+  manualWrap?.classList.toggle('hidden', hasName || (isUnknown && !manualOpen));
 }
 
 function applyBarcodeToDeliveryItemDraft(barcode) {
@@ -801,9 +907,12 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
         const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
         if (hasOption) {
           categorySelect.value = mappedCategory;
+          rememberReceivingHeadCategory(mappedCategory);
           updateReceivingQtyFieldUi();
         }
       }
+    } else {
+      applyLastReceivingHeadCategory();
     }
     const manualInput = document.getElementById('we-product-manual');
     if (manualInput) manualInput.value = '';
@@ -811,9 +920,9 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
     mhdState.playClickSound(1200, 0.04, 0.12);
   } else {
     currentDeliveryItemProduct = '';
-    renderReceivingStatus({ lastScan: code, status: 'EAN unbekannt – Name ergänzen' });
-    mhdState.showHUD('Unbekannte EAN', 'Bitte den Produktnamen eintragen.', '!');
-    document.getElementById('we-product-manual')?.focus();
+    applyLastReceivingHeadCategory();
+    renderReceivingStatus({ lastScan: code, status: 'EAN unbekannt – manuell anlegen möglich' });
+    mhdState.playFeedbackSound('unknown');
   }
 
   updateDeliveryItemProductUi();
@@ -978,7 +1087,7 @@ async function handleScannedEan(ean) {
     return;
   }
 
-  showLearnModeDialog(scannedCode);
+  showUnknownBarcodePromptForMhd(scannedCode);
 }
 
 function showLegacyLearnModeDialog(ean) {
@@ -1080,7 +1189,7 @@ function showLearnModeDialog(ean) {
   const isKnown = Boolean(productInfo?.name);
   const isKnownVpe = Boolean(productInfo?.isVpe);
   const defaultQty = Math.max(1, Number(productInfo?.packageSize || 1));
-  const defaultCategory = productInfo?.category || productInfo?.kategorie || '📦 Trockenware';
+  const defaultCategory = productInfo?.category || productInfo?.kategorie || lastMhdScanCategory || '';
 
   learnModeOverlay = document.createElement('div');
   learnModeOverlay.className = 'learn-mode-overlay';
@@ -1088,6 +1197,10 @@ function showLearnModeDialog(ean) {
     <div class="learn-mode-card" role="dialog" aria-modal="true" aria-labelledby="learn-mode-title">
       <div class="learn-mode-title" id="learn-mode-title">${isKnownVpe ? 'VPE erkannt' : isKnown ? 'Produkt erkannt' : 'Unbekanntes Produkt'}</div>
       <p class="learn-mode-desc">Der Barcode <strong>${escapeHtml(currentBarcode)}</strong> ist unbekannt. Bitte vollständig erfassen:</p>
+      <label class="learn-mode-label">
+        Barcode / EAN
+        <input type="text" id="learn-product-barcode" class="input-text-touch" value="${escapeHtml(currentBarcode)}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" readonly>
+      </label>
       <label class="learn-mode-label">
         Produktname
         <input type="text" id="learn-product-name" class="input-text-touch" placeholder="z.B. Schwarzkümmel">
@@ -1098,7 +1211,7 @@ function showLearnModeDialog(ean) {
       </label>
       <label class="learn-mode-label">
         Menge / Bestand
-        <input type="number" id="learn-product-qty" class="input-text-touch" min="0" step="1" value="1">
+        <input type="number" id="learn-product-qty" class="input-text-touch" min="1" step="1" placeholder="1" inputmode="numeric">
       </label>
       <label class="learn-mode-label">
         MHD-Datum
@@ -1146,12 +1259,15 @@ function showLearnModeDialog(ean) {
     setGermanDateField(inputMhd, today);
   }
   if (inputQty && document.getElementById('we-qty')?.value) {
-    inputQty.value = String(Math.max(1, parseFloat(document.getElementById('we-qty').value) || 1));
+    inputQty.value = String(Math.max(1, parseReceivingQty(document.getElementById('we-qty').value, 'Stk')));
   }
   if (inputQty) {
     inputQty.min = '1';
-    inputQty.step = '0.1';
-    inputQty.value = String(defaultQty);
+    inputQty.step = isKnownVpe ? '1' : '0.1';
+    inputQty.inputMode = 'numeric';
+    if (!inputQty.value && defaultQty > 1) {
+      inputQty.value = String(defaultQty);
+    }
   }
   if (inputCategory) inputCategory.innerHTML = buildCategoryOptions(defaultCategory);
 
@@ -1199,10 +1315,10 @@ function showLearnModeDialog(ean) {
   btnLearnSave?.addEventListener('click', async () => {
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
-    const qty = Math.max(1, parseFloat(String(inputQty?.value || '1').replace(',', '.')) || 1);
+    const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
     const mhdDate = readGermanDateField(inputMhd) || today;
     const lot = inputLot?.value.trim() || '';
-    const kategorie = normalizeMhdCategory(inputCategory?.value || '📦 Trockenware');
+    const kategorie = normalizeMhdCategory(inputCategory?.value || '');
     const barcodeForSave = currentBarcode || cleanScannedBarcode(ean);
     const isVpe = Boolean(inputIsVpe?.checked);
     const vpeSize = Math.max(2, parseFloat(String(inputVpeSize?.value || '6').replace(',', '.')) || 6);
@@ -1211,6 +1327,12 @@ function showLearnModeDialog(ean) {
     if (!name) {
       inputName?.focus();
       mhdState.showHUD("Name fehlt", "Bitte einen Produktnamen eingeben.", "!");
+      return;
+    }
+
+    if (!kategorie) {
+      inputCategory?.focus();
+      mhdState.showHUD('Kategorie fehlt', 'Bitte eine Kategorie wählen.', '!');
       return;
     }
 
@@ -1305,6 +1427,7 @@ function showLearnModeDialog(ean) {
       }
       const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
       saveProductMaster(newProduct);
+      rememberMhdScanCategory(kategorie);
       if (isVpe) {
         saveVpeMaster({
           barcode: barcodeForSave,
@@ -2082,8 +2205,12 @@ function mapMhdCategoryToHeadCategory(mhdCategory = '') {
 }
 
 function deliveryCollectionPath() {
-  const tenantId = requireMhdTenantId();
-  return tenantId ? `tenants/${tenantId}/wareneingang_lieferungen` : null;
+  if (!requireMhdTenantId()) return null;
+  try {
+    return getTenantCollectionPath('wareneingang_lieferungen');
+  } catch {
+    return null;
+  }
 }
 
 function createDeliveryId() {
@@ -2095,7 +2222,7 @@ function createDeliveryId() {
 
 function readDeliveryHeadValues() {
   const supplier = document.getElementById('we-supplier')?.value.trim() || '';
-  const warenKategorie = document.getElementById('we-category-quick')?.value || 'Trockenware';
+  const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
   const warenKategorieMetzgerei = document.getElementById('we-category')?.value || 'Fremdfleisch';
   const temperatur = getReceivingTemperatureValue();
   return { supplier, warenKategorie, warenKategorieMetzgerei, temperatur };
@@ -2226,28 +2353,21 @@ function updateReceivingQtyFieldUi() {
   const qtyInput = document.getElementById('we-qty');
   const qtyLabel = document.getElementById('we-qty-label');
   const categoryQuickSelect = document.getElementById('we-category-quick');
-  const category = categoryQuickSelect?.value || 'Trockenware';
+  const category = categoryQuickSelect?.value || lastReceivingHeadCategory || '';
   const unit = getReceivingQtyUnitFromCategory(category);
   if (!qtyInput) return;
 
   if (qtyLabel) qtyLabel.textContent = `Menge (${unit})`;
+  qtyInput.placeholder = '1';
+  qtyInput.inputMode = 'numeric';
   if (unit === 'Stk') {
-    qtyInput.placeholder = 'Menge in Stk';
     qtyInput.min = '1';
     qtyInput.step = '1';
-    qtyInput.inputMode = 'numeric';
-    const current = parseFloat(String(qtyInput.value || '').replace(',', '.'));
-    qtyInput.value = Number.isFinite(current) && current > 0 ? String(Math.max(1, Math.round(current))) : '1';
     return;
   }
 
-  qtyInput.placeholder = 'Menge in kg';
   qtyInput.min = '0.1';
   qtyInput.step = '0.1';
-  qtyInput.inputMode = 'decimal';
-  if (!qtyInput.value || Number.parseFloat(String(qtyInput.value).replace(',', '.')) <= 0) {
-    qtyInput.value = '1';
-  }
 }
 
 function normalizeDeliveryHeadForFinalize(head) {
@@ -2264,13 +2384,12 @@ function readDeliveryItemDraftValues() {
   const barcode = cleanScannedBarcode(document.getElementById('we-ean')?.value || currentDeliveryItemBarcode);
   const manualName = document.getElementById('we-product-manual')?.value.trim() || '';
   const product = currentDeliveryItemProduct || manualName;
-  const category = document.getElementById('we-category-quick')?.value || 'Trockenware';
+  const category = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
   const qtyUnit = getReceivingQtyUnitFromCategory(category);
-  const qtyRaw = parseFloat(String(document.getElementById('we-qty')?.value || '').replace(',', '.'));
-  const qtyValue = qtyUnit === 'Stk' ? Math.round(qtyRaw) : qtyRaw;
+  const qtyValue = parseReceivingQty(document.getElementById('we-qty')?.value, qtyUnit);
   const mhdRaw = document.getElementById('we-mhd')?.value || '';
   const mhdDate = normalizeDateInputToIso(mhdRaw);
-  return { product, barcode, qtyValue, qtyUnit, mhdDate };
+  return { product, barcode, qtyValue, qtyUnit, mhdDate, category };
 }
 
 function openDeliveryDraftDb() {
@@ -2441,23 +2560,35 @@ function clearDeliveryItemFields() {
   const manualEl = document.getElementById('we-product-manual');
   const qtyEl = document.getElementById('we-qty');
   const mhdEl = document.getElementById('we-mhd');
+  const manualWrap = document.getElementById('we-product-manual-wrap');
   if (eanEl) eanEl.value = '';
   if (manualEl) manualEl.value = '';
-  if (qtyEl) qtyEl.value = '1';
+  if (qtyEl) qtyEl.value = '';
   if (mhdEl) mhdEl.value = isoDateToDotted(new Date().toISOString().slice(0, 10));
+  manualWrap?.classList.remove('is-manual-open');
   updateDeliveryItemProductUi();
 }
 
 function addDeliveryItem() {
-  const { product, barcode, qtyValue, qtyUnit, mhdDate } = readDeliveryItemDraftValues();
+  const { product, barcode, qtyValue, qtyUnit, mhdDate, category } = readDeliveryItemDraftValues();
   if (!barcode) {
     mhdState.showHUD('EAN fehlt', 'Bitte Barcode scannen oder EAN eintippen.', '!');
     document.getElementById('we-ean')?.focus();
     return;
   }
+  if (!category) {
+    mhdState.showHUD('Kategorie fehlt', 'Bitte zuerst eine Kategorie wählen.', '!');
+    document.getElementById('we-category-quick')?.focus();
+    return;
+  }
+  rememberReceivingHeadCategory(category);
   if (!product) {
-    mhdState.showHUD('Produkt fehlt', 'EAN unbekannt – bitte Produktname eintragen.', '!');
-    document.getElementById('we-product-manual')?.focus();
+    mhdState.showHUD('Produkt fehlt', 'EAN unbekannt – bitte „Artikel manuell anlegen“ nutzen und Namen eintragen.', '!');
+    if (!document.getElementById('we-product-manual-wrap')?.classList.contains('is-manual-open')) {
+      openReceivingManualCreateForm();
+    } else {
+      document.getElementById('we-product-manual')?.focus();
+    }
     return;
   }
   if (!Number.isFinite(qtyValue) || qtyValue <= 0) {
@@ -2872,11 +3003,11 @@ function resetReceivingForm() {
   const defaults = {
     'we-ean': '',
     'we-product-manual': '',
-    'we-qty': '1',
+    'we-qty': '',
     'we-mhd': isoDateToDotted(today),
     'we-supplier': '',
     'we-category': 'Fremdfleisch',
-    'we-category-quick': 'Trockenware',
+    'we-category-quick': '',
     'we-temperature': '',
   };
   Object.entries(defaults).forEach(([id, value]) => {
@@ -3234,8 +3365,9 @@ function bindReceivingControls() {
   }
   if (categoryQuickSelect && categoryQuickSelect.dataset.mhdBound !== '1') {
     categoryQuickSelect.dataset.mhdBound = '1';
-    categoryQuickSelect.value = categoryQuickSelect.value || 'Trockenware';
     categoryQuickSelect.addEventListener('change', () => {
+      rememberReceivingHeadCategory(categoryQuickSelect.value);
+      updateReceivingQtyFieldUi();
       updateReceivingTemperatureFieldUi();
       updateReceivingSaveButtonState();
     });
@@ -3259,6 +3391,8 @@ function bindReceivingControls() {
     });
   }
   updateReceivingTemperatureFieldUi();
+  applyLastReceivingHeadCategory();
+  updateReceivingQtyFieldUi();
   RECEIVING_FORM_IDS.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
     if (!field || field.dataset.mhdBound === '1') return;
@@ -3271,6 +3405,11 @@ function bindReceivingControls() {
   if (btnAddItem && btnAddItem.dataset.mhdBound !== '1') {
     btnAddItem.dataset.mhdBound = '1';
     btnAddItem.addEventListener('click', () => addDeliveryItem());
+  }
+  const btnManualCreate = document.getElementById('we-manual-create-btn');
+  if (btnManualCreate && btnManualCreate.dataset.mhdBound !== '1') {
+    btnManualCreate.dataset.mhdBound = '1';
+    btnManualCreate.addEventListener('click', () => openReceivingManualCreateForm());
   }
   if (btnPhoto && photoInput && btnPhoto.dataset.mhdBound !== '1') {
     btnPhoto.dataset.mhdBound = '1';

@@ -1,0 +1,883 @@
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",RII (Rindfleisch mager),"70,00",base,FALSE,0° bis 2° C,"Schritt 1: Das Wein-Infusions-Setup
+
+Mische alle trockenen Gewürze (außer das Salz) direkt in den Rotwein. Lasse diese Mischung ca. 10 Minuten ziehen.
+
+Schritt 2: Präzisions-Wolfen
+
+Das Fleisch (R II) und das Fett (R IV) auf -1°C bis 0°C kühlen. Gemeinsam durch die 5mm Scheibe wolfen. -Warnung: Bei 27 % Fettanteil führt jede Wärme sofort zum „Talg-Effekt“ an den Messern. Arbeite zügig.
+
+Schritt 3: Mengen & Struktur
+
+Fleischmasse, Meersalz und Wein-Infusion vermengen.
+
+Mengen: Nur so lange, bis eine leichte Bindung entsteht. Die Struktur muss grobkörnig bleiben.
+
+Hobby-Tipp: Nutze Einweg-Handschuhe über Textil-Handschuhen, um die Fleischmasse vor deiner Körperwärme zu isolieren.
+
+Schritt 4: Formen
+
+Portionieren und in der Presse formen. Drücke mit dem Daumen eine Mulde in die Mitte.
+
+Haltbarkeit & Lagerung
+
+Geflügel und Frischfleisch mit Wein sind mikrobiologisch hochaktiv:
+
+Frisch: Maximal 12 Stunden bei < 4°C.
+
+Vakuumiert: Gekühlt max. 2 Tage.
+
+Tiefgekühlt: Im Vakuum bei -18°C bis zu 3 Monate. (Fettreiches Rindfleisch neigt bei Frost nach 4-6 Monaten zur Oxidation)."
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",RIV (Rindfleisch fett/Abschnitte),"27,00",base,FALSE,0° bis 2° C,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Rotwein,"3,00",spice,TRUE,SULFITE,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Paprika edelsüß,"1,50",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Pfeffer weiß gemahlen,"0,20",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Knoblauchflocken,"0,20",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Chili gemahlen,"0,20",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Cayenne,"0,20",spice,FALSE,,
+Gallo-Rizo-Patties,Burgerpatties Gallo-Rizo,Patties,"10.000,00",Koriander,"0,15",spice,FALSE,,
+,,,,,,,,,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Rindfleisch II (mager),"70,00",base,FALSE,0° bis 2° C,"Schritt 1: Die Zitronen-Infusion
+
+Mische den Zitronensaft mit dem eiskalten Wasser und den trockenen Gewürzen (Thymian, Pfeffer, Paprika, Muskat). Das Wasser dient als homogener Trägerstoff für die Säure. Das Salz bleibt separat.
+
+Schritt 2: Präzisions-Wolfen
+
+Das Fleisch (R II) und das Fett (R IV) auf -1°C bis 0°C kühlen. Gemeinsam durch die 5mm Scheibe wolfen. Achte penibel auf die Schärfe der Messer – ein „Schmieren“ würde die Optik dieses helleren Pattys sofort ruinieren.
+
+Schritt 3: Mengen & Struktur
+
+Fleischmasse, Meersalz und die Zitronen-Infusion vermengen.
+
+Mengen: Nur so lange, bis eine leichte Bindung entsteht. Der Beef-o-Pure verzeiht zu langes Mengen weniger als der würzige Beef-o-Rizo, da die Kräuterstruktur sichtbar bleiben soll.
+
+Hobby-Tipp: Wenn du keine Patty-Presse hast, nutze einen großen Servierring und drücke die Masse nur leicht fest.
+
+Schritt 4: Formen
+
+Portionieren (empfohlen: 150g) und mittig die obligatorische Mulde eindrücken.
+
+Haltbarkeit & Lagerung
+
+Die Säure der Zitrone kann das Fleisch oberflächlich leicht „hell“ färben, das ist ein natürlicher Prozess (Denaturierung):
+
+Frisch: Maximal 12 Stunden bei < 2°C.
+
+Vakuumiert: Gekühlt max. 2 Tage.
+
+Tiefgekühlt: Im Vakuum bei -18°C bis zu 3 Monate."
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Rindfleisch IV (fett),"27,00",base,FALSE,0° bis 2° C,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Zitronensaft,"0,25",spice,FALSE,mit Wasser mischen,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",eiskaltes Wasser,"2,75",spice,FALSE,mit Zitronensaft mischen,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Thymian,"0,15",spice,FALSE,,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,,
+G-Patties,Burgerpatties vom Galloway (G-Patties),Patties,"10.000,00",Muskat,"0,05",spice,FALSE,,
+,,,,,,,,,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Rindfleisch R II,"40,00",base,FALSE,"mager, sehnenarm 0° bis 2° C","Schritt 1: Die eiskalte Vorbereitung
+Fleisch und Fett in wolfgerechte Stücke schneiden. Das gesamte Fleisch muss auf 0 °C bis maximal 2 °C heruntergekühlt werden (leicht anfrosten hilft enorm!). Den Käse in exakte 5x5 mm Würfel schneiden und wieder in den Kühlschrank stellen – er darf beim späteren Einmischen nicht warm sein. Alle Gewürze (außer Käse) mit dem Meersalz vermischen.
+Schritt 2: Wolfen & Emulsion (Das Feinbrät)
+Die Profi-Route (Kutter):
+Das Rindfleisch und Schweinefleisch (R II & S II) mit den Gewürzen und der Hälfte des Eises im Kutter feinst zerkleinern. Wenn das Brät ca. 4–6 °C erreicht hat, das Keulenfett (S VII) und das restliche Eis zugeben. Auskuttern bis exakt 12 °C bis max. 14 °C. Höher darf die Temperatur nicht steigen, sonst reißt die Bindung.
+Der Hobby-Hack (Fleischwolf & Küchenmaschine):
+Lass das eiskalte Fleisch und das Fett gemeinsam mit den Gewürzen durch die feinste Scheibe deines Wolfs (z. B. 2 mm oder 3 mm).
+(Praxis-Tipp für die Frischetheke: Wenn du beim Supermarkt-Metzger kein reines, kerniges Keulen- oder Rückenfett bekommst, frage nach sehr fettem Schweinebauch ohne Schwarte oder einfachem weißen Speckabschnitt. Achtung: Dieses Ersatzfett ist weicher! Schneide es in Würfel und friere es für ca. 30–45 Minuten leicht an, bevor es in den Wolf geht. Schmiert das weiche Fett beim Wolfen, ist die Emulsion später ruiniert.)
+Gib die gewolfte Masse in die Schüssel deiner Küchenmaschine (mit Flachrührer oder Haken). Gib nach und nach das eiskalte Crushed Ice (oder Eiswasser) dazu und lass die Maschine bei mittlerer Stufe kneten. Vergiss dabei feste Zeitangaben! Nutze stattdessen diese zwei Sicherheitsmechanismen:
+Das Auge: Knete so lange, bis die Masse extrem klebrig, homogen und leicht glänzend wird. Im Gegensatz zum Hefeteig löst sich Fleischbrät nicht als saubere Kugel vom Rand. Das entscheidende Zeichen ist die Fadenbildung: Das Brät muss beim Rühren deutliche, klebrige Eiweiß-Fäden ziehen.
+Das Küchenthermometer: Miss regelmäßig die Kerntemperatur! Die Masse darf beim Kneten 12 °C niemals überschreiten. Wenn das Brät zu warm wird, bevor die Bindung perfekt ist, stelle die Schüssel inkl. Haken und Brät nochmals kalt (Froster), bevor du weiterknetest.
+Schritt 3: Die Käse-Integration (Manuelles Unterheben)
+Die ausgekutterte oder durchgeknetete Fleischmasse (Feinbrät) in eine kalte Schüssel oder Wanne umfüllen.
+Jetzt kommen die 140 g Käsewürfel ins Spiel: Den Käse per Hand oder mit einer Gummilippe vorsichtig unterheben. Nicht mehr kuttern oder stark maschinell rühren, sonst zerschlägst du den Käse. Wichtig: Profis nutzen hierfür einen Vakuumfüller. Als Hobby-Wurster nimmst du die Masse stattdessen portionsweise in die Hand und wirfst sie mit Schwung zurück in die Wanne. Das presst die Lufteinschlüsse mechanisch aus dem Brät.
+Schritt 4: Füllen in den Darm
+Die fertige Masse fest und blasenfrei in deinen Wurstfüller pressen. Welchen Darm du nutzt, ist absolute Geschmackssache. Meine Empfehlung für den perfekten Grill-Biss: Nutze einen Schweinedarm (Kaliber 28/30) oder größer.
+Den Darm aufziehen und die Masse zügig füllen. Wichtig: Fülle den Darm nur zu ca. 80 bis 85 % (die sogenannte „weiche Füllung“). Der Meister-Kniff: Die Wurst muss sich zwischen Daumen und Zeigefinger noch locker leicht flach drücken lassen. Nur so haben das Brät und der schmelzende Käse beim Brühen und Grillen genug Platz, sich auszudehnen. Anschließend die Würste auf die gewünschte Länge abdrehen.
+Schritt 5: Brühen & Stabilisieren (Die 72°C-Grenze)
+Die Würste in heißes Wasser oder in einen Dämpfer geben. Das Wasser sollte zwischen 72 °C und maximal 78 °C haben. Brühe die Chili Cheese Griller, bis sie im Kern 72 °C erreicht haben (Richtwert: bei Kaliber 28/30 ca. 30 bis 35 Minuten). Wichtig: Die Wassertemperatur darf die 80 °C-Marke nicht überschreiten, da sonst das Fett im Brät schmilzt.
+Danach die Würste sofort abkühlen, um den Garprozess zu stoppen und die Hülle zu straffen. Hierfür gibt es zwei Wege:
+Das Wasserbad: Die Würste in ein eiskaltes Wasserbad eintauchen (Immersionskühlung), bis sie komplett durchgekühlt sind.
+Das Duschen: Die Würste unter fließendem, kalten Wasser intensiv abschrecken, bis die Oberfläche stabilisiert ist.
+Sobald sie abgetrocknet sind, können sie vakuumiert oder direkt auf den Grill gelegt werden.
+Haltbarkeit & Lagerung
+Für die Sicherheit und den optimalen Genuss gelten folgende Richtwerte:
+Frisch (Roh / Ungebrüht): Falls die Würste nicht sofort gebrüht werden, sind sie extrem empfindlich. Lagerung maximal 24 Stunden bei konstant unter 2 °C.
+Gebrüht (Vakuumiert): Nach dem Abschrecken und vollständigen Abtrocknen vakuumiert bei maximal 4 °C lagern. Haltbarkeit: 10 bis 14 Tage.
+Gebrüht & Tiefgefroren: Im Vakuumbeutel bei -18 °C tiefkühlen. Haltbarkeit: 6 Monate für optimalen Geschmack (bis zu 12 Monate technisch möglich)."
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Schweinefleisch S II,"16,00",base,FALSE,80/20 Sortierung 0° bis 2° C,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Schweine-Keulenfett S VII,"15,00",base,FALSE,"frisch, kernig 0° bis 2° C",
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Crushed Ice,"15,00",base,FALSE,eiskalt,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Bergkäse (gewürfelt),"14,00",base,TRUE,"MILCH, 5mm Würfel",
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Meersalz fein,"1,80",spice,FALSE,ohne Trennmittel,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Zwiebelgranulat,"0,70",spice,FALSE,trocken,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Knoblauchgranulat,"0,30",spice,FALSE,trocken,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Pfeffer weiß,"0,30",spice,FALSE,gemahlen,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Paprika edelsüß,"0,25",spice,FALSE,,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Senfmehl,"0,20",spice,TRUE,SENF,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Chili gemahlen,"0,15",spice,FALSE,Schärfe prüfen,
+CC-Griller,Chili Cheese Griller,Brühwurst,"10.000,00",Majoran,"0,05",spice,FALSE,gerebelt,
+,,,,,,,,,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",RII,"77,00",base,FALSE,0° bis 2° C,"Schritt 1: Die Wein-Infusion
+
+Mische alle trockenen Gewürze (außer Salz) im Rotwein an und lasse diese Infusion ca. 15 Minuten rehydrieren. Dies verhindert, dass trockene Gewürze dem Brät punktuell Feuchtigkeit entziehen. Die Knoblauchflocken saugen sich mit Wein voll und verteilen ihr Aroma später homogen im Brät.
+
+Schritt 2: Wolfen (Der feine Schnitt)
+
+Das Fleisch (R II und R IV) auf ca. 0 °C bis 2 °C kühlen. Beide Sorten gemeinsam durch die 3-mm-Scheibe wolfen. Achte auf scharfe Messer, damit das Rinderfett nicht schmiert – Rindertalg hat ein anderes Schmelzverhalten als Schweinespeck!
+
+Schritt 3: Mengen & Bindung
+
+Gib die gewolfte Masse, das Meersalz und die Wein-Gewürzmischung in die Rührschüssel.
+
+Mengen: Kräftig mengen, bis die Masse eine deutliche Bindung aufweist (Fäden zieht). Im Gegensatz zum Patty brauchen wir hier im Darm eine stabilere Struktur.
+
+Hobby-Tipp: Nutze zum Mengen kalte Rührhaken oder arbeite zügig von Hand, um die 12 °C Marke niemals zu überschreiten.
+
+Schritt 4: Füllen & Abdrehen
+
+Blasenfrei in Schafssaitlinge (Kaliber 28+) füllen. Auf ca. 12–14 cm Länge abdrehen.
+
+Tipp: Nicht zu stramm füllen, da sich das Brät beim Braten durch den Wein-Anteil leicht ausdehnt.
+
+Haltbarkeit & Lagerung
+
+Da es sich um eine frische Wurst mit Rotwein handelt, ist sie mikrobiologisch sehr sensibel:
+
+Frisch: Innerhalb von 12 bis 24 Stunden verzehren. Lagerung bei max. 2 °C.
+
+Vakuumiert: Gekühlt bei max. 4 °C bis zu 2 Tage. Beachte den schnellen Farbumschlag durch die Reaktion der Weinsäure mit dem Myoglobin.
+
+Tiefgekühlt: Im Vakuumbeutel bei -18 °C bis zu 4 Monate. (Hinweis: Die Farbe kann durch den Wein nach 3 Monaten leicht nachdunkeln)."
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",RIV,"20,00",spice,FALSE,0° bis 2° C,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Rotwein,"3,00",spice,TRUE,Sulphite,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Paprika edelsüß,"1,80",spice,FALSE,in Wein rehydrieren,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Pfeffer weiß gemahlen,"0,30",spice,FALSE,in Wein rehydrieren,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Chili gemahlen,"0,25",spice,FALSE,in Wein rehydrieren,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Knoblauchflocken,"0,25",spice,FALSE,in Wein rehydrieren,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Cayenne,"0,20",spice,FALSE,in Wein rehydrieren,
+Gallo-Rizo-BW,Frische Bratwurst Gallo-Rizo,frische Bratwurst,"10.000,00",Koriander,"0,15",spice,FALSE,in Wein rehydrieren,
+,,,,,,,,,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",RII,"70,00",base,FALSE,0° bis 2° C,"Schritt 1: Die Zitronen-Infusion
+
+Zitronensaft und eiskaltes Wasser vermischen. Die trockenen Gewürze (außer das Salz) darin ca. 10 Minuten rehydrieren lassen. Das Wasser dient als homogener Trägerstoff für die Säure.
+
+Schritt 2: Wolfen (Der feine Schnitt)
+
+Das Fleisch (R II) und das Fett (R IV) auf ca. 0 °C kühlen. Gemeinsam durch die 3-mm-Scheibe wolfen. Ein scharfer Schnitt ist hier entscheidend, damit das Rinderfett im Darm später nicht als talgiger Belag wahrgenommen wird.
+
+Schritt 3: Mengen & Bindung
+
+Gib die gewolfte Masse, das Meersalz und die Zitronen-Infusion in die Rührschüssel.
+
+Mengen: Kräftig mengen, bis eine deutliche Bindung entsteht (Fäden ziehen). Da wir kein Phosphat nutzen, ist die Eiweiß-Extraktion durch mechanische Energie und Salz unser einziger Bindungs-Hebel.
+
+Temperatur-Check: Die Masse sollte während des Mengens die 10 °C Marke nicht überschreiten.
+
+Schritt 4: Füllen & Abdrehen
+
+Blasenfrei in Schafssaitlinge (Kaliber 24/26) füllen. Auf ca. 12–14 cm Länge abdrehen. Die Saitlinge nicht zu prall füllen, damit sie beim Braten nicht platzen.
+
+Haltbarkeit & Lagerung
+
+Geflügel und Frischfleisch mit Säure sind mikrobiologisch hochaktiv:
+
+Frisch: Innerhalb von 12 bis 24 Stunden verzehren. Lagerung bei max. 2 °C.
+
+Vakuumiert: Gekühlt bei max. 4 °C bis zu 2 Tage. (Die Zitrone kann die Farbe des Fleisches leicht aufhellen).
+
+Tiefgekühlt: Im Vakuumbeutel bei -18 °C bis zu 4 Monate."
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",RIV,"27,00",spice,FALSE,0° bis 2° C,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Zitronensaft,"0,25",spice,FALSE,mit Wasser mischen,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",eiskaltes Wasser,"2,75",spice,FALSE,mit Zitronensaft mischen,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Thymian,"0,15",spice,FALSE,,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,,
+G-BW,Frische Bratwurst vom Galloway,frische Bratwurst,"10.000,00",Muskat,"0,05",spice,FALSE,,
+,,,,,,,,,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",HII,"70,00",base,FALSE,0° bis 2° C,"Schritt 1: Die Gewürz-Infusion
+
+Mische den Majoran, Pfeffer, Muskat, Paprika und Piment in das eiskalte Wasser. Lasse diese Mischung ca. 10 Minuten ziehen, damit der Majoran rehydrieren kann. Das Salz bleibt separat.
+
+Schritt 2: Wolfen (Der Kälte-Schnitt)
+
+Das Fleisch und die Haut müssen angefrostet sein (-1°C bis -2°C).
+
+Haut und Fleisch mischen.
+
+Gemeinsam durch die 3-mm-Scheibe wolfen.
+Wenn die Masse schmiert, ist sie zu warm oder die Messer sind stumpf. Geflügelfett schmilzt extrem früh!
+
+Schritt 3: Mengen & Bindung (Die Integration)
+
+Gib die Masse, das Meersalz und die Gewürz-Infusion in die Rührschüssel.
+
+Mengen: Nur so lange, bis eine gute Bindung (Klebrigkeit) entsteht. Bei Geflügel geht das sehr schnell.
+
+Temperatur-Kontrolle: Ziel-Endtemperatur der Masse: max. 4°C.
+
+Schritt 4: Füllen
+
+Blasenfrei in Schafssaitlinge (Kaliber 20/22 oder 22/24) füllen. Auf ca. 12 cm abdrehen.
+
+Haltbarkeit & Lagerung
+
+Geflügel ist mikrobiologisch hochempfindlich:
+
+Frisch: Innerhalb von 12 Stunden verzehren. Lagerung bei < 2°C.
+
+Vakuumiert: Gekühlt max. 48 Stunden.
+
+Tiefgekühlt: Im Vakuumbeutel bei -18°C bis zu 4 Monate."
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",HIV,"27,00",base,FALSE,0° bis 2° C,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",eiskaltes Wasser,"3,00",base,FALSE,0° bis 2° C,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Meersalz fein,"1,80",spice,FALSE,,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Majoran,"0,40",spice,FALSE,mit Wasser mischen,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,mit Wasser mischen,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Muskat,"0,10",spice,FALSE,mit Wasser mischen,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,mit Wasser mischen,
+H-BW,Frische Bratwurst vom Hähnchen,frische Bratwurst,"10.000,00",Piment gemahlen,"0,05",spice,FALSE,mit Wasser mischen,
+,,,,,,,,,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",SII,"77,00",base,FALSE,0° bis 2° C,"Schritt 1: Die Zitronen-Infusion
+
+Mische den Zitronensaft mit dem eiskalten Wasser und den trockenen Gewürzen (Thymian, Pfeffer, Paprika, Muskat). Lasse diese Mischung ca. 10 Minuten ziehen. Das Salz bleibt separat.
+
+Schritt 2: Wolfen (Der Präzisions-Schnitt)
+
+Das Fleisch (S II) und der Speck (S IV) müssen eiskalt sein (ca. 0 °C bis 2 °C).
+
+Fleisch und Speck mischen.
+
+Gemeinsam durch die 3-mm-Scheibe wolfen.
+Tipp: Ein scharfer Schnitt ist für die Optik im Saitling entscheidend. Achte darauf, dass der Speck beim Wolfen nicht schmiert, um eine klare Fettkörnung im Brät zu erhalten.
+
+Schritt 3: Mengen & Eiweiß-Aktivierung
+
+Gib die Masse, das Meersalz und die Zitronen-Infusion in die Rührschüssel.
+
+Mengen: Kräftig mengen, bis die Masse eine deutliche Bindung (Klebrigkeit) aufweist.
+
+Temperatur-Kontrolle: Die Masse sollte beim Mengen die 12 °C Marke nicht überschreiten, um die Fettstabilität nicht zu gefährden.
+
+Schritt 4: Füllen
+
+Blasenfrei in den Wurstfüller geben. Je nach gewünschtem Charakter hast du zwei erstklassige Optionen:
+
+Die elegante Variante: Schafssaitlinge (Kaliber 24/26) für einen feinen Biss und schnelles Durchgaren.
+
+Die rustikale Variante: Schweinedärme (Kaliber 28/30) oder Saitling 28+ (unser Standard) für das klassische Rostbratwurst-Format mit kräftigem „Knack“.
+
+Auf ca. 12–14 cm abdrehen.
+
+Haltbarkeit & Lagerung
+
+Frische Bratwurst vom Schwein ist ein klassisches Tagesprodukt:
+
+Frisch: Maximal 24 Stunden bei < 4 °C.
+
+Vakuumiert: Gekühlt max. 3 Tage.
+
+Tiefgekühlt: Im Vakuumbeutel bei -18 °C bis zu 6 Monate."
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",SIV,"20,00",spice,FALSE,0° bis 2° C,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Zitronensaft,"0,30",spice,FALSE,mit Wasser mischen,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",eiskaltes Wasser,"2,70",spice,FALSE,mit Zitronensaft mischen,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,in Wasser-Zitronensaft-Mischung rehydrieren,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Thymian,"0,15",spice,FALSE,in Wasser-Zitronensaft-Mischung rehydrieren,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,in Wasser-Zitronensaft-Mischung rehydrieren,
+S-BW,Frische Bratwurst vom Schwein,frische Bratwurst,"10.000,00",Muskat,"0,05",spice,FALSE,in Wasser-Zitronensaft-Mischung rehydrieren,
+,,,,,,,,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00","Galloway RIV (Wade/Bug/Brust, gegart)","35,00",base,FALSE,,"Leber mit Salz fein kuttern, entnehmen, Fleisch gegart, 5mm gewolft, Leber unterheben, Glas oder Kunstdarm."
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Schweinebauch ohne Schwarte,"20,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Schweinebacke / Wamme,"20,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Rinderleber,"18,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Zwiebeln,"5,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Apfel,"2,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Bio-Kartoffelpüree-Pulver,"2,00",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,"extra Schüssel, mit Leber schaumig kuttern",
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Majoran,"0,15",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Knoblauchgranulat,"0,10",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Zwiebelgranulat,"0,10",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Muskat,"0,08",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Piment,"0,05",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Zitronenpulver,"0,03",spice,FALSE,,
+GS-Pfälzer-LW,Galloway & Schwein Pfälzer Leberwurst,Kochwurst,"10.000,00",Ingwer,"0,02",spice,FALSE,,
+,,,,,,,,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Trinkwasser,"150,00",base,FALSE,,"Knochen/Sehnen 12h simmern, klären, Glas."
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Galloway Sehnen / Parüren / Silberhaut,"60,00",base,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Galloway Gelenk-Knochen (klein gesägt),"60,00",base,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Zwiebeln (mit Schale),"15,00",spice,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Karotten / Sellerie (grob),"5,00",spice,TRUE,SELLERIE,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Apfelessig (Naturtrüb),"3,00",spice,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Meersalz,"0,80",spice,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Pfeffer,"0,10",spice,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Lorbeer,"0,05",spice,FALSE,,
+G-Aspik,Galloway Aspik,Konserven,"10.000,00",Piment,"0,05",spice,FALSE,,
+,,,,,,,,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Galloway Rindfleisch R II,"75,00",base,FALSE,,"Wolf 5mm, Schneeball, Saitling 22/24. Reifung: 3 Tg 20°C, dann Kaltrauch."
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Schweine-Rückenspeck S VIII,"23,00",base,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Rohrohrzucker,"3,50",spice,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Bio-Sojasauce (Tamari),"2,50",spice,TRUE,SOJA,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Meersalz,"2,40",spice,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Bio-Reiswein,"2,00",spice,TRUE,ALKOHOL,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Fünf-Gewürze-Pulver,"0,35",spice,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",weißer Pfeffer,"0,20",spice,TRUE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Ingwerpulver,"0,10",spice,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Rote-Bete-Pulver,"0,10",spice,FALSE,,
+LapCheong,Galloway Lap Cheong (Bio),Rohwurst,"10.000,00",Starterkulturen,"0,05",spice,FALSE,,
+,,,,,,,,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Rinderleber (Galloway), frisch","30,00",base,FALSE,,"1. VORBEREITUNG: Zwiebeln würfeln, in Butter glasig dünsten, mit Traubensaft und Apfelessig ablöschen. Sirupartig einkochen. Fleisch bei 90°C weich kochen. 2. LEBER-EMULSION: Rohe Leber mit Salz im Kutter schaumig schlagen (max. 12°C). 3. VERARBEITUNG: Heißes Fleisch (60-70°C), Gewürze, Kartoffelflocken, Zwiebel-Reduktion und Aspik in den Kutter geben. Grob hacken (3-5mm). 4. FINALE BINDUNG: Bei 45-50°C Lebermasse zügig einmischen. Struktur muss grob bleiben. 5. GAREN: In Därme bzw. Gläser füllen. Bei 78-80°C garen bis KT >72°C (je nach Kaliber ca. 90-120 Min)."
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Rinderbauch / Brust (Fett),"27,50",base,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Rinderwade / Rosenstück (Geliermaterial),"18,50",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Kochsud (Aromatisch, fetthaltig)","7,00",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Schulter / Oberschale (Magerfleisch),"6,35",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Zwiebeln (Frisch),"3,00",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Bio-Butter,"2,50",spice,TRUE,MILCH,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Meersalz,"1,75",spice,FALSE,Extra Schüssel für Leber!,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Traubensaft (Rot, Direktsaft)","1,00",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Galloway-Glace (Kollagen-Konzentrat),"1,00",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Bio-Kartoffelflocken (Rein),"0,80",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00",Apfelessig (Naturtrüb),"0,30",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Pfeffer weiß, gemahlen","0,15",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Majoran, gerebelt","0,06",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Piment, gemahlen","0,05",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Ingwer, gemahlen","0,02",spice,FALSE,,
+G-LW,Galloway Leberwurst,Kochwurst,"10.000,00","Muskatnuss, gemahlen","0,02",spice,FALSE,,
+,,,,,,,,,
+G-Peitsche - SALZ,Galloway Peitsche - Salz Pur (18/20),Rohwurst,"10.000,00",Galloway mager,"77,00",base,FALSE,,"Wolf 3mm, Schneeball, Saitling 18/20. Reife: 18°C -> 12°C bis -30%."
+G-Peitsche - SALZ,Galloway Peitsche - Salz Pur (18/20),Rohwurst,"10.000,00",Galloway fett,"20,00",spice,FALSE,,
+G-Peitsche - SALZ,Galloway Peitsche - Salz Pur (18/20),Rohwurst,"10.000,00",Meersalz,"3,00",spice,FALSE,,
+,,,,,,,,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Galloway mager,"77,00",base,FALSE,,"Wolf 3mm, Schneeball, Saitling 18/20. Reife: 18°C -> 12°C bis -30%."
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Galloway fett,"20,00",spice,FALSE,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00","Meersalz, unjodiert","2,35",spice,FALSE,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Bio Nadurot,"0,30",spice,FALSE,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Chili,"0,15",spice,FALSE,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Pfeffer,"0,15",spice,FALSE,,
+G-Peitsche - SCHARF,Galloway Peitsche - Scharf (18/20),Rohwurst,"10.000,00",Starterkultur (Lyoph.),"0,05",spice,FALSE,,
+,,,,,,,,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Gallowayfleisch (R I - Mager),"50,00",base,FALSE,,"15% Grobeinlage, Rest Feinbrät, Faserdarm Kal. 60 oder S-Darm 30/32"
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Schweine-Rückenspeck (kernig),"30,00",base,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Schüttung,"20,00",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Zwiebeln frisch,"3,00",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Meersalz,"2,20",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Senfkörner ganz,"0,60",spice,TRUE,SENF,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Pfeffer weiß,"0,40",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Paprika edelsüß,"0,40",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Knoblauch,"0,30",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Senfmehl,"0,20",spice,TRUE,SENF,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Rohrzucker,"0,20",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Macis,"0,10",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Ingwer,"0,05",spice,FALSE,,
+G-Bierwurst / G-Bier-Griller,Galloway-Bierwurst,Brühwurst,"10.000,00",Kardamom,"0,05",spice,FALSE,,
+,,,,,,,,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",SII,"80,00",base,FALSE,,"Wolf 5mm, Mengen bindig, S-Darm 28/30"
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",SIV,"20,00",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Rotwein (spanisch JOSE),"5,50",spice,TRUE,SULPHITE,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Meersalz,"2,20",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Paprika edelsüß,"2,10",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Knoblauchflocken,"0,35",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Zucker,"0,35",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Pfeffer,"0,30",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Chili,"0,20",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Cayenne,"0,15",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Koriander,"0,08",spice,FALSE,,
+S-Chorizo-Griller,Griller Chorizo vom Schwein,frische Bratwurst,"10.000,00",Kreuzkümmel,"0,05",spice,FALSE,,
+,,,,,,,,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Mageres Hühnerfleisch,"60,00",base,FALSE,,"Feinbrät, Saitling 20/22, Kaltrauch, Dämpfer 72°C."
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Hühnerfett / -Haut,"20,00",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Crushed Ice / H-Brühe,"20,00",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Natriumcitrat,"0,30",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Weißer Pfeffer,"0,20",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Macis,"0,10",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Koriander,"0,10",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Ingwer,"0,05",spice,FALSE,,
+H-Wiener,Hühner-Wiener,Brühwurst,"10.000,00",Acerola-Pulver,"0,05",spice,FALSE,,
+,,,,,,,,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Galloway-Rindfleisch mager,"41,85",base,FALSE,,"Wolf 4mm, Mengen bindig, Saitling 22/24."
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Schweinefleisch mager,"30,00",base,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Schweinefett (Rückenspeck),"20,00",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Eiskaltes Wasser,"5,00",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Zwiebelpulver / getrocknete Zwiebeln,"0,50",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00","weißer Pfeffer, gemahlen","0,20",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00","Majoran, gerebelt","0,20",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Brauner Zucker / Rübenkraut,"0,20",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00","Senfsaat, grob gestoßen","0,10",spice,TRUE,SENF,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00",Knoblauchpulver,"0,10",spice,FALSE,,
+GS-Rost-BW,Niederrheinische grobe Rostbratwurst,frische Bratwurst,"10.000,00","Piment, gemahlen","0,05",spice,FALSE,,
+,,,,,,,,,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00","G-Brust, Tafelspitz","100,00",base,FALSE,,"ARBEITSANWEISUNG (SOP)
+Schritt 1: Pökelphase (7–10 Tage)
+1. Die Pökel-Basis mischen: Meersalz (25,00g/kg), Rohrohrzucker (15,00g/kg) und Knoblauchgranulat (5,00g/kg).
+2. Das Rindfleisch (920,00g/kg) intensiv einreiben.
+3. Vakuumieren und bei 2–4°C reifen lassen. Alle 2 Tage wenden. Bei Netznutzung: Schneeballtechnik anwenden.
+Schritt 2: Entsalzen & Konditionieren
+1. Fleisch aus dem Beutel nehmen, abspülen und 45 Min. in kaltem Wasser wässern.
+2. Gründlich trocken tupfen.
+3. Rational SCC Setup: Programm „Heißluft“ | 50°C | Lüfterstufe 2 | ca. 20 Min. oberflächentrocknen (SCC regelt Abzug automatisch), bis die Oberfläche klebrig ist.
+Schritt 3: Finish-Rub & Garen
+1. Den Finish-Rub mischen: Pfeffer schwarz (15,00g/kg), Koriander (15,00g/kg) und Senfmehl (5,00g/kg).
+2. Das Fleisch im Rub wälzen, Gewürze fest andrücken.
+3. Rational SCC Setup: Programm „Heißluft“ | 85°C | Lüfterstufe 1 | Feuchte 10% | Ziel-KT: 64°C.
+Schritt 4: Räuchern (Extern im Weber / Räucherofen)
+1. Das warme Fleisch sofort in den vorbereiteten Rauch (ca. 80°C) überführen.
+2. Mit Buchenholz räuchern, bis die finale Kerntemperatur von 68°C–70°C erreicht ist.
+Schritt 5: Auskühlung & Aufschnitt
+1. Mindestens 24 Std. bei < 4°C stabilisieren.
+2. Hauchdünn gegen die Faser aufschneiden. Allergene: Senf.
+"
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Wasser,"40,00",base,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Meersalz (Brine),"3,00",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Rohrohrzucker (Brine),"1,50",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Paprika edelsüß (Brine),"0,80",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Pfeffer (Rub),"0,80",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Koriander (Rub),"0,80",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Paprika (Rub),"0,80",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Pfeffer (Brine),"0,60",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Koriander (Brine),"0,60",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Knoblauch (Brine),"0,40",spice,FALSE,Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Senfsaat (Brine),"0,30",spice,TRUE,SENF Lake,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Knoblauch (Rub),"0,30",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Zwiebelpulver (Rub),"0,20",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Senfsaat (Rub),"0,20",spice,TRUE,SENF Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Lorbeer (Rub),"0,10",spice,FALSE,Rub,
+G-Pastrami,Pastrami vom Galloway,Aufschnitt,"10.000,00",Piment  (Rub),"0,10",spice,FALSE,Rub,
+,,,,,,,,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Galloway Rindfleisch (Mager),"80,00",base,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Galloway Rinderfett,"20,00",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Meersalz,"2,50",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Trinkwasser (kalt),"1,00",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00","Pfeffer schwarz, gebrochen","0,33",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Senfkörner ganz,"0,30",spice,TRUE,SENF,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Bio-Nadurot (E300),"0,30",spice,TRUE,E300,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Paprikapulver,"0,20",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Chili geschrotet,"0,15",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Knoblauchgranulat,"0,15",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Majoran,"0,10",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Zucker,"0,10",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Schabzigerklee,"0,08",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Starterkulturen,"0,06",spice,FALSE,,
+G-PB,Pfefferbeißer vom Galloway,Rohwurst,"10.000,00",Rosmarin,"0,05",spice,FALSE,,
+,,,,,,,,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",SII,"80,00",base,FALSE,,"Wolf 3mm, Schneeball, Saitling 18/20, 2 Tg Reifung, Kaltrauch."
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",SIV,"20,00",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Meersalz,"2,50",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Wasser,"1,00",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00","Pfeffer bunt, geschrotet","0,30",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Zwiebelpulver,"0,30",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Senfkörner,"0,20",spice,TRUE,SENF,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Knoblauchpulver,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Majoran,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Chili,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Oregano (gerebelt),"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00","Kümmel, fein zerstoßen","0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Koriander,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Paprika rosenscharf,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Rohrohrzucker,"0,10",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Traubenzucker / Rosalin,"0,05",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Starterkultur PRIMAL SK natur rapid 50,"0,05",spice,FALSE,,
+S-PB,Pfefferbeißer vom Schwein,Rohwurst,"10.000,00",Bio-Nadurot (E300),"0,03",spice,TRUE,E300,
+,,,,,,,,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Schweinebauch,"100,00",base,FALSE,,"Trocken pökeln 14 Tg, Kaltrauch."
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Meersalz,"3,50",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Knoblauchpaste,"0,30",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Zucker,"0,30",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Pfeffer,"0,20",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Wacholderbeeren,"0,10",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Koriander,"0,05",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Kümmel,"0,05",base,FALSE,,
+S-Räucherbauch ,Räucherbauch Schwein,Aufschnitt,"10.000,00",Lorbeerblätter,"0,05",base,FALSE,,
+,,,,,,,,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",SII,"80,00",base,FALSE,,"Wolf 5mm, Schneeball, Faserdarm Kal. 40, Reifung 14°C/75% rF."
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",SIV,"20,00",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Rotwein (spanisch JOSE),"5,50",spice,TRUE,SULPHITE,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Meersalz,"2,20",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Paprika edelsüß,"2,10",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Knoblauchflocken,"0,35",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Zucker,"0,35",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Pfeffer,"0,30",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Chili,"0,20",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Cayenne,"0,15",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Koriander,"0,08",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",T-SPX (Bio) Starterkulturen,"0,08",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Apfel-Essig,"0,07",spice,FALSE,,
+S-Chorizo-Salami,Salami Chorizo vom Schwein,Rohwurst,"10.000,00",Kreuzkümmel,"0,05",spice,FALSE,,
+,,,,,,,,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",SII,"50,00",base,FALSE,,"Wolf 5mm, Mengen bindig, S-Darm 28/30"
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",SVIII,"30,00",base,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",SIII / RIII,"20,00",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",trockener ital. Rotwein,"4,00",spice,TRUE,SULPHITE,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Meersalz fein,"2,00",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Knoblauchgranulat,"0,15",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00","Fenchelsaat, gestoßen","0,35",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00","Kümmel, gestoßen","0,15",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Pfeffer schwarz gestoßen,"0,30",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Piment,"0,10",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Rosmarin gemahlen,"0,07",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Lorbeer gemahlen,"0,05",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Macis,"0,05",spice,FALSE,,
+S-Salsiccia,Salsiccia,frische Bratwurst,"10.000,00",Wacholderbeeren gemahlen,"0,03",spice,FALSE,,
+,,,,,,,,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Schweinefleisch SIV,"77,00",base,FALSE,,"Wolf 3mm, Schneeball, S-Darm 28/30, Kaltrauch."
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Rindfleisch RII,"19,50",base,FALSE,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Meersalz fein,"2,20",spice,FALSE,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Senfkörner ganz,"0,50",spice,TRUE,SENF,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Pfeffer weiß gem.,"0,35",spice,TRUE,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Rohrzucker,"0,30",spice,FALSE,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Macis,"0,10",spice,FALSE,,
+ZZ_RS-MettW,Mettwurst Niederrhein,Rohwurst,"10.000,00",Starterkulturen,"0,05",spice,FALSE,,
+,,,,,,,,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Schweineschulter S2,"60,00",base,FALSE,,"Wolf 5mm, Mengen bindig, S-Darm 28730"
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Schweinebauch S5,"30,00",base,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Eisschnee / Wasser,"7,00",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Meersalz,"1,90",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Pfeffer weiß gem.,"0,25",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Knoblauchgranulat,"0,20",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Senfmehl,"0,20",spice,TRUE,SENF,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Petersilie gerebelt,"0,20",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Kümmel gem.,"0,10",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Muskatnuss gem.,"0,10",spice,FALSE,,
+Kräuter-BW,Kräuter-Bratwurst,frische Bratwurst,"10.000,00",Ingwer gem.,"0,05",spice,FALSE,,
+,,,,,,,,,
+,,,,,,,,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Schweinenuss (schier),"95,50",base,FALSE,,"ARBEITSANWEISUNG (SOP) – Bezug: 1 kg Fleischmas
+Zutaten pro 1 kg Schweinenuss (gerundet auf 0,5 g):
+• Meersalz: 36,5 g
+• Rohrohrzucker: 4,0 g
+• Pfeffer schwarz (geschrotet): 2,5 g
+• Wacholderbeeren (gequetscht): 1,5 g
+• Zitronensaft: 0,5 g
+• Senfmehl: 0,5 g
+• Knoblauchgranulat: 0,5 g
+• Koriander: 0,5 g
+Vorbereitung & Pökeln (Beutel-Methode):
+1. Schweinenüsse fachgerecht parieren.
+2. Die Fleischstücke einzeln oder in kleinen Chargen mit der oben aufgeführten Gewürzmischung einreiben.
+3. Die Stücke zusammen mit der restlichen Gewürzmischung in den Vakuumbeutel geben und bei maximalem Vakuum versiegeln.
+4. Lagerung im Kühlraum bei max. +4°C.
+5. Pökeldauer: ca. 1,5 Tage pro kg Fleischgewicht. Die Beutel sollten alle 2 Tage gewendet werden, um eine optimale Verteilung zu gewährleisten.
+Vorbereitung zum Räuchern:
+1. Nach der Pökelzeit die Nüsse aus dem Beutel nehmen und kurz mit kaltem Wasser abspülen.
+2. Durchbrennen: 2-3 Tage hängend bei +6°C trocknen/durchbrennen lassen.
+Räuchern (Rational Dämpfer):
+1. Ausschließlich im Rational Dämpfer bei Kaltrauch (max. 20°C).
+2. 3-4 Intervalle à 6 Stunden.
+Qualitätskontrolle:
+• HACCP: pH-Wert < 5,3 sicherstellen.
+• Allergene: Enthält Senfmehl."
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Meersalz,"3,50",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Rohrohrzucker,"0,40",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Pfeffer schwarz (geschrotet),"0,25",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Wacholderbeeren (gequetscht),"0,15",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Zitronensaft,"0,05",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Senfmehl,"0,05",spice,TRUE,SENF,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Knoblauchgranulat,"0,05",spice,FALSE,,
+Nuss_Roh,Bio-Nuß-Schinken,Aufschnitt,"10.000,00",Koriander,"0,05",spice,FALSE,,
+,,,,,,,,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Schweinehüfte (m. Speck und Schwarte),"95,50",base,FALSE,,"ARBEITSANWEISUNG (SOP)
+Vorbereitung:
+1. Schweinehüften parieren (max. 4°C). Speck und Schwarte am Stück belassen.
+2. Pökelmischung herstellen: Die folgenden Zutaten pro kg Gesamtmasse homogen mischen:
+• Meersalz: 35,0 g
+• Rohrohrzucker: 4,0 g
+• Pfeffer schwarz (geschrotet): 2,5 g
+• Wacholderbeeren (gequetscht): 1,5 g
+• Zitronensaft: 0,5 g
+• Senfmehl: 0,5 g
+• Knoblauchgranulat: 0,5 g
+• Koriander: 0,5 g
+Handwerkliche Verarbeitung:
+1. Die Hüften händisch intensiv mit der vorbereiteten Pökelmischung einreiben (massieren).
+2. Die Fleischstücke manuell in die Netzhülle einziehen (kein Füller-Einsatz für optimale Gewbeschonung).
+3. In Pökelwannen schichten und 14–21 Tage bei 4°C reifen lassen (regelmäßig wenden).
+Veredelung:
+1. Nach dem Pökeln kurz kalt abwaschen, 2 Tage durchbrennen lassen.
+2. Räuchern: Kaltrauch im Rational Dämpfer.
+3. Nachreifung bis zum gewünschten Festigkeitsgrad (pH < 5,3)."
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Meersalz,"3,50",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Rohrohrzucker,"0,40",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Pfeffer schwarz (geschrotet),"0,25",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Wacholderbeeren (gequetscht),"0,15",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Zitronensaft,"0,05",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Senfmehl,"0,05",spice,TRUE,SENF,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Knoblauchgranulat,"0,05",spice,FALSE,,
+Huefte_Roh,Bio-Schinkenspeck,Aufschnitt,"10.000,00",Koriander,"0,05",spice,FALSE,,
+,,,,,,,,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Brauner Rohrohrzucker,"30,00",spice,FALSE,Trockenmischung,Lichtgeschützt lagern.
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Meersalz (grob),"25,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Schwarzer Pfeffer,"15,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Knoblauchpulver,"10,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Zwiebelpulver,"8,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Chiliflocken,"7,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Shiitake-Pilzpulver,"4,00",spice,FALSE,,
+RUB01,Galloway Gold,Rubs & Marinaden,"1,00",Ingwer (gemahlen),"1,00",spice,FALSE,,
+,,,,,,,,,
+RUB02,Honey-Garlic-Crunch,Rubs & Marinaden,"1,00",Rohrohrzucker,"45,00",spice,FALSE,Trockenmischung,Lichtgeschützt lagern.
+RUB02,Honey-Garlic-Crunch,Rubs & Marinaden,"1,00",Knoblauch (granuliert),"25,00",spice,FALSE,,
+RUB02,Honey-Garlic-Crunch,Rubs & Marinaden,"1,00",Meersalz (fein),"20,00",spice,FALSE,,
+RUB02,Honey-Garlic-Crunch,Rubs & Marinaden,"1,00",Weißer Pfeffer,"6,00",spice,FALSE,,
+RUB02,Honey-Garlic-Crunch,Rubs & Marinaden,"1,00",Zitronenschale,"4,00",spice,FALSE,,
+,,,,,,,,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Brauner Rohrohrzucker,"30,00",spice,FALSE,Trockenmischung,Lichtgeschützt lagern.
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Rauchsalz,"25,00",spice,FALSE,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Paprika edelsüß,"20,00",spice,FALSE,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Zwiebelpulver,"10,00",spice,FALSE,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Sumach,"8,00",spice,FALSE,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Schwarzer Pfeffer,"5,00",spice,FALSE,,
+RUB03,Pinoy Smoke & Spice,Rubs & Marinaden,"1,00",Sternanis (gemahlen),"2,00",spice,FALSE,,
+,,,,,,,,,
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+RW001,Rote Wurst,Brühwurst,10000,Schweineschulter (mager),"42,50",base,FALSE,Bioland,3mm wolfen
+RW001,Rote Wurst,Brühwurst,10000,Speck (Rücken/Backe),"27,50",base,FALSE,Bioland,3mm wolfen
+RW001,Rote Wurst,Brühwurst,10000,Trinkwasser (Eis-Schnee),"25,00",liquid,FALSE,Trinkwasser,Nach und nach zugeben
+RW001,Rote Wurst,Brühwurst,10000,Rindfleisch (sehnenarm),"5,00",base,FALSE,Bioland,3mm wolfen
+RW001,Rote Wurst,Brühwurst,10000,Meersalz,"18,00",additive,FALSE,,Zu Kutterbeginn
+RW001,Rote Wurst,Brühwurst,10000,Paprika edelsüß,"4,00",spice,FALSE,,Kuttern
+RW001,Rote Wurst,Brühwurst,10000,Pfeffer weiß,"2,50",spice,FALSE,,Kuttern
+RW001,Rote Wurst,Brühwurst,10000,Macis,"1,00",spice,FALSE,,Kuttern
+RW001,Rote Wurst,Brühwurst,10000,Koriander,"1,00",spice,FALSE,,Kuttern
+RW001,Rote Wurst,Brühwurst,10000,Kümmel (gemahlen),"0,50",spice,FALSE,,Kuttern
+RW001,Rote Wurst,Brühwurst,10000,Knoblauchpulver,"0,50",spice,FALSE,,Kuttern
+,,,,,,,,,
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Hühnerfleisch mager,"60,00",base,FALSE,CCP: Kerntemp. 72°C,"<PHASE_A> Das Hühnerfleisch und die Haut/Fett-Fraktion getrennt auf 0°C bis 2°C kühlen. Den 90er Faserdarm für ca. 30 Min. in 30°C warmem Wasser wässern, um Risse beim Füllen zu vermeiden. </PHASE_A>
+
+
+<PHASE_B> Magerfleisch mit Meersalz, BioTex Pure und 1/3 der Eisschüttung im Kutter bei hoher Messergeschwindigkeit aufschließen (Ziel: 4°C). Dann die Haut und das restliche Eis zugeben. Sobald die Emulsion glänzt, die Gewürze kurz mitlaufen lassen. Final bis max. 12°C fertigkuttern. </PHASE_B>
+
+
+<PHASE_C> Das Feinbrät straff und blasenfrei in die 90er Därme füllen. Im Dampf bei 78°C Kammer-Temperatur bis zu einer KT von 72°C garen (ca. 90-100 Min.). Danach sofort im Eisbad auf unter 15°C abschrecken. </PHASE_C>
+
+
+Meister-Tipp: Da wir kein NPS nutzen, bleibt die Wurst natur-hell. Achtet penibel auf die Kälte beim Kuttern, Geflügelbrät ist thermisch extrem instabil.
+
+
+Haltbarkeit: 14 Tage bei < 4°C (vakuumiert)."
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Hühnerfett / -Haut,"20,00",base,FALSE,,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Wasser / Eis,"20,00",base,FALSE,eiskalt,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",BioTex Pure (KHM),"0,90",additive,FALSE,Kutterhilfsmittel,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,gemahlen,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Paprika edelsüß,"0,10",spice,FALSE,,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Macis,"0,05",spice,FALSE,,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Koriander,"0,05",spice,FALSE,,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Curcuma,"0,05",spice,FALSE,für die Farbe,
+H-FW-90,Hähnchen-Fleischwurst (90er),Brühwurst,"10.000,00",Ingwer,"0,03",spice,FALSE,,
+,,,,,,,,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Galloway RII (mager),"60,00",base,FALSE,Kerntemperatur 0°C,"<PHASE_A> Das Fleisch und Fett (Galloway & Lamm) auf -1°C bis 0°C stark herunterkühlen. Die Gewürzmischung vorab exakt abwiegen. Saitlinge (Schafdarm 20/22) in lauwarmem Wasser (ca. 30°C) wässern. </PHASE_A>
+
+
+<PHASE_B> Das Fleisch und Fett gemeinsam durch die 3mm Scheibe wolfen. Danach die Masse mit dem Meersalz und allen Gewürzen im Mengenmischer oder von Hand binden. Wichtig: Nur so lange mengen, bis eine gute Bindung (Eiweißaufschluss) entsteht, die Masse aber noch Struktur hat. Die Temperatur darf dabei nie über 4°C steigen. </PHASE_B>
+
+
+<PHASE_C> Das Brät straff und ohne Lufteinschlüsse in die Schaf-Saitlinge füllen. Auf die gewünschte Länge (ca. 10-12 cm) abdrehen. Die Würste vor dem Verpacken ca. 1-2 Stunden im Kühlraum bei 2°C oberflächenabtrocknen lassen, das intensiviert die natürliche Farbe. </PHASE_C>
+
+
+Meister-Tipp: Da wir kein NPS nutzen, ist die mikrobiologische Stabilität bei frischer Bratwurst das A und O. Arbeitet extrem zügig beim Wolfen. Wenn Ihr die Merguez noch „kickiger“ wollt, könnt Ihr 0,5% frische Minze fein gehackt unterheben – das passt perfekt zum Lamm.
+
+
+Haltbarkeit: 3 Tage bei < 4°C (Frischware) oder 180 Tage bei -18°C."
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Lammfleisch / -fett (LII/LIV),"40,00",base,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,CCP: Salzwaage prüfen,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Paprika edelsüß,"0,45",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Zwiebelgranulat,"0,15",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Knoblauch,"0,15",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Muskat,"0,05",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Kreuzkümmel,"0,10",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Cayenne,"0,05",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Chili,"0,05",spice,FALSE,,
+Gallo-Lamb-Merguez-Bio,Merguez Galloway-Lamm,frische Bratwurst,"10.000,00",Koriander,"0,10",spice,FALSE,,
+,,,,,,,,,
+ÜBERARBEITEN hILFSSTOFFE mETTWURST,,,,,,,,,
+,,,,,,,,,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Galloway RII (mager),"65,00",base,FALSE,Kerntemperatur < 2°C,"<PHASE_A> Fleisch und Fett bei 0°C bis 2°C bereitstellen. Salzzitronen sehr fein hacken (fast zu einer Paste). Den getrockneten Salbei zwischen den Handflächen leicht zerreiben, um die ätherischen Öle zu aktivieren.
+
+
+<PHASE_B> Das Fleisch und den Fettanteil grob wolfen (5mm Scheibe). Meersalz, Gewürze, Salbeireibsel und die Salzzitronenpaste zugeben. Die Masse nur kurz mengen, bis eine leichte Bindung entsteht – die Struktur der Galloway-Fasern muss erhalten bleiben.
+
+
+<PHASE_C> In Schafsaite (22/24 oder 24/26) abdrehen. Die Würste kurz oberflächlich abtrocknen lassen, bevor sie vakuumiert oder in die Theke gehen.
+
+
+Meister-Tipp: Achtet bei den Salzzitronen darauf, nur die Schale zu verwenden und das bittere Fruchtfleisch zu entfernen. Da wir kein Phosphat nutzen, ist die Bindung rein mechanisch – arbeitet zügig, damit das Fett nicht schmiert.
+
+
+Haltbarkeit: 3 Tage bei < 4°C oder 180 Tage bei -18°C."
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Rinderfett (kernig),"35,00",base,FALSE,,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00","Salzzitrone (Bio, fein gehackt)","2,50",spice,FALSE,Nur Schale verwenden,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Salbei (getrocknet),"0,25",spice,FALSE,Fein gerebelt,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Pfeffer weiß (gemahlen),"0,20",spice,FALSE,,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00","Knoblauch (frisch, fein gewürfelt)","0,15",spice,FALSE,,
+Gallo-Citron-Sauge-Bio,Saucisse de Gallo (Citron & Sauge),frische Bratwurst,"10.000,00",Macis,"0,05",spice,FALSE,,
+,,,,,,,,,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Schweineschulter S II,"70,00",base,FALSE,"pH-Wert < 5,8","<PHASE_A> Fleisch und Speck auf -2°C anfrosten. Gewürze präzise abwiegen.
+
+
+<PHASE_B> Fleisch und Speck getrennt durch die 3mm Scheibe wolfen. Erst Fleisch mit Salz und Starterkulturen (sofern im Alt-Rezept vorgesehen) mengen, dann Speck und Gewürze kurz unterheben.
+
+
+<PHASE_C> In Schweinedärme (28/30) füllen.
+
+
+REIFEKAMMER-PROTOKOLL:
+
+1. Tag: 20°C, 92% r.LF (Anschwitzen & Umrötung aktivieren).
+
+2. Tag: 18°C, 90% r.LF (Stabilisierung).
+
+3. Tag: 16°C, 85% r.LF (Beginn der Trocknung).
+
+Ab 4. Tag: Kontinuierliche Absenkung auf 12-14°C bei 75-80% r.LF bis zum gewünschten Härtegrad.
+
+
+Meister-Tipp: Kontrolliert am 2. Tag den ""Zipfel-Test"". Sind die Enden geschmeidig, passt die Feuchte. Werden sie trocken, riskiert ihr einen Trockenrand (Verschalung) – dann sofort Luftfeuchte leicht erhöhen!
+
+
+Haltbarkeit: 7 Tage bei <4°C (frisch) oder 21 Tage gereift bei <15°C."
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Rückenspeck S IV,"30,00",base,FALSE,Kernig & eiskalt,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Meersalz,"2,40",spice,FALSE,,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Pfeffer schwarz (grob),"0,35",spice,FALSE,,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Muskat (gemahlen),"0,05",spice,FALSE,,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Knoblauch (frisch),"0,10",spice,FALSE,,
+alt_Schwein-Mettwurst,StevesHof Mettwurst_alt,Rohwurst,"10.000,00",Rohrohrzucker,"0,25",spice,FALSE,Bakterienfutter,
+,,,,,,,,,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",Schweinefleisch mager (S II),"70,00",base,-,Gekühlt bei 0-2°C verarbeiten,"<PHASE_A> (Vorbereitung)
+
+Das Fleisch und der Speck müssen vor der Verarbeitung auf ca. -2°C angefroren werden, um ein sauberes Schnittbild im Fleischwolf zu garantieren. Alle Gewürze exakt abwiegen.
+
+
+<PHASE_B> (Verarbeitung)
+
+Das Fleisch und den Speck zusammen mit dem Meersalz, den Gewürzen und den Hilfsstoffen (Rosalin S & Pökulus) durch die 3mm oder 4,5mm Scheibe wolfen. Die Masse nur kurz binden, um eine Fettauffassung zu vermeiden. In Naturdärme (z.B. Schweinedarm 28/30) oder atmungsaktive Kunstdärme füllen.
+
+
+<PHASE_C> (Veredelung)
+
+Umrötung: 24-48 Std. bei 18-20°C und 90% LF. Danach schrittweise Absenkung der Feuchtigkeit. Nach Erreichen der Farbstabilität im Buchenkaltrauch (max. 20°C) goldgelb räuchern. Anschließend lufttrocknen, bis ein Gewichtsverlust von mind. 30% erreicht ist.
+
+
+Meister-Tipp: Da wir ohne NPS arbeiten, ist der pH-Wert-Verlauf kritisch. Ziel-pH nach 48h: 4,8 bis 5,1. Achtet darauf, dass die Wurst im Rauch nicht ""absperrt"" (Trockenrand), sonst fault sie von innen.
+
+
+Haltbarkeit: 60 Tage bei <12°C (nach Reifung)."
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",Rückenspeck ohne Schwarte (S VIII),"30,00",base,-,"Kernig, gut gekühlt",
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",Meersalz,"2,40",spice,-,Konservierung durch Salz-Hürde,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00","Pfeffer schwarz, gemahlen","0,30",spice,-,,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00","Weißer Pfeffer, gemahlen","0,10",spice,-,,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",Muskatblüte (Macis),"0,05",spice,-,,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00","Koriander, gemahlen","0,05",spice,-,,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",BIO Rosalin S (Glucosesirup),"0,40",additive,-,Futter für Milchsäurebakterien,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",BIO Pökulus,"0,20",additive,-,Enthält E301 zur Umrötung,
+neu_Schwein-Mettwurst,Bio Mettwurst (geräuchert & luftgetrocknet),Rohwurst,"10.000,00",Acerola-Pulver (optional),"0,10",additive,-,Natürliches Vitamin C (Vorschlag),
+,,,,,,,,,
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",R II (Galloway mager),"70,00",base,FALSE,"pH-Wert 5,8 - 6,0","<PHASE_A>
+
+Das Galloway-Fleisch (R II) und den Speck (R IV) auf 0°C bis 2°C kühlen. Das Tomatenmark mit dem Bio-Wodka und dem Zitronenabrieb glattrühren, bis eine homogene Emulsion entsteht.
+
+
+<PHASE_B>
+
+R II und R IV gemeinsam durch die 3mm Scheibe wolfen. Bei Galloway-Fett ist extreme Kälte wichtig, damit es nicht schmiert.
+
+
+Die Masse in den Menger geben. Meersalz, BIO Nadurot und BIO Kutterpower hinzufügen. Unter Zugabe des Eisschnees und der Wodka-Tomaten-Mischung intensiv mengen, bis ein bindiges Brät entsteht (Eiweißaufschluss). Am Ende Selleriesalz, Pfeffer und Acerola-Pulver kurz, aber gleichmäßig unterheben.
+
+
+<PHASE_C>
+
+In Schafssaitlinge Kaliber 22/24 füllen und auf ca. 100g (oder 120g für den Grill) abdrehen. Sofort kühlen.
+
+
+Meister-Tipp: Da Galloway-Fett einen niedrigeren Schmelzpunkt hat als Hausschwein, arbeitet im Menger zügig. Das BIO Kutterpower mit der Pastinaken-Note unterstützt das Gemüseprofil der Bloody Mary hervorragend und hält den Wodka sicher in der Bindung, damit die Wurst auf dem Grill saftig bleibt und nicht spritzt.
+
+
+Haltbarkeit: 3 Tage bei <4°C."
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",R IV (Galloway Speck),"30,00",base,FALSE,Kernig kühlen,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Eisschnee,"5,00",spice,FALSE,Trinkwasserqualität,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,Ohne Zusätze,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",BIO Kutterpower OH AF,"1,00",additive,FALSE,Für Brätfestigkeit,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",BIO Nadurot,"0,30",additive,FALSE,Farberhalt (E300),
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Tomatenmark (Bio),"3,00",spice,FALSE,2-fach konzentriert,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Bio-Wodka,"2,00",spice,FALSE,40% Vol.,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Selleriesalz,"0,25",spice,TRUE,Typisches Aroma,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Pfeffer schwarz (grob),"0,25",spice,FALSE,Frisch geschrotet,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Zitronenschale (Bio),"0,10",spice,FALSE,Nur Abrieb,
+cocktail_Gallo-Mary-Brat-Bio,Gallo-Mary Bratwurst (Bloody Mary Style),frische Bratwurst,"10.000,00",Acerola-Pulver,"0,10",additive,FALSE,Vorschlag: 1g/kg,
+,,,,,,,,,
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Schweineschulter S2 (Bio),"65,00",base,FALSE,"pH 5,8 - 6,0; gut gekühlt","<PHASE_A>
+
+Die Schweineschulter (S2) und den Bauch (S5) auf 0°C bis 2°C kühlen. Die Wacholderbeeren im Mörser grob zerstoßen, um die ätherischen Öle für das volle Aroma freizusetzen. Den Limettenabrieb frisch vorbereiten.
+
+
+<PHASE_B>
+
+S2 und S5 gemeinsam durch die 3mm oder 5mm Scheibe wolfen (je nach gewünschtem Grobheitsgrad). Die Masse in den Menger geben.
+
+
+Meersalz, BIO Nadurot und BIO Kutterpower hinzufügen. Unter Zugabe des Eisschnees und des Bio-Gins intensiv mengen, bis ein bindiges Brät entsteht. Erst in den letzten 30 Sekunden der Mengzeit die Wacholderbeeren, den weißen Pfeffer, Koriander, Acerola und den Limettenabrieb unterheben.
+
+
+<PHASE_C>
+
+Das Brät zügig in Schafssaitlinge Kaliber 22/24 abfüllen und auf ca. 100g abdrehen. Sofort in die Kühlung bringen, um die Frische der Zitrusnoten zu bewahren.
+
+
+Meister-Tipp: Der Gin fungiert als Extraktionsmittel für den Wacholder. Achtet darauf, den Limettenabrieb wirklich erst ganz am Ende zuzugeben. Die ätherischen Öle der Schale sind flüchtig und reagieren empfindlich auf zu langes Mengen. Das Ergebnis auf dem Grill ist eine echte Aroma-Explosion!
+
+
+Haltbarkeit: 3 Tage bei <4°C."
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Schweinebauch S5 (Bio),"35,00",base,FALSE,Kernige Fettstruktur,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Eisschnee,"5,00",spice,FALSE,Trinkwasserqualität,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Bio-Gin (hochwertig),"2,50",spice,FALSE,40-45% Vol.,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,Ohne Zusätze,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",BIO Kutterpower OH AF,"1,00",additive,FALSE,Stabilisierung & Bindung,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",BIO Nadurot,"0,30",additive,FALSE,Farberhalt ohne NPS,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Wacholderbeeren (Bio),"0,40",spice,FALSE,Grob zerstoßen,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Limettenabrieb (Bio),"0,15",spice,FALSE,Nur die grüne Schale,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Pfeffer weiß (gemahlen),"0,20",spice,FALSE,Mildes Profil,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Koriandersaat (Bio),"0,10",spice,FALSE,Fein gemahlen,
+cocktail_Huelser-Gin-Griller-Bio,Hülser Gin-Griller (Gin-Tonic Style),frische Bratwurst,"10.000,00",Acerola-Pulver,"0,10",additive,FALSE,Vorschlag: 1g/kg,
+,,,,,,,,,
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Schweineschulter S2 (Bio),"65,00",base,FALSE,"pH 5,8 - 6,0; max. 2°C","<PHASE_A>
+
+Die Schweineschulter (S2) und den Bauch (S5) leicht anfrosten (-1°C bis 0°C). Den frischen Ingwer extrem fein reiben. Den dunklen Rum mit dem Limettensaft mischen und vorkühlen.
+
+
+<PHASE_B>
+
+S2 und S5 gemeinsam durch die 3mm Scheibe wolfen. Die Masse direkt in den Menger geben.
+
+
+Meersalz, BIO Nadurot und BIO Kutterpower hinzufügen. Unter Zugabe des Eisschnees und der Rum-Limetten-Mischung intensiv mengen, bis der Eiweißaufschluss eine stabile Bindung erzeugt. Erst zum Schluss den geriebenen Ingwer, Rohrohrzucker, Piment und Pfeffer kurz und gleichmäßig unterverteilen.
+
+
+<PHASE_C>
+
+In Schafssaitlinge Kaliber 22/24 füllen und auf ca. 100g abdrehen. Die Würste sofort einzeln hängen oder flach lagern und schnellstmöglich auf <4°C durchkühlen.
+
+
+Meister-Tipp: Der dunkle Rum enthält natürliche Melasse-Noten, die zusammen mit dem kleinen Anteil Rohrohrzucker auf dem Grill karamellisieren – das gibt ein unglaubliches Aroma. Achtet beim Ingwer auf absolute Frische; die ätherischen Öle sind der Gegenspieler zum fetten Schweinebauch und machen die Wurst extrem süffig.
+
+
+Haltbarkeit: 3 Tage bei <4°C."
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Schweinebauch S5 (Bio),"35,00",base,FALSE,Kernige Struktur,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Eisschnee,"5,00",spice,FALSE,Trinkwasserqualität,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Bio-Rum (Dunkel),"2,50",spice,FALSE,Aroma-Geber,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Meersalz,"1,80",spice,FALSE,"Rein, ohne Zusätze",
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",BIO Kutterpower OH AF,"1,00",additive,FALSE,Emulsionsstabilität,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",BIO Nadurot,"0,30",additive,FALSE,Farbstabilität,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00","Ingwer (Bio, frisch gerieben)","0,60",spice,FALSE,Schärfe & Frische,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Limettensaft (Bio),"0,50",spice,FALSE,Für die Säurestruktur,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Rohrohrzucker (Bio),"0,25",spice,FALSE,Für die Karamelisierung,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Pfeffer weiß,"0,20",spice,FALSE,Gemahlen,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Piment (Bio),"0,05",spice,FALSE,Fein gemahlen,
+cocktail_Dark-Stormy-Brat-Bio,Dark & Stormy Griller (Rum & Ginger Style),frische Bratwurst,"10.000,00",Acerola-Pulver,"0,10",additive,FALSE,Vorschlag: 1g/kg,

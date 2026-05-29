@@ -1,22 +1,44 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+  <script src="/branding.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#2E7D32">
+  <meta name="theme-color" content="#28a745">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="CharcuLogic">
-  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-title" content="">
+  <link rel="manifest" id="pwa-manifest" href="/manifest.json">
+  <script>
+    if (window.BRANDING) {
+      const manifestData = {
+        name: window.BRANDING.betriebsName || 'Hofladen Leitstand',
+        short_name: window.BRANDING.appName || 'CharcuLogic',
+        start_url: '.',
+        display: 'standalone',
+        background_color: window.BRANDING.lightBg || '#f8f9fa',
+        theme_color: window.BRANDING.primaryColor || '#28a745',
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+        ],
+      };
+      const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+      const manifestURL = URL.createObjectURL(blob);
+      document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute('content', window.BRANDING.primaryColor || '#28a745');
+    }
+  </script>
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <title>CharcuLogic - Betriebs-App für Hofläden & Metzgereien</title>
+  <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
   <script src="/libs/firebase-app.js"></script>
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=20260528-56">
 </head>
 <body>
 
@@ -42,7 +64,7 @@
         <!-- App Header (Header Bar) -->
         <header class="app-header">
           <div class="app-title-group">
-            <span class="app-subtitle" id="header-subtitle">Betriebs-Leitstand</span>
+            <span class="app-subtitle brand-betriebs-name" id="header-subtitle"></span>
             <h1 id="header-title">Schwarzes Brett</h1>
           </div>
           <div class="app-header-actions">
@@ -55,7 +77,7 @@
               <span id="employee-session-name"></span>
             </div>
             <button id="header-logout-btn" class="header-action-btn" style="display: none;">Logout</button>
-            <div class="app-badge">METZGEREI PRO</div>
+            <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
         </header>
 
@@ -328,11 +350,12 @@
                   <label class="receiving-field" for="we-category-quick">
                     <span>Kategorie (Laden)</span>
                     <select id="we-category-quick" class="gastro-input">
+                      <option value="" selected>-- Kategorie wählen --</option>
                       <option value="Frische">Frische</option>
                       <option value="MoPro">MoPro</option>
                       <option value="Kühlware">Kühlware</option>
                       <option value="TK">TK</option>
-                      <option value="Trockenware" selected>Trockenware</option>
+                      <option value="Trockenware">Trockenware</option>
                       <option value="Gewürze">Gewürze</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
                     </select>
@@ -355,13 +378,17 @@
                     <span class="we-product-resolved-label">Erkannt:</span>
                     <strong id="we-product-resolved-name"></strong>
                   </div>
+                  <div id="we-unknown-barcode-actions" class="we-unknown-barcode-actions hidden" role="status" aria-live="polite">
+                    <p class="we-unknown-barcode-hint">Barcode unbekannt – Artikel kann manuell angelegt werden.</p>
+                    <button type="button" class="btn btn-primary" id="we-manual-create-btn">Artikel manuell anlegen</button>
+                  </div>
                   <label class="receiving-field we-product-manual-wrap hidden" id="we-product-manual-wrap" for="we-product-manual">
                     <span>Produktname (unbekannte EAN)</span>
                     <input type="text" id="we-product-manual" class="gastro-input" placeholder="z. B. Schwarzkümmel" autocomplete="off">
                   </label>
                   <label class="receiving-field" for="we-qty">
-                    <span id="we-qty-label">Menge (kg)</span>
-                    <input type="number" id="we-qty" class="gastro-input" placeholder="Menge in kg" min="0.1" step="0.1" value="1" inputmode="decimal">
+                    <span id="we-qty-label">Menge (Stk)</span>
+                    <input type="number" id="we-qty" class="gastro-input" placeholder="1" min="1" step="1" inputmode="numeric">
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>

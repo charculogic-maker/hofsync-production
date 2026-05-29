@@ -1,9 +1,11 @@
-const CACHE_NAME = 'charculogic-v20260528-50';
+const CACHE_NAME = 'charculogic-v20260528-57';
 const CACHE_SCHEMA = 'phase-5-ui-refresh-foundation';
 
 const CRITICAL_ASSETS = [
   '/',
   '/index.html',
+  '/branding.js',
+  '/tenant-db.js',
   '/style.css',
   '/libs/firebase-app.js',
   '/libs/firebase-auth.js',

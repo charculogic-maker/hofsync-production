@@ -2,6 +2,7 @@
  * Kundenbestellungen – Annahme durch alle Mitarbeiter, Übersicht im Büro
  */
 
+import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getActiveEmployeeName } from './teamboard.js';
 import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
@@ -89,10 +90,11 @@ function formatReadyAt(readyAt) {
 
 function ordersCollectionRef() {
   if (!orderState.db || !orderState.tenantId) return null;
-  return orderState.db
-    .collection('tenants')
-    .doc(orderState.tenantId)
-    .collection('customerOrders');
+  try {
+    return getTenantCollection('customerOrders');
+  } catch {
+    return null;
+  }
 }
 
 function buildOrderLineRow(lineId) {

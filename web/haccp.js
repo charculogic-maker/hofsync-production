@@ -1,3 +1,5 @@
+import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+
 const DEFAULT_HACCP_DEVICES = [
   { name: 'Kühlauslage Hofladen', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
   { name: 'MoPro-Kühlung', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
@@ -94,11 +96,23 @@ export function activateHaccpTab() {
 }
 
 function haccpCollectionPath() {
-  return haccpState.tenantId ? `tenants/${haccpState.tenantId}/haccp_logs` : null;
+  const tenantId = getGlobalTenantId() || haccpState.tenantId;
+  if (!tenantId) return null;
+  try {
+    return getTenantCollectionPath('haccp_logs');
+  } catch {
+    return null;
+  }
 }
 
 function haccpDevicesCollectionPath() {
-  return haccpState.tenantId ? `tenants/${haccpState.tenantId}/haccp_geraete` : null;
+  const tenantId = getGlobalTenantId() || haccpState.tenantId;
+  if (!tenantId) return null;
+  try {
+    return getTenantCollectionPath('haccp_geraete');
+  } catch {
+    return null;
+  }
 }
 
 function serverTimestamp() {

@@ -1,8 +1,8 @@
-# Chargen
+# Chargen (Tab „Büro“)
 
-Nachverfolgung und Büro-Kontrolle: gespeicherte Produktionschargen und Abgleich der Rezeptdaten.
+Nachverfolgung und Büro-Kontrolle: gespeicherte Produktionschargen, Abgleich der Rezeptdaten und (für Admins) Leitstand-Funktionen.
 
-![Chargen – Rezeptdaten-Prüfung und Suche](./screenshots/06-chargen.png)
+![Büro – Rezeptdaten-Prüfung und Suche](./screenshots/06-chargen.png)
 
 ## Oberfläche
 
@@ -10,7 +10,7 @@ Nachverfolgung und Büro-Kontrolle: gespeicherte Produktionschargen und Abgleich
 
 - **Masterliste** vs. **Cloud** (Anzahl Einträge)
 - **Status** und Detailtext, sobald Firestore antwortet
-- Hilft zu erkennen, ob Rezepte in der Wurstküche aktuell sind
+- Hilft zu erkennen, ob Rezepte in **Prod.** aktuell sind
 
 ### Suche
 
@@ -23,17 +23,25 @@ Nachverfolgung und Büro-Kontrolle: gespeicherte Produktionschargen und Abgleich
 - Einträge aus der Produktion (Charge, Rezept, verantwortliche Person, …)
 - Antippen zum Prüfen der Details (je nach App-Stand)
 
+### Leitstand (Admin)
+
+Für berechtigte Nutzer im gleichen Tab:
+
+- **Nachricht des Tages** veröffentlichen (Text, Foto/PDF)
+- **Team-Gruppen & Mitarbeiter** pflegen
+- Team-Nachrichten / Aufgaben anlegen
+
 ## Wofür?
 
 - Rückverfolgung bei Rückfragen
 - Kontrolle durch Büro / Meister
-- Abgleich, ob Cloud-Rezepte mit der Masterliste übereinstimmen
+- Abgleich Cloud-Rezepte mit Masterliste
 
 ## Typischer Ablauf
 
-1. Tab **Chargen** öffnen
+1. Tab **Büro** öffnen
 2. Sync-Status der Rezeptdaten prüfen
 3. Nach Charge oder Rezept suchen
 4. Eintrag für Dokumentation oder Prüfung öffnen
 
-Dieser Tab ist **kein** Erfassungs-Tab für den Laufenden Betrieb – dafür sind **Wurstküche** (Produktion) und **HACCP** (Kontrollen) zuständig.
+Dieser Tab ist **kein** Erfassungs-Tab für den laufenden Verkauf – dafür sind **MHD**, **Neu**, **Prod.** und **HACCP** zuständig.

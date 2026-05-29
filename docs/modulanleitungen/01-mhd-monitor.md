@@ -1,18 +1,18 @@
 # MHD-Monitor
 
-Der **MHD-Monitor** ist der zentrale Tab für den täglichen Morgencheck: Welche Ware ist abgelaufen, muss reduziert oder aus dem Verkauf?
+Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche Ware ist abgelaufen, muss reduziert oder aus dem Verkauf?
 
-![MHD-Monitor – Filter und Toolbar](./screenshots/01-mhd-monitor.png)
+![MHD – Filter und Toolbar](./screenshots/01-mhd-monitor.png)
 
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Übersicht nach **Dringlichkeit** (ALARM, AKTION, …)
-- Einzelne **Posten** bearbeiten (nicht nur Produkte – gleiche Artikel können mehrfach vorkommen)
+- Übersicht nach **Ansicht** (ALARM, AKTION, ALLE, ERLEDIGT)
+- Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Oberfläche
 
-### 1. Filter (Dropdowns)
+### 1. Filter (Dropdowns in der Toolbar)
 
 | Feld | Funktion |
 |------|----------|
@@ -20,7 +20,7 @@ Der **MHD-Monitor** ist der zentrale Tab für den täglichen Morgencheck: Welche
 | **Ansicht** | ALARM (morgens), AKTION, ALLE, ERLEDIGT |
 | **Kategorie** | Nur bei Frische & Kühlung: Alle, Frische, MoPro, Kühlware, TK |
 
-Typische Morgen-Einstellung: **Frische & Kühlung · Alle · ALARM**.
+Typische Morgen-Einstellung: **Frische & Kühlung · ALARM · Alle**.
 
 ### 2. MHD-Karte (Posten)
 
@@ -38,11 +38,9 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ![Suche geöffnet](./screenshots/01c-mhd-suche-offen.png)
 
-Für den Morgencheck meist nicht nötig – bei langen Listen oder gezielter Suche:
-
 1. **🔍 Artikel suchen** antippen
 2. Suchbegriff eingeben (z. B. „milch“)
-3. Mit **▲ Suche schließen** einklappen – Filter bleibt aktiv
+3. Mit **▲ Suche schließen** einklappen – Filter bleiben aktiv
 
 ### 4. Speichern
 
@@ -50,12 +48,13 @@ Für den Morgencheck meist nicht nötig – bei langen Listen oder gezielter Suc
 
 ## Ablauf Morgencheck
 
-1. Tab **MHD-Monitor** öffnen
+1. Tab **MHD** öffnen
 2. Filter: **ALARM**, Bereich und Kategorie wählen
 3. Karten der Reihe nach abarbeiten
 4. Bei Trockenware **Bereich** umstellen und erneut prüfen
+5. **Änderungen speichern**
 
 ## Hinweise
 
-- **„3 aktive Posten“** unter dem Namen = mehrere offene Einträge mit gleichem Barcode
+- **„X aktive Posten“** unter dem Namen = mehrere offene Einträge mit gleichem Barcode
 - Ohne Firebase-Verbindung erscheint ein Hinweis, dass keine MHD-Daten geladen werden können

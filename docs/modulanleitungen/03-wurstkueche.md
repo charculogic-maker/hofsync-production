@@ -1,22 +1,24 @@
-# Wurstküche
+# Wurstküche (Tab „Prod.“)
 
 Rezeptur, Skalierung (WRS/BEFFE) und Produktionsdokumentation.
 
-![Wurstküche – Rezept-Skalierer und Liste](./screenshots/04-wurstkueche.png)
+![Prod. – Rezeptliste](./screenshots/04-wurstkueche.png)
 
 ## Oberfläche
 
-### WRS Rezept-Skalierer (oben)
+Zwei aufklappbare Bereiche:
 
-- **Rezept** auswählen
-- **Zielgewicht (kg)** eintragen
-- **Berechnen** → Kosten, BEFFE, Fett/Wasser, **Einwiege-Packliste**
-
-### Rezeptliste (unten)
+### Rezepte (oben, standardmäßig offen)
 
 - **Suche** nach Rezeptname
 - **Kategorien** filtern
 - Rezept antippen → **Detailansicht** (Overlay)
+
+### WRS Kalkulation (unten, standardmäßig zu)
+
+- **Rezept** auswählen
+- **Zielgewicht (kg)** eintragen
+- **Berechnen** → Kosten, BEFFE, Fett/Wasser, **Einwiege-Packliste**
 
 ## Detailansicht (Rezept)
 
@@ -27,19 +29,19 @@ Nach Antippen eines Rezepts:
 1. **Tagesproduktion (kg)** einstellen
 2. **Zutaten berechnet** und **Handwerks-Anweisungen** lesen
 3. Sicherheitshinweise (Temperatur, Allergene) beachten
-4. Produktion dokumentieren
-5. **Verkaufs-Einheiten** erfassen (Großkaliber, SB, lose Ware, Gläser, …)
+4. **Verkaufs-Einheiten** erfassen (Großkaliber, SB, lose Ware, Gläser, …)
+5. **Charge dokumentieren**
 
 Zurück mit **❌** oben links.
 
 ## Typischer Ablauf
 
-1. Tab **Wurstküche**
-2. Rezept suchen oder im Skalierer wählen
+1. Tab **Prod.**
+2. Rezept suchen oder im WRS-Bereich skalieren
 3. Menge planen / berechnen
-4. Produktion durchführen und in der App dokumentieren
-5. Chargen-Daten stehen später unter **Chargen** zur Verfügung
+4. Produktion durchführen und dokumentieren
+5. Chargen-Daten stehen unter Tab **Büro** zur Verfügung
 
 ## Hinweis
 
-Rezeptdaten kommen aus der hinterlegten Masterliste / Cloud. Oben im Bereich **Chargen** seht ihr den Sync-Status der Rezeptdaten.
+Rezeptdaten kommen aus der Masterliste / Cloud. Unter **Büro** seht ihr den Sync-Status der Rezeptdaten.

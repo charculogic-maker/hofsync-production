@@ -1,0 +1,6 @@
+ID,Name,Kategorie,Basis_g,Zutat,Prozent,Typ,Allergen,Hinweis,Anweisung
+Beispiel-Bratwurst,Beispiel Bratwurst,Bratwurst,10000,Rindfleisch R II,"55,00",base,FALSE,0 bis 2 °C kalt verarbeiten,"Rohstoffe gut kühlen, sauber wolfen, bindig mengen, füllen und Charge dokumentieren."
+Beispiel-Bratwurst,Beispiel Bratwurst,Bratwurst,10000,Schweinebauch,"30,00",fat,FALSE,0 bis 2 °C kalt verarbeiten,""
+Beispiel-Bratwurst,Beispiel Bratwurst,Bratwurst,10000,Eiswasser,"10,00",liquid,FALSE,kalt zugeben,""
+Beispiel-Bratwurst,Beispiel Bratwurst,Bratwurst,10000,Salz,"1,80",spice,FALSE,genau wiegen,""
+Beispiel-Bratwurst,Beispiel Bratwurst,Bratwurst,10000,Pfeffer,"0,20",spice,FALSE,fein gemahlen,""
