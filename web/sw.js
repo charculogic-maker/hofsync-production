@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260528-57';
+const CACHE_NAME = 'charculogic-v20260528-59';
 const CACHE_SCHEMA = 'phase-5-ui-refresh-foundation';
 
 const CRITICAL_ASSETS = [

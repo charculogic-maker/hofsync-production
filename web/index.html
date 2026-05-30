@@ -38,7 +38,7 @@
   <script src="/libs/firebase-storage.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260528-56">
+  <link rel="stylesheet" href="/style.css?v=20260528-59">
 </head>
 <body>
 
@@ -138,15 +138,17 @@
 
               <article class="bulletin-card hidden" id="bulletin-card"></article>
               <div class="team-shift-bar">
-                <label class="team-shift-label" for="team-shift-select">Meine Schicht</label>
-                <select id="team-shift-select" class="input-text-touch team-shift-select" aria-label="Aktuelle Schicht">
-                  <option value="Frühschicht">Frühschicht</option>
-                  <option value="Spätschicht">Spätschicht</option>
+                <label class="team-shift-label" for="team-shift-select">Mein Bereich</label>
+                <select id="team-shift-select" class="input-text-touch team-shift-select" aria-label="Aktueller Betriebsbereich">
+                  <option value="Laden / Verkauf">Laden / Verkauf</option>
+                  <option value="Metzgerei / Produktion">Metzgerei / Produktion</option>
+                  <option value="Küche / Gastro">Küche / Gastro</option>
+                  <option value="Allgemein" selected>Allgemein</option>
                 </select>
               </div>
               <div class="task-token-section">
                 <h2 class="task-token-heading">Meine Aufgaben</h2>
-                <p class="task-token-empty hidden" id="task-token-empty">Keine offenen Tokens für dich oder deine Schicht.</p>
+                <p class="task-token-empty hidden" id="task-token-empty">Keine offenen Tokens für dich oder deinen Bereich.</p>
                 <div class="task-token-list" id="task-token-list"></div>
               </div>
               <div class="task-token-section">
@@ -198,7 +200,7 @@
 
                 <section class="team-compose-section task-token-section" aria-label="Team-Nachricht senden">
                   <h2 class="task-token-heading">Nachricht senden</h2>
-                  <p class="customer-order-hint">Info oder Aufgabe – für alle, Gruppen, Kollegen oder Schichten.</p>
+                  <p class="customer-order-hint">Info oder Aufgabe – für alle, Gruppen, Kollegen oder Betriebsbereiche.</p>
                   <div id="team-compose-mount"></div>
                 </section>
 
@@ -1071,8 +1073,7 @@
         <option value="group">Team-Gruppe</option>
         <option value="persons">Bestimmte Kollegen</option>
         <option value="person">Eine Person</option>
-        <option value="shift">Schicht + Zeitraum</option>
-        <option value="next_shift">Nächste Schicht</option>
+        <option value="area">Betriebsbereich + Zeitraum</option>
       </select>
 
       <div data-audience-panel="group" class="hidden">
@@ -1098,11 +1099,13 @@
         </div>
       </div>
 
-      <div data-audience-panel="shift" class="hidden">
-        <label class="form-label">Schicht</label>
-        <select name="shift-context" class="input-text-touch">
-          <option value="Frühschicht">Frühschicht</option>
-          <option value="Spätschicht">Spätschicht</option>
+      <div data-audience-panel="area" class="hidden">
+        <label class="form-label">Betriebsbereich</label>
+        <select name="area-context" class="input-text-touch">
+          <option value="Laden / Verkauf">Laden / Verkauf</option>
+          <option value="Metzgerei / Produktion">Metzgerei / Produktion</option>
+          <option value="Küche / Gastro">Küche / Gastro</option>
+          <option value="Allgemein">Allgemein</option>
         </select>
         <div class="task-date-range-grid">
           <label class="form-label">Zeitraum von</label>

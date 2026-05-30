@@ -15,7 +15,8 @@ import {
   setGermanDateField,
 } from './date-input.js';
 
-export const TEAM_SHIFTS = ['Frühschicht', 'Spätschicht'];
+export const TEAM_AREAS = ['Laden / Verkauf', 'Metzgerei / Produktion', 'Küche / Gastro', 'Allgemein'];
+export const TEAM_SHIFTS = TEAM_AREAS;
 export const TASK_PRIORITIES = ['Rot', 'Gelb', 'Grün'];
 
 export function getTeamEmployeesList() {
@@ -35,7 +36,8 @@ const EMPLOYEE_PINS = {
 };
 
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
-const ACTIVE_SHIFT_STORAGE_KEY = 'charculogic_active_shift';
+const ACTIVE_AREA_STORAGE_KEY = 'charculogic_active_area';
+const LEGACY_SHIFT_STORAGE_KEY = 'charculogic_active_shift';
 const BULLETIN_DOC_ID = 'current';
 
 const teamboardState = {
@@ -149,19 +151,23 @@ function formatTaskScheduleLabel(task) {
   return parts.join(' · ');
 }
 
-function getNextShiftInfo() {
-  const now = new Date();
-  const hour = now.getHours();
-  const today = todayIsoLocal();
-  if (hour < 14) {
-    return { context: 'Spätschicht', validFrom: today, validUntil: today };
-  }
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const y = tomorrow.getFullYear();
-  const m = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  const d = String(tomorrow.getDate()).padStart(2, '0');
-  return { context: 'Frühschicht', validFrom: `${y}-${m}-${d}`, validUntil: `${y}-${m}-${d}` };
+function isGeneralArea(area) {
+  const value = String(area || '').trim();
+  return !value || value === 'Allgemein';
+}
+
+function contextMatchesViewerArea(taskContext, viewerArea) {
+  const ctx = String(taskContext || '').trim();
+  if (!ctx || ctx === 'Allgemein') return true;
+  if (isGeneralArea(viewerArea)) return false;
+  return ctx === viewerArea;
+}
+
+function resolveAreaAudienceType(task) {
+  const type = task?.audienceType || null;
+  if (type === 'area' || type === 'shift' || type === 'next_shift') return type;
+  if (task?.context) return 'area';
+  return null;
 }
 
 function resolveAudienceMembers(task) {
@@ -189,7 +195,7 @@ export function formatAudienceLabel(task) {
     return task.audienceMembers.join(', ');
   }
   if (type === 'next_shift') return `Nächste Schicht (${task.context || '–'})`;
-  if (type === 'shift' || task.context) return task.context || 'Schicht';
+  if (type === 'area' || type === 'shift' || task.context) return task.context || 'Allgemein';
   if (task.assignedTo) return task.assignedTo;
   return 'Team';
 }
@@ -206,21 +212,27 @@ export function getActiveEmployeeName() {
   }
 }
 
-export function getActiveShift() {
+export function getActiveArea() {
   try {
-    const stored = String(localStorage.getItem(ACTIVE_SHIFT_STORAGE_KEY) || '').trim();
-    if (TEAM_SHIFTS.includes(stored)) return stored;
+    const stored = String(localStorage.getItem(ACTIVE_AREA_STORAGE_KEY) || '').trim();
+    if (TEAM_AREAS.includes(stored)) return stored;
+    const legacy = String(localStorage.getItem(LEGACY_SHIFT_STORAGE_KEY) || '').trim();
+    if (legacy) return 'Allgemein';
   } catch (_) { /* noop */ }
-  const hour = new Date().getHours();
-  return hour < 14 ? 'Frühschicht' : 'Spätschicht';
+  return 'Allgemein';
 }
 
-function setActiveShift(shift) {
-  if (!TEAM_SHIFTS.includes(shift)) return;
+export function getActiveShift() {
+  return getActiveArea();
+}
+
+function setActiveArea(area) {
+  if (!TEAM_AREAS.includes(area)) return;
   try {
-    localStorage.setItem(ACTIVE_SHIFT_STORAGE_KEY, shift);
+    localStorage.setItem(ACTIVE_AREA_STORAGE_KEY, area);
+    localStorage.removeItem(LEGACY_SHIFT_STORAGE_KEY);
   } catch (_) { /* noop */ }
-  window.dispatchEvent(new CustomEvent('charculogic:active-shift-changed', { detail: { shift } }));
+  window.dispatchEvent(new CustomEvent('charculogic:active-area-changed', { detail: { area } }));
 }
 
 function bulletinRef() {
@@ -254,22 +266,21 @@ function taskMatchesViewer(task) {
   if (!task || task.status !== 'open') return false;
   const employee = getActiveEmployeeName();
   if (!employee) return false;
-  const shift = getActiveShift();
+  const area = getActiveArea();
   const today = todayIsoLocal();
   if (!taskVisibleOnDay(task, today)) return false;
 
-  const audienceType = task.audienceType || (task.assignedTo ? 'person' : task.context ? 'shift' : null);
+  const audienceType = task.audienceType || (task.assignedTo ? 'person' : resolveAreaAudienceType(task));
 
   if (audienceType === 'all') return true;
   if (audienceType === 'group' || audienceType === 'persons') {
     return resolveAudienceMembers(task).some((name) => employeeNameMatch(name, employee));
   }
   if (audienceType === 'next_shift') {
-    const next = getNextShiftInfo();
-    return task.context === next.context && isIsoDateInRange(today, next.validFrom, next.validUntil);
+    return taskVisibleOnDay(task, today);
   }
-  if (audienceType === 'shift' || (!audienceType && task.context)) {
-    return task.context === shift;
+  if (audienceType === 'area' || audienceType === 'shift' || (!audienceType && task.context)) {
+    return contextMatchesViewerArea(task.context, area);
   }
   if (audienceType === 'person' || task.assignedTo) {
     return employeeNameMatch(task.assignedTo, employee);
@@ -285,7 +296,7 @@ function completedTaskMatchesViewer(task) {
   if (employeeNameMatch(task.assignedTo, employee)) return true;
   if (task.audienceType === 'all') return true;
   if (resolveAudienceMembers(task).some((name) => employeeNameMatch(name, employee))) return true;
-  if (!task.assignedTo && task.context && task.context === getActiveShift()) return true;
+  if (!task.assignedTo && task.context && contextMatchesViewerArea(task.context, getActiveArea())) return true;
   return false;
 }
 
@@ -562,13 +573,13 @@ function renderAdminTaskList(tasks) {
   `).join('');
 }
 
-function bindShiftSelector() {
+function bindAreaSelector() {
   const select = document.getElementById('team-shift-select');
   if (!select || select.dataset.teamboardBound === '1') return;
   select.dataset.teamboardBound = '1';
-  select.value = getActiveShift();
+  select.value = getActiveArea();
   select.addEventListener('change', () => {
-    setActiveShift(select.value);
+    setActiveArea(select.value);
     subscribeTasks();
   });
 }
@@ -680,9 +691,9 @@ function bindTeamHomeEvents() {
     });
     subscribeTasks();
   });
-  window.addEventListener('charculogic:active-shift-changed', () => {
+  window.addEventListener('charculogic:active-area-changed', () => {
     const select = document.getElementById('team-shift-select');
-    if (select) select.value = getActiveShift();
+    if (select) select.value = getActiveArea();
     subscribeTasks();
     renderTaskHistory(teamboardState.completedTasks);
   });
@@ -748,21 +759,23 @@ function readAudienceFromForm(form) {
       return { error: 'Bitte mindestens einen Kollegen auswählen.' };
     }
     result.audienceMembers = picked;
-  } else if (audienceType === 'shift') {
-    result.context = form.querySelector('[name="shift-context"]')?.value || null;
+  } else if (audienceType === 'area' || audienceType === 'shift') {
+    result.context = form.querySelector('[name="area-context"]')?.value
+      || form.querySelector('[name="shift-context"]')?.value
+      || null;
     result.validFrom = readGermanDateField(form.querySelector('[name="valid-from"]')) || today;
     result.validUntil = readGermanDateField(form.querySelector('[name="valid-until"]')) || result.validFrom;
-    if (!result.context) return { error: 'Bitte Schicht wählen.' };
+    if (!result.context) return { error: 'Bitte Betriebsbereich wählen.' };
     if (result.validFrom > result.validUntil) {
       return { error: 'Zeitraum „bis“ muss am oder nach „von“ liegen.' };
     }
     result.targetDate = result.validFrom;
+    result.audienceType = 'area';
   } else if (audienceType === 'next_shift') {
-    const next = getNextShiftInfo();
-    result.context = next.context;
-    result.validFrom = next.validFrom;
-    result.validUntil = next.validUntil;
-    result.targetDate = next.validFrom;
+    result.context = 'Allgemein';
+    result.validFrom = today;
+    result.validUntil = today;
+    result.targetDate = today;
   } else if (audienceType === 'person') {
     result.assignedTo = form.querySelector('[name="audience-person-single"]')?.value || null;
     if (!result.assignedTo) return { error: 'Bitte Kollegen wählen.' };
@@ -1221,7 +1234,7 @@ export function initTeamboardModule(databaseInstance, options = {}) {
   teamboardState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : teamboardState.showHUD;
   teamboardState.playClickSound = typeof options.playClickSound === 'function' ? options.playClickSound : teamboardState.playClickSound;
 
-  bindShiftSelector();
+  bindAreaSelector();
   bindTeamLogin();
   bindHistoryFilter();
   bindTeamHomeEvents();
@@ -1235,7 +1248,7 @@ export function initTeamboardModule(databaseInstance, options = {}) {
 export function activateTeamboardTab() {
   // Re-bind lightweight UI hooks and re-render from latest local state
   // whenever the tab becomes visible again.
-  bindShiftSelector();
+  bindAreaSelector();
   bindHistoryFilter();
   mountComposeForms();
   refreshTeamLoginUi();

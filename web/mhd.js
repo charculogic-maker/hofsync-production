@@ -377,6 +377,20 @@ function parseReceivingQty(rawValue, qtyUnit = 'Stk') {
   return Math.round(parsed * 100) / 100;
 }
 
+function parseMhdCardQty(rawValue) {
+  const trimmed = String(rawValue ?? '').trim();
+  if (!trimmed) return 1;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return Number.NaN;
+  return parsed;
+}
+
+function formatMhdQtyInputValue(qty) {
+  const n = Number(qty);
+  if (!Number.isFinite(n) || n === 1) return '';
+  return String(Math.max(0, Math.round(n)));
+}
+
 function dismissUnknownBarcodePrompt() {
   document.getElementById('mhd-unknown-barcode-prompt')?.remove();
 }
@@ -1775,8 +1789,12 @@ function renderMhdList() {
   container.innerHTML = limitHint + renderedProducts.map((prod) => {
     const action = computeMhdAction(prod);
     const postenCount = productPostenCount(prod);
+    const resttage = prod.tage ?? prod.resttage;
+    const isZeroDay = resttage === 0;
+    const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
+    const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
     return `
-    <div class="mhd-card status-${prod.status || 'ok'} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
+    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
       <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};font-weight:800;font-size:13px;text-align:center;padding:10px 12px;border-radius:10px;margin-bottom:4px;letter-spacing:0.3px;">
         ${action.label}
       </div>
@@ -1785,13 +1803,13 @@ function renderMhdList() {
           <span class="mhd-product-name">${prod.name}</span>
           <span class="mhd-product-meta">${prod.brand ? prod.brand + ' · ' : ''}${prod.mhdText || ''}${postenCount > 1 ? ` · ${postenCount} aktive Posten` : ''}</span>
         </div>
-        <div class="mhd-badge" style="color:${action.color};background:${action.bg};">${prod.tage ?? '–'} Tage</div>
+        <div class="mhd-badge"${badgeStyle}>${prod.tage ?? '–'} Tage</div>
       </div>
       <div class="mhd-controls-row">
         <div class="qty-stepper">
           <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
           <div class="qty-value-container">
-            <span id="qty-val-${prod.id}">${prod.qty ?? 0}</span>
+            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
           </div>
           <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
         </div>
@@ -1911,12 +1929,10 @@ function initMhdSwipeGestures() {
   }, { passive: true });
 }
 
-async function adjustQty(id, change) {
-  const prod = mhdState.products.find(p => p.id === id);
+async function saveMhdCardQty(id, newQty) {
+  const prod = mhdState.products.find((p) => p.id === id);
   if (!prod || prod.soldOut) return;
-
-  const newQty = Math.max(0, (prod.qty ?? 0) + change);
-  mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
+  if (newQty === (prod.qty ?? 0)) return;
 
   try {
     await mhdState.writeOrQueueFirestore({
@@ -1924,13 +1940,31 @@ async function adjustQty(id, change) {
       docId: id,
       onlineData: { qty: newQty },
       queueData: { qty: newQty },
-      offlineMessage: "Mengenänderung wird nachträglich synchronisiert.",
+      offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
     });
   } catch (err) {
-    console.error('[CharcuLogic Firebase] adjustQty() Update fehlgeschlagen:', err);
-    mhdState.showHUD("Fehler", "Menge konnte nicht gespeichert werden.", "!");
+    console.error('[CharcuLogic Firebase] saveMhdCardQty() Update fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Menge konnte nicht gespeichert werden.', '!');
   }
-};
+}
+
+async function adjustQty(id, change) {
+  const prod = mhdState.products.find(p => p.id === id);
+  if (!prod || prod.soldOut) return;
+
+  const newQty = Math.max(0, (prod.qty ?? 0) + change);
+  mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
+  await saveMhdCardQty(id, newQty);
+}
+
+async function commitMhdCardQtyFromInput(id, rawValue) {
+  const newQty = parseMhdCardQty(rawValue);
+  if (Number.isNaN(newQty)) {
+    mhdState.showHUD('Ungültige Menge', 'Bitte eine gültige Stückzahl eingeben.', '!');
+    return;
+  }
+  await saveMhdCardQty(id, newQty);
+}
 
 async function setSoldOut(id) {
   const prod = mhdState.products.find(p => p.id === id);
@@ -2103,6 +2137,18 @@ function bindMhdCardActions() {
     if (command === 'adjust') adjustQty(id, Number(button.dataset.mhdChange || 0));
     if (command === 'soldout') setSoldOut(id);
     if (command === 'action') markMhdAction(id, button.dataset.mhdActionStatus);
+  });
+  container.addEventListener('change', (event) => {
+    const input = event.target.closest('.mhd-qty-input');
+    if (!input) return;
+    commitMhdCardQtyFromInput(input.dataset.mhdQtyId, input.value);
+  });
+  container.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    const input = event.target.closest('.mhd-qty-input');
+    if (!input) return;
+    event.preventDefault();
+    input.blur();
   });
 }
 function bindUtilityDialogActions() {

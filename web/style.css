@@ -975,6 +975,14 @@ button:active, .btn:active {
 .status-critical .mhd-badge { background-color: rgba(239, 108, 0, 0.1); color: var(--warning-color); }
 .status-ok .mhd-badge { background-color: var(--primary-subtle); color: var(--ok-color); }
 
+.mhd-card.mhd-critical .mhd-badge {
+  background-color: var(--accent-alert);
+  color: #fff;
+}
+.mhd-card.mhd-critical .mhd-product-meta {
+  color: var(--accent-alert);
+}
+
 /* Swipe-to-Action Backgrounds */
 .swipe-action-bg {
   position: absolute;
@@ -1050,6 +1058,31 @@ button:active, .btn:active {
   text-align: center;
   font-size: 18px;
   font-weight: 800;
+}
+
+.mhd-qty-input {
+  width: 52px;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-dark);
+  padding: 0;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.mhd-qty-input::-webkit-outer-spin-button,
+.mhd-qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.mhd-qty-input::placeholder {
+  color: color-mix(in srgb, var(--text-dark) 35%, transparent);
+  font-weight: 800;
+}
+.mhd-card.sold-out .mhd-qty-input {
+  pointer-events: none;
 }
 
 .btn-soldout {
