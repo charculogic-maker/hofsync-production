@@ -1,5 +1,5 @@
-const CACHE_NAME = 'charculogic-v20260528-59';
-const CACHE_SCHEMA = 'phase-5-ui-refresh-foundation';
+const CACHE_NAME = 'charculogic-v20260528-63';
+const CACHE_SCHEMA = 'phase-5-torfabrik-team-roster';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -12,6 +12,7 @@ const CRITICAL_ASSETS = [
   '/libs/firebase-firestore.js',
   '/libs/firebase-storage.js',
   '/app.js',
+  '/firebase-config.js',
   '/teamboard.js',
   '/team-tab.js',
   '/team-config.js',
@@ -20,6 +21,7 @@ const CRITICAL_ASSETS = [
   '/auth.js',
   '/scanner.js',
   '/mhd.js',
+  '/delivery-note.js',
   '/haccp.js',
   '/production.js',
   '/beffe_calc.js',

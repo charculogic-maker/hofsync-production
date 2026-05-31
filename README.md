@@ -13,8 +13,8 @@ Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle
 | Schicht | Technologie | Ort |
 |---------|-------------|-----|
 | Frontend | Progressive Web App, Vanilla-JS (ES-Module), kein Build-Step | `web/` |
-| Auth & Mandant | Firebase Authentication (E-Mail/Passwort + Custom Token), Tenant + Rolle aus Claims/Profil | `web/auth.js` |
-| Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | Projekt `hofsync-production` |
+| Auth & Mandant | Firebase Authentication (E-Mail/Passwort + Custom Token), Tenant + Rolle aus Claims/Profil/Firestore `users/{uid}` | `web/auth.js` |
+| Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | `hofsync-production` oder `charculogic-whitelabel-test` (`web/firebase-config.js`) |
 | Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel) | `tenants/{tenantId}/…` |
 | Offline | Service Worker + lokale Sync-Warteschlange (Dead-Letter-Queue) | `web/sw.js`, `web/sync.js` |
 | Backend | Cloud Functions (Node 20, `firebase-functions` v2) | `functions/` |
@@ -35,7 +35,10 @@ craft_food_app/
 │   ├── style.css                 # Hochkontrast-CSS, große Touch-Targets
 │   ├── sw.js                     # Service Worker (PWA, Offline-Cache)
 │   ├── app.js                    # Bootstrap & Orchestrierung aller Module
-│   ├── auth.js                   # Login, Mandant (tenantId), Rolle/Admin
+│   ├── auth.js                   # Login, Mandant (tenantId), Rolle/Admin/Helper
+│   ├── firebase-config.js        # Firebase-Projekt nach Hostname (Prod vs. Whitelabel)
+│   ├── branding.js               # White-Label Farben & Module pro tenantId
+│   ├── delivery-note.js          # KI-Lieferschein (TorFabrik, Callable)
 │   ├── sync.js                   # Offline-Sync-Queue, writeFirestoreDocOrQueue
 │   ├── mhd.js                    # MHD-Monitor + Wareneingang
 │   ├── production.js             # Wurstküche: Rezepte, Produktion, Chargen
@@ -44,7 +47,7 @@ craft_food_app/
 │   ├── teamboard.js              # Tab „Start": Aufgaben, Schwarzes Brett
 │   ├── team-tab.js               # Tab „Team": Container
 │   ├── customer-orders.js        # Kundenbestellungen
-│   ├── team-config.js            # Team-Gruppen, Push-Registrierung
+│   ├── team-config.js            # Team-Mitarbeiter, PINs, Gruppen (mandantenabhängig)
 │   ├── team-notify.js            # Push-/Notify-Logik (Client)
 │   ├── scanner.js                # Barcode-/EAN-Scanner (Kamera)
 │   ├── date-input.js             # Deutsche Datumseingaben
@@ -52,12 +55,14 @@ craft_food_app/
 ├── functions/                    # Cloud Functions (Backend)
 │   ├── index.js                  # Einstieg, Funktions-Exports
 │   ├── meatPrices.js             # Gemini-Fleischpreislauf (Scheduler)
+│   ├── deliveryNote.js           # KI-Lieferschein-Parsing (Gemini)
+│   ├── parseDeliveryNoteCallable.js  # Callable parseDeliveryNote
 │   ├── teamPush.js               # Push bei neuer Team-Aufgabe (Trigger)
 │   └── package.json              # Node 20, Abhängigkeiten
 ├── firebase.rules                # Firestore-Security-Rules (DEPLOYT)
 ├── storage.rules                 # Storage-Security-Rules
 ├── firebase.json                 # Hosting/Functions/Rules-Konfiguration
-├── .firebaserc                   # Default-Projekt (hofsync-production)
+├── .firebaserc                   # default + whitelabel Firebase-Projekte
 ├── firestore.rules               # ⚠️ Veralteter Spiegel – wird NICHT deployt
 ├── lib/main.dart                 # Legacy-Flutter-Designprototyp (nicht produktiv)
 ├── data/                         # Stammdaten, CSV-Importvorlagen, SOPs
@@ -68,7 +73,7 @@ craft_food_app/
 
 ## 🧩 Module / Tabs
 
-Die untere Navigationsleiste der App umfasst sieben Bereiche:
+Die untere Navigationsleiste umfasst bis zu sieben Bereiche (pro Mandant konfigurierbar in `web/branding.js` → `modules`):
 
 | Tab (Leiste) | Bereich | Code | Funktion |
 |--------------|---------|------|----------|
@@ -109,7 +114,7 @@ Dann **http://127.0.0.1:5173/index.html** öffnen (nicht `http://[::]:5173/` –
 
 ## ☁️ Deployment (Kurzfassung)
 
-Voraussetzung: Firebase CLI installiert und am Projekt `hofsync-production` angemeldet.
+Voraussetzung: Firebase CLI installiert (`firebase login`). Projekt wählen: `firebase use default` (Produktion) oder `firebase use whitelabel` (Test).
 
 ```bash
 firebase deploy --only hosting                 # PWA (web/)
@@ -126,7 +131,9 @@ Details, Secrets (z. B. `GEMINI_API_KEY`) und Fallstricke: ➡️ [docs/TECHNIK_
 
 | Dokument | Inhalt |
 |----------|--------|
-| [docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Tagesablauf-Walkthrough für das Team |
+| [docs/README.md](docs/README.md) | Übersicht aller Dokumente |
+| [docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Tagesablauf **StevesHof** (CharcuLogic) |
+| [docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md](docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md) | Tagesablauf **TorFabrik** (CenterLogic) |
 | [docs/modulanleitungen/README.md](docs/modulanleitungen/README.md) | Visuelle Modulanleitungen (mit Screenshots) |
 | [docs/WHITE_LABEL_UPLOAD_ANLEITUNG.md](docs/WHITE_LABEL_UPLOAD_ANLEITUNG.md) | CSV-Import für Rezepte & MHD-Listen (Mandanten-Onboarding) |
 | [docs/TECHNIK_BACKEND.md](docs/TECHNIK_BACKEND.md) | Architektur, Datenmodell, Rules/Admin-Modell, Cloud Functions, Deployment |

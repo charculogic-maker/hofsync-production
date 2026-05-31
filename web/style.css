@@ -4749,3 +4749,41 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 .team-panel.hidden {
   display: none;
 }
+
+.delivery-note-preview-card {
+  width: min(520px, 100%);
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.delivery-note-preview-scroll {
+  overflow: auto;
+  max-height: 50vh;
+  margin: 12px 0;
+}
+
+.delivery-note-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.delivery-note-preview-table th,
+.delivery-note-preview-table td {
+  border: 1px solid var(--border-subtle);
+  padding: 8px;
+  vertical-align: top;
+}
+
+.delivery-note-preview-table input.gastro-input {
+  width: 100%;
+  min-width: 0;
+}
+
+body.role-helper #page-team,
+body.role-helper .admin-leitstand-panel,
+body.role-helper #team-subnav-orders {
+  display: none !important;
+}

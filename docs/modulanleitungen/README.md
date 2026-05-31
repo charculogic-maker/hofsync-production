@@ -1,18 +1,25 @@
-# Modulanleitungen – CharcuLogic / HofSync
+# Modulanleitungen – CharcuLogic / CenterLogic / HofSync
 
-Visuelle Anleitungen für alle Hauptbereiche der App (Hofladen-iPhone und Büro).
+Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). Screenshots zeigen überwiegend die **StevesHof**-Oberfläche; Funktionen sind mandantenübergreifend gleich, einzelne Tabs können pro Betrieb fehlen (z. B. **Prod.** bei TorFabrik).
 
-| Modul | Tab (Leiste) | Übersicht | Details |
-|-------|----------------|-----------|---------|
-| Start & Aufgaben | **Start** | [KOLLEGEN_ANLEITUNG §1](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Screenshots `00-start` |
-| Team | **Team** | [06-team.md](./06-team.md) | Nachrichten, Bestellungen |
-| MHD-Monitor | **MHD** | [01-mhd-monitor.md](./01-mhd-monitor.md) | Karte, Suche |
-| Wareneingang | **Neu** | [02-wareneingang.md](./02-wareneingang.md) | Scanner, Posten, Fotos |
-| Wurstküche | **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) | Rezept-Detail, WRS |
-| HACCP | **HACCP** | [04-haccp.md](./04-haccp.md) | Temperaturen, Reinigung |
-| Chargen / Büro | **Büro** | [05-chargen.md](./05-chargen.md) | Chargenliste, Leitstand |
+| Modul | Tab (Leiste) | Details |
+|-------|----------------|---------|
+| Start & Aufgaben | **Start** | Screenshots `00-start` |
+| Team | **Team** | [06-team.md](./06-team.md) |
+| MHD-Monitor | **MHD** | [01-mhd-monitor.md](./01-mhd-monitor.md) |
+| Wareneingang | **Neu** | [02-wareneingang.md](./02-wareneingang.md) |
+| Wurstküche | **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
+| HACCP | **HACCP** | [04-haccp.md](./04-haccp.md) |
+| Chargen / Büro | **Büro** | [05-chargen.md](./05-chargen.md) |
 
-Kurzüberblick Tagesbetrieb: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md)
+## Kollegen-Walkthroughs (Tagesablauf)
+
+| Mandant | Anleitung |
+|---------|-----------|
+| StevesHof (`StevesHof_Hauptbetrieb`) | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
+| TorFabrik Krefeld (`torfabrik`) | [KOLLEGEN_ANLEITUNG_TORFABRIK.md](../KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
+
+Übersicht: [docs/README.md](../README.md)
 
 Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Functions, Deployment): [TECHNIK_BACKEND.md](../TECHNIK_BACKEND.md)
 

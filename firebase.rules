@@ -20,7 +20,8 @@ service cloud.firestore {
 
     function profileDocMatchesTenant(data, tenantId) {
       return (data.tenantId is string && data.tenantId == tenantId)
-        || (data.tenant_id is string && data.tenant_id == tenantId);
+        || (data.tenant_id is string && data.tenant_id == tenantId)
+        || (data.tenantID is string && data.tenantID == tenantId);
     }
 
     function hasTenantClaim(tenantId) {
@@ -189,6 +190,26 @@ service cloud.firestore {
     // =========================================================================
     // WARENEINGANG-LIEFERUNGEN (Kopf + Posten + Lieferschein-Fotos)
     // =========================================================================
+
+    match /tenants/{tenantId}/inventory/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isTenantUser(tenantId)
+        && hasOnly([
+          'artikel', 'menge', 'kategorie',
+          'tenantId', 'source', 'batchId', 'createdBy', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(request.resource.data.menge);
+
+      allow update: if isTenantUser(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'menge', 'kategorie', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin(tenantId);
+    }
 
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
       allow read: if isTenantUser(tenantId);

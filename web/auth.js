@@ -57,10 +57,43 @@ function clearSessionCaches() {
   }
 }
 
-function normalizeRole(value, claims = {}) {
-  if (claims.admin === true || value === 'admin') return 'admin';
-  if (typeof value === 'string' && value.trim()) return value.trim();
+function normalizeRole(value, claims = {}, profile = {}) {
+  const mergedAdmin = claims.admin === true || profile.admin === true;
+  const roleCandidate = value || profile.role || claims.role;
+  if (mergedAdmin || roleCandidate === 'admin') return 'admin';
+  if (roleCandidate === 'helper' || claims.role === 'helper') return 'helper';
+  if (typeof roleCandidate === 'string' && roleCandidate.trim()) return roleCandidate.trim();
   return 'user';
+}
+
+function claimsIncludeTenant(claims = {}) {
+  return Boolean(cleanTenantId(
+    claims.tenantId || claims.tenant_id || claims.tenant || claims.tenantID,
+  ));
+}
+
+/** Firestore-Feldnamen: tenantId, tenant_id, tenant, tenantID (Console-Schreibweise). */
+function tenantIdFromRecord(record = {}) {
+  return cleanTenantId(
+    record.tenantId ||
+    record.tenant_id ||
+    record.tenant ||
+    record.tenantID,
+  );
+}
+
+function resolveTenantIdFromSources(claims = {}, profile = {}, user = {}) {
+  return (
+    tenantIdFromRecord(profile) ||
+    tenantIdFromRecord(claims) ||
+    tenantIdFromRecord(user) ||
+    cachedTenantId()
+  );
+}
+
+function resolveRoleFromSources(claims = {}, profile = {}) {
+  const roleValue = profile.role || claims.role;
+  return normalizeRole(roleValue, claims, profile);
 }
 
 function ensureAuthConfigured() {
@@ -85,7 +118,7 @@ function ensureLoginOverlay() {
       <div class="auth-lock-card" role="dialog" aria-modal="true" aria-labelledby="auth-lock-title">
         <div class="auth-lock-brand brand-app-name"></div>
         <h1 id="auth-lock-title"><span class="brand-betriebs-name"></span></h1>
-        <p class="auth-lock-tagline">Betriebs-Login · HofSync wird initialisiert und laedt die Mandantendaten fuer dieses Geraet.</p>
+        <p class="auth-lock-tagline"></p>
         <form id="auth-login-form" class="auth-lock-form">
           <label>
             <span>E-Mail</span>
@@ -205,7 +238,9 @@ function ensureLoginOverlay() {
   authState.overlay = overlay;
   authState.errorBox = document.getElementById('auth-login-error');
 
-  if (typeof window.applyBranding === 'function') {
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding();
+  } else if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }
 
@@ -218,7 +253,14 @@ function ensureLoginOverlay() {
       await loginTenant(email, password);
     } catch (err) {
       console.warn('[CharcuLogic Auth] Anmeldung fehlgeschlagen:', err);
-      setAuthError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten pruefen.');
+      const message = String(err?.message || '');
+      if (message.includes('Mandant')) {
+        setAuthError(message);
+      } else if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found') {
+        setAuthError('Anmeldung fehlgeschlagen. E-Mail oder Passwort pruefen (Nutzer muss im aktiven Firebase-Projekt existieren).');
+      } else {
+        setAuthError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten pruefen.');
+      }
     }
   });
 
@@ -271,51 +313,79 @@ function hideLoginOverlay() {
   setAuthError('');
 }
 
-async function readUserProfile(uid) {
-  if (!uid) return {};
-  if (!authState.db) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+async function waitForAuthDb(maxMs = 5000) {
+  const started = Date.now();
+  while (!authState.db && Date.now() - started < maxMs) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  if (!authState.db) return {};
+  return authState.db;
+}
+
+async function readFirestoreProfileDoc(collectionName, uid) {
+  const snap = await withTimeout(
+    authState.db.collection(collectionName).doc(uid).get(),
+    5000,
+    `Profil-Read ${collectionName}/${uid}`,
+  );
+  if (!snap.exists) return null;
+  return snap.data() || {};
+}
+
+/**
+ * Liest zuerst /users/{uid}, danach /userTenants/{uid} (Fallback ohne Custom Claims).
+ */
+async function readUserProfile(uid) {
+  if (!uid) return { source: null, data: {} };
+
+  await waitForAuthDb();
+  if (!authState.db) {
+    console.warn('[CharcuLogic Auth] Firestore nicht bereit – Nutzerprofil kann nicht geladen werden.');
+    return { source: null, data: {} };
+  }
 
   for (const collectionName of ['users', 'userTenants']) {
     try {
-      const snap = await withTimeout(
-        authState.db.collection(collectionName).doc(uid).get(),
-        2000,
-        `Profil-Read ${collectionName}/${uid}`
-      );
-      if (snap.exists) {
-        return snap.data() || {};
+      const data = await readFirestoreProfileDoc(collectionName, uid);
+      if (data) {
+        return { source: collectionName, data };
       }
     } catch (err) {
       console.warn(`[CharcuLogic Auth] Profil ${collectionName}/${uid} konnte nicht gelesen werden:`, err);
     }
   }
-  return {};
+  return { source: null, data: {} };
 }
 
 async function buildAuthContext(user) {
   const tokenResult = await user.getIdTokenResult(true);
   const claims = tokenResult?.claims || {};
-  const profile = await readUserProfile(user.uid);
-  const tenantId = cleanTenantId(
-    claims.tenantId ||
-    claims.tenant_id ||
-    claims.tenant ||
-    user.tenantId ||
-    profile.tenantId ||
-    profile.tenant_id ||
-    cachedTenantId()
-  );
+  let { source: profileSource, data: profile } = await readUserProfile(user.uid);
+
+  // Nach Login ist das Profil manchmal erst im zweiten Lesevorgang verfügbar.
+  if (!profileSource && !claimsIncludeTenant(claims)) {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    ({ source: profileSource, data: profile } = await readUserProfile(user.uid));
+  }
+
+  const tenantId = resolveTenantIdFromSources(claims, profile, user);
+  const role = resolveRoleFromSources(claims, profile);
+  const tenantFromProfile = Boolean(tenantIdFromRecord(profile));
 
   if (!tenantId) {
-    throw new Error('Fuer diesen Login ist kein Mandant hinterlegt. Bitte Tenant-ID als Custom Claim oder Nutzerprofil setzen.');
+    throw new Error(
+      'Fuer diesen Login ist kein Mandant hinterlegt. Bitte in Firestore unter users/{uid} tenantId (oder tenantID) und role setzen (uid aus Firebase Auth).',
+    );
   }
+
+  if (!claimsIncludeTenant(claims) && tenantFromProfile) {
+    console.info(
+      `[CharcuLogic Auth] Mandant "${tenantId}" und Rolle "${role}" aus Firestore (${profileSource}/${user.uid}) – ohne Custom Claims.`,
+    );
+  }
+
   cacheTenantId(tenantId);
   setGlobalTenantId(tenantId);
 
-  const role = normalizeRole(claims.role || profile.role, claims);
   return {
     user,
     uid: user.uid,
@@ -324,8 +394,14 @@ async function buildAuthContext(user) {
     role,
     claims,
     profile,
-    isAdmin: role === 'admin' || claims.admin === true,
+    profileSource,
+    isAdmin: role === 'admin' || claims.admin === true || profile.admin === true,
+    isHelper: role === 'helper',
   };
+}
+
+export function isHelperUser() {
+  return authContext?.role === 'helper' || authContext?.isHelper === true;
 }
 
 export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } = {}) {
@@ -357,6 +433,9 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       const nextContext = await buildAuthContext(user);
       authContext = nextContext;
       document.documentElement.dataset.authenticatedTenant = nextContext.tenantId;
+      if (typeof window.applyResolvedBranding === 'function') {
+        window.applyResolvedBranding(nextContext.tenantId);
+      }
       hideLoginOverlay();
       authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
       if (resolveAuthReady) {
@@ -367,7 +446,10 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       authContext = null;
       setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
-      showLoginOverlay('Mandantendaten werden geladen. Bitte Verbindung pruefen oder erneut anmelden.');
+      const hint = String(err?.message || '').includes('users/{uid}')
+        ? err.message
+        : 'Mandant fehlt im Nutzerprofil. Bitte in Firestore users/{uid} tenantId/tenantID und role pflegen.';
+      showLoginOverlay(hint);
     }
   });
 
@@ -390,7 +472,11 @@ export function getTenantId() {
 export async function loginTenant(email, password) {
   ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
-  return authState.firebase.auth().signInWithEmailAndPassword(email, password);
+  const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
+  if (credential?.user) {
+    await buildAuthContext(credential.user);
+  }
+  return credential;
 }
 
 export async function loginWithToken(token) {

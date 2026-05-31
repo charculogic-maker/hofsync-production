@@ -6,15 +6,7 @@ import {
   getTenantCollection,
   getTenantCollectionPath,
 } from './tenant-db.js';
-
-const EMPLOYEE_PINS = {
-  "1122": "Stephie",
-  "2233": "Finn",
-  "3344": "Nicole",
-  "4455": "Bettina",
-  "5566": "Heiko",
-  "6677": "Paddy",
-};
+import { resolveEmployeeByPin } from './team-config.js';
 
 const MEISTER_OVERRIDE_PINS = {
   "7788": "Meister",
@@ -309,6 +301,65 @@ const RECEIVING_CATEGORIES = [
   { value: '❄️Kühlware', label: '❄️ Kühlware' },
   { value: '🧊 TK', label: '🧊 TK' },
 ];
+
+const TORFABRIK_RECEIVING_CATEGORIES = [
+  { value: '🍺 Getränke (Jakob Bayen)', label: '🍺 Getränke (Jakob Bayen)' },
+  { value: '🧊 TK & Snacks (Metro)', label: '🧊 TK & Snacks (Metro)' },
+  { value: '🧴 Zubehör & Hygiene (Metro)', label: '🧴 Zubehör & Hygiene (Metro)' },
+];
+
+const TORFABRIK_FASS_SHELF_DAYS = 14;
+
+function isTorfabrikTenant() {
+  const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
+  return tenantId === 'torfabrik';
+}
+
+function getReceivingCategoriesForTenant() {
+  return isTorfabrikTenant() ? TORFABRIK_RECEIVING_CATEGORIES : RECEIVING_CATEGORIES;
+}
+
+function formatIsoToGermanDate(isoDate) {
+  if (!isoDate) return '';
+  const parts = String(isoDate).split('-');
+  if (parts.length !== 3) return '';
+  return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function suggestTorfabrikMhdAfterAnstich(kategorie, produktName = '') {
+  if (!isTorfabrikTenant()) return null;
+  const kat = String(kategorie || '');
+  const name = String(produktName || '').toLowerCase();
+  if (!/getränke|jakob bayen/i.test(kat)) return null;
+  if (!/fass|fäss|anstich|bier/i.test(name)) return null;
+  const target = new Date();
+  target.setHours(0, 0, 0, 0);
+  target.setDate(target.getDate() + TORFABRIK_FASS_SHELF_DAYS);
+  const y = target.getFullYear();
+  const m = String(target.getMonth() + 1).padStart(2, '0');
+  const d = String(target.getDate()).padStart(2, '0');
+  return formatIsoToGermanDate(`${y}-${m}-${d}`);
+}
+
+function applyReceivingCategoryOptions() {
+  const select = document.getElementById('we-category-quick');
+  if (!select) return;
+  const categories = getReceivingCategoriesForTenant();
+  const previous = select.value;
+  const optionsHtml = [
+    '<option value="" selected>-- Kategorie wählen --</option>',
+    ...categories.map((cat) => `<option value="${escapeHtml(cat.value)}">${escapeHtml(cat.label)}</option>`),
+  ].join('');
+  select.innerHTML = optionsHtml;
+  const hasPrevious = categories.some((cat) => cat.value === previous);
+  if (hasPrevious) {
+    select.value = previous;
+  } else if (lastReceivingHeadCategory && categories.some((cat) => cat.value === lastReceivingHeadCategory)) {
+    select.value = lastReceivingHeadCategory;
+  }
+  updateReceivingQtyFieldUi();
+  updateReceivingTemperatureFieldUi();
+}
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
@@ -513,7 +564,7 @@ function requestEmployeePinForScan(barcode) {
       enteredPin += key;
       updateDots();
       if (enteredPin.length === 4) {
-        const employeeName = EMPLOYEE_PINS[enteredPin];
+        const employeeName = resolveEmployeeByPin(enteredPin);
         if (!employeeName) {
           failPin();
           return;
@@ -872,7 +923,7 @@ function lookupScannedProduct(scannedCode) {
 function buildCategoryOptions(selectedCategory) {
   const normalized = selectedCategory ? normalizeMhdCategory(selectedCategory) : '';
   const emptySelected = !normalized ? ' selected' : '';
-  const options = RECEIVING_CATEGORIES.map((category) => {
+  const options = getReceivingCategoriesForTenant().map((category) => {
     const selected = normalized && normalizeMhdCategory(category.value) === normalized ? ' selected' : '';
     return `<option value="${escapeHtml(category.value)}"${selected}>${escapeHtml(category.label)}</option>`;
   }).join('');
@@ -940,8 +991,20 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   }
 
   updateDeliveryItemProductUi();
+  applyTorfabrikFassMhdSuggestion();
   setReceivingMode('schnell');
   return true;
+}
+
+function applyTorfabrikFassMhdSuggestion() {
+  const mhdInput = document.getElementById('we-mhd');
+  if (!mhdInput) return;
+  const category = document.getElementById('we-category-quick')?.value || '';
+  const productName = currentDeliveryItemProduct
+    || document.getElementById('we-product-manual')?.value?.trim()
+    || '';
+  const suggested = suggestTorfabrikMhdAfterAnstich(category, productName);
+  if (suggested) mhdInput.value = suggested;
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
@@ -3415,6 +3478,7 @@ function bindReceivingControls() {
       rememberReceivingHeadCategory(categoryQuickSelect.value);
       updateReceivingQtyFieldUi();
       updateReceivingTemperatureFieldUi();
+      applyTorfabrikFassMhdSuggestion();
       updateReceivingSaveButtonState();
     });
   }
@@ -3562,6 +3626,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   if (!mhdState.initialized) {
     initMhdSubnavAndSearch(); bindMhdCardActions(); bindUtilityDialogActions(); bindReceivingControls(); bindMhdToolbar(); loadVpeMasterFromCsv(); mhdState.initialized = true;
   }
+  applyReceivingCategoryOptions();
   subscribeToPendingDeliveryDrafts();
   renderReceivingStatus(); renderMhdList();
   restoreMhdDraftFields();

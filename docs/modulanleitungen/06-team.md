@@ -2,6 +2,8 @@
 
 Der Tab **Team** bündelt Kommunikation und Kundenbestellungen. Die Anmeldung erfolgt immer zuerst unter **Start** (Name + PIN).
 
+**Mitarbeiter & PINs** sind mandantenabhängig (z. B. StevesHof: Stephie, Finn, … · TorFabrik: Stephan, Boris, Aushilfe). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
+
 ![Team – Nachrichten und Bestellungen](./screenshots/07-team.png)
 
 ## Nachrichten

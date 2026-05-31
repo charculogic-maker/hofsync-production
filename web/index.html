@@ -36,9 +36,10 @@
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260528-59">
+  <link rel="stylesheet" href="/style.css?v=20260528-63">
 </head>
 <body>
 
@@ -106,14 +107,7 @@
                       aria-label="Mitarbeiter eingeben"
                       autocomplete="off"
                     >
-                    <datalist id="employee-suggestions">
-                      <option value="Stephie"></option>
-                      <option value="Finn"></option>
-                      <option value="Nicole"></option>
-                      <option value="Bettina"></option>
-                      <option value="Heiko"></option>
-                      <option value="Paddy"></option>
-                    </datalist>
+                    <datalist id="employee-suggestions"></datalist>
                   </label>
                   <label class="team-login-field" for="team-login-pin">
                     <span>PIN (4-stellig)</span>
@@ -406,6 +400,8 @@
               </section>
 
               <div class="receiving-tool-row">
+                <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
+                <input type="file" id="delivery-note-file-input" accept="image/*" capture="environment" hidden>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>
@@ -672,7 +668,7 @@
                 <h3>Team-Gruppen &amp; Mitarbeiter</h3>
                 <p class="admin-leitstand-hint">Namen und Gruppen für Empfänger-Auswahl – ohne Code-Anpassung.</p>
                 <label class="form-label" for="team-config-employees">Mitarbeiter (kommagetrennt)</label>
-                <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="Stephie, Finn, Nicole…"></textarea>
+                <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
                 <div id="team-config-groups" class="team-config-groups"></div>
                 <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
                 <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>

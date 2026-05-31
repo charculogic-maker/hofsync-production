@@ -1,8 +1,23 @@
-# Hofladen-App: Walkthrough für das Team
+# StevesHof Hofladen: Walkthrough für das Team (CharcuLogic)
 
-Diese Anleitung führt Schritt für Schritt durch den Tagesablauf in der aktuellen **CharcuLogic**-App (iPhone / PWA).
+Diese Anleitung gilt für den Mandanten **StevesHof** (`tenantId: StevesHof_Hauptbetrieb`). Die App erscheint als **CharcuLogic** (grüner Hofladen-Stil).
+
+**Weitere Mandanten:** [Dokumentations-Übersicht](./README.md) · **TorFabrik:** [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md)
 
 **Ausführliche Modulanleitungen (alle Details):** [modulanleitungen/README.md](./modulanleitungen/README.md)
+
+## Mitarbeiter & PINs (PIN-Login unter Start)
+
+| Mitarbeiter | PIN |
+|-------------|-----|
+| Stephie | `1122` |
+| Finn | `2233` |
+| Nicole | `3344` |
+| Bettina | `4455` |
+| Heiko | `5566` |
+| Paddy | `6677` |
+
+Die Liste wird aus der **Team-Konfiguration** geladen (`tenants/StevesHof_Hauptbetrieb/settings/teamDashboard`). Admins können sie unter **Büro → Leitstand → Team-Konfiguration** pflegen.
 
 ## Tabs in der unteren Leiste
 
@@ -26,7 +41,7 @@ Der Tab **Start** ist der Einstieg für das Team.
 2. **Mitarbeiter** eintippen (Vorschläge aus der Liste) und **PIN** (4-stellig) eingeben.
 3. Auf **Anmelden** tippen – unter **Angemeldet als:** erscheint der Name.
 4. **Nachricht des Tages** lesen (inkl. Bilder/PDF-Anhänge).
-5. **Meine Schicht** prüfen (Früh- oder Spätschicht).
+5. **Mein Bereich** prüfen (z. B. Laden / Verkauf, Metzgerei / Produktion, Küche / Gastro).
 6. Offene Punkte unter **Meine Aufgaben** mit **✓** quittieren.
 7. Erledigte Aufgaben in der **Erledigt-Historie** nachsehen (Zeitraum: **Heute**, **7 Tage**, **30 Tage**, **Alle**).
 

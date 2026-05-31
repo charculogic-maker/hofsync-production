@@ -1,6 +1,7 @@
 import {
   getTenantId,
   initAuthModule,
+  isHelperUser,
   verifyAdminAction,
   waitForAuthReady,
 } from './auth.js';
@@ -65,6 +66,7 @@ import {
   syncPushRegistration,
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
+import { initDeliveryNoteScanner } from './delivery-note.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -72,6 +74,7 @@ import {
   initTenantDb,
   setGlobalTenantId,
 } from './tenant-db.js';
+import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
 
 export {
   getGlobalTenantId,
@@ -121,15 +124,36 @@ function showHUD(title, desc, icon) {
 }
 window.showHUD = showHUD;
 
+function applyBrandingCssVars(branding) {
+  const root = document.documentElement;
+  const setVar = (name, value) => {
+    if (value) root.style.setProperty(name, value);
+  };
+  setVar('--primary-color', branding.primaryColor);
+  setVar('--primary-color-hover', branding.primaryColorHover);
+  setVar('--dark-header-bg', branding.darkHeaderBg);
+  setVar('--accent-alert', branding.accentAlert);
+  const headerText = branding.textOnHeader || '#ffffff';
+  setVar('--header-text', headerText);
+  const isLightHeader = headerText.toLowerCase() === '#000000' || headerText.toLowerCase() === '#000';
+  setVar('--header-text-muted', isLightHeader ? 'rgba(0, 0, 0, 0.62)' : 'rgba(255, 255, 255, 0.72)');
+  setVar('--nav-text', isLightHeader ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.65)');
+}
+
 function applyBranding() {
   const branding = window.BRANDING || {};
   const appName = branding.appName || 'CharcuLogic';
   const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
   const primaryColor = branding.primaryColor || '#28a745';
 
+  applyBrandingCssVars(branding);
+
   document.querySelectorAll('.brand-app-name').forEach((el) => { el.textContent = appName; });
   document.querySelectorAll('.brand-betriebs-name').forEach((el) => { el.textContent = betriebsName; });
   document.querySelectorAll('.auth-lock-brand').forEach((el) => { el.textContent = appName; });
+
+  const authTagline = `Betriebs-Login · ${appName} lädt die Mandantendaten für dieses Gerät.`;
+  document.querySelectorAll('.auth-lock-tagline').forEach((el) => { el.textContent = authTagline; });
 
   const titleEl = document.querySelector('title');
   const titleSuffix = titleEl?.dataset?.brandTitleSuffix ?? '';
@@ -142,6 +166,53 @@ function applyBranding() {
   if (themeMeta) themeMeta.setAttribute('content', primaryColor);
 }
 window.applyBranding = applyBranding;
+
+function applyModuleVisibility(branding = window.BRANDING || {}) {
+  const modules = branding.modules || {};
+  const tabModuleMap = {
+    teamboard: true,
+    team: modules.orders !== false,
+    mhd: modules.mhdMonitor !== false,
+    receiving: modules.wareneingang !== false,
+    kitchen: modules.wurstkueche !== false,
+    haccp: modules.haccp !== false,
+    batches: true,
+  };
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    const tabId = tab.getAttribute('data-tab');
+    const enabled = tabModuleMap[tabId] !== false;
+    tab.hidden = !enabled;
+    tab.style.display = enabled ? '' : 'none';
+  });
+}
+
+function applyRoleBasedUi(authSession) {
+  const isHelper = authSession?.isHelper || isHelperUser();
+  document.documentElement.dataset.userRole = authSession?.role || 'user';
+  document.body.classList.toggle('role-helper', isHelper);
+
+  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'batches']);
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    if (tab.hidden) return;
+    const tabId = tab.getAttribute('data-tab');
+    const hide = isHelper && helperHiddenTabs.has(tabId);
+    tab.style.display = hide ? 'none' : '';
+  });
+
+  ['btn-master-data', 'btn-recent-receipts', 'btn-delivery-note-ai'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = isHelper;
+  });
+
+  const saveMhdBar = document.querySelector('#page-mhd .sticky-action-bar');
+  if (saveMhdBar) saveMhdBar.hidden = isHelper;
+
+  const urgencySelect = document.getElementById('mhd-urgency-select');
+  if (isHelper && urgencySelect) urgencySelect.value = 'alarm';
+
+  const teamHub = document.getElementById('page-team');
+  if (teamHub) teamHub.classList.toggle('role-helper-hidden', isHelper);
+}
 
 // --- DARK MODE ---
 (function initTheme() {
@@ -177,15 +248,7 @@ window.applyBranding = applyBranding;
 const appsScriptWebAppUrl = 'https://script.google.com/macros/s/AKfycbzzSzR4isL2meZGxsA5tMJ7ShPko47T6I7n_izcAWQ3FgIdajKaMUE2Nw_H9fu9H3RI/exec';
 
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAdbEHEVn5gxB2OWPmX6AqNOdqiM9FPlPg",
-  authDomain: "hofsync-production.firebaseapp.com",
-  projectId: "hofsync-production",
-  storageBucket: "hofsync-production.firebasestorage.app",
-  messagingSenderId: "610455484308",
-  appId: "1:610455484308:web:ebb65b005da77124da8181",
-  measurementId: "G-BRTGB862D0"
-};
+const firebaseConfig = resolveFirebaseConfig();
 
 let db = null;
 let firebaseReady = false;
@@ -232,11 +295,16 @@ function initFirebase() {
     }
     db = firebase.firestore();
     initTenantDb(db);
+    if (typeof firebase.functions === 'function') {
+      firebase.functions();
+    }
     db.enablePersistence().catch((err) => {
       console.warn("Firestore Persistence Error:", err.code);
     });
     firebaseReady = true;
-    console.log(`[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}".`);
+    console.log(
+      `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" (${resolveFirebaseProjectKey()}).`,
+    );
     return true;
   } catch (err) {
     console.error('[CharcuLogic Firebase] Initialisierung fehlgeschlagen:', err);
@@ -1102,6 +1170,13 @@ async function bootstrapAuthenticatedApp() {
   setSyncStatus('online');
   initAuthModule(firebase, db, { showHUD });
   const authSession = await waitForAuthReady();
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(authSession.tenantId);
+  } else {
+    applyBranding();
+  }
+  applyModuleVisibility(window.BRANDING);
+  applyRoleBasedUi(authSession);
   setGlobalTenantId(authSession.tenantId);
   const tenantId = getGlobalTenantId();
 
@@ -1122,6 +1197,12 @@ async function bootstrapAuthenticatedApp() {
     scannerAPI: { openScanner, closeScanner },
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
+  });
+  initDeliveryNoteScanner({
+    tenantId,
+    getFirebase: () => firebase,
+    showHUD,
+    writeOrQueueFirestore: writeFirestoreDocOrQueue,
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {

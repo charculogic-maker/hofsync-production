@@ -1,6 +1,6 @@
 /**
  * Cloud Functions Einstieg – schlanke index.js für schnelles Deploy-Analyse-Timeout.
- * Schwere Module (Gemini) werden erst beim Scheduler-Lauf geladen.
+ * Schwere Module (Gemini, meatPrices) werden erst im jeweiligen Handler geladen.
  */
 
 const { onSchedule } = require('firebase-functions/v2/scheduler');
@@ -13,6 +13,7 @@ if (!admin.apps.length) {
 const TIME_ZONE = 'Europe/Berlin';
 
 exports.notifyTeamEntryCreated = require('./teamPush').notifyTeamEntryCreated;
+exports.parseDeliveryNote = require('./parseDeliveryNoteCallable').parseDeliveryNote;
 
 exports.fetchWeeklyMeatPrices = onSchedule({
   schedule: '0 8 * * 3',

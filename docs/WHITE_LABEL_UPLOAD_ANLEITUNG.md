@@ -1,5 +1,7 @@
 # White-Label Upload-Anleitung
 
+Dokumentations-Übersicht: [README.md](./README.md)
+
 Diese Anleitung beschreibt die zwei Upload-Kanäle, die für spätere White-Label-Mandanten vorbereitet werden sollen:
 
 1. eigene Rezepturen
@@ -12,10 +14,18 @@ tenants/{tenantId}/rezepte
 tenants/{tenantId}/mhd_liste
 ```
 
-Für StevesHof ist der aktuelle Mandant:
+Aktuelle Mandanten-IDs:
+
+| Betrieb | `tenantId` | Kollegen-Anleitung |
+|---------|------------|-------------------|
+| StevesHof Hofladen | `StevesHof_Hauptbetrieb` | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
+| TorFabrik Krefeld | `torfabrik` | [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
+
+Beispielpfade:
 
 ```text
-tenants/StevesHof_Hauptbetrieb
+tenants/StevesHof_Hauptbetrieb/rezepte
+tenants/torfabrik/mhd_liste
 ```
 
 ## Grundregeln

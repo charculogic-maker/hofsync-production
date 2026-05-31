@@ -2,9 +2,16 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), die Cloud Functions (inkl. Gemini-Fleischpreislauf) und den Deployment-Prozess.
 
-Projektüberblick & Modulstruktur: [../README.md](../README.md) · Endnutzer-Anleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
+Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
-Firebase-Projekt: **`hofsync-production`** (siehe `.firebaserc`).
+Firebase-Projekte (siehe `.firebaserc` und `web/firebase-config.js`):
+
+| Alias | Projekt-ID | Hosting (Beispiel) |
+|-------|------------|-------------------|
+| `default` | `hofsync-production` | StevesHof-Produktion |
+| `whitelabel` | `charculogic-whitelabel-test` | `charculogic-whitelabel-test.web.app` |
+
+Die Web-App wählt `apiKey` / `projectId` automatisch nach Hostname; lokal: `?firebase=whitelabel` erzwingt das Testprojekt.
 
 ---
 
@@ -16,7 +23,20 @@ Alle Betriebsdaten liegen unter einem Mandantenpfad:
 tenants/{tenantId}/…
 ```
 
-Der aktuelle Hauptmandant ist `StevesHof_Hauptbetrieb`. Die `tenantId` wird beim Login ermittelt (`web/auth.js`) – aus einem Custom Claim (`tenantId` / `tenant_id` / `tenant`) **oder** aus dem Benutzerprofil (`users/{uid}` bzw. `userTenants/{uid}`), mit lokalem Cache als Fallback.
+Bekannte Mandanten:
+
+| `tenantId` | Betrieb | Branding (`web/branding.js`) |
+|------------|---------|------------------------------|
+| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, alle Module |
+| `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
+
+Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
+
+1. Custom Claims (`tenantId`, `tenant_id`, `tenant`, `tenantID`)
+2. Firestore-Profil `users/{uid}` oder `userTenants/{uid}` (Felder `tenantId` **oder** `tenantID`, `role`)
+3. Lokaler Cache `charculogic_cached_tenant_id`
+
+**Team-Konfiguration** (`web/team-config.js`): Mitarbeiter, Gruppen und PINs pro Mandant; für `torfabrik` automatisches Seed nach `settings/teamDashboard`, wenn leer oder noch StevesHof-Namen.
 
 ---
 
@@ -39,7 +59,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter) | nur Admin |
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | Mandanten-Nutzer |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
-| `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | nur serverseitig |
+| `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Fehler-Telemetrie | create: angemeldet; read/update/delete: gesperrt |
 
@@ -67,7 +88,7 @@ Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehe
 ### 3.2 Authentifizierung & Mandantenzugehörigkeit (`firebase.rules`)
 
 - `isAuthenticated()` – `request.auth != null`.
-- `isTenantUser(tenantId)` – Mandantenzugehörigkeit über **Custom Claim** (`token.tenantId` / `token.tenant_id`) **oder** über das Profildokument (`users/{uid}` bzw. `userTenants/{uid}` mit passendem `tenantId`/`tenant_id`).
+- `isTenantUser(tenantId)` – Mandantenzugehörigkeit über **Custom Claim** (`token.tenantId` / `token.tenant_id` / `token.tenantID`) **oder** über das Profildokument (`users/{uid}` bzw. `userTenants/{uid}` mit passendem `tenantId` / `tenant_id` / `tenantID`).
 
 ### 3.3 Admin-Erkennung (`firebase.rules`)
 
@@ -145,7 +166,14 @@ Laufzeit: **Node 20**, `firebase-functions` v2, `firebase-admin`. Exporte in `fu
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 Lokales Testen
+### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+
+- **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
+- **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
+- **Auth:** nur Mandant `torfabrik` (Claim oder Profil).
+- **Speicherung:** geparste Posten nach `tenants/torfabrik/inventory`.
+
+### 4.4 Lokales Testen
 
 ```bash
 cd functions
@@ -157,7 +185,12 @@ npm run serve        # firebase emulators:start --only functions
 
 ## 5. Deployment
 
-Voraussetzung: Firebase CLI installiert, an `hofsync-production` angemeldet (`firebase login`, `firebase use default`).
+Voraussetzung: Firebase CLI installiert (`firebase login`). Projekt wählen:
+
+```bash
+firebase use default      # hofsync-production
+firebase use whitelabel   # charculogic-whitelabel-test
+```
 
 ```bash
 # Frontend-PWA (Hosting-Root = web/)
@@ -165,6 +198,7 @@ firebase deploy --only hosting
 
 # Cloud Functions (functions/)
 firebase deploy --only functions
+# z. B. nur Lieferschein: firebase deploy --only functions:parseDeliveryNote
 
 # Firestore-Rules  ->  rollt firebase.rules aus (siehe firebase.json)
 firebase deploy --only firestore:rules

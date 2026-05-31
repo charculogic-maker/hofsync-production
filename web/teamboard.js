@@ -5,7 +5,7 @@
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
-import { getTeamEmployees, getTeamGroups } from './team-config.js';
+import { getTeamEmployees, getTeamGroups, verifyEmployeePin } from './team-config.js';
 import { handleTasksSnapshotForNotify, resetTeamNotifyBootstrap } from './team-notify.js';
 import {
   formatIsoToGerman,
@@ -15,8 +15,34 @@ import {
   setGermanDateField,
 } from './date-input.js';
 
-export const TEAM_AREAS = ['Laden / Verkauf', 'Metzgerei / Produktion', 'Küche / Gastro', 'Allgemein'];
+export const TEAM_SOLO_ALL_AREAS = 'Alle meine Bereiche';
+
+const DEFAULT_TEAM_AREAS = ['Laden / Verkauf', 'Metzgerei / Produktion', 'Küche / Gastro', 'Allgemein'];
+const TORFABRIK_TEAM_AREAS = ['Theke', 'Küche & Events', 'Halle', 'Allgemein'];
+
+export const TEAM_AREAS = DEFAULT_TEAM_AREAS;
 export const TEAM_SHIFTS = TEAM_AREAS;
+
+export function getTeamAreasForTenant(tenantId = teamboardState.tenantId) {
+  return tenantId === 'torfabrik' ? [...TORFABRIK_TEAM_AREAS] : [...DEFAULT_TEAM_AREAS];
+}
+
+export function getTeamAreaOptions(tenantId = teamboardState.tenantId) {
+  const areas = getTeamAreasForTenant(tenantId);
+  if (tenantId === 'torfabrik') {
+    return [TEAM_SOLO_ALL_AREAS, ...areas];
+  }
+  return areas;
+}
+
+export function getDefaultAreaForTenant(tenantId = teamboardState.tenantId) {
+  if (tenantId === 'torfabrik') return TEAM_SOLO_ALL_AREAS;
+  return 'Allgemein';
+}
+
+function isSoloAllAreasView(area = getActiveArea()) {
+  return area === TEAM_SOLO_ALL_AREAS;
+}
 export const TASK_PRIORITIES = ['Rot', 'Gelb', 'Grün'];
 
 export function getTeamEmployeesList() {
@@ -26,15 +52,6 @@ export function getTeamEmployeesList() {
 export function getTeamGroupsMap() {
   return getTeamGroups();
 }
-const EMPLOYEE_PINS = {
-  Stephie: '1122',
-  Finn: '2233',
-  Nicole: '3344',
-  Bettina: '4455',
-  Heiko: '5566',
-  Paddy: '6677',
-};
-
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 const ACTIVE_AREA_STORAGE_KEY = 'charculogic_active_area';
 const LEGACY_SHIFT_STORAGE_KEY = 'charculogic_active_shift';
@@ -159,6 +176,9 @@ function isGeneralArea(area) {
 function contextMatchesViewerArea(taskContext, viewerArea) {
   const ctx = String(taskContext || '').trim();
   if (!ctx || ctx === 'Allgemein') return true;
+  if (isSoloAllAreasView(viewerArea)) {
+    return getTeamAreasForTenant().includes(ctx) || ctx === 'Allgemein';
+  }
   if (isGeneralArea(viewerArea)) return false;
   return ctx === viewerArea;
 }
@@ -213,13 +233,14 @@ export function getActiveEmployeeName() {
 }
 
 export function getActiveArea() {
+  const options = getTeamAreaOptions();
   try {
     const stored = String(localStorage.getItem(ACTIVE_AREA_STORAGE_KEY) || '').trim();
-    if (TEAM_AREAS.includes(stored)) return stored;
+    if (options.includes(stored)) return stored;
     const legacy = String(localStorage.getItem(LEGACY_SHIFT_STORAGE_KEY) || '').trim();
-    if (legacy) return 'Allgemein';
+    if (legacy && getTeamAreasForTenant().includes('Allgemein')) return getDefaultAreaForTenant();
   } catch (_) { /* noop */ }
-  return 'Allgemein';
+  return getDefaultAreaForTenant();
 }
 
 export function getActiveShift() {
@@ -227,7 +248,7 @@ export function getActiveShift() {
 }
 
 function setActiveArea(area) {
-  if (!TEAM_AREAS.includes(area)) return;
+  if (!getTeamAreaOptions().includes(area)) return;
   try {
     localStorage.setItem(ACTIVE_AREA_STORAGE_KEY, area);
     localStorage.removeItem(LEGACY_SHIFT_STORAGE_KEY);
@@ -573,11 +594,34 @@ function renderAdminTaskList(tasks) {
   `).join('');
 }
 
+function syncAreaSelectOptions() {
+  const select = document.getElementById('team-shift-select');
+  if (!select) return;
+  const options = getTeamAreaOptions();
+  const current = getActiveArea();
+  select.innerHTML = options
+    .map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`)
+    .join('');
+  select.value = options.includes(current) ? current : getDefaultAreaForTenant();
+}
+
+function refreshAreaContextSelects() {
+  const areas = getTeamAreasForTenant();
+  document.querySelectorAll('select[name="area-context"]').forEach((select) => {
+    const selected = select.value;
+    select.innerHTML = areas
+      .map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`)
+      .join('');
+    if (areas.includes(selected)) select.value = selected;
+    else select.value = areas.includes('Allgemein') ? 'Allgemein' : areas[0];
+  });
+}
+
 function bindAreaSelector() {
   const select = document.getElementById('team-shift-select');
   if (!select || select.dataset.teamboardBound === '1') return;
   select.dataset.teamboardBound = '1';
-  select.value = getActiveArea();
+  syncAreaSelectOptions();
   select.addEventListener('change', () => {
     setActiveArea(select.value);
     subscribeTasks();
@@ -626,7 +670,7 @@ function bindTeamLogin() {
       window.showToast?.('Bitte 4-stellige PIN eingeben.', 'warning');
       return;
     }
-    if (EMPLOYEE_PINS[employee] !== pin) {
+    if (!verifyEmployeePin(employee, pin)) {
       window.showToast?.('Falsche PIN.', 'error');
       return;
     }
@@ -1010,7 +1054,8 @@ function updateAdminPanelVisibility() {
   const panel = document.getElementById('admin-leitstand-panel');
   if (!panel) return;
   const ctx = getAuthContext();
-  panel.classList.toggle('hidden', !ctx?.isAdmin);
+  const canAdmin = ctx?.isAdmin && !ctx?.isHelper;
+  panel.classList.toggle('hidden', !canAdmin);
 }
 
 function bindAdminPanel() {
@@ -1019,7 +1064,7 @@ function bindAdminPanel() {
 
   updateAdminPanelVisibility();
   const ctx = getAuthContext();
-  if (!ctx?.isAdmin) return;
+  if (!ctx?.isAdmin || ctx?.isHelper) return;
 
   if (panel.dataset.teamboardAdminBound === '1') return;
   panel.dataset.teamboardAdminBound = '1';
@@ -1234,6 +1279,8 @@ export function initTeamboardModule(databaseInstance, options = {}) {
   teamboardState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : teamboardState.showHUD;
   teamboardState.playClickSound = typeof options.playClickSound === 'function' ? options.playClickSound : teamboardState.playClickSound;
 
+  syncAreaSelectOptions();
+  refreshAreaContextSelects();
   bindAreaSelector();
   bindTeamLogin();
   bindHistoryFilter();
@@ -1248,6 +1295,8 @@ export function initTeamboardModule(databaseInstance, options = {}) {
 export function activateTeamboardTab() {
   // Re-bind lightweight UI hooks and re-render from latest local state
   // whenever the tab becomes visible again.
+  syncAreaSelectOptions();
+  refreshAreaContextSelects();
   bindAreaSelector();
   bindHistoryFilter();
   mountComposeForms();
