@@ -606,6 +606,23 @@ button:active, .btn:active {
   background-color: #d1d5db;
 }
 
+.btn-sm {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: var(--border-radius-sm);
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-sm:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 /* Sticky Save Bar (MHD) – im Dokumentfluss, nicht über Karten legen */
 .sticky-action-bar {
   position: sticky;
@@ -1156,6 +1173,30 @@ button:active, .btn:active {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.wrs-board-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.wrs-meat-price-update-btn .wrs-meat-price-update-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.wrs-meat-price-update-btn.is-loading .wrs-meat-price-update-icon {
+  animation: wrs-meat-price-spin 0.9s linear infinite;
+}
+
+@keyframes wrs-meat-price-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .wrs-board h2 {
@@ -1826,6 +1867,49 @@ button:active, .btn:active {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.haccp-collapsible {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--surface-secondary);
+  overflow: hidden;
+}
+
+.haccp-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dark);
+}
+
+.haccp-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.haccp-collapsible > summary::after {
+  content: '▾';
+  float: right;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: none;
+}
+
+.haccp-collapsible:not([open]) > summary::after {
+  content: '▸';
+}
+
+.haccp-collapsible-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-color);
 }
 
 .form-group {
@@ -4702,7 +4786,52 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .admin-team-config-block {
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  margin-top: 4px;
+}
+
+.leitstand-collapsible {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--surface-secondary);
+  overflow: hidden;
+}
+
+.leitstand-collapsible.hidden {
+  display: none;
+}
+
+.leitstand-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-dark);
+  background: var(--surface-secondary);
+}
+
+.leitstand-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.leitstand-collapsible > summary::after {
+  content: '▾';
+  float: right;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.leitstand-collapsible:not([open]) > summary::after {
+  content: '▸';
+}
+
+.leitstand-collapsible-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-color);
 }
 
 .team-hub-panel {

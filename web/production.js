@@ -29,6 +29,7 @@ const productionState = {
   onFormSaved: () => {},
   restoreDraftFields: () => 0,
   initialized: false,
+  batchDocumentInFlight: false,
 };
 
 function getFirebase() { return productionState.getFirebase?.() || null; }
@@ -4337,7 +4338,13 @@ function validateBratwurstMasterlist() {
   return true;
 }
 
+function isRezeptAuditEnabled() {
+  return window.BRANDING?.modules?.rezeptAudit !== false;
+}
+
 function validateCloudRecipesAgainstMasterlist(cloudRecipes = productionState.recipes) {
+  if (!isRezeptAuditEnabled()) return null;
+
   const missing = [];
   const incomplete = [];
   const cloudCount = Array.isArray(cloudRecipes) ? cloudRecipes.length : 0;
@@ -4373,6 +4380,9 @@ function validateCloudRecipesAgainstMasterlist(cloudRecipes = productionState.re
 }
 
 function renderRecipeCloudAudit() {
+  const card = document.getElementById('recipe-cloud-audit-card');
+  if (!isRezeptAuditEnabled() || card?.hidden) return;
+
   const masterEl = document.getElementById('audit-master-count');
   const cloudEl = document.getElementById('audit-cloud-count');
   const statusEl = document.getElementById('audit-cloud-status');
@@ -4574,6 +4584,7 @@ const PRODUCTION_FORM_FIELDS = [
 ];
 
 async function documentRecipeBatch() {
+  if (productionState.batchDocumentInFlight) return;
   if (!productionState.selectedRecipeId) {
     productionState.showHUD("⚠️ Kein Rezept", "Bitte zuerst ein Rezept öffnen.", "⚠️");
     return;
@@ -4621,7 +4632,11 @@ async function documentRecipeBatch() {
     zeitstempel: serverTimestampFallback(),
   };
 
+  const batchBtn = document.getElementById('btn-document-recipe-batch');
+
   try {
+    productionState.batchDocumentInFlight = true;
+    if (batchBtn) batchBtn.disabled = true;
         const collectionPath = productionBatchesCollectionPath();
         if (!collectionPath) {
             productionState.showHUD("Mandant fehlt", "Die Charge konnte keinem Betrieb zugeordnet werden.");
@@ -4651,6 +4666,9 @@ async function documentRecipeBatch() {
   } catch (error) {
     console.error('[CharcuLogic Firebase] Charge speichern fehlgeschlagen:', error);
     productionState.showHUD("⚠️ Fehler", "Charge konnte nicht gespeichert werden.", "⚠️");
+  } finally {
+    productionState.batchDocumentInFlight = false;
+    if (batchBtn) batchBtn.disabled = false;
   }
 }
 
@@ -4739,7 +4757,7 @@ export function activateKitchenTab() {
 
 export function activateBatchesTab() {
   productionState.activeTab = 'batches';
-  renderRecipeCloudAudit();
+  if (isRezeptAuditEnabled()) renderRecipeCloudAudit();
   renderProductionBatches();
   restoreProductionDraftFields();
 }

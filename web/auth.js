@@ -1,4 +1,5 @@
 import { setGlobalTenantId } from './tenant-db.js';
+import { clearTeamboardTenantStorage } from './teamboard-storage.js';
 
 let authContext = null;
 let authReadyPromise = null;
@@ -13,7 +14,6 @@ let authState = {
 };
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
-const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 
 function withTimeout(promise, timeoutMs, label = 'Operation') {
   return Promise.race([
@@ -47,8 +47,9 @@ function cacheTenantId(tenantId) {
 
 function clearSessionCaches() {
   try {
+    const tenantId = authContext?.tenantId || cachedTenantId() || '';
+    clearTeamboardTenantStorage(tenantId);
     localStorage.removeItem(CACHED_TENANT_ID_KEY);
-    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
     window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
       detail: { employeeName: '' },
     }));
@@ -57,43 +58,19 @@ function clearSessionCaches() {
   }
 }
 
-function normalizeRole(value, claims = {}, profile = {}) {
-  const mergedAdmin = claims.admin === true || profile.admin === true;
-  const roleCandidate = value || profile.role || claims.role;
-  if (mergedAdmin || roleCandidate === 'admin') return 'admin';
-  if (roleCandidate === 'helper' || claims.role === 'helper') return 'helper';
-  if (typeof roleCandidate === 'string' && roleCandidate.trim()) return roleCandidate.trim();
-  return 'user';
+function roleFromClaims(claims = {}) {
+  if (claims.isAdmin === true || claims.admin === true) return 'admin';
+  const role = typeof claims.role === 'string' ? claims.role.trim() : '';
+  if (role === 'admin' || role === 'employee' || role === 'helper') return role;
+  return '';
 }
 
-function claimsIncludeTenant(claims = {}) {
-  return Boolean(cleanTenantId(
-    claims.tenantId || claims.tenant_id || claims.tenant || claims.tenantID,
-  ));
+function tenantIdFromClaims(claims = {}) {
+  return cleanTenantId(claims.tenantId || claims.tenant_id || claims.tenantID);
 }
 
-/** Firestore-Feldnamen: tenantId, tenant_id, tenant, tenantID (Console-Schreibweise). */
-function tenantIdFromRecord(record = {}) {
-  return cleanTenantId(
-    record.tenantId ||
-    record.tenant_id ||
-    record.tenant ||
-    record.tenantID,
-  );
-}
-
-function resolveTenantIdFromSources(claims = {}, profile = {}, user = {}) {
-  return (
-    tenantIdFromRecord(profile) ||
-    tenantIdFromRecord(claims) ||
-    tenantIdFromRecord(user) ||
-    cachedTenantId()
-  );
-}
-
-function resolveRoleFromSources(claims = {}, profile = {}) {
-  const roleValue = profile.role || claims.role;
-  return normalizeRole(roleValue, claims, profile);
+function claimsAreComplete(claims = {}) {
+  return Boolean(tenantIdFromClaims(claims) && roleFromClaims(claims));
 }
 
 function ensureAuthConfigured() {
@@ -357,30 +334,33 @@ async function readUserProfile(uid) {
 }
 
 async function buildAuthContext(user) {
-  const tokenResult = await user.getIdTokenResult(true);
-  const claims = tokenResult?.claims || {};
-  let { source: profileSource, data: profile } = await readUserProfile(user.uid);
+  // Erzwingt frische Custom Claims nach set-user-claims.mjs (ohne Logout-Zyklus).
+  await user.getIdToken(true);
+  const tokenResult = await user.getIdTokenResult();
+  let claims = tokenResult?.claims || {};
 
-  // Nach Login ist das Profil manchmal erst im zweiten Lesevorgang verfügbar.
-  if (!profileSource && !claimsIncludeTenant(claims)) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    ({ source: profileSource, data: profile } = await readUserProfile(user.uid));
+  if (!claimsAreComplete(claims)) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await user.getIdToken(true);
+    const retryResult = await user.getIdTokenResult();
+    claims = retryResult?.claims || {};
   }
 
-  const tenantId = resolveTenantIdFromSources(claims, profile, user);
-  const role = resolveRoleFromSources(claims, profile);
-  const tenantFromProfile = Boolean(tenantIdFromRecord(profile));
+  const tenantId = tenantIdFromClaims(claims);
+  const role = roleFromClaims(claims);
 
-  if (!tenantId) {
+  if (!tenantId || !role) {
     throw new Error(
-      'Fuer diesen Login ist kein Mandant hinterlegt. Bitte in Firestore unter users/{uid} tenantId (oder tenantID) und role setzen (uid aus Firebase Auth).',
+      'Custom Claims fehlen (tenantId/role). Bitte Admin kontaktieren: node tools/set-user-claims.mjs --uid=<uid> ausführen, danach erneut anmelden.',
     );
   }
 
-  if (!claimsIncludeTenant(claims) && tenantFromProfile) {
-    console.info(
-      `[CharcuLogic Auth] Mandant "${tenantId}" und Rolle "${role}" aus Firestore (${profileSource}/${user.uid}) – ohne Custom Claims.`,
-    );
+  let profile = {};
+  let profileSource = null;
+  try {
+    ({ source: profileSource, data: profile } = await readUserProfile(user.uid));
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Profil-Read optional fehlgeschlagen:', err);
   }
 
   cacheTenantId(tenantId);
@@ -395,7 +375,7 @@ async function buildAuthContext(user) {
     claims,
     profile,
     profileSource,
-    isAdmin: role === 'admin' || claims.admin === true || profile.admin === true,
+    isAdmin: role === 'admin',
     isHelper: role === 'helper',
   };
 }
@@ -446,9 +426,9 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       authContext = null;
       setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
-      const hint = String(err?.message || '').includes('users/{uid}')
+      const hint = String(err?.message || '').includes('Custom Claims')
         ? err.message
-        : 'Mandant fehlt im Nutzerprofil. Bitte in Firestore users/{uid} tenantId/tenantID und role pflegen.';
+        : 'Custom Claims fehlen. Bitte node tools/set-user-claims.mjs ausführen und erneut anmelden.';
       showLoginOverlay(hint);
     }
   });

@@ -5,9 +5,14 @@ const { onCall } = require('firebase-functions/v2/https');
 
 const REGION = 'europe-west3';
 
+const CALLABLE_BASE_OPTIONS = {
+  region: REGION,
+  enforceAppCheck: true,
+};
+
 exports.parseDeliveryNote = onCall(
   {
-    region: REGION,
+    ...CALLABLE_BASE_OPTIONS,
     secrets: ['GEMINI_API_KEY'],
     timeoutSeconds: 120,
     memory: '512MiB',

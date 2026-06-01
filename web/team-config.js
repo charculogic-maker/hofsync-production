@@ -4,6 +4,7 @@
 
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
+import { waitForAppCheckReady } from './app-check.js';
 import { getTenantCollection } from './tenant-db.js';
 const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 
@@ -25,14 +26,6 @@ const DEFAULT_GROUPS = {
   metzgerei: { label: 'Metzgerei', members: ['Nicole', 'Bettina', 'Heiko', 'Paddy'] },
   laden: { label: 'Hofladen / Theke', members: ['Stephie', 'Finn', 'Paddy'] },
 };
-const DEFAULT_PINS = {
-  Stephie: '1122',
-  Finn: '2233',
-  Nicole: '3344',
-  Bettina: '4455',
-  Heiko: '5566',
-  Paddy: '6677',
-};
 
 const TENANT_TEAM_DEFAULTS = {
   torfabrik: {
@@ -41,34 +34,22 @@ const TENANT_TEAM_DEFAULTS = {
       center: { label: 'Center-Team', members: ['Stephan', 'Boris'] },
       aushilfe: { label: 'Aushilfe', members: ['Aushilfe'] },
     },
-    pins: {
-      Stephan: '1111',
-      Boris: '2222',
-      Aushilfe: '3333',
-    },
   },
 };
 
 function getTenantTeamDefaults(tenantId = configState.tenantId) {
-  const key = typeof tenantId === 'string' ? tenantId.trim() : '';
+  const key = typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';
   if (TENANT_TEAM_DEFAULTS[key]) {
     const entry = TENANT_TEAM_DEFAULTS[key];
     return {
       employees: [...entry.employees],
       groups: JSON.parse(JSON.stringify(entry.groups)),
-      pins: { ...entry.pins },
     };
   }
   return {
     employees: [...DEFAULT_EMPLOYEES],
     groups: JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
-    pins: { ...DEFAULT_PINS },
   };
-}
-
-function isLegacyStevesHofRoster(employees = []) {
-  if (!Array.isArray(employees) || employees.length === 0) return false;
-  return employees.every((name) => DEFAULT_EMPLOYEES.includes(name));
 }
 
 const configState = {
@@ -76,69 +57,10 @@ const configState = {
   tenantId: '',
   getFirebase: () => null,
   unsubscribe: null,
-  seedInFlight: false,
+  verifyPinCallable: null,
   employees: [...DEFAULT_EMPLOYEES],
   groups: JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
 };
-
-function needsTorfabrikTeamSeed(data, documentExists) {
-  if (configState.tenantId !== 'torfabrik') return false;
-  if (!documentExists) return true;
-  const employees = Array.isArray(data?.employees)
-    ? data.employees.map((n) => String(n).trim()).filter(Boolean)
-    : [];
-  if (employees.length === 0) return true;
-  return isLegacyStevesHofRoster(employees);
-}
-
-function buildTorfabrikSeedPayload() {
-  const defaults = getTenantTeamDefaults('torfabrik');
-  const firebase = configState.getFirebase();
-  return {
-    employees: defaults.employees,
-    groups: defaults.groups,
-    tenantId: 'torfabrik',
-    updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.()
-      || new Date().toISOString(),
-    updatedBy: getAuthContext()?.email?.split('@')[0] || 'system-seed',
-  };
-}
-
-async function seedTorfabrikTeamConfigToFirestore() {
-  if (configState.seedInFlight || configState.tenantId !== 'torfabrik') return false;
-  const ctx = getAuthContext();
-  if (!ctx?.isAdmin) {
-    console.info('[TeamConfig] TorFabrik-Defaults nur lokal – Firestore-Seed erfordert Admin.');
-    return false;
-  }
-
-  const ref = configRef();
-  if (!ref) return false;
-
-  configState.seedInFlight = true;
-  const payload = buildTorfabrikSeedPayload();
-
-  try {
-    await writeFirestoreDocOrQueue({
-      collectionPath: 'settings',
-      docId: TEAM_CONFIG_DOC_ID,
-      op: 'set',
-      onlineData: payload,
-      queueData: {
-        ...payload,
-        updatedAt: new Date().toISOString(),
-      },
-      offlineMessage: 'TorFabrik Team-Konfiguration wird synchronisiert.',
-    });
-    console.info('[TeamConfig] teamDashboard fuer torfabrik mit Standard-Team geseedet.');
-    return true;
-  } catch (err) {
-    console.warn('[TeamConfig] TorFabrik-Seed fehlgeschlagen:', err);
-    return false;
-  } finally {
-    configState.seedInFlight = false;
-  }
-}
 
 export function getTeamEmployees() {
   return [...configState.employees];
@@ -148,22 +70,65 @@ export function getTeamGroups() {
   return JSON.parse(JSON.stringify(configState.groups));
 }
 
-export function getEmployeePinMap() {
-  return { ...getTenantTeamDefaults().pins };
+function getVerifyPinCallable() {
+  const firebase = configState.getFirebase();
+  if (!firebase?.functions) return null;
+  if (!configState.verifyPinCallable) {
+    configState.verifyPinCallable = firebase.app().functions('europe-west3').httpsCallable('verifyTerminalPin');
+  }
+  return configState.verifyPinCallable;
 }
 
-export function verifyEmployeePin(employeeName, pin) {
+export async function verifyEmployeePin(employeeName, pin) {
   const cleanName = String(employeeName || '').trim();
   const cleanPin = String(pin || '').trim();
   if (!cleanName || cleanPin.length !== 4) return false;
-  return getEmployeePinMap()[cleanName] === cleanPin;
+
+  const callable = getVerifyPinCallable();
+  if (!callable) {
+    console.warn('[TeamConfig] PIN-Verifikation nicht verfügbar (Functions nicht geladen).');
+    return false;
+  }
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({ mode: 'employee', employeeName: cleanName, pin: cleanPin });
+    return result?.data?.ok === true;
+  } catch (err) {
+    console.warn('[TeamConfig] PIN-Verifikation fehlgeschlagen:', err);
+    return false;
+  }
 }
 
-export function resolveEmployeeByPin(pin) {
+export async function resolveEmployeeByPin(pin) {
   const cleanPin = String(pin || '').trim();
   if (cleanPin.length !== 4) return null;
-  const entry = Object.entries(getEmployeePinMap()).find(([, value]) => value === cleanPin);
-  return entry ? entry[0] : null;
+
+  const callable = getVerifyPinCallable();
+  if (!callable) return null;
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({ mode: 'resolve', pin: cleanPin });
+    return result?.data?.ok ? result.data.employeeName : null;
+  } catch (err) {
+    console.warn('[TeamConfig] PIN-Auflösung fehlgeschlagen:', err);
+    return null;
+  }
+}
+
+export async function verifyMeisterPin(pin) {
+  const cleanPin = String(pin || '').trim();
+  if (cleanPin.length !== 4) return null;
+
+  const callable = getVerifyPinCallable();
+  if (!callable) return null;
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({ mode: 'meister', pin: cleanPin });
+    return result?.data?.ok ? result.data.meisterName : null;
+  } catch (err) {
+    console.warn('[TeamConfig] Meister-PIN-Verifikation fehlgeschlagen:', err);
+    return null;
+  }
 }
 
 export function isPushEnabledLocally() {
@@ -225,11 +190,6 @@ function normalizeConfig(data) {
     Object.assign(groups, JSON.parse(JSON.stringify(tenantDefaults.groups)));
   }
 
-  if (configState.tenantId === 'torfabrik' && data && isLegacyStevesHofRoster(employees)) {
-    employees = [...tenantDefaults.employees];
-    Object.assign(groups, JSON.parse(JSON.stringify(tenantDefaults.groups)));
-  }
-
   return {
     employees: employees.length ? employees : [...tenantDefaults.employees],
     groups,
@@ -253,10 +213,6 @@ function syncEmployeeDatalist() {
 
 async function handleTeamConfigSnapshot(snap) {
   const raw = snap.exists ? snap.data() : null;
-  if (needsTorfabrikTeamSeed(raw, snap.exists)) {
-    const seeded = await seedTorfabrikTeamConfigToFirestore();
-    if (seeded) return;
-  }
   const config = normalizeConfig(raw);
   applyConfig(config);
   renderAdminTeamConfigForm(config);
@@ -318,7 +274,11 @@ function renderAdminTeamConfigForm(config = null) {
   const panel = document.getElementById('admin-team-config-panel');
   if (!panel || panel.classList.contains('hidden')) return;
 
-  const cfg = config || { employees: configState.employees, groups: configState.groups };
+  const rawCfg = config || { employees: configState.employees, groups: configState.groups };
+  const cfg = normalizeConfig({
+    employees: rawCfg.employees,
+    groups: rawCfg.groups,
+  });
   const employeesEl = document.getElementById('team-config-employees');
   if (employeesEl && document.activeElement !== employeesEl) {
     employeesEl.value = cfg.employees.join(', ');
@@ -531,31 +491,14 @@ export async function syncPushRegistration() {
   await registerFcmTokenIfPossible(employee);
 }
 
-export async function ensureTenantTeamConfigSeeded() {
-  if (configState.tenantId !== 'torfabrik') return;
-  const ref = configRef();
-  if (!ref) return;
-  try {
-    const snap = await ref.get();
-    const raw = snap.exists ? snap.data() : null;
-    if (needsTorfabrikTeamSeed(raw, snap.exists)) {
-      await seedTorfabrikTeamConfigToFirestore();
-    }
-  } catch (err) {
-    console.warn('[TeamConfig] Seed-Pruefung fehlgeschlagen:', err);
-  }
-}
-
 export function initTeamConfigModule(databaseInstance, options = {}) {
   configState.db = databaseInstance;
   configState.tenantId = options.tenantId || '';
+  configState.verifyPinCallable = null;
   configState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : configState.getFirebase;
 
   applyConfig(normalizeConfig(null));
   subscribeTeamConfig();
-  ensureTenantTeamConfigSeeded().catch((err) => {
-    console.warn('[TeamConfig] Initiales Seeding:', err);
-  });
   bindAdminTeamConfigPanel();
   bindPushSettings();
 
@@ -566,5 +509,10 @@ export function initTeamConfigModule(databaseInstance, options = {}) {
 
 export function refreshAdminTeamConfigPanel() {
   bindAdminTeamConfigPanel();
-  renderAdminTeamConfigForm();
+  const cfg = normalizeConfig({
+    employees: configState.employees,
+    groups: configState.groups,
+  });
+  applyConfig(cfg);
+  renderAdminTeamConfigForm(cfg);
 }

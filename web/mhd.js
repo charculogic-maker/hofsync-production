@@ -6,11 +6,7 @@ import {
   getTenantCollection,
   getTenantCollectionPath,
 } from './tenant-db.js';
-import { resolveEmployeeByPin } from './team-config.js';
-
-const MEISTER_OVERRIDE_PINS = {
-  "7788": "Meister",
-};
+import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 
 const HACCP_TEMP_LIMIT_C = 7.0;
 
@@ -564,14 +560,16 @@ function requestEmployeePinForScan(barcode) {
       enteredPin += key;
       updateDots();
       if (enteredPin.length === 4) {
-        const employeeName = resolveEmployeeByPin(enteredPin);
-        if (!employeeName) {
-          failPin();
-          return;
-        }
-        setActiveEmployee(employeeName);
-        window.showToast?.(`Erfasst durch ${employeeName}`, "success");
-        close(employeeName);
+        void (async () => {
+          const employeeName = await resolveEmployeeByPin(enteredPin);
+          if (!employeeName) {
+            failPin();
+            return;
+          }
+          setActiveEmployee(employeeName);
+          window.showToast?.(`Erfasst durch ${employeeName}`, "success");
+          close(employeeName);
+        })();
       }
     });
 
@@ -3031,7 +3029,44 @@ function openDraftForEditing(draft) {
   window.showToast?.('Entwurf geladen – Posten jetzt anhand der Fotos erfassen.', 'success');
 }
 
+function isReceivingMetzgereiEnabled() {
+  return window.BRANDING?.modules?.wareneingangMetzgerei !== false;
+}
+
+export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || {}) {
+  const enabled = branding?.modules?.wareneingangMetzgerei !== false;
+  const switcher = document.querySelector('.receiving-mode-switch');
+  const metzTab = document.getElementById('receiving-mode-metzgerei');
+  const metzPanel = document.getElementById('receiving-panel-metzgerei');
+  const draftBtn = document.getElementById('we-save-draft-btn');
+  const openDrafts = document.getElementById('open-drafts-section');
+  const desc = document.querySelector('#page-receiving .receiving-card > .learn-mode-desc');
+
+  if (switcher) switcher.hidden = !enabled;
+  if (metzTab) {
+    metzTab.hidden = !enabled;
+    metzTab.style.display = enabled ? '' : 'none';
+  }
+  if (metzPanel) {
+    metzPanel.hidden = true;
+    metzPanel.classList.add('hidden');
+  }
+  if (draftBtn) draftBtn.hidden = !enabled;
+  if (openDrafts) openDrafts.hidden = !enabled;
+
+  if (desc) {
+    desc.textContent = enabled
+      ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
+      : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
+  }
+
+  setReceivingMode('schnell');
+  updateReceivingSaveButtonState();
+}
+
 async function saveDeliveryDraft() {
+  if (!isReceivingMetzgereiEnabled()) return;
+
   const head = readDeliveryHeadValues();
   const draftBtn = document.getElementById('we-save-draft-btn');
 
@@ -3186,26 +3221,28 @@ function showMeisterOverrideModal(temperature) {
       updateDots();
       if (enteredPin.length !== 4) return;
 
-      const meisterName = MEISTER_OVERRIDE_PINS[enteredPin];
-      if (!meisterName) {
-        window.showToast?.('Falsche Meister-PIN. Bitte erneut versuchen.', 'error');
-        enteredPin = '';
-        updateDots();
-        dotsContainer?.classList.add('shake');
-        setTimeout(() => dotsContainer?.classList.remove('shake'), 260);
-        return;
-      }
+      void (async () => {
+        const meisterName = await verifyMeisterPin(enteredPin);
+        if (!meisterName) {
+          window.showToast?.('Falsche Meister-PIN. Bitte erneut versuchen.', 'error');
+          enteredPin = '';
+          updateDots();
+          dotsContainer?.classList.add('shake');
+          setTimeout(() => dotsContainer?.classList.remove('shake'), 260);
+          return;
+        }
 
-      const reason = reasonInput?.value.trim() || '';
-      if (!reason) {
-        window.showToast?.('Bitte eine Begründung für die Freigabe eingeben.', 'warning');
-        reasonInput?.focus();
-        enteredPin = '';
-        updateDots();
-        return;
-      }
+        const reason = reasonInput?.value.trim() || '';
+        if (!reason) {
+          window.showToast?.('Bitte eine Begründung für die Freigabe eingeben.', 'warning');
+          reasonInput?.focus();
+          enteredPin = '';
+          updateDots();
+          return;
+        }
 
-      close({ approved: true, reason, meisterName });
+        close({ approved: true, reason, meisterName });
+      })();
     };
 
     modal.hidden = false;
@@ -3350,7 +3387,7 @@ function updateReceivingSaveButtonState() {
     }
   }
 
-  if (draftBtn) {
+  if (draftBtn && !draftBtn.hidden) {
     const canDraft = hasSupplier && hasPhotos && !activeEditingDraftId;
     draftBtn.disabled = !canDraft;
     draftBtn.setAttribute('aria-disabled', canDraft ? 'false' : 'true');
@@ -3358,7 +3395,10 @@ function updateReceivingSaveButtonState() {
 }
 
 function setReceivingMode(mode) {
-  const normalized = mode === 'metzgerei' ? 'metzgerei' : 'schnell';
+  let normalized = mode === 'metzgerei' ? 'metzgerei' : 'schnell';
+  if (normalized === 'metzgerei' && !isReceivingMetzgereiEnabled()) {
+    normalized = 'schnell';
+  }
   const panels = {
     schnell: document.getElementById('receiving-panel-schnell'),
     metzgerei: document.getElementById('receiving-panel-metzgerei'),
@@ -3370,6 +3410,7 @@ function setReceivingMode(mode) {
     panel.hidden = !visible;
   });
   document.querySelectorAll('.receiving-mode-tab').forEach((tab) => {
+    if (tab.hidden) return;
     const active = tab.dataset.receivingMode === normalized;
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -3643,6 +3684,7 @@ function restoreMhdDraftFields() {
 }
 export function activateMhdTab() { renderMhdList(); restoreMhdDraftFields(); }
 export function activateReceivingTab() {
+  applyReceivingMetzgereiVisibility(window.BRANDING || {});
   ensureReceivingFormDefaults();
   subscribeToPendingDeliveryDrafts();
   updateManualBarcodeFallback();

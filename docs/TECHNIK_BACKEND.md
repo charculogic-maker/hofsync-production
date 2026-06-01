@@ -36,7 +36,16 @@ Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
 2. Firestore-Profil `users/{uid}` oder `userTenants/{uid}` (Felder `tenantId` **oder** `tenantID`, `role`)
 3. Lokaler Cache `charculogic_cached_tenant_id`
 
-**Team-Konfiguration** (`web/team-config.js`): Mitarbeiter, Gruppen und PINs pro Mandant; für `torfabrik` automatisches Seed nach `settings/teamDashboard`, wenn leer oder noch StevesHof-Namen.
+**Kein Client-Seeding mehr:** Team-Konfiguration, Terminal-PINs, MHD-Bestand, Rezepte und HACCP-Defaults werden **nicht** beim Login aus dem Browser geschrieben. Einmalige Initialisierung nur über Admin SDK:
+
+```bash
+node tools/seed-tenant-bootstrap.mjs --tenant=torfabrik --project=charculogic-whitelabel-test --all
+node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentials
+```
+
+**Terminal-PINs:** Gehashte Zugangsdaten liegen in `tenants/{tenantId}/terminalCredentials/current` (Client: kein Lesezugriff). Prüfung über Callable `verifyTerminalPin` (Region `europe-west3`).
+
+**Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`).
 
 ---
 
@@ -87,37 +96,30 @@ Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehe
 
 ### 3.2 Authentifizierung & Mandantenzugehörigkeit (`firebase.rules`)
 
-- `isAuthenticated()` – `request.auth != null`.
-- `isTenantUser(tenantId)` – Mandantenzugehörigkeit über **Custom Claim** (`token.tenantId` / `token.tenant_id` / `token.tenantID`) **oder** über das Profildokument (`users/{uid}` bzw. `userTenants/{uid}` mit passendem `tenantId` / `tenant_id` / `tenantID`).
+**Nur Custom Claims** – kein Firestore-Profil-Fallback in Rules oder Storage:
+
+- `request.auth.token.tenantId == tenantId` (Pfad-Mandant)
+- `request.auth.token.role` ∈ `admin` | `employee` | `helper`
+- `request.auth.token.isAdmin == true` für Admin-Checks
+
+Claims setzen (invalidiert keine Refresh Tokens):
+
+```bash
+node tools/set-user-claims.mjs --all --project=hofsync-production
+node tools/set-user-claims.mjs --uid=<UID> --project=charculogic-whitelabel-test
+```
+
+Nach dem Lauf refresht das Frontend Claims automatisch via `getIdToken(true)` in `web/auth.js`.
 
 ### 3.3 Admin-Erkennung (`firebase.rules`)
 
-`isAdmin(tenantId)` ist **robust** und akzeptiert mehrere Quellen:
+`isAdmin(tenantId)` akzeptiert Custom Claims **oder** Firestore-Profil (Übergangsphase). **`isHelper(tenantId)`** und **`isEmployeeOrAdmin(tenantId)`** steuern Schreibzugriffe: Aushilfe-Konten (`role: helper`) dürfen lesen, aber nicht in operative Collections schreiben.
 
-```
-isTenantUser(tenantId) && (
-     request.auth.token.role  == 'admin'      // Custom Claim
-  || request.auth.token.admin == true         // Custom Claim
-  || users/{uid}.role        == 'admin'       // Firestore-Profil
-  || userTenants/{uid}.role  == 'admin'       // Firestore-Profil
-)
-```
+### 3.4 Storage-Rules (`storage.rules`)
 
-**Konsequenz:** In den deployten Firestore-Rules sperrt man sich **nicht** aus, wenn (noch) keine Custom Claims gesetzt sind – das Profildokument `users/{uid}.role == 'admin'` genügt. Das deckt sich mit der Admin-Ableitung im Frontend (`web/auth.js`: `profile.role` aus `users/{uid}`).
+Storage nutzt **`firestore.get()`** auf `users/{uid}` bzw. `userTenants/{uid}` für Mandantenzugehörigkeit und Rolle – analog zu Firestore. Bulletin-Uploads: Admin; Lieferschein-Fotos: Mitarbeiter (keine Aushilfe).
 
-### 3.4 ⚠️ Inkonsistenz in `storage.rules`
-
-Die **Storage-Rules** nutzen ein **anderes**, strengeres Admin-Kriterium:
-
-```
-function istAdmin() {
-  return istAngemeldet() && request.auth.token.isAdmin == true;  // nur Custom Claim
-}
-```
-
-Für **Bulletin-Uploads** (`tenants/{tenantId}/bulletin/**`, z. B. Bild-/PDF-Anhänge der Tagesnachricht) ist also ein echter Custom Claim `isAdmin == true` nötig. Solange dieser Claim nicht gesetzt wird, schlagen Admin-Uploads ins Storage fehl – obwohl die Firestore-Admin-Prüfung (per Profildokument) erfolgreich ist.
-
-**To-do für den Tech-Partner:** Claim-Strategie vereinheitlichen. Sauberster Weg sind echte Custom Claims (z. B. `role: 'admin'` + `tenantId`) per Admin SDK; dann beide Rules-Dateien auf dasselbe Kriterium ziehen.
+**Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 
 ### 3.5 Empfehlung: Custom Claims setzen
 
@@ -139,23 +141,53 @@ Nach dem Setzen muss der Client das ID-Token erneuern (Re-Login oder `getIdToken
 
 Laufzeit: **Node 20**, `firebase-functions` v2, `firebase-admin`. Exporte in `functions/index.js`.
 
-### 4.1 `fetchWeeklyMeatPrices` – Gemini-Fleischpreislauf
+### 4.1 Fleischpreis-Automation (`fetchWeeklyMeatPrices` + `triggerManualMeatPriceRun`)
 
-- **Typ:** geplanter Lauf (`onSchedule`), Cron `0 8 * * 3` → **Mittwochs 08:00 Uhr** (Zeitzone `Europe/Berlin`).
+Implementierung: `functions/meatPrices.js` (gemeinsame Pipeline `executeMeatPriceRun`).
+
+#### Geplanter Lauf – `fetchWeeklyMeatPrices`
+
+- **Typ:** Gen2 `onSchedule` (`firebase-functions/v2/scheduler`).
+- **Cron:** `0 8 * * 3` → **Mittwochs 08:00 Uhr**, Zeitzone **`Europe/Berlin`** (DST-sicher).
 - **Timeout:** 120 s, `retryCount: 2`.
-- **Secret:** `GEMINI_API_KEY` (Cloud Secret Manager, in der Funktion über `secrets: ['GEMINI_API_KEY']` gebunden).
-- **Ablauf** (`functions/meatPrices.js`):
-  1. Prompt für aktuelle KW bauen (VEZG/AMI/MEG-Notierungen).
-  2. Gemini-Modell (`GEMINI_MODEL`, Default `gemini-2.0-flash`) mit **Google-Search-Grounding** aufrufen.
-  3. Antwort als JSON-Array parsen/normalisieren (mind. `MIN_PRICE_ENTRIES = 3` Einträge).
-  4. Ergebnis nach `tenants/{TENANT_ID}/fleischpreise/{jahr_kwXX}` schreiben (Felder `preise`/`prices`, `kw`, `fetchedAt`, …).
-- **Wichtig:** Durch das Search-Grounding kann ein Lauf **bis ~60 s** dauern.
+- **Secret:** `GEMINI_API_KEY` (Cloud Secret Manager, `secrets: ['GEMINI_API_KEY']`).
+- **`initiatedBy`:** `"system"`.
 
-> **Kein manueller Trigger vorhanden.** Es gibt aktuell **keinen** HTTP-/Callable-Endpoint und **keinen** UI-Button zum manuellen Anstoßen. Das Frontend (`web/app.js → subscribeFleischpreise`) **liest** die Preise nur passiv via `onSnapshot`.
->
-> Falls ein manueller „Aktualisieren"-Button gewünscht ist, braucht es:
-> 1. eine zusätzliche `onCall`/HTTP-Function (Scheduler ist vom Client nicht aufrufbar),
-> 2. im Frontend zwingend einen **Lade-Indikator + `disabled`-Button**, um Mehrfachklicks während der bis zu 60 s Laufzeit zu verhindern.
+#### Manueller Admin-Trigger – `triggerManualMeatPriceRun`
+
+- **Typ:** Gen2 `onCall`, Region `europe-west3`, `enforceAppCheck: true`, Timeout 120 s.
+- **Auth:** `request.auth.token.role === 'admin'`, sonst `HttpsError('permission-denied')`.
+- **`initiatedBy`:** `request.auth.uid` (Audit-Trail).
+- Nutzt dieselbe Pipeline wie der Scheduler (Parsing, Validierung, Schreiben).
+
+#### Lifecycle-Logging – `/priceRuns/{runId}`
+
+Jeder Lauf (automatisch oder manuell) schreibt in die Root-Collection **`priceRuns`**:
+
+| Phase | Felder |
+|-------|--------|
+| Start | `startedAt`, `status: "running"`, `initiatedBy`, `modelVersion`, `targetPath`, … |
+| Erfolg | `finishedAt`, `status: "success"`, `sourceUrls`, `rawEvidence`, `parsedValues`, `firestorePath` |
+| Fehler | `finishedAt`, `status: "failed"`, `error` (Stack/Message) |
+
+Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / Cloud Functions).
+
+#### Ablauf & Anti-Corruption
+
+1. Prompt für aktuelle KW (VEZG/AMI/MEG) bauen.
+2. Gemini (`GEMINI_MODEL`, Default `gemini-2.0-flash`) mit **Google-Search-Grounding** aufrufen.
+3. JSON-Array parsen und **validieren** (mind. `MIN_PRICE_ENTRIES = 3`, `category`/`cut` Pflicht, Preise `> 0` und `≤ 500` EUR).
+4. **Nur bei erfolgreicher Validierung:** Schreiben nach `tenants/{TENANT_ID}/fleischpreise/{jahr_kwXX}`.
+5. **Failsafe:** Bei API-, Parse- oder Validierungsfehler → `priceRuns.status = "failed"`, Log `[FLEISCHPREIS_RUN_FAILED]`, **`fleischpreise/` bleibt unverändert**.
+
+> Durch Search-Grounding kann ein Lauf **bis ~60 s** dauern. Das Frontend (`web/app.js → subscribeFleischpreise`) liest die Preise passiv via `onSnapshot`.
+
+#### Frontend – WRS Admin-Button
+
+- **Markup:** `web/index.html` → `#kitchen-wrs-panel` / `#wrs-meat-price-update-btn` (neben `#wrs-status-pill`).
+- **Logik:** `web/app.js` → `bindWrsMeatPriceUpdateButton()`, Callable `triggerManualMeatPriceRun` (Region `europe-west3`, App Check Pflicht via `waitForAppCheckReady()`).
+- **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
+- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
 
 ### 4.2 `notifyTeamEntryCreated` – Push bei neuer Team-Aufgabe
 
@@ -169,11 +201,85 @@ Laufzeit: **Node 20**, `firebase-functions` v2, `firebase-admin`. Exporte in `fu
 ### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
+- **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
 - **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
-- **Auth:** nur Mandant `torfabrik` (Claim oder Profil).
-- **Speicherung:** geparste Posten nach `tenants/torfabrik/inventory`.
+- **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
+- **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
 
-### 4.4 Lokales Testen
+### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
+
+- **Typ:** Callable HTTPS, Region `europe-west3`.
+- **App Check:** `enforceAppCheck: true`.
+- **Speicher:** `tenants/{tenantId}/terminalCredentials/current` (nur Admin SDK / Functions).
+- **Modi:** `employee` (Name + PIN), `resolve` (PIN → Name), `meister` (Meister-Freigabe).
+- **Schutz:** PBKDF2-Hash, Lockout nach 5 Fehlversuchen (15 min).
+
+### 4.5 Firebase App Check (Web + Callables)
+
+**Backend:** Gen2-Callables `parseDeliveryNote`, `verifyTerminalPin` und `triggerManualMeatPriceRun` setzen `enforceAppCheck: true`.
+
+**Frontend:** `web/app-check.js` initialisiert App Check direkt nach `initFirebase()` in `bootstrapAuthenticatedApp()` (vor Auth und Callables).
+
+1. **Firebase Console** → App Check → Web-App registrieren → **reCAPTCHA v3** Site Key erzeugen.
+2. Site Key in `web/firebase-config.js` unter `appCheckRecaptchaSiteKey` (pro Projekt `production` / `whitelabel`) eintragen.
+3. **Lokal / CI (Debug Provider):**
+   - App auf `http://localhost` oder `127.0.0.1` starten.
+   - Beim ersten Start erscheint in der **Browser-Konsole** ein Debug-Token, z. B.:
+     `App Check debug token: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"`
+   - Token kopieren → Firebase Console → App Check → **Manage debug tokens** → hinzufügen.
+   - Optional persistieren: `?appCheckDebugToken=<UUID>` oder `localStorage.setItem('charculogic_appcheck_debug_token', '<UUID>')`.
+   - **GitHub Actions:** Secret `FIREBASE_APPCHECK_DEBUG_TOKEN` anlegen und vor dem E2E-Lauf setzen:
+     `localStorage.setItem('charculogic_appcheck_debug_token', process.env.FIREBASE_APPCHECK_DEBUG_TOKEN)`.
+
+**Deploy-Reihenfolge:** App-Check-Provider in Console aktivieren → Site Keys pflegen → Hosting deployen → Functions deployen → Debug-Tokens für Entwickler/CI registrieren.
+
+### 4.6 GCP Cloud Monitoring & Alerting Setup
+
+Automatisierte Benachrichtigung, wenn der Fleischpreis-Engine-Lauf fehlschlägt (Gemini, Validierung, Firestore). Einrichtung im Firebase-/GCP-Projekt (z. B. `hofsync-production`).
+
+**Voraussetzung:** Notification Channel in **Monitoring → Alerting → Edit notification channels** (E-Mail, SMS, PagerDuty) anlegen.
+
+#### Log Filter Query (Cloud Logging)
+
+In **Logging → Logs Explorer** oder als Basis für log-basierte Metriken:
+
+```
+resource.type="cloud_function"
+resource.labels.function_name="fetchWeeklyMeatPrices"
+textPayload=~"\[FLEISCHPREIS_RUN_FAILED\]"
+```
+
+> **Hinweis Gen2:** Läuft die Function auf Cloud Run, ggf. ergänzen: `resource.type="cloud_run_revision"` und `resource.labels.service_name="fetchweeklymeatprices"`. Der Filter oben deckt klassische Cloud-Function-Log-Ressourcen ab.
+
+#### Alerting Policy (gcloud)
+
+Programmatische Anlage der Alert Policy (Projekt setzen: `gcloud config set project <PROJECT_ID>`):
+
+```bash
+gcloud alpha monitoring policies create \
+  --display-name="Alert: Fleischpreislauf fehlgeschlagen" \
+  --condition-filter='resource.type="cloud_function" AND resource.labels.function_name="fetchWeeklyMeatPrices" AND textpayload=~"\[FLEISCHPREIS_RUN_FAILED\]"' \
+  --duration="0s" \
+  --combiner="OR" \
+  --trigger-count=1
+```
+
+Nach Erstellung in der Console **Notification Channels** an die Policy binden.
+
+#### Runbook
+
+1. Cloud Logging → obigen Filter → `runId` / Stacktrace aus dem Log.
+2. Firestore (Admin SDK / Console): `/priceRuns/{runId}` → Feld `error` lesen.
+3. Ursache: `GEMINI_API_KEY`, Grounding, Validierung; ggf. manuell über WRS-Button **Preise aktualisieren** (Admin, App Check aktiv).
+4. **Nicht** manuell in `fleischpreise/` schreiben — bei Fehler bleibt die letzte gültige KW erhalten (Failsafe).
+
+**Erweiterungen (optional):**
+
+- Log-Metric `fleischpreis_run_failed` mit `--log-filter='textPayload=~"\[FLEISCHPREIS_RUN_FAILED\]"'` und Threshold-Alert auf `rate(...) > 0`.
+- Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
+- Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
+
+### 4.7 Lokales Testen
 
 ```bash
 cd functions
@@ -198,13 +304,9 @@ firebase deploy --only hosting
 
 # Cloud Functions (functions/)
 firebase deploy --only functions
-# z. B. nur Lieferschein: firebase deploy --only functions:parseDeliveryNote
 
-# Firestore-Rules  ->  rollt firebase.rules aus (siehe firebase.json)
-firebase deploy --only firestore:rules
-
-# Storage-Rules
-firebase deploy --only storage
+# Firestore + Storage Rules (immer gemeinsam testen!)
+firebase deploy --only firestore:rules,storage
 
 # Alles zusammen
 firebase deploy
@@ -220,11 +322,23 @@ firebase deploy
 - **Hosting-Root** ist `web/` (siehe `firebase.json`); es gibt **keinen Build-Step**.
 - **Indizes:** Aktuell ist keine `firestore.indexes.json` hinterlegt. Falls Firestore bei neuen zusammengesetzten Abfragen einen Index verlangt, den vorgeschlagenen Index anlegen und versionieren.
 
+### Security Rules Tests (Emulator)
+
+Voraussetzungen: **Node 20**, **JDK 21+**, Firebase CLI.
+
+```bash
+npm install
+npm run test:rules
+```
+
+Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `test/security-rules.test.mjs`.
+
 ---
 
 ## 6. Offene technische Punkte (Stand: Mai 2026)
 
-1. **Rules-Dateien konsolidieren:** `firestore.rules` (nicht deployt) entfernen oder eindeutig kennzeichnen; einzige Quelle der Wahrheit ist `firebase.rules`.
-2. **Admin-Claim-Strategie vereinheitlichen:** `firebase.rules` (role/profil) vs. `storage.rules` (`isAdmin`-Claim) angleichen; idealerweise echte Custom Claims setzen.
-3. **MHD-Datenladen ohne `limit()`:** `web/mhd.js → loadMhdFromCloud` lädt die gesamte Collection per Live-Listener (DOM-Rendering ist auf `MHD_RENDER_LIMIT = 50` gedeckelt, aber Daten werden vollständig geladen). Bei stark wachsenden Beständen serverseitige Begrenzung/Pagination erwägen.
-4. **Mitarbeitername-Normalisierung:** Namen werden nur via `.trim()` gespeichert (Matching ist case-insensitiv, der DB-Wert aber roh). Für saubere Auswertungen ggf. kanonische Normalisierung beim Schreiben ergänzen.
+1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback perspektivisch entfernen).
+2. **App Check** für Callables ist implementiert (`enforceAppCheck: true`); reCAPTCHA v3 Site Keys in `firebase-config.js` pflegen.
+3. **Rules-Emulator-Tests in CI** – Suite vorhanden (`npm run test:rules`); JDK 21+ in CI-Runner erforderlich.
+4. **Fleischpreislauf:** WRS-Admin-Button implementiert; GCP-Alert-Policy gemäß §4.6 in Produktion anlegen.
+5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.

@@ -4,13 +4,21 @@
     "prebuild": "npm run build-data",
     "build": "node tools/check-web-app.mjs",
     "deploy": "npm run build && firebase deploy",
-    "preview": "vite preview"
+    "seed:tenant": "node tools/seed-tenant-bootstrap.mjs",
+    "claims:sync": "node tools/set-user-claims.mjs",
+    "preview": "vite preview",
+    "test:rules": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --timeout 15000\"",
+    "test:rules:watch": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --watch --timeout 15000\"",
+    "test:functions:security": "npm --prefix functions run test:security"
   },
   "dependencies": {
     "firebase": "^12.13.0",
     "firebase-admin": "^13.10.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "chai": "^5.2.0",
+    "mocha": "^11.5.0",
     "playwright": "^1.60.0"
   }
 }

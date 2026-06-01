@@ -36,10 +36,11 @@
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260528-63">
+  <link rel="stylesheet" href="/style.css?v=20260528-70">
 </head>
 <body>
 
@@ -497,7 +498,19 @@
                     <div class="app-subtitle">BEFFE-Kalkulation</div>
                     <h2 id="wrs-title">WRS Rezept-Skalierer</h2>
                   </div>
-                  <span class="wrs-status-pill" id="wrs-status-pill">Lädt</span>
+                  <div class="wrs-board-header-actions">
+                    <button
+                      type="button"
+                      id="wrs-meat-price-update-btn"
+                      class="btn btn-secondary btn-sm wrs-meat-price-update-btn"
+                      style="display: none;"
+                      aria-label="Fleischpreise manuell aktualisieren"
+                    >
+                      <span class="wrs-meat-price-update-icon" aria-hidden="true">↻</span>
+                      <span class="wrs-meat-price-update-label">Preise aktualisieren</span>
+                    </button>
+                    <span class="wrs-status-pill" id="wrs-status-pill">Lädt</span>
+                  </div>
                 </div>
 
                 <div class="wrs-controls">
@@ -565,46 +578,8 @@
           <!-- ============================================== -->
           <div class="page" id="page-haccp">
             <div class="haccp-card">
-              
-              <!-- Core temperature slider -->
-              <div class="form-group">
-                <label class="form-label" for="haccp-temp">
-                  <span>Kerntemperatur (°C)</span>
-                  <span class="form-value-badge" id="temp-badge">75.0 °C</span>
-                </label>
-                <div class="haccp-slider-container">
-                  <input type="range" id="haccp-temp" class="touch-slider" min="-10.0" max="100.0" step="0.5" value="75.0">
-                  <div class="slider-limits">
-                    <span>❄️ -10°C</span>
-                    <span>🔥 Garziel > 72°C</span>
-                    <span>💨 100°C</span>
-                  </div>
-                </div>
-              </div>
 
-              <!-- pH value slider -->
-              <div class="form-group">
-                <label class="form-label" for="haccp-ph">
-                  <span>pH-Wert Messung</span>
-                  <span class="form-value-badge" id="ph-badge">5.50</span>
-                </label>
-                <div class="haccp-slider-container">
-                  <input type="range" id="haccp-ph" class="touch-slider" min="4.00" max="7.00" step="0.05" value="5.50">
-                  <div class="slider-limits">
-                    <span>🔴 4.0 (Sauer)</span>
-                    <span>🟢 Optimal (5.2 - 5.8)</span>
-                    <span>🔴 7.0 (Alkalisch)</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Outlier Alert Box (for pH and temp warnings) -->
-              <div class="haccp-status-box" id="haccp-alert-box">
-                <div class="haccp-status-title" id="haccp-alert-title">Warnung</div>
-                <div class="haccp-status-desc" id="haccp-alert-desc">Qualität außerhalb der Toleranz!</div>
-              </div>
-
-              <!-- Batch entry input -->
+              <!-- Batch entry input (primary) -->
               <div class="form-group">
                 <label class="form-label" for="haccp-batch">
                   <span>Chargen-Nummer</span>
@@ -617,7 +592,46 @@
                 </div>
               </div>
 
-              <!-- HACCP submit trigger -->
+              <details class="haccp-collapsible" id="haccp-measurements-panel">
+                <summary>Kerntemperatur &amp; pH-Wert</summary>
+                <div class="haccp-collapsible-body">
+                  <div class="form-group">
+                    <label class="form-label" for="haccp-temp">
+                      <span>Kerntemperatur (°C)</span>
+                      <span class="form-value-badge" id="temp-badge">75.0 °C</span>
+                    </label>
+                    <div class="haccp-slider-container">
+                      <input type="range" id="haccp-temp" class="touch-slider" min="-10.0" max="100.0" step="0.5" value="75.0">
+                      <div class="slider-limits">
+                        <span>❄️ -10°C</span>
+                        <span>🔥 Garziel &gt; 72°C</span>
+                        <span>💨 100°C</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="haccp-ph">
+                      <span>pH-Wert Messung</span>
+                      <span class="form-value-badge" id="ph-badge">5.50</span>
+                    </label>
+                    <div class="haccp-slider-container">
+                      <input type="range" id="haccp-ph" class="touch-slider" min="4.00" max="7.00" step="0.05" value="5.50">
+                      <div class="slider-limits">
+                        <span>🔴 4.0 (Sauer)</span>
+                        <span>🟢 Optimal (5.2 - 5.8)</span>
+                        <span>🔴 7.0 (Alkalisch)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="haccp-status-box" id="haccp-alert-box">
+                    <div class="haccp-status-title" id="haccp-alert-title">Warnung</div>
+                    <div class="haccp-status-desc" id="haccp-alert-desc">Qualität außerhalb der Toleranz!</div>
+                  </div>
+                </div>
+              </details>
+
               <div class="haccp-submit-bar">
                 <button class="btn btn-submit-haccp" id="btn-submit-haccp">
                   📝 Protokoll eintragen
@@ -664,19 +678,6 @@
                 <button type="button" class="btn btn-primary bulletin-save-btn" id="bulletin-save-btn">Nachricht veröffentlichen</button>
               </div>
 
-              <div class="admin-leitstand-block admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
-                <h3>Team-Gruppen &amp; Mitarbeiter</h3>
-                <p class="admin-leitstand-hint">Namen und Gruppen für Empfänger-Auswahl – ohne Code-Anpassung.</p>
-                <label class="form-label" for="team-config-employees">Mitarbeiter (kommagetrennt)</label>
-                <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
-                <div id="team-config-groups" class="team-config-groups"></div>
-                <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
-                <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
-                <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
-                <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
-                <button type="button" class="btn btn-primary" id="team-config-save-btn">Konfiguration speichern</button>
-              </div>
-
               <div class="admin-leitstand-block">
                 <h3>Team-Nachricht / Aufgabe (Büro)</h3>
                 <div id="admin-compose-mount"></div>
@@ -692,6 +693,21 @@
                 <p class="admin-leitstand-hint">Alle angenommenen Bestellungen – auch erledigte der letzten Tage.</p>
                 <div id="admin-customer-order-list" class="customer-order-list customer-order-list--admin"></div>
               </div>
+
+              <details class="leitstand-collapsible admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
+                <summary>Team-Gruppen &amp; Mitarbeiter</summary>
+                <div class="leitstand-collapsible-body">
+                  <p class="admin-leitstand-hint">Namen und Gruppen für Empfänger-Auswahl – ohne Code-Anpassung.</p>
+                  <label class="form-label" for="team-config-employees">Mitarbeiter (kommagetrennt)</label>
+                  <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
+                  <div id="team-config-groups" class="team-config-groups"></div>
+                  <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
+                  <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
+                  <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
+                  <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
+                  <button type="button" class="btn btn-primary" id="team-config-save-btn">Konfiguration speichern</button>
+                </div>
+              </details>
             </section>
 
             <div class="batch-audit-card" id="recipe-cloud-audit-card">

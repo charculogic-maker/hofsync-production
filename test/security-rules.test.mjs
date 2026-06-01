@@ -1,0 +1,343 @@
+/**
+ * Firebase Security Rules – Multi-Tenant isolation & role enforcement tests.
+ *
+ * Run via emulator (recommended):
+ *   npm run test:rules
+ *
+ * Prerequisites:
+ *   npm install
+ *   Firebase CLI installed (firebase-tools)
+ */
+import { describe, it, before, after, beforeEach } from 'mocha';
+import { expect } from 'chai';
+import {
+  TENANTS,
+  authContext,
+  bulletinObjectPath,
+  createRulesTestEnvironment,
+  expectFirestoreAllow,
+  expectFirestoreDeny,
+  expectStorageUploadAllow,
+  expectStorageUploadDeny,
+  resetEmulatorData,
+  sampleInventoryItem,
+  sampleMhdItem,
+  sampleSettings,
+  sampleTask,
+  seedFirestoreDoc,
+  tenantDocPath,
+} from './helpers/rules-test-env.mjs';
+import { serverTimestamp } from 'firebase/firestore';
+
+describe('Firebase Security Rules (Custom Claims only)', function () {
+  this.timeout(15000);
+
+  /** @type {import('@firebase/rules-unit-testing').RulesTestEnvironment} */
+  let testEnv;
+
+  before(async () => {
+    testEnv = await createRulesTestEnvironment();
+  });
+
+  beforeEach(async () => {
+    await resetEmulatorData(testEnv);
+  });
+
+  after(async () => {
+    await testEnv.cleanup();
+  });
+
+  describe('TEST CASE 1: Cross-Tenant Isolation (SaaS Wall)', () => {
+    const torfabrikEmployee = () => authContext(
+      testEnv,
+      'tf-employee-1',
+      TENANTS.TORFABRIK,
+      'employee',
+    );
+
+    const collections = [
+      { name: 'mhd_liste', docId: 'mhd-cross-1', sample: sampleMhdItem },
+      { name: 'inventory', docId: 'inv-cross-1', sample: sampleInventoryItem },
+      { name: 'tasks', docId: 'task-cross-1', sample: sampleTask },
+    ];
+
+    collections.forEach(({ name, docId, sample }) => {
+      const ownPath = tenantDocPath(TENANTS.TORFABRIK, name, docId);
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, name, docId);
+
+      it(`denies torfabrik employee read/write on StevesHof ${name}`, async () => {
+        const ctx = torfabrikEmployee();
+        const payload = sample(TENANTS.STEVES_HOF);
+
+        await expectFirestoreDeny(ctx, foreignPath, 'read');
+        await expectFirestoreDeny(ctx, foreignPath, 'create', payload);
+      });
+
+      it(`allows torfabrik employee read and write on own tenant ${name}`, async () => {
+        const ctx = torfabrikEmployee();
+        const payload = sample(TENANTS.TORFABRIK);
+
+        await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+        await expectFirestoreAllow(ctx, ownPath, 'read');
+      });
+    });
+
+    it('denies cross-tenant collection list queries', async () => {
+      const ctx = torfabrikEmployee();
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'hidden-item'),
+        sampleMhdItem(TENANTS.STEVES_HOF),
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'list-probe'),
+        'list',
+      );
+    });
+  });
+
+  describe('TEST CASE 2: helper Role Constraints', () => {
+    const torfabrikHelper = () => authContext(
+      testEnv,
+      'tf-helper-1',
+      TENANTS.TORFABRIK,
+      'helper',
+    );
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'seed-task'),
+        sampleTask(TENANTS.TORFABRIK, 'Seed Author'),
+      );
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
+        sampleSettings(TENANTS.TORFABRIK),
+      );
+    });
+
+    it('allows helper to read tasks (teamboard) and mhd_liste (alarms)', async () => {
+      const ctx = torfabrikHelper();
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'seed-task'),
+        'read',
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
+        'read',
+      );
+    });
+
+    it('denies helper writes to inventory', async () => {
+      const ctx = torfabrikHelper();
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'inventory', 'helper-inject');
+
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'create',
+        sampleInventoryItem(TENANTS.TORFABRIK),
+      );
+    });
+
+    it('denies helper create/update/delete on operative collections and settings', async () => {
+      const ctx = torfabrikHelper();
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'helper-mhd'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'helper-task'),
+        'create',
+        sampleTask(TENANTS.TORFABRIK, 'Helper'),
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
+        'update',
+        { employees: ['Injected'], tenantId: TENANTS.TORFABRIK },
+      );
+    });
+  });
+
+  describe('TEST CASE 3: Terminal Credentials Lockout', () => {
+    const torfabrikAdmin = () => authContext(
+      testEnv,
+      'tf-admin-1',
+      TENANTS.TORFABRIK,
+      'admin',
+    );
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'terminalCredentials', 'current'),
+        { tenantId: TENANTS.TORFABRIK, seedVersion: 1 },
+      );
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'pinAttempts', 'some-uid'),
+        { count: 1, tenantId: TENANTS.TORFABRIK },
+      );
+    });
+
+    it('denies admin read/write on terminalCredentials', async () => {
+      const ctx = torfabrikAdmin();
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'terminalCredentials', 'current');
+
+      await expectFirestoreDeny(ctx, path, 'read');
+      await expectFirestoreDeny(ctx, path, 'write', { tenantId: TENANTS.TORFABRIK });
+      await expectFirestoreDeny(ctx, path, 'delete');
+    });
+
+    it('denies admin read/write on pinAttempts', async () => {
+      const ctx = torfabrikAdmin();
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'pinAttempts', 'some-uid');
+
+      await expectFirestoreDeny(ctx, path, 'read');
+      await expectFirestoreDeny(ctx, path, 'write', { count: 99 });
+      await expectFirestoreDeny(ctx, path, 'delete');
+    });
+  });
+
+  describe('TEST CASE 4: Storage Rules & Bulletin Board', () => {
+    const objectPath = bulletinObjectPath(TENANTS.TORFABRIK, 'image.jpg');
+
+    it('allows torfabrik admin bulletin upload (production path: bulletin/)', async () => {
+      const ctx = authContext(testEnv, 'tf-admin-storage', TENANTS.TORFABRIK, 'admin');
+      await expectStorageUploadAllow(ctx, objectPath);
+    });
+
+    it('denies torfabrik employee bulletin upload', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-storage', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadDeny(ctx, objectPath);
+    });
+
+    it('denies torfabrik helper bulletin upload', async () => {
+      const ctx = authContext(testEnv, 'tf-helper-storage', TENANTS.TORFABRIK, 'helper');
+      await expectStorageUploadDeny(ctx, objectPath);
+    });
+
+    it('denies StevesHof admin upload into torfabrik bulletin path', async () => {
+      const ctx = authContext(testEnv, 'sh-admin-storage', TENANTS.STEVES_HOF, 'admin');
+      await expectStorageUploadDeny(ctx, objectPath);
+    });
+
+    it('documents that bulletins/ (plural) is not a configured storage rule path', async () => {
+      const pluralPath = `tenants/${TENANTS.TORFABRIK}/bulletins/image.jpg`;
+      const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TORFABRIK, 'admin');
+      await expectStorageUploadDeny(ctx, pluralPath);
+    });
+  });
+
+  describe('TEST CASE 5: system_errors write-only schema', () => {
+    const torfabrikEmployee = () => authContext(
+      testEnv,
+      'tf-employee-telemetry',
+      TENANTS.TORFABRIK,
+      'employee',
+    );
+
+    function validSystemError(tenantId, overrides = {}) {
+      return {
+        tenantId,
+        errorCode: 'ERR_TEST',
+        message: 'Emulator-Testfehler',
+        timestamp: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    it('allows authenticated client to append a valid system_errors document', async () => {
+      const ctx = torfabrikEmployee();
+      await expectFirestoreAllow(
+        ctx,
+        'system_errors/telemetry-ok',
+        'create',
+        validSystemError(TENANTS.TORFABRIK),
+      );
+    });
+
+    it('denies client read, update, and delete on system_errors', async () => {
+      const ctx = torfabrikEmployee();
+      const path = 'system_errors/telemetry-locked';
+
+      await seedFirestoreDoc(testEnv, path, {
+        tenantId: TENANTS.TORFABRIK,
+        errorCode: 'ERR_SEED',
+        message: 'seed',
+      });
+
+      await expectFirestoreDeny(ctx, path, 'read');
+      await expectFirestoreDeny(ctx, path, 'update', { message: 'changed' });
+      await expectFirestoreDeny(ctx, path, 'delete');
+    });
+
+    it('denies create when tenantId does not match auth token', async () => {
+      const ctx = torfabrikEmployee();
+      await expectFirestoreDeny(
+        ctx,
+        'system_errors/telemetry-cross-tenant',
+        'create',
+        validSystemError(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies create with foreign fields or oversized message', async () => {
+      const ctx = torfabrikEmployee();
+
+      await expectFirestoreDeny(
+        ctx,
+        'system_errors/telemetry-inject',
+        'create',
+        validSystemError(TENANTS.TORFABRIK, { injected: true }),
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        'system_errors/telemetry-flood',
+        'create',
+        validSystemError(TENANTS.TORFABRIK, { message: 'x'.repeat(1000) }),
+      );
+    });
+  });
+
+  describe('TEST CASE 6: pushTokens read lockout', () => {
+    it('denies employee read on pushTokens', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TORFABRIK, 'employee');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'pushTokens', 'token-1');
+
+      await seedFirestoreDoc(testEnv, path, {
+        tenantId: TENANTS.TORFABRIK,
+        token: 'seed-token',
+        employeeName: 'Seed',
+      });
+
+      await expectFirestoreDeny(ctx, path, 'read');
+    });
+  });
+
+  describe('Sanity: environment wiring', () => {
+    it('initializes test environment with project id', () => {
+      expect(testEnv).to.exist;
+      expect(testEnv.emulators?.firestore?.port).to.equal(8080);
+    });
+  });
+});

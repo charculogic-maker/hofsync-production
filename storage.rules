@@ -2,28 +2,67 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // --- HILFSFUNKTIONEN ---
+    // Custom Claims only – mirrors firebase.rules (no firestore.get)
+
     function istAngemeldet() {
       return request.auth != null;
     }
-    
-    function istAdmin() {
-      return istAngemeldet() && request.auth.token.isAdmin == true;
+
+    function tokenTenantId() {
+      return request.auth.token.tenantId is string
+        ? request.auth.token.tenantId
+        : '';
     }
 
-    // --- BULLETIN UPLOADS ---
+    function tokenRole() {
+      return request.auth.token.role is string
+        ? request.auth.token.role
+        : '';
+    }
+
+    function istTenantMitglied(tenantId) {
+      return istAngemeldet() && tokenTenantId() == tenantId;
+    }
+
+    function istAdmin(tenantId) {
+      return istTenantMitglied(tenantId)
+        && (
+          request.auth.token.isAdmin == true
+          || tokenRole() == 'admin'
+        );
+    }
+
+    function istHelper() {
+      return tokenRole() == 'helper';
+    }
+
+    function istMitarbeiter(tenantId) {
+      return istTenantMitglied(tenantId)
+        && !istHelper()
+        && (
+          tokenRole() == 'employee'
+          || istAdmin(tenantId)
+        );
+    }
+
+    function istBildOderPdf() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType == 'application/pdf';
+    }
+
+    function istDateigroesseOk() {
+      return request.resource.size < 12 * 1024 * 1024;
+    }
+
+    // App-Pfad: tenants/{tenantId}/bulletin/… (Singular, siehe teamboard.js)
     match /tenants/{tenantId}/bulletin/{allPaths=**} {
-      allow read: if istAngemeldet();
-      allow write: if istAdmin()
-                   && request.resource.size < 12 * 1024 * 1024
-                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if istTenantMitglied(tenantId);
+      allow write: if istAdmin(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
     match /tenants/{tenantId}/order_slips/{allPaths=**} {
-      allow read: if istAngemeldet();
-      allow write: if istAngemeldet()
-                   && request.resource.size < 12 * 1024 * 1024
-                   && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if istTenantMitglied(tenantId);
+      allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
   }
 }

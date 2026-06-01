@@ -1,4 +1,5 @@
 import { getGlobalTenantId } from './tenant-db.js';
+import { logAndMapOperatorError } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
 const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
@@ -224,6 +225,7 @@ function saveDeadPendingSync(item, error) {
     console.error('[CharcuLogic Offline] Dead-Letter konnte nicht geschrieben werden:', err);
   }
   reportCriticalError({
+    errorCode: 'ERR_SYNC_DEAD_LETTER',
     type: 'dead-letter',
     syncType: item._syncType,
     collectionPath: item._collectionPath,
@@ -297,6 +299,40 @@ export function reportCriticalError(errorContext) {
   saveErrorTelemetryQueue(queue);
 }
 
+function mapTelemetryErrorCode(entry) {
+  const code = String(entry?.errorCode || '').trim();
+  if (code.startsWith('ERR_')) return code.slice(0, 64);
+  if (entry?.type === 'dead-letter') return 'ERR_SYNC_DEAD_LETTER';
+  return 'ERR_CLIENT_TELEMETRY';
+}
+
+function buildTelemetryMessage(entry) {
+  return String(entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler').slice(0, 999);
+}
+
+function buildTelemetryContext(entry) {
+  const parts = [];
+  if (entry?.syncType) parts.push(`sync:${entry.syncType}`);
+  if (entry?.collectionPath) parts.push(entry.collectionPath);
+  if (entry?.docId) parts.push(entry.docId);
+  if (entry?.op) parts.push(`op:${entry.op}`);
+  return parts.join(' · ').slice(0, 500);
+}
+
+function buildSystemErrorDocument(entry, firebase) {
+  const tenantId = currentTenantId() || entry.tenantId;
+  const doc = {
+    tenantId: tenantId && tenantId !== 'unknown' ? tenantId : currentTenantId(),
+    errorCode: mapTelemetryErrorCode(entry),
+    message: buildTelemetryMessage(entry),
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  if (entry?.userId) doc.userId = String(entry.userId).slice(0, 128);
+  const context = buildTelemetryContext(entry);
+  if (context) doc.context = context;
+  return doc;
+}
+
 let telemetryFlushInFlight = false;
 
 export async function flushErrorTelemetry() {
@@ -316,10 +352,12 @@ export async function flushErrorTelemetry() {
   try {
     for (const entry of queue) {
       try {
-        await db.collection('system_errors').add({
-          ...entry,
-          serverTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+        const payload = buildSystemErrorDocument(entry, firebase);
+        if (!payload.tenantId) {
+          remaining.push(entry);
+          continue;
+        }
+        await db.collection('system_errors').add(payload);
       } catch (writeErr) {
         console.warn('[CharcuLogic Telemetrie] system_errors Schreiben fehlgeschlagen:', writeErr);
         remaining.push(entry);
@@ -347,6 +385,21 @@ function isPermissionOrExistsError(err) {
     || code === 'already-exists'
     || code === 'PERMISSION_DENIED'
     || code === 'ALREADY_EXISTS';
+}
+
+export function isPermissionDeniedError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  return code.includes('permission-denied') || code === 'permission-denied';
+}
+
+const permissionToastState = { lastAt: 0 };
+
+function notifyPermissionDeniedToast(collectionPath, docId) {
+  const now = Date.now();
+  if (now - permissionToastState.lastAt < 3500) return;
+  permissionToastState.lastAt = now;
+  console.error('[CharcuLogic Sync] permission-denied', { collectionPath, docId });
+  window.showToast?.(logAndMapOperatorError({ code: 'permission-denied' }, 'sync'), 'error');
 }
 
 class ServerGetFailedError extends Error {
@@ -511,24 +564,51 @@ function withTimeout(promise, ms = WRITE_TIMEOUT_MS) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+export function isCloudReachable() {
+  return Boolean(
+    typeof navigator !== 'undefined' && navigator.onLine
+    && syncContext.isFirebaseReady()
+    && syncContext.getDatabase(),
+  );
+}
+
+/** Badge + Sync-Punkt an aktuellen Netz-/Firebase- und Queue-Stand anpassen. */
+export function refreshSyncConnectivityUi() {
+  if (typeof window.updateOnlineStatusUi === 'function') {
+    window.updateOnlineStatusUi(isCloudReachable());
+  } else {
+    updateSyncIndicator();
+  }
+}
+
 export async function safeServerWrite(collectionPath, payload) {
   const db = syncContext.getDatabase();
   if (!navigator.onLine || !syncContext.isFirebaseReady() || !db) {
-    if (typeof window.updateOnlineStatusUi === 'function') window.updateOnlineStatusUi(false);
+    refreshSyncConnectivityUi();
     throw new NetworkTimeoutError(0);
   }
   const normalized = normalizeTenantCollectionPath(collectionPath);
   try {
-    return await withTimeout(db.collection(normalized).add(payload));
+    const result = await withTimeout(db.collection(normalized).add(payload));
+    refreshSyncConnectivityUi();
+    return result;
   } catch (err) {
-    if (err?.name === 'NetworkTimeoutError' && typeof window.updateOnlineStatusUi === 'function') {
-      window.updateOnlineStatusUi(false);
+    if (err?.name === 'NetworkTimeoutError') {
+      refreshSyncConnectivityUi();
     }
     throw err;
   }
 }
 
-export async function writeFirestoreDocOrQueue({ collectionPath, docId, op = 'update', onlineData = {}, queueData = onlineData, offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfugbar." }) {
+export async function writeFirestoreDocOrQueue({
+  collectionPath,
+  docId,
+  op = 'update',
+  onlineData = {},
+  queueData = onlineData,
+  offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfugbar.",
+  silentPermissionDenied = false,
+}) {
   const db = syncContext.getDatabase();
   if (!collectionPath || !docId) throw new Error('Firestore-Ziel fehlt');
   const normalizedCollectionPath = normalizeTenantCollectionPath(collectionPath);
@@ -547,6 +627,7 @@ export async function writeFirestoreDocOrQueue({ collectionPath, docId, op = 'up
     });
     if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
     window.showToast?.("MHD offline gespeichert (Warteschlange)", "warning");
+    refreshSyncConnectivityUi();
     return 'queued';
   }
 
@@ -587,17 +668,14 @@ export async function writeFirestoreDocOrQueue({ collectionPath, docId, op = 'up
       throw new Error('[QA-Teardown] Simulierter Netzwerk-Abreißer nach Firebase-Trigger');
     }
 
+    refreshSyncConnectivityUi();
     return 'written';
   } catch (err) {
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
-      const hint = normalizedCollectionPath.includes('/tasks')
-        ? 'Team-Eintrag: Betriebs-Login prüfen oder Seite neu laden (Strg+Shift+R).'
-        : '';
-      window.showToast?.(
-        hint ? `Keine Schreibberechtigung. ${hint}` : 'Keine Schreibberechtigung für diesen Datensatz.',
-        'error',
-      );
+      if (!silentPermissionDenied) {
+        notifyPermissionDeniedToast(normalizedCollectionPath, docId);
+      }
       throw err;
     }
     const saved = addPendingSync({
@@ -608,14 +686,11 @@ export async function writeFirestoreDocOrQueue({ collectionPath, docId, op = 'up
       data: syncData,
     });
     if (!saved) throw err;
-    const isTimeout = err?.name === 'NetworkTimeoutError';
-    if (isTimeout && typeof window.updateOnlineStatusUi === 'function') {
-      window.updateOnlineStatusUi(false);
-    }
     const queueToast = isTaskCollectionPath(normalizedCollectionPath)
       ? 'Team-Nachricht in Warteschlange – wird synchronisiert.'
       : 'MHD offline gespeichert (Warteschlange)';
     window.showToast?.(queueToast, 'warning');
+    refreshSyncConnectivityUi();
     return 'queued';
   }
 }
@@ -625,8 +700,14 @@ export async function flushPendingSyncs() {
   flushInFlight = true;
   const queue = getPendingSyncs();
   try {
-    if (!queue.length) return;
-    if (!syncContext.isFirebaseReady() || !syncContext.getDatabase()) return;
+    if (!queue.length) {
+      refreshSyncConnectivityUi();
+      return;
+    }
+    if (!syncContext.isFirebaseReady() || !syncContext.getDatabase()) {
+      refreshSyncConnectivityUi();
+      return;
+    }
     requireTenantId();
 
     const failed = [];
@@ -653,7 +734,7 @@ export async function flushPendingSyncs() {
       }
     }
     savePendingSyncs(failed);
-    updateSyncIndicator();
+    refreshSyncConnectivityUi();
     if (failed.length === 0 && queue.length > 0) {
       window.showToast?.("Alle Offline-Daten synchronisiert!", "success");
     }

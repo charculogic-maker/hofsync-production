@@ -22,6 +22,8 @@ const orderState = {
   allOrders: [],
   lineCounter: 0,
   pendingSlips: [],
+  createInFlight: false,
+  statusUpdateInFlight: false,
 };
 
 function escapeHtml(value) {
@@ -343,6 +345,7 @@ async function handleOrderSlipFiles(fileList) {
 }
 
 async function createOrderFromForm() {
+  if (orderState.createInFlight) return;
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden (Name + PIN).', 'warning');
@@ -422,6 +425,7 @@ async function createOrderFromForm() {
   if (orderSlipAttachments.length) payload.orderSlipAttachments = orderSlipAttachments;
 
   try {
+    orderState.createInFlight = true;
     await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
@@ -439,10 +443,13 @@ async function createOrderFromForm() {
   } catch (err) {
     console.error('[CustomerOrders] Speichern fehlgeschlagen:', err);
     window.showToast?.('Bestellung konnte nicht gespeichert werden.', 'error');
+  } finally {
+    orderState.createInFlight = false;
   }
 }
 
 async function updateOrderStatus(orderId, nextStatus) {
+  if (orderState.statusUpdateInFlight) return;
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
@@ -461,6 +468,7 @@ async function updateOrderStatus(orderId, nextStatus) {
   }
 
   try {
+    orderState.statusUpdateInFlight = true;
     await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
@@ -485,6 +493,8 @@ async function updateOrderStatus(orderId, nextStatus) {
   } catch (err) {
     console.error('[CustomerOrders] Status-Update fehlgeschlagen:', err);
     window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
+  } finally {
+    orderState.statusUpdateInFlight = false;
   }
 }
 

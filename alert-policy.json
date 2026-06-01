@@ -1,0 +1,18 @@
+{
+  "displayName": "Alert: Fleischpreislauf fehlgeschlagen",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Fleischpreis-Fehler im Log gefunden",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_function\" AND resource.labels.function_name=\"fetchWeeklyMeatPrices\" AND textPayload=~\"\\[FLEISCHPREIS_RUN_FAILED\\]\""
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": {
+      "period": "300s"
+    }
+  },
+  "enabled": true
+}

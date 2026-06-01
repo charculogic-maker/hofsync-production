@@ -1,8 +1,11 @@
 const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
+const { requireEmployeeAccess } = require('./authContext');
 
 const DELIVERY_NOTE_MODEL = process.env.GEMINI_DELIVERY_NOTE_MODEL || 'gemini-2.5-flash';
 const ALLOWED_TENANT_ID = 'torfabrik';
+const MAX_IMAGE_BASE64_LENGTH = 16 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const DELIVERY_NOTE_PROMPT = [
   'Du bist ein präziser OCR-Gastro-Parser.',
   'Analysiere diesen Lieferschein (z.B. von Metro oder Jakob Bayen).',
@@ -64,11 +67,22 @@ function resolveGeminiApiKey() {
   return apiKey;
 }
 
-function resolveTenantId(auth) {
-  const token = auth?.token || {};
-  return String(
-    token.tenantId || token.tenant_id || token.tenant || '',
-  ).trim().toLowerCase();
+function validateParsedItems(items) {
+  if (!Array.isArray(items) || items.length === 0 || items.length > 80) {
+    throw new HttpsError('invalid-argument', 'Ungültige Artikelliste aus dem Lieferschein.');
+  }
+  return items.map((line, index) => {
+    const artikel = String(line.artikel || '').trim().slice(0, 200);
+    const kategorie = String(line.kategorie || '').trim().slice(0, 80);
+    const menge = Number(line.menge);
+    if (!artikel) {
+      throw new HttpsError('invalid-argument', `Artikel in Zeile ${index + 1} fehlt.`);
+    }
+    if (!Number.isFinite(menge) || menge <= 0 || menge > 99999) {
+      throw new HttpsError('invalid-argument', `Ungültige Menge in Zeile ${index + 1}.`);
+    }
+    return { artikel, menge, kategorie };
+  });
 }
 
 async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
@@ -103,28 +117,34 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
     throw new HttpsError('invalid-argument', 'Keine Artikel auf dem Lieferschein erkannt.');
   }
 
-  return parsed.map(({ artikel, menge, kategorie }) => ({ artikel, menge, kategorie }));
+  return validateParsedItems(
+    parsed.map(({ artikel, menge, kategorie }) => ({ artikel, menge, kategorie })),
+  );
 }
 
 async function handleParseDeliveryNote(request) {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
-  }
-
-  const tenantId = resolveTenantId(request.auth);
-  if (tenantId !== ALLOWED_TENANT_ID) {
-    throw new HttpsError('permission-denied', 'Lieferschein-Scanner nur für TorFabrik freigeschaltet.');
-  }
+  await requireEmployeeAccess(request.auth, ALLOWED_TENANT_ID);
 
   const imageBase64 = String(request.data?.imageBase64 || '').trim();
-  const mimeType = String(request.data?.mimeType || 'image/jpeg').trim() || 'image/jpeg';
+  const mimeType = String(request.data?.mimeType || 'image/jpeg').trim().toLowerCase() || 'image/jpeg';
 
   if (!imageBase64 || imageBase64.length < 32) {
     throw new HttpsError('invalid-argument', 'Bilddaten fehlen oder sind zu kurz.');
   }
+  if (imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+    throw new HttpsError('invalid-argument', 'Bild ist zu groß (max. 12 MB).');
+  }
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    throw new HttpsError('invalid-argument', 'Dateityp nicht erlaubt.');
+  }
 
   const items = await parseDeliveryNoteImage(imageBase64, mimeType);
-  return { items, model: DELIVERY_NOTE_MODEL, tenantId: ALLOWED_TENANT_ID };
+  return {
+    items,
+    model: DELIVERY_NOTE_MODEL,
+    tenantId: ALLOWED_TENANT_ID,
+    previewOnly: true,
+  };
 }
 
 module.exports = {

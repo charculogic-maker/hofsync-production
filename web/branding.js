@@ -1,19 +1,21 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
 
 const DEFAULT_BRANDING = {
-  appName: 'CharcuLogic',
-  betriebsName: 'StevesHof Hofladen',
-  primaryColor: '#28a745',
-  primaryColorHover: '#218838',
-  darkHeaderBg: '#343a40',
+  appName: 'Betriebs-App',
+  betriebsName: 'Ihr Betrieb',
+  primaryColor: '#64748b',
+  primaryColorHover: '#475569',
+  darkHeaderBg: '#334155',
   textOnHeader: '#ffffff',
   accentAlert: '#dc3545',
-  lightBg: '#f8f9fa',
+  lightBg: '#f1f5f9',
   supportEmail: 'support@charculogic.de',
-  standardBereich: 'Frische & Kühlung',
+  standardBereich: 'Allgemein',
   modules: {
     mhdMonitor: true,
     wareneingang: true,
+    wareneingangMetzgerei: true,
+    rezeptAudit: true,
     wurstkueche: true,
     haccp: true,
     orders: true,
@@ -33,12 +35,16 @@ const TENANT_BRANDING = {
     modules: {
       mhdMonitor: true,
       wareneingang: true,
+      wareneingangMetzgerei: false,
+      rezeptAudit: false,
       wurstkueche: false,
       haccp: true,
       orders: true,
     },
   },
 };
+
+import { readDevFirebaseProjectOverride, readDevTenantOverride } from './dev-guards.js';
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
 
@@ -62,26 +68,6 @@ function readCachedTenantId() {
   } catch (_) {
     return '';
   }
-}
-
-function readDevFirebaseProjectOverride() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('firebase') || params.get('project');
-    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
-    const fromStorage = localStorage.getItem('charculogic_firebase_project');
-    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
-  } catch (_) { /* noop */ }
-  return null;
-}
-
-function readDevTenantOverride() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('tenant') || params.get('tenantId');
-    if (fromQuery) return normalizeTenantKey(fromQuery);
-  } catch (_) { /* noop */ }
-  return '';
 }
 
 function isWhitelabelHostingContext() {
@@ -110,6 +96,12 @@ function resolveEffectiveTenantId(explicitTenantId) {
 function resolveBranding(tenantId) {
   const key = resolveEffectiveTenantId(tenantId);
   const tenantOverrides = key ? TENANT_BRANDING[key] : null;
+  if (!key || !tenantOverrides) {
+    console.warn(
+      '[CharcuLogic Branding] Kein Mandanten-Profil gefunden — neutrale White-Label-Vorlage aktiv. '
+      + 'Bitte TENANT_BRANDING konfigurieren oder anmelden.',
+    );
+  }
   return {
     ...DEFAULT_BRANDING,
     ...(tenantOverrides || {}),

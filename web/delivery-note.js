@@ -3,6 +3,7 @@
  */
 
 import { getAuthContext } from './auth.js';
+import { logAndMapOperatorError } from './operator-errors.js';
 
 const TORFABRIK_TENANT_ID = 'torfabrik';
 
@@ -12,6 +13,8 @@ const deliveryNoteState = {
   showHUD: () => {},
   writeOrQueueFirestore: null,
   pendingItems: [],
+  ocrInFlight: false,
+  saveInFlight: false,
 };
 
 function escapeHtml(value) {
@@ -56,6 +59,7 @@ async function callParseDeliveryNote(imageBase64, mimeType) {
   }
   const functionsRegion = firebase.app().functions('europe-west3');
   const callable = functionsRegion.httpsCallable('parseDeliveryNote');
+  await waitForAppCheckReady();
   const result = await callable({ imageBase64, mimeType });
   return normalizeParsedItems(result?.data?.items);
 }
@@ -124,6 +128,7 @@ function showDeliveryNotePreview(items) {
 }
 
 async function saveDeliveryNoteInventory(items) {
+  if (deliveryNoteState.saveInFlight) return;
   const tenantId = deliveryNoteState.tenantId;
   if (tenantId !== TORFABRIK_TENANT_ID) {
     deliveryNoteState.showHUD('Nur TorFabrik', 'Bestand-Import ist für diesen Mandanten nicht freigeschaltet.', '!');
@@ -144,6 +149,7 @@ async function saveDeliveryNoteInventory(items) {
   }
 
   try {
+    deliveryNoteState.saveInFlight = true;
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       const docId = `${batchId}_${i}`;
@@ -180,12 +186,14 @@ async function saveDeliveryNoteInventory(items) {
     window.showToast?.(`${items.length} Lieferschein-Posten gespeichert.`, 'success');
   } catch (err) {
     console.error('[DeliveryNote] Speichern fehlgeschlagen:', err);
-    window.showToast?.('Speichern fehlgeschlagen.', 'error');
+    window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
+  } finally {
+    deliveryNoteState.saveInFlight = false;
   }
 }
 
 async function handleDeliveryNoteFile(file) {
-  if (!file) return;
+  if (!file || deliveryNoteState.ocrInFlight) return;
   const mimeType = String(file.type || 'image/jpeg').trim() || 'image/jpeg';
   if (!/^image\//i.test(mimeType)) {
     window.showToast?.('Bitte ein Foto (JPG/PNG) wählen.', 'warning');
@@ -194,6 +202,7 @@ async function handleDeliveryNoteFile(file) {
 
   window.showToast?.('Lieferschein wird analysiert…', 'warning');
   try {
+    deliveryNoteState.ocrInFlight = true;
     const imageBase64 = await readFileAsBase64(file);
     const items = await callParseDeliveryNote(imageBase64, mimeType);
     if (!items.length) {
@@ -203,8 +212,9 @@ async function handleDeliveryNoteFile(file) {
     showDeliveryNotePreview(items);
   } catch (err) {
     console.error('[DeliveryNote] OCR fehlgeschlagen:', err);
-    const message = err?.message || 'KI-Analyse fehlgeschlagen.';
-    window.showToast?.(message, 'error');
+    window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
+  } finally {
+    deliveryNoteState.ocrInFlight = false;
   }
 }
 

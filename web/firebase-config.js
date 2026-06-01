@@ -13,6 +13,8 @@ export const FIREBASE_PROJECTS = {
     messagingSenderId: '610455484308',
     appId: '1:610455484308:web:ebb65b005da77124da8181',
     measurementId: 'G-BRTGB862D0',
+    /** reCAPTCHA v3 Site Key – Firebase Console → App Check → Web-App registrieren */
+    appCheckRecaptchaSiteKey: '6LdOjgYtAAAAAI16VAfLgMFbx168IwIL75wQNMTR',
   },
   whitelabel: {
     label: 'charculogic-whitelabel-test',
@@ -23,27 +25,19 @@ export const FIREBASE_PROJECTS = {
     messagingSenderId: '227867568924',
     appId: '1:227867568924:web:627892d5e2ce4e746428d9',
     measurementId: 'G-RTWRWJVFQQ',
+    appCheckRecaptchaSiteKey: '6LdOjgYtAAAAAI16VAfLgMFbx168IwIL75wQNMTR',
   },
 };
+
+import { readDevFirebaseProjectOverride } from './dev-guards.js';
 
 const WHITELABEL_HOST_MARKERS = [
   'charculogic-whitelabel-test.web.app',
   'charculogic-whitelabel-test.firebaseapp.com',
 ];
 
-function readDevProjectOverride() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('firebase') || params.get('project');
-    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
-    const fromStorage = localStorage.getItem('charculogic_firebase_project');
-    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
-  } catch (_) { /* noop */ }
-  return null;
-}
-
 export function resolveFirebaseProjectKey() {
-  const override = readDevProjectOverride();
+  const override = readDevFirebaseProjectOverride();
   if (override) return override;
 
   const host = String(window.location?.hostname || '').toLowerCase();

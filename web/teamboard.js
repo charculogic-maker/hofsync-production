@@ -14,6 +14,15 @@ import {
   readGermanDateField,
   setGermanDateField,
 } from './date-input.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  ACTIVE_AREA_STORAGE_KEY,
+  LEGACY_SHIFT_STORAGE_KEY,
+  scopedTeamboardStorageKey,
+  clearTeamboardTenantStorage,
+} from './teamboard-storage.js';
+
+export { clearTeamboardTenantStorage };
 
 export const TEAM_SOLO_ALL_AREAS = 'Alle meine Bereiche';
 
@@ -52,10 +61,12 @@ export function getTeamEmployeesList() {
 export function getTeamGroupsMap() {
   return getTeamGroups();
 }
-const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
-const ACTIVE_AREA_STORAGE_KEY = 'charculogic_active_area';
-const LEGACY_SHIFT_STORAGE_KEY = 'charculogic_active_shift';
+
 const BULLETIN_DOC_ID = 'current';
+
+function scopedStorageKey(baseKey) {
+  return scopedTeamboardStorageKey(baseKey, teamboardState.tenantId);
+}
 
 const teamboardState = {
   db: null,
@@ -71,6 +82,7 @@ const teamboardState = {
   completedTasks: [],
   allTasks: [],
   historyFilter: '7d',
+  completeTaskInFlight: false,
 };
 
 function escapeHtml(value) {
@@ -226,7 +238,7 @@ function entryKindOf(task) {
 
 export function getActiveEmployeeName() {
   try {
-    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || '').trim();
+    return String(localStorage.getItem(scopedStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY)) || '').trim();
   } catch (_) {
     return '';
   }
@@ -235,9 +247,9 @@ export function getActiveEmployeeName() {
 export function getActiveArea() {
   const options = getTeamAreaOptions();
   try {
-    const stored = String(localStorage.getItem(ACTIVE_AREA_STORAGE_KEY) || '').trim();
+    const stored = String(localStorage.getItem(scopedStorageKey(ACTIVE_AREA_STORAGE_KEY)) || '').trim();
     if (options.includes(stored)) return stored;
-    const legacy = String(localStorage.getItem(LEGACY_SHIFT_STORAGE_KEY) || '').trim();
+    const legacy = String(localStorage.getItem(scopedStorageKey(LEGACY_SHIFT_STORAGE_KEY)) || '').trim();
     if (legacy && getTeamAreasForTenant().includes('Allgemein')) return getDefaultAreaForTenant();
   } catch (_) { /* noop */ }
   return getDefaultAreaForTenant();
@@ -250,8 +262,8 @@ export function getActiveShift() {
 function setActiveArea(area) {
   if (!getTeamAreaOptions().includes(area)) return;
   try {
-    localStorage.setItem(ACTIVE_AREA_STORAGE_KEY, area);
-    localStorage.removeItem(LEGACY_SHIFT_STORAGE_KEY);
+    localStorage.setItem(scopedStorageKey(ACTIVE_AREA_STORAGE_KEY), area);
+    localStorage.removeItem(scopedStorageKey(LEGACY_SHIFT_STORAGE_KEY));
   } catch (_) { /* noop */ }
   window.dispatchEvent(new CustomEvent('charculogic:active-area-changed', { detail: { area } }));
 }
@@ -631,10 +643,11 @@ function bindAreaSelector() {
 function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   try {
+    const key = scopedStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY);
     if (cleanName) {
-      localStorage.setItem(ACTIVE_EMPLOYEE_STORAGE_KEY, cleanName);
+      localStorage.setItem(key, cleanName);
     } else {
-      localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+      localStorage.removeItem(key);
     }
   } catch (_) { /* noop */ }
   window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
@@ -659,7 +672,7 @@ function bindTeamLogin() {
   if (!submit || submit.dataset.teamboardBound === '1') return;
   submit.dataset.teamboardBound = '1';
 
-  submit.addEventListener('click', () => {
+  submit.addEventListener('click', async () => {
     const employee = document.getElementById('team-login-employee')?.value?.trim() || '';
     const pin = document.getElementById('team-login-pin')?.value?.trim() || '';
     if (!employee) {
@@ -670,7 +683,10 @@ function bindTeamLogin() {
       window.showToast?.('Bitte 4-stellige PIN eingeben.', 'warning');
       return;
     }
-    if (!verifyEmployeePin(employee, pin)) {
+    submit.disabled = true;
+    const ok = await verifyEmployeePin(employee, pin);
+    submit.disabled = false;
+    if (!ok) {
       window.showToast?.('Falsche PIN.', 'error');
       return;
     }
@@ -682,6 +698,7 @@ function bindTeamLogin() {
 
   logout?.addEventListener('click', () => {
     setActiveEmployee('');
+    clearTeamboardTenantStorage(teamboardState.tenantId);
     window.showToast?.('Mitarbeiter abgemeldet.', 'warning');
     refreshTeamLoginUi();
     subscribeTasks();
@@ -1194,6 +1211,7 @@ async function saveBulletin() {
 }
 
 async function completeTask(taskId) {
+  if (teamboardState.completeTaskInFlight) return;
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst per PIN als Mitarbeiter anmelden (Scan).', 'warning');
@@ -1208,6 +1226,7 @@ async function completeTask(taskId) {
   };
 
   try {
+    teamboardState.completeTaskInFlight = true;
     teamboardState.playClickSound(520, 0.05, 0.18);
     await writeFirestoreDocOrQueue({
       collectionPath: 'tasks',
@@ -1225,6 +1244,8 @@ async function completeTask(taskId) {
   } catch (err) {
     console.error('[Teamboard] Task abschließen fehlgeschlagen:', err);
     window.showToast?.('Konnte nicht als erledigt markiert werden.', 'error');
+  } finally {
+    teamboardState.completeTaskInFlight = false;
   }
 }
 

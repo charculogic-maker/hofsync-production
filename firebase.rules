@@ -3,61 +3,60 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =========================================================================
-    // GLOBAL AUTH & ROLE FUNCTIONS
+    // GLOBAL AUTH & ROLE FUNCTIONS (Custom Claims only – no Firestore lookups)
     // =========================================================================
 
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function profilePath() {
-      return /databases/$(database)/documents/users/$(request.auth.uid);
+    function tokenTenantId() {
+      return request.auth.token.tenantId is string
+        ? request.auth.token.tenantId
+        : '';
     }
 
-    function userTenantsPath() {
-      return /databases/$(database)/documents/userTenants/$(request.auth.uid);
+    function tokenRole() {
+      return request.auth.token.role is string
+        ? request.auth.token.role
+        : '';
     }
 
-    function profileDocMatchesTenant(data, tenantId) {
-      return (data.tenantId is string && data.tenantId == tenantId)
-        || (data.tenant_id is string && data.tenant_id == tenantId)
-        || (data.tenantID is string && data.tenantID == tenantId);
-    }
-
-    function hasTenantClaim(tenantId) {
+    function isTenantMember(tenantId) {
       return isAuthenticated()
-        && (
-          (request.auth.token.tenantId is string && request.auth.token.tenantId == tenantId)
-          || (request.auth.token.tenant_id is string && request.auth.token.tenant_id == tenantId)
-        );
-    }
-
-    function hasTenantProfile(tenantId) {
-      return isAuthenticated()
-        && (
-          (exists(profilePath()) && profileDocMatchesTenant(get(profilePath()).data, tenantId))
-          || (exists(userTenantsPath()) && profileDocMatchesTenant(get(userTenantsPath()).data, tenantId))
-        );
-    }
-
-    function isTenantUser(tenantId) {
-      return hasTenantClaim(tenantId) || hasTenantProfile(tenantId);
+        && tokenTenantId() == tenantId;
     }
 
     function isAdmin(tenantId) {
-      return isTenantUser(tenantId)
+      return isTenantMember(tenantId)
         && (
-          request.auth.token.role == 'admin'
-          || request.auth.token.admin == true
-          || (
-            exists(profilePath())
-            && get(profilePath()).data.role == 'admin'
-          )
-          || (
-            exists(userTenantsPath())
-            && get(userTenantsPath()).data.role == 'admin'
-          )
+          request.auth.token.isAdmin == true
+          || tokenRole() == 'admin'
         );
+    }
+
+    function isHelper(tenantId) {
+      return isTenantMember(tenantId)
+        && tokenRole() == 'helper';
+    }
+
+    function isEmployee(tenantId) {
+      return isTenantMember(tenantId)
+        && tokenRole() == 'employee';
+    }
+
+    function isEmployeeOrAdmin(tenantId) {
+      return isTenantMember(tenantId)
+        && !isHelper(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isEmployee(tenantId)
+        );
+    }
+
+    // Legacy alias – tenant access requires matching Custom Claim tenantId
+    function isTenantUser(tenantId) {
+      return isTenantMember(tenantId);
     }
 
     // =========================================================================
@@ -122,13 +121,21 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
+    match /tenants/{tenantId}/terminalCredentials/{document} {
+      allow read, write: if false;
+    }
+
+    match /tenants/{tenantId}/pinAttempts/{document} {
+      allow read, write: if false;
+    }
+
     match /tenants/{tenantId}/pushTokens/{tokenId} {
-      allow read: if isTenantUser(tenantId);
-      allow create, update: if isTenantUser(tenantId)
+      allow read: if false;
+      allow create, update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data.token)
         && isNonEmptyString(request.resource.data.employeeName);
-      allow delete: if isTenantUser(tenantId);
+      allow delete: if isEmployeeOrAdmin(tenantId);
     }
 
     // =========================================================================
@@ -138,7 +145,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/mhd_liste/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
           'produkt', 'name', 'marke', 'brand',
@@ -162,7 +169,7 @@ service cloud.firestore {
         && isIntGteZero(request.resource.data.qty)
         && request.resource.data.tenantId == tenantId;
 
-      allow update: if isTenantUser(tenantId)
+      allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
           'produkt', 'name', 'marke', 'brand',
@@ -184,7 +191,7 @@ service cloud.firestore {
           || request.resource.data.tenantId == tenantId
         );
 
-      allow delete: if isTenantUser(tenantId);
+      allow delete: if isEmployeeOrAdmin(tenantId);
     }
 
     // =========================================================================
@@ -194,7 +201,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/inventory/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'artikel', 'menge', 'kategorie',
           'tenantId', 'source', 'batchId', 'createdBy', 'createdAt'
@@ -203,7 +210,7 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId
         && isIntGteZero(request.resource.data.menge);
 
-      allow update: if isTenantUser(tenantId)
+      allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'artikel', 'menge', 'kategorie', 'updatedAt'
         ]);
@@ -214,7 +221,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create, update: if isTenantUser(tenantId)
+      allow create, update: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'id', 'lieferant', 'warenKategorie', 'temperatur',
           'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
@@ -226,7 +233,7 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId
         && isIntGteZero(request.resource.data.itemCount);
 
-      allow delete: if isTenantUser(tenantId);
+      allow delete: if isEmployeeOrAdmin(tenantId);
     }
 
     // =========================================================================
@@ -252,7 +259,7 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/produktion_chargen/{document} {
-      allow read, create: if isTenantUser(tenantId);
+      allow read, create: if isEmployeeOrAdmin(tenantId);
       allow update, delete: if isAdmin(tenantId);
     }
 
@@ -282,7 +289,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/haccp_logs/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'logTyp', 'deviceId', 'deviceName', 'bereich',
           'wert', 'temperatur', 'ph',
@@ -319,7 +326,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/haccp_stale_archive/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data._reason);
 
@@ -359,7 +366,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/tasks/{taskId} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data.title)
         && isNonEmptyString(request.resource.data.author)
@@ -369,7 +376,7 @@ service cloud.firestore {
           || request.resource.data.audienceMembers is list
         );
 
-      allow update: if isTenantUser(tenantId)
+      allow update: if isEmployeeOrAdmin(tenantId)
         && (
           isAdmin(tenantId)
           || isTaskCompletionOnly()
@@ -394,8 +401,8 @@ service cloud.firestore {
     }
 
     function isCustomerOrderStatusUpdate() {
-      return resource.data.tenantId == tenantId
-        && request.resource.data.tenantId == tenantId
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
         ])
@@ -410,7 +417,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/customerOrders/{orderId} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isTenantUser(tenantId)
+      allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'customerName', 'callbackPhone', 'customerEmail', 'readyAt',
           'items', 'additionalWishes', 'orderSlipAttachments', 'inputMode',
@@ -448,7 +455,7 @@ service cloud.firestore {
           )
         );
 
-      allow update: if isTenantUser(tenantId)
+      allow update: if isEmployeeOrAdmin(tenantId)
         && (
           isAdmin(tenantId)
           || isCustomerOrderStatusUpdate()
@@ -462,13 +469,24 @@ service cloud.firestore {
     // =========================================================================
 
     match /system_errors/{document} {
-      allow read: if false;
+      allow read, update, delete: if false;
 
-      allow create: if isAuthenticated()
-        && isNonEmptyString(request.resource.data.type)
-        && request.resource.data.keys().hasAll(['tenantId', 'reportedAt', 'type']);
+      allow create: if request.auth != null
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.keys().hasAll(['tenantId', 'errorCode', 'message', 'timestamp'])
+        && request.resource.data.keys().hasOnly(['tenantId', 'errorCode', 'message', 'timestamp', 'userId', 'context'])
+        && request.resource.data.errorCode is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() < 1000
+        && request.resource.data.timestamp == request.time;
+    }
 
-      allow update, delete: if false;
+    // =========================================================================
+    // PRICE RUNS – Lifecycle-Logging (nur Cloud Functions / Admin SDK)
+    // =========================================================================
+
+    match /priceRuns/{runId} {
+      allow read, write: if false;
     }
   }
 }

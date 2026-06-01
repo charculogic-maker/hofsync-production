@@ -1,4 +1,5 @@
 import {
+  getAuthContext,
   getTenantId,
   initAuthModule,
   isHelperUser,
@@ -9,6 +10,7 @@ import {
   addPendingSync,
   flushErrorTelemetry,
   flushPendingSyncs,
+  refreshSyncConnectivityUi,
   getDeadPendingSyncs,
   getPendingSyncs,
   initSyncEngine,
@@ -31,9 +33,9 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
+  applyReceivingMetzgereiVisibility,
   handleMhdBarcodeScan,
   handleMhdScannerStatus,
-  importMhdBestandToCloud,
   initMhdModule,
   loadMhdFromCloud,
   renderMhdList,
@@ -41,7 +43,6 @@ import {
 import {
   activateBatchesTab,
   activateKitchenTab,
-  importBratwurstRecipesToCloud,
   initProductionModule,
   loadProductionBatchesFromCloud,
   loadRecipesFromCloud,
@@ -75,6 +76,8 @@ import {
   setGlobalTenantId,
 } from './tenant-db.js';
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
+import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
+import { logAndMapOperatorError } from './operator-errors.js';
 
 export {
   getGlobalTenantId,
@@ -184,6 +187,17 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     tab.hidden = !enabled;
     tab.style.display = enabled ? '' : 'none';
   });
+
+  if (typeof applyReceivingMetzgereiVisibility === 'function') {
+    applyReceivingMetzgereiVisibility(branding);
+  }
+
+  const rezeptAuditEnabled = modules.rezeptAudit !== false;
+  const auditCard = document.getElementById('recipe-cloud-audit-card');
+  if (auditCard) {
+    auditCard.hidden = !rezeptAuditEnabled;
+    auditCard.style.display = rezeptAuditEnabled ? '' : 'none';
+  }
 }
 
 function applyRoleBasedUi(authSession) {
@@ -212,6 +226,8 @@ function applyRoleBasedUi(authSession) {
 
   const teamHub = document.getElementById('page-team');
   if (teamHub) teamHub.classList.toggle('role-helper-hidden', isHelper);
+
+  refreshWrsMeatPriceAdminButton();
 }
 
 // --- DARK MODE ---
@@ -333,6 +349,94 @@ const wrsState = {
   fleischpreiseUnsubscribe: null,
   priceSource: 'fallback',
 };
+
+const wrsMeatPriceState = {
+  inFlight: false,
+  bound: false,
+};
+
+function canAdminTriggerMeatPrices() {
+  const ctx = getAuthContext();
+  return ctx?.role === 'admin';
+}
+
+function refreshWrsMeatPriceAdminButton() {
+  const btn = document.getElementById('wrs-meat-price-update-btn');
+  if (!btn) return;
+  btn.style.display = canAdminTriggerMeatPrices() ? 'inline-block' : 'none';
+}
+
+function setWrsMeatPriceButtonLoading(loading) {
+  const btn = document.getElementById('wrs-meat-price-update-btn');
+  if (!btn) return;
+
+  wrsMeatPriceState.inFlight = loading;
+  btn.disabled = loading;
+  btn.classList.toggle('is-loading', loading);
+
+  const label = btn.querySelector('.wrs-meat-price-update-label');
+  if (!label) return;
+
+  if (!btn.dataset.defaultLabel) {
+    btn.dataset.defaultLabel = label.textContent.trim();
+  }
+  label.textContent = loading ? 'Lädt Preise...' : btn.dataset.defaultLabel;
+}
+
+function formatMeatPriceRunError(error) {
+  return logAndMapOperatorError(error, 'meat-prices');
+}
+
+async function callTriggerManualMeatPriceRun() {
+  if (!firebaseReady || typeof firebase === 'undefined') {
+    throw new Error('Firebase ist nicht bereit.');
+  }
+  if (typeof firebase.functions !== 'function') {
+    throw new Error('Firebase Functions SDK nicht geladen.');
+  }
+
+  await waitForAppCheckReady();
+  const functionsRegion = firebase.app().functions('europe-west3');
+  const callable = functionsRegion.httpsCallable('triggerManualMeatPriceRun', { timeout: 120000 });
+  const result = await callable({});
+  return result?.data;
+}
+
+function bindWrsMeatPriceUpdateButton() {
+  const btn = document.getElementById('wrs-meat-price-update-btn');
+  if (!btn || wrsMeatPriceState.bound) return;
+  wrsMeatPriceState.bound = true;
+
+  btn.addEventListener('click', async () => {
+    if (wrsMeatPriceState.inFlight) return;
+    if (!canAdminTriggerMeatPrices()) {
+      showToast('Nur Admins dürfen Fleischpreise manuell aktualisieren.', 'error');
+      return;
+    }
+
+    const confirmed = confirm(
+      'Möchtest du die Marktpreise für Fleisch wirklich JETZT live abfragen und die aktuellen Wochenwerte überschreiben?',
+    );
+    if (!confirmed) return;
+
+    playClickSound(700, 0.04, 0.1);
+    setWrsMeatPriceButtonLoading(true);
+    setWrsStatus('Preise…', 'ok');
+
+    try {
+      await callTriggerManualMeatPriceRun();
+      showToast('Marktpreise erfolgreich aktualisiert!', 'success');
+      subscribeFleischpreise();
+      setWrsStatus('Bereit', 'ok');
+    } catch (err) {
+      console.error('[CharcuLogic WRS] Fleischpreis-Lauf fehlgeschlagen:', err);
+      showToast(formatMeatPriceRunError(err), 'error');
+      setWrsStatus('Fehler', 'error');
+    } finally {
+      setWrsMeatPriceButtonLoading(false);
+    }
+  });
+}
 
 async function loadWrsFallbackData() {
   const response = await fetch('/data/beffe_data.json', { cache: 'no-store' });
@@ -512,6 +616,9 @@ async function initWrsModule() {
       playClickSound(900, 0.04, 0.12);
       calculateAndRenderWrs();
     });
+
+    bindWrsMeatPriceUpdateButton();
+    refreshWrsMeatPriceAdminButton();
 
     calculateAndRenderWrs();
     setWrsStatus('Fallback', 'ok');
@@ -901,12 +1008,12 @@ function updateOnlineStatusUi(isOnline) {
 window.updateOnlineStatusUi = updateOnlineStatusUi;
 
 window.addEventListener('online', () => {
-  updateOnlineStatusUi(true);
+  refreshSyncConnectivityUi();
   flushPendingSyncs();
   flushErrorTelemetry();
 });
 window.addEventListener('offline', () => {
-  updateOnlineStatusUi(false);
+  refreshSyncConnectivityUi();
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -925,7 +1032,7 @@ document.addEventListener('visibilitychange', () => {
     }
     return;
   }
-  updateSyncIndicator();
+  refreshSyncConnectivityUi();
   flushPendingSyncs();
   flushErrorTelemetry();
 });
@@ -1158,7 +1265,6 @@ if ('serviceWorker' in navigator) {
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
   applyBranding();
-  updateOnlineStatusUi(navigator.onLine);
 
   if (!initFirebase()) {
     setSyncStatus('offline');
@@ -1167,7 +1273,17 @@ async function bootstrapAuthenticatedApp() {
     return;
   }
 
-  setSyncStatus('online');
+  try {
+    await initAppCheckModule();
+  } catch (err) {
+    console.error('[CharcuLogic AppCheck] Initialisierung fehlgeschlagen:', err);
+    showHUD(
+      'App Check nicht aktiv',
+      'KI-Scanner und PIN-Prüfung sind gesperrt, bis reCAPTCHA v3 konfiguriert ist.',
+      '!',
+    );
+  }
+
   initAuthModule(firebase, db, { showHUD });
   const authSession = await waitForAuthReady();
   if (typeof window.applyResolvedBranding === 'function') {
@@ -1234,16 +1350,16 @@ async function bootstrapAuthenticatedApp() {
 
   updateSyncIndicator();
   loadMhdFromCloud();
-  importMhdBestandToCloud();
-  if (authSession?.isAdmin) {
-    importBratwurstRecipesToCloud().then(() => loadRecipesFromCloud());
-  } else {
+  const recipeModuleEnabled = window.BRANDING?.modules?.wurstkueche !== false;
+  if (recipeModuleEnabled) {
     loadRecipesFromCloud();
   }
   loadProductionBatchesFromCloud();
-  flushPendingSyncs();
+  await flushPendingSyncs();
   flushErrorTelemetry();
   subscribeFleischpreise();
+  refreshWrsMeatPriceAdminButton();
+  refreshSyncConnectivityUi();
 }
 
 // ============================================================================
@@ -1346,7 +1462,7 @@ applyBranding();
 initWrsModule();
 
 bootstrapAuthenticatedApp().catch((err) => {
-  setSyncStatus('offline');
+  refreshSyncConnectivityUi();
   console.error('[CharcuLogic Auth] App-Start nach Auth fehlgeschlagen:', err);
   showHUD('HofSync wird initialisiert', 'Mandantendaten konnten noch nicht geladen werden.', '!');
 });

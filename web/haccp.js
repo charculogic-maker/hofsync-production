@@ -1,3 +1,4 @@
+import { isPermissionDeniedError } from './sync.js';
 import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 
 const DEFAULT_HACCP_DEVICES = [
@@ -95,8 +96,12 @@ export function activateHaccpTab() {
   renderHaccpDaily();
 }
 
+function resolveHaccpTenantId() {
+  return getGlobalTenantId() || haccpState.tenantId || '';
+}
+
 function haccpCollectionPath() {
-  const tenantId = getGlobalTenantId() || haccpState.tenantId;
+  const tenantId = resolveHaccpTenantId();
   if (!tenantId) return null;
   try {
     return getTenantCollectionPath('haccp_logs');
@@ -106,7 +111,7 @@ function haccpCollectionPath() {
 }
 
 function haccpDevicesCollectionPath() {
-  const tenantId = getGlobalTenantId() || haccpState.tenantId;
+  const tenantId = resolveHaccpTenantId();
   if (!tenantId) return null;
   try {
     return getTenantCollectionPath('haccp_geraete');
@@ -155,7 +160,7 @@ async function seedDefaultHaccpDevicesIfEmpty() {
   const batch = haccpState.db.batch();
   DEFAULT_HACCP_DEVICES.forEach((device) => {
     const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
-    batch.set(ref, { ...device, tenantId: haccpState.tenantId, createdAt: serverTimestamp() });
+    batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
   });
   await batch.commit();
 }
@@ -164,7 +169,6 @@ function loadHaccpDevicesFromCloud() {
   if (!haccpState.db) return;
   const path = haccpDevicesCollectionPath();
   if (!path) return;
-  seedDefaultHaccpDevicesIfEmpty().catch((err) => console.warn('[CharcuLogic HACCP] Default-Geräte konnten nicht angelegt werden:', err));
   if (haccpState.devicesUnsubscribe) {
     haccpState.devicesUnsubscribe();
     haccpState.devicesUnsubscribe = null;
@@ -212,9 +216,12 @@ async function saveHaccpLog(entry) {
   const path = haccpCollectionPath();
   if (!path || !haccpState.writeOrQueueFirestore) return;
 
+  const tenantId = resolveHaccpTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt — HACCP-Protokoll kann nicht gespeichert werden.');
+
   const fullEntry = {
     ...entry,
-    tenantId: haccpState.tenantId,
+    tenantId,
     datum: new Date().toISOString().slice(0, 10),
   };
   const docId = createHaccpLogId(fullEntry);
@@ -230,9 +237,14 @@ async function saveHaccpLog(entry) {
     });
   } catch (err) {
     const code = err?.code || '';
-    if (code === 'permission-denied' || code === 'already-exists') {
-      console.warn(`[CharcuLogic HACCP] ${code} für ${docId} — Retry-Konflikt, wird als erledigt behandelt.`);
+    if (code === 'already-exists') {
+      console.warn(`[CharcuLogic HACCP] ${code} für ${docId} — bereits vorhanden.`);
       haccpState.showHUD("Bereits erfasst", "Dieser Protokolleintrag existiert bereits auf dem Server.");
+      return;
+    }
+    if (isPermissionDeniedError(err)) {
+      console.warn(`[CharcuLogic HACCP] permission-denied für ${docId}`);
+      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte Admin-Rolle oder Firestore-Rules prüfen.", "!");
       return;
     }
     console.warn('[CharcuLogic HACCP] Speichern fehlgeschlagen:', err);
@@ -263,9 +275,13 @@ async function saveTemperatureCheck(deviceId) {
     haccpState.showHUD(status.ok ? "Temperatur OK" : "Abweichung gespeichert", `${device.name}: ${value} ${device.einheit || '°C'}`);
   } catch (err) {
     const code = err?.code || '';
-    if (code === 'permission-denied' || code === 'already-exists') {
+    if (code === 'already-exists') {
       haccpState.onFormSaved([`temp-${safeDomId(deviceId)}`, `note-${safeDomId(deviceId)}`]);
       haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
+      return;
+    }
+    if (isPermissionDeniedError(err)) {
+      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden (Rules/Admin).", "!");
       return;
     }
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
@@ -290,9 +306,13 @@ async function saveCleaningCheck(deviceId) {
     haccpState.showHUD("Reinigung erfasst", `${device.name} wurde dokumentiert.`);
   } catch (err) {
     const code = err?.code || '';
-    if (code === 'permission-denied' || code === 'already-exists') {
+    if (code === 'already-exists') {
       haccpState.onFormSaved([`clean-note-${safeDomId(deviceId)}`]);
       haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
+      return;
+    }
+    if (isPermissionDeniedError(err)) {
+      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden (Rules/Admin).", "!");
       return;
     }
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
@@ -347,7 +367,7 @@ function addHaccpDeviceFromForm() {
       einheit: protokollTyp === 'temperatur' ? '°C' : '',
       intervall: protokollTyp === 'temperatur' ? 'taeglich' : 'nach_benutzung',
       aktiv: true,
-      tenantId: haccpState.tenantId,
+      tenantId: resolveHaccpTenantId(),
     };
     await haccpState.writeOrQueueFirestore({
       collectionPath: path,
