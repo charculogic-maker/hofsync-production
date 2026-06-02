@@ -16,22 +16,14 @@ web/branding.js
 
 ### Betriebsname anpassen
 
-Öffne die Datei und passe mindestens diese Felder an:
+Öffne die Datei und trage den neuen Mandanten unter **`TENANT_BRANDING`** ein (Schlüssel = `tenantId`):
 
 | Feld | Wirkung |
 |------|---------|
 | `betriebsName` | Name im Header, Login-Screen und als **voller App-Name** auf dem Homescreen (PWA) |
 | `appName` | Kurzname in der Navigationsleiste und als **Icon-Beschriftung** unter dem App-Symbol |
 
-**Beispiel:**
-
-```javascript
-const BRANDING = {
-  appName: "HofSync",
-  betriebsName: "Metzgerei Müller",
-  // …
-};
-```
+> **Pflicht:** Ohne Eintrag in `TENANT_BRANDING` greift nur die neutrale White-Label-Vorlage (`DEFAULT_BRANDING`, z. B. „Betriebs-App“) — kein fremder Betriebsname wird mehr angezeigt. Die Browser-Konsole warnt: *Kein Mandanten-Profil gefunden*.
 
 ### Farben – gesamtes UI & PWA-Icon
 
@@ -42,28 +34,21 @@ Die Farbvariablen steuern Look & Feel der App **ohne CSS anfassen zu müssen**:
 | `primaryColor` | Buttons, Akzente, **Statusleiste**, Browser-Tab (`theme-color`) und **PWA-Rahmenfarbe** auf dem Homescreen |
 | `lightBg` | Hintergrund beim App-Start und im PWA-Manifest (`background_color`) |
 
-**Beispiel für einen roten Metzgerei-Look:**
+**Beispiel:**
 
 ```javascript
-const BRANDING = {
-  appName: "HofSync",
-  betriebsName: "Metzgerei Müller",
-
-  primaryColor: "#c62828",   // Rot – Buttons, Theme-Leiste, PWA-Akzent
-  lightBg: "#fff8f8",        // Heller Hintergrund beim Laden
-
-  supportEmail: "info@metzgerei-mueller.de",
-  standardBereich: "Frische & Kühlung",
-
-  modules: {
-    mhdMonitor: true,
-    wareneingang: true,
-    wurstkueche: true,
-    haccp: true,
-    orders: true,
+const TENANT_BRANDING = {
+  metzgerei_mueller: {
+    appName: "HofSync",
+    betriebsName: "Metzgerei Müller",
+    primaryColor: "#c62828",
+    lightBg: "#fff8f8",
+    modules: { mhdMonitor: true, wareneingang: true, wurstkueche: true, haccp: true, orders: true },
   },
 };
 ```
+
+Die Modul-Flags können auch ein bewusst schlankes Terminalprofil abbilden. Beispiel StevesHof Hofladen: `mhdMonitor`, `wareneingang` und `wurstkueche` sind aktiv; `teamboard`, `orders`, `wareneingangMetzgerei`, `haccp` und `batches` bleiben deaktiviert.
 
 **So wirken die Farben technisch:**
 
@@ -77,7 +62,7 @@ const BRANDING = {
 
 ## 🗄️ Schritt 2: Den Mandanten in der Datenbank anlegen
 
-Jeder Betrieb bekommt eine eigene **`tenantId`** (z. B. `metzgerei_mueller`).  
+Jeder Betrieb bekommt eine eigene **`tenantId`** (z. B. `metzgerei_mueller`).
 Regeln: **klein schreiben**, **Unterstriche statt Leerzeichen**, keine Sonderzeichen.
 
 ### 2a · Firebase Authentication – Admin-Nutzer anlegen
@@ -110,7 +95,17 @@ Regeln: **klein schreiben**, **Unterstriche statt Leerzeichen**, keine Sonderzei
 
 > **Wichtig:** Das Profil kann **nicht aus der App heraus** geschrieben werden (`users/{uid}` ist schreibgeschützt). Anlegen nur über Firebase Console oder Admin SDK.
 
-Beim ersten Login liest `web/auth.js` dieses Dokument, setzt die Mandanten-ID und öffnet den Zugang zum Betrieb.
+### 2c · Custom Claims setzen (Pflicht für Rules)
+
+Firestore-Rules prüfen **ausschließlich** `request.auth.token.tenantId` und `request.auth.token.role` — nicht das Firestore-Profil allein.
+
+Nach Anlage des Admin-Nutzers Claims synchronisieren:
+
+```bash
+node tools/set-user-claims.mjs --uid=<UID> --project=<PROJECT_ID>
+```
+
+Beim ersten Login liest `web/auth.js` Claims (und ggf. Profil als Fallback für die UI), setzt die Mandanten-ID und öffnet den Zugang zum Betrieb.
 
 ### 🔒 Sicherheit – Mandantentrennung
 
@@ -128,7 +123,7 @@ Beispiele:
 /tenants/metzgerei_mueller/rezepte/…
 ```
 
-Die Firestore-Rules in `firebase.rules` erlauben Lese-/Schreibzugriff **nur**, wenn der angemeldete Nutzer zur gleichen `tenantId` gehört. Betrieb A sieht **niemals** die Daten von Betrieb B – auch nicht bei versehentlich falscher Konfiguration im Frontend.
+Die Firestore-Rules in `firebase.rules` erlauben Lese-/Schreibzugriff **nur**, wenn `request.auth.token.tenantId` dem Pfad-Mandanten entspricht. Payload-Manipulation (falsche `tenantId` im JSON) oder URL-Tricks werden serverseitig abgewiesen. Betrieb A sieht **niemals** die Daten von Betrieb B.
 
 ---
 
@@ -158,7 +153,16 @@ Im Projektroot liegt die Datei **`.firebaserc`**. Sie mappt **Alias-Namen** auf 
 1. [Firebase Console](https://console.firebase.google.com/) → **Add project**.
 2. Authentication (E-Mail/Passwort), Firestore und Storage aktivieren.
 3. Project ID notieren und in `.firebaserc` eintragen.
-4. In `web/app.js` das Objekt **`firebaseConfig`** mit den Werten aus **Project settings → Your apps → Web app** ersetzen.
+4. In **`web/firebase-config.js`** die Web-App-Konfiguration und **`appCheckRecaptchaSiteKey`** eintragen (Project settings → Your apps → Web app).
+
+### 3a-bis · App Check (reCAPTCHA v3) — Pflicht
+
+Ohne gültigen App-Check-Site-Key startet die App **nicht** in den Callable-Modus (harte Blockade in `web/app-check.js`).
+
+1. Firebase Console → **App Check** → Web-App registrieren.
+2. Provider **reCAPTCHA v3** → Site Key kopieren.
+3. In `web/firebase-config.js` unter `appCheckRecaptchaSiteKey` eintragen (kein `REPLACE_`-Platzhalter).
+4. Debug-Token für lokale Entwicklung registrieren (siehe [docs/TECHNIK_BACKEND.md §4.5](docs/TECHNIK_BACKEND.md)).
 
 ### 3b · Online bringen – Terminal-Befehle
 
@@ -171,40 +175,53 @@ firebase login
 # Alias des neuen Betriebs aktivieren
 firebase use metzgerei_mueller
 
-# App + Regeln deployen
-firebase deploy --only hosting,firestore,storage
+# Pre-Deploy-Validierung (Service-Worker-Guard, Syntax, PWA)
+npm run build
+
+# Standard-Release: Rules + Functions + Hosting
+firebase deploy --only "firestore:rules,functions,hosting"
+
+# Storage-Rules separat (bei Bedarf)
+firebase deploy --only storage
 ```
 
 | Befehl | Was passiert |
 |--------|--------------|
+| `npm run build` | 6 Checks inkl. **Service-Worker-Version-Guard** — bei Änderungen an `app.js`/`mhd.js`/`index.html` muss `CACHE_NAME` in `web/sw.js` erhöht werden |
 | `firebase use <alias>` | Schaltet CLI auf das richtige Firebase-Projekt |
-| `firebase deploy --only hosting,firestore,storage` | Lädt PWA hoch, rollt Security-Rules aus, aktiviert Datei-Uploads |
+| `firebase deploy --only "firestore:rules,functions,hosting"` | Rules, Cloud Functions (App-Check-Gateway) und PWA |
 
-**Optional – Cloud Functions (Push, KI-Fleischpreise):**
+**Optional — nur Hosting nach Frontend-Fix:**
 
 ```bash
-firebase deploy --only functions
+npm run build && firebase deploy --only hosting
 ```
 
 ### 3c · Checkliste nach dem Deploy
 
-- [ ] `web/branding.js` angepasst (Name + Farben)
-- [ ] `web/app.js` → `firebaseConfig` zeigt auf das richtige Projekt
+- [ ] `web/branding.js` → `TENANT_BRANDING[<tenantId>]` angepasst (Name + Farben)
+- [ ] `web/firebase-config.js` → Projekt-Keys + **`appCheckRecaptchaSiteKey`**
+- [ ] Firebase Console → App Check → Web-App registriert, Enforcement aktiv
+- [ ] Custom Claims gesetzt (`node tools/set-user-claims.mjs …`)
 - [ ] Admin-Nutzer in Authentication angelegt
 - [ ] `users/{uid}` mit `role` + `tenantId` in Firestore
+- [ ] `npm run build` grün; bei Frontend-Änderungen `web/sw.js` → `CACHE_NAME` erhöht
 - [ ] App-URL aus Firebase Hosting öffnen → Login testen
 - [ ] Auf dem Handy: **„Zum Home-Bildschirm hinzufügen“** → Branding prüfen
+- [ ] Optional: `cd functions && npm run test:security`
 
 ---
 
 ## Kurzreferenz
 
 ```text
-Branding     →  web/branding.js
-Firebase-Keys → web/app.js (firebaseConfig)
-Mandant-ID   →  Firestore: users/{uid}.tenantId
-Datenpfad    →  /tenants/{tenantId}/…
-Deploy       →  firebase use <alias> && firebase deploy --only hosting,firestore,storage
+Branding      →  web/branding.js (TENANT_BRANDING)
+Firebase-Keys →  web/firebase-config.js (+ appCheckRecaptchaSiteKey)
+Mandant-ID    →  Custom Claims tenantId + Firestore users/{uid}
+Datenpfad     →  /tenants/{tenantId}/…
+Terminal-Keys →  web/teamboard-storage.js ({tenantId}_…)
+Build         →  npm run build
+Deploy        →  firebase use <alias> && firebase deploy --only "firestore:rules,functions,hosting"
 ```
 
 Bei Fragen zur Architektur: [docs/TECHNIK_BACKEND.md](docs/TECHNIK_BACKEND.md)

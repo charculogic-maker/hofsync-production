@@ -4,6 +4,20 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [v1.2.0] - 2026-06-02
+
+### Sicherheit & Multi-Tenancy (P0-Release)
+
+- **App Check Pflicht:** reCAPTCHA v3 via Compat SDK (`web/app-check.js`); harte Initialisierungsblockade bei fehlenden Site Keys; Gateway auf Callables (`enforceAppCheck: true`).
+- **Mandantenisolation:** Firestore-Rules strikt claim-gesteuert (`request.auth.token.tenantId`); `system_errors` Write-Only-Schema; `pushTokens` Client-Read gesperrt.
+- **Fleischpreis-Engine:** Callable `triggerManualMeatPriceRun` nutzt Token-`tenantId` — kein Cross-Tenant-Schreiben mehr.
+- **Shared Terminals:** `web/teamboard-storage.js` — localStorage-Keys mit `{tenantId}_`-Prefix; Cleanup beim Logout.
+- **Operator-UX:** `web/operator-errors.js` — deutsche Toast-Texte; Anti-Double-Click-Locks auf kritischen Schreibpfaden.
+- **Build-Pipeline:** `npm run build` mit Service-Worker-Version-Guard (`tools/check-web-app.mjs`).
+- **Security-Tests:** Vitest-Suite `functions/tests/security.test.js`; erweiterte Rules-Tests für `system_errors` und `pushTokens`.
+
+---
+
 ## [v1.1.0] - 2026-05-29
 
 ### Hinzugefügt (White-Label & Multi-Tenant)

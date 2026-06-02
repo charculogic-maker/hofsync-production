@@ -114,10 +114,6 @@
 }
 
 [data-theme="dark"] {
-  --primary-color: #5cb85c;
-  --primary-color-hover: #449d44;
-  --dark-header-bg: #1C1C1E;
-  --accent-alert: #e57373;
   --accent-action: #ffd54f;
   --light-bg: #2C2C2E;
   --header-text: #F5F5F7;
@@ -3078,6 +3074,24 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   background: var(--alert-tint-bg);
   color: var(--alert-on-light);
   font-weight: 900;
+}
+
+.recent-receipt-actions {
+  display: grid;
+  grid-template-columns: 1fr 0.68fr 1fr;
+  gap: 6px;
+}
+
+.recent-receipt-action {
+  min-width: 0;
+  min-height: 40px;
+  padding: 4px 5px;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 800;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .learn-mode-title {

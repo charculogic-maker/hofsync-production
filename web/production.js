@@ -4745,6 +4745,20 @@ export function initProductionModule(databaseInstance, writeOrQueueFirestoreFunc
   restoreProductionDraftFields();
 }
 
+export function disableProductionModule() {
+  if (productionState.recipesUnsubscribe) {
+    productionState.recipesUnsubscribe();
+    productionState.recipesUnsubscribe = null;
+  }
+  if (productionState.productionBatchesUnsubscribe) {
+    productionState.productionBatchesUnsubscribe();
+    productionState.productionBatchesUnsubscribe = null;
+  }
+  productionState.recipes = [];
+  productionState.productionBatches = [];
+  productionState.tenantId = '';
+}
+
 function restoreProductionDraftFields() {
   productionState.restoreDraftFields(PRODUCTION_FORM_FIELDS);
 }

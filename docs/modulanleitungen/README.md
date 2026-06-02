@@ -1,6 +1,6 @@
 # Modulanleitungen – CharcuLogic / CenterLogic / HofSync
 
-Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). Screenshots zeigen überwiegend die **StevesHof**-Oberfläche; Funktionen sind mandantenübergreifend gleich, einzelne Tabs können pro Betrieb fehlen (z. B. **Prod.** bei TorFabrik).
+Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). Screenshots zeigen überwiegend die **StevesHof**-Oberfläche aus einer früheren Vollansicht. Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen. Im aktuellen StevesHof-Hofladen-Profil sind **MHD**, **Neu** und **Prod.** aktiv.
 
 | Modul | Tab (Leiste) | Details |
 |-------|----------------|---------|
@@ -29,6 +29,10 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 |-------|--------|
 | `00-start.png` | Start: Anmeldung, Nachricht des Tages, Aufgaben |
 | `07-team.png` | Team: Nachrichten & Bestellungen |
+| `steveshof-01-mhd-start.png` | StevesHof: aktueller MHD-Start |
+| `steveshof-02-neu-wareneingang.png` | StevesHof: aktueller Laden-Wareneingang |
+| `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: Kategorie-Korrektur unter Letzte Eingänge |
+| `steveshof-04-prod.png` | StevesHof: aktueller Prod.-Tab |
 | `01-mhd-monitor.png` | MHD: Filter & Toolbar |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |
@@ -56,8 +60,18 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 
 2. Im Browser öffnen: **http://127.0.0.1:5173/index.html** (nicht `http://[::]:5173/` – das führt unter Windows oft zu `ERR_ADDRESS_INVALID`).
 
-3. Im Projektroot: `node tools/capture-module-screenshots.mjs`
+3. Im Projektroot:
 
-Detail-Screenshots nutzen **Beispieldaten** (Demo-Karten, Mock-Listen), wenn Firebase offline ist – für die Schulung reicht das. Mit Live-Daten sehen die Listen in Produktion genauso aus, nur mit echten Einträgen.
+   ```bash
+   # Vollständige Modul-Übersicht (alle Tabs)
+   npm run screenshots:modules
 
-Die Übersichts-Screenshots werden **ohne Betriebs-Login-Overlay** erstellt (nur Doku). In Produktion kann zusätzlich der **Betriebs-Login** (PIN auf App-Ebene) erscheinen – danach wie gewohnt unter **Start** mit Mitarbeitername anmelden.
+   # StevesHof Hofladen (nur MHD · Neu · Prod., ohne PIN-Karte)
+   npm run screenshots:steveshof
+   ```
+
+   StevesHof-Aufnahmen landen in `screenshots/steveshof-*.png` und werden in [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) eingebunden.
+
+Detail-Screenshots nutzen **Beispieldaten** (Demo-Karten, Mock-Listen), wenn Firebase offline ist – für die Schulung reicht das. Mit Live-Daten sehen die Listen in Produktion genauso aus, nur mit echten Einträgen (z. B. echte Rezeptliste unter **Prod.**).
+
+Die StevesHof-Screenshots simulieren den **Hofladen-Terminalmodus**: braunes Branding, drei Tabs, keine Mitarbeiter-PIN-Karte, kein Logout-Button.

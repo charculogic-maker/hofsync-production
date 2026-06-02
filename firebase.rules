@@ -54,6 +54,10 @@ service cloud.firestore {
         );
     }
 
+    function hasWurstkuecheModule(tenantId) {
+      return tenantId != 'torfabrik';
+    }
+
     // Legacy alias – tenant access requires matching Custom Claim tenantId
     function isTenantUser(tenantId) {
       return isTenantMember(tenantId);
@@ -241,8 +245,10 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/rezepte/{document} {
-      allow read: if isTenantUser(tenantId);
-      allow write: if isAdmin(tenantId);
+      allow read: if isTenantUser(tenantId)
+        && hasWurstkuecheModule(tenantId);
+      allow write: if isAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
     }
 
     // =========================================================================
@@ -259,8 +265,10 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/produktion_chargen/{document} {
-      allow read, create: if isEmployeeOrAdmin(tenantId);
-      allow update, delete: if isAdmin(tenantId);
+      allow read, create: if isEmployeeOrAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
+      allow update, delete: if isAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
     }
 
     // =========================================================================

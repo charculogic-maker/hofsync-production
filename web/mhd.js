@@ -194,6 +194,7 @@ const mhdState = {
   closeScanner: () => {},
   onFormSaved: () => {},
   restoreDraftFields: () => 0,
+  terminalEmployeeName: '',
   initialized: false,
 };
 
@@ -415,6 +416,15 @@ function applyLastReceivingHeadCategory() {
   }
 }
 
+function setReceivingCategoryLocked(locked) {
+  const categorySelect = document.getElementById('we-category-quick');
+  if (!categorySelect) return;
+  categorySelect.disabled = Boolean(locked);
+  categorySelect.title = locked
+    ? 'Kategorie bleibt für diesen Posten fixiert.'
+    : 'Kategorie für die folgenden Scans auswählen.';
+}
+
 function parseReceivingQty(rawValue, qtyUnit = 'Stk') {
   const trimmed = String(rawValue ?? '').trim();
   if (!trimmed) return 1;
@@ -485,10 +495,10 @@ function openReceivingManualCreateForm() {
 
 function getActiveEmployee() {
   try {
-    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || '').trim();
+    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || mhdState.terminalEmployeeName || '').trim();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gelesen werden:', err);
-    return '';
+    return mhdState.terminalEmployeeName;
   }
 }
 
@@ -963,7 +973,8 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   const info = lookupScannedProduct(code);
   if (info?.name) {
     currentDeliveryItemProduct = String(info.name).trim();
-    if (info.category) {
+    const selectedCategory = document.getElementById('we-category-quick')?.value || '';
+    if (!selectedCategory && info.category) {
       const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
       const categorySelect = document.getElementById('we-category-quick');
       if (mappedCategory && categorySelect) {
@@ -989,6 +1000,7 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   }
 
   updateDeliveryItemProductUi();
+  setReceivingCategoryLocked(true);
   applyTorfabrikFassMhdSuggestion();
   setReceivingMode('schnell');
   return true;
@@ -1626,7 +1638,7 @@ function openPostenHistory(prodId) {
     <p class="learn-mode-desc">${escapeHtml(prod.name || prod.produkt || 'Produkt')} · Barcode ${escapeHtml(barcode)}</p>
     <div class="utility-list">
       ${posten.map((entry) => `
-        <div class="utility-row">
+        <div class="utility-row recent-receipt-row">
           <div class="utility-row-title">${escapeHtml(entry.name || entry.produkt || 'Posten')}</div>
           <div class="utility-row-meta">
             MHD: ${escapeHtml(entry.mhd || entry.mhdDate || entry.date || '-')} · Resttage: ${escapeHtml(entry.tage ?? entry.resttage ?? '-')} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}
@@ -2137,14 +2149,68 @@ function showRecentReceipts() {
         <div class="utility-row">
           <div class="utility-row-title">${escapeHtml(entry.name || entry.produkt || 'Posten')}</div>
           <div class="utility-row-meta">Barcode: ${escapeHtml(entry.ean || entry.barcode || '-')} · MHD: ${escapeHtml(entry.mhd || entry.mhdDate || '-')} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}</div>
-          <div class="utility-row-actions">
-            <button class="btn-danger-small" data-mhd-utility-command="delete" data-mhd-id="${entry.id}">Löschen</button>
-            <button class="btn-danger-small" data-mhd-utility-command="history" data-mhd-id="${entry.id}">Posten ansehen</button>
+          <label class="utility-row-meta" for="recent-receipt-category-${escapeHtml(entry.id)}">Kategorie</label>
+          <select class="input-text-touch" id="recent-receipt-category-${escapeHtml(entry.id)}" data-mhd-receipt-category="${escapeHtml(entry.id)}">
+            ${renderReceivingCategoryOptions(entry.warenKategorie || entry.kategorie)}
+          </select>
+          <div class="utility-row-actions recent-receipt-actions">
+            <button class="btn btn-secondary recent-receipt-action recent-receipt-action--save" data-mhd-utility-command="category-save" data-mhd-id="${entry.id}">Kategorie speichern</button>
+            <button class="btn-danger-small recent-receipt-action" data-mhd-utility-command="delete" data-mhd-id="${entry.id}">Löschen</button>
+            <button class="btn-danger-small recent-receipt-action" data-mhd-utility-command="history" data-mhd-id="${entry.id}">Posten ansehen</button>
           </div>
         </div>
       `).join('') : '<div class="utility-row"><div class="utility-row-title">Keine Wareneingänge gefunden</div></div>'}
     </div>
   `);
+}
+
+function renderReceivingCategoryOptions(selectedCategory = '') {
+  const normalizedSelected = normalizeMhdCategory(selectedCategory);
+  return getReceivingCategoriesForTenant()
+    .map((category) => {
+      const selected = normalizeMhdCategory(category.value) === normalizedSelected ? ' selected' : '';
+      return `<option value="${escapeHtml(category.value)}"${selected}>${escapeHtml(category.label)}</option>`;
+    })
+    .join('');
+}
+
+async function updateRecentReceiptCategory(id) {
+  const select = document.querySelector(`[data-mhd-receipt-category="${CSS.escape(id)}"]`);
+  const warenKategorie = String(select?.value || '').trim();
+  if (!warenKategorie) {
+    mhdState.showHUD('Kategorie fehlt', 'Bitte eine Kategorie auswählen.', '!');
+    return;
+  }
+  const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
+  const updatedAtIso = new Date().toISOString();
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: id,
+      onlineData: {
+        warenKategorie,
+        kategorie,
+        updatedAt: serverTimestampFallback(),
+      },
+      queueData: {
+        warenKategorie,
+        kategorie,
+        updatedAt: updatedAtIso,
+      },
+      offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
+    });
+    const localEntry = mhdState.products.find((entry) => entry.id === id);
+    if (localEntry) {
+      localEntry.warenKategorie = warenKategorie;
+      localEntry.kategorie = kategorie;
+      localEntry.updatedAt = updatedAtIso;
+    }
+    mhdState.showHUD('Kategorie gespeichert', `Der Posten wurde ${kategorie} zugeordnet.`);
+    showRecentReceipts();
+  } catch (err) {
+    console.error('[CharcuLogic Firebase] Kategorie-Korrektur fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
+  }
 }
 
 function showMasterData() {
@@ -2221,6 +2287,7 @@ function bindUtilityDialogActions() {
     const id = button.dataset.mhdId;
     if (button.dataset.mhdUtilityCommand === 'delete') deleteMhdPosten(id);
     if (button.dataset.mhdUtilityCommand === 'history') openPostenHistory(id);
+    if (button.dataset.mhdUtilityCommand === 'category-save') updateRecentReceiptCategory(id);
   });
 }
 
@@ -2268,6 +2335,11 @@ function submitManualBarcodeFrom(inputEl) {
 
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
   const normalized = String(warenKategorie || '').trim().toLowerCase();
+  if (/trockenware|gewürze|gewuerze/.test(normalized)) return '📦 Trockenware';
+  if (/frische/.test(normalized)) return '🍎 Frische';
+  if (/mopro/.test(normalized)) return '🥛MoPro';
+  if (/\btk\b/.test(normalized)) return '🧊 TK';
+  if (/kühlware|kuehlware|fremdfleisch|geflügel|gefluegel|wurst zukauf|frischfleisch/.test(normalized)) return '🥗 Kühlware';
   switch (normalized) {
     case 'frische':
       return '🍎 Frische';
@@ -2673,6 +2745,8 @@ function clearDeliveryItemFields() {
   if (qtyEl) qtyEl.value = '';
   if (mhdEl) mhdEl.value = isoDateToDotted(new Date().toISOString().slice(0, 10));
   manualWrap?.classList.remove('is-manual-open');
+  setReceivingCategoryLocked(false);
+  applyLastReceivingHeadCategory();
   updateDeliveryItemProductUi();
 }
 
@@ -3151,7 +3225,7 @@ function resetReceivingForm() {
     'we-mhd': isoDateToDotted(today),
     'we-supplier': '',
     'we-category': 'Fremdfleisch',
-    'we-category-quick': '',
+    'we-category-quick': lastReceivingHeadCategory,
     'we-temperature': '',
   };
   Object.entries(defaults).forEach(([id, value]) => {
@@ -3159,6 +3233,8 @@ function resetReceivingForm() {
     if (el) el.value = value;
   });
   setReceivingTemperatureValue('');
+  setReceivingCategoryLocked(false);
+  applyLastReceivingHeadCategory();
   updateReceivingTemperatureFieldUi();
 
   const photoInput = document.getElementById('we-photo-input');
@@ -3664,6 +3740,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.closeScanner = uiCallbacks.scannerAPI?.closeScanner || mhdState.closeScanner;
   mhdState.onFormSaved = typeof uiCallbacks.onFormSaved === 'function' ? uiCallbacks.onFormSaved : mhdState.onFormSaved;
   mhdState.restoreDraftFields = typeof uiCallbacks.restoreDraftFields === 'function' ? uiCallbacks.restoreDraftFields : mhdState.restoreDraftFields;
+  mhdState.terminalEmployeeName = String(uiCallbacks.terminalEmployeeName || mhdState.terminalEmployeeName || '').trim();
   if (!mhdState.initialized) {
     initMhdSubnavAndSearch(); bindMhdCardActions(); bindUtilityDialogActions(); bindReceivingControls(); bindMhdToolbar(); loadVpeMasterFromCsv(); mhdState.initialized = true;
   }

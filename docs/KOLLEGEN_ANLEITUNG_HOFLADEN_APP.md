@@ -1,199 +1,127 @@
-# StevesHof Hofladen: Walkthrough für das Team (CharcuLogic)
+# StevesHof Hofladen: Kurzanleitung für das Team
 
-Diese Anleitung gilt für den Mandanten **StevesHof** (`tenantId: StevesHof_Hauptbetrieb`). Die App erscheint als **CharcuLogic** (grüner Hofladen-Stil).
+Diese Anleitung gilt für den Hofladen von **StevesHof**. Die App heißt **CharcuLogic** und ist für den Laden bewusst auf die wichtigsten Aufgaben reduziert:
 
-**Weitere Mandanten:** [Dokumentations-Übersicht](./README.md) · **TorFabrik:** [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md)
+1. **MHD kontrollieren**
+2. **Neue Ware erfassen**
+3. **Rezepte und Produktion öffnen**
 
-**Ausführliche Modulanleitungen (alle Details):** [modulanleitungen/README.md](./modulanleitungen/README.md)
+Nach dem Öffnen startet die App direkt mit der **MHD-Kontrolle**.
 
-## Mitarbeiter & PINs (PIN-Login unter Start)
+## Anmeldung am Tablet
 
-| Mitarbeiter | PIN |
-|-------------|-----|
-| Stephie | `1122` |
-| Finn | `2233` |
-| Nicole | `3344` |
-| Bettina | `4455` |
-| Heiko | `5566` |
-| Paddy | `6677` |
+Das Tablet wird einmal mit dem neutralen Hofladen-Zugang angemeldet:
 
-Die Liste wird aus der **Team-Konfiguration** geladen (`tenants/StevesHof_Hauptbetrieb/settings/teamDashboard`). Admins können sie unter **Büro → Leitstand → Team-Konfiguration** pflegen.
+```text
+bestellung@steveshof-hofladen.de
+```
 
-## Tabs in der unteren Leiste
+Das Passwort wird intern verwaltet. Die Anmeldung bleibt auf dem Hofladen-Tablet gespeichert.
+
+Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN ist im Hofladen nicht erforderlich. Erfassungen werden neutral als **StevesHof-Team** gespeichert.
+
+## Navigation
+
+In der unteren Leiste sind für den Hofladen nur diese Tabs sichtbar:
 
 | Tab | Zweck |
-|-----|--------|
-| **Start** | Anmeldung, Nachricht des Tages, Aufgaben, Historie |
-| **Team** | Nachrichten senden, Team-Infos, Kundenbestellungen |
-| **MHD** | Morgencheck Verkauf & Kühlung |
-| **Neu** | Wareneingang Laden & Metzgerei |
-| **Prod.** | Rezepte, Produktion, WRS-Kalkulation |
-| **HACCP** | Produktionsprotokoll & Tageskontrollen |
-| **Büro** | Chargen, Rezept-Sync, Leitstand (Admin) |
+|-----|-------|
+| **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
+| **Neu** | Neue Ware im Laden per Barcode erfassen |
+| **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
+
+Andere Bereiche der Plattform sind für den Hofladen derzeit absichtlich ausgeblendet.
 
 ---
 
-## 1. Start (Schwarzes Brett + Aufgaben)
+## 1. MHD-Kontrolle
 
-Der Tab **Start** ist der Einstieg für das Team.
+Im Tab **MHD** seht ihr, welche Ware geprüft werden muss.
 
-1. App öffnen und im Tab **Start** bleiben.
-2. **Mitarbeiter** eintippen (Vorschläge aus der Liste) und **PIN** (4-stellig) eingeben.
-3. Auf **Anmelden** tippen – unter **Angemeldet als:** erscheint der Name.
-4. **Nachricht des Tages** lesen (inkl. Bilder/PDF-Anhänge).
-5. **Mein Bereich** prüfen (z. B. Laden / Verkauf, Metzgerei / Produktion, Küche / Gastro).
-6. Offene Punkte unter **Meine Aufgaben** mit **✓** quittieren.
-7. Erledigte Aufgaben in der **Erledigt-Historie** nachsehen (Zeitraum: **Heute**, **7 Tage**, **30 Tage**, **Alle**).
+1. App öffnen. Der Tab **MHD** erscheint automatisch.
+2. Bei Bedarf **Bereich**, **Ansicht** und **Kategorie** wählen.
+3. Kritische Artikel nacheinander bearbeiten:
+   - **OK**: Ware bleibt im Verkauf.
+   - **Raus**: Ware wird aus dem Verkauf genommen.
+   - **Küche**: Ware wird zur weiteren Verwendung weitergegeben.
+   - **Ausverkauft**: Posten ist nicht mehr vorhanden.
+4. Die Menge bei Bedarf mit **− / +** korrigieren.
+5. Änderungen speichern.
 
-Unter **Team-Infos für mich** seht ihr dieselben Nachrichten wie im Tab **Team** – ohne Tabwechsel.
+Optional könnt ihr über **Artikel suchen** gezielt nach einem Produkt suchen.
 
-![Start-Tab mit Anmeldung, Nachricht und Aufgaben](./modulanleitungen/screenshots/00-start.png)
-
----
-
-## 2. Team (Nachrichten & Bestellungen)
-
-Für Kommunikation und Kundenaufträge.
-
-### Nachrichten
-
-1. Tab **Team** öffnen (ohne Anmeldung erscheint ein Hinweis – zuerst unter **Start** anmelden).
-2. Optional: **Push** für neue Infos aktivieren.
-3. Unter **Nachricht senden** Info oder Aufgabe an Kollegen, Gruppen oder Schichten schicken.
-4. Eingehende Einträge unter **Team-Infos für mich** mit **✓** quittieren.
-
-### Bestellungen
-
-1. Im Team-Tab auf **🛒 Bestellungen** wechseln.
-2. Kunde, Rückruf, **Bereit am** und Positionen erfassen.
-3. Optional Bestellzettel fotografieren oder PDF anhängen.
-4. **Bestellung speichern** – offene Bestellungen stehen darunter zur Bearbeitung.
-
-![Team-Tab Nachrichten und Bestellungen](./modulanleitungen/screenshots/07-team.png)
+![StevesHof MHD-Start mit Filtern und Artikelkarte](./modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
 ---
 
-## 3. MHD (täglicher Morgencheck)
+## 2. Neue Ware erfassen
 
-Im Tab **MHD** prüft ihr, welche Ware sofort bearbeitet werden muss.
+Im Tab **Neu** wird Ware beim Einräumen im Laden erfasst.
 
-1. Tab **MHD** öffnen.
-2. In der Toolbar **Bereich**, **Ansicht** und (bei Frische) **Kategorie** wählen – typisch morgens: **Frische & Kühlung · ALARM · Alle**.
-3. Optional **🔍 Artikel suchen** für gezielte Suche.
-4. Karten nacheinander bearbeiten:
-   - **✓ OK**
-   - **↩️ Raus**
-   - **🥣 Küche**
-   - **🗑️ Ausverkauft**
-5. Menge bei Bedarf mit **− / +** korrigieren.
-6. Am Ende **💾 Änderungen speichern** (bei Cloud-Sync).
+1. Tab **Neu** öffnen.
+2. Einmal die passende **Kategorie** auswählen, zum Beispiel:
+   - Trockenware
+   - MoPro
+   - Frische
+   - TK-Ware
+3. Barcode scannen oder EAN eintippen und bestätigen.
+4. Bei einer unbekannten EAN den Produktnamen ergänzen.
+5. Menge und MHD prüfen oder eintragen.
+6. **Posten hinzufügen** wählen.
+7. Den nächsten Artikel scannen.
 
-![MHD Übersicht](./modulanleitungen/screenshots/01-mhd-monitor.png)
-![MHD Kartenbeispiel](./modulanleitungen/screenshots/01b-mhd-karte.png)
-![MHD Suche geöffnet](./modulanleitungen/screenshots/01c-mhd-suche-offen.png)
+### Wichtig: Kategorie bleibt erhalten
 
----
+Die gewählte Kategorie bleibt nach dem Speichern eines Artikels aktiv. Wenn ihr zum Beispiel gerade nur MoPro verräumt, müsst ihr **MoPro** nicht bei jedem Scan neu auswählen.
 
-## 4. Neu (Wareneingang)
+Während ein gescannter Artikel bearbeitet wird, ist die Kategorie gesperrt. Dadurch wird ein versehentlicher Wechsel vermieden. Nach **Posten hinzufügen** kann die Kategorie für die nächsten Scans wieder geändert werden.
 
-Der Tab **Neu** erfasst Lieferungen – oben wählt ihr **Laden** oder **Metzgerei**.
+### Zuordnung nachträglich korrigieren
 
-### Laden (Schnellerfassung)
+1. Im Tab **Neu** auf **Letzte Eingänge** tippen.
+2. Beim gewünschten Artikel die Kategorie prüfen.
+3. Bei Bedarf eine andere Kategorie auswählen.
+4. **Kategorie speichern** tippen.
 
-1. Tab **Neu** → **Laden**.
-2. **Kategorie** setzen, **Barcode scannen** oder **EAN** eintippen und **OK**.
-3. Bei bekannter EAN: grüne Zeile **Erkannt:** – sonst **Produktname** ergänzen.
-4. **Menge** und **MHD** eintragen.
-5. **➕ Posten hinzufügen** – weitere Artikel wiederholen.
-6. Optional **Letzte Eingänge** / **Stammdaten**.
+So können falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank berichtigt werden.
 
-### Metzgerei
-
-1. Auf **Metzgerei** wechseln.
-2. **Lieferant** (oder **🏠 Eigenproduktion**), **Waren-Kategorie**, **Temperatur**.
-3. **📸 Lieferscheine fotografieren** (morgens reicht oft ein Entwurf).
-4. **📝 Als offenen Entwurf speichern** oder mit Posten **💾 Gesamte Lieferung abschließen**.
-5. Offene Entwürfe unten unter **📋 Offene Lieferungen zur Nachbearbeitung** fortsetzen.
-
-![Neu – Laden](./modulanleitungen/screenshots/02-wareneingang-schnell.png)
+![StevesHof Wareneingang im Laden](./modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 ![Barcode-Scanner](./modulanleitungen/screenshots/02b-barcode-scanner.png)
-![Erkannter Posten](./modulanleitungen/screenshots/02c-posten-erkannt.png)
-![Neu – Metzgerei](./modulanleitungen/screenshots/03-wareneingang-metzgerei.png)
-![Lieferscheinfotos](./modulanleitungen/screenshots/03b-lieferschein-fotos.png)
+![StevesHof Letzte Eingänge mit Kategoriekorrektur](./modulanleitungen/screenshots/steveshof-04-letzte-eingaenge-korrigieren.png)
 
 ---
 
-## 5. Prod. (Wurstküche)
+## 3. Prod. öffnen
 
-Der Tab **Prod.** hat zwei aufklappbare Bereiche:
+Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
 
-- **Rezepte** (standardmäßig offen) – Suche, Kategorien, Rezeptliste, Detail mit Produktionsmenge und Verkaufseinheiten.
-- **WRS Kalkulation** (standardmäßig zu) – BEFFE-Skalierer, Kosten, Einwiege-Packliste.
-
-Ablauf Produktion:
-
-1. Rezept antippen → Detail öffnen.
-2. **Tagesproduktion (kg)** einstellen, Zutaten und Schritte prüfen.
-3. **Charge dokumentieren** – Daten erscheinen später unter **Büro**.
-
-![Prod. – Rezeptliste](./modulanleitungen/screenshots/04-wurstkueche.png)
-![Prod. – Rezeptdetail](./modulanleitungen/screenshots/04b-rezept-detail.png)
+![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 
 ---
 
-## 6. HACCP
+## Liefertag: Kurzfassung
 
-Im Tab **HACCP** dokumentiert ihr Produktion und Tageskontrollen.
+1. App öffnen: **MHD**-Kontrolle erscheint automatisch.
+2. Offene MHD-Punkte bearbeiten.
+3. Zu **Neu** wechseln.
+4. Kategorie für die aktuelle Warenart auswählen.
+5. Artikel nacheinander scannen und als Posten hinzufügen.
+6. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
 
-### Produktions-Protokoll (oben)
+## Hilfe
 
-1. **Kerntemperatur** und **pH-Wert** einstellen.
-2. **Chargen-Nummer** prüfen oder mit **⚡ Neu** erzeugen.
-3. **📝 Protokoll eintragen**.
+| Problem | Lösung |
+|---------|-------|
+| Tablet zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
+| Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Tablet-Passwort bitten. |
+| Falsche Kategorie gewählt | Aktuellen Posten fertig erfassen oder verwerfen, danach die Kategorie für die folgenden Scans ändern. |
+| Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
+| Kein Internet | Erfassung fortsetzen. Die App synchronisiert gespeicherte Einträge nach Wiederherstellung der Verbindung. |
 
-### Tageskontrollen (Mitte)
+## Logout am Hofladen-Tablet
 
-Umschalter **Temperaturen** · **Reinigung** · **Geräte** – Messwerte eintragen und mit **OK** bzw. **Reinigung erledigt** bestätigen.
-
-### Export (unten)
-
-**🖨️ Druckansicht generieren** – Protokolle der letzten 7 Tage für Behördenkontrollen.
-
-![HACCP Übersicht](./modulanleitungen/screenshots/05-haccp.png)
-![HACCP Temperaturen](./modulanleitungen/screenshots/05b-haccp-temperaturen.png)
-![HACCP Reinigung](./modulanleitungen/screenshots/05c-haccp-reinigung.png)
-
----
-
-## 7. Büro (Chargen & Leitstand)
-
-Der Tab **Büro** dient der Rückverfolgung und (mit Admin-Rechten) der Pflege von Nachricht und Team-Konfiguration.
-
-1. Tab **Büro** öffnen.
-2. **Rezeptdaten-Prüfung**: Masterliste vs. Cloud prüfen.
-3. Nach **Charge, Rezept oder Macher** suchen und Einträge kontrollieren.
-4. Admins: **Leitstand** – Nachricht des Tages veröffentlichen, Team-Gruppen pflegen.
-
-![Büro – Chargenübersicht](./modulanleitungen/screenshots/06-chargen.png)
-![Büro – Chargenliste](./modulanleitungen/screenshots/06b-chargen-liste.png)
+Das Tablet bleibt im Normalbetrieb angemeldet. Ein Logout-Button wird deshalb im Hofladen-Modus nicht angezeigt. Das verhindert versehentliches Abmelden während des Verkaufs.
 
 ---
 
-## Morgenroutine (Kurz)
-
-1. **Start**: anmelden, Nachricht lesen, Aufgaben abarbeiten.
-2. **MHD**: Filter **ALARM**, Karten bearbeiten, speichern.
-3. **HACCP**: **Temperaturen** (und bei Bedarf **Reinigung**) dokumentieren.
-4. **Neu > Metzgerei**: Lieferschein-Fotos als Entwurf, Posten nachmittags nachziehen.
-
-## Liefertag (Kurz)
-
-1. **Neu > Laden**: Ware per Scan erfassen.
-2. **Neu > Metzgerei**: Lieferant, Temperatur, Fotos.
-3. **Gesamte Lieferung abschließen** – Status und offene Entwürfe prüfen.
-
-## Kundenbestellung (Kurz)
-
-1. **Start** anmelden.
-2. **Team > Bestellungen**: Auftrag aufnehmen, Zettel anhängen.
-3. Produktion plant über **Prod.** / Team-Infos.
+*CharcuLogic · StevesHof Hofladen · `StevesHof_Hauptbetrieb`*

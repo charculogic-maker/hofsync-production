@@ -43,6 +43,7 @@ import {
 import {
   activateBatchesTab,
   activateKitchenTab,
+  disableProductionModule,
   initProductionModule,
   loadProductionBatchesFromCloud,
   loadRecipesFromCloud,
@@ -78,6 +79,10 @@ import {
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+
+const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
+const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
+const STEVESHOF_TERMINAL_EMPLOYEE = 'StevesHof-Team';
 
 export {
   getGlobalTenantId,
@@ -170,16 +175,22 @@ function applyBranding() {
 }
 window.applyBranding = applyBranding;
 
+function isWurstkuecheEnabledForTenant(tenantId = '', branding = window.BRANDING || {}) {
+  const normalizedTenantId = String(tenantId || '').trim().toLowerCase();
+  return normalizedTenantId !== 'torfabrik' && branding.modules?.wurstkueche !== false;
+}
+
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
+  const kitchenEnabled = isWurstkuecheEnabledForTenant(getTenantId(), branding);
   const tabModuleMap = {
-    teamboard: true,
+    teamboard: modules.teamboard !== false,
     team: modules.orders !== false,
     mhd: modules.mhdMonitor !== false,
     receiving: modules.wareneingang !== false,
-    kitchen: modules.wurstkueche !== false,
+    kitchen: kitchenEnabled,
     haccp: modules.haccp !== false,
-    batches: true,
+    batches: modules.batches !== false,
   };
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     const tabId = tab.getAttribute('data-tab');
@@ -187,6 +198,15 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     tab.hidden = !enabled;
     tab.style.display = enabled ? '' : 'none';
   });
+
+  const kitchenPage = document.getElementById('page-kitchen');
+  if (kitchenPage) {
+    kitchenPage.hidden = !kitchenEnabled;
+    if (!kitchenEnabled) {
+      kitchenPage.classList.remove('active');
+      kitchenPage.style.display = 'none';
+    }
+  }
 
   if (typeof applyReceivingMetzgereiVisibility === 'function') {
     applyReceivingMetzgereiVisibility(branding);
@@ -873,7 +893,8 @@ const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 
 function updateHeaderLogoutVisibility(activeTab) {
   if (!headerLogoutBtn) return;
-  headerLogoutBtn.style.display = activeTab === 'batches' ? 'inline-block' : 'none';
+  const isFixedTerminal = document.documentElement.dataset.fixedTerminal === 'steveshof';
+  headerLogoutBtn.style.display = !isFixedTerminal && activeTab === 'batches' ? 'inline-block' : 'none';
 }
 
 function readActiveEmployee() {
@@ -906,6 +927,37 @@ function showPage(pageId) {
   });
 }
 
+function showTab(tabId) {
+  const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  if (!tab || tab.hidden || tab.style.display === 'none') return false;
+  tab.click();
+  return true;
+}
+window.showTab = showTab;
+
+function isSteveshofTerminalSession(authSession) {
+  return authSession?.tenantId === STEVESHOF_TENANT_ID
+    && String(authSession?.email || '').trim().toLowerCase() === STEVESHOF_TERMINAL_EMAIL;
+}
+
+function configureSteveshofTerminalSession(authSession) {
+  if (!isSteveshofTerminalSession(authSession)) return '';
+  document.documentElement.dataset.fixedTerminal = 'steveshof';
+  updateHeaderLogoutVisibility(AppState.activeTab);
+  const teamLoginCard = document.getElementById('team-login-card');
+  if (teamLoginCard) teamLoginCard.hidden = true;
+  try {
+    localStorage.setItem(ACTIVE_EMPLOYEE_STORAGE_KEY, STEVESHOF_TERMINAL_EMPLOYEE);
+    localStorage.setItem(`${STEVESHOF_TENANT_ID}_${ACTIVE_EMPLOYEE_STORAGE_KEY}`, STEVESHOF_TERMINAL_EMPLOYEE);
+  } catch (err) {
+    console.warn('[CharcuLogic Terminal] Neutraler Bearbeiter konnte nicht gespeichert werden:', err);
+  }
+  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+    detail: { employeeName: STEVESHOF_TERMINAL_EMPLOYEE },
+  }));
+  return STEVESHOF_TERMINAL_EMPLOYEE;
+}
+
 window.addEventListener('charculogic:active-employee-changed', (event) => {
   updateEmployeeSessionBadge(event.detail?.employeeName || readActiveEmployee());
 });
@@ -913,6 +965,13 @@ window.addEventListener('charculogic:active-employee-changed', (event) => {
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
     const targetTab = tab.getAttribute('data-tab');
+    if (tab.hidden || tab.style.display === 'none') {
+      return;
+    }
+    if (targetTab === 'kitchen' && !isWurstkuecheEnabledForTenant(getTenantId())) {
+      showToast('Das Produktionsmodul ist für diesen Betrieb nicht freigeschaltet.', 'warning');
+      return;
+    }
     AppState.activeTab = targetTab;
 
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
@@ -1233,7 +1292,7 @@ document.getElementById('update-toast-dismiss')?.addEventListener('click', hideU
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('./sw.js?v=20260602-88')
       .then((reg) => {
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
 
@@ -1294,14 +1353,20 @@ async function bootstrapAuthenticatedApp() {
   applyModuleVisibility(window.BRANDING);
   applyRoleBasedUi(authSession);
   setGlobalTenantId(authSession.tenantId);
+  const terminalEmployeeName = configureSteveshofTerminalSession(authSession);
   const tenantId = getGlobalTenantId();
 
-  initProductionModule(db, writeFirestoreDocOrQueue, { playClickSound, playFeedbackSound }, showHUD, {
-    tenantId,
-    getFirebase: () => firebase,
-    onFormSaved: (fieldIds) => clearDirty(fieldIds),
-    restoreDraftFields,
-  });
+  const recipeModuleEnabled = isWurstkuecheEnabledForTenant(authSession.tenantId);
+  if (recipeModuleEnabled) {
+    initProductionModule(db, writeFirestoreDocOrQueue, { playClickSound, playFeedbackSound }, showHUD, {
+      tenantId,
+      getFirebase: () => firebase,
+      onFormSaved: (fieldIds) => clearDirty(fieldIds),
+      restoreDraftFields,
+    });
+  } else {
+    disableProductionModule();
+  }
 
   initMhdModule(db, { writeOrQueueFirestore: writeFirestoreDocOrQueue, addPendingSync }, { playFeedbackSound, playClickSound }, {
     showHUD,
@@ -1311,6 +1376,7 @@ async function bootstrapAuthenticatedApp() {
     getFirebase: () => firebase,
     isFirebaseReady: () => firebaseReady,
     scannerAPI: { openScanner, closeScanner },
+    terminalEmployeeName,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
   });
@@ -1348,13 +1414,15 @@ async function bootstrapAuthenticatedApp() {
   syncPushRegistration();
   initGermanDateInputs(document);
 
+  if (authSession.tenantId === STEVESHOF_TENANT_ID) {
+    showTab('mhd');
+  }
   updateSyncIndicator();
   loadMhdFromCloud();
-  const recipeModuleEnabled = window.BRANDING?.modules?.wurstkueche !== false;
   if (recipeModuleEnabled) {
     loadRecipesFromCloud();
+    loadProductionBatchesFromCloud();
   }
-  loadProductionBatchesFromCloud();
   await flushPendingSyncs();
   flushErrorTelemetry();
   subscribeFleischpreise();

@@ -17,12 +17,37 @@ Visuelle Detail-Doku zu einzelnen Tabs (überwiegend am StevesHof-UI aufgenommen
 
 ➡️ [modulanleitungen/README.md](./modulanleitungen/README.md)
 
+## Benutzerhandbücher (Rollen-spezifisch)
+
+Professionelle Anleitungen nach Mandant und Zielgruppe:
+
+➡️ [user-manuals/README.md](./user-manuals/README.md)
+
+| Handbuch | Inhalt |
+|----------|--------|
+| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Neutraler Tablet-Zugang, MHD, Laden-Wareneingang, Prod., Offline |
+| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation |
+| [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, App Check, Security |
+| [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |
+
+Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
+
 ## Technik & Betrieb
 
 | Dokument | Zielgruppe | Inhalt |
 |----------|------------|--------|
-| [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md) | Entwickler, Admins | Firebase-Projekte, Datenmodell, Rules, Cloud Functions, Deploy |
+| [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md) | Entwickler, Admins | Firebase-Projekte, Mandantenisolation, Rules, App Check, Cloud Functions, Build/Deploy, Security-Tests |
 | [WHITE_LABEL_UPLOAD_ANLEITUNG.md](./WHITE_LABEL_UPLOAD_ANLEITUNG.md) | Onboarding | CSV-Import Rezepte & MHD pro Mandant |
+
+### Security-Tests (Kurzreferenz)
+
+| Suite | Befehl | Voraussetzung |
+|-------|--------|---------------|
+| Functions Security (Vitest) | `cd functions && npm run test:security` | Node 20 |
+| Staging App-Check-Smoke | `SECURITY_TEST_CALLABLE_BASE_URL=https://europe-west3-<PROJECT>.cloudfunctions.net npm run test:security` (in `functions/`) | Erreichbare Callables |
+| Firestore Rules (Emulator) | `npm run test:rules` (Repo-Root) | JDK 21+, Firebase CLI |
+
+Details: [TECHNIK_BACKEND.md §6](./TECHNIK_BACKEND.md#6-automatisierte-security-tests)
 
 ## Firebase-Projekte (Hosting)
 

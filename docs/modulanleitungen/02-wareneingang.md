@@ -15,6 +15,8 @@ Oben wählt ihr zwischen:
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Derzeit ist bewusst nur der Bereich **Laden** aktiv. Die Metzgerei-Erfassung bleibt für diesen Mandanten ausgeblendet.
+
 ---
 
 ## Laden (Schnellerfassung)
@@ -31,6 +33,16 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 6. **Menge (kg)** und **MHD** setzen
 7. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
 8. Optional: **Letzte Eingänge** / **Stammdaten**
+
+### Kategorie bei Serien-Scans
+
+Die ausgewählte Laden-Kategorie bleibt nach **Posten hinzufügen** für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
+
+Während ein gescannter Posten bearbeitet wird, ist das Kategorie-Feld gesperrt. Nach dem Hinzufügen oder Verwerfen des Postens kann die Kategorie für die folgenden Scans wieder geändert werden.
+
+### Letzte Eingänge korrigieren
+
+Über **Letzte Eingänge** werden die zuletzt erfassten Wareneingänge angezeigt. Pro Artikel kann die Kategorie geprüft, per Dropdown geändert und mit **Kategorie speichern** berichtigt werden. Die Änderung wird auch bei schwacher Verbindung synchronisiert.
 
 ### Scanner
 

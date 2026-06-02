@@ -12,8 +12,9 @@ Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle
 
 | Schicht | Technologie | Ort |
 |---------|-------------|-----|
-| Frontend | Progressive Web App, Vanilla-JS (ES-Module), kein Build-Step | `web/` |
-| Auth & Mandant | Firebase Authentication (E-Mail/Passwort + Custom Token), Tenant + Rolle aus Claims/Profil/Firestore `users/{uid}` | `web/auth.js` |
+| Frontend | Progressive Web App, Vanilla-JS (ES-Module), Pre-Deploy-Validierung via `npm run build` | `web/`, `tools/check-web-app.mjs` |
+| Auth & Mandant | Firebase Authentication (E-Mail/Passwort + Custom Token), Tenant + Rolle aus **Custom Claims** (`request.auth.token.tenantId`) | `web/auth.js` |
+| App-Schutz | Firebase App Check (reCAPTCHA v3, Compat SDK) — Pflicht vor Callables | `web/app-check.js`, `web/firebase-config.js` |
 | Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | `hofsync-production` oder `charculogic-whitelabel-test` (`web/firebase-config.js`) |
 | Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel) | `tenants/{tenantId}/…` |
 | Offline | Service Worker + lokale Sync-Warteschlange (Dead-Letter-Queue) | `web/sw.js`, `web/sync.js` |
@@ -36,8 +37,11 @@ craft_food_app/
 │   ├── sw.js                     # Service Worker (PWA, Offline-Cache)
 │   ├── app.js                    # Bootstrap & Orchestrierung aller Module
 │   ├── auth.js                   # Login, Mandant (tenantId), Rolle/Admin/Helper
-│   ├── firebase-config.js        # Firebase-Projekt nach Hostname (Prod vs. Whitelabel)
+│   ├── firebase-config.js        # Firebase-Projekt + App-Check-Site-Keys (Prod vs. Whitelabel)
+│   ├── app-check.js              # App Check (reCAPTCHA v3, Compat SDK)
 │   ├── branding.js               # White-Label Farben & Module pro tenantId
+│   ├── teamboard-storage.js      # Mandanten-prefixierte localStorage-Keys (Shared Terminals)
+│   ├── operator-errors.js        # Deutsche Operator-Toasts (technische Details nur in console.error)
 │   ├── delivery-note.js          # KI-Lieferschein (TorFabrik, Callable)
 │   ├── sync.js                   # Offline-Sync-Queue, writeFirestoreDocOrQueue
 │   ├── mhd.js                    # MHD-Monitor + Wareneingang
@@ -65,6 +69,7 @@ craft_food_app/
 ├── .firebaserc                   # default + whitelabel Firebase-Projekte
 ├── firestore.rules               # ⚠️ Veralteter Spiegel – wird NICHT deployt
 ├── lib/main.dart                 # Legacy-Flutter-Designprototyp (nicht produktiv)
+├── tools/check-web-app.mjs       # Pre-Deploy-Validierung (npm run build)
 ├── data/                         # Stammdaten, CSV-Importvorlagen, SOPs
 └── docs/                         # Anleitungen & technische Doku
 ```
@@ -84,6 +89,8 @@ Die untere Navigationsleiste umfasst bis zu sieben Bereiche (pro Mandant konfigu
 | **Prod.** | Wurstküche | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS-Kalkulation |
 | **HACCP** | HACCP | `haccp.js` | Produktionsprotokoll, Temperatur-/Reinigungskontrollen |
 | **Büro** | Chargen & Leitstand | `production.js`, `teamboard.js`, `team-config.js` | Rückverfolgung, Nachricht veröffentlichen, Team-Konfiguration (Admin) |
+
+**Mandantenprofil StevesHof:** `StevesHof_Hauptbetrieb` nutzt derzeit **MHD**, **Neu** und **Prod.**. Das Hofladen-Tablet startet direkt im MHD-Monitor, verwendet den neutralen Bearbeiter `StevesHof-Team` und blendet den Alltags-Logout aus.
 
 ---
 
@@ -116,6 +123,23 @@ Dann **http://127.0.0.1:5173/index.html** öffnen (nicht `http://[::]:5173/` –
 
 Voraussetzung: Firebase CLI installiert (`firebase login`). Projekt wählen: `firebase use default` (Produktion) oder `firebase use whitelabel` (Test).
 
+**Vor jedem Release:** Pre-Deploy-Validierung ausführen (Service-Worker-Version-Guard, Syntax, PWA-Checks):
+
+```bash
+npm run build
+```
+
+Bei Änderungen an `web/app.js`, `web/mhd.js` oder `web/index.html` muss `CACHE_NAME` in `web/sw.js` erhöht werden — sonst bricht `npm run build` ab.
+
+**Standard-Security-Release:**
+
+```bash
+npm run build
+firebase deploy --only "firestore:rules,functions,hosting"
+```
+
+Weitere Targets:
+
 ```bash
 firebase deploy --only hosting                 # PWA (web/)
 firebase deploy --only functions               # Cloud Functions
@@ -123,7 +147,14 @@ firebase deploy --only firestore:rules         # Firestore-Rules (firebase.rules
 firebase deploy --only storage                 # Storage-Rules
 ```
 
-Details, Secrets (z. B. `GEMINI_API_KEY`) und Fallstricke: ➡️ [docs/TECHNIK_BACKEND.md](docs/TECHNIK_BACKEND.md)
+**Security-Tests:**
+
+```bash
+npm run test:functions:security                # Vitest (functions/)
+npm run test:rules                             # Firestore-Rules-Emulator (JDK 21+)
+```
+
+Details, App Check, Secrets (z. B. `GEMINI_API_KEY`) und Fallstricke: ➡️ [docs/TECHNIK_BACKEND.md](docs/TECHNIK_BACKEND.md)
 
 ---
 

@@ -23,6 +23,27 @@ const DEFAULT_BRANDING = {
 };
 
 const TENANT_BRANDING = {
+  steveshof_hauptbetrieb: {
+    betriebsName: 'StevesHof Hofladen',
+    appName: 'CharcuLogic',
+    primaryColor: '#5D4037',
+    primaryColorHover: '#4E342E',
+    darkHeaderBg: '#3E2723',
+    textOnHeader: '#ffffff',
+    accentAlert: '#EA580C',
+    standardBereich: 'Laden / Verkauf',
+    modules: {
+      teamboard: false,
+      mhdMonitor: true,
+      wareneingang: true,
+      wareneingangMetzgerei: false,
+      rezeptAudit: false,
+      wurstkueche: true,
+      haccp: false,
+      orders: false,
+      batches: false,
+    },
+  },
   torfabrik: {
     betriebsName: 'TorFabrik Krefeld',
     appName: 'CenterLogic',
@@ -44,8 +65,6 @@ const TENANT_BRANDING = {
   },
 };
 
-import { readDevFirebaseProjectOverride, readDevTenantOverride } from './dev-guards.js';
-
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
 
 /** Whitelabel-Test-Hosting → Mandant torfabrik, solange noch kein Login-Cache existiert. */
@@ -57,6 +76,33 @@ const WHITELABEL_HOST_MARKERS = [
 const HOSTING_DEFAULT_TENANT = {
   whitelabel: 'torfabrik',
 };
+
+function isLocalDevHost() {
+  const host = String(window.location?.hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+function readDevFirebaseProjectOverride() {
+  if (!isLocalDevHost()) return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('firebase') || params.get('project');
+    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
+    const fromStorage = localStorage.getItem('charculogic_firebase_project');
+    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
+  } catch (_) { /* noop */ }
+  return null;
+}
+
+function readDevTenantOverride() {
+  if (!isLocalDevHost()) return '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('tenant') || params.get('tenantId');
+    if (fromQuery) return String(fromQuery).trim().toLowerCase();
+  } catch (_) { /* noop */ }
+  return '';
+}
 
 function normalizeTenantKey(tenantId) {
   return typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';

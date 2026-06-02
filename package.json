@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --timeout 15000\"",
     "test:rules:watch": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --watch --timeout 15000\"",
-    "test:functions:security": "npm --prefix functions run test:security"
+    "test:functions:security": "npm --prefix functions run test:security",
+    "screenshots:modules": "node tools/capture-module-screenshots.mjs",
+    "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs"
   },
   "dependencies": {
     "firebase": "^12.13.0",

@@ -65,7 +65,7 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 
 ## 2. Team
 
-Wie StevesHof: zuerst unter **Start** per PIN anmelden, dann Tab **Team** für Infos/Aufgaben und **🛒 Bestellungen** für Kundenaufträge.
+Zuerst unter **Start** per PIN anmelden, dann Tab **Team** für Infos/Aufgaben und **🛒 Bestellungen** für Kundenaufträge.
 
 Details: [modulanleitungen/06-team.md](./modulanleitungen/06-team.md)
 

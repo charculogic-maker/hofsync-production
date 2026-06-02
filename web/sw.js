@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260602-76';
+const CACHE_NAME = 'charculogic-v20260602-88';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026';
 
 const CRITICAL_ASSETS = [
@@ -186,15 +186,8 @@ self.addEventListener('fetch', (event) => {
 
   const isStaticAsset = isOwnOrigin && (
     pathname.endsWith('/index.html')
-    || pathname.endsWith('/style.css')
-    || pathname.endsWith('/app.js')
-    || pathname.endsWith('/auth.js')
-    || pathname.endsWith('/sync.js')
-    || pathname.endsWith('/scanner.js')
-    || pathname.endsWith('/haccp.js')
-    || pathname.endsWith('/mhd.js')
-    || pathname.endsWith('/production.js')
-    || pathname.endsWith('/beffe_calc.js')
+    || pathname.endsWith('.css')
+    || pathname.endsWith('.js')
     || pathname.endsWith('/manifest.json')
     || pathname.endsWith('/vpe-master.csv')
     || pathname.endsWith('/data/beffe_data.json')
@@ -244,16 +237,24 @@ self.addEventListener('fetch', (event) => {
     });
 
     event.respondWith(
-      caches.match(cleanRequest).then((cached) => {
-        if (cached) return cached;
-        return fetch(cleanRequest).then((networkResponse) => {
+      fetch(cleanRequest).then((networkResponse) => {
+        if (networkResponse && networkResponse.ok) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+        }
+        return networkResponse;
+      }).catch(() =>
+        caches.match(cleanRequest).then((cached) => {
+          if (cached) return cached;
+          return fetch(cleanRequest).then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
             const clone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
           }
           return networkResponse;
-        }).catch(() => caches.match(cleanRequest));
-      })
+          }).catch(() => caches.match(cleanRequest));
+        })
+      )
     );
     return;
   }

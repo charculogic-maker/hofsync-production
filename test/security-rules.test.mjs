@@ -217,6 +217,36 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 3b: TorFabrik module isolation', () => {
+    const torfabrikAdmin = () => authContext(
+      testEnv,
+      'tf-admin-no-production',
+      TENANTS.TORFABRIK,
+      'admin',
+    );
+
+    it('denies TorFabrik access to recipes and production batches', async () => {
+      const ctx = torfabrikAdmin();
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'rezepte', 'probe-recipe'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'produktion_chargen', 'probe-batch'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'produktion_chargen', 'probe-batch'),
+        'create',
+        { tenantId: TENANTS.TORFABRIK },
+      );
+    });
+  });
+
   describe('TEST CASE 4: Storage Rules & Bulletin Board', () => {
     const objectPath = bulletinObjectPath(TENANTS.TORFABRIK, 'image.jpg');
 
