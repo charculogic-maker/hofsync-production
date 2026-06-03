@@ -1,26 +1,26 @@
 # MHD-Monitor
 
-Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche Ware ist abgelaufen, muss reduziert oder aus dem Verkauf?
+Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche Ware läuft in den nächsten Tagen ab, muss reduziert oder aus dem Verkauf?
 
 ![MHD – Filter und Toolbar](./screenshots/01-mhd-monitor.png)
 
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Übersicht nach **Ansicht** (ALARM, AKTION, ALLE, ERLEDIGT)
+- Automatische Liste aller Posten mit **MHD in den nächsten 7 Tagen**
+- Optional nach **Kategorie** filtern
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Oberfläche
 
-### 1. Filter (Dropdowns in der Toolbar)
+### 1. Filter (Toolbar)
 
-| Feld | Funktion |
-|------|----------|
-| **Bereich** | Frische & Kühlung oder Trockenware |
-| **Ansicht** | ALARM (morgens), AKTION, ALLE, ERLEDIGT |
-| **Kategorie** | Nur bei Frische & Kühlung: Alle, Frische, MoPro, Kühlware, TK |
+| Element | Funktion |
+|---------|----------|
+| **MHD in den nächsten 7 Tagen** | Feste Anzeige — es werden nur relevante Posten gezeigt |
+| **Kategorie** | Alle Kategorien oder gezielt: Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze |
 
-Typische Morgen-Einstellung: **Frische & Kühlung · ALARM · Alle**.
+Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD in der 7-Tage-Frist liegt.
 
 ### 2. MHD-Karte (Posten)
 
@@ -29,7 +29,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 ![MHD-Karte mit Aktionen](./screenshots/01b-mhd-karte.png)
 
 - **Badge oben**: empfohlene Aktion (z. B. Rabatt, Prüfen, Tonne)
-- **Menge**: **−** / **+** korrigieren
+- **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
 - **🗑️ Ausverkauft** oder Wischen nach **links**
 - **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche**
 - **Reduziert**: Karte nach **rechts wischen**
@@ -40,7 +40,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 1. **🔍 Artikel suchen** antippen
 2. Suchbegriff eingeben (z. B. „milch“)
-3. Mit **▲ Suche schließen** einklappen – Filter bleiben aktiv
+3. Mit **▲ Suche schließen** einklappen – der Kategorie-Filter bleibt aktiv
 
 ### 4. Speichern
 
@@ -48,13 +48,13 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ## Ablauf Morgencheck
 
-1. Tab **MHD** öffnen
-2. Filter: **ALARM**, Bereich und Kategorie wählen
+1. Tab **MHD** öffnen (beim Hofladen-Tablet automatisch)
+2. Bei Bedarf **Kategorie** wählen
 3. Karten der Reihe nach abarbeiten
-4. Bei Trockenware **Bereich** umstellen und erneut prüfen
-5. **Änderungen speichern**
+4. **Änderungen speichern**
 
 ## Hinweise
 
 - **„X aktive Posten“** unter dem Namen = mehrere offene Einträge mit gleichem Barcode
+- **Hersteller / Zusatz** erscheint in der Meta-Zeile, wenn beim Wareneingang erfasst
 - Ohne Firebase-Verbindung erscheint ein Hinweis, dass keine MHD-Daten geladen werden können

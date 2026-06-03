@@ -260,6 +260,18 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 - **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
 - **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
 
+#### Frontend – Wareneingang-Hilfen (Tab **Neu**)
+
+`web/app.js` → `applyRoleBasedUi()` setzt `hidden` auf Büro-only-Controls:
+
+| Element | Sichtbarkeit |
+|---------|----------------|
+| `#btn-recent-receipts` (**Letzte Eingänge**) | Alle Nutzer mit Tab **Neu** (kein `isOfficeUser`) |
+| `#btn-master-data`, `#btn-delivery-note-ai`, `#office-tools-panel` | Nur `isOfficeUser()` |
+| `#btn-office-recent-receipts` | Büro-Panel (zusätzlich, gleiche Funktion `showRecentReceipts()` in `web/mhd.js`) |
+
+Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte Eingänge**.
+
 ### 4.2 `notifyTeamEntryCreated` – Push bei neuer Team-Aufgabe
 
 - **Typ:** Firestore-Trigger (`onDocumentCreated`) auf `tenants/{tenantId}/tasks/{taskId}`, Region `europe-west3`.

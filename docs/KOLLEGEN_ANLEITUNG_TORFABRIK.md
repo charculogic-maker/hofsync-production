@@ -124,7 +124,7 @@ Details: [modulanleitungen/04-haccp.md](./modulanleitungen/04-haccp.md)
 Wenn ein Nutzer die Rolle **helper** hat (nicht nur den Namen „Aushilfe“ im PIN-Login):
 
 - Sichtbar: **Start** (Aufgaben) und **MHD** (Alarme).
-- Ausgeblendet: Team, Neu, HACCP, Büro, Stammdaten.
+- Ausgeblendet: Team, Neu (inkl. **Letzte Eingänge**), HACCP, Büro, Stammdaten.
 
 Für reguläre Aushilfen reicht meist der **PIN-Login als Mitarbeiter „Aushilfe“** mit voller Tab-Leiste.
 

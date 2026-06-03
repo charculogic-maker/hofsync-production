@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * Screenshots für StevesHof Hofladen (reduzierte Module, kein PIN-Login).
+ * Ausgabe im iPhone-Geräterahmen für Anleitungen.
  *
  * Voraussetzung:
  *   cd web && python -m http.server 5173 --bind 127.0.0.1
@@ -9,16 +10,17 @@
  *   node tools/capture-steveshof-screenshots.mjs
  */
 import { chromium } from 'playwright';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureViewportScreenshot, wrapInIphoneFrame } from './screenshot-iphone-frame.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const outDir = path.join(root, 'docs', 'modulanleitungen', 'screenshots');
 const baseUrl = process.env.APP_URL || 'http://127.0.0.1:5173/index.html?tenant=StevesHof_Hauptbetrieb';
 
-/** @typedef {{ file: string, fullPage?: boolean, prepare: (page: import('playwright').Page) => Promise<void> }} Shot */
+/** @typedef {{ file: string, fullPage?: boolean, label?: string, prepare: (page: import('playwright').Page) => Promise<void> }} Shot */
 
 async function injectSteveshofTerminalDemo(page) {
   await page.evaluate(() => {
@@ -100,6 +102,20 @@ async function injectSteveshofTerminalDemo(page) {
 function injectMhdDemoCard() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
+
+  const categorySelect = document.getElementById('mhd-category-select');
+  if (categorySelect && categorySelect.options.length <= 1) {
+    categorySelect.innerHTML = `
+      <option value="all" selected>Alle Kategorien</option>
+      <option value="frische">🍎 Frische</option>
+      <option value="mopro">🥛 MoPro</option>
+      <option value="kuehlware">❄️ Kühlware</option>
+      <option value="tk">🧊 TK</option>
+      <option value="getraenke">🍺 Getränke</option>
+      <option value="trockenware">📦 Trockenware</option>
+      <option value="gewuerze">🌿 Gewürze</option>`;
+  }
+
   container.innerHTML = `
     <div class="mhd-card status-critical" id="mhd-card-demo">
       <div class="mhd-action-badge" style="color:#C62828;background:rgba(198,40,40,0.14);border:2px solid #C62828;font-weight:800;font-size:13px;text-align:center;padding:10px 12px;border-radius:10px;margin-bottom:4px;">
@@ -107,18 +123,20 @@ function injectMhdDemoCard() {
       </div>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
-          <span class="mhd-product-name">Vollmilch 3,5% 1l</span>
-          <span class="mhd-product-meta">Bauer Meier · MHD 28.05.2026 · 2 aktive Posten</span>
+          <span class="mhd-product-name">Reibekäse Quattro formaggi</span>
+          <span class="mhd-product-meta">Bauer Meier · MHD 03.06.2026 · 3 aktive Posten</span>
         </div>
         <div class="mhd-badge" style="color:#C62828;background:rgba(198,40,40,0.14);">1 Tage</div>
       </div>
       <div class="mhd-controls-row">
         <div class="qty-stepper">
           <button class="btn-stepper" type="button">−</button>
-          <div class="qty-value-container"><span>4</span></div>
+          <div class="qty-value-container">
+            <input type="number" class="mhd-qty-input" value="1" min="0" step="1" inputmode="numeric" aria-label="Menge">
+          </div>
           <button class="btn-stepper" type="button">+</button>
         </div>
-        <button class="btn btn-soldout" type="button">🗑️ Ausverkauft</button>
+        <button class="btn btn-soldout" type="button" aria-label="Als ausverkauft markieren"><span aria-hidden="true">🗑️</span> Ausverkauft</button>
       </div>
       <div class="mhd-action-row">
         <button class="btn-mhd-action" type="button">↩️ Raus</button>
@@ -130,7 +148,7 @@ function injectMhdDemoCard() {
       <div class="mhd-card-header">
         <div class="mhd-product-info">
           <span class="mhd-product-name">Butter 250g</span>
-          <span class="mhd-product-meta">Hofeigen · MHD 02.06.2026</span>
+          <span class="mhd-product-meta">Hofeigen · MHD 05.06.2026</span>
         </div>
         <div class="mhd-badge" style="color:#EA580C;background:rgba(234,88,12,0.12);">3 Tage</div>
       </div>
@@ -153,13 +171,16 @@ function injectRecentReceiptsDialog() {
       <div class="utility-list">
         <div class="utility-row recent-receipt-row">
           <div class="utility-row-title">Gouda Scheiben 200g</div>
-          <div class="utility-row-meta">Barcode: 4001234567890 · MHD: 15.06.2026 · Menge: 6</div>
+          <div class="utility-row-meta">Barcode: 4001234567890 · MHD: 15.06.2026 · Menge: 6 · Bauer Meier</div>
           <label class="utility-row-meta" for="recent-receipt-category-demo">Kategorie</label>
           <select class="input-text-touch" id="recent-receipt-category-demo">
-            <option>📦 Trockenware</option>
-            <option selected>🥛 MoPro</option>
             <option>🍎 Frische</option>
+            <option selected>🥛 MoPro</option>
+            <option>❄️ Kühlware</option>
             <option>🧊 TK</option>
+            <option>🍺 Getränke</option>
+            <option>📦 Trockenware</option>
+            <option>🌿 Gewürze</option>
           </select>
           <div class="utility-row-actions recent-receipt-actions">
             <button type="button" class="btn btn-secondary recent-receipt-action recent-receipt-action--save">Kategorie speichern</button>
@@ -178,35 +199,58 @@ function injectRecentReceiptsDialog() {
 const shots = [
   {
     file: 'steveshof-01-mhd-start.png',
+    label: 'MHD · StevesHof',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);
       await page.locator('#tab-mhd').click({ force: true });
       await page.evaluate(injectMhdDemoCard);
-      await page.evaluate(() => {
-        document.getElementById('header-title').textContent = 'MHD-Monitor';
-        document.getElementById('header-subtitle').textContent = 'Qualitätssicherung';
-      });
     },
   },
   {
     file: 'steveshof-02-neu-wareneingang.png',
+    label: 'Neu · StevesHof',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);
       await page.locator('#tab-receiving').click({ force: true });
       await page.locator('#receiving-mode-schnell').click({ force: true });
       await page.evaluate(() => {
+        const select = document.getElementById('we-category-quick');
+        if (select) {
+          select.innerHTML = `
+            <option value="">-- Kategorie wählen --</option>
+            <option value="🍎 Frische">🍎 Frische</option>
+            <option value="🥛MoPro" selected>🥛 MoPro</option>
+            <option value="🥗 Kühlware">❄️ Kühlware</option>
+            <option value="🧊 TK">🧊 TK</option>
+            <option value="🍺 Getränke">🍺 Getränke</option>
+            <option value="📦 Trockenware">📦 Trockenware</option>
+            <option value="🌿 Gewürze">🌿 Gewürze</option>`;
+        }
         document.getElementById('header-title').textContent = 'Wareneingang';
         document.getElementById('header-subtitle').textContent = 'Laden · Barcode erfassen';
-        const category = document.getElementById('we-category');
-        if (category) category.value = '🥛MoPro';
         const ean = document.getElementById('we-ean');
-        if (ean) ean.placeholder = 'EAN scannen oder eingeben';
+        if (ean) ean.value = '4001234567890';
+        const resolved = document.getElementById('we-product-resolved');
+        const resolvedName = document.getElementById('we-product-resolved-name');
+        if (resolved) resolved.classList.remove('hidden');
+        if (resolvedName) resolvedName.textContent = 'Vollmilch 3,5% 1l';
+        const productName = document.getElementById('we-product-name');
+        if (productName) productName.value = 'Vollmilch 3,5% 1l';
+        const brand = document.getElementById('we-hersteller-zusatz');
+        if (brand) brand.value = 'Bauer Meier';
+        const qty = document.getElementById('we-qty');
+        if (qty) qty.value = '6';
+        const mhd = document.getElementById('we-mhd');
+        if (mhd) mhd.value = '2026-06-15';
+        document.getElementById('we-hersteller-zusatz')?.scrollIntoView({ block: 'center' });
       });
+      await page.waitForTimeout(200);
     },
   },
   {
     file: '02b-barcode-scanner.png',
     fullPage: false,
+    label: 'Scanner',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);
       await page.locator('#tab-receiving').click({ force: true });
@@ -223,6 +267,7 @@ const shots = [
   },
   {
     file: 'steveshof-04-letzte-eingaenge-korrigieren.png',
+    label: 'Letzte Eingänge',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);
       await page.locator('#tab-receiving').click({ force: true });
@@ -231,6 +276,7 @@ const shots = [
   },
   {
     file: 'steveshof-04-prod.png',
+    label: 'Prod. · StevesHof',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);
       await page.locator('#tab-kitchen').click({ force: true });
@@ -259,7 +305,7 @@ const shots = [
   },
 ];
 
-async function captureShot(page, shot) {
+async function captureShot(page, context, shot) {
   await page.evaluate(() => {
     document.querySelector('.learn-mode-overlay')?.remove();
     const scanner = document.getElementById('scanner-overlay');
@@ -267,10 +313,10 @@ async function captureShot(page, shot) {
   });
   await shot.prepare(page);
   await page.waitForTimeout(500);
-  await page.screenshot({
-    path: path.join(outDir, shot.file),
-    fullPage: shot.fullPage !== false,
-  });
+
+  const raw = await captureViewportScreenshot(page, { fullPage: shot.fullPage === true });
+  const framed = await wrapInIphoneFrame(context, raw, { label: shot.label });
+  await writeFile(path.join(outDir, shot.file), framed);
   console.log(`OK ${shot.file}`);
 }
 
@@ -281,6 +327,8 @@ async function main() {
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
     isMobile: true,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
   });
   const page = await context.newPage();
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 60000 }).catch(() =>
@@ -289,11 +337,11 @@ async function main() {
   await page.waitForTimeout(1500);
 
   for (const shot of shots) {
-    await captureShot(page, shot);
+    await captureShot(page, context, shot);
   }
 
   await browser.close();
-  console.log(`\nStevesHof-Screenshots gespeichert in:\n${outDir}`);
+  console.log(`\nStevesHof-Screenshots (iPhone-Rahmen) gespeichert in:\n${outDir}`);
 }
 
 main().catch((err) => {

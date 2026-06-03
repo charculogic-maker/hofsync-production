@@ -384,6 +384,12 @@ export function isHelperUser() {
   return authContext?.role === 'helper' || authContext?.isHelper === true;
 }
 
+/** Admin-Konto im Büro (nicht Helper-Terminal am Laden). */
+export function isOfficeUser(session = authContext) {
+  if (!session) return false;
+  return Boolean(session.isAdmin && !session.isHelper);
+}
+
 export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } = {}) {
   authState.firebase = firebaseInstance;
   authState.db = databaseInstance;
@@ -418,6 +424,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       }
       hideLoginOverlay();
       authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
+      window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
       if (resolveAuthReady) {
         resolveAuthReady(nextContext);
         resolveAuthReady = null;
@@ -454,7 +461,7 @@ export async function loginTenant(email, password) {
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
   const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
   if (credential?.user) {
-    await buildAuthContext(credential.user);
+    authContext = await buildAuthContext(credential.user);
   }
   return credential;
 }

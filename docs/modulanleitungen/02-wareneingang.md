@@ -26,23 +26,33 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 ### Schritte
 
 1. Tab **Neu** → **Laden**
-2. **Kategorie (Laden)** wählen
+2. **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
 4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
 5. **Unbekannte EAN**: **Produktname** eintragen
-6. **Menge (kg)** und **MHD** setzen
-7. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
-8. Optional: **Letzte Eingänge** / **Stammdaten**
+6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
+7. **Menge** setzen und **MHD** im Datumsfeld wählen
+8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
+9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
+10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
 ### Kategorie bei Serien-Scans
 
 Die ausgewählte Laden-Kategorie bleibt nach **Posten hinzufügen** für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
 
-Während ein gescannter Posten bearbeitet wird, ist das Kategorie-Feld gesperrt. Nach dem Hinzufügen oder Verwerfen des Postens kann die Kategorie für die folgenden Scans wieder geändert werden.
+Die Kategorie kann jederzeit geändert werden — sie gilt für den nächsten Posten.
 
 ### Letzte Eingänge korrigieren
 
 Über **Letzte Eingänge** werden die zuletzt erfassten Wareneingänge angezeigt. Pro Artikel kann die Kategorie geprüft, per Dropdown geändert und mit **Kategorie speichern** berichtigt werden. Die Änderung wird auch bei schwacher Verbindung synchronisiert.
+
+| Funktion | Zugriff |
+|----------|---------|
+| **Letzte Eingänge** (Button im Tab **Neu**) | Alle angemeldeten Nutzer mit sichtbarem Tab **Neu** — kein separater Büro-Login |
+| **Stammdaten** | Nur Büro-/Admin-Konten |
+| **Letzte Eingänge** (Tab **Büro**) | Zusätzlich im Büro-Bereich für Auswertung am Schreibtisch (gleiche Ansicht) |
+
+Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten ansehen** geöffnet werden.
 
 ### Scanner
 

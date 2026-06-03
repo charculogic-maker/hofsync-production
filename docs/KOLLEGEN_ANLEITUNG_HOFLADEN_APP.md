@@ -36,21 +36,21 @@ Andere Bereiche der Plattform sind für den Hofladen derzeit absichtlich ausgebl
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** seht ihr, welche Ware geprüft werden muss.
+Im Tab **MHD** seht ihr automatisch alle Posten, deren MHD **in den nächsten 7 Tagen** abläuft.
 
-1. App öffnen. Der Tab **MHD** erscheint automatisch.
-2. Bei Bedarf **Bereich**, **Ansicht** und **Kategorie** wählen.
+1. App öffnen — der Tab **MHD** erscheint automatisch.
+2. Bei Bedarf **Kategorie** wählen (z. B. MoPro, Frische, TK).
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.
    - **Küche**: Ware wird zur weiteren Verwendung weitergegeben.
    - **Ausverkauft**: Posten ist nicht mehr vorhanden.
-4. Die Menge bei Bedarf mit **− / +** korrigieren.
-5. Änderungen speichern.
+4. Die Menge bei Bedarf mit **− / +** oder direkt im Zahlenfeld korrigieren.
+5. **Änderungen speichern** tippen.
 
 Optional könnt ihr über **Artikel suchen** gezielt nach einem Produkt suchen.
 
-![StevesHof MHD-Start mit Filtern und Artikelkarte](./modulanleitungen/screenshots/steveshof-01-mhd-start.png)
+![StevesHof MHD-Start mit Kategoriefilter und Artikelkarte](./modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
 ---
 
@@ -59,22 +59,26 @@ Optional könnt ihr über **Artikel suchen** gezielt nach einem Produkt suchen.
 Im Tab **Neu** wird Ware beim Einräumen im Laden erfasst.
 
 1. Tab **Neu** öffnen.
-2. Einmal die passende **Kategorie** auswählen, zum Beispiel:
-   - Trockenware
-   - MoPro
+2. Einmal die passende **Kategorie** auswählen:
    - Frische
-   - TK-Ware
-3. Barcode scannen oder EAN eintippen und bestätigen.
-4. Bei einer unbekannten EAN den Produktnamen ergänzen.
-5. Menge und MHD prüfen oder eintragen.
-6. **Posten hinzufügen** wählen.
-7. Den nächsten Artikel scannen.
+   - MoPro
+   - Kühlware
+   - TK
+   - Getränke
+   - Trockenware
+   - Gewürze
+3. Barcode scannen oder EAN eintippen und **OK** tippen.
+4. Bei einer unbekannten EAN den **Produktnamen** ergänzen.
+5. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier).
+6. **Menge** prüfen und **MHD** im Datumsfeld setzen.
+7. **Posten hinzufügen** wählen.
+8. Den nächsten Artikel scannen.
 
 ### Wichtig: Kategorie bleibt erhalten
 
 Die gewählte Kategorie bleibt nach dem Speichern eines Artikels aktiv. Wenn ihr zum Beispiel gerade nur MoPro verräumt, müsst ihr **MoPro** nicht bei jedem Scan neu auswählen.
 
-Während ein gescannter Artikel bearbeitet wird, ist die Kategorie gesperrt. Dadurch wird ein versehentlicher Wechsel vermieden. Nach **Posten hinzufügen** kann die Kategorie für die nächsten Scans wieder geändert werden.
+Die Kategorie kann jederzeit geändert werden — sie wird für den nächsten Posten übernommen.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -83,7 +87,7 @@ Während ein gescannter Artikel bearbeitet wird, ist die Kategorie gesperrt. Dad
 3. Bei Bedarf eine andere Kategorie auswählen.
 4. **Kategorie speichern** tippen.
 
-So können falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank berichtigt werden.
+So können falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank berichtigt werden. Jeder mit Zugang zum Tab **Neu** (auch das Hofladen-Tablet) sieht **Letzte Eingänge** — ein Büro-Login ist dafür nicht nötig.
 
 ![StevesHof Wareneingang im Laden](./modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 ![Barcode-Scanner](./modulanleitungen/screenshots/02b-barcode-scanner.png)
@@ -102,7 +106,7 @@ Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
 ## Liefertag: Kurzfassung
 
 1. App öffnen: **MHD**-Kontrolle erscheint automatisch.
-2. Offene MHD-Punkte bearbeiten.
+2. Offene MHD-Punkte bearbeiten und speichern.
 3. Zu **Neu** wechseln.
 4. Kategorie für die aktuelle Warenart auswählen.
 5. Artikel nacheinander scannen und als Posten hinzufügen.
@@ -114,7 +118,7 @@ Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
 |---------|-------|
 | Tablet zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
 | Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Tablet-Passwort bitten. |
-| Falsche Kategorie gewählt | Aktuellen Posten fertig erfassen oder verwerfen, danach die Kategorie für die folgenden Scans ändern. |
+| Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
 | Kein Internet | Erfassung fortsetzen. Die App synchronisiert gespeicherte Einträge nach Wiederherstellung der Verbindung. |
 

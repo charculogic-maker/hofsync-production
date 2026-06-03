@@ -85,7 +85,7 @@ Die untere Navigationsleiste umfasst bis zu sieben Bereiche (pro Mandant konfigu
 | **Start** | Teamboard | `teamboard.js` | Mitarbeiter-Anmeldung (Name + PIN), Nachricht des Tages, Aufgaben, Historie |
 | **Team** | Team-Hub | `team-tab.js`, `customer-orders.js`, `team-config.js` | Nachrichten, Push, Kundenbestellungen |
 | **MHD** | MHD-Monitor | `mhd.js` | Täglicher Morgencheck, Postenbearbeitung, Suche |
-| **Neu** | Wareneingang | `mhd.js` | Laden-Schnellerfassung & Metzgerei-Lieferungen, Scanner, Fotos |
+| **Neu** | Wareneingang | `mhd.js` | Laden-Schnellerfassung, Scanner, **Letzte Eingänge** (alle mit Tab Neu); Metzgerei-Lieferungen; Stammdaten nur Büro |
 | **Prod.** | Wurstküche | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS-Kalkulation |
 | **HACCP** | HACCP | `haccp.js` | Produktionsprotokoll, Temperatur-/Reinigungskontrollen |
 | **Büro** | Chargen & Leitstand | `production.js`, `teamboard.js`, `team-config.js` | Rückverfolgung, Nachricht veröffentlichen, Team-Konfiguration (Admin) |

@@ -3,6 +3,8 @@ import {
   getTenantId,
   initAuthModule,
   isHelperUser,
+  isOfficeUser,
+  loginTenant,
   verifyAdminAction,
   waitForAuthReady,
 } from './auth.js';
@@ -222,10 +224,14 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
 
 function applyRoleBasedUi(authSession) {
   const isHelper = authSession?.isHelper || isHelperUser();
+  const isOffice = isOfficeUser(authSession);
   document.documentElement.dataset.userRole = authSession?.role || 'user';
   document.body.classList.toggle('role-helper', isHelper);
+  document.body.classList.toggle('role-office', isOffice);
+  document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
 
   const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'batches']);
+
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
@@ -233,21 +239,92 @@ function applyRoleBasedUi(authSession) {
     tab.style.display = hide ? 'none' : '';
   });
 
-  ['btn-master-data', 'btn-recent-receipts', 'btn-delivery-note-ai'].forEach((id) => {
+  ['btn-master-data', 'btn-delivery-note-ai', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.hidden = isHelper;
+    if (el) el.hidden = !isOffice;
   });
 
   const saveMhdBar = document.querySelector('#page-mhd .sticky-action-bar');
   if (saveMhdBar) saveMhdBar.hidden = isHelper;
 
-  const urgencySelect = document.getElementById('mhd-urgency-select');
-  if (isHelper && urgencySelect) urgencySelect.value = 'alarm';
-
   const teamHub = document.getElementById('page-team');
   if (teamHub) teamHub.classList.toggle('role-helper-hidden', isHelper);
 
   refreshWrsMeatPriceAdminButton();
+  updateOfficeAccessLock();
+}
+
+function setOfficeLoginError(message = '') {
+  const errorEl = document.getElementById('office-login-error');
+  if (!errorEl) return;
+  const text = String(message || '').trim();
+  errorEl.textContent = text;
+  errorEl.hidden = !text;
+}
+
+function updateOfficeAccessLock() {
+  const lock = document.getElementById('office-access-lock');
+  const content = document.getElementById('office-access-content');
+  const onBatchesTab = AppState.activeTab === 'batches';
+  const showLock = onBatchesTab && !isOfficeUser() && !isHelperUser();
+
+  if (lock) {
+    lock.hidden = !showLock;
+    lock.classList.toggle('hidden', !showLock);
+    lock.setAttribute('aria-hidden', showLock ? 'false' : 'true');
+  }
+  if (content) {
+    content.hidden = showLock;
+    content.setAttribute('aria-hidden', showLock ? 'true' : 'false');
+  }
+  if (!showLock) setOfficeLoginError('');
+}
+
+function bindOfficeAccessLock() {
+  const form = document.getElementById('office-login-form');
+  const backBtn = document.getElementById('office-lock-back-btn');
+  if (form && form.dataset.officeLockBound !== '1') {
+    form.dataset.officeLockBound = '1';
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setOfficeLoginError('');
+      const email = document.getElementById('office-login-email')?.value.trim();
+      const password = document.getElementById('office-login-password')?.value || '';
+      const submitBtn = form.querySelector('.office-access-lock-submit');
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        await loginTenant(email, password);
+        const ctx = getAuthContext();
+        if (!isOfficeUser(ctx)) {
+          setOfficeLoginError('Dieses Konto hat keinen Büro-Zugang. Bitte Admin-Zugangsdaten verwenden.');
+          return;
+        }
+        applyRoleBasedUi(ctx);
+        refreshTeamboardAdminPanel();
+        refreshAdminTeamConfigPanel();
+        activateBatchesTab();
+        window.showToast?.('Büro-Bereich freigeschaltet.', 'success');
+        form.reset();
+      } catch (err) {
+        console.warn('[CharcuLogic Büro] Admin-Anmeldung fehlgeschlagen:', err);
+        const code = String(err?.code || '');
+        if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+          setOfficeLoginError('Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen.');
+        } else {
+          setOfficeLoginError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.');
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+  if (backBtn && backBtn.dataset.officeLockBound !== '1') {
+    backBtn.dataset.officeLockBound = '1';
+    backBtn.addEventListener('click', () => {
+      setOfficeLoginError('');
+      document.getElementById('tab-mhd')?.click();
+    });
+  }
 }
 
 // --- DARK MODE ---
@@ -1042,6 +1119,7 @@ tabs.forEach(tab => {
     }
     updateScannerButtonVisibility();
     updateHeaderLogoutVisibility(targetTab);
+    updateOfficeAccessLock();
   });
 });
 
@@ -1352,6 +1430,10 @@ async function bootstrapAuthenticatedApp() {
   }
   applyModuleVisibility(window.BRANDING);
   applyRoleBasedUi(authSession);
+  bindOfficeAccessLock();
+  window.addEventListener('charculogic:auth-changed', (event) => {
+    applyRoleBasedUi(event.detail || getAuthContext());
+  });
   setGlobalTenantId(authSession.tenantId);
   const terminalEmployeeName = configureSteveshofTerminalSession(authSession);
   const tenantId = getGlobalTenantId();

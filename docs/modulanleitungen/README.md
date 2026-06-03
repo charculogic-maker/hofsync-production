@@ -1,6 +1,6 @@
 # Modulanleitungen – CharcuLogic / CenterLogic / HofSync
 
-Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). Screenshots zeigen überwiegend die **StevesHof**-Oberfläche aus einer früheren Vollansicht. Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen. Im aktuellen StevesHof-Hofladen-Profil sind **MHD**, **Neu** und **Prod.** aktiv.
+Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Screenshots werden im **iPhone-Geräterahmen** erzeugt und zeigen das aktuelle Hofladen-Profil (**MHD**, **Neu**, **Prod.**). Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
 
 | Modul | Tab (Leiste) | Details |
 |-------|----------------|---------|
@@ -29,11 +29,11 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 |-------|--------|
 | `00-start.png` | Start: Anmeldung, Nachricht des Tages, Aufgaben |
 | `07-team.png` | Team: Nachrichten & Bestellungen |
-| `steveshof-01-mhd-start.png` | StevesHof: aktueller MHD-Start |
-| `steveshof-02-neu-wareneingang.png` | StevesHof: aktueller Laden-Wareneingang |
-| `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: Kategorie-Korrektur unter Letzte Eingänge |
-| `steveshof-04-prod.png` | StevesHof: aktueller Prod.-Tab |
-| `01-mhd-monitor.png` | MHD: Filter & Toolbar |
+| `steveshof-01-mhd-start.png` | StevesHof: MHD mit 7-Tage-Hinweis und Kategoriefilter |
+| `steveshof-02-neu-wareneingang.png` | StevesHof: Laden-Wareneingang mit Hersteller/Zusatz und MHD-Datum |
+| `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
+| `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
+| `01-mhd-monitor.png` | MHD: Kategoriefilter & Toolbar (7-Tage-Horizont) |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |
 | `02-wareneingang-schnell.png` | Neu · Laden |
@@ -74,4 +74,4 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 
 Detail-Screenshots nutzen **Beispieldaten** (Demo-Karten, Mock-Listen), wenn Firebase offline ist – für die Schulung reicht das. Mit Live-Daten sehen die Listen in Produktion genauso aus, nur mit echten Einträgen (z. B. echte Rezeptliste unter **Prod.**).
 
-Die StevesHof-Screenshots simulieren den **Hofladen-Terminalmodus**: braunes Branding, drei Tabs, keine Mitarbeiter-PIN-Karte, kein Logout-Button.
+Die StevesHof-Screenshots simulieren den **Hofladen-Terminalmodus** (braunes Branding, drei Tabs, keine Mitarbeiter-PIN-Karte, kein Logout-Button) und werden in einem **iPhone-14-ähnlichen Geräterahmen** gerendert (`tools/screenshot-iphone-frame.mjs`).

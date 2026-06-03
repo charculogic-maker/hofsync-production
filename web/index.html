@@ -282,31 +282,12 @@
                 </div>
               </div>
 
-              <div class="mhd-filter-row">
-                <label class="mhd-filter-field mhd-filter-field--bereich" for="mhd-subtab-select">
-                  <span class="mhd-filter-label">Bereich</span>
-                  <select id="mhd-subtab-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Bereich">
-                    <option value="mopro" selected>🥛 Frische &amp; Kühlung</option>
-                    <option value="trocken">📦 Trockenware</option>
-                  </select>
-                </label>
-                <label class="mhd-filter-field mhd-filter-field--ansicht" for="mhd-urgency-select">
-                  <span class="mhd-filter-label">Ansicht</span>
-                  <select id="mhd-urgency-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Dringlichkeit">
-                    <option value="alarm" selected>🚨 ALARM</option>
-                    <option value="action">🏷️ AKTION</option>
-                    <option value="all">📋 ALLE</option>
-                    <option value="done">✅ ERLEDIGT</option>
-                  </select>
-                </label>
-                <label class="mhd-filter-field mhd-filter-field--category" id="mhd-fresh-filter-field" for="mhd-fresh-filter-select">
+              <div class="mhd-filter-row mhd-filter-row--monitor">
+                <p class="mhd-monitor-hint">MHD in den nächsten 7 Tagen</p>
+                <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
                   <span class="mhd-filter-label">Kategorie</span>
-                  <select id="mhd-fresh-filter-select" class="input-text-touch mhd-filter-select" aria-label="Frische-Kategorie">
-                    <option value="all" selected>Alle</option>
-                    <option value="frische">🍎 Frische</option>
-                    <option value="mopro">🥛 MoPro</option>
-                    <option value="kuehlware">❄️ Kühlware</option>
-                    <option value="tk">🧊 TK</option>
+                  <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
+                    <option value="all" selected>Alle Kategorien</option>
                   </select>
                 </label>
               </div>
@@ -348,13 +329,6 @@
                     <span>Kategorie (Laden)</span>
                     <select id="we-category-quick" class="gastro-input">
                       <option value="" selected>-- Kategorie wählen --</option>
-                      <option value="Frische">Frische</option>
-                      <option value="MoPro">MoPro</option>
-                      <option value="Kühlware">Kühlware</option>
-                      <option value="TK">TK</option>
-                      <option value="Trockenware">Trockenware</option>
-                      <option value="Gewürze">Gewürze</option>
-                      <option value="Wurst Zukauf">Wurst Zukauf</option>
                     </select>
                   </label>
                   <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
@@ -379,6 +353,14 @@
                     <p class="we-unknown-barcode-hint">Barcode unbekannt – Artikel kann manuell angelegt werden.</p>
                     <button type="button" class="btn btn-primary" id="we-manual-create-btn">Artikel manuell anlegen</button>
                   </div>
+                  <label class="receiving-field" for="we-product-name">
+                    <span>Produktname</span>
+                    <input type="text" id="we-product-name" class="gastro-input" placeholder="Produktname eingeben oder per Scan übernehmen…" autocomplete="off">
+                  </label>
+                  <label class="receiving-field" for="we-hersteller-zusatz">
+                    <span>Hersteller / Zusatz</span>
+                    <input type="text" id="we-hersteller-zusatz" class="gastro-input" placeholder="z. B. Bauer Meier, im Glas, Frisch in Pack" autocomplete="off">
+                  </label>
                   <label class="receiving-field we-product-manual-wrap hidden" id="we-product-manual-wrap" for="we-product-manual">
                     <span>Produktname (unbekannte EAN)</span>
                     <input type="text" id="we-product-manual" class="gastro-input" placeholder="z. B. Schwarzkümmel" autocomplete="off">
@@ -389,7 +371,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="text" id="we-mhd" class="gastro-input" placeholder="dd.mm.yyyy" inputmode="numeric" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" maxlength="10" autocomplete="off">
+                    <input type="date" id="we-mhd" class="gastro-input" autocomplete="off">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -662,6 +644,28 @@
           <!-- SCREEN 4: CHARGEN-ARCHIV / BÜRO-KONTROLLE       -->
           <!-- ============================================== -->
           <div class="page" id="page-batches">
+            <div id="office-access-lock" class="office-access-lock hidden" hidden aria-hidden="true">
+              <div class="office-access-lock-card" role="dialog" aria-modal="true" aria-labelledby="office-access-lock-title">
+                <div class="office-access-lock-icon" aria-hidden="true">🔒</div>
+                <h2 class="office-access-lock-title" id="office-access-lock-title">Büro-Bereich gesperrt</h2>
+                <p class="office-access-lock-desc">Chargen-Archiv, Leitstand und Stammdaten sind für Admin-Konten reserviert. Bitte im Büro mit Admin-Zugang anmelden.</p>
+                <form id="office-login-form" class="office-access-lock-form">
+                  <label class="office-access-lock-field">
+                    <span>Admin E-Mail</span>
+                    <input type="email" id="office-login-email" class="gastro-input" autocomplete="username" required>
+                  </label>
+                  <label class="office-access-lock-field">
+                    <span>Passwort</span>
+                    <input type="password" id="office-login-password" class="gastro-input" autocomplete="current-password" required>
+                  </label>
+                  <button type="submit" class="btn btn-primary office-access-lock-submit">Als Admin anmelden</button>
+                </form>
+                <div id="office-login-error" class="office-access-lock-error" role="alert" hidden></div>
+                <button type="button" class="btn btn-secondary office-access-lock-back" id="office-lock-back-btn">Zurück zum Laden</button>
+              </div>
+            </div>
+
+            <div id="office-access-content" class="office-access-content">
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 
@@ -710,6 +714,15 @@
               </details>
             </section>
 
+            <section class="batch-audit-card office-tools-panel hidden" id="office-tools-panel" aria-label="Büro Bestand und Stammdaten">
+              <div class="batch-audit-title">Bestand &amp; Korrektur (Büro)</div>
+              <p class="admin-leitstand-hint">Stammdaten und Wareneingangs-Historie für Auswertung und Korrekturen – nicht für den schnellen Laden-Scan.</p>
+              <div class="office-tools-actions">
+                <button type="button" class="btn btn-secondary" id="btn-office-recent-receipts">Letzte Eingänge</button>
+                <button type="button" class="btn btn-secondary" id="btn-office-master-data">Stammdaten</button>
+              </div>
+            </section>
+
             <div class="batch-audit-card" id="recipe-cloud-audit-card">
               <div class="batch-audit-title">Rezeptdaten-Prüfung</div>
               <div class="batch-audit-grid">
@@ -735,6 +748,7 @@
 
             <div class="batch-list" id="batch-list-container">
               <!-- Chargen werden dynamisch von app.js gerendert -->
+            </div>
             </div>
           </div>
 

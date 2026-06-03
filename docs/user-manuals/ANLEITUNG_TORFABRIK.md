@@ -56,6 +56,8 @@ Für laufende Produktion und Events:
 
 Große Lieferungen (Metro, Jakob Bayen) werden nicht Position für Position getippt, sondern über den **KI-Lieferschein** (siehe Kapitel 3) in `inventory` überführt. Das ist eure **skalierte Wareneingangs-Dokumentation** — geeignet für hohe Postenanzahlen pro Lieferschein.
 
+Fehlkategorien nach dem Laden-Scan: Tab **Neu** → **Letzte Eingänge** (für alle Mitarbeiter mit Tab **Neu**, nicht für die reine Firebase-Rolle `helper`).
+
 ### 2.3 Büro — Chargen & Rückverfolgung
 
 1. Tab **Büro** öffnen.
