@@ -1,5 +1,4 @@
-/** @type {import('vitest').UserConfig} */
-module.exports = {
+export default {
   test: {
     environment: 'node',
     include: ['tests/**/*.test.js'],

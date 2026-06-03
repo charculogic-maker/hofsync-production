@@ -19,7 +19,7 @@ import {
 import { ref, uploadBytes } from 'firebase/storage';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = join(__dirname, '..');
+const ROOT_DIR = join(__dirname, '..', '..');
 
 export const TEST_PROJECT_ID = process.env.FIREBASE_EMULATOR_PROJECT_ID
   || process.env.GCLOUD_PROJECT

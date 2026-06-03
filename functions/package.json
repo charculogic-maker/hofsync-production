@@ -8,8 +8,8 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "test": "vitest run",
-    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js"
+    "test": "vitest run --config vitest.config.mjs --configLoader runner",
+    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js --config vitest.config.mjs --configLoader runner"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
