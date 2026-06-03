@@ -1,28 +1,28 @@
-# StevesHof Hofladen: Kurzanleitung für das Team
+# StevesHof Hofladen: Kurzanleitung für unser Team
 
-Diese Anleitung gilt für den Hofladen von **StevesHof**. Die App heißt **CharcuLogic** und ist für den Laden bewusst auf die wichtigsten Aufgaben reduziert:
+Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt **CharcuLogic** und ist im Laden bewusst auf die wichtigsten Aufgaben reduziert:
 
 1. **MHD kontrollieren**
 2. **Neue Ware erfassen**
 3. **Rezepte und Produktion öffnen**
 
-Nach dem Öffnen startet die App direkt mit der **MHD-Kontrolle**.
+Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
-## Anmeldung am Tablet
+## Anmeldung am Laden-iPhone
 
-Das Tablet wird einmal mit dem neutralen Hofladen-Zugang angemeldet:
+Unser **Laden-iPhone** wird einmal mit dem neutralen Hofladen-Zugang angemeldet:
 
 ```text
 bestellung@steveshof-hofladen.de
 ```
 
-Das Passwort wird intern verwaltet. Die Anmeldung bleibt auf dem Hofladen-Tablet gespeichert.
+Das Passwort verwalten wir intern. Die Anmeldung bleibt auf dem Laden-iPhone gespeichert.
 
-Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN ist im Hofladen nicht erforderlich. Erfassungen werden neutral als **StevesHof-Team** gespeichert.
+Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN brauchen wir im Hofladen nicht. Alle Vorgänge werden neutral als **StevesHof-Team** gespeichert.
 
 ## Navigation
 
-In der unteren Leiste sind für den Hofladen nur diese Tabs sichtbar:
+In der unteren Leiste sehen wir im Hofladen nur diese Tabs:
 
 | Tab | Zweck |
 |-----|-------|
@@ -30,25 +30,25 @@ In der unteren Leiste sind für den Hofladen nur diese Tabs sichtbar:
 | **Neu** | Neue Ware im Laden per Barcode erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
-Andere Bereiche der Plattform sind für den Hofladen derzeit absichtlich ausgeblendet.
+Weitere Bereiche der Plattform sind für unseren Hofladen derzeit absichtlich ausgeblendet.
 
 ---
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** seht ihr automatisch alle Posten, deren MHD **in den nächsten 7 Tagen** abläuft.
+Im Tab **MHD** zeigt unsere App automatisch alle Posten, deren MHD **in den nächsten 7 Tagen** abläuft.
 
-1. App öffnen — der Tab **MHD** erscheint automatisch.
-2. Bei Bedarf **Kategorie** wählen (z. B. MoPro, Frische, TK).
+1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
+2. Bei Bedarf **Kategorie** wählen (z. B. MoPro, Frische, TK).
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.
-   - **Küche**: Ware wird zur weiteren Verwendung weitergegeben.
+   - **Küche**: Ware geht zur weiteren Verwendung.
    - **Ausverkauft**: Posten ist nicht mehr vorhanden.
 4. Die Menge bei Bedarf mit **− / +** oder direkt im Zahlenfeld korrigieren.
 5. **Änderungen speichern** tippen.
 
-Optional könnt ihr über **Artikel suchen** gezielt nach einem Produkt suchen.
+Optional nutzen wir **Artikel suchen**, um gezielt nach einem Produkt zu filtern.
 
 ![StevesHof MHD-Start mit Kategoriefilter und Artikelkarte](./modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
@@ -56,10 +56,10 @@ Optional könnt ihr über **Artikel suchen** gezielt nach einem Produkt suchen.
 
 ## 2. Neue Ware erfassen
 
-Im Tab **Neu** wird Ware beim Einräumen im Laden erfasst.
+Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnellerfassung).
 
 1. Tab **Neu** öffnen.
-2. Einmal die passende **Kategorie** auswählen:
+2. Einmal die passende **Kategorie (Laden)** wählen:
    - Frische
    - MoPro
    - Kühlware
@@ -67,18 +67,19 @@ Im Tab **Neu** wird Ware beim Einräumen im Laden erfasst.
    - Getränke
    - Trockenware
    - Gewürze
-3. Barcode scannen oder EAN eintippen und **OK** tippen.
-4. Bei einer unbekannten EAN den **Produktnamen** ergänzen.
-5. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier).
-6. **Menge** prüfen und **MHD** im Datumsfeld setzen.
-7. **Posten hinzufügen** wählen.
-8. Den nächsten Artikel scannen.
+3. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
+4. Bei bekannter EAN: grüne Zeile **Erkannt: …**
+5. Bei unbekannter EAN den **Produktnamen** ergänzen.
+6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
+7. **Menge** prüfen und **MHD** im Datumsfeld setzen.
+8. **Posten hinzufügen** wählen.
+9. Den nächsten Artikel scannen.
 
 ### Wichtig: Kategorie bleibt erhalten
 
-Die gewählte Kategorie bleibt nach dem Speichern eines Artikels aktiv. Wenn ihr zum Beispiel gerade nur MoPro verräumt, müsst ihr **MoPro** nicht bei jedem Scan neu auswählen.
+Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerade nur MoPro verräumen, müssen wir **MoPro** nicht bei jedem Scan neu wählen.
 
-Die Kategorie kann jederzeit geändert werden — sie wird für den nächsten Posten übernommen.
+Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -87,7 +88,7 @@ Die Kategorie kann jederzeit geändert werden — sie wird für den nächsten Po
 3. Bei Bedarf eine andere Kategorie auswählen.
 4. **Kategorie speichern** tippen.
 
-So können falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank berichtigt werden. Jeder mit Zugang zum Tab **Neu** (auch das Hofladen-Tablet) sieht **Letzte Eingänge** — ein Büro-Login ist dafür nicht nötig.
+So berichtigen wir falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank. **Letzte Eingänge** ist für uns im Hofladen direkt sichtbar — ein Büro-Login ist dafür nicht nötig. (**Stammdaten** und andere Büro-Funktionen sind im Laden-Modus ausgeblendet.)
 
 ![StevesHof Wareneingang im Laden](./modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 ![Barcode-Scanner](./modulanleitungen/screenshots/02b-barcode-scanner.png)
@@ -97,7 +98,7 @@ So können falsch zugeordnete Artikel ohne Zugriff auf die technische Datenbank 
 
 ## 3. Prod. öffnen
 
-Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
+Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 
@@ -105,10 +106,10 @@ Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
 
 ## Liefertag: Kurzfassung
 
-1. App öffnen: **MHD**-Kontrolle erscheint automatisch.
-2. Offene MHD-Punkte bearbeiten und speichern.
+1. CharcuLogic öffnen: **MHD**-Kontrolle erscheint automatisch.
+2. Offene MHD-Punkte bearbeiten und **Änderungen speichern**.
 3. Zu **Neu** wechseln.
-4. Kategorie für die aktuelle Warenart auswählen.
+4. Kategorie für die aktuelle Warenart einmal wählen.
 5. Artikel nacheinander scannen und als Posten hinzufügen.
 6. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
 
@@ -116,15 +117,15 @@ Im Tab **Prod.** stehen Rezepte, Produktion und WRS-Kalkulation bereit.
 
 | Problem | Lösung |
 |---------|-------|
-| Tablet zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
-| Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Tablet-Passwort bitten. |
+| Laden-iPhone zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
+| Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Passwort für den Hofladen-Zugang bitten. |
 | Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
-| Kein Internet | Erfassung fortsetzen. Die App synchronisiert gespeicherte Einträge nach Wiederherstellung der Verbindung. |
+| Kein Internet | Erfassung fortsetzen. Unsere App synchronisiert gespeicherte Einträge nach Wiederherstellung der Verbindung. |
 
-## Logout am Hofladen-Tablet
+## Logout am Laden-iPhone
 
-Das Tablet bleibt im Normalbetrieb angemeldet. Ein Logout-Button wird deshalb im Hofladen-Modus nicht angezeigt. Das verhindert versehentliches Abmelden während des Verkaufs.
+Unser Laden-iPhone bleibt im Normalbetrieb angemeldet. Ein Logout-Button wird im Hofladen-Modus deshalb nicht angezeigt — so vermeiden wir versehentliches Abmelden während des Verkaufs.
 
 ---
 

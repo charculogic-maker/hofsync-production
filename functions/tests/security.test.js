@@ -92,6 +92,33 @@ describe('Vector 2 – App Check bypass (staging smoke)', () => {
 
     expect([401, 403]).toContain(response.status);
   });
+
+  runStaging('parseDeliveryNote rejects missing X-Firebase-AppCheck', async () => {
+    const response = await postCallable('parseDeliveryNote', {
+      body: buildCallableBody({
+        imageBase64: '',
+        mimeType: 'image/jpeg',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+    const payload = stringifyErrorPayload(await response.json().catch(() => ({})));
+    expect(payload.toLowerCase()).not.toMatch(CRYPTO_LEAK_PATTERN);
+  });
+
+  runStaging('parseDeliveryNote rejects forged App Check token', async () => {
+    const response = await postCallable('parseDeliveryNote', {
+      headers: {
+        'X-Firebase-AppCheck': 'forged-invalid-token-smoke-test',
+      },
+      body: buildCallableBody({
+        imageBase64: 'dGVzdA==',
+        mimeType: 'image/jpeg',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+  });
 });
 
 describe('Vector 4 – PIN leak contract', () => {

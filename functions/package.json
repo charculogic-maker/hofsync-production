@@ -9,7 +9,7 @@
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "test": "vitest run",
-    "test:security": "vitest run tests/security.test.js"
+    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
