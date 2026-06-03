@@ -4,7 +4,7 @@ Der Tab **Team** bündelt Kommunikation und Kundenbestellungen. Die Anmeldung er
 
 **Mitarbeiter & PINs** sind mandantenabhängig (z. B. TorFabrik: Stephan, Boris, Aushilfe). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
 
-> **StevesHof Hofladen:** Im aktuellen schlanken Hofladen-Profil ist der Tab **Team** ausgeblendet. Das gemeinsame Tablet arbeitet neutral als `StevesHof-Team` ohne zusätzliche Mitarbeiter-PIN. Diese Anleitung bleibt für andere Mandanten und eine mögliche spätere Freischaltung erhalten.
+> **StevesHof Hofladen:** Im aktuellen schlanken Hofladen-Profil ist der Tab **Team** ausgeblendet. Das gemeinsame Laden-iPhone arbeitet neutral als `StevesHof-Team` ohne zusätzliche Mitarbeiter-PIN. Diese Anleitung bleibt für andere Mandanten und eine mögliche spätere Freischaltung erhalten.
 
 ![Team – Nachrichten und Bestellungen](./screenshots/07-team.png)
 
@@ -60,4 +60,4 @@ Ohne Anmeldung bleibt der Bereich sichtbar, zeigt aber den Hinweis: *Bitte zuers
 
 ## Shared Terminals (gemeinsame Geräte)
 
-Auf Tablets, die von mehreren Betrieben oder Schichten genutzt werden, merkt sich die App Mitarbeiter und Bereich **pro Mandant** — nicht global im Browser. Technisch prefixiert `web/teamboard-storage.js` alle Terminal-Einstellungen mit der `tenantId` (z. B. `torfabrik_charculogic_active_employee`). Beim Betriebs-Logout werden mandantenspezifische Einstellungen gelöscht, damit keine Auswahl an den nächsten Mandanten „durchblutet“.
+Auf Hofladen-Terminals, die von mehreren Betrieben oder Schichten genutzt werden, merkt sich die App Mitarbeiter und Bereich **pro Mandant** — nicht global im Browser. Technisch prefixiert `web/teamboard-storage.js` alle Terminal-Einstellungen mit der `tenantId` (z. B. `torfabrik_charculogic_active_employee`). Beim Betriebs-Logout werden mandantenspezifische Einstellungen gelöscht, damit keine Auswahl an den nächsten Mandanten „durchblutet“.

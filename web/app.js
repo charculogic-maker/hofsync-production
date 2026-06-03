@@ -81,6 +81,7 @@ import {
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
@@ -966,7 +967,10 @@ const headerSubtitle = document.getElementById('header-subtitle');
 const headerLogoutBtn = document.getElementById('header-logout-btn');
 const employeeSessionBadge = document.getElementById('employee-session-badge');
 const employeeSessionName = document.getElementById('employee-session-name');
-const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
+
+function activeEmployeeStorageKey() {
+  return scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || getTenantId());
+}
 
 function updateHeaderLogoutVisibility(activeTab) {
   if (!headerLogoutBtn) return;
@@ -976,7 +980,10 @@ function updateHeaderLogoutVisibility(activeTab) {
 
 function readActiveEmployee() {
   try {
-    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || '').trim();
+    return String(
+      localStorage.getItem(activeEmployeeStorageKey())
+      || '',
+    ).trim();
   } catch (_) {
     return '';
   }
@@ -1024,8 +1031,8 @@ function configureSteveshofTerminalSession(authSession) {
   const teamLoginCard = document.getElementById('team-login-card');
   if (teamLoginCard) teamLoginCard.hidden = true;
   try {
-    localStorage.setItem(ACTIVE_EMPLOYEE_STORAGE_KEY, STEVESHOF_TERMINAL_EMPLOYEE);
-    localStorage.setItem(`${STEVESHOF_TENANT_ID}_${ACTIVE_EMPLOYEE_STORAGE_KEY}`, STEVESHOF_TERMINAL_EMPLOYEE);
+    localStorage.setItem(activeEmployeeStorageKey(), STEVESHOF_TERMINAL_EMPLOYEE);
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic Terminal] Neutraler Bearbeiter konnte nicht gespeichert werden:', err);
   }
@@ -1223,12 +1230,12 @@ function showSyncQueueDialog() {
         <div style="font-size:11px;color:#7f1d1d;">${item._collectionPath || 'ohne-pfad'} · ${(item._errorCode || item._lastError || 'unbekannter Fehler')}</div>
       </div>
     `).join('')
-    : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine Dead-Letter-Einträge.</div>';
+    : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine Einträge, die Hilfe brauchen.</div>';
 
   overlay.innerHTML = `
     <div style="width:min(560px,100%);max-height:80vh;overflow:auto;background:#fff;border-radius:16px;padding:14px;box-shadow:0 -4px 22px rgba(0,0,0,.2);">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
-        <h3 style="margin:0;font-size:16px;">Sync-Warteschlange</h3>
+        <h3 style="margin:0;font-size:16px;">Wartende Änderungen</h3>
         <button type="button" id="sync-queue-close" class="btn btn-secondary" style="min-height:36px;">Schließen</button>
       </div>
       <div style="margin-bottom:10px;">
@@ -1236,12 +1243,12 @@ function showSyncQueueDialog() {
         ${pendingRows}
       </div>
       <div style="margin-bottom:12px;">
-        <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Dead Letter (${dead.length})</div>
+        <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Nicht automatisch übertragen (${dead.length})</div>
         ${deadRows}
       </div>
       <div style="display:flex;gap:8px;">
         <button type="button" class="btn btn-primary" id="sync-queue-retry">Jetzt synchronisieren</button>
-        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Queue leeren</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Liste leeren</button>
       </div>
     </div>
   `;
@@ -1259,8 +1266,8 @@ function showSyncQueueDialog() {
     close();
     showToast(
       requeued > 0
-        ? `${requeued} Dead-Letter-Einträge erneut eingeplant, Sync läuft.`
-        : 'Sync erneut angestoßen.',
+        ? `${requeued} Einträge erneut eingeplant, Übertragung läuft.`
+        : 'Übertragung erneut angestoßen.',
       'success',
     );
   });
@@ -1268,7 +1275,7 @@ function showSyncQueueDialog() {
     savePendingSyncs([]);
     updateSyncIndicator();
     close();
-    showToast('Queue lokal geleert.', 'warning');
+    showToast('Liste lokal geleert.', 'warning');
   });
 }
 

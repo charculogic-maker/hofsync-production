@@ -228,6 +228,75 @@ describe('Vector 5 – meat price corruption guard', () => {
     vi.clearAllMocks();
   });
 
+  const validFixture = [
+    { id: 1, category: 'Schwein', cut: 'S-E', price_conv: 2.1, price_bio: 3.2, trend: 'stabil', last_update: '2026-06-03' },
+    { id: 2, category: 'Rind', cut: 'R3', price_conv: 5.4, price_bio: 6.1, trend: 'steigend', last_update: '2026-06-03' },
+    { id: 3, category: 'Lamm', cut: 'Keule', price_conv: 8.7, price_bio: 10.2, trend: 'stabil', last_update: '2026-06-03' },
+  ];
+
+  test('publishes validated prices on happy path', async () => {
+    const meatPrices = await import('../meatPrices.js');
+
+    const result = await meatPrices.executeMeatPriceRun({
+      tenantId: 'test-tenant',
+      initiatedBy: 'vitest',
+      deps: {
+        fetchMeatPricesFromGemini: async () => ({
+          validatedPrices: meatPrices.validateParsedPrices(validFixture),
+          modelUsed: 'test-model',
+          sourceUrls: ['query:fleischpreise kw'],
+          rawEvidence: JSON.stringify(validFixture),
+        }),
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.priceCount).toBe(3);
+    expect(mockState.fleischpreiseWrites).toHaveLength(1);
+    expect(mockState.fleischpreiseWrites[0].path).toMatch(/^tenants\/test-tenant\/fleischpreise\//);
+    expect(mockState.fleischpreiseWrites[0].data.preise).toHaveLength(3);
+
+    const successfulRun = Object.values(mockState.priceRunStore).find((doc) => doc.status === 'success');
+    expect(successfulRun).toBeTruthy();
+    expect(successfulRun.priceCount).toBe(3);
+    expect(successfulRun.firestorePath).toMatch(/^tenants\/test-tenant\/fleischpreise\//);
+  });
+
+  test('accepts markdown-wrapped JSON price arrays', async () => {
+    const meatPrices = await import('../meatPrices.js');
+    const parsed = meatPrices.extractJsonArray(`\`\`\`json\n${JSON.stringify(validFixture)}\n\`\`\``);
+    const validated = meatPrices.validateParsedPrices(parsed);
+
+    expect(validated).toHaveLength(3);
+    expect(validated[0]).toMatchObject({ category: 'Schwein', cut: 'S-E', price_conv: 2.1 });
+  });
+
+  test('parse failure marks run failed without price mutation', async () => {
+    const meatPrices = await import('../meatPrices.js');
+    const loggerSpy = vi.spyOn(meatPrices.logger, 'error').mockImplementation(() => {});
+
+    await expect(meatPrices.executeMeatPriceRun({
+      tenantId: 'test-tenant',
+      initiatedBy: 'vitest',
+      deps: {
+        fetchMeatPricesFromGemini: async () => {
+          meatPrices.extractJsonArray('Gemini lieferte heute nur Fließtext ohne Liste.');
+        },
+        publishValidatedPrices: publishSpy,
+      },
+    })).rejects.toThrow();
+
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(mockState.fleischpreiseWrites).toHaveLength(0);
+
+    const failedRun = Object.values(mockState.priceRunStore).find((doc) => doc.status === 'failed');
+    expect(failedRun).toBeTruthy();
+    expect(failedRun.errorCode).toBe(meatPrices.ERROR_CODES.PARSE);
+    expect(failedRun.correlationId).toBeTruthy();
+
+    loggerSpy.mockRestore();
+  });
+
   test.each(maliciousFixtures)('blocks production write for $name', async ({ fixture }) => {
     const meatPrices = await import('../meatPrices.js');
     const { validateParsedPrices, ERROR_CODES } = meatPrices;

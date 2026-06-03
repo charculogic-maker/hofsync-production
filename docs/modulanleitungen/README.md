@@ -1,5 +1,9 @@
 # Modulanleitungen – CharcuLogic / CenterLogic / HofSync
 
+> **Diese README:** Index der tab- und screenshotbezogenen Modul-Anleitungen.
+> **Zielgruppe:** Menschen, die einzelne App-Bereiche wie MHD, Neu, Prod. oder HACCP nachvollziehen wollen.
+> **Nicht hier:** Mandanten-Komplettanleitungen; diese sind über [docs/README.md](../README.md) verlinkt.
+
 Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Screenshots werden im **iPhone-Geräterahmen** erzeugt und zeigen das aktuelle Hofladen-Profil (**MHD**, **Neu**, **Prod.**). Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
 
 | Modul | Tab (Leiste) | Details |

@@ -1,5 +1,5 @@
 import { setGlobalTenantId } from './tenant-db.js';
-import { clearTeamboardTenantStorage } from './teamboard-storage.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, clearTeamboardTenantStorage } from './teamboard-storage.js';
 
 let authContext = null;
 let authReadyPromise = null;
@@ -50,6 +50,7 @@ function clearSessionCaches() {
     const tenantId = authContext?.tenantId || cachedTenantId() || '';
     clearTeamboardTenantStorage(tenantId);
     localStorage.removeItem(CACHED_TENANT_ID_KEY);
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
     window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
       detail: { employeeName: '' },
     }));
@@ -108,13 +109,13 @@ function ensureLoginOverlay() {
           <button type="submit">Anmelden</button>
         </form>
         <details class="auth-token-panel">
-          <summary>Geraete-Token verwenden</summary>
+          <summary>Geräte-Zugang verwenden</summary>
           <form id="auth-token-form" class="auth-lock-form">
             <label>
-              <span>Firebase Custom Token</span>
+              <span>Zugangscode</span>
               <textarea id="auth-login-token" rows="3" spellcheck="false"></textarea>
             </label>
-            <button type="submit">Mit Token anmelden</button>
+            <button type="submit">Mit Zugangscode anmelden</button>
           </form>
         </details>
         <div id="auth-login-error" class="auth-lock-error" role="alert"></div>
@@ -234,9 +235,9 @@ function ensureLoginOverlay() {
       if (message.includes('Mandant')) {
         setAuthError(message);
       } else if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found') {
-        setAuthError('Anmeldung fehlgeschlagen. E-Mail oder Passwort pruefen (Nutzer muss im aktiven Firebase-Projekt existieren).');
+        setAuthError('Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.');
       } else {
-        setAuthError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten pruefen.');
+        setAuthError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.');
       }
     }
   });
@@ -249,7 +250,7 @@ function ensureLoginOverlay() {
       await loginWithToken(token);
     } catch (err) {
       console.warn('[CharcuLogic Auth] Token-Anmeldung fehlgeschlagen:', err);
-      setAuthError('Token-Anmeldung fehlgeschlagen. Bitte Token pruefen.');
+      setAuthError('Geräte-Zugang fehlgeschlagen. Bitte Zugangscode prüfen.');
     }
   });
 }
@@ -350,8 +351,13 @@ async function buildAuthContext(user) {
   const role = roleFromClaims(claims);
 
   if (!tenantId || !role) {
+    console.warn('[CharcuLogic Auth] Custom Claims fehlen oder sind unvollständig.', {
+      uid: user.uid,
+      hasTenantId: Boolean(tenantId),
+      hasRole: Boolean(role),
+    });
     throw new Error(
-      'Custom Claims fehlen (tenantId/role). Bitte Admin kontaktieren: node tools/set-user-claims.mjs --uid=<uid> ausführen, danach erneut anmelden.',
+      'Anmeldung ist noch nicht vollständig eingerichtet. Bitte im Büro Bescheid geben.',
     );
   }
 
@@ -433,10 +439,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
       authContext = null;
       setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
-      const hint = String(err?.message || '').includes('Custom Claims')
-        ? err.message
-        : 'Custom Claims fehlen. Bitte node tools/set-user-claims.mjs ausführen und erneut anmelden.';
-      showLoginOverlay(hint);
+      showLoginOverlay('Anmeldung ist noch nicht vollständig eingerichtet. Bitte im Büro Bescheid geben.');
     }
   });
 
@@ -468,7 +471,7 @@ export async function loginTenant(email, password) {
 
 export async function loginWithToken(token) {
   ensureAuthConfigured();
-  if (!token) throw new Error('Firebase Custom Token fehlt.');
+  if (!token) throw new Error('Zugangscode fehlt.');
   return authState.firebase.auth().signInWithCustomToken(token);
 }
 

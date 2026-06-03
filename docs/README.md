@@ -1,5 +1,9 @@
 # Dokumentation – CharcuLogic / CenterLogic (White-Label)
 
+> **Diese README:** Zentrale Landkarte für alle Projekt-Dokumente.
+> **Zielgruppe:** Team, Betreiber, Admins und Entwicklung, wenn ein passendes Handbuch gesucht wird.
+> **Nicht hier:** Vollständige Architekturdetails; diese stehen in [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md).
+
 Übersicht aller Anleitungen und technischen Unterlagen im Projekt.
 
 ## Kollegen-Anleitungen (nach Mandant)
@@ -25,7 +29,7 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 | Handbuch | Inhalt |
 |----------|--------|
-| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Neutraler Tablet-Zugang, MHD, Laden-Wareneingang inkl. Letzte Eingänge, Prod., Offline |
+| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Neutraler Laden-iPhone-Zugang, MHD, Laden-Wareneingang inkl. Letzte Eingänge, Prod., Offline |
 | [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation |
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |

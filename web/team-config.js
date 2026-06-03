@@ -6,11 +6,14 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { getTenantCollection } from './tenant-db.js';
-const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 function getActiveEmployeeNameLocal() {
   try {
-    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || '').trim();
+    return String(
+      localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, configState.tenantId))
+      || '',
+    ).trim();
   } catch (_) {
     return '';
   }

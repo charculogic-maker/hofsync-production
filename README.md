@@ -1,5 +1,9 @@
 # CharcuLogic / HofSync – Betriebs-App für Hofläden & Metzgereien
 
+> **Diese README:** Technischer Einstieg ins Repository.
+> **Zielgruppe:** Entwicklung, Betrieb, Deployment und Security-Review.
+> **Nicht hier:** Bedienungsanleitungen für das Laden-iPhone; diese liegen unter [docs/README.md](docs/README.md).
+
 **CharcuLogic** (Produktivsystem: **HofSync**) ist eine touch-optimierte, offline-fähige Betriebs-App für Hofläden, handwerkliche Metzgereien und Lebensmittelproduzenten. Sie deckt MHD-Monitoring, Wareneingang, Wurstküche/Rezeptur, HACCP-Dokumentation, Chargen-Rückverfolgung, Team-Kommunikation und Kundenbestellungen ab.
 
 Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle Betriebsdaten liegen unter `tenants/{tenantId}/…`, sodass mehrere Betriebe auf derselben Infrastruktur strikt getrennt arbeiten können.
@@ -17,7 +21,7 @@ Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle
 | App-Schutz | Firebase App Check (reCAPTCHA v3, Compat SDK) — Pflicht vor Callables | `web/app-check.js`, `web/firebase-config.js` |
 | Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | `hofsync-production` oder `charculogic-whitelabel-test` (`web/firebase-config.js`) |
 | Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel) | `tenants/{tenantId}/…` |
-| Offline | Service Worker + lokale Sync-Warteschlange (Dead-Letter-Queue) | `web/sw.js`, `web/sync.js` |
+| Offline | Service Worker + lokale Warteliste für Änderungen | `web/sw.js`, `web/sync.js` |
 | Backend | Cloud Functions (Node 20, `firebase-functions` v2) | `functions/` |
 | KI | Gemini + Google-Search-Grounding für Wochen-Fleischpreise | `functions/meatPrices.js` |
 | Sicherheit | Firestore- & Storage-Security-Rules (mandanten- und rollenbasiert) | `firebase.rules`, `storage.rules` |
@@ -90,7 +94,7 @@ Die untere Navigationsleiste umfasst bis zu sieben Bereiche (pro Mandant konfigu
 | **HACCP** | HACCP | `haccp.js` | Produktionsprotokoll, Temperatur-/Reinigungskontrollen |
 | **Büro** | Chargen & Leitstand | `production.js`, `teamboard.js`, `team-config.js` | Rückverfolgung, Nachricht veröffentlichen, Team-Konfiguration (Admin) |
 
-**Mandantenprofil StevesHof:** `StevesHof_Hauptbetrieb` nutzt derzeit **MHD**, **Neu** und **Prod.**. Das Hofladen-Tablet startet direkt im MHD-Monitor, verwendet den neutralen Bearbeiter `StevesHof-Team` und blendet den Alltags-Logout aus.
+**Mandantenprofil StevesHof:** `StevesHof_Hauptbetrieb` nutzt derzeit **MHD**, **Neu** und **Prod.**. Das Laden-iPhone startet direkt im MHD-Monitor, verwendet den neutralen Bearbeiter `StevesHof-Team` und blendet den Alltags-Logout aus.
 
 ---
 

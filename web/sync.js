@@ -606,7 +606,7 @@ export async function writeFirestoreDocOrQueue({
   op = 'update',
   onlineData = {},
   queueData = onlineData,
-  offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfugbar.",
+  offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.",
   silentPermissionDenied = false,
 }) {
   const db = syncContext.getDatabase();
@@ -626,7 +626,7 @@ export async function writeFirestoreDocOrQueue({
       data: syncData,
     });
     if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
-    window.showToast?.("MHD offline gespeichert (Warteschlange)", "warning");
+    window.showToast?.(offlineMessage, 'warning');
     refreshSyncConnectivityUi();
     return 'queued';
   }
@@ -686,10 +686,7 @@ export async function writeFirestoreDocOrQueue({
       data: syncData,
     });
     if (!saved) throw err;
-    const queueToast = isTaskCollectionPath(normalizedCollectionPath)
-      ? 'Team-Nachricht in Warteschlange – wird synchronisiert.'
-      : 'MHD offline gespeichert (Warteschlange)';
-    window.showToast?.(queueToast, 'warning');
+    window.showToast?.(offlineMessage, 'warning');
     refreshSyncConnectivityUi();
     return 'queued';
   }

@@ -504,6 +504,8 @@ module.exports = {
   executeMeatPriceRun,
   fetchWeeklyMeatPrices: exports.fetchWeeklyMeatPrices,
   triggerManualMeatPriceRun: exports.triggerManualMeatPriceRun,
+  extractJsonArray,
+  sanitizeGeminiResponseText,
   validateParsedPrices,
   classifyRunError,
   createCorrelationId,

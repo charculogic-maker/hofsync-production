@@ -48,7 +48,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ## Ablauf Morgencheck
 
-1. Tab **MHD** öffnen (beim Hofladen-Tablet automatisch)
+1. Tab **MHD** öffnen (beim Laden-iPhone automatisch)
 2. Bei Bedarf **Kategorie** wählen
 3. Karten der Reihe nach abarbeiten
 4. **Änderungen speichern**

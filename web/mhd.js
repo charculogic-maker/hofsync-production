@@ -8,6 +8,7 @@ import {
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 const HACCP_TEMP_LIMIT_C = 7.0;
 
@@ -397,7 +398,6 @@ function applyMhdCategoryFilterOptions() {
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
-const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
 const VPE_MASTER_CSV_URL = 'vpe-master.csv';
 
 let lastReceivingHeadCategory = '';
@@ -532,7 +532,12 @@ function openReceivingManualCreateForm() {
 
 function getActiveEmployee() {
   try {
-    return String(localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || mhdState.terminalEmployeeName || '').trim();
+    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
+    return String(
+      localStorage.getItem(key)
+      || mhdState.terminalEmployeeName
+      || '',
+    ).trim();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gelesen werden:', err);
     return mhdState.terminalEmployeeName;
@@ -543,7 +548,9 @@ function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return;
   try {
-    localStorage.setItem(ACTIVE_EMPLOYEE_STORAGE_KEY, cleanName);
+    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
+    localStorage.setItem(key, cleanName);
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gespeichert werden:', err);
   }
