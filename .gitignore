@@ -68,5 +68,19 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 
-# Cursor / AI Agent Referenzen ignorieren
-.agents/
+# Cursor / AI Agent Referenzen ignorieren (nur projekteigene Skills versionieren)
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/hofladen-doc-generator/
+!.agents/skills/hofladen-doc-generator/**
+!.agents/skills/offline-resilience-checker/
+!.agents/skills/offline-resilience-checker/**
+!.agents/skills/price-pipeline-auditor/
+!.agents/skills/price-pipeline-auditor/**
+!.agents/skills/security-test-coverage/
+!.agents/skills/security-test-coverage/**
+!.agents/skills/shop-wording-cop/
+!.agents/skills/shop-wording-cop/**
+!.agents/skills/tenant-isolation-validator/
+!.agents/skills/tenant-isolation-validator/**

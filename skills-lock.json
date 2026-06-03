@@ -41,7 +41,7 @@
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-auth-basics/SKILL.md",
-      "computedHash": "65e6f78dc3c9ea7896d65089899b0bd1060641b7756decd693e3179fe295456f"
+      "computedHash": "87ffefcaa1934070f3f91977588ec82fde38a75cbc41919df6fe0a0c83acc90d"
     },
     "firebase-basics": {
       "source": "firebase/agent-skills",
@@ -84,6 +84,42 @@
       "sourceType": "github",
       "skillPath": "skills/firebase-security-rules-auditor/SKILL.md",
       "computedHash": "42e793406ca8980c47fcdbd309f02838316849bcbf8475001b4ecaa6a67606b8"
+    },
+    "hofladen-doc-generator": {
+      "source": ".agents/skills/hofladen-doc-generator",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "ea10c9ddbcc70bdeae3b95264105f9a9335566a854ada3a01730e9af7a95ea43"
+    },
+    "offline-resilience-checker": {
+      "source": ".agents/skills/offline-resilience-checker",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "89afbfc5f0b2b30216fc3ba81687eba8b2f4f51409c763b79e2e24090b9dc95b"
+    },
+    "price-pipeline-auditor": {
+      "source": ".agents/skills/price-pipeline-auditor",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "acd947538f090763ad9d928e35159a6bc1ec15bf74913e156f8bf65a74faa1d8"
+    },
+    "security-test-coverage": {
+      "source": ".agents/skills/security-test-coverage",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "12a3528118fc2e1cb2afb9d9246a58c562a09ab80fa77197299dfbf9b366bf0e"
+    },
+    "shop-wording-cop": {
+      "source": ".agents/skills/shop-wording-cop",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "3d4d0cfa2fe974a9394b55ae6204a117073b1da0d08d007f073e57fba0b38458"
+    },
+    "tenant-isolation-validator": {
+      "source": ".agents/skills/tenant-isolation-validator",
+      "sourceType": "local",
+      "skillPath": "SKILL.md",
+      "computedHash": "9d2fe2d26bb5c216533f1283d22cde4666bbe95aba0584d99203fbae7a71603a"
     },
     "xcode-project-setup": {
       "source": "firebase/agent-skills",
