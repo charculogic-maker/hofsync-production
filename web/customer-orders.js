@@ -426,7 +426,7 @@ async function createOrderFromForm() {
 
   try {
     orderState.createInFlight = true;
-    await writeFirestoreDocOrQueue({
+    const result = await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
       op: 'set',
@@ -439,7 +439,12 @@ async function createOrderFromForm() {
       offlineMessage: 'Bestellung wird synchronisiert, sobald WLAN verfügbar ist.',
     });
     resetOrderForm();
-    window.showToast?.('Kundenbestellung gespeichert.', 'success');
+    window.showToast?.(
+      result === 'queued'
+        ? 'Bestellung wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
+        : 'Kundenbestellung gespeichert.',
+      result === 'queued' ? 'warning' : 'success'
+    );
   } catch (err) {
     console.error('[CustomerOrders] Speichern fehlgeschlagen:', err);
     window.showToast?.('Bestellung konnte nicht gespeichert werden.', 'error');
@@ -469,7 +474,7 @@ async function updateOrderStatus(orderId, nextStatus) {
 
   try {
     orderState.statusUpdateInFlight = true;
-    await writeFirestoreDocOrQueue({
+    const result = await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
       op: 'update',
@@ -489,7 +494,12 @@ async function updateOrderStatus(orderId, nextStatus) {
       offlineMessage: 'Status wird synchronisiert.',
     });
     const labels = { ready: 'als bereit markiert', picked_up: 'als abgeholt markiert', cancelled: 'storniert' };
-    window.showToast?.(`Bestellung ${labels[nextStatus] || 'aktualisiert'}.`, 'success');
+    window.showToast?.(
+      result === 'queued'
+        ? 'Status wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
+        : `Bestellung ${labels[nextStatus] || 'aktualisiert'}.`,
+      result === 'queued' ? 'warning' : 'success'
+    );
   } catch (err) {
     console.error('[CustomerOrders] Status-Update fehlgeschlagen:', err);
     window.showToast?.('Status konnte nicht gespeichert werden.', 'error');

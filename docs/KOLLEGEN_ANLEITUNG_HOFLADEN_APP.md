@@ -121,7 +121,7 @@ Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 | Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Passwort für den Hofladen-Zugang bitten. |
 | Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
-| Kein Internet | Erfassung fortsetzen. Unsere App synchronisiert gespeicherte Einträge nach Wiederherstellung der Verbindung. |
+| Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
 
 ## Logout am Laden-iPhone
 

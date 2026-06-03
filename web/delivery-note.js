@@ -150,10 +150,11 @@ async function saveDeliveryNoteInventory(items) {
 
   try {
     deliveryNoteState.saveInFlight = true;
+    let hasQueuedWrites = false;
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       const docId = `${batchId}_${i}`;
-      await writeFn({
+      const result = await writeFn({
         collectionPath: 'inventory',
         docId,
         op: 'set',
@@ -180,8 +181,14 @@ async function saveDeliveryNoteInventory(items) {
         },
         offlineMessage: 'Lieferschein-Posten werden nachgereicht.',
       });
+      if (result === 'queued') hasQueuedWrites = true;
     }
     removePreviewOverlay();
+    if (hasQueuedWrites) {
+      deliveryNoteState.showHUD('Lokal vorgemerkt', 'Wird automatisch synchronisiert, sobald WLAN verfügbar ist.');
+      window.showToast?.(`${items.length} Lieferschein-Posten werden automatisch synchronisiert.`, 'warning');
+      return;
+    }
     deliveryNoteState.showHUD('Gespeichert', `${items.length} Posten in inventory übernommen.`);
     window.showToast?.(`${items.length} Lieferschein-Posten gespeichert.`, 'success');
   } catch (err) {

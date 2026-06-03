@@ -80,12 +80,12 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 ## 6. Offline-Betrieb
 
-Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; gespeicherte Einträge synchronisieren wir nach Wiederherstellung der Verbindung.
+Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; unsere App zeigt beim Speichern **Lokal vorgemerkt** und synchronisiert die Einträge automatisch, sobald WLAN wieder verfügbar ist.
 
 | Situation | Verhalten |
 |-----------|-----------|
-| Kein Internet beim Speichern | Eintrag landet lokal in der Warteschlange. |
-| Verbindung kommt zurück | Warteschlange wird automatisch übertragen. |
+| Kein Internet beim Speichern | Eintrag wird lokal vorgemerkt. |
+| Verbindung kommt zurück | Vorgemerkte Einträge werden automatisch übertragen. |
 | Erstmalige Anmeldung am Laden-iPhone | Benötigt eine Internetverbindung. |
 
 ## 7. Administration

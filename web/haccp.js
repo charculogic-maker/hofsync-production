@@ -227,7 +227,7 @@ async function saveHaccpLog(entry) {
   const docId = createHaccpLogId(fullEntry);
 
   try {
-    await haccpState.writeOrQueueFirestore({
+    return await haccpState.writeOrQueueFirestore({
       collectionPath: path,
       docId,
       op: 'set',
@@ -244,7 +244,7 @@ async function saveHaccpLog(entry) {
     }
     if (isPermissionDeniedError(err)) {
       console.warn(`[CharcuLogic HACCP] permission-denied für ${docId}`);
-      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte Admin-Rolle oder Firestore-Rules prüfen.", "!");
+      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte im Büro die Berechtigung prüfen.", "!");
       return;
     }
     console.warn('[CharcuLogic HACCP] Speichern fehlgeschlagen:', err);
@@ -259,7 +259,7 @@ async function saveTemperatureCheck(deviceId) {
   const note = document.getElementById(`note-${safeDomId(deviceId)}`)?.value || '';
   const status = temperatureStatus(device, value);
   try {
-    await saveHaccpLog({
+    const result = await saveHaccpLog({
       logTyp: 'temperatur',
       deviceId,
       deviceName: device.name,
@@ -272,6 +272,10 @@ async function saveTemperatureCheck(deviceId) {
       massnahme: note,
     });
     haccpState.onFormSaved([`temp-${safeDomId(deviceId)}`, `note-${safeDomId(deviceId)}`]);
+    if (result === 'queued') {
+      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+      return;
+    }
     haccpState.showHUD(status.ok ? "Temperatur OK" : "Abweichung gespeichert", `${device.name}: ${value} ${device.einheit || '°C'}`);
   } catch (err) {
     const code = err?.code || '';
@@ -281,7 +285,7 @@ async function saveTemperatureCheck(deviceId) {
       return;
     }
     if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden (Rules/Admin).", "!");
+      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
       return;
     }
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
@@ -294,7 +298,7 @@ async function saveCleaningCheck(deviceId) {
   if (!device) return;
   const note = document.getElementById(`clean-note-${safeDomId(deviceId)}`)?.value || '';
   try {
-    await saveHaccpLog({
+    const result = await saveHaccpLog({
       logTyp: 'reinigung',
       deviceId,
       deviceName: device.name,
@@ -303,6 +307,10 @@ async function saveCleaningCheck(deviceId) {
       massnahme: note,
     });
     haccpState.onFormSaved([`clean-note-${safeDomId(deviceId)}`]);
+    if (result === 'queued') {
+      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+      return;
+    }
     haccpState.showHUD("Reinigung erfasst", `${device.name} wurde dokumentiert.`);
   } catch (err) {
     const code = err?.code || '';
@@ -312,7 +320,7 @@ async function saveCleaningCheck(deviceId) {
       return;
     }
     if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden (Rules/Admin).", "!");
+      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
       return;
     }
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
@@ -526,7 +534,7 @@ function bindStaticHaccpControls() {
     const temperatur = parseFloat(document.getElementById('haccp-temp')?.value);
     const chargenNummer = document.getElementById('haccp-batch')?.value.trim();
     try {
-      await saveHaccpLog({
+      const result = await saveHaccpLog({
         logTyp: 'protokoll',
         ph,
         temperatur,
@@ -534,6 +542,10 @@ function bindStaticHaccpControls() {
       });
       clearHaccpDraft();
       haccpState.onFormSaved(['haccp-ph', 'haccp-temp', 'haccp-batch']);
+      if (result === 'queued') {
+        haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+        return;
+      }
       haccpState.showHUD("📝 HACCP erfasst", `Charge ${chargenNummer} dokumentiert.`);
     } catch (err) {
       console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);

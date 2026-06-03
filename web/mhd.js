@@ -1574,12 +1574,19 @@ function showLearnModeDialog(ean) {
       activeScan = activeScan ? { ...activeScan, handled: true } : null;
       mhdState.onFormSaved(['manual-barcode-input']);
       mhdState.playClickSound(1300, 0.08, 0.2);
+      const wasQueued = firestoreResult === 'queued';
       if (lastScanInputSource === 'manual') {
-        mhdState.showHUD("Lokal gesichert (Manuelle Eingabe)", `${qty} Stueck ${name} wurden erfasst.`);
-        renderReceivingStatus({ lastScan: barcodeForSave, status: firestoreResult === 'queued' ? 'Lokal gesichert' : 'Gespeichert' });
+        mhdState.showHUD(
+          wasQueued ? "Lokal vorgemerkt" : "Lokal gesichert (Manuelle Eingabe)",
+          wasQueued ? "Wird automatisch synchronisiert, sobald WLAN verfügbar ist." : `${qty} Stueck ${name} wurden erfasst.`
+        );
+        renderReceivingStatus({ lastScan: barcodeForSave, status: wasQueued ? 'Lokal vorgemerkt' : 'Gespeichert' });
       } else {
-        mhdState.showHUD("Wareneingang gespeichert", `${qty} Stueck ${name} wurden erfasst.`);
-        renderReceivingStatus({ lastScan: barcodeForSave, status: 'Gespeichert' });
+        mhdState.showHUD(
+          wasQueued ? "Lokal vorgemerkt" : "Wareneingang gespeichert",
+          wasQueued ? "Wird automatisch synchronisiert, sobald WLAN verfügbar ist." : `${qty} Stueck ${name} wurden erfasst.`
+        );
+        renderReceivingStatus({ lastScan: barcodeForSave, status: wasQueued ? 'Lokal vorgemerkt' : 'Gespeichert' });
       }
       resetScanState({ keepLearnOverlay: false });
     } catch (err) {
@@ -2138,14 +2145,16 @@ async function markMhdAction(id, actionStatus) {
     queuedUpdates.kuecheAngefragtAt = nowIso;
   }
   try {
-    await mhdState.writeOrQueueFirestore({
+    const actionResult = await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
       onlineData: updates,
       queueData: queuedUpdates,
       offlineMessage: "MHD-Aktion wird nachträglich synchronisiert.",
     });
-    const successMessage = actionStatus === 'reduziert'
+    const successMessage = actionResult === 'queued'
+      ? 'Lokal vorgemerkt. Wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
+      : actionStatus === 'reduziert'
       ? 'Posten als reduziert markiert.'
       : actionStatus === 'rausgenommen'
         ? 'Posten als rausgenommen markiert.'
@@ -3250,7 +3259,7 @@ async function saveDeliveryDraft() {
       draftBtn.textContent = 'Speichere Entwurf...';
     }
 
-    await mhdState.writeOrQueueFirestore({
+    const saveResult = await mhdState.writeOrQueueFirestore({
       collectionPath: deliveryCollectionPath(),
       docId: deliveryId,
       op: 'set',
@@ -3261,6 +3270,11 @@ async function saveDeliveryDraft() {
 
     mhdState.playClickSound(1100, 0.06, 0.14);
     resetReceivingForm();
+    if (saveResult === 'queued') {
+      renderReceivingStatus({ status: 'Entwurf lokal vorgemerkt' });
+      window.showToast?.('Entwurf wird automatisch synchronisiert, sobald WLAN verfügbar ist.', 'warning');
+      return;
+    }
     renderReceivingStatus({ status: 'Entwurf für Büro gesichert' });
     window.showToast?.('Entwurf erfolgreich für das Büro gesichert!', 'success');
   } catch (err) {
@@ -3441,7 +3455,7 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    await mhdState.writeOrQueueFirestore({
+    const deliveryResult = await mhdState.writeOrQueueFirestore({
       collectionPath: deliveryCollectionPath(),
       docId: deliveryId,
       op: 'set',
@@ -3457,7 +3471,7 @@ async function finalizeDelivery() {
         updatedAt: completedAt,
         createdAt: completedAt,
       };
-      await mhdState.writeOrQueueFirestore({
+      const result = await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: record.id,
         op: 'set',
@@ -3466,12 +3480,20 @@ async function finalizeDelivery() {
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
       saveProductMaster(record);
+      return result;
     });
 
-    await Promise.allSettled(mhdWrites);
+    const mhdResults = await Promise.allSettled(mhdWrites);
+    const hasQueuedWrites = deliveryResult === 'queued'
+      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
+    if (hasQueuedWrites) {
+      renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten lokal vorgemerkt` });
+      window.showToast?.('Lieferung wird automatisch synchronisiert, sobald WLAN verfügbar ist.', 'warning');
+      return;
+    }
     renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
