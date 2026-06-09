@@ -328,6 +328,20 @@
                   </form>
                 </div>
 
+                <div class="customer-order-section task-token-section production-tasks-section" id="production-tasks-section">
+                  <h2 class="task-token-heading">Produktions-Aufträge</h2>
+                  <div class="production-tasks-grid">
+                    <section class="production-station-card" aria-label="In der Küche zu tun">
+                      <h3>🍳 Heute zu kochen (Küche)</h3>
+                      <div id="production-tasks-kitchen"></div>
+                    </section>
+                    <section class="production-station-card" aria-label="In der Metzgerei zu tun">
+                      <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                      <div id="production-tasks-butchery"></div>
+                    </section>
+                  </div>
+                </div>
+
                 <div class="customer-order-section task-token-section">
                   <h2 class="task-token-heading">Offene Bestellungen</h2>
                   <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
@@ -781,6 +795,16 @@
               <div class="admin-leitstand-block">
                 <h3>Kundenbestellungen (Übersicht)</h3>
                 <p class="admin-leitstand-hint">Alle angenommenen Bestellungen – auch erledigte der letzten Tage.</p>
+                <div class="production-tasks-grid production-tasks-grid--admin">
+                  <section class="production-station-card" aria-label="In der Küche zu tun">
+                    <h3>🍳 Heute zu kochen (Küche)</h3>
+                    <div id="production-tasks-kitchen-admin"></div>
+                  </section>
+                  <section class="production-station-card" aria-label="In der Metzgerei zu tun">
+                    <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                    <div id="production-tasks-butchery-admin"></div>
+                  </section>
+                </div>
                 <button type="button" class="btn btn-primary sammel-pickliste-open-btn" id="sammel-pickliste-open-btn">Sammel-Pickliste für heute</button>
                 <div id="admin-customer-order-list" class="customer-order-list customer-order-list--admin"></div>
               </div>

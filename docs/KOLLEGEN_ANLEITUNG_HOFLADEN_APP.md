@@ -109,13 +109,15 @@ Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Bestellungen im Blick. Im Bürobereich gibt es dafür die **Sammel-Pickliste für heute**.
 
 1. **Team** öffnen.
-2. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
-3. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
-4. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
-5. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab.
-6. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
-7. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
-8. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
+2. Unter **Produktions-Aufträge** sehen wir, was in der Küche und in der Metzgerei zu tun ist.
+3. Fertige Posten haken wir als **Fertig für den Laden** ab.
+4. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
+5. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
+6. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
+7. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab.
+8. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
+9. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
+10. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
 
 Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit** und schreibt automatisch eine kurze Info aufs Schwarze Brett. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 

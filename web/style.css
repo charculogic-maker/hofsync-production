@@ -5240,6 +5240,107 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-top: 10px;
 }
 
+.production-tasks-section {
+  margin-top: 12px;
+}
+
+.production-tasks-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.production-tasks-grid--admin {
+  margin-top: 8px;
+}
+
+.production-station-card {
+  padding: 12px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.production-station-card h3 {
+  margin: 0 0 8px;
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.production-station-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.production-station-item {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 3px 9px;
+  align-items: center;
+  min-height: 56px;
+  padding: 9px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.production-station-item input[type="checkbox"] {
+  grid-row: span 3;
+  width: 24px;
+  height: 24px;
+  accent-color: var(--primary-color);
+}
+
+.production-station-line {
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.production-station-line strong {
+  font-size: 16px;
+}
+
+.production-station-meta,
+.production-station-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.production-station-item:has(input:checked) {
+  background: var(--primary-tint-bg);
+  border-color: var(--primary-color);
+}
+
+.production-station-item:has(input:checked) .production-station-meta {
+  color: var(--primary-hover);
+}
+
+.production-station-empty {
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+@media (min-width: 700px) {
+  .production-tasks-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .sammel-pickliste-open-btn {
   width: 100%;
   min-height: 56px;

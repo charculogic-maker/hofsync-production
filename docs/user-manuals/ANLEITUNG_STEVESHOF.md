@@ -83,6 +83,8 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 Im Tab **Team** erfassen wir Kundenbestellungen und sehen offene Bestellungen. Für das tägliche Zusammenstellen öffnen wir im Bürobereich **Sammel-Pickliste für heute**.
 
+Unter **Produktions-Aufträge** sehen wir zwei kompakte Listen: **Heute zu kochen (Küche)** und **Heute zu zerlegen/packen (Metzgerei)**. Unsere App zeigt dort nur die zusammengefassten Mengen, die für Küche oder Metzgerei aus offenen Bestellungen entstehen. Fertige Posten haken wir als **Fertig für den Laden** ab.
+
 Unsere App fasst gleiche Artikel aus allen offenen, noch nicht eingepackten Bestellungen zusammen und sortiert sie nach Bereichen wie **Wurstküche**, **Molkereiprodukte** und **Hofladen-Spezialitäten**. Beim Zusammenstellen haken wir die Zeilen am Laden-iPhone ab. **Liste zurücksetzen** löscht nur diese Häkchen und ändert keine Bestellung.
 
 Sobald alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren** und bestätigen, dass alle Artikel für heute eingepackt sind. Unsere App setzt die enthaltenen Bestellungen auf **Abholbereit** und schreibt automatisch eine kurze Info aufs Schwarze Brett.

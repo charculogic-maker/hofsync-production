@@ -18,6 +18,18 @@ const ORDER_STATUS_LABELS = {
 
 const OPEN_ORDER_STATUSES = new Set(['open', 'pending', 'eingegangen']);
 const PICKLIST_CATEGORY_ORDER = ['Wurstküche', 'Molkereiprodukte', 'Hofladen-Spezialitäten', 'Sonstiges'];
+const PRODUCTION_STATIONS = {
+  kitchen: {
+    category: 'Küche / Gastro',
+    title: 'Heute zu kochen (Küche)',
+    empty: 'In der Küche ist heute nichts aus offenen Bestellungen zu tun.',
+  },
+  butchery: {
+    category: 'Metzgerei / Produktion',
+    title: 'Heute zu zerlegen/packen (Metzgerei)',
+    empty: 'In der Metzgerei ist heute nichts aus offenen Bestellungen zu tun.',
+  },
+};
 
 const orderState = {
   db: null,
@@ -31,6 +43,7 @@ const orderState = {
   statusUpdateInFlight: false,
   picklistReadyInFlight: false,
   picklistChecked: new Set(),
+  productionChecked: new Set(),
 };
 
 function escapeHtml(value) {
@@ -261,6 +274,20 @@ function getPicklistCategory(item) {
   return item?.category || 'Sonstiges';
 }
 
+function getProductionStation(item) {
+  const text = [
+    item?.category,
+    item?.station,
+    item?.area,
+    item?.product,
+    item?.lineNotes,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  if (text.includes('küche') || text.includes('kueche') || text.includes('gastro')) return 'kitchen';
+  if (text.includes('metzgerei') || text.includes('produktion')) return 'butchery';
+  return null;
+}
+
 function isTodayReadyOrder(order) {
   const ts = toEpochMs(order?.readyAt);
   if (!ts) return true;
@@ -333,6 +360,97 @@ export function generateSammelPickliste() {
       })
       .map(([category, items]) => ({ category, items })),
   };
+}
+
+export function getProductionTasksByStation() {
+  const stationItems = {
+    kitchen: new Map(),
+    butchery: new Map(),
+  };
+
+  orderState.allOrders
+    .filter((order) => OPEN_ORDER_STATUSES.has(order.status || 'open') && isTodayReadyOrder(order))
+    .forEach((order) => {
+      (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+        const station = getProductionStation(item);
+        if (!station) return;
+        const product = String(item?.product || '').trim();
+        if (!product || product === 'Siehe Bestellzettel (Scan)') return;
+        const unit = String(item?.unit || '').trim();
+        const key = [
+          station,
+          normalizePicklistKey(product),
+          normalizePicklistKey(unit),
+        ].join('|');
+        const entry = stationItems[station].get(key) || {
+          key,
+          product,
+          unit,
+          quantity: 0,
+          orderIds: new Set(),
+          notes: new Set(),
+        };
+        entry.quantity += parseQuantityValue(item?.quantity);
+        entry.orderIds.add(order.id);
+        [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
+        stationItems[station].set(key, entry);
+      });
+    });
+
+  const toList = (station) => Array.from(stationItems[station].values())
+    .sort((a, b) => a.product.localeCompare(b.product, 'de'))
+    .map((entry) => ({
+      ...entry,
+      quantityLabel: formatQuantityValue(entry.quantity),
+      orderCount: entry.orderIds.size,
+      orderIds: Array.from(entry.orderIds),
+      notes: Array.from(entry.notes),
+    }));
+
+  return {
+    kitchen: toList('kitchen'),
+    butchery: toList('butchery'),
+  };
+}
+
+function renderProductionStationList(station, items) {
+  const config = PRODUCTION_STATIONS[station];
+  if (!items.length) {
+    return `<p class="production-station-empty">${escapeHtml(config.empty)}</p>`;
+  }
+  return `
+    <div class="production-station-list">
+      ${items.map((item) => {
+        const checked = orderState.productionChecked.has(item.key) ? ' checked' : '';
+        const unit = item.unit ? ` ${escapeHtml(item.unit)}` : '';
+        const notes = item.notes.length ? `<span class="production-station-note">${escapeHtml(item.notes.join(' · '))}</span>` : '';
+        return `
+          <label class="production-station-item">
+            <input type="checkbox" data-production-key="${escapeHtml(item.key)}"${checked}>
+            <span class="production-station-line"><strong>${escapeHtml(item.quantityLabel)}${unit}</strong> ${escapeHtml(item.product)}</span>
+            <span class="production-station-meta">${checked ? 'Fertig für den Laden' : 'Produktions-Auftrag'}</span>
+            ${notes}
+          </label>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderProductionTasks() {
+  const kitchenBodies = [
+    document.getElementById('production-tasks-kitchen'),
+    document.getElementById('production-tasks-kitchen-admin'),
+  ].filter(Boolean);
+  const butcheryBodies = [
+    document.getElementById('production-tasks-butchery'),
+    document.getElementById('production-tasks-butchery-admin'),
+  ].filter(Boolean);
+  if (!kitchenBodies.length && !butcheryBodies.length) return;
+
+  const tasks = getProductionTasksByStation();
+  kitchenBodies.forEach((body) => { body.innerHTML = renderProductionStationList('kitchen', tasks.kitchen); });
+  butcheryBodies.forEach((body) => { body.innerHTML = renderProductionStationList('butchery', tasks.butchery); });
 }
 
 function renderSammelPickliste() {
@@ -480,6 +598,7 @@ async function markSammelPicklisteReady() {
     hideSammelPicklisteConfirm();
     renderOpenOrders();
     renderAdminOrders();
+    renderProductionTasks();
     renderSammelPickliste();
     const queued = results.includes('queued');
     window.showToast?.(
@@ -899,6 +1018,27 @@ function bindSammelPicklisteActions() {
   });
 }
 
+function bindProductionTaskActions() {
+  const roots = [
+    document.getElementById('production-tasks-section'),
+    document.getElementById('admin-leitstand-panel'),
+  ].filter(Boolean);
+  roots.forEach((section) => {
+    if (section.dataset.productionTasksBound === '1') return;
+    section.dataset.productionTasksBound = '1';
+    section.addEventListener('change', (event) => {
+      const input = event.target.closest('input[type="checkbox"][data-production-key]');
+      if (!input) return;
+      if (input.checked) {
+        orderState.productionChecked.add(input.dataset.productionKey);
+      } else {
+        orderState.productionChecked.delete(input.dataset.productionKey);
+      }
+      renderProductionTasks();
+    });
+  });
+}
+
 function subscribeOrders() {
   orderState.ordersUnsubscribe?.();
   const col = ordersCollectionRef();
@@ -909,6 +1049,7 @@ function subscribeOrders() {
       orderState.allOrders = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       renderOpenOrders();
       renderAdminOrders();
+      renderProductionTasks();
       if (document.getElementById('sammel-pickliste-modal')?.classList.contains('is-open')) {
         renderSammelPickliste();
       }
@@ -924,6 +1065,7 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
 
   bindOrderForm();
   bindOrderListActions();
+  bindProductionTaskActions();
   bindSammelPicklisteActions();
   subscribeOrders();
   initGermanDateInputs(document);
@@ -933,5 +1075,6 @@ export function activateCustomerOrdersTab() {
   ensureDefaultOrderLine();
   renderOpenOrders();
   renderAdminOrders();
+  renderProductionTasks();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
 }
