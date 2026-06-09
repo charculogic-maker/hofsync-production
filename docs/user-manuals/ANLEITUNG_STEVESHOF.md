@@ -79,7 +79,15 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 
-## 6. Offline-Betrieb
+## 6. Kundenbestellungen und Sammel-Pickliste
+
+Im Tab **Team** erfassen wir Kundenbestellungen und sehen offene Bestellungen. Für das tägliche Zusammenstellen öffnen wir im Bürobereich **Sammel-Pickliste für heute**.
+
+Unsere App fasst gleiche Artikel aus allen offenen, noch nicht eingepackten Bestellungen zusammen und sortiert sie nach Bereichen wie **Wurstküche**, **Molkereiprodukte** und **Hofladen-Spezialitäten**. Beim Zusammenstellen haken wir die Zeilen am Laden-iPhone ab. **Liste zurücksetzen** löscht nur diese Häkchen und ändert keine Bestellung.
+
+Sobald eine Bestellung vollständig eingepackt ist, setzen wir sie in der Bestellkarte wie gewohnt auf **Bereit**.
+
+## 7. Offline-Betrieb
 
 Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; unsere App zeigt beim Speichern **Lokal vorgemerkt** und synchronisiert die Einträge automatisch, sobald WLAN wieder verfügbar ist.
 
@@ -89,7 +97,7 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 | Verbindung kommt zurück | Vorgemerkte Einträge werden automatisch übertragen. |
 | Erstmalige Anmeldung am Laden-iPhone | Benötigt eine Internetverbindung. |
 
-## 7. Administration
+## 8. Administration
 
 | Thema | Vorgehen |
 |-------|----------|

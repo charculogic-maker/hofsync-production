@@ -5240,6 +5240,166 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-top: 10px;
 }
 
+.sammel-pickliste-open-btn {
+  width: 100%;
+  min-height: 56px;
+  margin: 4px 0 12px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.sammel-pickliste-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  display: none;
+  background: rgba(17, 24, 39, 0.72);
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+
+.sammel-pickliste-modal.is-open {
+  display: block;
+}
+
+.sammel-pickliste-view {
+  width: min(720px, 100%);
+  height: calc(100dvh - 20px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+.sammel-pickliste-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 10px;
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--primary-tint-bg);
+}
+
+.sammel-pickliste-kicker {
+  margin: 0 0 3px;
+  color: var(--primary-hover);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sammel-pickliste-head h2 {
+  margin: 0;
+  color: var(--text-dark);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.sammel-pickliste-summary {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sammel-pickliste-toolbar {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-secondary);
+}
+
+.sammel-pickliste-toolbar .btn {
+  width: 100%;
+  min-height: 50px;
+  font-weight: 900;
+}
+
+.sammel-pickliste-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 18px;
+  background: var(--light-bg);
+}
+
+.sammel-pickliste-category {
+  margin-bottom: 16px;
+}
+
+.sammel-pickliste-category h3 {
+  margin: 0 0 8px;
+  color: var(--primary-hover);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.sammel-pickliste-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sammel-pickliste-item {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 4px 10px;
+  align-items: center;
+  min-height: 68px;
+  padding: 12px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.sammel-pickliste-item input[type="checkbox"] {
+  grid-row: span 3;
+  width: 28px;
+  height: 28px;
+  accent-color: var(--primary-color);
+}
+
+.sammel-pickliste-line {
+  color: var(--text-dark);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.sammel-pickliste-line strong {
+  font-size: 20px;
+}
+
+.sammel-pickliste-meta,
+.sammel-pickliste-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sammel-pickliste-item:has(input:checked) {
+  background: var(--primary-tint-bg);
+  border-color: var(--primary-color);
+}
+
+.sammel-pickliste-item:has(input:checked) .sammel-pickliste-meta {
+  color: var(--primary-hover);
+}
+
+.sammel-pickliste-empty {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  color: var(--text-muted);
+  font-weight: 900;
+  text-align: center;
+}
+
 .btn-compact {
   min-height: 40px;
   padding: 8px 12px;

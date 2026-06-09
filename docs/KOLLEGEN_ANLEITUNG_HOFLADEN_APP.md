@@ -104,6 +104,21 @@ Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 
 ---
 
+## 4. Kundenbestellungen zusammenstellen
+
+Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Bestellungen im Blick. Im Bürobereich gibt es dafür die **Sammel-Pickliste für heute**.
+
+1. **Team** öffnen.
+2. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
+3. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
+4. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
+5. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab.
+6. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
+
+Die Häkchen helfen uns nur beim Zusammenstellen. Den Bestellstatus setzen wir danach wie gewohnt in der Bestellung auf **Bereit**.
+
+---
+
 ## Liefertag: Kurzfassung
 
 1. CharcuLogic öffnen: **MHD**-Kontrolle erscheint automatisch.

@@ -9,10 +9,15 @@ import { initGermanDateInputs, readGermanDateField, setGermanDateField } from '.
 
 const ORDER_STATUS_LABELS = {
   open: 'Offen',
+  pending: 'Offen',
+  eingegangen: 'Offen',
   ready: 'Bereit',
   picked_up: 'Abgeholt',
   cancelled: 'Storniert',
 };
+
+const OPEN_ORDER_STATUSES = new Set(['open', 'pending', 'eingegangen']);
+const PICKLIST_CATEGORY_ORDER = ['Wurstküche', 'Molkereiprodukte', 'Hofladen-Spezialitäten', 'Sonstiges'];
 
 const orderState = {
   db: null,
@@ -24,6 +29,7 @@ const orderState = {
   pendingSlips: [],
   createInFlight: false,
   statusUpdateInFlight: false,
+  picklistChecked: new Set(),
 };
 
 function escapeHtml(value) {
@@ -213,6 +219,179 @@ function renderOrderItemsList(items) {
   }).join('');
 }
 
+function parseQuantityValue(value) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(',', '.')
+    .match(/-?\d+(?:\.\d+)?/);
+  if (!normalized) return 0;
+  const parsed = Number(normalized[0]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatQuantityValue(value) {
+  if (!Number.isFinite(value)) return '0';
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 }).format(value);
+}
+
+function normalizePicklistKey(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function getPicklistCategory(item) {
+  const text = [
+    item?.category,
+    item?.product,
+    item?.lineNotes,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  if (/(joghurt|milch|käse|kaese|quark|butter|sahne|molkerei|mopro|ei\b|eier)/.test(text)) {
+    return 'Molkereiprodukte';
+  }
+  if (/(salami|mettwurst|bratwurst|leberwurst|fleischsalat|aufschnitt|wurst|schinken|speck)/.test(text)) {
+    return 'Wurstküche';
+  }
+  if (/(honig|marmelade|nudel|eingelegt|senf|saft|sirup|hofladen|spezial)/.test(text)) {
+    return 'Hofladen-Spezialitäten';
+  }
+  return item?.category || 'Sonstiges';
+}
+
+function isTodayReadyOrder(order) {
+  const ts = toEpochMs(order?.readyAt);
+  if (!ts) return true;
+  const date = new Date(ts);
+  const readyDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return readyDay === todayIsoLocal();
+}
+
+export function generateSammelPickliste() {
+  const grouped = new Map();
+  const openOrders = orderState.allOrders.filter((order) => {
+    const status = order.status || 'open';
+    return OPEN_ORDER_STATUSES.has(status) && isTodayReadyOrder(order);
+  });
+
+  openOrders.forEach((order) => {
+    (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+      const product = String(item?.product || '').trim();
+      if (!product || product === 'Siehe Bestellzettel (Scan)') return;
+      const unit = String(item?.unit || '').trim();
+      const category = getPicklistCategory(item);
+      const key = [
+        normalizePicklistKey(category),
+        normalizePicklistKey(product),
+        normalizePicklistKey(unit),
+      ].join('|');
+      const quantity = parseQuantityValue(item?.quantity);
+      const entry = grouped.get(key) || {
+        key,
+        product,
+        unit,
+        category,
+        quantity: 0,
+        orders: new Set(),
+        notes: new Set(),
+      };
+      entry.quantity += quantity;
+      entry.orders.add(order.id);
+      [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
+      grouped.set(key, entry);
+    });
+  });
+
+  const categories = new Map();
+  Array.from(grouped.values())
+    .sort((a, b) => a.product.localeCompare(b.product, 'de'))
+    .forEach((entry) => {
+      const list = categories.get(entry.category) || [];
+      list.push({
+        ...entry,
+        quantityLabel: formatQuantityValue(entry.quantity),
+        orderCount: entry.orders.size,
+        notes: Array.from(entry.notes),
+      });
+      categories.set(entry.category, list);
+    });
+
+  return {
+    generatedAt: new Date(),
+    orderCount: openOrders.length,
+    categories: Array.from(categories.entries())
+      .sort(([a], [b]) => {
+        const ai = PICKLIST_CATEGORY_ORDER.indexOf(a);
+        const bi = PICKLIST_CATEGORY_ORDER.indexOf(b);
+        if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        return a.localeCompare(b, 'de');
+      })
+      .map(([category, items]) => ({ category, items })),
+  };
+}
+
+function renderSammelPickliste() {
+  const body = document.getElementById('sammel-pickliste-body');
+  const summary = document.getElementById('sammel-pickliste-summary');
+  if (!body) return;
+  const picklist = generateSammelPickliste();
+  if (summary) {
+    summary.textContent = picklist.orderCount === 1
+      ? '1 offene Bestellung zum Zusammenstellen.'
+      : `${picklist.orderCount} offene Bestellungen zum Zusammenstellen.`;
+  }
+  if (!picklist.categories.length) {
+    body.innerHTML = '<p class="sammel-pickliste-empty">Heute ist nichts mehr zu holen.</p>';
+    return;
+  }
+  body.innerHTML = picklist.categories.map(({ category, items }) => `
+    <section class="sammel-pickliste-category">
+      <h3>${escapeHtml(category)}</h3>
+      <div class="sammel-pickliste-items">
+        ${items.map((item) => {
+          const isChecked = orderState.picklistChecked.has(item.key);
+          const checked = isChecked ? ' checked' : '';
+          const pickupLabel = isChecked ? 'Eingepackt' : 'Noch zu holen';
+          const unit = item.unit ? ` ${escapeHtml(item.unit)}` : '';
+          const notes = item.notes.length ? `<span class="sammel-pickliste-note">${escapeHtml(item.notes.join(' · '))}</span>` : '';
+          return `
+            <label class="sammel-pickliste-item">
+              <input type="checkbox" data-picklist-key="${escapeHtml(item.key)}"${checked}>
+              <span class="sammel-pickliste-line"><strong>${escapeHtml(item.quantityLabel)}${unit}</strong> ${escapeHtml(item.product)}</span>
+              <span class="sammel-pickliste-meta">${item.orderCount} ${item.orderCount === 1 ? 'Bestellung' : 'Bestellungen'} · ${pickupLabel}</span>
+              ${notes}
+            </label>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `).join('');
+}
+
+function openSammelPickliste() {
+  const modal = document.getElementById('sammel-pickliste-modal');
+  if (!modal) return;
+  renderSammelPickliste();
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeSammelPickliste() {
+  const modal = document.getElementById('sammel-pickliste-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+}
+
+function resetSammelPickliste() {
+  orderState.picklistChecked.clear();
+  renderSammelPickliste();
+  window.showToast?.('Sammel-Pickliste zurückgesetzt.', 'success');
+}
+
 function renderOrderCard(order, { adminView = false } = {}) {
   const status = order.status || 'open';
   const statusLabel = ORDER_STATUS_LABELS[status] || status;
@@ -260,7 +439,7 @@ function renderOpenOrders() {
   if (!list) return;
 
   const open = orderState.allOrders
-    .filter((o) => o.status === 'open' || o.status === 'ready')
+    .filter((o) => OPEN_ORDER_STATUSES.has(o.status || 'open') || o.status === 'ready')
     .sort((a, b) => toEpochMs(a.readyAt) - toEpochMs(b.readyAt));
 
   if (open.length === 0) {
@@ -279,7 +458,7 @@ function renderAdminOrders() {
   const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
   const visible = orderState.allOrders
     .filter((o) => {
-      if (o.status === 'open' || o.status === 'ready') return true;
+      if (OPEN_ORDER_STATUSES.has(o.status || 'open') || o.status === 'ready') return true;
       const ts = toEpochMs(o.pickedUpAt || o.readyMarkedAt || o.acceptedAt);
       return ts >= cutoff;
     })
@@ -589,6 +768,29 @@ function bindOrderListActions() {
   document.getElementById('admin-customer-order-list')?.addEventListener('click', handler);
 }
 
+function bindSammelPicklisteActions() {
+  const modal = document.getElementById('sammel-pickliste-modal');
+  if (!modal || modal.dataset.sammelPicklisteBound === '1') return;
+  modal.dataset.sammelPicklisteBound = '1';
+
+  document.getElementById('sammel-pickliste-open-btn')?.addEventListener('click', openSammelPickliste);
+  document.getElementById('sammel-pickliste-close-btn')?.addEventListener('click', closeSammelPickliste);
+  document.getElementById('sammel-pickliste-reset-btn')?.addEventListener('click', resetSammelPickliste);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeSammelPickliste();
+  });
+  document.getElementById('sammel-pickliste-body')?.addEventListener('change', (event) => {
+    const input = event.target.closest('input[type="checkbox"][data-picklist-key]');
+    if (!input) return;
+    if (input.checked) {
+      orderState.picklistChecked.add(input.dataset.picklistKey);
+    } else {
+      orderState.picklistChecked.delete(input.dataset.picklistKey);
+    }
+    renderSammelPickliste();
+  });
+}
+
 function subscribeOrders() {
   orderState.ordersUnsubscribe?.();
   const col = ordersCollectionRef();
@@ -599,6 +801,9 @@ function subscribeOrders() {
       orderState.allOrders = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       renderOpenOrders();
       renderAdminOrders();
+      if (document.getElementById('sammel-pickliste-modal')?.classList.contains('is-open')) {
+        renderSammelPickliste();
+      }
     },
     (err) => console.warn('[CustomerOrders] Stream:', err),
   );
@@ -611,6 +816,7 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
 
   bindOrderForm();
   bindOrderListActions();
+  bindSammelPicklisteActions();
   subscribeOrders();
   initGermanDateInputs(document);
 }

@@ -781,7 +781,25 @@
               <div class="admin-leitstand-block">
                 <h3>Kundenbestellungen (Übersicht)</h3>
                 <p class="admin-leitstand-hint">Alle angenommenen Bestellungen – auch erledigte der letzten Tage.</p>
+                <button type="button" class="btn btn-primary sammel-pickliste-open-btn" id="sammel-pickliste-open-btn">Sammel-Pickliste für heute</button>
                 <div id="admin-customer-order-list" class="customer-order-list customer-order-list--admin"></div>
+              </div>
+
+              <div class="sammel-pickliste-modal" id="sammel-pickliste-modal" hidden role="dialog" aria-modal="true" aria-labelledby="sammel-pickliste-title">
+                <div class="sammel-pickliste-view">
+                  <header class="sammel-pickliste-head">
+                    <div>
+                      <p class="sammel-pickliste-kicker">Zusammenstellen</p>
+                      <h2 id="sammel-pickliste-title">Sammel-Pickliste</h2>
+                      <p id="sammel-pickliste-summary" class="sammel-pickliste-summary">Offene Bestellungen zum Zusammenstellen.</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-compact" id="sammel-pickliste-close-btn" aria-label="Sammel-Pickliste schließen">Schließen</button>
+                  </header>
+                  <div class="sammel-pickliste-toolbar">
+                    <button type="button" class="btn btn-secondary" id="sammel-pickliste-reset-btn">Liste zurücksetzen</button>
+                  </div>
+                  <div id="sammel-pickliste-body" class="sammel-pickliste-body"></div>
+                </div>
               </div>
 
               <details class="leitstand-collapsible admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
