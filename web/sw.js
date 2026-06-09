@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260609-122';
+const CACHE_NAME = 'charculogic-v20260609-123';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026';
 
 const CRITICAL_ASSETS = [

@@ -408,6 +408,36 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.completedBy);
     }
 
+    function existingTaskCommentCount() {
+      return ('comments' in resource.data) && resource.data.comments is list
+        ? resource.data.comments.size()
+        : 0;
+    }
+
+    function newTaskComment() {
+      return request.resource.data.comments[request.resource.data.comments.size() - 1];
+    }
+
+    function isTaskCommentShape(comment) {
+      return comment is map
+        && comment.keys().hasAll(['author', 'text', 'createdAt'])
+        && comment.keys().hasOnly(['author', 'text', 'createdAt'])
+        && isNonEmptyString(comment.author)
+        && isNonEmptyString(comment.text)
+        && comment.text.size() <= 500
+        && isNonEmptyString(comment.createdAt);
+    }
+
+    function isTaskCommentOnly(tenantId) {
+      return isTenantUser(tenantId)
+        && resource.data.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments'])
+        && request.resource.data.comments is list
+        && request.resource.data.comments.size() == existingTaskCommentCount() + 1
+        && isTaskCommentShape(newTaskComment());
+    }
+
     match /tenants/{tenantId}/tasks/{taskId} {
       allow read: if isTenantUser(tenantId);
 
@@ -425,7 +455,8 @@ service cloud.firestore {
         && (
           isAdmin(tenantId)
           || isTaskCompletionOnly()
-        );
+        )
+        || isTaskCommentOnly(tenantId);
 
       allow delete: if isAdmin(tenantId);
     }

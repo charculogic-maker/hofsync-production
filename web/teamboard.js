@@ -83,6 +83,8 @@ const teamboardState = {
   allTasks: [],
   historyFilter: '7d',
   completeTaskInFlight: false,
+  commentInFlight: new Set(),
+  openCommentTaskIds: new Set(),
 };
 
 function escapeHtml(value) {
@@ -91,6 +93,10 @@ function escapeHtml(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function safeDomId(value) {
+  return String(value ?? '').replace(/[^a-zA-Z0-9_-]+/g, '_');
 }
 
 function todayIsoLocal() {
@@ -244,6 +250,17 @@ export function getActiveEmployeeName() {
   }
 }
 
+function getCommentAuthorName() {
+  try {
+    return String(
+      localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, teamboardState.tenantId))
+      || '',
+    ).trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 export function getActiveArea() {
   const options = getTeamAreaOptions();
   try {
@@ -360,6 +377,78 @@ function isInHistoryRange(task, filterKey) {
   if (filterKey === '7d') return ts >= now - (7 * 24 * 60 * 60 * 1000);
   if (filterKey === '30d') return ts >= now - (30 * 24 * 60 * 60 * 1000);
   return true;
+}
+
+function normalizeTaskComments(comments) {
+  if (!Array.isArray(comments)) return [];
+  return comments
+    .filter((comment) => comment && typeof comment === 'object')
+    .map((comment) => ({
+      author: String(comment.author || 'Team').trim() || 'Team',
+      text: String(comment.text || '').trim(),
+      createdAt: comment.createdAt || '',
+    }))
+    .filter((comment) => comment.text)
+    .sort((a, b) => toEpochMs(a.createdAt) - toEpochMs(b.createdAt));
+}
+
+function formatCommentTime(value) {
+  const ts = toEpochMs(value);
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderTaskComments(task) {
+  const comments = normalizeTaskComments(task?.comments);
+  const taskId = String(task?.id || '');
+  const escapedTaskId = escapeHtml(taskId);
+  const panelId = `task-comments-${safeDomId(taskId)}`;
+  const inputId = `task-comment-input-${safeDomId(taskId)}`;
+  const isOpen = teamboardState.openCommentTaskIds.has(taskId);
+  const commentsHtml = comments.length
+    ? comments.map((comment) => {
+      const time = formatCommentTime(comment.createdAt);
+      return `
+        <div class="task-comment-row">
+          <strong>${escapeHtml(comment.author)}${time ? ` (${escapeHtml(time)})` : ''}:</strong>
+          <span>${escapeHtml(comment.text).replace(/\n/g, '<br>')}</span>
+        </div>
+      `;
+    }).join('')
+    : '<p class="task-comment-empty">Noch keine Kommentare.</p>';
+
+  return `
+    <div class="task-comments">
+      <button
+        type="button"
+        class="task-comments-toggle"
+        data-task-comments-toggle="${escapedTaskId}"
+        aria-expanded="${isOpen ? 'true' : 'false'}"
+        aria-controls="${escapeHtml(panelId)}"
+      >
+        Kommentare (${comments.length})
+      </button>
+      <div
+        class="task-comments-panel${isOpen ? '' : ' hidden'}"
+        id="${escapeHtml(panelId)}"
+        data-task-comments-panel="${escapedTaskId}"
+      >
+        <div class="task-comment-list">${commentsHtml}</div>
+        <form class="task-comment-form" data-task-comment-form="${escapedTaskId}">
+          <label class="visually-hidden" for="${escapeHtml(inputId)}">Dein Kommentar</label>
+          <textarea
+            id="${escapeHtml(inputId)}"
+            class="task-comment-input"
+            name="task-comment-text"
+            rows="2"
+            maxlength="500"
+            placeholder="Dein Kommentar..."
+          ></textarea>
+          <button type="submit" class="task-comment-submit">Senden</button>
+        </form>
+      </div>
+    </div>
+  `;
 }
 
 function priorityClass(priority) {
@@ -530,16 +619,19 @@ function renderTaskTokens(tasks) {
     const overdueLabel = isTaskOverdue(task) ? '<span class="task-token-overdue-label">Überfällig</span>' : '';
     return `
     <article class="task-token ${priorityClass(task.priority)}${overdueClass}" data-task-id="${escapeHtml(task.id)}">
-      <div class="task-token-body">
-        <div class="task-token-prio" aria-hidden="true">${task.priority === 'Rot' ? '🔴' : task.priority === 'Gelb' ? '🟡' : '🟢'}</div>
-        <div class="task-token-text">
-          <strong class="task-token-title">${escapeHtml(task.title)}</strong>
-          <span class="task-token-route">${escapeHtml(formatAudienceLabel(task))}${schedule ? ` · ${escapeHtml(schedule)}` : ''} ${overdueLabel}</span>
+      <div class="task-token-main">
+        <div class="task-token-body">
+          <div class="task-token-prio" aria-hidden="true">${task.priority === 'Rot' ? '🔴' : task.priority === 'Gelb' ? '🟡' : '🟢'}</div>
+          <div class="task-token-text">
+            <strong class="task-token-title">${escapeHtml(task.title)}</strong>
+            <span class="task-token-route">${escapeHtml(formatAudienceLabel(task))}${schedule ? ` · ${escapeHtml(schedule)}` : ''} ${overdueLabel}</span>
+          </div>
         </div>
+        <button type="button" class="task-token-done" data-task-complete="${escapeHtml(task.id)}" aria-label="Aufgabe erledigt quittieren">
+          ✓
+        </button>
       </div>
-      <button type="button" class="task-token-done" data-task-complete="${escapeHtml(task.id)}" aria-label="Aufgabe erledigt quittieren">
-        ✓
-      </button>
+      ${renderTaskComments(task)}
     </article>
   `;
   }).join('');
@@ -592,7 +684,7 @@ function renderAdminTaskList(tasks) {
 
   const open = (tasks || []).filter((t) => t.status === 'open');
   if (open.length === 0) {
-    container.innerHTML = '<p class="admin-leitstand-hint">Keine offenen Aufgaben-Tokens.</p>';
+    container.innerHTML = '<p class="admin-leitstand-hint">Keine offenen Aufgaben.</p>';
     return;
   }
 
@@ -604,6 +696,14 @@ function renderAdminTaskList(tasks) {
       </div>
     </div>
   `).join('');
+}
+
+function setTaskCommentStatus(message = '', type = 'info') {
+  const status = document.getElementById('task-comment-status');
+  if (!status) return;
+  status.textContent = message;
+  status.hidden = !message;
+  status.dataset.status = type;
 }
 
 function syncAreaSelectOptions() {
@@ -717,22 +817,43 @@ function bindHistoryFilter() {
 }
 
 function bindTeamHomeEvents() {
-  const onCompleteClick = (event) => {
+  const onTaskListClick = (event) => {
+    const toggle = event.target.closest('[data-task-comments-toggle]');
+    if (toggle) {
+      const taskId = toggle.dataset.taskCommentsToggle;
+      if (!taskId) return;
+      if (teamboardState.openCommentTaskIds.has(taskId)) {
+        teamboardState.openCommentTaskIds.delete(taskId);
+      } else {
+        teamboardState.openCommentTaskIds.add(taskId);
+      }
+      renderTaskTokens(teamboardState.openTasks);
+      return;
+    }
+
     const taskId = event.target.closest('[data-task-complete]')?.dataset.taskComplete;
     if (taskId) completeTask(taskId);
+  };
+
+  const onTaskCommentSubmit = (event) => {
+    const form = event.target.closest('[data-task-comment-form]');
+    if (!form) return;
+    event.preventDefault();
+    submitTaskComment(form.dataset.taskCommentForm, form);
   };
 
   const list = document.getElementById('task-token-list');
   if (list && list.dataset.teamboardBound !== '1') {
     list.dataset.teamboardBound = '1';
-    list.addEventListener('click', onCompleteClick);
+    list.addEventListener('click', onTaskListClick);
+    list.addEventListener('submit', onTaskCommentSubmit);
   }
 
   ['team-info-feed', 'team-info-feed-start'].forEach((id) => {
     const infoFeed = document.getElementById(id);
     if (infoFeed && infoFeed.dataset.teamboardBound !== '1') {
       infoFeed.dataset.teamboardBound = '1';
-      infoFeed.addEventListener('click', onCompleteClick);
+      infoFeed.addEventListener('click', onTaskListClick);
     }
   });
 
@@ -1057,7 +1178,7 @@ async function createTeamEntryFromForm(form) {
     form.querySelector('[data-priority-pick="Gelb"]')?.classList.add('is-selected');
     const kindTask = form.querySelector('[name="entry-kind"][value="task"]');
     if (kindTask) kindTask.checked = true;
-    window.showToast?.(entryKind === 'info' ? 'Info gesendet.' : 'Aufgaben-Token erstellt.', 'success');
+    window.showToast?.(entryKind === 'info' ? 'Info gesendet.' : 'Aufgabe erstellt.', 'success');
   } catch (err) {
     console.error('[Teamboard] Eintrag anlegen fehlgeschlagen:', err);
     const code = String(err?.code || '');
@@ -1208,6 +1329,58 @@ async function saveBulletin() {
       }
     }
   });
+}
+
+async function submitTaskComment(taskId, form) {
+  const cleanTaskId = String(taskId || '').trim();
+  if (!cleanTaskId || teamboardState.commentInFlight.has(cleanTaskId)) return;
+
+  const author = getCommentAuthorName();
+  if (!author) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+
+  const input = form?.querySelector('[name="task-comment-text"]');
+  const text = String(input?.value || '').trim();
+  if (!text) {
+    window.showToast?.('Bitte erst einen Kommentar eingeben.', 'warning');
+    input?.focus();
+    return;
+  }
+
+  const firebase = teamboardState.getFirebase();
+  const commentsField = firebase?.firestore?.FieldValue?.arrayUnion;
+  const col = tasksCollectionRef();
+  if (!col || typeof commentsField !== 'function') {
+    window.showToast?.('Kommentar konnte nicht gespeichert werden. Bitte versuche es gleich noch einmal.', 'error');
+    return;
+  }
+
+  const submitBtn = form?.querySelector('.task-comment-submit');
+  const comment = {
+    author,
+    text,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    teamboardState.commentInFlight.add(cleanTaskId);
+    if (submitBtn) submitBtn.disabled = true;
+    await col.doc(cleanTaskId).update({
+      comments: commentsField(comment),
+    });
+    teamboardState.openCommentTaskIds.add(cleanTaskId);
+    if (input) input.value = '';
+    setTaskCommentStatus('Kommentar gesendet.', 'success');
+  } catch (err) {
+    console.error('[Teamboard] Kommentar speichern fehlgeschlagen:', err);
+    window.showToast?.('Kommentar konnte nicht gespeichert werden. Bitte versuche es noch einmal.', 'error');
+    setTaskCommentStatus('Kommentar konnte nicht gespeichert werden.', 'error');
+  } finally {
+    teamboardState.commentInFlight.delete(cleanTaskId);
+    if (submitBtn) submitBtn.disabled = false;
+  }
 }
 
 async function completeTask(taskId) {

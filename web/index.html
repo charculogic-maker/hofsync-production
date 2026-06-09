@@ -212,8 +212,9 @@
               </div>
               <div class="task-token-section">
                 <h2 class="task-token-heading">Meine Aufgaben</h2>
-                <p class="task-token-empty hidden" id="task-token-empty">Keine offenen Tokens für uns oder unseren Bereich.</p>
+                <p class="task-token-empty hidden" id="task-token-empty">Keine offenen Aufgaben für uns oder unseren Bereich.</p>
                 <div class="task-token-list" id="task-token-list"></div>
+                <p class="task-comment-status" id="task-comment-status" aria-live="polite" hidden></p>
               </div>
               <div class="task-token-section">
                 <div class="task-history-toolbar">
@@ -773,7 +774,7 @@
               </div>
 
               <div class="admin-leitstand-block">
-                <h3>Offene Tokens</h3>
+                <h3>Offene Aufgaben</h3>
                 <div id="admin-task-list" class="admin-task-list"></div>
               </div>
 
@@ -1173,7 +1174,7 @@
         </label>
         <label class="task-routing-option">
           <input type="radio" name="entry-kind" value="task" checked>
-          <span>Aufgabe / Token (quittieren)</span>
+          <span>Aufgabe (quittieren)</span>
         </label>
       </fieldset>
 

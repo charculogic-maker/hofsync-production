@@ -27,7 +27,7 @@ import {
   seedFirestoreDoc,
   tenantDocPath,
 } from './helpers/rules-test-env.mjs';
-import { serverTimestamp } from 'firebase/firestore';
+import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -173,6 +173,60 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
         'update',
         { employees: ['Injected'], tenantId: TENANTS.TORFABRIK },
+      );
+    });
+  });
+
+  describe('TEST CASE 2b: task comments', () => {
+    function comment(author = 'Stephan') {
+      return {
+        author,
+        text: 'Bitte morgen nochmal prüfen.',
+        createdAt: '2026-06-09T08:30:00.000Z',
+      };
+    }
+
+    it('allows tenant users to append one task comment', async () => {
+      for (const role of ['helper', 'employee', 'admin']) {
+        const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', `comment-${role}`);
+        await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+
+        const ctx = authContext(testEnv, `tf-${role}-comment`, TENANTS.TORFABRIK, role);
+        await expectFirestoreAllow(
+          ctx,
+          path,
+          'update',
+          { comments: arrayUnion(comment(role)) },
+        );
+      }
+    });
+
+    it('denies comments across tenants', async () => {
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'comment-cross-tenant');
+      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+
+      const ctx = authContext(testEnv, 'sh-employee-comment', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        { comments: arrayUnion(comment('StevesHof')) },
+      );
+    });
+
+    it('denies comment updates that change task fields at the same time', async () => {
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'comment-mixed-update');
+      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+
+      const ctx = authContext(testEnv, 'tf-employee-comment-mixed', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          comments: arrayUnion(comment('Stephan')),
+          title: 'Geändert',
+        },
       );
     });
   });
