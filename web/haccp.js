@@ -176,6 +176,7 @@ function loadHaccpDevicesFromCloud() {
   haccpState.devicesUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.devices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
+    renderTeamTempCheck();
   }, (err) => console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err));
 }
 
@@ -189,6 +190,7 @@ function loadHaccpLogsFromCloud() {
   }
   haccpState.logsUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    refreshTeamTempLastReadings();
   }, (err) => console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err));
 }
 
@@ -614,6 +616,201 @@ function updateHACCPAlerts() {
     alertDesc.textContent = desc;
   } else {
     alertBox.classList.remove('active');
+  }
+}
+
+// =========================================================================
+// TEAM-SCHNELLERFASSUNG – schlanker Temperatur-Check im Team-Bereich
+// Nutzt dieselben Stationen, Sollwerte und Speicherwege wie die HACCP-Seite.
+// =========================================================================
+
+function teamTempInputId(deviceId) {
+  return `team-temp-${safeDomId(deviceId)}`;
+}
+
+function teamTempWarnId(deviceId) {
+  return `team-temp-warn-${safeDomId(deviceId)}`;
+}
+
+function teamTempLastId(deviceId) {
+  return `team-temp-last-${safeDomId(deviceId)}`;
+}
+
+function reportTempSaveError(err) {
+  const code = err?.code || '';
+  if (code === 'already-exists') {
+    haccpState.showHUD("Schon eingetragen", "Dieser Wert ist bereits gespeichert.");
+    return;
+  }
+  if (isPermissionDeniedError(err)) {
+    haccpState.showHUD("Kein Zugriff", "Wert konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
+    return;
+  }
+  console.error('[CharcuLogic HACCP] Team-Temperatur speichern fehlgeschlagen:', err);
+  haccpState.showHUD("Hat nicht geklappt", "Wert konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+}
+
+function teamTempSollHint(device) {
+  const min = device.sollMin;
+  const max = device.sollMax;
+  const einheit = device.einheit || '°C';
+  if (min != null && max != null) return `Alles gut zwischen ${min} und ${max} ${einheit}.`;
+  if (max != null && Number(max) < 0) return `Gut bei ${max} ${einheit} oder kälter.`;
+  if (max != null) return `Alles gut bis ${max} ${einheit}.`;
+  if (min != null) return `Mindestens ${min} ${einheit}.`;
+  return 'Aktuellen Wert eintragen.';
+}
+
+function logMomentMillis(entry) {
+  const created = entry?.createdAt;
+  if (created) {
+    if (typeof created === 'object') {
+      if (typeof created.toMillis === 'function') return created.toMillis();
+      if (typeof created.seconds === 'number') return created.seconds * 1000;
+    }
+    const parsed = Date.parse(created);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const fromDate = Date.parse(entry?.datum || '');
+  return Number.isFinite(fromDate) ? fromDate : 0;
+}
+
+function formatTeamMoment(millis) {
+  if (!millis) return '';
+  const when = new Date(millis);
+  const now = new Date();
+  const time = when.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (when.toDateString() === now.toDateString()) return `Heute, ${time}`;
+  if (when.toDateString() === yesterday.toDateString()) return `Gestern, ${time}`;
+  return `${when.toLocaleDateString('de-DE')}, ${time}`;
+}
+
+function latestTempLogForDevice(deviceId) {
+  return (haccpState.logs || [])
+    .filter((entry) => entry.logTyp === 'temperatur' && entry.deviceId === deviceId)
+    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
+}
+
+function teamTempLastText(deviceId) {
+  const entry = latestTempLogForDevice(deviceId);
+  if (!entry) return 'Heute noch nichts eingetragen.';
+  const moment = formatTeamMoment(logMomentMillis(entry));
+  const wert = entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '–');
+  const einheit = entry.einheit || '°C';
+  const statusText = entry.status === 'abweichung' ? 'zu hoch' : 'in Ordnung';
+  return `${moment ? `${moment} – ` : ''}${wert} ${einheit} (${statusText})`;
+}
+
+function updateTeamTempWarning(deviceId) {
+  const device = haccpState.devices.find((entry) => entry.id === deviceId);
+  const input = document.getElementById(teamTempInputId(deviceId));
+  const warn = document.getElementById(teamTempWarnId(deviceId));
+  if (!device || !input || !warn) return;
+  const raw = input.value;
+  const hasValue = raw !== '' && Number.isFinite(Number(raw));
+  const tooHigh = hasValue && !temperatureStatus(device, raw).ok;
+  input.classList.toggle('haccp-team-input--warn', tooHigh);
+  warn.hidden = !tooHigh;
+}
+
+async function saveTeamTemperature(deviceId) {
+  const device = haccpState.devices.find((entry) => entry.id === deviceId);
+  if (!device) return;
+  const input = document.getElementById(teamTempInputId(deviceId));
+  const raw = input?.value;
+  if (raw === '' || raw == null || !Number.isFinite(Number(raw))) {
+    haccpState.showHUD("Wert fehlt", "Bitte zuerst die Temperatur eintragen.", "!");
+    return;
+  }
+  const status = temperatureStatus(device, raw);
+  try {
+    const result = await saveHaccpLog({
+      logTyp: 'temperatur',
+      deviceId,
+      deviceName: device.name,
+      bereich: device.bereich || '',
+      wert: Number(raw),
+      einheit: device.einheit || '°C',
+      sollMin: device.sollMin ?? null,
+      sollMax: device.sollMax ?? null,
+      status: status.ok ? 'ok' : 'abweichung',
+      massnahme: '',
+    });
+    haccpState.onFormSaved([teamTempInputId(deviceId)]);
+    if (input) input.value = '';
+    updateTeamTempWarning(deviceId);
+    if (result === 'queued') {
+      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+    } else if (status.ok) {
+      haccpState.showHUD("Wert gespeichert", `${device.name}: ${raw} ${device.einheit || '°C'}`);
+    } else {
+      haccpState.showHUD("Wert gespeichert", `${device.name} ist zu hoch. Bitte Kühlung prüfen.`, "!");
+    }
+    refreshTeamTempLastReadings();
+  } catch (err) {
+    if (err?.code === 'already-exists') {
+      haccpState.onFormSaved([teamTempInputId(deviceId)]);
+      if (input) input.value = '';
+    }
+    reportTempSaveError(err);
+  }
+}
+
+export function renderTeamTempCheck() {
+  const container = document.getElementById('team-tempcheck-list');
+  if (!container) return;
+
+  const devices = activeHaccpDevices('temperatur');
+  if (!devices.length) {
+    container.innerHTML = '<div class="batch-empty-hint">Für unseren Bereich sind noch keine Kühlstellen hinterlegt. Das richten wir einmalig im Büro ein.</div>';
+    return;
+  }
+
+  container.innerHTML = devices.map((device) => `
+    <div class="haccp-team-card">
+      <div class="haccp-team-station">${escapeHtml(device.name)}</div>
+      <div class="haccp-team-hint">${escapeHtml(device.bereich ? `${device.bereich} · ` : '')}${escapeHtml(teamTempSollHint(device))}</div>
+      <div class="haccp-team-row">
+        <input
+          id="${teamTempInputId(device.id)}"
+          type="number"
+          inputmode="decimal"
+          step="0.1"
+          class="input-text-touch haccp-team-input"
+          placeholder="____ ${escapeHtml(device.einheit || '°C')}"
+          data-team-temp-input="${escapeHtml(device.id)}"
+          aria-label="Temperatur ${escapeHtml(device.name)} eintragen">
+        <button class="btn btn-primary haccp-team-save" type="button" data-team-temp-save="${escapeHtml(device.id)}">Speichern</button>
+      </div>
+      <div class="haccp-team-warn" id="${teamTempWarnId(device.id)}" role="status" aria-live="polite" hidden>⚠️ Wert erhöht! Bitte Kühlung prüfen.</div>
+      <div class="haccp-team-last" id="${teamTempLastId(device.id)}">${escapeHtml(teamTempLastText(device.id))}</div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-team-temp-input]').forEach((input) => {
+    input.addEventListener('input', () => updateTeamTempWarning(input.dataset.teamTempInput));
+  });
+  container.querySelectorAll('[data-team-temp-save]').forEach((button) => {
+    button.addEventListener('click', () => saveTeamTemperature(button.dataset.teamTempSave));
+  });
+}
+
+function refreshTeamTempLastReadings() {
+  const container = document.getElementById('team-tempcheck-list');
+  if (!container) return;
+  activeHaccpDevices('temperatur').forEach((device) => {
+    const el = document.getElementById(teamTempLastId(device.id));
+    if (el) el.textContent = teamTempLastText(device.id);
+  });
+}
+
+export function activateTeamTempCheck() {
+  renderTeamTempCheck();
+  if (haccpState.db && !haccpState.devices.length) {
+    loadHaccpDevicesFromCloud();
+    loadHaccpLogsFromCloud();
   }
 }
 

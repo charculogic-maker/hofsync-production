@@ -1,11 +1,30 @@
 /**
- * Tab „Team“ – Umschalter Nachrichten / Bestellungen
+ * Tab „Team“ – Umschalter Nachrichten / Bestellungen / Temperatur-Check
  */
 
 import { activateTeamboardTab, mountComposeForms } from './teamboard.js';
 import { activateCustomerOrdersTab } from './customer-orders.js';
+import { activateTeamTempCheck } from './haccp.js';
 
 const TEAM_PANEL_STORAGE_KEY = 'charculogic_team_panel';
+
+/** Sichtbare Team-Reiter je Mandant (richtet sich nach den freigeschalteten Bereichen). */
+function visibleTeamPanels() {
+  const modules = (window.BRANDING && window.BRANDING.modules) || {};
+  const panels = [];
+  if (modules.teamboard !== false || modules.orders !== false) panels.push('messages');
+  if (modules.orders !== false) panels.push('orders');
+  if (modules.haccp !== false) panels.push('tempcheck');
+  return panels.length ? panels : ['messages'];
+}
+
+function applyTeamSubnavVisibility(panels) {
+  document.querySelectorAll('.team-subnav-btn').forEach((btn) => {
+    const show = panels.includes(btn.dataset.teamPanel);
+    btn.hidden = !show;
+    btn.style.display = show ? '' : 'none';
+  });
+}
 
 function getActiveEmployeeNameLocal() {
   try {
@@ -22,7 +41,8 @@ function updateLoginReminder() {
 }
 
 function setTeamPanel(panelId) {
-  const valid = panelId === 'orders' ? 'orders' : 'messages';
+  const panels = visibleTeamPanels();
+  const valid = panels.includes(panelId) ? panelId : panels[0];
   document.querySelectorAll('.team-subnav-btn').forEach((btn) => {
     const active = btn.dataset.teamPanel === valid;
     btn.classList.toggle('active', active);
@@ -35,6 +55,9 @@ function setTeamPanel(panelId) {
     if (show) panel.removeAttribute('hidden');
     else panel.setAttribute('hidden', '');
   });
+  if (valid === 'tempcheck') {
+    activateTeamTempCheck();
+  }
   try {
     localStorage.setItem(TEAM_PANEL_STORAGE_KEY, valid);
   } catch (_) { /* noop */ }
@@ -58,16 +81,26 @@ export function activateTeamHubTab() {
   bindTeamSubnav();
   updateLoginReminder();
 
-  let panel = 'messages';
+  const panels = visibleTeamPanels();
+  applyTeamSubnavVisibility(panels);
+
+  let panel = panels[0];
   try {
     const stored = localStorage.getItem(TEAM_PANEL_STORAGE_KEY);
-    if (stored === 'orders' || stored === 'messages') panel = stored;
+    if (panels.includes(stored)) panel = stored;
   } catch (_) { /* noop */ }
   setTeamPanel(panel);
 
-  mountComposeForms();
-  activateTeamboardTab();
-  activateCustomerOrdersTab();
+  if (panels.includes('messages')) {
+    mountComposeForms();
+    activateTeamboardTab();
+  }
+  if (panels.includes('orders')) {
+    activateCustomerOrdersTab();
+  }
+  if (panels.includes('tempcheck')) {
+    activateTeamTempCheck();
+  }
 }
 
 /** Direkt den Bestellungen-Bereich öffnen (z. B. Deep-Link später). */

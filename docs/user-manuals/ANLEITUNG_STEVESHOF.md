@@ -34,7 +34,7 @@ In der unteren Navigation sehen wir drei Tabs:
 | **Neu** | Neue Ware scannen; Menge, MHD und optional **Hersteller / Zusatz** erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
-Team und Metzgerei-Erfassung bleiben für `StevesHof_Hauptbetrieb` deaktiviert. HACCP und Büro/Chargen sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleiben diese Bereiche ausgeblendet.
+Der Tab **Team** zeigt am Laden-iPhone den schlanken **🌡️ Temperatur-Check** für die tägliche Kühlkontrolle. Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. Die ausführliche Tageskontrolle unter **HACCP** sowie Büro/Chargen sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleiben diese Bereiche ausgeblendet.
 
 ## 3. MHD-Monitor (vereinfacht)
 
@@ -105,7 +105,19 @@ Für die Kiste im Kühlschrank drucken wir danach bei der Bestellung den **Liefe
 
 Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab; wenn kein Waagen-Wert erfasst wurde, nutzt sie die bestellte Menge. Danach sehen wir kurz **Bestand aktualisiert**.
 
-## 7. Offline-Betrieb
+## 7. Temperatur-Check im Team-Tab
+
+Im Tab **Team** finden wir den Reiter **🌡️ Temperatur-Check**. Damit dokumentieren wir die Kühlungs-Temperaturen schnell und ohne technische Begriffe.
+
+1. **Team** öffnen, oben **🌡️ Temperatur-Check** wählen.
+2. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **MoPro-Kühlung**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.
+3. **Speichern** tippen — kurz erscheint **Wert gespeichert**.
+
+Wird ein Wert zu hoch, färbt sich das Feld orange und wir lesen **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“**. Der Wert wird trotzdem gespeichert; die Kühlung prüfen wir direkt danach. Unter jeder Karte steht der zuletzt eingetragene Wert mit Uhrzeit, damit wir den Tagesstand im Blick haben.
+
+Die Werte landen sicher bei den HACCP-Protokollen unseres Betriebs. Die vollständige Tageskontrolle, Reinigungsnachweise und die Druckansicht bleiben dem Admin-Bereich unter **HACCP** vorbehalten.
+
+## 8. Offline-Betrieb
 
 Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; unsere App zeigt beim Speichern **Lokal vorgemerkt** und synchronisiert die Einträge automatisch, sobald WLAN wieder verfügbar ist.
 
@@ -115,7 +127,7 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 | Verbindung kommt zurück | Vorgemerkte Einträge werden automatisch übertragen. |
 | Erstmalige Anmeldung am Laden-iPhone | Benötigt eine Internetverbindung. |
 
-## 8. Administration
+## 9. Administration
 
 | Thema | Vorgehen |
 |-------|----------|

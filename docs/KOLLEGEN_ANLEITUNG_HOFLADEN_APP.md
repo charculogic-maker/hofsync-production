@@ -142,6 +142,23 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ---
 
+## 5. Temperatur-Check (Qualität sichern)
+
+Im Tab **Team** gibt es jetzt den schlanken Reiter **🌡️ Temperatur-Check**. Hier tragen wir schnell die aktuellen Werte unserer Kühlstellen ein – ohne Umwege.
+
+1. **Team** öffnen und oben auf **🌡️ Temperatur-Check** tippen.
+2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).
+3. Den gemessenen Wert in das große Feld **„____ °C“** eintippen.
+4. **Speichern** tippen. Es erscheint kurz **Wert gespeichert**.
+
+Ist ein Wert zu hoch – zum Beispiel die Kühlung über 7 °C – färbt sich das Feld dezent orange und wir sehen sofort den Hinweis **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“**. Den Wert speichern wir trotzdem, damit nichts verloren geht, und kümmern uns gleich um die Kühlung.
+
+Unter jeder Karte steht der zuletzt eingetragene Wert (z. B. *„Heute, 08:30 – 3,5 °C (in Ordnung)“*), damit wir auf einen Blick sehen, was heute schon kontrolliert wurde. Die ausführliche Tageskontrolle und die Druckansicht bleiben wie gewohnt im Admin-Bereich unter **HACCP**.
+
+Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** und überträgt den Wert automatisch, sobald WLAN wieder verfügbar ist.
+
+---
+
 ## Liefertag: Kurzfassung
 
 1. CharcuLogic öffnen: **MHD**-Kontrolle erscheint automatisch.

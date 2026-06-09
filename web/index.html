@@ -251,6 +251,9 @@
                 <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
                   🛒 Bestellungen
                 </button>
+                <button type="button" class="team-subnav-btn" data-team-panel="tempcheck" role="tab" aria-selected="false" id="team-subnav-tempcheck">
+                  🌡️ Temperatur-Check
+                </button>
               </div>
 
               <div class="team-panel active" id="team-panel-messages" data-team-panel="messages" role="tabpanel">
@@ -347,6 +350,14 @@
                   <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
                   <div id="customer-order-list" class="customer-order-list"></div>
                 </div>
+              </div>
+
+              <div class="team-panel hidden" id="team-panel-tempcheck" data-team-panel="tempcheck" role="tabpanel" hidden>
+                <section class="task-token-section haccp-team-section" aria-label="Temperaturen eintragen">
+                  <h2 class="task-token-heading">Temperaturen eintragen</h2>
+                  <p class="customer-order-hint">Wir tragen kurz die aktuellen Werte unserer Kühlstellen ein. Ist ein Wert zu hoch, sehen wir das sofort.</p>
+                  <div id="team-tempcheck-list" class="haccp-team-list"></div>
+                </section>
               </div>
             </section>
           </div>

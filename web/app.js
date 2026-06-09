@@ -199,7 +199,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   const kitchenEnabled = isWurstkuecheEnabledForTenant(getTenantId(), branding);
   const tabModuleMap = {
     teamboard: modules.teamboard !== false,
-    team: modules.orders !== false,
+    team: modules.orders !== false || modules.haccp !== false,
     mhd: modules.mhdMonitor !== false,
     receiving: modules.wareneingang !== false,
     kitchen: kitchenEnabled,

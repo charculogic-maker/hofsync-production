@@ -3830,7 +3830,8 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   border-color: var(--primary-color);
 }
 
-[data-theme="dark"] .haccp-task-card {
+[data-theme="dark"] .haccp-task-card,
+[data-theme="dark"] .haccp-team-card {
   background: var(--surface-tertiary);
   border-color: var(--border-subtle);
 }
@@ -5926,10 +5927,14 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .team-subnav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
+}
+
+.team-subnav-btn {
+  flex: 1 1 30%;
 }
 
 .team-subnav-btn {
@@ -5951,6 +5956,84 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .team-panel.hidden {
   display: none;
+}
+
+/* Team-Schnellerfassung: Temperatur-Check */
+.haccp-team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.haccp-team-card {
+  padding: 14px;
+  border-radius: var(--border-radius-md);
+  background: var(--light-bg);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.haccp-team-station {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--text-dark);
+}
+
+.haccp-team-hint {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin: 2px 0 10px;
+  line-height: 1.35;
+}
+
+.haccp-team-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.haccp-team-input {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  min-height: 60px;
+}
+
+.haccp-team-save {
+  min-height: 60px;
+  padding-inline: 22px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.haccp-team-input--warn {
+  border-color: var(--warning-color) !important;
+  background-color: rgba(239, 108, 0, 0.10);
+  color: var(--warning-color);
+}
+
+.haccp-team-warn {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-sm);
+  background-color: rgba(239, 108, 0, 0.10);
+  border-left: 5px solid var(--warning-color);
+  color: var(--warning-color);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.haccp-team-warn[hidden] {
+  display: none;
+}
+
+.haccp-team-last {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .delivery-note-preview-card {
