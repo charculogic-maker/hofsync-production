@@ -120,7 +120,7 @@ Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Beste
 10. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
 11. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
 
-Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen und schreibt automatisch eine kurze Info aufs Schwarze Brett. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
+Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen, schreibt automatisch eine kurze Info aufs Schwarze Brett und verschickt das **Kunden-Signal** als freundliche **Abhol-Nachricht** an die Kunden. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 
 Bei abholbereiten Bestellungen können wir **Lieferschein drucken** wählen. Der **Kisten-Zettel** zeigt Kundennamen, Abholdatum, bestellte Menge, tatsächliche Menge und den **Endpreis**. Wenn wir einen Waagen-Wert erfasst haben, nutzt unsere App diesen Wert für den **Abholpreis**.
 

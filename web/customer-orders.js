@@ -890,28 +890,28 @@ async function markSammelPicklisteReady() {
       const order = orderState.allOrders.find((entry) => entry.id === orderId);
       const updates = actualUpdates.get(orderId) || [];
       const updatedItems = applyActualQuantityUpdatesToItems(order, updates);
-      const onlinePayload = {
+      const onlineUpdate = {
         status: 'ready',
         readyMarkedBy: employee,
         readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
         pickupPlace: 'Laden-Kühlschrank',
       };
-      const queuePayload = {
+      const queuedUpdate = {
         status: 'ready',
         readyMarkedBy: employee,
         readyMarkedAt: new Date().toISOString(),
         pickupPlace: 'Laden-Kühlschrank',
       };
       if (updates.length && updatedItems) {
-        onlinePayload.items = updatedItems;
-        queuePayload.items = updatedItems;
+        onlineUpdate.items = updatedItems;
+        queuedUpdate.items = updatedItems;
       }
       return writeFirestoreDocOrQueue({
         collectionPath: 'customerOrders',
         docId: orderId,
         op: 'update',
-        onlineData: onlinePayload,
-        queueData: queuePayload,
+        onlineData: onlineUpdate,
+        queueData: queuedUpdate,
         offlineMessage: 'Bestellungen werden automatisch synchronisiert, sobald WLAN verfügbar ist.',
       });
     }));
@@ -944,7 +944,7 @@ async function markSammelPicklisteReady() {
     window.showToast?.(
       queued
         ? 'Abholbereit vorgemerkt. Wir sehen die Änderung, sobald WLAN verfügbar ist.'
-        : 'Abholbereit: Die Bestellungen stehen im Laden-Kühlschrank.',
+        : 'Bestellungen aktualisiert und Abhol-Signale automatisch an die Kunden versendet!',
       queued ? 'warning' : 'success',
     );
   } catch (err) {

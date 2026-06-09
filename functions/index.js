@@ -13,3 +13,4 @@ exports.parseDeliveryNote = require('./parseDeliveryNoteCallable').parseDelivery
 exports.verifyTerminalPin = require('./verifyTerminalPinCallable').verifyTerminalPin;
 exports.fetchWeeklyMeatPrices = require('./meatPrices').fetchWeeklyMeatPrices;
 exports.triggerManualMeatPriceRun = require('./meatPrices').triggerManualMeatPriceRun;
+exports.onOrderReadySendSignal = require('./orderNotifications').onOrderReadySendSignal;
