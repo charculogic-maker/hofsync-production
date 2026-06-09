@@ -22,15 +22,16 @@ Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN brauchen wir im Hoflade
 
 ## Navigation
 
-In der unteren Leiste sehen wir im Hofladen nur diese Tabs:
+In der unteren Leiste sehen wir im Hofladen diese Tabs:
 
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
 | **Neu** | Neue Ware im Laden per Barcode erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
+| **Team** | 🌡️ Temperatur-Check (Kühlungs-Temperaturen eintragen) |
 
-Weitere Bereiche der Plattform sind am Laden-iPhone weiterhin absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich HACCP und Büro/Chargen sehen.
+Im Tab **Team** nutzen wir am Laden-iPhone den **🌡️ Temperatur-Check**. Die Kundenbestellungen (Abschnitt 4) erscheinen dort nur, wenn das Bestell-Modul für unseren Hofladen freigeschaltet ist. Weitere Bereiche der Plattform sind am Laden-iPhone absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich die ausführliche HACCP-Seite und Büro/Chargen sehen.
 
 ---
 

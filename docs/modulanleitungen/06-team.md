@@ -1,10 +1,10 @@
-# Team (Nachrichten & Bestellungen)
+# Team (Nachrichten, Bestellungen & Temperatur-Check)
 
-Der Tab **Team** bündelt Kommunikation und Kundenbestellungen. Die Anmeldung erfolgt immer zuerst unter **Start** (Name + PIN).
+Der Tab **Team** bündelt Kommunikation, Kundenbestellungen und den schnellen **Temperatur-Check**. Welche Reiter erscheinen, richtet sich nach den freigeschalteten Bereichen des Mandanten. Die Anmeldung erfolgt – wo Nachrichten und Bestellungen aktiv sind – immer zuerst unter **Start** (Name + PIN).
 
 **Mitarbeiter & PINs** sind mandantenabhängig (z. B. TorFabrik: Stephan, Boris, Aushilfe). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
 
-> **StevesHof Hofladen:** Im aktuellen schlanken Hofladen-Profil ist der Tab **Team** ausgeblendet. Das gemeinsame Laden-iPhone arbeitet neutral als `StevesHof-Team` ohne zusätzliche Mitarbeiter-PIN. Diese Anleitung bleibt für andere Mandanten und eine mögliche spätere Freischaltung erhalten.
+> **StevesHof Hofladen:** Im schlanken Hofladen-Profil zeigt der Tab **Team** ausschließlich den Reiter **🌡️ Temperatur-Check** (Nachrichten und Bestellungen bleiben ausgeblendet). Das gemeinsame Laden-iPhone arbeitet neutral als `StevesHof-Team` ohne zusätzliche Mitarbeiter-PIN.
 
 ![Team – Nachrichten und Bestellungen](./screenshots/07-team.png)
 
@@ -46,6 +46,19 @@ Wechsel über **🛒 Bestellungen** in der Team-Leiste.
 ### Offene Bestellungen
 
 Liste aller noch nicht erledigten Kundenaufträge – für Küche und Verkauf zur Planung.
+
+## Temperatur-Check
+
+Wechsel über **🌡️ Temperatur-Check** in der Team-Leiste. Dieser Reiter ist sichtbar, sobald für den Mandanten das HACCP-Modul aktiv ist – auch im schlanken StevesHof-Profil.
+
+Hier tragen wir die aktuellen Werte unserer Kühlstellen schnell ein. Die Stationen, Sollwerte und der Speicherweg sind dieselben wie auf der HACCP-Seite (siehe [04-haccp.md](./04-haccp.md)); der Team-Reiter ist nur die schlanke, fingerfreundliche Eingabe-Ansicht.
+
+1. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.
+2. **Speichern** tippen – kurz erscheint **Wert gespeichert**.
+
+Ist ein Wert zu hoch (z. B. Kühlung über 7 °C), färbt sich das Feld dezent orange und der Hinweis **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“** erscheint. Der Wert wird trotzdem gespeichert. Unter jeder Karte steht der zuletzt eingetragene Wert mit Uhrzeit. Ohne Verbindung zeigt die App **Lokal vorgemerkt** und überträgt automatisch, sobald WLAN verfügbar ist.
+
+Die vollständige Tageskontrolle (Reinigung, Einrichten) und die Druckansicht bleiben auf der Admin-Seite **HACCP**.
 
 ## Typischer Ablauf
 

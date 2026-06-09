@@ -41,7 +41,7 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 | Tab | Zweck |
 |-----|--------|
 | **Start** | PIN-Anmeldung, Nachricht des Tages, Aufgaben, Historie |
-| **Team** | Nachrichten, Kundenbestellungen |
+| **Team** | Nachrichten, Kundenbestellungen, 🌡️ Temperatur-Check |
 | **MHD** | MHD-Alarme, Qualitätssicherung |
 | **Neu** | Wareneingang + **KI-Lieferschein** |
 | **HACCP** | Temperatur- & Reinigungsprotokolle |
@@ -65,7 +65,7 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 
 ## 2. Team
 
-Zuerst unter **Start** per PIN anmelden, dann Tab **Team** für Infos/Aufgaben und **🛒 Bestellungen** für Kundenaufträge.
+Zuerst unter **Start** per PIN anmelden, dann Tab **Team** für Infos/Aufgaben, **🛒 Bestellungen** für Kundenaufträge und **🌡️ Temperatur-Check** für die schnelle Kühlkontrolle (gleiche Stationen wie HACCP, nur als schlanke Eingabe).
 
 Details: [modulanleitungen/06-team.md](./modulanleitungen/06-team.md)
 

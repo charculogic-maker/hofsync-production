@@ -145,8 +145,11 @@ Die Auswahl wird **nur für `torfabrik`** auf dem Gerät gespeichert (`torfabrik
 | **Nachricht senden** | Info oder Aufgabe · Empfänger wählen · Priorität Rot/Gelb/Grün |
 | **Team-Infos für mich** | Eingehend lesen · mit **✓** quittieren |
 | **🛒 Bestellungen** | Kundenauftrag erfassen · **Bestellung speichern** (ebenfalls doppelklick-geschützt) |
+| **🌡️ Temperatur-Check** | Kühlungs-Temperatur je Station eintippen · **Speichern**; bei zu hohen Werten orangefarbener Hinweis |
 
 Push-Benachrichtigungen optional aktivieren — sonst reicht die Anzeige in der App.
+
+Der Reiter **🌡️ Temperatur-Check** nutzt dieselben Stationen, Sollwerte und Protokolle wie der Tab **HACCP** (siehe Kapitel 2.1) — er ist die schlanke Schnell-Eingabe für den Schichtbetrieb. Reinigung, Einrichten und Druckansicht bleiben auf der HACCP-Seite.
 
 ### 4.4 Rolle „helper“ (Firebase)
 
