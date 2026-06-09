@@ -44,6 +44,7 @@ const orderState = {
   picklistReadyInFlight: false,
   picklistChecked: new Set(),
   productionChecked: new Set(),
+  actualQuantityByKey: new Map(),
 };
 
 function escapeHtml(value) {
@@ -248,6 +249,19 @@ function formatQuantityValue(value) {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 }).format(value);
 }
 
+function normalizeQuantityText(value) {
+  return String(value ?? '').trim().replace(',', '.');
+}
+
+function actualQuantityValue(key, fallback) {
+  const stored = orderState.actualQuantityByKey.get(key);
+  return stored === undefined ? fallback : stored;
+}
+
+function actualQuantityChanged(key, fallback) {
+  return normalizeQuantityText(actualQuantityValue(key, fallback)) !== normalizeQuantityText(fallback);
+}
+
 function normalizePicklistKey(value) {
   return String(value ?? '')
     .trim()
@@ -324,9 +338,11 @@ export function generateSammelPickliste() {
         quantity: 0,
         orders: new Set(),
         notes: new Set(),
+        refs: [],
       };
       entry.quantity += quantity;
       entry.orders.add(order.id);
+      entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity });
       includedOrderIds.add(order.id);
       [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
       grouped.set(key, entry);
@@ -343,6 +359,7 @@ export function generateSammelPickliste() {
         quantityLabel: formatQuantityValue(entry.quantity),
         orderCount: entry.orders.size,
         notes: Array.from(entry.notes),
+        refs: entry.refs,
       });
       categories.set(entry.category, list);
     });
@@ -389,9 +406,11 @@ export function getProductionTasksByStation() {
           quantity: 0,
           orderIds: new Set(),
           notes: new Set(),
+          refs: [],
         };
         entry.quantity += parseQuantityValue(item?.quantity);
         entry.orderIds.add(order.id);
+        entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity: parseQuantityValue(item?.quantity) });
         [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
         stationItems[station].set(key, entry);
       });
@@ -405,6 +424,7 @@ export function getProductionTasksByStation() {
       orderCount: entry.orderIds.size,
       orderIds: Array.from(entry.orderIds),
       notes: Array.from(entry.notes),
+      refs: entry.refs,
     }));
 
   return {
@@ -423,12 +443,19 @@ function renderProductionStationList(station, items) {
       ${items.map((item) => {
         const checked = orderState.productionChecked.has(item.key) ? ' checked' : '';
         const unit = item.unit ? ` ${escapeHtml(item.unit)}` : '';
+        const actualValue = actualQuantityValue(item.key, item.quantityLabel);
+        const actualAdjusted = actualQuantityChanged(item.key, item.quantityLabel) ? ' is-adjusted' : '';
         const notes = item.notes.length ? `<span class="production-station-note">${escapeHtml(item.notes.join(' · '))}</span>` : '';
         return `
           <label class="production-station-item">
             <input type="checkbox" data-production-key="${escapeHtml(item.key)}"${checked}>
             <span class="production-station-line"><strong>${escapeHtml(item.quantityLabel)}${unit}</strong> ${escapeHtml(item.product)}</span>
             <span class="production-station-meta">${checked ? 'Fertig für den Laden' : 'Produktions-Auftrag'}</span>
+            <span class="actual-quantity-field${actualAdjusted}">
+              <span>Waagen-Wert</span>
+              <input type="text" inputmode="decimal" data-actual-quantity-key="${escapeHtml(item.key)}" data-actual-quantity-default="${escapeHtml(item.quantityLabel)}" value="${escapeHtml(actualValue)}" aria-label="Tatsächliches Gewicht für ${escapeHtml(item.product)}">
+              <span>${escapeHtml(item.unit || '')}</span>
+            </span>
             ${notes}
           </label>
         `;
@@ -485,12 +512,19 @@ function renderSammelPickliste() {
           const checked = isChecked ? ' checked' : '';
           const pickupLabel = isChecked ? 'Eingepackt' : 'Noch zu holen';
           const unit = item.unit ? ` ${escapeHtml(item.unit)}` : '';
+          const actualValue = actualQuantityValue(item.key, item.quantityLabel);
+          const actualAdjusted = actualQuantityChanged(item.key, item.quantityLabel) ? ' is-adjusted' : '';
           const notes = item.notes.length ? `<span class="sammel-pickliste-note">${escapeHtml(item.notes.join(' · '))}</span>` : '';
           return `
             <label class="sammel-pickliste-item">
               <input type="checkbox" data-picklist-key="${escapeHtml(item.key)}"${checked}>
               <span class="sammel-pickliste-line"><strong>${escapeHtml(item.quantityLabel)}${unit}</strong> ${escapeHtml(item.product)}</span>
               <span class="sammel-pickliste-meta">${item.orderCount} ${item.orderCount === 1 ? 'Bestellung' : 'Bestellungen'} · ${pickupLabel}</span>
+              <span class="actual-quantity-field${actualAdjusted}">
+                <span>Waagen-Wert</span>
+                <input type="text" inputmode="decimal" data-actual-quantity-key="${escapeHtml(item.key)}" data-actual-quantity-default="${escapeHtml(item.quantityLabel)}" value="${escapeHtml(actualValue)}" aria-label="Tatsächliches Gewicht für ${escapeHtml(item.product)}">
+                <span>${escapeHtml(item.unit || '')}</span>
+              </span>
               ${notes}
             </label>
           `;
@@ -537,6 +571,52 @@ function hideSammelPicklisteConfirm() {
   document.getElementById('sammel-pickliste-confirm')?.classList.add('hidden');
 }
 
+function collectActualQuantityUpdates(picklist) {
+  const updatesByOrder = new Map();
+  const addItems = (items) => {
+    items.forEach((item) => {
+      if (!actualQuantityChanged(item.key, item.quantityLabel)) return;
+      const actualTotal = parseQuantityValue(actualQuantityValue(item.key, item.quantityLabel));
+      if (!Number.isFinite(actualTotal)) return;
+      const totalOrdered = Number.isFinite(item.quantity) ? item.quantity : 0;
+      item.refs.forEach((ref) => {
+        if (!ref?.orderId || !Number.isInteger(ref.lineIndex)) return;
+        const share = totalOrdered > 0 ? (actualTotal * ref.quantity) / totalOrdered : actualTotal;
+        const list = updatesByOrder.get(ref.orderId) || [];
+        list.push({
+          lineIndex: ref.lineIndex,
+          actualQuantity: formatQuantityValue(share),
+          actualQuantityUnit: item.unit || null,
+        });
+        updatesByOrder.set(ref.orderId, list);
+      });
+    });
+  };
+
+  picklist.categories.forEach(({ items }) => {
+    addItems(items);
+  });
+  const productionTasks = getProductionTasksByStation();
+  addItems(productionTasks.kitchen);
+  addItems(productionTasks.butchery);
+  return updatesByOrder;
+}
+
+function applyActualQuantityUpdatesToItems(order, updates = []) {
+  if (!updates.length || !Array.isArray(order?.items)) return order?.items;
+  const byLine = new Map(updates.map((entry) => [entry.lineIndex, entry]));
+  return order.items.map((item, index) => {
+    const update = byLine.get(index);
+    if (!update) return item;
+    return {
+      ...item,
+      actualQuantity: update.actualQuantity,
+      actualQuantityUnit: update.actualQuantityUnit,
+      actualQuantityRecordedAt: new Date().toISOString(),
+    };
+  });
+}
+
 async function markSammelPicklisteReady() {
   if (orderState.picklistReadyInFlight) return;
   const employee = getActiveEmployeeName();
@@ -562,27 +642,37 @@ async function markSammelPicklisteReady() {
   try {
     orderState.picklistReadyInFlight = true;
     renderSammelPickliste();
-    const onlinePayload = {
-      status: 'ready',
-      readyMarkedBy: employee,
-      readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      pickupPlace: 'Laden-Kühlschrank',
-    };
-    const queuePayload = {
-      status: 'ready',
-      readyMarkedBy: employee,
-      readyMarkedAt: new Date().toISOString(),
-      pickupPlace: 'Laden-Kühlschrank',
-    };
+    const actualUpdates = collectActualQuantityUpdates(picklist);
 
-    const results = await Promise.all(orderIds.map((orderId) => writeFirestoreDocOrQueue({
-      collectionPath: 'customerOrders',
-      docId: orderId,
-      op: 'update',
-      onlineData: onlinePayload,
-      queueData: queuePayload,
-      offlineMessage: 'Bestellungen werden automatisch synchronisiert, sobald WLAN verfügbar ist.',
-    })));
+    const results = await Promise.all(orderIds.map((orderId) => {
+      const order = orderState.allOrders.find((entry) => entry.id === orderId);
+      const updates = actualUpdates.get(orderId) || [];
+      const updatedItems = applyActualQuantityUpdatesToItems(order, updates);
+      const onlinePayload = {
+        status: 'ready',
+        readyMarkedBy: employee,
+        readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+      };
+      const queuePayload = {
+        status: 'ready',
+        readyMarkedBy: employee,
+        readyMarkedAt: new Date().toISOString(),
+        pickupPlace: 'Laden-Kühlschrank',
+      };
+      if (updates.length && updatedItems) {
+        onlinePayload.items = updatedItems;
+        queuePayload.items = updatedItems;
+      }
+      return writeFirestoreDocOrQueue({
+        collectionPath: 'customerOrders',
+        docId: orderId,
+        op: 'update',
+        onlineData: onlinePayload,
+        queueData: queuePayload,
+        offlineMessage: 'Bestellungen werden automatisch synchronisiert, sobald WLAN verfügbar ist.',
+      });
+    }));
 
     await postTeamboardBulletin(
       '🎉 Die Kundenbestellungen für heute wurden frisch zusammengestellt und stehen abholbereit im Laden-Kühlschrank!',
@@ -591,10 +681,18 @@ async function markSammelPicklisteReady() {
 
     orderState.allOrders = orderState.allOrders.map((order) => (
       orderIds.includes(order.id)
-        ? { ...order, status: 'ready', readyMarkedBy: employee, readyMarkedAt: new Date().toISOString(), pickupPlace: 'Laden-Kühlschrank' }
+        ? {
+          ...order,
+          status: 'ready',
+          readyMarkedBy: employee,
+          readyMarkedAt: new Date().toISOString(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: applyActualQuantityUpdatesToItems(order, actualUpdates.get(order.id) || []) || order.items,
+        }
         : order
     ));
     orderState.picklistChecked.clear();
+    orderState.actualQuantityByKey.clear();
     hideSammelPicklisteConfirm();
     renderOpenOrders();
     renderAdminOrders();
@@ -1016,6 +1114,7 @@ function bindSammelPicklisteActions() {
     }
     renderSammelPickliste();
   });
+  document.getElementById('sammel-pickliste-body')?.addEventListener('input', handleActualQuantityInput);
 }
 
 function bindProductionTaskActions() {
@@ -1036,7 +1135,18 @@ function bindProductionTaskActions() {
       }
       renderProductionTasks();
     });
+    section.addEventListener('input', handleActualQuantityInput);
   });
+}
+
+function handleActualQuantityInput(event) {
+  const input = event.target.closest('input[data-actual-quantity-key]');
+  if (!input) return;
+  const key = input.dataset.actualQuantityKey;
+  if (!key) return;
+  const fallback = input.dataset.actualQuantityDefault || '';
+  orderState.actualQuantityByKey.set(key, input.value.trim());
+  input.closest('.actual-quantity-field')?.classList.toggle('is-adjusted', actualQuantityChanged(key, fallback));
 }
 
 function subscribeOrders() {

@@ -5290,7 +5290,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .production-station-item input[type="checkbox"] {
-  grid-row: span 3;
+  grid-row: span 4;
   width: 24px;
   height: 24px;
   accent-color: var(--primary-color);
@@ -5322,6 +5322,41 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .production-station-item:has(input:checked) .production-station-meta {
   color: var(--primary-hover);
+}
+
+.actual-quantity-field {
+  display: grid;
+  grid-template-columns: auto minmax(64px, 92px) auto;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.actual-quantity-field input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  color: var(--text-dark);
+  font: inherit;
+  font-size: 14px;
+}
+
+.actual-quantity-field.is-adjusted {
+  color: var(--primary-hover);
+}
+
+.actual-quantity-field.is-adjusted::after {
+  content: "Abgewogen";
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .production-station-empty {
@@ -5493,7 +5528,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .sammel-pickliste-item input[type="checkbox"] {
-  grid-row: span 3;
+  grid-row: span 4;
   width: 28px;
   height: 28px;
   accent-color: var(--primary-color);

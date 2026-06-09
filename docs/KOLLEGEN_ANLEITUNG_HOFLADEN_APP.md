@@ -110,16 +110,17 @@ Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Beste
 
 1. **Team** öffnen.
 2. Unter **Produktions-Aufträge** sehen wir, was in der Küche und in der Metzgerei zu tun ist.
-3. Fertige Posten haken wir als **Fertig für den Laden** ab.
-4. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
-5. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
-6. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
-7. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab.
-8. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
-9. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
-10. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
+3. Bei Wiegeartikeln prüfen wir **Tatsächliches Gewicht** und übernehmen den **Waagen-Wert**.
+4. Fertige Posten haken wir als **Fertig für den Laden** ab.
+5. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
+6. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
+7. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
+8. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab und korrigieren bei Bedarf den **Waagen-Wert**.
+9. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
+10. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
+11. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
 
-Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit** und schreibt automatisch eine kurze Info aufs Schwarze Brett. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
+Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen und schreibt automatisch eine kurze Info aufs Schwarze Brett. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 
 ---
 
