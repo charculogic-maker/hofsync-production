@@ -621,14 +621,16 @@ button:active, .btn:active {
 
 /* Sticky Save Bar (MHD) – im Dokumentfluss, nicht über Karten legen */
 .sticky-action-bar {
-  position: sticky;
+  position: absolute;
   bottom: 80px; /* über Bottom-Nav kleben beim Scrollen */
+  left: 14px;
+  right: 14px;
   flex-shrink: 0;
-  margin-top: auto;
-  width: 100%;
-  padding: 12px 0 4px;
+  margin: 0;
+  width: auto;
+  padding: 10px 0 8px;
   background: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.95) 35%, var(--bg-color) 100%);
-  z-index: 5;
+  z-index: 90;
   pointer-events: none;
 }
 
@@ -646,18 +648,19 @@ button:active, .btn:active {
 #page-mhd .mhd-list {
   flex: 1 1 auto;
   min-height: 0;
-  padding-bottom: 4px;
+  padding-bottom: 112px;
 }
 
 #page-mhd .sticky-action-bar {
-  margin-bottom: 76px; /* Abstand zur Bottom-Nav bei kurzer Liste */
+  margin-bottom: 0;
 }
 
 .sticky-action-bar button {
   pointer-events: auto; /* Re-enable clicks */
   width: 100%;
-  height: 64px; /* Wet Finger Rule */
-  font-size: 16px;
+  min-height: 56px;
+  height: auto;
+  font-size: 14px;
   box-shadow: 0 8px 24px var(--primary-alpha-25);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -913,6 +916,7 @@ button:active, .btn:active {
   line-height: 1.35;
 }
 
+.mhd-filter-row--monitor .mhd-filter-field--horizon,
 .mhd-filter-row--monitor .mhd-filter-field--category {
   width: 100%;
   min-width: 0;
@@ -933,6 +937,7 @@ button:active, .btn:active {
     flex-direction: column;
   }
 
+  .mhd-filter-row--monitor .mhd-filter-field--horizon,
   .mhd-filter-row--monitor .mhd-filter-field--category {
     grid-column: auto;
   }
@@ -952,6 +957,11 @@ button:active, .btn:active {
     align-self: center;
   }
 
+  .mhd-filter-row--monitor .mhd-filter-field--horizon {
+    flex: 0 0 130px;
+    min-width: 120px;
+  }
+
   .mhd-filter-row--monitor .mhd-filter-field--category {
     flex: 0 1 240px;
     min-width: 200px;
@@ -968,6 +978,76 @@ button:active, .btn:active {
 .office-tools-actions .btn {
   flex: 1 1 160px;
   min-height: 52px;
+}
+
+.retter-box-panel.hidden {
+  display: none;
+}
+
+.retter-box-list {
+  display: grid;
+  gap: 12px;
+}
+
+.retter-box-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--card-bg);
+}
+
+.retter-box-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.retter-box-card-head strong,
+.retter-box-recipe strong {
+  display: block;
+  color: var(--text-main);
+  font-size: 15px;
+}
+
+.retter-box-card-head span,
+.retter-box-recipe span,
+.retter-box-items span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.retter-box-count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(46, 125, 50, 0.12);
+  color: #1B5E20;
+  font-weight: 700;
+}
+
+.retter-box-items {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.retter-box-items li {
+  margin-bottom: 6px;
+}
+
+.retter-box-recipe {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.retter-box-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 #page-batches {
@@ -1073,13 +1153,13 @@ button:active, .btn:active {
 
 .mhd-card {
   background-color: var(--surface-color);
-  border-radius: var(--border-radius-md);
-  padding: 14px 14px 14px 18px;
+  border-radius: 10px;
+  padding: 12px 12px 12px 18px;
   position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   transition: all 0.2s ease;
   border: 1px solid rgba(0, 0, 0, 0.04);
 }
@@ -1104,24 +1184,27 @@ button:active, .btn:active {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 10px;
 }
 
 .mhd-product-info {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-width: 70%;
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 auto;
 }
 
 .mhd-product-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--text-dark);
   line-height: 1.25;
 }
 
 .mhd-product-meta {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1137,6 +1220,7 @@ button:active, .btn:active {
   padding: 4px 8px;
   border-radius: var(--border-radius-sm);
   text-transform: uppercase;
+  flex: 0 0 auto;
 }
 .status-expired .mhd-badge { background-color: color-mix(in srgb, var(--accent-alert) 10%, transparent); color: var(--secondary-color); }
 .status-critical .mhd-badge { background-color: rgba(239, 108, 0, 0.1); color: var(--warning-color); }
@@ -1246,11 +1330,12 @@ button:active, .btn:active {
 
 .mhd-controls-row {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  margin-top: 4px;
+  grid-template-columns: minmax(0, 1fr) minmax(118px, 42%);
+  gap: 8px;
+  margin-top: 0;
   width: 100%;
   min-width: 0;
+  align-items: stretch;
 }
 
 .mhd-controls-row > * {
@@ -1264,25 +1349,25 @@ button:active, .btn:active {
 }
 
 .mhd-card .btn-stepper {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   flex-shrink: 0;
   font-size: 20px;
 }
 
 .mhd-card .qty-value-container {
   flex: 1 1 auto;
-  min-width: 56px;
-  max-width: 88px;
+  min-width: 44px;
+  max-width: 72px;
 }
 
 .mhd-card .btn-soldout {
   width: 100%;
-  min-height: 48px;
-  height: 48px;
-  padding: 0 14px;
-  font-size: 13px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 10px;
+  font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
   display: inline-flex;
@@ -1294,23 +1379,6 @@ button:active, .btn:active {
   color: var(--text-dark);
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: var(--border-radius-md);
-}
-
-@media (min-width: 520px) {
-  .mhd-controls-row {
-    grid-template-columns: minmax(0, 1fr) minmax(148px, 34%);
-    align-items: center;
-  }
-
-  .mhd-card .qty-stepper {
-    width: auto;
-    max-width: 100%;
-    justify-content: flex-start;
-  }
-
-  .mhd-card .btn-soldout {
-    width: 100%;
-  }
 }
 
 /* Sold Out Visual State */
@@ -1327,28 +1395,28 @@ button:active, .btn:active {
 }
 
 .mhd-action-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 2px;
 }
 
 .btn-mhd-action {
-  flex: 1 1 0;
   min-width: 0;
-  min-height: 44px;
-  padding: 0 6px;
+  min-height: 40px;
+  padding: 0 8px;
   border: 0;
   border-radius: var(--border-radius-sm);
   background: var(--primary-tint-bg);
   color: var(--primary-on-light);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   line-height: 1.15;
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
 }
+
 
 .btn-mhd-action--primary {
   background: var(--primary-color);
@@ -2232,6 +2300,11 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-top: 14px;
 }
 
+.haccp-daily-card .section-title {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
 .haccp-export-card {
   margin-top: 14px;
 }
@@ -2267,6 +2340,36 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   background: var(--primary-tint-bg);
   color: var(--primary-on-light);
   border-color: var(--primary-color);
+}
+
+.haccp-mode-tab-setup {
+  color: var(--text-muted);
+}
+
+.haccp-daily-intro,
+.haccp-setup-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  border-radius: var(--border-radius-md);
+  background: var(--light-bg);
+  color: var(--text-dark);
+}
+
+.haccp-daily-intro strong,
+.haccp-setup-note strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.haccp-daily-intro span,
+.haccp-setup-note span {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .haccp-task-list {
@@ -5138,4 +5241,378 @@ body.role-helper #page-team,
 body.role-helper .admin-leitstand-panel,
 body.role-helper #team-subnav-orders {
   display: none !important;
+}
+
+/* =========================================================================
+   Active Hofladen tabs polish: Neu, Prod., HACCP, Büro
+   ========================================================================= */
+
+#page-receiving,
+#page-kitchen,
+#page-haccp,
+#page-batches {
+  padding-bottom: 16px;
+}
+
+#page-receiving .haccp-card,
+#page-haccp .haccp-card,
+#page-batches .batch-audit-card,
+#page-batches .admin-leitstand-panel,
+.kitchen-collapsible {
+  border-radius: 10px;
+}
+
+#page-receiving .haccp-card {
+  padding: 14px;
+  gap: 14px;
+}
+
+#page-receiving .learn-mode-desc,
+#page-haccp .learn-mode-desc,
+#page-batches .admin-leitstand-hint {
+  line-height: 1.35;
+}
+
+.receiving-section {
+  padding: 12px;
+  gap: 10px;
+}
+
+.receiving-form-stack {
+  gap: 10px;
+}
+
+.receiving-field {
+  gap: 5px;
+}
+
+.receiving-field .gastro-input,
+.receiving-field select.gastro-input,
+.gastro-input {
+  min-height: 54px;
+  height: 54px;
+  border-width: 2px;
+  padding-inline: 12px;
+  font-size: 15px;
+}
+
+.receiving-field input.gastro-input[type="date"] {
+  min-height: 54px;
+  font-size: 15px;
+}
+
+.btn-receiving-scan,
+.btn-receiving-add-item,
+.btn-receiving-photo,
+.gastro-btn {
+  min-height: 54px;
+  font-size: 14px;
+}
+
+.receiving-ean-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 58px;
+}
+
+.receiving-ean-apply {
+  min-width: 0;
+  min-height: 54px;
+  padding: 0 10px;
+}
+
+.receiving-mode-switch {
+  margin-bottom: 6px;
+}
+
+.receiving-mode-tab {
+  min-height: 44px;
+  border-width: 2px;
+}
+
+.receiving-tool-row,
+.office-tools-actions,
+.retter-box-actions,
+.customer-order-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.btn-receiving-tool,
+.office-tools-actions .btn,
+.retter-box-actions .btn,
+.customer-order-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.receiving-stats,
+.batch-audit-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.batch-audit-grid > div {
+  padding: 8px;
+}
+
+.batch-audit-grid strong {
+  font-size: 13px;
+}
+
+.receiving-action-row {
+  gap: 8px;
+}
+
+.we-item-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.we-item-row-meta {
+  line-height: 1.3;
+}
+
+.we-item-row-remove {
+  width: 40px;
+  height: 40px;
+}
+
+.open-drafts-section {
+  margin-bottom: 4px;
+}
+
+#page-kitchen .recipe-toolbar {
+  gap: 8px;
+}
+
+.kitchen-collapsible > summary {
+  padding: 12px;
+}
+
+.kitchen-collapsible > .recipe-toolbar,
+.kitchen-collapsible > .recipe-list,
+.kitchen-collapsible > .wrs-board {
+  padding: 12px;
+}
+
+.recipe-card {
+  padding: 12px;
+  border-radius: 10px;
+  gap: 10px;
+}
+
+.recipe-meta-group {
+  min-width: 0;
+}
+
+.recipe-title {
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.recipe-subinfo {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.recipe-arrow {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+}
+
+.recipe-category-chip {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.wrs-board {
+  padding: 12px;
+}
+
+.wrs-board-header {
+  align-items: flex-start;
+}
+
+.wrs-board h2 {
+  font-size: 17px;
+}
+
+.wrs-board-header-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.wrs-meat-price-update-btn {
+  min-height: 36px;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+
+.wrs-controls {
+  gap: 8px;
+}
+
+.wrs-select,
+.wrs-number,
+.wrs-calc-btn {
+  min-height: 50px;
+}
+
+.wrs-dashboard {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wrs-metric {
+  padding: 9px;
+}
+
+.wrs-metric strong {
+  font-size: 16px;
+}
+
+.wrs-table th,
+.wrs-table td {
+  padding: 8px 6px;
+}
+
+#page-haccp .haccp-card {
+  padding: 14px;
+  gap: 14px;
+}
+
+.haccp-daily-card,
+.haccp-export-card {
+  margin-top: 12px;
+}
+
+.batch-input-grid {
+  grid-template-columns: minmax(0, 1fr) 78px;
+}
+
+.input-text-touch {
+  min-height: 54px;
+  height: 54px;
+  padding-inline: 12px;
+  font-size: 15px;
+}
+
+.btn-batch-auto {
+  height: 54px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.haccp-collapsible-body {
+  gap: 14px;
+  padding: 12px;
+}
+
+.form-label {
+  gap: 10px;
+  align-items: center;
+  line-height: 1.25;
+}
+
+.form-value-badge {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.slider-limits {
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.haccp-mode-tabs {
+  gap: 6px;
+}
+
+.haccp-mode-tab {
+  min-height: 42px;
+  padding: 7px 6px;
+  font-size: 11px;
+}
+
+.haccp-task-card {
+  padding: 12px;
+}
+
+.haccp-task-actions {
+  grid-template-columns: minmax(0, 1fr) 58px;
+}
+
+.haccp-task-actions .btn {
+  min-height: 50px;
+  padding-inline: 8px;
+}
+
+.btn-submit-haccp,
+.btn-haccp-print {
+  min-height: 54px;
+  height: auto;
+  font-size: 14px;
+}
+
+#page-batches .admin-leitstand-panel,
+#page-batches .batch-audit-card {
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.admin-leitstand-title {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.admin-leitstand-block {
+  margin-bottom: 14px;
+}
+
+.admin-leitstand-block:last-child {
+  margin-bottom: 0;
+}
+
+.admin-leitstand-block h3 {
+  font-size: 12px;
+}
+
+.bulletin-message-input {
+  min-height: 82px;
+  padding: 10px;
+}
+
+.bulletin-dropzone {
+  min-height: 78px;
+  padding: 12px;
+}
+
+.batch-card {
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.batch-card-meta {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.batch-search-input {
+  width: 100%;
+}
+
+.retter-box-card {
+  padding: 12px;
+}
+
+.retter-box-card-head {
+  align-items: flex-start;
+}
+
+.retter-box-count {
+  white-space: nowrap;
 }

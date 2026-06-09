@@ -19,6 +19,7 @@ const DEFAULT_BRANDING = {
     wurstkueche: true,
     haccp: true,
     orders: true,
+    retterBox: false,
   },
 };
 
@@ -39,9 +40,10 @@ const TENANT_BRANDING = {
       wareneingangMetzgerei: false,
       rezeptAudit: false,
       wurstkueche: true,
-      haccp: false,
+      haccp: true,
       orders: false,
-      batches: false,
+      batches: true,
+      retterBox: true,
     },
   },
   torfabrik: {

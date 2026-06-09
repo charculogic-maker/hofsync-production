@@ -7,8 +7,8 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Automatische Liste aller Posten mit **MHD in den nächsten 7 Tagen**
-- Optional nach **Kategorie** filtern
+- Automatische Liste aller Posten mit **MHD im gewählten Zeitraum**; Standard sind **21 Tage**
+- Optional nach **Zeitraum** und **Kategorie** filtern
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Oberfläche
@@ -17,10 +17,10 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 
 | Element | Funktion |
 |---------|----------|
-| **MHD in den nächsten 7 Tagen** | Feste Anzeige — es werden nur relevante Posten gezeigt |
+| **Zeitraum** | Auswahl zwischen **7**, **14** und **21 Tagen**; Standard sind **21 Tage** |
 | **Kategorie** | Alle Kategorien oder gezielt: Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze |
 
-Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD in der 7-Tage-Frist liegt.
+Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
 ### 2. MHD-Karte (Posten)
 
@@ -49,7 +49,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 ## Ablauf Morgencheck
 
 1. Tab **MHD** öffnen (beim Laden-iPhone automatisch)
-2. Bei Bedarf **Kategorie** wählen
+2. Bei Bedarf **Zeitraum** und **Kategorie** wählen
 3. Karten der Reihe nach abarbeiten
 4. **Änderungen speichern**
 

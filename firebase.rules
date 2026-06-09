@@ -58,6 +58,10 @@ service cloud.firestore {
       return tenantId != 'torfabrik';
     }
 
+    function hasRetterBoxModule(tenantId) {
+      return tenantId == 'StevesHof_Hauptbetrieb';
+    }
+
     // Legacy alias – tenant access requires matching Custom Claim tenantId
     function isTenantUser(tenantId) {
       return isTenantMember(tenantId);
@@ -164,7 +168,9 @@ service cloud.firestore {
           'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
           'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
           'rabattiert', 'rabattiertAt',
-          'kuecheAngefragt', 'kuecheAngefragtAt', 'lieferungId'
+          'kuecheAngefragt', 'kuecheAngefragtAt',
+          'retterBoxAngefragt', 'retterBoxAngefragtAt',
+          'lieferungId'
         ])
         && (
           isNonEmptyString(request.resource.data.name)
@@ -188,7 +194,9 @@ service cloud.firestore {
           'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
           'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
           'rabattiert', 'rabattiertAt',
-          'kuecheAngefragt', 'kuecheAngefragtAt', 'lieferungId'
+          'kuecheAngefragt', 'kuecheAngefragtAt',
+          'retterBoxAngefragt', 'retterBoxAngefragtAt',
+          'lieferungId'
         ])
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tenantId'])
@@ -220,6 +228,35 @@ service cloud.firestore {
         ]);
 
       allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // RETTER-BOXEN (abschaltbares Hofladen-Angebot aus MHD-Posten)
+    // =========================================================================
+
+    match /tenants/{tenantId}/retter_boxen/{document} {
+      allow read: if isTenantUser(tenantId)
+        && hasRetterBoxModule(tenantId);
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && hasRetterBoxModule(tenantId)
+        && hasOnly([
+          'id', 'title', 'date', 'status',
+          'items', 'itemCount',
+          'recipeTitle', 'recipeSteps', 'customerText', 'priceHint',
+          'tenantId', 'createdAt', 'updatedAt',
+          'printedAt', 'soldAt', 'discardedAt'
+        ])
+        && isNonEmptyString(request.resource.data.title)
+        && isNonEmptyString(request.resource.data.date)
+        && isNonEmptyString(request.resource.data.status)
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 30
+        && isIntGteZero(request.resource.data.itemCount);
+
+      allow delete: if isAdmin(tenantId)
+        && hasRetterBoxModule(tenantId);
     }
 
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {

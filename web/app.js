@@ -35,6 +35,7 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
+  getMhdProducts,
   applyReceivingMetzgereiVisibility,
   handleMhdBarcodeScan,
   handleMhdScannerStatus,
@@ -42,6 +43,11 @@ import {
   loadMhdFromCloud,
   renderMhdList,
 } from './mhd.js';
+import {
+  addRetterBoxCandidate,
+  initRetterBoxModule,
+  refreshRetterBoxModule,
+} from './retter-box.js';
 import {
   activateBatchesTab,
   activateKitchenTab,
@@ -226,17 +232,21 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
 function applyRoleBasedUi(authSession) {
   const isHelper = authSession?.isHelper || isHelperUser();
   const isOffice = isOfficeUser(authSession);
+  const isStevesHof = String(getTenantId() || '').trim().toLowerCase() === 'steveshof_hauptbetrieb';
   document.documentElement.dataset.userRole = authSession?.role || 'user';
   document.body.classList.toggle('role-helper', isHelper);
   document.body.classList.toggle('role-office', isOffice);
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
 
   const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'batches']);
+  const stevesHofOfficeTabs = new Set(['haccp', 'batches']);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
-    const hide = isHelper && helperHiddenTabs.has(tabId);
+    const hide =
+      (isHelper && helperHiddenTabs.has(tabId))
+      || (isStevesHof && !isOffice && stevesHofOfficeTabs.has(tabId));
     tab.style.display = hide ? 'none' : '';
   });
 
@@ -1089,7 +1099,7 @@ tabs.forEach(tab => {
     } else if (targetTab === 'haccp') {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
-      headerSubtitle.textContent = "Dokumentation";
+      headerSubtitle.textContent = "Tageskontrollen";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
       headerTitle.textContent = "Chargen-Archiv";
@@ -1377,7 +1387,7 @@ document.getElementById('update-toast-dismiss')?.addEventListener('click', hideU
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260602-88')
+    navigator.serviceWorker.register('./sw.js?v=20260608-106')
       .then((reg) => {
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
 
@@ -1435,13 +1445,21 @@ async function bootstrapAuthenticatedApp() {
   } else {
     applyBranding();
   }
+  setGlobalTenantId(authSession.tenantId);
   applyModuleVisibility(window.BRANDING);
   applyRoleBasedUi(authSession);
+  refreshRetterBoxModule();
   bindOfficeAccessLock();
   window.addEventListener('charculogic:auth-changed', (event) => {
-    applyRoleBasedUi(event.detail || getAuthContext());
+    const nextSession = event.detail || getAuthContext();
+    if (nextSession?.tenantId) setGlobalTenantId(nextSession.tenantId);
+    if (typeof window.applyResolvedBranding === 'function') {
+      window.applyResolvedBranding(nextSession?.tenantId);
+    }
+    applyModuleVisibility(window.BRANDING);
+    applyRoleBasedUi(nextSession);
+    refreshRetterBoxModule();
   });
-  setGlobalTenantId(authSession.tenantId);
   const terminalEmployeeName = configureSteveshofTerminalSession(authSession);
   const tenantId = getGlobalTenantId();
 
@@ -1466,8 +1484,16 @@ async function bootstrapAuthenticatedApp() {
     isFirebaseReady: () => firebaseReady,
     scannerAPI: { openScanner, closeScanner },
     terminalEmployeeName,
+    addRetterBoxCandidate,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
+  });
+  initRetterBoxModule(db, {
+    tenantId,
+    getFirebase: () => firebase,
+    writeOrQueueFirestore: writeFirestoreDocOrQueue,
+    showHUD,
+    getMhdProducts,
   });
   initDeliveryNoteScanner({
     tenantId,

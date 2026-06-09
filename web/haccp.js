@@ -276,7 +276,7 @@ async function saveTemperatureCheck(deviceId) {
       haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
       return;
     }
-    haccpState.showHUD(status.ok ? "Temperatur OK" : "Abweichung gespeichert", `${device.name}: ${value} ${device.einheit || '°C'}`);
+    haccpState.showHUD(status.ok ? "Temperatur geprüft" : "Abweichung gespeichert", `${device.name}: ${value} ${device.einheit || '°C'}`);
   } catch (err) {
     const code = err?.code || '';
     if (code === 'already-exists') {
@@ -339,12 +339,12 @@ function deactivateHaccpDevice(deviceId) {
         docId: deviceId,
         onlineData: { aktiv: false, updatedAt: serverTimestamp() },
         queueData: { aktiv: false, updatedAt: nowIso },
-        offlineMessage: "Geräteänderung wird nachträglich synchronisiert.",
+        offlineMessage: "Änderung wird nachträglich synchronisiert.",
       });
-      haccpState.showHUD("Deaktiviert", "Gerät/Aufgabe wurde deaktiviert oder vorgemerkt.");
+      haccpState.showHUD("Deaktiviert", "Kühlstelle oder Aufgabe wurde deaktiviert.");
     } catch (err) {
       console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-      haccpState.showHUD("Fehler", "Gerät konnte nicht deaktiviert werden.", "!");
+      haccpState.showHUD("Fehler", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden.", "!");
     }
   });
 }
@@ -352,12 +352,12 @@ function deactivateHaccpDevice(deviceId) {
 function addHaccpDeviceFromForm() {
   const path = haccpDevicesCollectionPath();
   if (!path || !haccpState.writeOrQueueFirestore) {
-    haccpState.showHUD("Offline", "Gerät kann ohne Cloud-Verbindung nicht gespeichert werden.", "!");
+    haccpState.showHUD("Offline", "Einrichten klappt erst wieder mit Verbindung.", "!");
     return;
   }
   const name = document.getElementById('haccp-device-name')?.value.trim();
   if (!name) {
-    haccpState.showHUD("Name fehlt", "Bitte Gerätenamen eintragen.", "!");
+    haccpState.showHUD("Name fehlt", "Bitte Kühlstelle oder Aufgabe eintragen.", "!");
     return;
   }
   haccpState.verifyAdminAction(async () => {
@@ -383,9 +383,9 @@ function addHaccpDeviceFromForm() {
       op: 'set',
       onlineData: { ...payload, updatedAt: serverTimestamp() },
       queueData: { ...payload, updatedAt: new Date().toISOString() },
-      offlineMessage: "Gerät/Aufgabe wird nachträglich synchronisiert.",
+      offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
     });
-    haccpState.showHUD("Gerät gespeichert", `${name} ist in den HACCP-Stammdaten.`);
+    haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
     ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = '';
@@ -410,6 +410,10 @@ function renderHaccpDaily() {
   if (haccpState.mode === 'temperatur') {
     const devices = activeHaccpDevices('temperatur');
     container.innerHTML = `
+      <div class="haccp-daily-intro">
+        <strong>Kühlstellen</strong>
+        <span>Wir tragen nur die fälligen Werte ein. Bei Abweichung notieren wir kurz die Maßnahme.</span>
+      </div>
       <div class="haccp-task-list">
         ${devices.length ? devices.map((device) => `
           <div class="haccp-task-card">
@@ -421,7 +425,7 @@ function renderHaccpDaily() {
             </div>
             <input id="note-${safeDomId(device.id)}" class="input-text-touch" style="margin-top:8px;height:48px;font-size:14px;" placeholder="Maßnahme bei Abweichung">
           </div>
-        `).join('') : '<div class="batch-empty-hint">Noch keine Temperatur-Geräte angelegt.</div>'}
+        `).join('') : '<div class="batch-empty-hint">Noch keine Kühlstellen eingerichtet.</div>'}
       </div>
     `;
     bindRenderedHaccpActions(container);
@@ -432,6 +436,10 @@ function renderHaccpDaily() {
   if (haccpState.mode === 'reinigung') {
     const devices = activeHaccpDevices('reinigung');
     container.innerHTML = `
+      <div class="haccp-daily-intro">
+        <strong>Reinigung</strong>
+        <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
+      </div>
       <div class="haccp-task-list">
         ${devices.length ? devices.map((device) => `
           <div class="haccp-task-card">
@@ -440,7 +448,7 @@ function renderHaccpDaily() {
             <input id="clean-note-${safeDomId(device.id)}" class="input-text-touch" style="height:48px;font-size:14px;" placeholder="Notiz optional">
             <button class="btn btn-primary" style="width:100%;margin-top:8px;min-height:48px;" type="button" data-haccp-save-clean="${escapeHtml(device.id)}">Reinigung erledigt</button>
           </div>
-        `).join('') : '<div class="batch-empty-hint">Noch keine Reinigungsaufgaben angelegt.</div>'}
+        `).join('') : '<div class="batch-empty-hint">Noch keine Reinigungsaufgaben eingerichtet.</div>'}
       </div>
     `;
     bindRenderedHaccpActions(container);
@@ -450,7 +458,11 @@ function renderHaccpDaily() {
 
   container.innerHTML = `
     <div class="haccp-device-form">
-      <input id="haccp-device-name" class="input-text-touch" placeholder="Gerät / Aufgabe">
+      <div class="haccp-setup-note">
+        <strong>Kühlstellen & Aufgaben einrichten</strong>
+        <span>Nur ändern, wenn im Laden oder in der Produktion etwas neu dazukommt. Die Tageskontrolle bleibt vorne.</span>
+      </div>
+      <input id="haccp-device-name" class="input-text-touch" placeholder="Kühlstelle oder Aufgabe">
       <div class="batch-input-grid">
         <select id="haccp-device-type" class="input-text-touch">
           <option value="temperatur">Temperatur</option>
@@ -462,7 +474,7 @@ function renderHaccpDaily() {
         <input id="haccp-device-min" type="number" class="input-text-touch" step="0.1" placeholder="Soll min">
         <input id="haccp-device-max" type="number" class="input-text-touch" step="0.1" placeholder="Soll max">
       </div>
-      <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Gerät / Aufgabe speichern</button>
+      <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Einrichtung speichern</button>
       <div class="utility-list">
         ${haccpState.devices.map((device) => `
           <div class="utility-row">

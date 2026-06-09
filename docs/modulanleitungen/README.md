@@ -33,11 +33,11 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 |-------|--------|
 | `00-start.png` | Start: Anmeldung, Nachricht des Tages, Aufgaben |
 | `07-team.png` | Team: Nachrichten & Bestellungen |
-| `steveshof-01-mhd-start.png` | StevesHof: MHD mit 7-Tage-Hinweis und Kategoriefilter |
+| `steveshof-01-mhd-start.png` | StevesHof: MHD mit Zeitraum- und Kategoriefilter |
 | `steveshof-02-neu-wareneingang.png` | StevesHof: Laden-Wareneingang mit Hersteller/Zusatz und MHD-Datum |
 | `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
 | `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
-| `01-mhd-monitor.png` | MHD: Kategoriefilter & Toolbar (7-Tage-Horizont) |
+| `01-mhd-monitor.png` | MHD: Zeitraum- und Kategoriefilter |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |
 | `02-wareneingang-schnell.png` | Neu · Laden |

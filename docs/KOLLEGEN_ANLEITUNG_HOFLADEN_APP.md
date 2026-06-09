@@ -30,16 +30,16 @@ In der unteren Leiste sehen wir im Hofladen nur diese Tabs:
 | **Neu** | Neue Ware im Laden per Barcode erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
-Weitere Bereiche der Plattform sind für unseren Hofladen derzeit absichtlich ausgeblendet.
+Weitere Bereiche der Plattform sind am Laden-iPhone weiterhin absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich HACCP und Büro/Chargen sehen.
 
 ---
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** zeigt unsere App automatisch alle Posten, deren MHD **in den nächsten 7 Tagen** abläuft.
+Im Tab **MHD** zeigt unsere App automatisch alle Posten, deren MHD im gewählten Zeitraum abläuft. Standard ist **21 Tage**; bei Bedarf stellen wir den Zeitraum auf **7**, **14** oder **21 Tage**.
 
 1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
-2. Bei Bedarf **Kategorie** wählen (z. B. MoPro, Frische, TK).
+2. Bei Bedarf den **Zeitraum** oder die **Kategorie** wählen (z. B. MoPro, Frische, TK).
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.
@@ -71,7 +71,7 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnell
 4. Bei bekannter EAN: grüne Zeile **Erkannt: …**
 5. Bei unbekannter EAN den **Produktnamen** ergänzen.
 6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
-7. **Menge** prüfen und **MHD** im Datumsfeld setzen.
+7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
 8. **Posten hinzufügen** wählen.
 9. Den nächsten Artikel scannen.
 

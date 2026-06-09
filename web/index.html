@@ -283,7 +283,13 @@
               </div>
 
               <div class="mhd-filter-row mhd-filter-row--monitor">
-                <p class="mhd-monitor-hint">MHD in den nächsten 7 Tagen</p>
+                <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
+                <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
+                  <span class="mhd-filter-label">Zeitraum</span>
+                  <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
+                    <option value="21" selected>21 Tage</option>
+                  </select>
+                </label>
                 <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
                   <span class="mhd-filter-label">Kategorie</span>
                   <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
@@ -371,7 +377,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="date" id="we-mhd" class="gastro-input" autocomplete="off">
+                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -623,10 +629,11 @@
             </div>
 
             <div class="haccp-card haccp-daily-card">
+              <div class="section-title">Heute prüfen</div>
               <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
                 <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
                 <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
-                <button type="button" class="haccp-mode-tab" data-haccp-mode="geraete">Geräte</button>
+                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete">Einrichten</button>
               </div>
               <div id="haccp-daily-container"></div>
             </div>
@@ -723,6 +730,11 @@
               </div>
             </section>
 
+            <section class="batch-audit-card retter-box-panel hidden" id="retter-box-panel" aria-label="Retter-Boxen" hidden>
+              <div class="batch-audit-title">Retter-Boxen</div>
+              <p class="admin-leitstand-hint">Aus MHD-Posten entsteht ein druckbarer Box-Vorschlag mit Rezeptidee. Vor dem Verkauf pruefen wir die Ware wie gewohnt.</p>
+              <div id="retter-box-list" class="retter-box-list"></div>
+            </section>
             <div class="batch-audit-card" id="recipe-cloud-audit-card">
               <div class="batch-audit-title">Rezeptdaten-Prüfung</div>
               <div class="batch-audit-grid">

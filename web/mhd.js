@@ -182,6 +182,7 @@ const mhdState = {
   appsScriptWebAppUrl: '',
   products: [],
   categoryFilter: 'all',
+  monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
   unsubscribe: null,
   writeOrQueueFirestore: async () => { throw new Error('MHD Sync-Engine ist nicht initialisiert.'); },
@@ -197,6 +198,7 @@ const mhdState = {
   onFormSaved: () => {},
   restoreDraftFields: () => 0,
   terminalEmployeeName: '',
+  addRetterBoxCandidate: null,
   initialized: false,
 };
 
@@ -232,7 +234,8 @@ function serverTimestampFallback() {
 
 const MHD_TROCKEN_CATEGORY = '📦 Trockenware';
 const MHD_RENDER_LIMIT = 50;
-const MHD_MONITOR_HORIZON_DAYS = 7;
+const MHD_MONITOR_HORIZON_OPTIONS = [7, 14, 21];
+const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
 
 const MHD_CANONICAL_CATEGORIES = {
   frische: '🍎 Frische',
@@ -395,6 +398,25 @@ function applyMhdCategoryFilterOptions() {
   const hasPrevious = MHD_CATEGORY_FILTER_OPTIONS.some((option) => option.value === previous);
   select.value = hasPrevious ? previous : 'all';
   mhdState.categoryFilter = select.value;
+}
+
+function applyMhdHorizonOptions() {
+  const select = document.getElementById('mhd-horizon-select');
+  if (!select) return;
+  const current = MHD_MONITOR_HORIZON_OPTIONS.includes(mhdState.monitorHorizonDays)
+    ? mhdState.monitorHorizonDays
+    : MHD_MONITOR_DEFAULT_HORIZON_DAYS;
+  select.innerHTML = MHD_MONITOR_HORIZON_OPTIONS
+    .map((days) => `<option value="${days}">${days} Tage</option>`)
+    .join('');
+  select.value = String(current);
+  mhdState.monitorHorizonDays = current;
+}
+
+function updateMhdMonitorHintText(monitorHint) {
+  if (monitorHint) {
+    monitorHint.textContent = `MHD in den kommenden ${mhdState.monitorHorizonDays} Tagen`;
+  }
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
@@ -1065,7 +1087,7 @@ function applyTorfabrikFassMhdSuggestion() {
     || document.getElementById('we-product-manual')?.value?.trim()
     || '';
   const suggested = suggestTorfabrikMhdAfterAnstich(category, productName);
-  if (suggested) mhdInput.value = suggested;
+  if (suggested) setGermanDateField(mhdInput, suggested);
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
@@ -1665,7 +1687,7 @@ function matchesMhdMonitorHorizon(prod) {
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
   // Heute (0), überfällig (<0) und die nächsten 7 Tage (1–7).
-  return days <= MHD_MONITOR_HORIZON_DAYS;
+  return days <= mhdState.monitorHorizonDays;
 }
 
 function getMhdCategoryFilterLabel(filterKey = 'all') {
@@ -1731,6 +1753,8 @@ function computeMhdAction(prod) {
 
 function initMhdSubnavAndSearch() {
   const categorySelect = document.getElementById('mhd-category-select');
+  const horizonSelect = document.getElementById('mhd-horizon-select');
+  const monitorHint = document.getElementById('mhd-monitor-hint');
   const searchToggle = document.getElementById('mhd-search-toggle');
   const searchPanel = document.getElementById('mhd-search-panel');
   const searchInput = document.getElementById('mhd-search-input');
@@ -1770,11 +1794,31 @@ function initMhdSubnavAndSearch() {
   };
 
   applyMhdCategoryFilterOptions();
+  applyMhdHorizonOptions();
+
+  const updateMonitorHint = () => {
+    updateMhdMonitorHintText(monitorHint);
+    return;
+  };
+  updateMonitorHint();
 
   if (categorySelect && categorySelect.dataset.mhdBound !== '1') {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
       mhdState.categoryFilter = categorySelect.value || 'all';
+      mhdState.playClickSound(940, 0.04, 0.12);
+      renderMhdList();
+    });
+  }
+
+  if (horizonSelect && horizonSelect.dataset.mhdBound !== '1') {
+    horizonSelect.dataset.mhdBound = '1';
+    horizonSelect.addEventListener('change', () => {
+      const selectedDays = Number(horizonSelect.value);
+      mhdState.monitorHorizonDays = MHD_MONITOR_HORIZON_OPTIONS.includes(selectedDays)
+        ? selectedDays
+        : MHD_MONITOR_DEFAULT_HORIZON_DAYS;
+      updateMonitorHint();
       mhdState.playClickSound(940, 0.04, 0.12);
       renderMhdList();
     });
@@ -1899,7 +1943,7 @@ function renderMhdList() {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Artikel mit MHD in den nächsten ${MHD_MONITOR_HORIZON_DAYS} Tagen${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
+        Keine Artikel mit MHD in den kommenden ${mhdState.monitorHorizonDays} Tagen${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
       </div>`;
     return;
   }
@@ -1915,6 +1959,9 @@ function renderMhdList() {
     const isZeroDay = resttage === 0;
     const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
     const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
+    const retterBoxAction = window.BRANDING?.modules?.retterBox === true
+      ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
+      : '';
     return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
       <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};font-weight:800;font-size:13px;text-align:center;padding:10px 12px;border-radius:10px;margin-bottom:4px;letter-spacing:0.3px;">
@@ -1943,6 +1990,7 @@ function renderMhdList() {
         <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
         <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
         <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
+        ${retterBoxAction}
       </div>
     </div>
   `;
@@ -2144,6 +2192,12 @@ async function markMhdAction(id, actionStatus) {
     queuedUpdates.kuecheAngefragt = true;
     queuedUpdates.kuecheAngefragtAt = nowIso;
   }
+  if (actionStatus === 'retterbox') {
+    updates.retterBoxAngefragt = true;
+    updates.retterBoxAngefragtAt = serverTimestampFallback();
+    queuedUpdates.retterBoxAngefragt = true;
+    queuedUpdates.retterBoxAngefragtAt = nowIso;
+  }
   try {
     const actionResult = await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
@@ -2162,6 +2216,8 @@ async function markMhdAction(id, actionStatus) {
           ? (navigator.onLine
             ? 'Erfolgreich an die Küche übergeben! (Live-Sync)'
             : 'Offline gespeichert (Warte auf Netz)')
+          : actionStatus === 'retterbox'
+            ? 'Posten fuer die Retter-Box vorgemerkt.'
           : 'Posten als geprüft markiert.';
     mhdState.showHUD("Morgencheck erledigt", successMessage);
   } catch (err) {
@@ -2169,6 +2225,16 @@ async function markMhdAction(id, actionStatus) {
     mhdState.showHUD("Fehler", "MHD-Aktion konnte nicht gespeichert werden.", "!");
   }
 };
+
+async function addMhdItemToRetterBox(id) {
+  const product = mhdState.products.find((entry) => entry.id === id);
+  if (!product) return;
+  const added = await (mhdState.addRetterBoxCandidate?.(product)
+    || window.CharcuLogicRetterBox?.addCandidate?.(product));
+  if (added !== false) {
+    await markMhdAction(id, 'retterbox');
+  }
+}
 
 async function deleteMhdPosten(id) {
   try {
@@ -2320,6 +2386,7 @@ function bindMhdCardActions() {
     if (command === 'adjust') adjustQty(id, Number(button.dataset.mhdChange || 0));
     if (command === 'soldout') setSoldOut(id);
     if (command === 'action') markMhdAction(id, button.dataset.mhdActionStatus);
+    if (command === 'retterbox') addMhdItemToRetterBox(id);
   });
   container.addEventListener('change', (event) => {
     const input = event.target.closest('.mhd-qty-input');
@@ -2620,8 +2687,7 @@ function readDeliveryItemDraftValues() {
   const category = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
   const qtyUnit = getReceivingQtyUnitFromCategory(category);
   const qtyValue = parseReceivingQty(document.getElementById('we-qty')?.value, qtyUnit);
-  const mhdRaw = document.getElementById('we-mhd')?.value || '';
-  const mhdDate = normalizeDateInputToIso(mhdRaw);
+  const mhdDate = readGermanDateField(document.getElementById('we-mhd')) || '';
   return { product, barcode, qtyValue, qtyUnit, mhdDate, category, herstellerZusatz };
 }
 
@@ -2807,7 +2873,7 @@ function clearDeliveryItemFields() {
   if (herstellerEl) herstellerEl.value = '';
   if (manualEl) manualEl.value = '';
   if (qtyEl) qtyEl.value = '';
-  if (mhdEl) mhdEl.value = new Date().toISOString().slice(0, 10);
+  if (mhdEl) setGermanDateField(mhdEl, '');
   manualWrap?.classList.remove('is-manual-open');
   applyLastReceivingHeadCategory();
   updateDeliveryItemProductUi();
@@ -2842,7 +2908,7 @@ function addDeliveryItem() {
     return;
   }
   if (!mhdDate) {
-    mhdState.showHUD('MHD fehlt', 'Bitte MHD im Kalender auswählen.', '!');
+    mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
     document.getElementById('we-mhd')?.focus();
     return;
   }
@@ -3290,7 +3356,6 @@ async function saveDeliveryDraft() {
 }
 
 function resetReceivingForm() {
-  const today = new Date().toISOString().slice(0, 10);
   currentDeliveryItems = [];
   currentDeliveryPhotos = [];
   clearActiveDraftEditing();
@@ -3301,7 +3366,7 @@ function resetReceivingForm() {
     'we-hersteller-zusatz': '',
     'we-product-manual': '',
     'we-qty': '',
-    'we-mhd': today,
+    'we-mhd': '',
     'we-supplier': '',
     'we-category': 'Fremdfleisch',
     'we-category-quick': lastReceivingHeadCategory,
@@ -3521,9 +3586,8 @@ function mhdDateToDisplay(mhdDate) {
 
 function ensureReceivingFormDefaults() {
   const mhdInput = document.getElementById('we-mhd');
-  if (mhdInput && !mhdInput.value) {
-    mhdInput.value = new Date().toISOString().slice(0, 10);
-  }
+  if (mhdInput && mhdInput.type !== 'text') mhdInput.type = 'text';
+  initGermanDateInputs(document.getElementById('page-receiving') || document);
 }
 
 function updateReceivingSaveButtonState() {
@@ -3653,7 +3717,7 @@ function bindReceivingControls() {
   if (mhdInput && mhdInput.dataset.mhdDateFormatBound !== '1') {
     mhdInput.dataset.mhdDateFormatBound = '1';
     const initialIso = normalizeDateInputToIso(mhdInput.value);
-    if (initialIso) mhdInput.value = initialIso;
+    if (initialIso) setGermanDateField(mhdInput, initialIso);
   }
   if (categoryQuickSelect && categoryQuickSelect.dataset.mhdBound !== '1') {
     categoryQuickSelect.dataset.mhdBound = '1';
@@ -3824,6 +3888,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.onFormSaved = typeof uiCallbacks.onFormSaved === 'function' ? uiCallbacks.onFormSaved : mhdState.onFormSaved;
   mhdState.restoreDraftFields = typeof uiCallbacks.restoreDraftFields === 'function' ? uiCallbacks.restoreDraftFields : mhdState.restoreDraftFields;
   mhdState.terminalEmployeeName = String(uiCallbacks.terminalEmployeeName || mhdState.terminalEmployeeName || '').trim();
+  mhdState.addRetterBoxCandidate = typeof uiCallbacks.addRetterBoxCandidate === 'function' ? uiCallbacks.addRetterBoxCandidate : mhdState.addRetterBoxCandidate;
   if (!mhdState.initialized) {
     initMhdSubnavAndSearch(); bindMhdCardActions(); bindUtilityDialogActions(); bindReceivingControls(); bindMhdToolbar(); loadVpeMasterFromCsv(); mhdState.initialized = true;
   }

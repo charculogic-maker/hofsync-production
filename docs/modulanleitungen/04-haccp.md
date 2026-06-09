@@ -1,6 +1,6 @@
 # HACCP
 
-Dokumentation für Produktion (pH, Kerntemperatur, Charge) und **tägliche Betriebskontrollen** (Temperaturen, Reinigung, Geräte).
+Dokumentation für Produktion (pH, Kerntemperatur, Charge) und **tägliche Betriebskontrollen** (Temperaturen, Reinigung, Kühlstellen).
 
 ![HACCP – Produktions-Protokoll](./screenshots/05-haccp.png)
 
@@ -21,13 +21,13 @@ Bei Werten außerhalb der Toleranz erscheint eine **Warnung**.
 
 Umschalter:
 
-- **Temperaturen** – TK, Kühlung, Theken, …
+- **Temperaturen** – Kühlstellen prüfen
 - **Reinigung** – erledigte Reinigungen abhaken
-- **Geräte** – Geräte anlegen / deaktivieren
+- **Einrichten** – Kühlstellen und Reinigungsaufgaben anlegen oder deaktivieren
 
 ### Temperaturen
 
-![Temperatur-Geräte mit Messwert](./screenshots/05b-haccp-temperaturen.png)
+![Temperaturen mit Messwert](./screenshots/05b-haccp-temperaturen.png)
 
 Messwert eintragen → **OK**. Optional Notiz bei Abweichung.
 
@@ -38,6 +38,8 @@ Messwert eintragen → **OK**. Optional Notiz bei Abweichung.
 Pro Aufgabe **Reinigung erledigt** tippen.
 
 Morgens typisch: **Temperaturen** → Werte eintragen → optional **Reinigung**.
+
+Der Bereich **Einrichten** ist für seltene Änderungen gedacht, zum Beispiel wenn eine neue Kühlstelle dazukommt oder eine Reinigungsaufgabe nicht mehr aktiv ist.
 
 ## Bereich 3: Export / Büro (unten)
 

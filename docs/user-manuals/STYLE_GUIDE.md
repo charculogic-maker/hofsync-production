@@ -83,11 +83,11 @@ try {
 | Empfohlenes Ziel | **64 px** | `--touch-target-size: 64px` für primäre Aktionen |
 | Abstand | großzügig | Verhindert Fat-Fingering mit Handschuhen |
 | Feedback | Web Audio API | Kurze Klick-Töne als Haptik-Ersatz |
-| Navigation | unten fixiert | One-Hand-Ergonomie auf Tablets |
+| Navigation | unten fixiert | One-Hand-Ergonomie auf dem Laden-iPhone |
 
 **Module aktiv:** MHD · Wareneingang (**Laden**) · Wurstküche / WRS (**Prod.**)
 
-**Hofladen-Terminal:** Startet direkt im Tab **MHD**. Der neutrale Zugang `bestellung@steveshof-hofladen.de` arbeitet ohne zusätzliche Mitarbeiter-PIN als `StevesHof-Team`. Team, Metzgerei, HACCP und Büro sind derzeit bewusst ausgeblendet. Der Alltags-Logout bleibt am festen Tablet verborgen.
+**Hofladen-Terminal:** Startet direkt im Tab **MHD**. Der neutrale Zugang `bestellung@steveshof-hofladen.de` arbeitet ohne zusätzliche Mitarbeiter-PIN als `StevesHof-Team`. Team, Metzgerei, HACCP und Büro sind derzeit bewusst ausgeblendet. Der Alltags-Logout bleibt am Laden-iPhone verborgen.
 
 ### 2.3 Graceful Offline & Fallback
 

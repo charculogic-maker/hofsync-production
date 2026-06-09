@@ -4,7 +4,7 @@
 
 CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten im Alltag nur mit:
 
-- **MHD**: tägliche Haltbarkeitskontrolle (7-Tage-Horizont)
+- **MHD**: tägliche Haltbarkeitskontrolle (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
 - **Neu**: Wareneingang im Laden (Schnellerfassung)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
@@ -30,19 +30,20 @@ In der unteren Navigation sehen wir drei Tabs:
 
 | Tab | Zweck |
 |-----|-------|
-| **MHD** | Posten mit MHD in den nächsten 7 Tagen prüfen, Mengen korrigieren, Ware als OK, Raus, Küche oder Ausverkauft markieren |
+| **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus, Küche oder Ausverkauft markieren |
 | **Neu** | Neue Ware scannen; Menge, MHD und optional **Hersteller / Zusatz** erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
-Weitere Module (Team, Metzgerei-Erfassung, HACCP, Büro) sind für `StevesHof_Hauptbetrieb` derzeit deaktiviert.
+Team und Metzgerei-Erfassung bleiben für `StevesHof_Hauptbetrieb` deaktiviert. HACCP und Büro/Chargen sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleiben diese Bereiche ausgeblendet.
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab zeigt automatisch alle relevanten Posten der **nächsten 7 Tage**. Es gibt einen Filter:
+Der MHD-Tab zeigt automatisch alle relevanten Posten im gewählten Zeitraum. Standard ist **21 Tage**; über **Zeitraum** können wir auf **7**, **14** oder **21 Tage** umstellen. Es gibt zwei Filter:
 
+- **Zeitraum** — 7, 14 oder 21 Tage
 - **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze
 
-Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD in der Frist liegt.
+Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 
 Änderungen an Mengen und Status bündeln wir mit **Änderungen speichern**.
 
@@ -56,11 +57,11 @@ Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**).
 2. **MoPro** auswählen.
-3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD prüfen, **Posten hinzufügen**.
+3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **Posten hinzufügen**.
 4. Den nächsten MoPro-Artikel scannen.
 5. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
-Das MHD-Datum setzen wir im **nativen Datumsfeld**. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
+Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer, damit wir nichts löschen müssen. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 
@@ -95,6 +96,7 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 | Passwort Hofladen-Zugang ändern | Firebase Console → Authentication → Nutzer → `bestellung@steveshof-hofladen.de` → **Passwort zurücksetzen** |
 | Laden-iPhone neu anmelden | Neutralen Betriebszugang verwenden und angemeldet lassen |
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
+| Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Weitere Module aktivieren | Erst nach Abstimmung in `web/branding.js` für `steveshof_hauptbetrieb` freischalten |
 
 ---

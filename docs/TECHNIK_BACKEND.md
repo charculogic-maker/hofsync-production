@@ -70,7 +70,7 @@ Nach dem Lauf refresht das Frontend Claims automatisch via `getIdToken(true)` in
 
 ### 1.2 Shared Terminals & localStorage-Namensraum
 
-Auf gemeinsam genutzten Tablets/Terminals wechseln Betriebs-Logins und Mitarbeiter-Anmeldungen häufig. Globale `localStorage`-Keys würden Auswahl und PIN-Kontext zwischen Mandanten vermischen.
+Auf gemeinsam genutzten iPhones oder Terminals wechseln Betriebs-Logins und Mitarbeiter-Anmeldungen häufig. Globale `localStorage`-Keys würden Auswahl und PIN-Kontext zwischen Mandanten vermischen.
 
 **Lösung:** `web/teamboard-storage.js` — alle Teamboard-Terminal-Keys werden dynamisch mit `{tenantId}_` prefixiert:
 
