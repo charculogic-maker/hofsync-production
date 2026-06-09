@@ -117,6 +117,13 @@ service cloud.firestore {
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentStock', 'updatedAt'
+        ])
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock <= resource.data.currentStock;
     }
 
     match /tenants/{tenantId}/settings/{document} {

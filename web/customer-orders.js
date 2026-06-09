@@ -41,6 +41,7 @@ const orderState = {
   pendingSlips: [],
   createInFlight: false,
   statusUpdateInFlight: false,
+  statusUpdateOrderIds: new Set(),
   picklistReadyInFlight: false,
   picklistChecked: new Set(),
   productionChecked: new Set(),
@@ -115,6 +116,15 @@ function ordersCollectionRef() {
   if (!orderState.db || !orderState.tenantId) return null;
   try {
     return getTenantCollection('customerOrders');
+  } catch {
+    return null;
+  }
+}
+
+function stockCollectionRef() {
+  if (!orderState.db || !orderState.tenantId) return null;
+  try {
+    return getTenantCollection('stammdaten');
   } catch {
     return null;
   }
@@ -276,6 +286,112 @@ function actualQuantityValue(key, fallback) {
 
 function actualQuantityChanged(key, fallback) {
   return normalizeQuantityText(actualQuantityValue(key, fallback)) !== normalizeQuantityText(fallback);
+}
+
+function quantityForStock(item) {
+  const actual = parseQuantityValue(item?.actualQuantity);
+  if (actual > 0) return actual;
+  return parseQuantityValue(item?.quantity);
+}
+
+function stockItemIdFromOrderItem(item) {
+  return String(
+    item?.stockItemId
+    || item?.stammdatenId
+    || item?.artikelId
+    || item?.articleId
+    || item?.productId
+    || item?.ean
+    || item?.barcode
+    || item?.sku
+    || ''
+  ).trim();
+}
+
+async function findStockDocForOrderItem(item) {
+  const col = stockCollectionRef();
+  if (!col) return null;
+
+  const directId = stockItemIdFromOrderItem(item);
+  if (directId) {
+    const snap = await col.doc(directId).get();
+    if (snap.exists) return snap.ref;
+  }
+
+  const product = String(item?.product || item?.produkt || item?.name || '').trim();
+  if (!product) return null;
+
+  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
+  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+
+  const byName = await col.where('name', '==', product).limit(1).get();
+  if (!byName.empty) return byName.docs[0].ref;
+
+  return null;
+}
+
+async function prepareStockDeductionsForOrder(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const deductions = [];
+  for (const item of items) {
+    const amount = quantityForStock(item);
+    if (!amount) continue;
+    const ref = await findStockDocForOrderItem(item);
+    if (!ref) continue;
+    deductions.push({
+      ref,
+      amount,
+      product: item?.product || item?.produkt || item?.name || 'Artikel',
+    });
+  }
+  return deductions;
+}
+
+async function markOrderPickedUpWithStock(order, employee) {
+  const firebase = orderState.getFirebase();
+  const orderRef = ordersCollectionRef()?.doc(order.id);
+  if (!firebase?.firestore?.FieldValue || !orderRef) {
+    throw new Error('Bestellung ist noch nicht bereit.');
+  }
+  if (!navigator.onLine) {
+    throw new Error('Bitte bei WLAN erneut versuchen.');
+  }
+
+  const deductions = await prepareStockDeductionsForOrder(order);
+  await orderState.db.runTransaction(async (transaction) => {
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists) throw new Error('Bestellung nicht gefunden.');
+    const currentOrder = orderSnap.data();
+    if (currentOrder.status === 'picked_up') {
+      throw new Error('Bestellung ist bereits abgeholt.');
+    }
+    if (currentOrder.status !== 'ready') {
+      throw new Error('Bestellung ist noch nicht abholbereit.');
+    }
+
+    const stockSnaps = [];
+    for (const deduction of deductions) {
+      stockSnaps.push({ deduction, snap: await transaction.get(deduction.ref) });
+    }
+
+    stockSnaps.forEach(({ deduction, snap }) => {
+      if (!snap.exists) return;
+      const currentStock = parseQuantityValue(snap.data()?.currentStock);
+      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      transaction.update(deduction.ref, {
+        currentStock: nextStock,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    transaction.update(orderRef, {
+      status: 'picked_up',
+      pickedUpBy: employee,
+      pickedUpAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  return deductions.length;
 }
 
 function normalizePicklistKey(value) {
@@ -846,6 +962,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
   const acceptedAt = formatDateTimeDe(order.acceptedAt);
   const readyLabel = formatReadyAt(order.readyAt);
   const contact = [order.callbackPhone, order.customerEmail].filter(Boolean).join(' · ');
+  const isUpdatingThisOrder = orderState.statusUpdateOrderIds.has(order.id);
 
   let actions = '';
   if (status === 'open') {
@@ -855,7 +972,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
     `;
   } else if (status === 'ready') {
     actions = `
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}">Abgeholt</button>
+      <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt...' : 'Als abgeholt markieren'}</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="delivery_note" data-order-id="${escapeHtml(order.id)}">Lieferschein drucken</button>
     `;
   }
@@ -1096,8 +1213,42 @@ async function updateOrderStatus(orderId, nextStatus) {
     payload.readyMarkedBy = employee;
     payload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
   } else if (nextStatus === 'picked_up') {
-    payload.pickedUpBy = employee;
-    payload.pickedUpAt = firebase.firestore.FieldValue.serverTimestamp();
+    const order = orderState.allOrders.find((entry) => entry.id === orderId);
+    if (!order) {
+      window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+      return;
+    }
+    try {
+      orderState.statusUpdateInFlight = true;
+      orderState.statusUpdateOrderIds.add(orderId);
+      renderOpenOrders();
+      renderAdminOrders();
+      await markOrderPickedUpWithStock(order, employee);
+      orderState.allOrders = orderState.allOrders.map((entry) => (
+        entry.id === orderId
+          ? { ...entry, status: 'picked_up', pickedUpBy: employee, pickedUpAt: new Date().toISOString() }
+          : entry
+      ));
+      renderOpenOrders();
+      renderAdminOrders();
+      renderProductionTasks();
+      window.showToast?.('Bestellung erfolgreich als abgeholt markiert. Lagerbestand aktualisiert.', 'success');
+    } catch (err) {
+      console.error('[CustomerOrders] Abholung mit Bestand fehlgeschlagen:', err);
+      const message = String(err?.message || '');
+      window.showToast?.(
+        message.includes('WLAN')
+          ? 'Bitte bei WLAN erneut versuchen, damit wir den Bestand aktualisieren können.'
+          : 'Bestellung konnte nicht als abgeholt markiert werden. Bitte erneut versuchen.',
+        'error',
+      );
+    } finally {
+      orderState.statusUpdateOrderIds.delete(orderId);
+      orderState.statusUpdateInFlight = false;
+      renderOpenOrders();
+      renderAdminOrders();
+    }
+    return;
   }
 
   try {

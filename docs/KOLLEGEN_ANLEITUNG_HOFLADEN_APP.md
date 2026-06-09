@@ -124,6 +124,8 @@ Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholb
 
 Bei abholbereiten Bestellungen können wir **Lieferschein drucken** wählen. Der **Kisten-Zettel** zeigt Kundennamen, Abholdatum, bestellte Menge, tatsächliche Menge und den **Endpreis**. Wenn wir einen Waagen-Wert erfasst haben, nutzt unsere App diesen Wert für den **Abholpreis**.
 
+Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab und zeigt **Bestand aktualisiert**, sobald alles verbucht ist.
+
 ---
 
 ## Liefertag: Kurzfassung

@@ -177,6 +177,57 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2c: stock updates from customer pickup', () => {
+    const stockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'fleischsalat');
+    const stockItem = {
+      name: 'Fleischsalat',
+      produkt: 'Fleischsalat',
+      currentStock: 12,
+      tenantId: TENANTS.STEVES_HOF,
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, stockPath, stockItem);
+    });
+
+    it('allows employee to update only current stock on own tenant stock item', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-stock', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        { currentStock: 8, updatedAt: serverTimestamp() },
+      );
+    });
+
+    it('denies stock updates across tenants or with product field changes', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-stock', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        stockPath,
+        'update',
+        { currentStock: 8, updatedAt: serverTimestamp() },
+      );
+
+      const ownCtx = authContext(testEnv, 'sh-employee-stock-wide', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        stockPath,
+        'update',
+        { currentStock: 8, produkt: 'Geändert', updatedAt: serverTimestamp() },
+      );
+
+      await expectFirestoreDeny(
+        ownCtx,
+        stockPath,
+        'update',
+        { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

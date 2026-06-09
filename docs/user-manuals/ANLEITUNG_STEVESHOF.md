@@ -91,6 +91,8 @@ Sobald alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Best
 
 Für die Kiste im Kühlschrank drucken wir danach bei der Bestellung den **Lieferschein**. Der **Kisten-Zettel** zeigt Kundennamen, Abholdatum, bestellte Menge, tatsächliche Menge und den **Endpreis**. Bei abgewogenen Artikeln berechnet unsere App den **Abholpreis** aus dem Waagen-Wert.
 
+Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab; wenn kein Waagen-Wert erfasst wurde, nutzt sie die bestellte Menge. Danach sehen wir kurz **Bestand aktualisiert**.
+
 ## 7. Offline-Betrieb
 
 Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; unsere App zeigt beim Speichern **Lokal vorgemerkt** und synchronisiert die Einträge automatisch, sobald WLAN wieder verfügbar ist.
