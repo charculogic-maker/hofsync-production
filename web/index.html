@@ -834,6 +834,19 @@
                 </div>
               </div>
 
+              <div class="delivery-note-modal" id="delivery-note-modal" hidden role="dialog" aria-modal="true" aria-labelledby="delivery-note-title">
+                <div class="delivery-note-view">
+                  <header class="delivery-note-toolbar">
+                    <h2 id="delivery-note-title">Lieferschein</h2>
+                    <div class="delivery-note-toolbar-actions">
+                      <button type="button" class="btn btn-secondary btn-compact" id="delivery-note-close-btn">Schließen</button>
+                      <button type="button" class="btn btn-primary btn-compact" id="delivery-note-print-btn">Kisten-Zettel drucken</button>
+                    </div>
+                  </header>
+                  <div id="delivery-note-print-area" class="delivery-note-print-area"></div>
+                </div>
+              </div>
+
               <details class="leitstand-collapsible admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
                 <summary>Team-Gruppen &amp; Mitarbeiter</summary>
                 <div class="leitstand-collapsible-body">

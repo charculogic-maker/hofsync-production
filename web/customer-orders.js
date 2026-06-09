@@ -244,9 +244,25 @@ function parseQuantityValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseMoneyValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .match(/-?\d+(?:\.\d+)?/);
+  if (!normalized) return 0;
+  const parsed = Number(normalized[0]);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function formatQuantityValue(value) {
   if (!Number.isFinite(value)) return '0';
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 }).format(value);
+}
+
+function formatMoneyValue(value) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number.isFinite(value) ? value : 0);
 }
 
 function normalizeQuantityText(value) {
@@ -617,6 +633,116 @@ function applyActualQuantityUpdatesToItems(order, updates = []) {
   });
 }
 
+function getItemUnitPrice(item, orderedQuantity) {
+  const direct = [
+    item?.pricePerKg,
+    item?.kgPrice,
+    item?.kiloPrice,
+    item?.unitPrice,
+    item?.pricePerUnit,
+    item?.singlePrice,
+  ].map(parseMoneyValue).find((price) => price > 0);
+  if (direct) return direct;
+
+  const lineTotal = [item?.lineTotal, item?.totalPrice, item?.price]
+    .map(parseMoneyValue)
+    .find((price) => price > 0);
+  if (lineTotal && orderedQuantity > 0) return lineTotal / orderedQuantity;
+  return 0;
+}
+
+export function calculateFinalOrderPrice(order) {
+  const lines = (Array.isArray(order?.items) ? order.items : []).map((item) => {
+    const orderedQuantity = parseQuantityValue(item?.quantity);
+    const actualQuantity = item?.actualQuantity ? parseQuantityValue(item.actualQuantity) : orderedQuantity;
+    const unit = item?.actualQuantityUnit || item?.unit || '';
+    const unitPrice = getItemUnitPrice(item, orderedQuantity);
+    const lineTotal = Math.round((actualQuantity * unitPrice) * 100) / 100;
+    const orderedLabel = [item?.quantity, item?.unit].filter(Boolean).join(' ');
+    const actualLabel = [formatQuantityValue(actualQuantity), unit].filter(Boolean).join(' ');
+    return {
+      product: item?.product || 'Artikel',
+      orderedQuantity,
+      actualQuantity,
+      unit,
+      orderedLabel,
+      actualLabel,
+      unitPrice,
+      lineTotal,
+      hasActualQuantity: Boolean(item?.actualQuantity),
+      notes: [item?.weight, item?.width, item?.lineNotes].filter(Boolean).join(' · '),
+    };
+  });
+  const total = Math.round(lines.reduce((sum, line) => sum + line.lineTotal, 0) * 100) / 100;
+  return { lines, total };
+}
+
+function renderDeliveryNoteRows(order) {
+  const price = calculateFinalOrderPrice(order);
+  if (!price.lines.length) {
+    return '<tr><td colspan="5">Keine Artikel eingetragen.</td></tr>';
+  }
+  return price.lines.map((line) => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(line.product)}</strong>
+        ${line.notes ? `<span class="delivery-note-item-note">${escapeHtml(line.notes)}</span>` : ''}
+      </td>
+      <td>${escapeHtml(line.orderedLabel || '–')}</td>
+      <td>${escapeHtml(line.actualLabel || line.orderedLabel || '–')}${line.hasActualQuantity ? '<span class="delivery-note-weighed">Abgewogen</span>' : ''}</td>
+      <td>${escapeHtml(formatMoneyValue(line.unitPrice))}</td>
+      <td>${escapeHtml(formatMoneyValue(line.lineTotal))}</td>
+    </tr>
+  `).join('');
+}
+
+function openDeliveryNote(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const modal = document.getElementById('delivery-note-modal');
+  const body = document.getElementById('delivery-note-print-area');
+  if (!order || !modal || !body) {
+    window.showToast?.('Lieferschein konnte nicht geöffnet werden.', 'error');
+    return;
+  }
+  const price = calculateFinalOrderPrice(order);
+  body.innerHTML = `
+    <section class="delivery-note-sheet">
+      <header class="delivery-note-sheet-head">
+        <p>Kisten-Zettel</p>
+        <h1>${escapeHtml(order.customerName || 'Kunde')}</h1>
+        <div>Abholung: ${escapeHtml(formatReadyAt(order.readyAt))}</div>
+      </header>
+      <table class="delivery-note-table">
+        <thead>
+          <tr>
+            <th>Artikel</th>
+            <th>Bestellte Menge</th>
+            <th>Tatsächliche Menge</th>
+            <th>Einzelpreis</th>
+            <th>Abholpreis</th>
+          </tr>
+        </thead>
+        <tbody>${renderDeliveryNoteRows(order)}</tbody>
+      </table>
+      <footer class="delivery-note-total">
+        <span>Endpreis</span>
+        <strong>${escapeHtml(formatMoneyValue(price.total))}</strong>
+      </footer>
+    </section>
+  `;
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeDeliveryNote() {
+  const modal = document.getElementById('delivery-note-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+}
+
 async function markSammelPicklisteReady() {
   if (orderState.picklistReadyInFlight) return;
   const employee = getActiveEmployeeName();
@@ -730,6 +856,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
   } else if (status === 'ready') {
     actions = `
       <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}">Abgeholt</button>
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="delivery_note" data-order-id="${escapeHtml(order.id)}">Lieferschein drucken</button>
     `;
   }
 
@@ -1084,10 +1211,22 @@ function bindOrderListActions() {
     }
     if (action === 'ready') updateOrderStatus(orderId, 'ready');
     if (action === 'picked_up') updateOrderStatus(orderId, 'picked_up');
+    if (action === 'delivery_note') openDeliveryNote(orderId);
   };
 
   document.getElementById('customer-order-list')?.addEventListener('click', handler);
   document.getElementById('admin-customer-order-list')?.addEventListener('click', handler);
+}
+
+function bindDeliveryNoteActions() {
+  const modal = document.getElementById('delivery-note-modal');
+  if (!modal || modal.dataset.deliveryNoteBound === '1') return;
+  modal.dataset.deliveryNoteBound = '1';
+  document.getElementById('delivery-note-close-btn')?.addEventListener('click', closeDeliveryNote);
+  document.getElementById('delivery-note-print-btn')?.addEventListener('click', () => window.print());
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeDeliveryNote();
+  });
 }
 
 function bindSammelPicklisteActions() {
@@ -1176,6 +1315,7 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
   bindOrderForm();
   bindOrderListActions();
   bindProductionTaskActions();
+  bindDeliveryNoteActions();
   bindSammelPicklisteActions();
   subscribeOrders();
   initGermanDateInputs(document);
