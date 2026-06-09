@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260609-109';
+const CACHE_NAME = 'charculogic-v20260609-122';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026';
 
 const CRITICAL_ASSETS = [
@@ -102,6 +102,12 @@ self.addEventListener('message', (event) => {
 
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+
+  if (event.data?.type === 'CLEAR_APP_CACHES') {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+    );
   }
 
   if (event.data?.type === 'SHOW_NOTIFICATION') {

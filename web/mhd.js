@@ -11,6 +11,8 @@ import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 const HACCP_TEMP_LIMIT_C = 7.0;
+const MHD_MONITOR_HORIZON_OPTIONS = [7, 14, 21];
+const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
 
 const RECEIVING_FORM_IDS = [
   'we-supplier',
@@ -234,9 +236,6 @@ function serverTimestampFallback() {
 
 const MHD_TROCKEN_CATEGORY = '📦 Trockenware';
 const MHD_RENDER_LIMIT = 50;
-const MHD_MONITOR_HORIZON_OPTIONS = [7, 14, 21];
-const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
-
 const MHD_CANONICAL_CATEGORIES = {
   frische: '🍎 Frische',
   mopro: '🥛MoPro',
@@ -417,6 +416,35 @@ function updateMhdMonitorHintText(monitorHint) {
   if (monitorHint) {
     monitorHint.textContent = `MHD in den kommenden ${mhdState.monitorHorizonDays} Tagen`;
   }
+}
+
+function updateMhdFilterSummaryText() {
+  const summaryValue = document.getElementById('mhd-filter-summary-value');
+  const horizonSelect = document.getElementById('mhd-horizon-select');
+  const categorySelect = document.getElementById('mhd-category-select');
+  if (!summaryValue || !horizonSelect || !categorySelect) return;
+  const horizon = horizonSelect.selectedOptions[0]?.textContent?.trim() || `${mhdState.monitorHorizonDays} Tage`;
+  const category = categorySelect.selectedOptions[0]?.textContent?.trim() || 'Alle Kategorien';
+  summaryValue.textContent = `${horizon} · ${category}`;
+}
+
+function updateMhdSearchSummaryText() {
+  const summaryValue = document.getElementById('mhd-search-summary-value');
+  if (!summaryValue) return;
+  const query = mhdState.searchQuery.trim();
+  if (!query) {
+    summaryValue.textContent = 'Alle Artikel';
+    return;
+  }
+  summaryValue.textContent = query.length > 18 ? `${query.slice(0, 18)}…` : query;
+}
+
+function syncMhdToolbarLayout() {
+  const isWide = window.matchMedia('(min-width: 640px)').matches;
+  const searchDetails = document.getElementById('mhd-search-details');
+  const filterDetails = document.getElementById('mhd-filter-details');
+  if (searchDetails) searchDetails.open = isWide;
+  if (filterDetails) filterDetails.open = isWide;
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
@@ -1755,32 +1783,13 @@ function initMhdSubnavAndSearch() {
   const categorySelect = document.getElementById('mhd-category-select');
   const horizonSelect = document.getElementById('mhd-horizon-select');
   const monitorHint = document.getElementById('mhd-monitor-hint');
-  const searchToggle = document.getElementById('mhd-search-toggle');
-  const searchPanel = document.getElementById('mhd-search-panel');
+  const searchDetails = document.getElementById('mhd-search-details');
   const searchInput = document.getElementById('mhd-search-input');
   const searchClear = document.getElementById('mhd-search-clear');
-  const searchToggleLabel = searchToggle?.querySelector('.mhd-search-toggle-label');
-
-  const updateSearchToggleLabel = () => {
-    if (!searchToggleLabel) return;
-    const query = mhdState.searchQuery.trim();
-    if (!searchPanel?.hidden) {
-      searchToggleLabel.textContent = '▲ Suche schließen';
-      return;
-    }
-    if (query) {
-      const preview = query.length > 22 ? `${query.slice(0, 22)}…` : query;
-      searchToggleLabel.textContent = `🔍 Suche: ${preview}`;
-      return;
-    }
-    searchToggleLabel.textContent = '🔍 Artikel suchen';
-  };
 
   const setMhdSearchExpanded = (expanded) => {
-    if (!searchPanel || !searchToggle) return;
-    searchPanel.hidden = !expanded;
-    searchToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    updateSearchToggleLabel();
+    if (!searchDetails) return;
+    searchDetails.open = expanded;
     if (expanded) {
       requestAnimationFrame(() => searchInput?.focus());
     }
@@ -1789,7 +1798,7 @@ function initMhdSubnavAndSearch() {
   const clearMhdSearch = () => {
     mhdState.searchQuery = '';
     if (searchInput) searchInput.value = '';
-    updateSearchToggleLabel();
+    updateMhdSearchSummaryText();
     renderMhdList();
   };
 
@@ -1798,14 +1807,27 @@ function initMhdSubnavAndSearch() {
 
   const updateMonitorHint = () => {
     updateMhdMonitorHintText(monitorHint);
-    return;
+    updateMhdFilterSummaryText();
   };
   updateMonitorHint();
+  updateMhdSearchSummaryText();
+  syncMhdToolbarLayout();
+  if (!window.__mhdToolbarLayoutBound) {
+    window.__mhdToolbarLayoutBound = true;
+    window.matchMedia('(min-width: 640px)').addEventListener('change', syncMhdToolbarLayout);
+  }
+
+  searchDetails?.addEventListener('toggle', () => {
+    if (searchDetails.open) {
+      requestAnimationFrame(() => searchInput?.focus());
+    }
+  });
 
   if (categorySelect && categorySelect.dataset.mhdBound !== '1') {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
       mhdState.categoryFilter = categorySelect.value || 'all';
+      updateMhdFilterSummaryText();
       mhdState.playClickSound(940, 0.04, 0.12);
       renderMhdList();
     });
@@ -1824,10 +1846,6 @@ function initMhdSubnavAndSearch() {
     });
   }
 
-  searchToggle?.addEventListener('click', () => {
-    setMhdSearchExpanded(Boolean(searchPanel?.hidden));
-  });
-
   searchClear?.addEventListener('click', () => {
     clearMhdSearch();
     searchInput?.focus();
@@ -1835,15 +1853,13 @@ function initMhdSubnavAndSearch() {
 
   searchInput?.addEventListener('input', (event) => {
     mhdState.searchQuery = event.target.value.toLowerCase();
-    updateSearchToggleLabel();
+    updateMhdSearchSummaryText();
     renderMhdList();
   });
 
   searchInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setMhdSearchExpanded(false);
   });
-
-  updateSearchToggleLabel();
 }
 
 function mapMhdDoc(doc) {

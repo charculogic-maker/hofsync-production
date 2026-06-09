@@ -409,6 +409,28 @@ body {
   display: none;
 }
 
+.app-refresh-btn {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--header-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-refresh-btn:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .hidden {
   display: none !important;
 }
@@ -678,46 +700,87 @@ button:active, .btn:active {
   padding-bottom: 4px;
 }
 
-.mhd-search-wrap {
+.mhd-toolbar-compact {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
 }
 
-.mhd-search-toggle {
+.mhd-toolbar-details {
   width: 100%;
-  min-height: 38px;
+  min-width: 0;
+}
+
+.mhd-toolbar-summary {
+  display: none;
+  list-style: none;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
   padding: 0 12px;
   border: 2px solid #D1D1D6;
   border-radius: var(--border-radius-md);
   background: var(--surface-color);
   color: var(--text-dark);
   font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.mhd-toolbar-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mhd-toolbar-summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: #636366;
   font-size: 14px;
   font-weight: 800;
-  text-align: left;
-  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
-.mhd-search-toggle:active {
-  transform: scale(0.99);
+.mhd-toolbar-details[open] > .mhd-toolbar-summary::after {
+  transform: rotate(180deg);
 }
 
-.mhd-search-toggle[aria-expanded="true"] {
+.mhd-toolbar-details[open] > .mhd-toolbar-summary {
   border-color: var(--primary-color);
   background: var(--primary-tint-bg);
   color: var(--primary-on-light);
+}
+
+.mhd-toolbar-summary-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #636366;
+}
+
+.mhd-toolbar-details[open] > .mhd-toolbar-summary .mhd-toolbar-summary-label {
+  color: var(--primary-on-light);
+}
+
+.mhd-toolbar-summary-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 
 .mhd-search-panel {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.mhd-search-panel[hidden] {
-  display: none !important;
+  margin-top: 8px;
 }
 
 .mhd-search-input {
@@ -944,10 +1007,24 @@ button:active, .btn:active {
 }
 
 @media (min-width: 640px) {
+  .mhd-toolbar-summary {
+    display: none;
+  }
+
+  .mhd-toolbar-details > .mhd-search-panel,
+  .mhd-toolbar-details > .mhd-filter-row.mhd-filter-row--monitor {
+    margin-top: 0;
+  }
+
+  .mhd-search-details {
+    order: -1;
+  }
+
   .mhd-filter-row.mhd-filter-row--monitor {
     flex-direction: row;
     align-items: flex-end;
     gap: 14px;
+    display: flex;
   }
 
   .mhd-monitor-hint {
@@ -955,6 +1032,7 @@ button:active, .btn:active {
     margin: 0;
     text-align: left;
     align-self: center;
+    display: block;
   }
 
   .mhd-filter-row--monitor .mhd-filter-field--horizon {
@@ -3592,13 +3670,13 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   border-color: var(--border-subtle);
 }
 
-[data-theme="dark"] .mhd-search-toggle {
+[data-theme="dark"] .mhd-toolbar-summary {
   background-color: var(--surface-color);
   color: var(--text-dark);
   border-color: var(--border-subtle);
 }
 
-[data-theme="dark"] .mhd-search-toggle[aria-expanded="true"] {
+[data-theme="dark"] .mhd-toolbar-details[open] > .mhd-toolbar-summary {
   background: var(--primary-alpha-12);
   border-color: var(--primary-color);
   color: var(--primary-color);
@@ -4041,6 +4119,61 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
   .sticky-action-bar {
     bottom: var(--mhd-bottom-nav-height);
+  }
+
+  /* MHD-Toolbar: nicht sticky – scrollt mit, überdeckt keine Karten */
+  .mhd-monitor-toolbar {
+    position: static;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 0;
+  }
+
+  .mhd-toolbar-compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: start;
+  }
+
+  .mhd-toolbar-summary {
+    display: flex;
+  }
+
+  .mhd-search-details[open] {
+    grid-column: 1 / -1;
+  }
+
+  .mhd-filter-details[open] {
+    grid-column: 1 / -1;
+  }
+
+  .mhd-toolbar-details[open] > .mhd-search-panel,
+  .mhd-toolbar-details[open] > .mhd-filter-row.mhd-filter-row--monitor {
+    margin-top: 8px;
+  }
+
+  .mhd-filter-row.mhd-filter-row--monitor {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .mhd-monitor-hint {
+    display: none;
+  }
+
+  .mhd-filter-row--monitor .mhd-filter-field--horizon,
+  .mhd-filter-row--monitor .mhd-filter-field--category {
+    width: auto;
+  }
+
+  .mhd-filter-row--monitor .mhd-filter-select {
+    min-height: 42px;
+    height: 42px;
+    font-size: 14px;
+    padding: 0 34px 0 10px;
   }
 
   .recipe-detail-panel {

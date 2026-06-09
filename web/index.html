@@ -29,6 +29,71 @@
       const themeMeta = document.querySelector('meta[name="theme-color"]');
       if (themeMeta) themeMeta.setAttribute('content', window.BRANDING.primaryColor || '#28a745');
     }
+
+    window.forceAppUpdate = async function forceAppUpdate() {
+      if (window.__forceAppUpdateRunning) return;
+      window.__forceAppUpdateRunning = true;
+      const hardReload = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('appUpdate', String(Date.now()));
+        window.location.replace(url.toString());
+      };
+      const button = document.getElementById('app-refresh-btn');
+      if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        const label = button.querySelector('span:last-child');
+        if (label) label.textContent = 'Neu laden...';
+      }
+      setTimeout(hardReload, 700);
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await Promise.race([
+            navigator.serviceWorker.getRegistrations(),
+            new Promise((resolve) => setTimeout(() => resolve([]), 250)),
+          ]);
+          Promise.all(registrations.map(async (registration) => {
+            try {
+              registration.waiting?.postMessage?.({ type: 'SKIP_WAITING' });
+              registration.active?.postMessage?.({ type: 'CLEAR_APP_CACHES' });
+              registration.update?.();
+              registration.unregister?.();
+            } catch (_) { /* weiter versuchen */ }
+          }));
+        }
+        if ('caches' in window) {
+          caches.keys()
+            .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[CharcuLogic] App-Aktualisierung konnte Cache nicht vollstaendig leeren:', err);
+      }
+      setTimeout(hardReload, 120);
+    };
+
+    window.fallbackShowTab = function fallbackShowTab(tabId) {
+      const pageMap = {
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: 'StevesHof Hofladen' },
+        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: 'StevesHof Hofladen' },
+        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: 'StevesHof Hofladen' },
+      };
+      const target = pageMap[tabId] || pageMap.mhd;
+      document.querySelectorAll('.page').forEach((page) => {
+        const active = page.id === target.page;
+        page.classList.toggle('active', active);
+        page.style.display = active ? 'block' : 'none';
+      });
+      document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+      });
+      const headerTitle = document.getElementById('header-title');
+      const headerSubtitle = document.getElementById('header-subtitle');
+      if (headerTitle) headerTitle.textContent = target.title;
+      if (headerSubtitle) headerSubtitle.textContent = target.subtitle;
+      document.getElementById('app-content')?.scrollTo?.(0, 0);
+      return true;
+    };
   </script>
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
@@ -40,7 +105,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260528-70">
+  <link rel="stylesheet" href="/style.css?v=20260609-120">
 </head>
 <body>
 
@@ -66,11 +131,15 @@
         <!-- App Header (Header Bar) -->
         <header class="app-header">
           <div class="app-title-group">
-            <span class="app-subtitle brand-betriebs-name" id="header-subtitle"></span>
-            <h1 id="header-title">Schwarzes Brett</h1>
+            <span class="app-subtitle brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
+            <h1 id="header-title">MHD-Monitor</h1>
           </div>
           <div class="app-header-actions">
             <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
+            <button type="button" class="app-refresh-btn" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
+              <span aria-hidden="true">↻</span>
+              <span>Update</span>
+            </button>
             <div class="sync-indicator" id="sync-indicator" title="Sync-Status">
               <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
               <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
@@ -89,7 +158,7 @@
           <!-- ============================================== -->
           <!-- SCREEN 1: TEAM-LEITSTAND PAGE                  -->
           <!-- ============================================== -->
-          <div class="page active" id="page-teamboard">
+          <div class="page" id="page-teamboard">
             <section class="team-home-panel" id="team-home-panel" aria-label="Team-Leitstand">
               <div class="team-login-card" id="team-login-card">
                 <div class="team-login-header">
@@ -270,32 +339,41 @@
           <!-- ============================================== -->
           <!-- SCREEN 2: MHD-MONITOR PAGE                     -->
           <!-- ============================================== -->
-          <div class="page" id="page-mhd">
+          <div class="page active" id="page-mhd">
             <div class="mhd-monitor-toolbar">
-              <div class="mhd-search-wrap">
-                <button type="button" class="mhd-search-toggle" id="mhd-search-toggle" aria-expanded="false" aria-controls="mhd-search-panel">
-                  <span class="mhd-search-toggle-label">🔍 Artikel suchen</span>
-                </button>
-                <div class="mhd-search-panel" id="mhd-search-panel" hidden>
-                  <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname eingeben…" aria-label="MHD-Artikel suchen" autocomplete="off">
-                  <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
-                </div>
-              </div>
+              <div class="mhd-toolbar-compact">
+                <details class="mhd-toolbar-details mhd-search-details" id="mhd-search-details">
+                  <summary class="mhd-toolbar-summary" id="mhd-search-summary">
+                    <span class="mhd-toolbar-summary-label">Suche</span>
+                    <span class="mhd-toolbar-summary-value" id="mhd-search-summary-value">Alle Artikel</span>
+                  </summary>
+                  <div class="mhd-search-panel" id="mhd-search-panel">
+                    <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname eingeben…" aria-label="MHD-Artikel suchen" autocomplete="off">
+                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
+                  </div>
+                </details>
 
-              <div class="mhd-filter-row mhd-filter-row--monitor">
-                <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
-                <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
-                  <span class="mhd-filter-label">Zeitraum</span>
-                  <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
-                    <option value="21" selected>21 Tage</option>
-                  </select>
-                </label>
-                <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
-                  <span class="mhd-filter-label">Kategorie</span>
-                  <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
-                    <option value="all" selected>Alle Kategorien</option>
-                  </select>
-                </label>
+                <details class="mhd-toolbar-details mhd-filter-details" id="mhd-filter-details">
+                  <summary class="mhd-toolbar-summary" id="mhd-filter-summary">
+                    <span class="mhd-toolbar-summary-label">Filter</span>
+                    <span class="mhd-toolbar-summary-value" id="mhd-filter-summary-value">21 Tage · Alle Kategorien</span>
+                  </summary>
+                <div class="mhd-filter-row mhd-filter-row--monitor">
+                  <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
+                  <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
+                    <span class="mhd-filter-label">Zeitraum</span>
+                    <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
+                      <option value="21" selected>21 Tage</option>
+                    </select>
+                  </label>
+                  <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
+                    <span class="mhd-filter-label">Kategorie</span>
+                    <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
+                      <option value="all" selected>Alle Kategorien</option>
+                    </select>
+                  </label>
+                </div>
+                </details>
               </div>
             </div>
 
@@ -905,31 +983,31 @@
 
         <!-- Bottom Navigation Bar -->
         <nav class="bottom-nav">
-          <button class="nav-item active" data-tab="teamboard" id="tab-teamboard">
+          <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
             <i>📌</i>
             <span>Start</span>
           </button>
-          <button class="nav-item" data-tab="team" id="tab-team">
+          <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
             <i>💬</i>
             <span>Team</span>
           </button>
-          <button class="nav-item" data-tab="mhd" id="tab-mhd">
+          <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
             <i>📅</i>
             <span>MHD</span>
           </button>
-          <button class="nav-item" data-tab="receiving" id="tab-receiving">
+          <button class="nav-item" data-tab="receiving" id="tab-receiving" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
             <i>📥</i>
             <span>Neu</span>
           </button>
-          <button class="nav-item" data-tab="kitchen" id="tab-kitchen">
+          <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
             <i>🥣</i>
             <span>Prod.</span>
           </button>
-          <button class="nav-item" data-tab="haccp" id="tab-haccp">
+          <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;">
             <i>🛡️</i>
             <span>HACCP</span>
           </button>
-          <button class="nav-item" data-tab="batches" id="tab-batches">
+          <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
             <i>📋</i>
             <span>Büro</span>
           </button>
@@ -1008,7 +1086,7 @@
               <span>Bitte Arbeit speichern und aktualisieren.</span>
             </div>
             <div class="update-toast-actions">
-              <button type="button" class="update-toast-btn" id="update-toast-btn">Aktualisieren</button>
+              <button type="button" class="update-toast-btn" id="update-toast-btn" onclick="window.forceAppUpdate && window.forceAppUpdate()">Aktualisieren</button>
               <button type="button" class="update-toast-dismiss" id="update-toast-dismiss" aria-label="Später">Später</button>
             </div>
           </div>
@@ -1167,6 +1245,6 @@
     </form>
   </template>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=20260609-120"></script>
 </body>
 </html>

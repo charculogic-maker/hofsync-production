@@ -144,14 +144,8 @@ const detailShots = [
     async prepare(page) {
       await page.locator('#tab-mhd').click({ force: true });
       await page.evaluate(() => {
-        const panel = document.getElementById('mhd-search-panel');
-        const toggle = document.getElementById('mhd-search-toggle');
-        if (panel) panel.hidden = false;
-        if (toggle) {
-          toggle.setAttribute('aria-expanded', 'true');
-          const label = toggle.querySelector('.mhd-search-toggle-label');
-          if (label) label.textContent = '▲ Suche schließen';
-        }
+        const searchDetails = document.getElementById('mhd-search-details');
+        if (searchDetails) searchDetails.open = true;
         const input = document.getElementById('mhd-search-input');
         if (input) input.value = 'milch';
       });

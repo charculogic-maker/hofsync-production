@@ -93,6 +93,10 @@ const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 const STEVESHOF_TERMINAL_EMPLOYEE = 'StevesHof-Team';
 
+function isSteveshofTenantId(tenantId = '') {
+  return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
+}
+
 export {
   getGlobalTenantId,
   getTenantCollection,
@@ -232,7 +236,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
 function applyRoleBasedUi(authSession) {
   const isHelper = authSession?.isHelper || isHelperUser();
   const isOffice = isOfficeUser(authSession);
-  const isStevesHof = String(getTenantId() || '').trim().toLowerCase() === 'steveshof_hauptbetrieb';
+  const isStevesHof = isSteveshofTenantId(authSession?.tenantId || getTenantId() || getGlobalTenantId());
   document.documentElement.dataset.userRole = authSession?.role || 'user';
   document.body.classList.toggle('role-helper', isHelper);
   document.body.classList.toggle('role-office', isOffice);
@@ -446,7 +450,7 @@ function initFirebase() {
 
 // State-Management für den Web-Prototypen
 const AppState = {
-  activeTab: 'teamboard',
+  activeTab: 'mhd',
   wetHandsMode: false,
 };
 
@@ -1029,6 +1033,41 @@ function showTab(tabId) {
 }
 window.showTab = showTab;
 
+function resolveEarlyTenantId() {
+  try {
+    if (typeof window.resolveEffectiveTenantId === 'function') {
+      return window.resolveEffectiveTenantId();
+    }
+    return localStorage.getItem('charculogic_cached_tenant_id') || '';
+  } catch (err) {
+    console.warn('[CharcuLogic Bootstrap] Gespeicherter Mandant konnte nicht gelesen werden:', err);
+    return '';
+  }
+}
+
+function applyEarlyTenantShell() {
+  const tenantId = resolveEarlyTenantId() || STEVESHOF_TENANT_ID;
+  if (!isSteveshofTenantId(tenantId)) return;
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(STEVESHOF_TENANT_ID);
+  } else {
+    applyBranding();
+  }
+  setGlobalTenantId(STEVESHOF_TENANT_ID);
+  applyModuleVisibility(window.BRANDING);
+  applyRoleBasedUi({
+    tenantId: STEVESHOF_TENANT_ID,
+    role: 'employee',
+    isAdmin: false,
+    isHelper: false,
+  });
+  configureSteveshofTerminalSession({
+    tenantId: STEVESHOF_TENANT_ID,
+    email: STEVESHOF_TERMINAL_EMAIL,
+  });
+  showTab('mhd');
+}
+
 function isSteveshofTerminalSession(authSession) {
   return authSession?.tenantId === STEVESHOF_TENANT_ID
     && String(authSession?.email || '').trim().toLowerCase() === STEVESHOF_TERMINAL_EMAIL;
@@ -1140,6 +1179,7 @@ tabs.forEach(tab => {
   });
 });
 
+applyEarlyTenantShell();
 updateHeaderLogoutVisibility(AppState.activeTab);
 updateEmployeeSessionBadge();
 
@@ -1342,6 +1382,7 @@ try {
 }
 // --- SERVICE WORKER REGISTRIERUNG (PWA) ---
 let updateAvailable = false;
+let serviceWorkerRegistration = null;
 
 function showUpdateToast() {
   const toast = document.getElementById('update-toast');
@@ -1351,6 +1392,44 @@ function showUpdateToast() {
 function hideUpdateToast() {
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.remove('is-visible');
+}
+
+async function clearLocalAppCaches() {
+  navigator.serviceWorker?.controller?.postMessage?.({ type: 'CLEAR_APP_CACHES' });
+  if (!('caches' in window)) return;
+  const keys = await caches.keys();
+  await Promise.all(keys.map((key) => caches.delete(key)));
+}
+
+async function activateWaitingServiceWorker() {
+  const registration = serviceWorkerRegistration
+    || await navigator.serviceWorker?.getRegistration?.();
+  const waitingWorker = registration?.waiting;
+  if (!waitingWorker) return false;
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve(true);
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    setTimeout(finish, 1500);
+  });
+}
+
+async function refreshAppFromNetwork() {
+  try {
+    const registration = serviceWorkerRegistration
+      || await navigator.serviceWorker?.getRegistration?.();
+    await registration?.update?.();
+    await activateWaitingServiceWorker();
+    await clearLocalAppCaches();
+  } catch (err) {
+    console.warn('[CharcuLogic SW] Manuelle Aktualisierung konnte Cache/Worker nicht vollstaendig erneuern:', err);
+  }
+  window.location.reload();
 }
 
 function applyUpdate(force) {
@@ -1379,16 +1458,24 @@ function applyUpdate(force) {
     return;
   }
   hideUpdateToast();
-  window.location.reload();
+  refreshAppFromNetwork();
 }
 
-document.getElementById('update-toast-btn')?.addEventListener('click', () => applyUpdate(false));
+document.getElementById('update-toast-btn')?.addEventListener('click', () => {
+  if (typeof window.forceAppUpdate === 'function') {
+    window.forceAppUpdate();
+    return;
+  }
+  applyUpdate(false);
+});
 document.getElementById('update-toast-dismiss')?.addEventListener('click', hideUpdateToast);
+document.getElementById('app-refresh-btn')?.addEventListener('click', () => applyUpdate(false));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260608-106')
+    navigator.serviceWorker.register('./sw.js?v=20260609-120')
       .then((reg) => {
+        serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
 
         if (reg.installing) {
