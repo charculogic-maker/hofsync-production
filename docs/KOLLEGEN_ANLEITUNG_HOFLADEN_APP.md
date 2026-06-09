@@ -81,6 +81,20 @@ Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerad
 
 Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
 
+### Lieferschein per Foto einlesen (KI-Wareneingang)
+
+Wenn wir nicht jeden Artikel einzeln eintippen möchten, lassen wir den Lieferschein von der KI lesen:
+
+1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
+2. Lieferschein mit dem Laden-iPhone fotografieren oder ein Foto auswählen.
+3. Kurz warten, während die Animation **„Die KI liest den Lieferschein für uns...“** läuft.
+4. In der Vorschau-Tabelle **Name**, **Liefermenge** und das **vorgeschlagene MHD** prüfen.
+5. **📥 Artikel in den Bestand einbuchen** tippen.
+
+Wir sehen dann die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+
+Das **vorgeschlagene MHD** ist schon ausgefüllt: Unsere App nutzt die **Erfahrungswerte der letzten Lieferungen** für denselben Artikel. Gab es noch keine Lieferung, greift ein Standardwert (Gemüse 3 Tage, Molkerei 10 Tage). Jedes MHD lässt sich vorher noch als `TT.MM.JJJJ` anpassen.
+
 ### Zuordnung nachträglich korrigieren
 
 1. Im Tab **Neu** auf **Letzte Eingänge** tippen.

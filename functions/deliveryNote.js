@@ -1,9 +1,8 @@
 const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
-const { requireEmployeeAccess } = require('./authContext');
+const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
 
 const DELIVERY_NOTE_MODEL = process.env.GEMINI_DELIVERY_NOTE_MODEL || 'gemini-2.5-flash';
-const ALLOWED_TENANT_ID = 'torfabrik';
 const MAX_IMAGE_BASE64_LENGTH = 16 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const DELIVERY_NOTE_PROMPT = [
@@ -123,7 +122,11 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
 }
 
 async function handleParseDeliveryNote(request) {
-  await requireEmployeeAccess(request.auth, ALLOWED_TENANT_ID);
+  // Jeder angemeldete Mitarbeiter/Admin liest den Lieferschein für den
+  // eigenen Mandanten ein. Die KI liefert nur die erkannten Posten zurück –
+  // ein mandantenübergreifender Zugriff ist dadurch ausgeschlossen.
+  const callerContext = resolveAuthContext(request.auth);
+  const tenantContext = requireEmployeeAccess(request.auth, callerContext.tenantId);
 
   const imageBase64 = String(request.data?.imageBase64 || '').trim();
   const mimeType = String(request.data?.mimeType || 'image/jpeg').trim().toLowerCase() || 'image/jpeg';
@@ -142,13 +145,12 @@ async function handleParseDeliveryNote(request) {
   return {
     items,
     model: DELIVERY_NOTE_MODEL,
-    tenantId: ALLOWED_TENANT_ID,
+    tenantId: tenantContext.tenantId,
     previewOnly: true,
   };
 }
 
 module.exports = {
-  ALLOWED_TENANT_ID,
   DELIVERY_NOTE_MODEL,
   handleParseDeliveryNote,
   parseDeliveryNoteImage,

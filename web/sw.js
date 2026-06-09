@@ -1,5 +1,5 @@
-const CACHE_NAME = 'charculogic-v20260609-129';
-const CACHE_SCHEMA = 'p0-release-hardening-jun2026';
+const CACHE_NAME = 'charculogic-v20260609-130-b';
+const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -25,6 +25,7 @@ const CRITICAL_ASSETS = [
   '/mhd.js',
   '/retter-box.js',
   '/delivery-note.js',
+  '/delivery-parser.js',
   '/haccp.js',
   '/production.js',
   '/beffe_calc.js',

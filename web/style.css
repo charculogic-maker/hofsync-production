@@ -5985,6 +5985,69 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   min-width: 0;
 }
 
+/* KI-Wareneingang (Phase 4 · ERP-Light) ---------------------------------- */
+.delivery-parser-loading-overlay {
+  flex-direction: column;
+}
+
+.delivery-parser-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface-color);
+  border-radius: var(--border-radius-lg);
+  padding: 28px 24px;
+  max-width: 300px;
+  width: 100%;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.delivery-parser-spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid rgba(0, 0, 0, 0.12);
+  border-top-color: var(--primary-color, #28a745);
+  animation: delivery-parser-spin 0.9s linear infinite;
+}
+
+@keyframes delivery-parser-spin {
+  to { transform: rotate(360deg); }
+}
+
+.delivery-parser-loading-text {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1.4;
+}
+
+.delivery-parser-table td {
+  vertical-align: top;
+}
+
+.delivery-parser-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.delivery-parser-badge--erfahrung {
+  background: rgba(40, 167, 69, 0.16);
+  color: #1b6b32;
+}
+
+.delivery-parser-badge--standard {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-muted, #555);
+}
+
 body.role-helper #page-team,
 body.role-helper .admin-leitstand-panel,
 body.role-helper #team-subnav-orders {

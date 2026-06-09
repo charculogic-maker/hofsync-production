@@ -77,6 +77,7 @@ import {
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
 import { initDeliveryNoteScanner } from './delivery-note.js';
+import { initDeliveryParser } from './delivery-parser.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -1587,6 +1588,14 @@ async function bootstrapAuthenticatedApp() {
     getFirebase: () => firebase,
     showHUD,
     writeOrQueueFirestore: writeFirestoreDocOrQueue,
+  });
+  initDeliveryParser({
+    tenantId,
+    email: authSession?.email || getAuthContext()?.email || '',
+    getFirebase: () => firebase,
+    showHUD,
+    writeOrQueueFirestore: writeFirestoreDocOrQueue,
+    getHistory: getMhdProducts,
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {

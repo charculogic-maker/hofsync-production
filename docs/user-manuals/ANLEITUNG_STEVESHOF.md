@@ -65,6 +65,18 @@ Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 
+### Lieferschein per Foto einlesen (KI-Wareneingang)
+
+Statt jeden Posten einzeln zu scannen, lassen wir den Lieferschein von der KI lesen:
+
+1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen.
+2. Lieferschein mit dem Laden-iPhone fotografieren oder ein vorhandenes Foto wählen.
+3. Es läuft kurz die Animation **„Die KI liest den Lieferschein für uns...“**.
+4. In der Vorschau prüfen wir je Artikel **Name**, **Liefermenge** und das **vorgeschlagene MHD**.
+5. **📥 Artikel in den Bestand einbuchen** tippen — die Bestätigung lautet **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+
+Das **vorgeschlagene MHD** stammt aus den **Erfahrungswerten der letzten Lieferungen**: Unsere App merkt sich, wie lange derselbe Artikel zuletzt haltbar war, und rechnet die Spanne ab heute neu aus. Ohne Erfahrungswert nutzt sie einen soliden Standardwert je Warengruppe (Gemüse 3 Tage, Molkerei 10 Tage). Vor dem Einbuchen können wir jedes MHD noch als `TT.MM.JJJJ` anpassen. Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisch.
+
 ### Gespeicherte Kategorien prüfen und korrigieren
 
 Unter **Neu → Letzte Eingänge** sehen wir die zuletzt erfassten Artikel mit ihrer Kategorie. Wir können die Kategorie per Dropdown ändern und mit **Kategorie speichern** übernehmen. Die App aktualisiert dabei sowohl die Laden-Kategorie als auch die interne MHD-Zuordnung.

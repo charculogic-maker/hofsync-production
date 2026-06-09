@@ -73,6 +73,36 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ---
 
+## 📸 Lieferschein einlesen (KI-Wareneingang)
+
+Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
+
+### Schritte
+
+1. Tab **Neu** → **Laden**
+2. **📸 Lieferschein fotografieren / hochladen** antippen
+3. Lieferschein mit dem iPhone fotografieren oder ein vorhandenes Foto wählen
+4. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
+5. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
+6. **📥 Artikel in den Bestand einbuchen** antippen
+
+Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+
+### Vorgeschlagenes MHD aus Erfahrungswerten
+
+Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
+
+- Gab es denselben Artikel schon einmal, übernimmt sie die damals bewährte Haltbarkeits-Spanne und rechnet sie ab heute neu aus (Kennzeichen **Erfahrungswert**).
+- Kennt unsere App den Artikel noch nicht, nutzt sie einen soliden Standardwert je Warengruppe – **Gemüse 3 Tage**, **Molkerei 10 Tage** (Kennzeichen **Standardwert**).
+
+Wir können jedes vorgeschlagene MHD vor dem Einbuchen einfach als `TT.MM.JJJJ` anpassen. Mit jedem eingebuchten Lieferschein werden die Erfahrungswerte besser.
+
+### Bestand
+
+Beim Einbuchen erhöht unsere App den Bestand (`currentStock`) der gelieferten Artikel automatisch und legt jeden Artikel mit dem errechneten MHD im Tab **MHD** an.
+
+---
+
 ## Metzgerei
 
 ![Metzgerei – Lieferant und Lieferschein](./screenshots/03-wareneingang-metzgerei.png)

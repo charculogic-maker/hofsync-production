@@ -105,7 +105,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260609-120">
+  <link rel="stylesheet" href="/style.css?v=20260609-130">
 </head>
 <body>
 
@@ -482,6 +482,8 @@
               </section>
 
               <div class="receiving-tool-row">
+                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button">📸 Lieferschein fotografieren / hochladen</button>
+                <input type="file" id="delivery-parser-file-input" accept="image/*" capture="environment" hidden>
                 <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
                 <input type="file" id="delivery-note-file-input" accept="image/*" capture="environment" hidden>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
@@ -1309,6 +1311,6 @@
     </form>
   </template>
 
-  <script type="module" src="app.js?v=20260609-120"></script>
+  <script type="module" src="app.js?v=20260609-130"></script>
 </body>
 </html>
