@@ -5307,6 +5307,8 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .sammel-pickliste-toolbar {
+  display: grid;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-secondary);
@@ -5314,6 +5316,40 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .sammel-pickliste-toolbar .btn {
   width: 100%;
+  min-height: 50px;
+  font-weight: 900;
+}
+
+.sammel-pickliste-ready-btn {
+  min-height: 58px;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.sammel-pickliste-confirm {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #fff7ed;
+}
+
+.sammel-pickliste-confirm.hidden {
+  display: none !important;
+}
+
+.sammel-pickliste-confirm p {
+  margin: 0 0 10px;
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.sammel-pickliste-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.sammel-pickliste-confirm-actions .btn {
   min-height: 50px;
   font-weight: 900;
 }

@@ -4,7 +4,7 @@
 
 import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
-import { getActiveEmployeeName } from './teamboard.js';
+import { getActiveEmployeeName, postTeamboardBulletin } from './teamboard.js';
 import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
 
 const ORDER_STATUS_LABELS = {
@@ -29,6 +29,7 @@ const orderState = {
   pendingSlips: [],
   createInFlight: false,
   statusUpdateInFlight: false,
+  picklistReadyInFlight: false,
   picklistChecked: new Set(),
 };
 
@@ -274,6 +275,7 @@ export function generateSammelPickliste() {
     const status = order.status || 'open';
     return OPEN_ORDER_STATUSES.has(status) && isTodayReadyOrder(order);
   });
+  const includedOrderIds = new Set();
 
   openOrders.forEach((order) => {
     (Array.isArray(order.items) ? order.items : []).forEach((item) => {
@@ -298,6 +300,7 @@ export function generateSammelPickliste() {
       };
       entry.quantity += quantity;
       entry.orders.add(order.id);
+      includedOrderIds.add(order.id);
       [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
       grouped.set(key, entry);
     });
@@ -320,6 +323,7 @@ export function generateSammelPickliste() {
   return {
     generatedAt: new Date(),
     orderCount: openOrders.length,
+    includedOrderIds: Array.from(includedOrderIds),
     categories: Array.from(categories.entries())
       .sort(([a], [b]) => {
         const ai = PICKLIST_CATEGORY_ORDER.indexOf(a);
@@ -334,12 +338,21 @@ export function generateSammelPickliste() {
 function renderSammelPickliste() {
   const body = document.getElementById('sammel-pickliste-body');
   const summary = document.getElementById('sammel-pickliste-summary');
+  const readyBtn = document.getElementById('sammel-pickliste-ready-btn');
+  const confirmPanel = document.getElementById('sammel-pickliste-confirm');
   if (!body) return;
   const picklist = generateSammelPickliste();
+  if (readyBtn) {
+    readyBtn.disabled = orderState.picklistReadyInFlight || picklist.includedOrderIds.length === 0;
+    readyBtn.textContent = orderState.picklistReadyInFlight
+      ? 'Bestellungen werden aktualisiert...'
+      : "Alle enthaltenen Bestellungen als 'Abholbereit' markieren";
+  }
+  confirmPanel?.classList.add('hidden');
   if (summary) {
-    summary.textContent = picklist.orderCount === 1
+    summary.textContent = picklist.includedOrderIds.length === 1
       ? '1 offene Bestellung zum Zusammenstellen.'
-      : `${picklist.orderCount} offene Bestellungen zum Zusammenstellen.`;
+      : `${picklist.includedOrderIds.length} offene Bestellungen zum Zusammenstellen.`;
   }
   if (!picklist.categories.length) {
     body.innerHTML = '<p class="sammel-pickliste-empty">Heute ist nichts mehr zu holen.</p>';
@@ -390,6 +403,98 @@ function resetSammelPickliste() {
   orderState.picklistChecked.clear();
   renderSammelPickliste();
   window.showToast?.('Sammel-Pickliste zurückgesetzt.', 'success');
+}
+
+function showSammelPicklisteConfirm() {
+  const picklist = generateSammelPickliste();
+  if (!picklist.includedOrderIds.length) {
+    window.showToast?.('Heute ist nichts mehr zu holen.', 'success');
+    renderSammelPickliste();
+    return;
+  }
+  document.getElementById('sammel-pickliste-confirm')?.classList.remove('hidden');
+}
+
+function hideSammelPicklisteConfirm() {
+  document.getElementById('sammel-pickliste-confirm')?.classList.add('hidden');
+}
+
+async function markSammelPicklisteReady() {
+  if (orderState.picklistReadyInFlight) return;
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+
+  const picklist = generateSammelPickliste();
+  const orderIds = picklist.includedOrderIds;
+  if (!orderIds.length) {
+    window.showToast?.('Heute ist nichts mehr zu holen.', 'success');
+    renderSammelPickliste();
+    return;
+  }
+
+  const firebase = orderState.getFirebase();
+  if (!firebase?.firestore?.FieldValue) {
+    window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
+    return;
+  }
+
+  try {
+    orderState.picklistReadyInFlight = true;
+    renderSammelPickliste();
+    const onlinePayload = {
+      status: 'ready',
+      readyMarkedBy: employee,
+      readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      pickupPlace: 'Laden-Kühlschrank',
+    };
+    const queuePayload = {
+      status: 'ready',
+      readyMarkedBy: employee,
+      readyMarkedAt: new Date().toISOString(),
+      pickupPlace: 'Laden-Kühlschrank',
+    };
+
+    const results = await Promise.all(orderIds.map((orderId) => writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData: onlinePayload,
+      queueData: queuePayload,
+      offlineMessage: 'Bestellungen werden automatisch synchronisiert, sobald WLAN verfügbar ist.',
+    })));
+
+    await postTeamboardBulletin(
+      '🎉 Die Kundenbestellungen für heute wurden frisch zusammengestellt und stehen abholbereit im Laden-Kühlschrank!',
+      { author: employee },
+    );
+
+    orderState.allOrders = orderState.allOrders.map((order) => (
+      orderIds.includes(order.id)
+        ? { ...order, status: 'ready', readyMarkedBy: employee, readyMarkedAt: new Date().toISOString(), pickupPlace: 'Laden-Kühlschrank' }
+        : order
+    ));
+    orderState.picklistChecked.clear();
+    hideSammelPicklisteConfirm();
+    renderOpenOrders();
+    renderAdminOrders();
+    renderSammelPickliste();
+    const queued = results.includes('queued');
+    window.showToast?.(
+      queued
+        ? 'Abholbereit vorgemerkt. Wir sehen die Änderung, sobald WLAN verfügbar ist.'
+        : 'Abholbereit: Die Bestellungen stehen im Laden-Kühlschrank.',
+      queued ? 'warning' : 'success',
+    );
+  } catch (err) {
+    console.error('[CustomerOrders] Pickliste abschließen fehlgeschlagen:', err);
+    window.showToast?.('Bestellungen konnten nicht aktualisiert werden. Bitte erneut versuchen.', 'error');
+  } finally {
+    orderState.picklistReadyInFlight = false;
+    renderSammelPickliste();
+  }
 }
 
 function renderOrderCard(order, { adminView = false } = {}) {
@@ -776,6 +881,9 @@ function bindSammelPicklisteActions() {
   document.getElementById('sammel-pickliste-open-btn')?.addEventListener('click', openSammelPickliste);
   document.getElementById('sammel-pickliste-close-btn')?.addEventListener('click', closeSammelPickliste);
   document.getElementById('sammel-pickliste-reset-btn')?.addEventListener('click', resetSammelPickliste);
+  document.getElementById('sammel-pickliste-ready-btn')?.addEventListener('click', showSammelPicklisteConfirm);
+  document.getElementById('sammel-pickliste-confirm-cancel')?.addEventListener('click', hideSammelPicklisteConfirm);
+  document.getElementById('sammel-pickliste-confirm-ready')?.addEventListener('click', markSammelPicklisteReady);
   modal.addEventListener('click', (event) => {
     if (event.target === modal) closeSammelPickliste();
   });

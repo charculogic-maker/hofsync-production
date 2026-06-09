@@ -312,6 +312,38 @@ function resolveAuthorName() {
   return 'Leitung';
 }
 
+export async function postTeamboardBulletin(message, { author } = {}) {
+  const cleanMessage = String(message || '').trim();
+  if (!cleanMessage) return 'skipped';
+
+  const firebase = teamboardState.getFirebase();
+  if (!firebase?.firestore?.FieldValue) throw new Error('Teamboard ist noch nicht bereit.');
+
+  const payload = {
+    message: cleanMessage,
+    attachments: [],
+    author: String(author || resolveAuthorName()).trim() || resolveAuthorName(),
+    tenantId: teamboardState.tenantId,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  const result = await writeFirestoreDocOrQueue({
+    collectionPath: 'bulletinBoard',
+    docId: BULLETIN_DOC_ID,
+    op: 'set',
+    onlineData: payload,
+    queueData: { ...payload, updatedAt: new Date().toISOString() },
+    offlineMessage: 'Nachricht wird automatisch synchronisiert, sobald WLAN verfügbar ist.',
+  });
+
+  teamboardState.currentBulletin = {
+    ...payload,
+    updatedAt: new Date().toISOString(),
+  };
+  renderBulletinCard(teamboardState.currentBulletin);
+  return result;
+}
+
 function taskMatchesViewer(task) {
   if (!task || task.status !== 'open') return false;
   const employee = getActiveEmployeeName();

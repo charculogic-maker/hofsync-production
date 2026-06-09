@@ -113,9 +113,11 @@ Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Beste
 3. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
 4. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
 5. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab.
-6. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
+6. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
+7. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
+8. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
 
-Die Häkchen helfen uns nur beim Zusammenstellen. Den Bestellstatus setzen wir danach wie gewohnt in der Bestellung auf **Bereit**.
+Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit** und schreibt automatisch eine kurze Info aufs Schwarze Brett. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 
 ---
 

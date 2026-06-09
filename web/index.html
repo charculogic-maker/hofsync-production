@@ -797,6 +797,14 @@
                   </header>
                   <div class="sammel-pickliste-toolbar">
                     <button type="button" class="btn btn-secondary" id="sammel-pickliste-reset-btn">Liste zurücksetzen</button>
+                    <button type="button" class="btn btn-primary sammel-pickliste-ready-btn" id="sammel-pickliste-ready-btn">Alle enthaltenen Bestellungen als 'Abholbereit' markieren</button>
+                  </div>
+                  <div class="sammel-pickliste-confirm hidden" id="sammel-pickliste-confirm">
+                    <p>Sind alle Artikel für heute wirklich eingepackt?</p>
+                    <div class="sammel-pickliste-confirm-actions">
+                      <button type="button" class="btn btn-secondary" id="sammel-pickliste-confirm-cancel">Noch nicht</button>
+                      <button type="button" class="btn btn-primary" id="sammel-pickliste-confirm-ready">Ja, in den Laden-Kühlschrank gestellt</button>
+                    </div>
                   </div>
                   <div id="sammel-pickliste-body" class="sammel-pickliste-body"></div>
                 </div>

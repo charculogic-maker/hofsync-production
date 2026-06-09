@@ -85,7 +85,7 @@ Im Tab **Team** erfassen wir Kundenbestellungen und sehen offene Bestellungen. F
 
 Unsere App fasst gleiche Artikel aus allen offenen, noch nicht eingepackten Bestellungen zusammen und sortiert sie nach Bereichen wie **Wurstküche**, **Molkereiprodukte** und **Hofladen-Spezialitäten**. Beim Zusammenstellen haken wir die Zeilen am Laden-iPhone ab. **Liste zurücksetzen** löscht nur diese Häkchen und ändert keine Bestellung.
 
-Sobald eine Bestellung vollständig eingepackt ist, setzen wir sie in der Bestellkarte wie gewohnt auf **Bereit**.
+Sobald alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren** und bestätigen, dass alle Artikel für heute eingepackt sind. Unsere App setzt die enthaltenen Bestellungen auf **Abholbereit** und schreibt automatisch eine kurze Info aufs Schwarze Brett.
 
 ## 7. Offline-Betrieb
 
