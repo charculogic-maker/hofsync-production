@@ -8,11 +8,11 @@ const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' }
 const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
 const ORDER_SIGNAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 const SMTP_USER = defineString('SMTP_USER', { default: ORDER_SIGNAL_EMAIL });
-const SMTP_PASS = defineString('SMTP_PASS');
+const SMTP_PASS = defineString('SMTP_PASS', { default: '' });
 const FROM_EMAIL = defineString('FROM_EMAIL', { default: ORDER_SIGNAL_EMAIL });
-const TWILIO_ACCOUNT_SID = defineString('TWILIO_ACCOUNT_SID');
-const TWILIO_AUTH_TOKEN = defineString('TWILIO_AUTH_TOKEN');
-const FROM_NUMBER = defineString('FROM_NUMBER');
+const TWILIO_ACCOUNT_SID = defineString('TWILIO_ACCOUNT_SID', { default: '' });
+const TWILIO_AUTH_TOKEN = defineString('TWILIO_AUTH_TOKEN', { default: '' });
+const FROM_NUMBER = defineString('FROM_NUMBER', { default: '' });
 
 if (!admin.apps.length) {
   admin.initializeApp();
