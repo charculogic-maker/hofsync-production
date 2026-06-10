@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260610-135-haccp-sales-cooling';
+const CACHE_NAME = 'charculogic-v20260610-136-haccp-sales-cooling';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [

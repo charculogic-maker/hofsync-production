@@ -14,13 +14,16 @@ import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from '.
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
-// Solide Standardwerte je Warengruppe, falls wir keinen Erfahrungswert haben.
-const STANDARD_TAGE_REGELN = [
-  { test: /gem(ü|ue)se|salat|kr(ä|ae)uter|obst|frucht|beere|frische/i, tage: 3, label: 'Gemüse & Obst' },
-  { test: /molkerei|milch|joghurt|jogurt|k(ä|ae)se|quark|sahne|butter|mopro|frischk/i, tage: 10, label: 'Molkerei' },
+// Standard-MHD-Spannen je Warengruppe (Schlüsselwort im Artikelnamen, falls keine Historie).
+const MHD_FALLBACK_KEYWORDS = [
+  { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
+  { test: /frischfleisch|\brind\b|\bschwein\b|hack|galloway/i, tage: 5 },
+  { test: /wurst|aufschnitt|grillwurst|wiener/i, tage: 10 },
+  { test: /k(ä|ae)se|mopro|jogh?urt|milch/i, tage: 14 },
+  { test: /trockenware|konserven|vorrat|br(ö|oe)tchen/i, tage: 90 },
 ];
-const FALLBACK_STANDARD_TAGE = 7;
-const FALLBACK_STANDARD_LABEL = 'Allgemein';
+const MHD_FALLBACK_DEFAULT_TAGE = 7;
+const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
 
 // Sicherheitsriegel: Für StevesHof ist der KI-Wareneingang standardmäßig
 // ausgeblendet. Nur das Test-Konto sieht ihn, bis das Feature freigegeben ist.
@@ -114,12 +117,12 @@ function toMhdKategorie(kategorie, artikel) {
   return '📦 Trockenware';
 }
 
-function standardTageFuer(kategorie, artikel) {
-  const text = `${kategorie || ''} ${artikel || ''}`;
-  for (const regel of STANDARD_TAGE_REGELN) {
-    if (regel.test.test(text)) return { tage: regel.tage, label: regel.label };
+function standardTageAusArtikelname(artikel) {
+  const text = String(artikel || '').trim();
+  for (const regel of MHD_FALLBACK_KEYWORDS) {
+    if (regel.test.test(text)) return regel.tage;
   }
-  return { tage: FALLBACK_STANDARD_TAGE, label: FALLBACK_STANDARD_LABEL };
+  return MHD_FALLBACK_DEFAULT_TAGE;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,15 +130,15 @@ function standardTageFuer(kategorie, artikel) {
 // ---------------------------------------------------------------------------
 
 /**
- * Sucht in der Historie nach der letzten Lieferung dieses exakten Artikels und
- * leitet aus der damaligen Spanne (Lieferdatum bis MHD) das vorgeschlagene MHD
- * für heute ab. Ohne Erfahrungswert greift der Standardwert je Warengruppe.
+ * Leitet das vorgeschlagene MHD für heute ab: mit Historie aus dem Durchschnitt
+ * der bisherigen Liefer-Spannen (Wareneingang bis MHD), sonst per Schlüsselwort
+ * im Artikelnamen über Standard-Haltbarkeit.
  */
 export function vorhersagenMhd(artikel, kategorie, history, todayIso = startOfDayIso()) {
   const gesuchterName = String(artikel || '').trim().toLowerCase();
   const eintraege = Array.isArray(history) ? history : [];
+  const spannen = [];
 
-  let bestErfahrung = null;
   if (gesuchterName) {
     for (const eintrag of eintraege) {
       const name = String(eintrag?.produkt || eintrag?.name || '').trim().toLowerCase();
@@ -147,28 +150,26 @@ export function vorhersagenMhd(artikel, kategorie, history, todayIso = startOfDa
 
       const spanne = diffInDays(lieferIso, damaligesMhd);
       if (spanne == null || spanne < 0) continue;
-
-      if (!bestErfahrung || lieferIso > bestErfahrung.lieferIso) {
-        bestErfahrung = { lieferIso, spanne };
-      }
+      spannen.push(spanne);
     }
   }
 
-  if (bestErfahrung) {
+  if (spannen.length > 0) {
+    const durchschnitt = Math.round(spannen.reduce((sum, tage) => sum + tage, 0) / spannen.length);
     return {
-      mhdIso: addDaysIso(todayIso, bestErfahrung.spanne),
-      tage: bestErfahrung.spanne,
+      mhdIso: addDaysIso(todayIso, durchschnitt),
+      tage: durchschnitt,
       quelle: 'erfahrung',
-      hinweis: `Erfahrungswert der letzten Lieferungen (${bestErfahrung.spanne} Tage haltbar)`,
+      hinweis: `Erfahrungswert der letzten Lieferungen (${durchschnitt} Tage haltbar)`,
     };
   }
 
-  const standard = standardTageFuer(kategorie, artikel);
+  const tage = standardTageAusArtikelname(artikel);
   return {
-    mhdIso: addDaysIso(todayIso, standard.tage),
-    tage: standard.tage,
+    mhdIso: addDaysIso(todayIso, tage),
+    tage,
     quelle: 'standard',
-    hinweis: `Standardwert ${standard.label} (${standard.tage} Tage)`,
+    hinweis: MHD_STANDARD_HINT,
   };
 }
 
@@ -261,10 +262,9 @@ function buildPreviewRows(items) {
 
 function renderPreviewTable(rows) {
   const body = rows.map((row, index) => {
-    const badgeClass = row.quelle === 'erfahrung'
-      ? 'delivery-parser-badge delivery-parser-badge--erfahrung'
-      : 'delivery-parser-badge delivery-parser-badge--standard';
-    const badgeLabel = row.quelle === 'erfahrung' ? 'Erfahrungswert' : 'Standardwert';
+    const mhdHint = row.quelle === 'erfahrung'
+      ? `<span class="delivery-parser-badge delivery-parser-badge--erfahrung" title="${escapeHtml(row.hinweis)}">Erfahrungswert</span>`
+      : `<span class="delivery-parser-mhd-hint">${escapeHtml(MHD_STANDARD_HINT)}</span>`;
     return `
       <tr data-row-index="${index}">
         <td>
@@ -275,7 +275,7 @@ function renderPreviewTable(rows) {
         </td>
         <td>
           <input type="text" class="gastro-input input-date-de delivery-parser-input-mhd" value="${escapeHtml(formatIsoToGerman(row.mhdIso))}" placeholder="TT.MM.JJJJ" inputmode="numeric" maxlength="10" autocomplete="off" aria-label="Vorgeschlagenes MHD">
-          <span class="${badgeClass}" title="${escapeHtml(row.hinweis)}">${badgeLabel}</span>
+          ${mhdHint}
         </td>
       </tr>
     `;
@@ -318,7 +318,7 @@ function showPreview(rows) {
   overlay.innerHTML = `
     <div class="learn-mode-card delivery-note-preview-card" role="dialog" aria-modal="true" aria-labelledby="delivery-parser-title">
       <div class="learn-mode-title" id="delivery-parser-title">Lieferschein – erkannte Artikel</div>
-      <p class="learn-mode-desc">Bitte Liefermenge und vorgeschlagenes MHD prüfen. Das MHD kommt aus den Erfahrungswerten der letzten Lieferungen.</p>
+      <p class="learn-mode-desc">Bitte Liefermenge und vorgeschlagenes MHD prüfen. Wir schlagen das MHD aus Erfahrungswerten oder Standard-Haltbarkeit vor.</p>
       <div class="delivery-note-preview-scroll">${renderPreviewTable(rows)}</div>
       <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;">
         <button type="button" class="btn btn-primary" id="delivery-parser-save">📥 Artikel in den Bestand einbuchen</button>
