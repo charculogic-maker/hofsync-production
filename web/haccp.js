@@ -291,7 +291,7 @@ async function saveTemperatureCheck(deviceId) {
       return;
     }
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Fehler", "Temperatur konnte nicht gespeichert werden.", "!");
+    haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
 }
 
@@ -326,7 +326,7 @@ async function saveCleaningCheck(deviceId) {
       return;
     }
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Fehler", "Reinigung konnte nicht gespeichert werden.", "!");
+    haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
 }
 
@@ -345,8 +345,8 @@ function deactivateHaccpDevice(deviceId) {
       });
       haccpState.showHUD("Deaktiviert", "Kühlstelle oder Aufgabe wurde deaktiviert.");
     } catch (err) {
-      console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-      haccpState.showHUD("Fehler", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden.", "!");
+    console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
+    haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
     }
   });
 }
@@ -422,7 +422,7 @@ function renderHaccpDaily() {
             <div class="haccp-task-title">${escapeHtml(device.name)}</div>
             <div class="haccp-task-meta">${escapeHtml(device.bereich || '')} · Soll: ${device.sollMin ?? 'offen'} bis ${device.sollMax ?? 'offen'} ${escapeHtml(device.einheit || '°C')}</div>
             <div class="haccp-task-actions">
-              <input id="temp-${safeDomId(device.id)}" type="number" class="input-text-touch" step="0.1" placeholder="Messwert">
+              <input id="temp-${safeDomId(device.id)}" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Messwert in ${escapeHtml(device.einheit || '°C')}">
               <button class="btn btn-primary" type="button" data-haccp-save-temp="${escapeHtml(device.id)}">OK</button>
             </div>
             <input id="note-${safeDomId(device.id)}" class="input-text-touch" style="margin-top:8px;height:48px;font-size:14px;" placeholder="Maßnahme bei Abweichung">
@@ -562,8 +562,8 @@ function bindStaticHaccpControls() {
       }
       haccpState.showHUD("📝 HACCP erfasst", `Charge ${chargenNummer} dokumentiert.`);
     } catch (err) {
-      console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
-      haccpState.showHUD("Fehler", "HACCP-Protokoll konnte nicht gespeichert werden.", "!");
+    console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
+    haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
     }
   });
 
