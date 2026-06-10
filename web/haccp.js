@@ -1,5 +1,6 @@
 import { isPermissionDeniedError } from './sync.js';
 import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 const DEFAULT_HACCP_DEVICES = [
   { name: 'Kühlauslage Hofladen', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
@@ -10,6 +11,88 @@ const DEFAULT_HACCP_DEVICES = [
 ];
 
 const HACCP_DRAFT_KEY = 'charculogic.draft.haccp';
+const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
+
+const HACCP_CLEANING_TEAM = [
+  'Paddy',
+  'Heiko',
+  'Thomas',
+  'Stephie',
+  'Finn',
+  'Bettina',
+  'Nicole',
+  'Melanie',
+  'Mimi',
+  'Efecan',
+  'Aushilfe (andere)',
+];
+
+const HACCP_TEMPERATURE_GROUPS = [
+  {
+    id: 'deep-freeze',
+    title: 'TIEF-KÜHLUNG',
+    warnAbove: -15,
+    unit: '°C',
+    stations: [
+      'TK-Truhe für Brötchen (Vorrat)',
+      'SB-TK-Schrank Fleisch',
+      'SB-TK-Schrank 2',
+      'SB-TK-Schrank 3',
+    ],
+  },
+  {
+    id: 'fresh-cooling',
+    title: 'FRISCHE-KÜHLUNG',
+    warnAbove: 7,
+    unit: '°C',
+    stations: [
+      'SB-Kühlschrank Frische und MoPro',
+      'Käse-Theke',
+      'Kühlvitrine Kuchen (Saisonal)',
+    ],
+  },
+  {
+    id: 'counters',
+    title: 'DYNAMISCHE THEKEN',
+    warnAbove: 7,
+    unit: '°C',
+    optionalDays: [0, 1, 2, 3],
+    optionalHint: 'Theke laut Plan leer - Messung optional',
+    stations: [
+      'Wurst-Theke',
+      'Fleisch-Theke',
+    ],
+  },
+];
+
+const HACCP_CLEANING_GROUPS = [
+  {
+    id: 'daily-shop',
+    title: 'TÄGLICH (IM LADENBETRIEB)',
+    period: 'day',
+    tasks: [
+      { id: 'verkaufstheke-waagen', name: 'Verkaufstheke & Waagen gereinigt' },
+    ],
+  },
+  {
+    id: 'production-days',
+    title: 'NACH NUTZUNG (NUR AN PRODUKTIONSTAGEN)',
+    period: 'day',
+    tasks: [
+      { id: 'wurstkueche', name: 'Wurstküche gereinigt & desinfiziert' },
+      { id: 'messer-werkzeuge', name: 'Messer & Werkzeuge sterilisiert' },
+      { id: 'rauch-kochanlagen', name: 'Rauch- und Kochanlagen gereinigt' },
+    ],
+  },
+  {
+    id: 'weekly',
+    title: 'WÖCHENTLICH',
+    period: 'week',
+    tasks: [
+      { id: 'kuehlhaus-grundreinigung', name: 'Kühlhaus Grundreinigung' },
+    ],
+  },
+];
 
 const haccpState = {
   db: null,
@@ -24,6 +107,7 @@ const haccpState = {
   mode: 'temperatur',
   devices: [],
   logs: [],
+  cleaningDoneBy: '',
   devicesUnsubscribe: null,
   logsUnsubscribe: null,
   initialized: false,
@@ -64,6 +148,32 @@ function clearHaccpDraft() {
   try { localStorage.removeItem(HACCP_DRAFT_KEY); } catch (_) { /* noop */ }
 }
 
+function restoreCleaningPerson() {
+  if (haccpState.cleaningDoneBy) return;
+  try {
+    const stored = localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
+      || localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()))
+      || '';
+    haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(stored) ? stored : '';
+  } catch (_) { /* noop */ }
+}
+
+function rememberCleaningPerson(name) {
+  haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(name) ? name : '';
+  try {
+    if (haccpState.cleaningDoneBy) {
+      localStorage.setItem(HACCP_CLEANING_PERSON_KEY, haccpState.cleaningDoneBy);
+      localStorage.setItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()), haccpState.cleaningDoneBy);
+    } else {
+      localStorage.removeItem(HACCP_CLEANING_PERSON_KEY);
+      localStorage.removeItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()));
+    }
+  } catch (_) { /* noop */ }
+  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+    detail: { employeeName: haccpState.cleaningDoneBy },
+  }));
+}
+
 export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction, showHudCallback, verifyAdminActionCallback, options = {}) {
   haccpState.db = databaseInstance || null;
   haccpState.writeOrQueueFirestore = writeOrQueueFirestoreFunction || haccpState.writeOrQueueFirestore;
@@ -74,6 +184,7 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
   haccpState.tenantId = options.tenantId || haccpState.tenantId;
   haccpState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : haccpState.getFirebase;
   haccpState.playClickSound = typeof options.playClickSound === 'function' ? options.playClickSound : haccpState.playClickSound;
+  restoreCleaningPerson();
 
   if (!haccpState.initialized) {
     bindStaticHaccpControls();
@@ -83,6 +194,7 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
 
   restoreHaccpDraft();
   updateHACCPAlerts();
+  renderHaccpOperatorSelector();
   renderHaccpDaily();
 
   if (haccpState.db) {
@@ -93,6 +205,7 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
 
 export function activateHaccpTab() {
   updateHACCPAlerts();
+  renderHaccpOperatorSelector();
   renderHaccpDaily();
 }
 
@@ -137,6 +250,83 @@ function safeDomId(value) {
   return String(value || '').replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
+function localDateKey(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function isoWeekKey(date = new Date()) {
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNumber = day.getDay() || 7;
+  day.setDate(day.getDate() + 4 - dayNumber);
+  const yearStart = new Date(day.getFullYear(), 0, 1);
+  const week = Math.ceil((((day - yearStart) / 86400000) + 1) / 7);
+  return `${day.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function startOfIsoWeek(date = new Date()) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNumber = start.getDay() || 7;
+  start.setDate(start.getDate() - dayNumber + 1);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function periodKeyForCleaning(group) {
+  return group.period === 'week' ? isoWeekKey() : localDateKey();
+}
+
+function allCleaningTasks() {
+  return HACCP_CLEANING_GROUPS.flatMap((group) =>
+    group.tasks.map((task) => ({ ...task, groupId: group.id, groupTitle: group.title, period: group.period }))
+  );
+}
+
+function cleaningTaskById(taskId) {
+  return allCleaningTasks().find((task) => task.id === taskId) || null;
+}
+
+function cleaningLogDocId(task, periodKey) {
+  return ['cleaning', task.id, periodKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function allTemperatureStations() {
+  return HACCP_TEMPERATURE_GROUPS.flatMap((group) =>
+    group.stations.map((name) => ({
+      id: safeDomId(`${group.id}-${name}`).toLowerCase(),
+      name,
+      groupId: group.id,
+      groupTitle: group.title,
+      warnAbove: group.warnAbove,
+      unit: group.unit || '°C',
+      optionalHint: group.optionalDays?.includes(new Date().getDay()) ? group.optionalHint : '',
+    }))
+  );
+}
+
+function temperatureStationById(stationId) {
+  return allTemperatureStations().find((station) => station.id === stationId) || null;
+}
+
+function temperatureLogDocId(station, dateKey = localDateKey()) {
+  return ['temperature', station.id, dateKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function entryMatchesTemperatureToday(entry, station) {
+  const sameStation = entry.facility === station.name || entry.deviceName === station.name || entry.stationId === station.id;
+  const isTemperature = entry.type === 'temperature' || entry.logTyp === 'temperatur';
+  return isTemperature && sameStation && (entry.datum || '') === localDateKey();
+}
+
+function temperatureCompletionForStation(station) {
+  return (haccpState.logs || [])
+    .filter((entry) => entryMatchesTemperatureToday(entry, station))
+    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
+}
+
 function haccpDeviceDocId(name) {
   return String(name || 'geraet')
     .toLowerCase()
@@ -176,7 +366,6 @@ function loadHaccpDevicesFromCloud() {
   haccpState.devicesUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.devices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
-    renderTeamTempCheck();
   }, (err) => console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err));
 }
 
@@ -190,7 +379,7 @@ function loadHaccpLogsFromCloud() {
   }
   haccpState.logsUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    refreshTeamTempLastReadings();
+    renderHaccpDaily();
   }, (err) => console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err));
 }
 
@@ -202,7 +391,29 @@ function temperatureStatus(device, value) {
   return minOk && maxOk ? { ok: true, label: 'OK' } : { ok: false, label: 'Abweichung' };
 }
 
+function selectedHaccpPerson() {
+  return document.getElementById('haccp-cleaning-person')?.value || haccpState.cleaningDoneBy || '';
+}
+
+function isTemperatureTooWarm(value, warnAbove) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || warnAbove == null) return false;
+  return numericValue > Number(warnAbove);
+}
+
+function requireHaccpDoneBy() {
+  const doneBy = String(selectedHaccpPerson() || '').trim();
+  if (!doneBy || doneBy === 'Name auswählen' || !HACCP_CLEANING_TEAM.includes(doneBy)) {
+    haccpState.showHUD('Hinweis', 'Bitte wähle zuerst oben aus, wer die Prüfung durchgeführt hat!', '!');
+    return '';
+  }
+  return doneBy;
+}
+
 function createHaccpLogId(entry) {
+  if (entry.docId) {
+    return String(entry.docId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+  }
   const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10);
@@ -221,20 +432,29 @@ async function saveHaccpLog(entry) {
   const tenantId = resolveHaccpTenantId();
   if (!tenantId) throw new Error('Mandant fehlt — HACCP-Protokoll kann nicht gespeichert werden.');
 
+  const { docId: requestedDocId, ...entryData } = entry;
   const fullEntry = {
-    ...entry,
+    ...entryData,
     tenantId,
-    datum: new Date().toISOString().slice(0, 10),
+    datum: localDateKey(),
   };
-  const docId = createHaccpLogId(fullEntry);
+  const docId = createHaccpLogId({ ...fullEntry, docId: requestedDocId });
+  const nowIso = new Date().toISOString();
+  const onlineData = { ...fullEntry, createdAt: serverTimestamp() };
+  const queueData = { ...fullEntry, createdAt: nowIso };
+
+  if ((fullEntry.type === 'cleaning' || fullEntry.type === 'temperature') && fullEntry.timestamp == null) {
+    onlineData.timestamp = serverTimestamp();
+    queueData.timestamp = nowIso;
+  }
 
   try {
     return await haccpState.writeOrQueueFirestore({
       collectionPath: path,
       docId,
       op: 'set',
-      onlineData: { ...fullEntry, createdAt: serverTimestamp() },
-      queueData: { ...fullEntry, createdAt: new Date().toISOString() },
+      onlineData,
+      queueData,
       offlineMessage: "HACCP-Protokoll wird nachträglich synchronisiert.",
     });
   } catch (err) {
@@ -254,17 +474,111 @@ async function saveHaccpLog(entry) {
   }
 }
 
-async function saveTemperatureCheck(deviceId) {
+function upsertLocalTemperatureLog(log) {
+  const existingIndex = haccpState.logs.findIndex((entry) => entry.id === log.id);
+  if (existingIndex >= 0) {
+    haccpState.logs[existingIndex] = { ...haccpState.logs[existingIndex], ...log };
+  } else {
+    haccpState.logs = [...haccpState.logs, log];
+  }
+  renderHaccpDaily();
+}
+
+async function saveTemperatureCheck(stationId) {
+  const station = temperatureStationById(stationId);
+  if (!station) return;
+  if (temperatureCompletionForStation(station)) {
+    haccpState.showHUD("Schon eingetragen", "Dieser Wert ist für heute bereits gespeichert.");
+    return;
+  }
+  const value = document.getElementById(`temp-${safeDomId(stationId)}`)?.value;
+  const numericValue = Number(value);
+  if (value === '' || value == null || !Number.isFinite(numericValue)) {
+    haccpState.showHUD("Wert fehlt", "Bitte zuerst die Temperatur eintragen.", "!");
+    return;
+  }
+  const doneBy = requireHaccpDoneBy();
+  if (!doneBy) return;
+  rememberCleaningPerson(doneBy);
+  const status = isTemperatureTooWarm(numericValue, station.warnAbove) ? 'abweichung' : 'ok';
+  const docId = temperatureLogDocId(station);
+  const nowIso = new Date().toISOString();
+  try {
+    const result = await saveHaccpLog({
+      docId,
+      logTyp: 'temperatur',
+      type: 'temperature',
+      stationId: station.id,
+      deviceId: station.id,
+      facility: station.name,
+      deviceName: station.name,
+      doneBy,
+      value: numericValue,
+      wert: numericValue,
+      einheit: station.unit || '°C',
+      thresholdMax: station.warnAbove,
+      sollMax: station.warnAbove,
+      bereich: station.groupTitle,
+      status,
+      massnahme: '',
+    });
+    haccpState.onFormSaved([`temp-${safeDomId(stationId)}`]);
+    upsertLocalTemperatureLog({
+      id: docId,
+      logTyp: 'temperatur',
+      type: 'temperature',
+      stationId: station.id,
+      deviceId: station.id,
+      facility: station.name,
+      deviceName: station.name,
+      doneBy,
+      value: numericValue,
+      wert: numericValue,
+      einheit: station.unit || '°C',
+      thresholdMax: station.warnAbove,
+      sollMax: station.warnAbove,
+      bereich: station.groupTitle,
+      status,
+      tenantId: resolveHaccpTenantId(),
+      datum: localDateKey(),
+      timestamp: nowIso,
+      createdAt: nowIso,
+    });
+    if (result === 'queued') {
+      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+      return;
+    }
+    haccpState.showHUD(status === 'ok' ? "Temperatur gespeichert" : "Wert gespeichert", `${station.name}: ${value} ${station.unit || '°C'}`);
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'already-exists') {
+      haccpState.onFormSaved([`temp-${safeDomId(stationId)}`]);
+      haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
+      return;
+    }
+    if (isPermissionDeniedError(err)) {
+      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
+      return;
+    }
+    console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
+    haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+  }
+}
+
+async function saveLegacyTemperatureCheck(deviceId) {
   const device = haccpState.devices.find((entry) => entry.id === deviceId);
   if (!device) return;
   const value = document.getElementById(`temp-${safeDomId(deviceId)}`)?.value;
   const note = document.getElementById(`note-${safeDomId(deviceId)}`)?.value || '';
+  const doneBy = requireHaccpDoneBy();
+  if (!doneBy) return;
   const status = temperatureStatus(device, value);
   try {
     const result = await saveHaccpLog({
       logTyp: 'temperatur',
       deviceId,
       deviceName: device.name,
+      doneBy,
       bereich: device.bereich || '',
       wert: Number(value),
       einheit: device.einheit || '°C',
@@ -295,7 +609,98 @@ async function saveTemperatureCheck(deviceId) {
   }
 }
 
-async function saveCleaningCheck(deviceId) {
+function entryMatchesCleaningPeriod(entry, task, group) {
+  const periodKey = periodKeyForCleaning(group);
+  const sameTask = entry.taskId === task.id || entry.task === task.name || entry.deviceName === task.name;
+  const isCleaning = entry.type === 'cleaning' || entry.logTyp === 'reinigung';
+  if (!isCleaning || !sameTask) return false;
+  if (entry.periodKey) return entry.periodKey === periodKey;
+
+  if (group.period === 'week') {
+    const millis = logMomentMillis(entry);
+    return millis >= startOfIsoWeek().getTime();
+  }
+  return (entry.datum || '') === localDateKey();
+}
+
+function cleaningCompletionForTask(task, group) {
+  return (haccpState.logs || [])
+    .filter((entry) => entryMatchesCleaningPeriod(entry, task, group))
+    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
+}
+
+function upsertLocalCleaningLog(log) {
+  const existingIndex = haccpState.logs.findIndex((entry) => entry.id === log.id);
+  if (existingIndex >= 0) {
+    haccpState.logs[existingIndex] = { ...haccpState.logs[existingIndex], ...log };
+  } else {
+    haccpState.logs = [...haccpState.logs, log];
+  }
+  if (haccpState.mode === 'reinigung') renderHaccpDaily();
+}
+
+async function saveCleaningCheck(taskId) {
+  const task = cleaningTaskById(taskId);
+  const group = HACCP_CLEANING_GROUPS.find((entry) => entry.id === task?.groupId);
+  if (!task || !group) return;
+  if (cleaningCompletionForTask(task, group)) {
+    haccpState.showHUD("Schon erledigt", "Dieser Punkt ist bereits abgehakt.");
+    return;
+  }
+
+  const selectedPerson = requireHaccpDoneBy();
+  if (!selectedPerson) return;
+
+  rememberCleaningPerson(selectedPerson);
+  const periodKey = periodKeyForCleaning(group);
+  const docId = cleaningLogDocId(task, periodKey);
+  const nowIso = new Date().toISOString();
+  const payload = {
+    docId,
+    logTyp: 'reinigung',
+    type: 'cleaning',
+    taskId: task.id,
+    task: task.name,
+    doneBy: selectedPerson,
+    periodType: group.period,
+    periodKey,
+    deviceName: task.name,
+    bereich: group.title,
+    status: 'erledigt',
+    massnahme: selectedPerson,
+  };
+
+  try {
+    const result = await saveHaccpLog(payload);
+    upsertLocalCleaningLog({
+      ...payload,
+      id: docId,
+      tenantId: resolveHaccpTenantId(),
+      datum: localDateKey(),
+      timestamp: nowIso,
+      createdAt: nowIso,
+    });
+    if (result === 'queued') {
+      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfÃ¼gbar ist.");
+      return;
+    }
+    haccpState.showHUD("Reinigung erfasst", `${task.name} ist abgehakt.`);
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'already-exists') {
+      haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
+      return;
+    }
+    if (isPermissionDeniedError(err)) {
+      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im BÃ¼ro die Berechtigung prÃ¼fen.", "!");
+      return;
+    }
+    console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
+    haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+  }
+}
+
+async function saveLegacyCleaningCheck(deviceId) {
   const device = haccpState.devices.find((entry) => entry.id === deviceId);
   if (!device) return;
   const note = document.getElementById(`clean-note-${safeDomId(deviceId)}`)?.value || '';
@@ -405,11 +810,141 @@ function restoreHaccpDraftFields() {
   haccpState.restoreDraftFields(fieldIds);
 }
 
+function renderHaccpPersonPicker() {
+  const selected = haccpState.cleaningDoneBy;
+  return `
+    <div class="haccp-cleaning-person">
+      <label class="haccp-cleaning-person-label" for="haccp-cleaning-person">Wer trägt gerade ein?</label>
+      <select id="haccp-cleaning-person" class="input-text-touch haccp-cleaning-select" aria-label="Name auswählen">
+        <option value="">Name auswählen</option>
+        ${HACCP_CLEANING_TEAM.map((name) => `<option value="${escapeHtml(name)}"${selected === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function renderHaccpOperatorSelector() {
+  const container = document.getElementById('haccp-operator-container');
+  if (!container) return;
+  container.innerHTML = renderHaccpPersonPicker();
+  bindHaccpPersonPicker(container);
+}
+
+function cleaningDoneText(entry) {
+  if (!entry) return 'Abhaken';
+  return entry.doneBy ? `Erledigt: ${entry.doneBy}` : 'Erledigt';
+}
+
+function renderCleaningTaskButton(task, group) {
+  const completion = cleaningCompletionForTask(task, group);
+  const done = Boolean(completion);
+  return `
+    <button
+      type="button"
+      class="haccp-cleaning-check${done ? ' haccp-cleaning-check--done' : ''}"
+      data-haccp-save-clean="${escapeHtml(task.id)}"
+      aria-pressed="${done ? 'true' : 'false'}"
+      ${done ? 'disabled' : ''}>
+      <span class="haccp-cleaning-check-icon" aria-hidden="true">${done ? '✓' : ''}</span>
+      <span class="haccp-cleaning-check-main">
+        <span class="haccp-cleaning-check-title">${escapeHtml(task.name)}</span>
+        <span class="haccp-cleaning-check-state">${escapeHtml(cleaningDoneText(completion))}</span>
+      </span>
+    </button>
+  `;
+}
+
+function renderCleaningChecks() {
+  return `
+    <div class="haccp-daily-intro">
+      <strong>Reinigung</strong>
+      <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
+    </div>
+    <div class="haccp-cleaning-groups">
+      ${HACCP_CLEANING_GROUPS.map((group) => `
+        <section class="haccp-cleaning-group" aria-label="${escapeHtml(group.title)}">
+          <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
+          <div class="haccp-cleaning-group-list">
+            ${group.tasks.map((task) => renderCleaningTaskButton(task, group)).join('')}
+          </div>
+        </section>
+      `).join('')}
+    </div>
+  `;
+}
+
+function temperatureDoneText(entry, station) {
+  if (!entry) return `Gut bis ${station.warnAbove} ${station.unit || '°C'}`;
+  const value = entry.value != null ? entry.value : entry.wert;
+  const unit = entry.einheit || station.unit || '°C';
+  return `Heute gespeichert: ${value} ${unit}`;
+}
+
+function renderTemperatureStationCard(station) {
+  const completion = temperatureCompletionForStation(station);
+  const done = Boolean(completion);
+  const warnId = `temp-warn-${safeDomId(station.id)}`;
+  return `
+    <div class="haccp-task-card${done ? ' haccp-task-card--done' : ''}">
+      <div class="haccp-task-title">${escapeHtml(station.name)}</div>
+      <div class="haccp-task-meta">
+        ${escapeHtml(temperatureDoneText(completion, station))}
+        ${station.optionalHint ? `<span class="haccp-temp-optional">${escapeHtml(station.optionalHint)}</span>` : ''}
+      </div>
+      <div class="haccp-task-actions">
+        <input
+          id="temp-${safeDomId(station.id)}"
+          type="number"
+          inputmode="decimal"
+          class="input-text-touch haccp-temp-input"
+          step="0.1"
+          min="-40"
+          placeholder="Messwert in ${escapeHtml(station.unit || '°C')}"
+          data-haccp-temp-input="${escapeHtml(station.id)}"
+          ${done ? `value="${escapeHtml(completion.value != null ? completion.value : completion.wert)}" disabled` : ''}>
+        <button
+          class="btn btn-primary haccp-save-wide"
+          type="button"
+          data-haccp-save-temp="${escapeHtml(station.id)}"
+          ${done ? 'disabled' : ''}>${done ? '✓ Gespeichert' : 'Speichern'}</button>
+      </div>
+      <div class="haccp-team-warn" id="${warnId}" role="status" aria-live="polite" hidden>Wert erhöht. Bitte Kühlung prüfen.</div>
+    </div>
+  `;
+}
+
+function renderTemperatureChecks() {
+  return `
+    <div class="haccp-daily-intro">
+      <strong>Kühlstellen im Verkauf</strong>
+      <span>Wir tragen die Werte unserer Kühlstellen ein. Bereits gespeicherte Werte bleiben für heute abgehakt.</span>
+    </div>
+    <div class="haccp-temp-groups">
+      ${HACCP_TEMPERATURE_GROUPS.map((group) => `
+        <section class="haccp-temp-group" aria-label="${escapeHtml(group.title)}">
+          <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
+          <div class="haccp-task-list">
+            ${allTemperatureStations()
+              .filter((station) => station.groupId === group.id)
+              .map(renderTemperatureStationCard)
+              .join('')}
+          </div>
+        </section>
+      `).join('')}
+    </div>
+  `;
+}
+
 function renderHaccpDaily() {
   const container = document.getElementById('haccp-daily-container');
   if (!container) return;
 
   if (haccpState.mode === 'temperatur') {
+    container.innerHTML = renderTemperatureChecks();
+    bindRenderedHaccpActions(container);
+    restoreHaccpDraftFields();
+    return;
+
     const devices = activeHaccpDevices('temperatur');
     container.innerHTML = `
       <div class="haccp-daily-intro">
@@ -423,7 +958,7 @@ function renderHaccpDaily() {
             <div class="haccp-task-meta">${escapeHtml(device.bereich || '')} · Soll: ${device.sollMin ?? 'offen'} bis ${device.sollMax ?? 'offen'} ${escapeHtml(device.einheit || '°C')}</div>
             <div class="haccp-task-actions">
               <input id="temp-${safeDomId(device.id)}" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Messwert in ${escapeHtml(device.einheit || '°C')}">
-              <button class="btn btn-primary" type="button" data-haccp-save-temp="${escapeHtml(device.id)}">OK</button>
+              <button class="btn btn-primary haccp-save-wide" type="button" data-haccp-save-temp="${escapeHtml(device.id)}">Speichern</button>
             </div>
             <input id="note-${safeDomId(device.id)}" class="input-text-touch" style="margin-top:8px;height:48px;font-size:14px;" placeholder="Maßnahme bei Abweichung">
           </div>
@@ -436,23 +971,7 @@ function renderHaccpDaily() {
   }
 
   if (haccpState.mode === 'reinigung') {
-    const devices = activeHaccpDevices('reinigung');
-    container.innerHTML = `
-      <div class="haccp-daily-intro">
-        <strong>Reinigung</strong>
-        <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
-      </div>
-      <div class="haccp-task-list">
-        ${devices.length ? devices.map((device) => `
-          <div class="haccp-task-card">
-            <div class="haccp-task-title">${escapeHtml(device.name)}</div>
-            <div class="haccp-task-meta">${escapeHtml(device.bereich || '')} · Intervall: ${escapeHtml(device.intervall || 'nach Benutzung')}</div>
-            <input id="clean-note-${safeDomId(device.id)}" class="input-text-touch" style="height:48px;font-size:14px;" placeholder="Notiz optional">
-            <button class="btn btn-primary" style="width:100%;margin-top:8px;min-height:48px;" type="button" data-haccp-save-clean="${escapeHtml(device.id)}">Reinigung erledigt</button>
-          </div>
-        `).join('') : '<div class="batch-empty-hint">Noch keine Reinigungsaufgaben eingerichtet.</div>'}
-      </div>
-    `;
+    container.innerHTML = renderCleaningChecks();
     bindRenderedHaccpActions(container);
     restoreHaccpDraftFields();
     return;
@@ -492,12 +1011,30 @@ function renderHaccpDaily() {
   bindRenderedHaccpActions(container);
 }
 
-function bindRenderedHaccpActions(container) {
-  container.querySelectorAll('[data-haccp-save-temp]').forEach((button) => {
-    button.addEventListener('click', () => saveTemperatureCheck(button.dataset.haccpSaveTemp));
+function bindHaccpPersonPicker(container) {
+  container.querySelector('#haccp-cleaning-person')?.addEventListener('change', (event) => {
+    rememberCleaningPerson(event.target.value);
+    renderHaccpDaily();
   });
+}
+
+function updateHaccpTemperatureWarning(stationId) {
+  const station = temperatureStationById(stationId);
+  const input = document.getElementById(`temp-${safeDomId(stationId)}`);
+  const warn = document.getElementById(`temp-warn-${safeDomId(stationId)}`);
+  if (!station || !input || !warn) return;
+  const hasValue = input.value !== '' && Number.isFinite(Number(input.value));
+  const tooWarm = hasValue && isTemperatureTooWarm(input.value, station.warnAbove);
+  input.classList.toggle('haccp-input--warn', tooWarm);
+  warn.hidden = !tooWarm;
+}
+
+function bindRenderedHaccpActions(container) {
   container.querySelectorAll('[data-haccp-save-clean]').forEach((button) => {
     button.addEventListener('click', () => saveCleaningCheck(button.dataset.haccpSaveClean));
+  });
+  container.querySelectorAll('[data-haccp-temp-input]').forEach((input) => {
+    updateHaccpTemperatureWarning(input.dataset.haccpTempInput);
   });
   container.querySelectorAll('[data-haccp-deactivate]').forEach((button) => {
     button.addEventListener('click', () => deactivateHaccpDevice(button.dataset.haccpDeactivate));
@@ -505,6 +1042,23 @@ function bindRenderedHaccpActions(container) {
 }
 
 function bindStaticHaccpControls() {
+  const dailyContainer = document.getElementById('haccp-daily-container');
+  if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
+    dailyContainer.dataset.haccpDelegated = '1';
+    dailyContainer.addEventListener('click', (event) => {
+      const saveBtn = event.target.closest('[data-haccp-save-temp]');
+      if (saveBtn?.dataset.haccpSaveTemp) {
+        saveTemperatureCheck(saveBtn.dataset.haccpSaveTemp);
+      }
+    });
+    dailyContainer.addEventListener('input', (event) => {
+      const input = event.target.closest('[data-haccp-temp-input]');
+      if (input?.dataset.haccpTempInput) {
+        updateHaccpTemperatureWarning(input.dataset.haccpTempInput);
+      }
+    });
+  }
+
   document.querySelectorAll('.haccp-mode-tab').forEach((button) => {
     button.addEventListener('click', () => {
       haccpState.mode = button.dataset.haccpMode || 'temperatur';
@@ -547,12 +1101,14 @@ function bindStaticHaccpControls() {
     const ph = parseFloat(document.getElementById('haccp-ph')?.value);
     const temperatur = parseFloat(document.getElementById('haccp-temp')?.value);
     const chargenNummer = document.getElementById('haccp-batch')?.value.trim();
+    const doneBy = selectedHaccpPerson();
     try {
       const result = await saveHaccpLog({
         logTyp: 'protokoll',
         ph,
         temperatur,
         chargenNummer,
+        ...(HACCP_CLEANING_TEAM.includes(doneBy) ? { doneBy } : {}),
       });
       clearHaccpDraft();
       haccpState.onFormSaved(['haccp-ph', 'haccp-temp', 'haccp-batch']);
@@ -619,50 +1175,8 @@ function updateHACCPAlerts() {
   }
 }
 
-// =========================================================================
-// TEAM-SCHNELLERFASSUNG – schlanker Temperatur-Check im Team-Bereich
-// Nutzt dieselben Stationen, Sollwerte und Speicherwege wie die HACCP-Seite.
-// =========================================================================
-
-function teamTempInputId(deviceId) {
-  return `team-temp-${safeDomId(deviceId)}`;
-}
-
-function teamTempWarnId(deviceId) {
-  return `team-temp-warn-${safeDomId(deviceId)}`;
-}
-
-function teamTempLastId(deviceId) {
-  return `team-temp-last-${safeDomId(deviceId)}`;
-}
-
-function reportTempSaveError(err) {
-  const code = err?.code || '';
-  if (code === 'already-exists') {
-    haccpState.showHUD("Schon eingetragen", "Dieser Wert ist bereits gespeichert.");
-    return;
-  }
-  if (isPermissionDeniedError(err)) {
-    haccpState.showHUD("Kein Zugriff", "Wert konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-    return;
-  }
-  console.error('[CharcuLogic HACCP] Team-Temperatur speichern fehlgeschlagen:', err);
-  haccpState.showHUD("Hat nicht geklappt", "Wert konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
-}
-
-function teamTempSollHint(device) {
-  const min = device.sollMin;
-  const max = device.sollMax;
-  const einheit = device.einheit || '°C';
-  if (min != null && max != null) return `Alles gut zwischen ${min} und ${max} ${einheit}.`;
-  if (max != null && Number(max) < 0) return `Gut bei ${max} ${einheit} oder kälter.`;
-  if (max != null) return `Alles gut bis ${max} ${einheit}.`;
-  if (min != null) return `Mindestens ${min} ${einheit}.`;
-  return 'Aktuellen Wert eintragen.';
-}
-
 function logMomentMillis(entry) {
-  const created = entry?.createdAt;
+  const created = entry?.timestamp || entry?.createdAt;
   if (created) {
     if (typeof created === 'object') {
       if (typeof created.toMillis === 'function') return created.toMillis();
@@ -673,145 +1187,6 @@ function logMomentMillis(entry) {
   }
   const fromDate = Date.parse(entry?.datum || '');
   return Number.isFinite(fromDate) ? fromDate : 0;
-}
-
-function formatTeamMoment(millis) {
-  if (!millis) return '';
-  const when = new Date(millis);
-  const now = new Date();
-  const time = when.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (when.toDateString() === now.toDateString()) return `Heute, ${time}`;
-  if (when.toDateString() === yesterday.toDateString()) return `Gestern, ${time}`;
-  return `${when.toLocaleDateString('de-DE')}, ${time}`;
-}
-
-function latestTempLogForDevice(deviceId) {
-  return (haccpState.logs || [])
-    .filter((entry) => entry.logTyp === 'temperatur' && entry.deviceId === deviceId)
-    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
-}
-
-function teamTempLastText(deviceId) {
-  const entry = latestTempLogForDevice(deviceId);
-  if (!entry) return 'Heute noch nichts eingetragen.';
-  const moment = formatTeamMoment(logMomentMillis(entry));
-  const wert = entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '–');
-  const einheit = entry.einheit || '°C';
-  const statusText = entry.status === 'abweichung' ? 'zu hoch' : 'in Ordnung';
-  return `${moment ? `${moment} – ` : ''}${wert} ${einheit} (${statusText})`;
-}
-
-function updateTeamTempWarning(deviceId) {
-  const device = haccpState.devices.find((entry) => entry.id === deviceId);
-  const input = document.getElementById(teamTempInputId(deviceId));
-  const warn = document.getElementById(teamTempWarnId(deviceId));
-  if (!device || !input || !warn) return;
-  const raw = input.value;
-  const hasValue = raw !== '' && Number.isFinite(Number(raw));
-  const tooHigh = hasValue && !temperatureStatus(device, raw).ok;
-  input.classList.toggle('haccp-team-input--warn', tooHigh);
-  warn.hidden = !tooHigh;
-}
-
-async function saveTeamTemperature(deviceId) {
-  const device = haccpState.devices.find((entry) => entry.id === deviceId);
-  if (!device) return;
-  const input = document.getElementById(teamTempInputId(deviceId));
-  const raw = input?.value;
-  if (raw === '' || raw == null || !Number.isFinite(Number(raw))) {
-    haccpState.showHUD("Wert fehlt", "Bitte zuerst die Temperatur eintragen.", "!");
-    return;
-  }
-  const status = temperatureStatus(device, raw);
-  try {
-    const result = await saveHaccpLog({
-      logTyp: 'temperatur',
-      deviceId,
-      deviceName: device.name,
-      bereich: device.bereich || '',
-      wert: Number(raw),
-      einheit: device.einheit || '°C',
-      sollMin: device.sollMin ?? null,
-      sollMax: device.sollMax ?? null,
-      status: status.ok ? 'ok' : 'abweichung',
-      massnahme: '',
-    });
-    haccpState.onFormSaved([teamTempInputId(deviceId)]);
-    if (input) input.value = '';
-    updateTeamTempWarning(deviceId);
-    if (result === 'queued') {
-      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
-    } else if (status.ok) {
-      haccpState.showHUD("Wert gespeichert", `${device.name}: ${raw} ${device.einheit || '°C'}`);
-    } else {
-      haccpState.showHUD("Wert gespeichert", `${device.name} ist zu hoch. Bitte Kühlung prüfen.`, "!");
-    }
-    refreshTeamTempLastReadings();
-  } catch (err) {
-    if (err?.code === 'already-exists') {
-      haccpState.onFormSaved([teamTempInputId(deviceId)]);
-      if (input) input.value = '';
-    }
-    reportTempSaveError(err);
-  }
-}
-
-export function renderTeamTempCheck() {
-  const container = document.getElementById('team-tempcheck-list');
-  if (!container) return;
-
-  const devices = activeHaccpDevices('temperatur');
-  if (!devices.length) {
-    container.innerHTML = '<div class="batch-empty-hint">Für unseren Bereich sind noch keine Kühlstellen hinterlegt. Das richten wir einmalig im Büro ein.</div>';
-    return;
-  }
-
-  container.innerHTML = devices.map((device) => `
-    <div class="haccp-team-card">
-      <div class="haccp-team-station">${escapeHtml(device.name)}</div>
-      <div class="haccp-team-hint">${escapeHtml(device.bereich ? `${device.bereich} · ` : '')}${escapeHtml(teamTempSollHint(device))}</div>
-      <div class="haccp-team-row">
-        <input
-          id="${teamTempInputId(device.id)}"
-          type="number"
-          inputmode="decimal"
-          step="0.1"
-          class="input-text-touch haccp-team-input"
-          placeholder="____ ${escapeHtml(device.einheit || '°C')}"
-          data-team-temp-input="${escapeHtml(device.id)}"
-          aria-label="Temperatur ${escapeHtml(device.name)} eintragen">
-        <button class="btn btn-primary haccp-team-save" type="button" data-team-temp-save="${escapeHtml(device.id)}">Speichern</button>
-      </div>
-      <div class="haccp-team-warn" id="${teamTempWarnId(device.id)}" role="status" aria-live="polite" hidden>⚠️ Wert erhöht! Bitte Kühlung prüfen.</div>
-      <div class="haccp-team-last" id="${teamTempLastId(device.id)}">${escapeHtml(teamTempLastText(device.id))}</div>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('[data-team-temp-input]').forEach((input) => {
-    input.addEventListener('input', () => updateTeamTempWarning(input.dataset.teamTempInput));
-  });
-  container.querySelectorAll('[data-team-temp-save]').forEach((button) => {
-    button.addEventListener('click', () => saveTeamTemperature(button.dataset.teamTempSave));
-  });
-}
-
-function refreshTeamTempLastReadings() {
-  const container = document.getElementById('team-tempcheck-list');
-  if (!container) return;
-  activeHaccpDevices('temperatur').forEach((device) => {
-    const el = document.getElementById(teamTempLastId(device.id));
-    if (el) el.textContent = teamTempLastText(device.id);
-  });
-}
-
-export function activateTeamTempCheck() {
-  renderTeamTempCheck();
-  if (haccpState.db && !haccpState.devices.length) {
-    loadHaccpDevicesFromCloud();
-    loadHaccpLogsFromCloud();
-  }
 }
 
 function generateHaccpPrintView() {
@@ -833,9 +1208,9 @@ function generateHaccpPrintView() {
   const tempRows = tempLogs.map((entry) => `
     <tr>
       <td>${formatDate(entry.datum)}</td>
-      <td>${escapeHtml(entry.deviceName || entry.chargenNummer || '-')}</td>
+      <td>${escapeHtml(entry.facility || entry.deviceName || entry.chargenNummer || '-')}</td>
       <td>${escapeHtml(entry.bereich || '-')}</td>
-      <td>${escapeHtml(entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '-'))} ${escapeHtml(entry.einheit || '°C')}</td>
+      <td>${escapeHtml(entry.value != null ? entry.value : (entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '-')))} ${escapeHtml(entry.einheit || '°C')}</td>
       <td>${escapeHtml(entry.ph != null ? entry.ph : '-')}</td>
       <td class="${entry.status === 'ok' ? 'status-ok' : 'status-warn'}">${escapeHtml(entry.status === 'ok' ? 'OK' : (entry.status || 'Erfasst'))}</td>
       <td>${escapeHtml(entry.massnahme || '-')}</td>
@@ -844,10 +1219,10 @@ function generateHaccpPrintView() {
   const cleanRows = cleanLogs.map((entry) => `
     <tr>
       <td>${formatDate(entry.datum)}</td>
-      <td>${escapeHtml(entry.deviceName || '-')}</td>
+      <td>${escapeHtml(entry.task || entry.deviceName || '-')}</td>
       <td>${escapeHtml(entry.bereich || '-')}</td>
+      <td>${escapeHtml(entry.doneBy || entry.massnahme || '-')}</td>
       <td>${escapeHtml(entry.status || 'Erledigt')}</td>
-      <td>${escapeHtml(entry.massnahme || '-')}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -885,7 +1260,7 @@ function generateHaccpPrintView() {
 
   <h2>Reinigungsprotokolle (${cleanLogs.length} Einträge)</h2>
   ${cleanLogs.length ? `<table>
-    <thead><tr><th>Datum</th><th>Gerät</th><th>Bereich</th><th>Status</th><th>Anmerkung</th></tr></thead>
+    <thead><tr><th>Datum</th><th>Aufgabe</th><th>Bereich</th><th>Erledigt von</th><th>Status</th></tr></thead>
     <tbody>${cleanRows}</tbody>
   </table>` : '<p style="color:#888;margin:8px 0;">Keine Reinigungsprotokolle im Zeitraum.</p>'}
 

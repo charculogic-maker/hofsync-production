@@ -240,19 +240,12 @@
           <!-- ============================================== -->
           <div class="page" id="page-team">
             <section class="team-hub-panel" aria-label="Team Kommunikation und Bestellungen">
-              <p class="team-login-reminder hidden" id="team-login-reminder">
-                Bitte zuerst unter <strong>Start</strong> mit Name und PIN anmelden.
-              </p>
-
               <div class="team-subnav" role="tablist" aria-label="Team-Bereiche">
                 <button type="button" class="team-subnav-btn active" data-team-panel="messages" role="tab" aria-selected="true" id="team-subnav-messages">
                   💬 Nachrichten
                 </button>
                 <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
                   🛒 Bestellungen
-                </button>
-                <button type="button" class="team-subnav-btn" data-team-panel="tempcheck" role="tab" aria-selected="false" id="team-subnav-tempcheck">
-                  🌡️ Temperatur-Check
                 </button>
               </div>
 
@@ -352,13 +345,6 @@
                 </div>
               </div>
 
-              <div class="team-panel hidden" id="team-panel-tempcheck" data-team-panel="tempcheck" role="tabpanel" hidden>
-                <section class="task-token-section haccp-team-section" aria-label="Temperaturen eintragen">
-                  <h2 class="task-token-heading">Temperaturen eintragen</h2>
-                  <p class="customer-order-hint">Wir tragen kurz die aktuellen Werte unserer Kühlstellen ein. Ist ein Wert zu hoch, sehen wir das sofort.</p>
-                  <div id="team-tempcheck-list" class="haccp-team-list"></div>
-                </section>
-              </div>
             </section>
           </div>
 
@@ -367,40 +353,34 @@
           <!-- ============================================== -->
           <div class="page active" id="page-mhd">
             <div class="mhd-monitor-toolbar">
-              <div class="mhd-toolbar-compact">
-                <details class="mhd-toolbar-details mhd-search-details" id="mhd-search-details">
-                  <summary class="mhd-toolbar-summary" id="mhd-search-summary">
-                    <span class="mhd-toolbar-summary-label">Suche</span>
-                    <span class="mhd-toolbar-summary-value" id="mhd-search-summary-value">Alle Artikel</span>
-                  </summary>
+              <details class="mhd-toolbar-accordion" id="mhd-toolbar-accordion">
+                <summary class="mhd-toolbar-accordion-summary" id="mhd-toolbar-accordion-summary">
+                  <span class="mhd-toolbar-accordion-label" id="mhd-toolbar-accordion-label">🔍 Suche &amp; Filter einblenden</span>
+                  <span class="mhd-toolbar-accordion-meta" id="mhd-toolbar-accordion-meta" hidden></span>
+                </summary>
+                <div class="mhd-toolbar-accordion-panel">
                   <div class="mhd-search-panel" id="mhd-search-panel">
                     <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname eingeben…" aria-label="MHD-Artikel suchen" autocomplete="off">
                     <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
                   </div>
-                </details>
-
-                <details class="mhd-toolbar-details mhd-filter-details" id="mhd-filter-details">
-                  <summary class="mhd-toolbar-summary" id="mhd-filter-summary">
-                    <span class="mhd-toolbar-summary-label">Filter</span>
-                    <span class="mhd-toolbar-summary-value" id="mhd-filter-summary-value">21 Tage · Alle Kategorien</span>
-                  </summary>
-                <div class="mhd-filter-row mhd-filter-row--monitor">
-                  <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
-                  <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
-                    <span class="mhd-filter-label">Zeitraum</span>
-                    <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
-                      <option value="21" selected>21 Tage</option>
-                    </select>
-                  </label>
-                  <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
-                    <span class="mhd-filter-label">Kategorie</span>
-                    <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
-                      <option value="all" selected>Alle Kategorien</option>
-                    </select>
-                  </label>
+                  <div class="mhd-filter-row mhd-filter-row--monitor">
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
+                    <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
+                      <span class="mhd-filter-label">Zeitraum</span>
+                      <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
+                        <option value="21" selected>21 Tage</option>
+                      </select>
+                    </label>
+                    <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
+                      <span class="mhd-filter-label">Kategorie</span>
+                      <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
+                        <option value="all" selected>Alle Kategorien</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="mhd-render-limit-hint mhd-toolbar-limit-hint hidden" id="mhd-toolbar-limit-hint" role="status" aria-live="polite"></div>
                 </div>
-                </details>
-              </div>
+              </details>
             </div>
 
             <div class="mhd-list" id="mhd-items-container">
@@ -671,9 +651,30 @@
           <!-- SCREEN 3: HACCP-PROTOKOLL PAGE                 -->
           <!-- ============================================== -->
           <div class="page" id="page-haccp">
-            <div class="haccp-card">
+            <div id="haccp-operator-container"></div>
 
-              <!-- Batch entry input (primary) -->
+            <div class="haccp-card haccp-daily-card">
+              <div class="section-title">Heute prüfen</div>
+              <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
+                <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
+                <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
+                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete">Einrichten</button>
+              </div>
+              <div id="haccp-daily-container"></div>
+            </div>
+
+            <div class="haccp-card haccp-export-card">
+              <div class="section-title">Protokolle drucken</div>
+              <p class="learn-mode-desc">Temperatur- und Reinigungsnachweise der letzten 7 Tage als druckbare Übersicht – z. B. für Behördenkontrollen.</p>
+              <button type="button" class="btn btn-primary btn-haccp-print" id="btn-haccp-print">
+                🖨️ Druckansicht öffnen
+              </button>
+            </div>
+
+            <div class="haccp-card haccp-legacy-production-card">
+              <div class="section-title">Produktion dokumentieren</div>
+              <p class="learn-mode-desc">Charge, Kerntemperatur und pH-Wert nach der Herstellung festhalten.</p>
+
               <div class="form-group">
                 <label class="form-label" for="haccp-batch">
                   <span>Chargen-Nummer</span>
@@ -731,25 +732,6 @@
                   📝 Protokoll eintragen
                 </button>
               </div>
-
-            </div>
-
-            <div class="haccp-card haccp-daily-card">
-              <div class="section-title">Heute prüfen</div>
-              <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
-                <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
-                <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
-                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete">Einrichten</button>
-              </div>
-              <div id="haccp-daily-container"></div>
-            </div>
-
-            <div class="haccp-card haccp-export-card">
-              <div class="section-title">Export / Büro</div>
-              <p class="learn-mode-desc">Temperatur- und Reinigungsprotokolle der letzten 7 Tage als druckbare DIN-A4-Tabelle für Behördenkontrollen.</p>
-              <button type="button" class="btn btn-primary btn-haccp-print" id="btn-haccp-print">
-                🖨️ Druckansicht generieren
-              </button>
             </div>
           </div>
 

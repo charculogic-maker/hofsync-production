@@ -23,26 +23,10 @@ export function configureAppCheckDebugProvider() {
   if (!isLocalDevHost()) return false;
 
   try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('appCheckDebugToken')?.trim();
-    const fromStorage = localStorage.getItem(DEBUG_TOKEN_STORAGE_KEY)?.trim();
-
-    if (fromQuery) {
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN = fromQuery;
-      localStorage.setItem(DEBUG_TOKEN_STORAGE_KEY, fromQuery);
-      console.info('[AppCheck] Debug-Token aus URL/localStorage aktiv.');
-      return true;
-    }
-    if (fromStorage) {
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN = fromStorage;
-      console.info('[AppCheck] Debug-Token aus localStorage aktiv.');
-      return true;
-    }
-
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    try { localStorage.removeItem(DEBUG_TOKEN_STORAGE_KEY); } catch (_) { /* noop */ }
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = "92603496-35B1-47B1-BBC1-6FE31249BF21";
     console.info(
-      '[AppCheck] Debug-Modus aktiv. Kopiere das Token aus der Browser-Konsole '
-      + 'und registriere es in Firebase Console → App Check → Apps → Debug-Tokens.',
+      '[AppCheck] Lokaler Debug-Modus aktiv. Registrierter Debug-Schlüssel wird verwendet.',
     );
     return true;
   } catch (err) {

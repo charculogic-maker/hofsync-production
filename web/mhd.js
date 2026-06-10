@@ -418,33 +418,54 @@ function updateMhdMonitorHintText(monitorHint) {
   }
 }
 
-function updateMhdFilterSummaryText() {
-  const summaryValue = document.getElementById('mhd-filter-summary-value');
-  const horizonSelect = document.getElementById('mhd-horizon-select');
-  const categorySelect = document.getElementById('mhd-category-select');
-  if (!summaryValue || !horizonSelect || !categorySelect) return;
-  const horizon = horizonSelect.selectedOptions[0]?.textContent?.trim() || `${mhdState.monitorHorizonDays} Tage`;
-  const category = categorySelect.selectedOptions[0]?.textContent?.trim() || 'Alle Kategorien';
-  summaryValue.textContent = `${horizon} · ${category}`;
+function updateMhdToolbarAccordionLabel() {
+  const accordion = document.getElementById('mhd-toolbar-accordion');
+  const label = document.getElementById('mhd-toolbar-accordion-label');
+  if (!accordion || !label) return;
+  label.textContent = accordion.open
+    ? '🔼 Suche & Filter ausblenden'
+    : '🔍 Suche & Filter einblenden';
 }
 
-function updateMhdSearchSummaryText() {
-  const summaryValue = document.getElementById('mhd-search-summary-value');
-  if (!summaryValue) return;
-  const query = mhdState.searchQuery.trim();
-  if (!query) {
-    summaryValue.textContent = 'Alle Artikel';
+function updateMhdToolbarAccordionMeta() {
+  const accordion = document.getElementById('mhd-toolbar-accordion');
+  const meta = document.getElementById('mhd-toolbar-accordion-meta');
+  if (!meta) return;
+  if (!accordion || accordion.open) {
+    meta.hidden = true;
+    meta.textContent = '';
     return;
   }
-  summaryValue.textContent = query.length > 18 ? `${query.slice(0, 18)}…` : query;
+  const parts = [];
+  const query = mhdState.searchQuery.trim();
+  if (query) parts.push(query.length > 16 ? `${query.slice(0, 16)}…` : query);
+  const horizonSelect = document.getElementById('mhd-horizon-select');
+  const categorySelect = document.getElementById('mhd-category-select');
+  const horizon = horizonSelect?.selectedOptions[0]?.textContent?.trim() || `${mhdState.monitorHorizonDays} Tage`;
+  const category = categorySelect?.selectedOptions[0]?.textContent?.trim() || 'Alle Kategorien';
+  if (mhdState.categoryFilter !== 'all') parts.push(category);
+  else parts.push(horizon);
+  meta.textContent = parts.join(' · ');
+  meta.hidden = !parts.length;
 }
 
-function syncMhdToolbarLayout() {
-  const isWide = window.matchMedia('(min-width: 640px)').matches;
-  const searchDetails = document.getElementById('mhd-search-details');
-  const filterDetails = document.getElementById('mhd-filter-details');
-  if (searchDetails) searchDetails.open = isWide;
-  if (filterDetails) filterDetails.open = isWide;
+function updateMhdToolbarLimitHint(visibleCount) {
+  const hint = document.getElementById('mhd-toolbar-limit-hint');
+  if (!hint) return;
+  if (visibleCount > MHD_RENDER_LIMIT) {
+    hint.textContent = `Zeige die dringendsten ${MHD_RENDER_LIMIT} von ${visibleCount} Treffern. Nutze die Suche zum Eingrenzen.`;
+    hint.classList.remove('hidden');
+    hint.hidden = false;
+    return;
+  }
+  hint.textContent = '';
+  hint.classList.add('hidden');
+  hint.hidden = true;
+}
+
+function refreshMhdToolbarSummary() {
+  updateMhdToolbarAccordionLabel();
+  updateMhdToolbarAccordionMeta();
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
@@ -1783,13 +1804,14 @@ function initMhdSubnavAndSearch() {
   const categorySelect = document.getElementById('mhd-category-select');
   const horizonSelect = document.getElementById('mhd-horizon-select');
   const monitorHint = document.getElementById('mhd-monitor-hint');
-  const searchDetails = document.getElementById('mhd-search-details');
+  const toolbarAccordion = document.getElementById('mhd-toolbar-accordion');
   const searchInput = document.getElementById('mhd-search-input');
   const searchClear = document.getElementById('mhd-search-clear');
 
-  const setMhdSearchExpanded = (expanded) => {
-    if (!searchDetails) return;
-    searchDetails.open = expanded;
+  const setMhdToolbarExpanded = (expanded) => {
+    if (!toolbarAccordion) return;
+    toolbarAccordion.open = expanded;
+    refreshMhdToolbarSummary();
     if (expanded) {
       requestAnimationFrame(() => searchInput?.focus());
     }
@@ -1798,7 +1820,7 @@ function initMhdSubnavAndSearch() {
   const clearMhdSearch = () => {
     mhdState.searchQuery = '';
     if (searchInput) searchInput.value = '';
-    updateMhdSearchSummaryText();
+    refreshMhdToolbarSummary();
     renderMhdList();
   };
 
@@ -1807,27 +1829,25 @@ function initMhdSubnavAndSearch() {
 
   const updateMonitorHint = () => {
     updateMhdMonitorHintText(monitorHint);
-    updateMhdFilterSummaryText();
+    refreshMhdToolbarSummary();
   };
   updateMonitorHint();
-  updateMhdSearchSummaryText();
-  syncMhdToolbarLayout();
-  if (!window.__mhdToolbarLayoutBound) {
-    window.__mhdToolbarLayoutBound = true;
-    window.matchMedia('(min-width: 640px)').addEventListener('change', syncMhdToolbarLayout);
-  }
 
-  searchDetails?.addEventListener('toggle', () => {
-    if (searchDetails.open) {
-      requestAnimationFrame(() => searchInput?.focus());
-    }
-  });
+  if (toolbarAccordion && toolbarAccordion.dataset.mhdBound !== '1') {
+    toolbarAccordion.dataset.mhdBound = '1';
+    toolbarAccordion.addEventListener('toggle', () => {
+      refreshMhdToolbarSummary();
+      if (toolbarAccordion.open) {
+        requestAnimationFrame(() => searchInput?.focus());
+      }
+    });
+  }
 
   if (categorySelect && categorySelect.dataset.mhdBound !== '1') {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
       mhdState.categoryFilter = categorySelect.value || 'all';
-      updateMhdFilterSummaryText();
+      refreshMhdToolbarSummary();
       mhdState.playClickSound(940, 0.04, 0.12);
       renderMhdList();
     });
@@ -1853,12 +1873,12 @@ function initMhdSubnavAndSearch() {
 
   searchInput?.addEventListener('input', (event) => {
     mhdState.searchQuery = event.target.value.toLowerCase();
-    updateMhdSearchSummaryText();
+    refreshMhdToolbarSummary();
     renderMhdList();
   });
 
   searchInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') setMhdSearchExpanded(false);
+    if (event.key === 'Escape') setMhdToolbarExpanded(false);
   });
 }
 
@@ -1944,6 +1964,7 @@ function renderMhdList() {
   if (!container) return;
 
   if (!mhdState.products.length) {
+    updateMhdToolbarLimitHint(0);
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
         ${isFirebaseReady() ? 'Keine MHD-Artikel in der Cloud. Scanne einen Barcode zum Einlernen.' : 'Firebase nicht konfiguriert – MHD-Daten können nicht geladen werden.'}
@@ -1954,6 +1975,7 @@ function renderMhdList() {
   const sortedProducts = sortMhdProductsByResttage(mhdState.products);
   const visibleProducts = filterMhdProducts(sortedProducts);
   const renderedProducts = visibleProducts.slice(0, MHD_RENDER_LIMIT);
+  updateMhdToolbarLimitHint(visibleProducts.length);
 
   if (!visibleProducts.length) {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
@@ -1964,11 +1986,7 @@ function renderMhdList() {
     return;
   }
 
-  const limitHint = visibleProducts.length > MHD_RENDER_LIMIT
-    ? `<div class="mhd-render-limit-hint">Zeige die dringendsten ${MHD_RENDER_LIMIT} von ${visibleProducts.length} Treffern. Nutze die Suche zum Eingrenzen.</div>`
-    : '';
-
-  container.innerHTML = limitHint + renderedProducts.map((prod) => {
+  container.innerHTML = renderedProducts.map((prod) => {
     const action = computeMhdAction(prod);
     const postenCount = productPostenCount(prod);
     const resttage = prod.tage ?? prod.resttage;

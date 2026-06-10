@@ -199,7 +199,8 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   const kitchenEnabled = isWurstkuecheEnabledForTenant(getTenantId(), branding);
   const tabModuleMap = {
     teamboard: modules.teamboard !== false,
-    team: modules.orders !== false || modules.haccp !== false,
+    team: modules.team !== false
+      && (modules.team === true || modules.orders !== false || modules.haccp !== false || modules.teamboard !== false),
     mhd: modules.mhdMonitor !== false,
     receiving: modules.wareneingang !== false,
     kitchen: kitchenEnabled,
@@ -244,13 +245,14 @@ function applyRoleBasedUi(authSession) {
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
 
   const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'batches']);
-  const stevesHofOfficeTabs = new Set(['haccp', 'batches']);
+  const stevesHofOfficeTabs = new Set(['batches']);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
+    const hideForHelper = isHelper && helperHiddenTabs.has(tabId) && !(isStevesHof && tabId === 'haccp');
     const hide =
-      (isHelper && helperHiddenTabs.has(tabId))
+      hideForHelper
       || (isStevesHof && !isOffice && stevesHofOfficeTabs.has(tabId));
     tab.style.display = hide ? 'none' : '';
   });

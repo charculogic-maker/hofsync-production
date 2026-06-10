@@ -35,6 +35,7 @@ const TENANT_BRANDING = {
     standardBereich: 'Laden / Verkauf',
     modules: {
       teamboard: false,
+      team: false,
       mhdMonitor: true,
       wareneingang: true,
       wareneingangMetzgerei: false,

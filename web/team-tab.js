@@ -1,10 +1,9 @@
 /**
- * Tab „Team“ – Umschalter Nachrichten / Bestellungen / Temperatur-Check
+ * Tab „Team“ – Umschalter Nachrichten / Bestellungen
  */
 
 import { activateTeamboardTab, mountComposeForms } from './teamboard.js';
 import { activateCustomerOrdersTab } from './customer-orders.js';
-import { activateTeamTempCheck } from './haccp.js';
 
 const TEAM_PANEL_STORAGE_KEY = 'charculogic_team_panel';
 
@@ -14,7 +13,6 @@ function visibleTeamPanels() {
   const panels = [];
   if (modules.teamboard !== false || modules.orders !== false) panels.push('messages');
   if (modules.orders !== false) panels.push('orders');
-  if (modules.haccp !== false) panels.push('tempcheck');
   return panels.length ? panels : ['messages'];
 }
 
@@ -26,18 +24,10 @@ function applyTeamSubnavVisibility(panels) {
   });
 }
 
-function getActiveEmployeeNameLocal() {
-  try {
-    return String(localStorage.getItem('charculogic_active_employee') || '').trim();
-  } catch (_) {
-    return '';
-  }
-}
-
 function updateLoginReminder() {
   const banner = document.getElementById('team-login-reminder');
   if (!banner) return;
-  banner.classList.toggle('hidden', !!getActiveEmployeeNameLocal());
+  banner.classList.add('hidden');
 }
 
 function setTeamPanel(panelId) {
@@ -55,9 +45,6 @@ function setTeamPanel(panelId) {
     if (show) panel.removeAttribute('hidden');
     else panel.setAttribute('hidden', '');
   });
-  if (valid === 'tempcheck') {
-    activateTeamTempCheck();
-  }
   try {
     localStorage.setItem(TEAM_PANEL_STORAGE_KEY, valid);
   } catch (_) { /* noop */ }
@@ -87,7 +74,11 @@ export function activateTeamHubTab() {
   let panel = panels[0];
   try {
     const stored = localStorage.getItem(TEAM_PANEL_STORAGE_KEY);
-    if (panels.includes(stored)) panel = stored;
+    if (stored === 'tempcheck') {
+      localStorage.removeItem(TEAM_PANEL_STORAGE_KEY);
+    } else if (panels.includes(stored)) {
+      panel = stored;
+    }
   } catch (_) { /* noop */ }
   setTeamPanel(panel);
 
@@ -97,9 +88,6 @@ export function activateTeamHubTab() {
   }
   if (panels.includes('orders')) {
     activateCustomerOrdersTab();
-  }
-  if (panels.includes('tempcheck')) {
-    activateTeamTempCheck();
   }
 }
 
