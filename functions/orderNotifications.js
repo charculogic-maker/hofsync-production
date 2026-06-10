@@ -1,8 +1,55 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { defineString } = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+const twilio = require('twilio');
+
+const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' });
+const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
+const ORDER_SIGNAL_EMAIL = 'bestellung@steveshof-hofladen.de';
+const SMTP_USER = defineString('SMTP_USER', { default: ORDER_SIGNAL_EMAIL });
+const SMTP_PASS = defineString('SMTP_PASS');
+const FROM_EMAIL = defineString('FROM_EMAIL', { default: ORDER_SIGNAL_EMAIL });
+const TWILIO_ACCOUNT_SID = defineString('TWILIO_ACCOUNT_SID');
+const TWILIO_AUTH_TOKEN = defineString('TWILIO_AUTH_TOKEN');
+const FROM_NUMBER = defineString('FROM_NUMBER');
 
 if (!admin.apps.length) {
   admin.initializeApp();
+}
+
+function getNotificationConfig() {
+  return {
+    smtpHost: SMTP_HOST.value(),
+    smtpPort: SMTP_PORT.value(),
+    smtpUser: SMTP_USER.value(),
+    smtpPass: SMTP_PASS.value(),
+    fromEmail: FROM_EMAIL.value(),
+    twilioAccountSid: TWILIO_ACCOUNT_SID.value(),
+    twilioAuthToken: TWILIO_AUTH_TOKEN.value(),
+    fromNumber: FROM_NUMBER.value(),
+  };
+}
+
+function createSmtpTransport(config) {
+  const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
+  return nodemailer.createTransport({
+    host: String(config.smtpHost || 'mail.agenturserver.de').trim(),
+    port,
+    secure: port === 465,
+    auth: {
+      user: String(config.smtpUser || '').trim(),
+      pass: String(config.smtpPass || ''),
+    },
+    ...(port === 587 ? { requireTLS: true } : {}),
+  });
+}
+
+function resolveFromAddress(config) {
+  const fromEmail = String(config.fromEmail || config.smtpUser || '').trim();
+  return fromEmail
+    ? { address: fromEmail, name: 'StevesHof' }
+    : null;
 }
 
 function parseQuantityValue(value) {
@@ -34,20 +81,28 @@ function formatMoneyValue(value) {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-function formatPickupDate(value) {
-  if (!value) return 'deinem Abholtermin';
+function parseReadyAtDate(value) {
+  if (!value) return null;
   const date = typeof value?.toDate === 'function'
     ? value.toDate()
     : new Date(value);
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    return String(value);
+    return null;
   }
-  return date.toLocaleDateString('de-DE', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+  return date;
+}
+
+function formatPickupWindow(value) {
+  const date = parseReadyAtDate(value);
+  if (!date) {
+    return value ? String(value) : 'deinem Abholtermin';
+  }
+  const weekday = date.toLocaleDateString('de-DE', { weekday: 'short' });
+  const time = date.toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
+  return `${weekday}. um ${time} Uhr`;
 }
 
 function getItemUnitPrice(item, orderedQuantity) {
@@ -78,14 +133,35 @@ function calculateFinalOrderPrice(order) {
   return Math.round(total * 100) / 100;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function buildCustomerSignal(order) {
   const customerName = String(order?.customerName || 'lieber Hofladen-Gast').trim();
-  const pickupDate = formatPickupDate(order?.readyAt);
+  const pickupWindow = formatPickupWindow(order?.readyAt);
   const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
   const message = [
-    `Hallo ${customerName}, deine Bestellung vom ${pickupDate} wurde frisch für dich zusammengestellt und steht abholbereit im Laden-Kühlschrank! 🥩 🍳`,
-    `Tatsächlicher Abholpreis: ${finalPrice} € (präzise nachgewogen).`,
-    'Wir freuen uns auf deinen Besuch!',
+    `Hallo ${customerName}, dein Genuss-Paket ist fertig gepackt!`,
+    'Thomas aus der Metzgerei hat alles frisch vorbereitet.',
+    `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
+    `Du kannst es ab ${pickupWindow} abholen.`,
+    'Wir freuen uns auf dich!',
+    'Dein StevesHof-Team.',
+  ].join(' ');
+
+  const htmlMessage = [
+    `<p>Hallo ${escapeHtml(customerName)},</p>`,
+    '<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>',
+    '<p>Thomas aus der Metzgerei hat alles frisch vorbereitet.</p>',
+    `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
+    `<p>Du kannst es ab ${escapeHtml(pickupWindow)} abholen.</p>`,
+    '<p>Wir freuen uns auf dich!</p>',
+    '<p>Dein StevesHof-Team.</p>',
   ].join('\n');
 
   return {
@@ -95,19 +171,120 @@ function buildCustomerSignal(order) {
       phone: order?.callbackPhone || null,
     },
     message,
-    sendgrid: order?.customerEmail ? {
-      personalizations: [{
-        to: [{ email: order.customerEmail, name: customerName }],
-      }],
-      from: { email: 'hofladen@example.invalid', name: 'Hofladen' },
-      subject: 'Deine Bestellung ist abholbereit',
-      content: [{ type: 'text/plain', value: message }],
-    } : null,
-    twilio: order?.callbackPhone ? {
-      to: order.callbackPhone,
-      body: message,
-    } : null,
+    htmlMessage,
+    subject: 'Dein Genuss-Paket ist abholbereit',
   };
+}
+
+function normalizePhoneForTwilio(phone) {
+  const raw = String(phone || '').trim();
+  if (!raw) return null;
+  if (raw.startsWith('+')) return raw;
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.startsWith('0')) return `+49${digits.slice(1)}`;
+  if (digits.startsWith('49')) return `+${digits}`;
+  return `+${digits}`;
+}
+
+async function sendCustomerEmail(signal, config, meta) {
+  if (!signal.to.email) {
+    return { channel: 'email', skipped: true };
+  }
+
+  const smtpUser = String(config.smtpUser || '').trim();
+  const smtpPass = String(config.smtpPass || '');
+  const from = resolveFromAddress(config);
+  if (!smtpUser || !smtpPass || !from) {
+    console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', meta);
+    return { channel: 'email', skipped: true, reason: 'not_configured' };
+  }
+
+  try {
+    const transport = createSmtpTransport(config);
+    await transport.sendMail({
+      from,
+      to: `${signal.to.name} <${signal.to.email}>`,
+      subject: signal.subject,
+      text: signal.message,
+      html: `<!DOCTYPE html><html lang="de"><body style="font-family:Georgia,'Times New Roman',serif;color:#2f2a24;line-height:1.6;max-width:560px;margin:0 auto;padding:24px;">${signal.htmlMessage}</body></html>`,
+    });
+    console.log('[KundenSignal] E-Mail versendet', { ...meta, email: signal.to.email });
+    return { channel: 'email', sent: true };
+  } catch (error) {
+    console.error('[KundenSignal] SMTP-Fehler', {
+      ...meta,
+      email: signal.to.email,
+      message: error?.message,
+      code: error?.code,
+      responseCode: error?.responseCode,
+    });
+    return { channel: 'email', sent: false, error: error?.message || 'send_failed' };
+  }
+}
+
+async function sendCustomerSms(signal, config, meta) {
+  if (!signal.to.phone) {
+    return { channel: 'sms', skipped: true };
+  }
+
+  const accountSid = String(config.twilioAccountSid || '').trim();
+  const authToken = String(config.twilioAuthToken || '').trim();
+  const fromNumber = String(config.fromNumber || '').trim();
+  const toNumber = normalizePhoneForTwilio(signal.to.phone);
+
+  if (!accountSid || !authToken || !fromNumber) {
+    console.warn('[KundenSignal] Twilio nicht konfiguriert, SMS uebersprungen', meta);
+    return { channel: 'sms', skipped: true, reason: 'not_configured' };
+  }
+  if (!toNumber) {
+    console.warn('[KundenSignal] Ungueltige Mobilnummer, SMS uebersprungen', {
+      ...meta,
+      phone: signal.to.phone,
+    });
+    return { channel: 'sms', skipped: true, reason: 'invalid_phone' };
+  }
+
+  try {
+    const client = twilio(accountSid, authToken);
+    await client.messages.create({
+      to: toNumber,
+      from: fromNumber,
+      body: signal.message,
+    });
+    console.log('[KundenSignal] SMS versendet', { ...meta, phone: toNumber });
+    return { channel: 'sms', sent: true };
+  } catch (error) {
+    console.error('[KundenSignal] Twilio-Fehler', {
+      ...meta,
+      phone: toNumber,
+      message: error?.message,
+      code: error?.code,
+      status: error?.status,
+    });
+    return { channel: 'sms', sent: false, error: error?.message || 'send_failed' };
+  }
+}
+
+async function dispatchCustomerSignal(signal, meta) {
+  const config = getNotificationConfig();
+  const tasks = [];
+
+  if (signal.to.email) {
+    tasks.push(sendCustomerEmail(signal, config, meta));
+  }
+  if (signal.to.phone) {
+    tasks.push(sendCustomerSms(signal, config, meta));
+  }
+
+  if (!tasks.length) {
+    console.log('[KundenSignal] Kein Kundenkanal hinterlegt, Versand uebersprungen', meta);
+    return [];
+  }
+
+  return Promise.all(tasks);
 }
 
 exports.onOrderReadySendSignal = onDocumentUpdated(
@@ -128,17 +305,27 @@ exports.onOrderReadySendSignal = onDocumentUpdated(
       return null;
     }
 
+    const meta = { tenantId, orderId, customerName: after.customerName || null };
     const signal = buildCustomerSignal(after);
+
     console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-      tenantId,
-      orderId,
-      customerName: signal.to.name,
+      ...meta,
       hasEmail: Boolean(signal.to.email),
       hasPhone: Boolean(signal.to.phone),
-      message: signal.message,
-      sendgrid: signal.sendgrid,
-      twilio: signal.twilio,
+      finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
+      pickupWindow: formatPickupWindow(after.readyAt),
     });
+
+    try {
+      const results = await dispatchCustomerSignal(signal, meta);
+      console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+    } catch (error) {
+      console.error('[KundenSignal] Unerwarteter Versandfehler', {
+        ...meta,
+        message: error?.message,
+      });
+    }
+
     return null;
   },
 );
@@ -146,5 +333,10 @@ exports.onOrderReadySendSignal = onDocumentUpdated(
 exports._test = {
   buildCustomerSignal,
   calculateFinalOrderPrice,
-  formatPickupDate,
+  formatPickupWindow,
+  normalizePhoneForTwilio,
+  createSmtpTransport,
+  resolveFromAddress,
+  sendCustomerEmail,
+  sendCustomerSms,
 };
