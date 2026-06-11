@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <script src="/branding.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#28a745">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="">
+  <link rel="manifest" id="pwa-manifest" href="/manifest.json">
+  <script>
+    if (window.BRANDING) {
+      const manifestData = {
+        name: window.BRANDING.betriebsName || 'Hofladen Leitstand',
+        short_name: window.BRANDING.appName || 'CharcuLogic',
+        start_url: '.',
+        display: 'standalone',
+        background_color: window.BRANDING.lightBg || '#f8f9fa',
+        theme_color: window.BRANDING.primaryColor || '#28a745',
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+        ],
+      };
+      const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+      const manifestURL = URL.createObjectURL(blob);
+      document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute('content', window.BRANDING.primaryColor || '#28a745');
+    }
+
+    window.forceAppUpdate = async function forceAppUpdate() {
+      if (window.__forceAppUpdateRunning) return;
+      window.__forceAppUpdateRunning = true;
+      const hardReload = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('appUpdate', String(Date.now()));
+        window.location.replace(url.toString());
+      };
+      const button = document.getElementById('app-refresh-btn');
+      if (button) {
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        const label = button.querySelector('span:last-child');
+        if (label) label.textContent = 'Neu laden...';
+      }
+      setTimeout(hardReload, 700);
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await Promise.race([
+            navigator.serviceWorker.getRegistrations(),
+            new Promise((resolve) => setTimeout(() => resolve([]), 250)),
+          ]);
+          Promise.all(registrations.map(async (registration) => {
+            try {
+              registration.waiting?.postMessage?.({ type: 'SKIP_WAITING' });
+              registration.active?.postMessage?.({ type: 'CLEAR_APP_CACHES' });
+              registration.update?.();
+              registration.unregister?.();
+            } catch (_) { /* weiter versuchen */ }
+          }));
+        }
+        if ('caches' in window) {
+          caches.keys()
+            .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[CharcuLogic] App-Aktualisierung konnte Cache nicht vollstaendig leeren:', err);
+      }
+      setTimeout(hardReload, 120);
+    };
+
+    window.fallbackShowTab = function fallbackShowTab(tabId) {
+      const pageMap = {
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: 'StevesHof Hofladen' },
+        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: 'StevesHof Hofladen' },
+        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: 'StevesHof Hofladen' },
+        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: 'StevesHof Hofladen' },
+      };
+      const target = pageMap[tabId] || pageMap.mhd;
+      document.querySelectorAll('.page').forEach((page) => {
+        const active = page.id === target.page;
+        page.classList.toggle('active', active);
+        page.style.display = active ? 'block' : 'none';
+      });
+      document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+      });
+      const headerTitle = document.getElementById('header-title');
+      const headerSubtitle = document.getElementById('header-subtitle');
+      if (headerTitle) headerTitle.textContent = target.title;
+      if (headerSubtitle) headerSubtitle.textContent = target.subtitle;
+      document.getElementById('app-content')?.scrollTo?.(0, 0);
+      return true;
+    };
+  </script>
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
+  <script src="/libs/firebase-app.js"></script>
+  <script src="/libs/firebase-auth.js"></script>
+  <script src="/libs/firebase-firestore.js"></script>
+  <script src="/libs/firebase-storage.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
+  <script src="/libs/html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="/style.css?v=20260611-162">
+</head>
+<body>
+
+  <div class="preview-container">
+    
+    <!-- iPhone Device Frame Mockup -->
+    <div class="iphone-frame">
+      <!-- Dynamic Island -->
+      <div class="iphone-island"></div>
+      
+      <!-- Inside Simulated Mobile Viewport -->
+      <div class="app-container">
+        
+        <!-- Status Bar -->
+        <div class="status-bar">
+          <div class="time" id="status-time">11:32</div>
+          <div class="icons">
+            <span>📶</span>
+            <span>🔋 94%</span>
+          </div>
+        </div>
+
+        <!-- App Header (Header Bar) -->
+        <header class="app-header">
+          <div class="app-title-group">
+            <span class="app-subtitle brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
+            <h1 id="header-title">MHD-Monitor</h1>
+          </div>
+          <div class="app-header-actions">
+            <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
+            <button type="button" class="app-refresh-btn" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
+              <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
+            </button>
+            <div class="sync-indicator" id="sync-indicator" title="Sync-Status">
+              <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
+              <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
+            </div>
+            <div class="employee-session-badge" id="employee-session-badge" style="display: none;">
+              <span id="employee-session-name"></span>
+            </div>
+            <button id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
+            <div class="app-badge"><span class="brand-app-name"></span></div>
+          </div>
+        </header>
+
+        <!-- Main Dynamic App Content Areas -->
+        <main class="app-content" id="app-content">
+
+          <!-- ============================================== -->
+          <!-- SCREEN 1: TEAM-LEITSTAND PAGE                  -->
+          <!-- ============================================== -->
+          <div class="page" id="page-teamboard">
+            <section class="team-home-panel" id="team-home-panel" aria-label="Team-Leitstand">
+              <div class="team-login-card" id="team-login-card">
+                <div class="team-login-header">
+                  <h2 class="task-token-heading">Mitarbeiter-Anmeldung</h2>
+                  <p class="team-login-hint">PIN eingeben, danach sind Aufgaben direkt zugewiesen.</p>
+                </div>
+                <div class="team-login-row">
+                  <label class="team-login-field" for="team-login-employee">
+                    <span>Mitarbeiter</span>
+                    <input
+                      id="team-login-employee"
+                      class="input-text-touch team-shift-select"
+                      type="text"
+                      list="employee-suggestions"
+                      placeholder="Name eingeben..."
+                      aria-label="Mitarbeiter eingeben"
+                      autocomplete="off"
+                    >
+                    <datalist id="employee-suggestions"></datalist>
+                  </label>
+                  <label class="team-login-field" for="team-login-pin">
+                    <span>PIN (4-stellig)</span>
+                    <input id="team-login-pin" class="input-text-touch team-login-pin" type="password" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••">
+                  </label>
+                </div>
+                <div class="team-login-actions">
+                  <button type="button" class="btn btn-primary" id="team-login-submit">Anmelden</button>
+                  <button type="button" class="btn btn-secondary" id="team-login-logout">Abmelden</button>
+                </div>
+                <p class="team-login-status" id="team-login-status">Angemeldet als: —</p>
+              </div>
+
+              <div id="team-inbox-banner-start" class="team-inbox-banner hidden" role="status" aria-live="polite"></div>
+
+              <div class="task-token-section team-inbox-section" id="team-inbox-start-section">
+                <h2 class="task-token-heading">Team-Infos für mich</h2>
+                <p class="customer-order-hint">Gleiche Nachrichten wie unter Tab „Team“ – direkt hier auf Start.</p>
+                <p class="task-token-empty hidden" id="team-info-empty-start">Keine offenen Infos für uns.</p>
+                <div id="team-info-feed-start" class="team-info-feed"></div>
+              </div>
+
+              <article class="bulletin-card hidden" id="bulletin-card"></article>
+              <div class="team-shift-bar">
+                <label class="team-shift-label" for="team-shift-select">Mein Bereich</label>
+                <select id="team-shift-select" class="input-text-touch team-shift-select" aria-label="Aktueller Betriebsbereich">
+                  <option value="Laden / Verkauf">Laden / Verkauf</option>
+                  <option value="Metzgerei / Produktion">Metzgerei / Produktion</option>
+                  <option value="Küche / Gastro">Küche / Gastro</option>
+                  <option value="Allgemein" selected>Allgemein</option>
+                </select>
+              </div>
+              <div class="task-token-section">
+                <h2 class="task-token-heading">Meine Aufgaben</h2>
+                <p class="task-token-empty hidden" id="task-token-empty">Keine offenen Aufgaben für uns oder unseren Bereich.</p>
+                <div class="task-token-list" id="task-token-list"></div>
+                <p class="task-comment-status" id="task-comment-status" aria-live="polite" hidden></p>
+              </div>
+              <div class="task-token-section">
+                <div class="task-history-toolbar">
+                  <h2 class="task-token-heading">Erledigt-Historie</h2>
+                  <label class="task-history-filter-wrap" for="task-history-filter">
+                    <span>Zeitraum</span>
+                    <select id="task-history-filter" class="input-text-touch task-history-filter">
+                      <option value="today">Heute</option>
+                      <option value="7d" selected>7 Tage</option>
+                      <option value="30d">30 Tage</option>
+                      <option value="all">Alle</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="task-token-empty hidden" id="task-history-empty">Noch keine erledigten Aufgaben in der Historie.</p>
+                <div class="task-history-list" id="task-history-list"></div>
+              </div>
+            </section>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN: TEAM (Nachrichten & Bestellungen)        -->
+          <!-- ============================================== -->
+          <div class="page" id="page-team">
+            <section class="team-hub-panel" aria-label="Team Kommunikation und Bestellungen">
+              <div class="team-subnav" role="tablist" aria-label="Team-Bereiche">
+                <button type="button" class="team-subnav-btn active" data-team-panel="messages" role="tab" aria-selected="true" id="team-subnav-messages">
+                  💬 Nachrichten
+                </button>
+                <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
+                  🛒 Bestellungen
+                </button>
+              </div>
+
+              <div class="team-panel active" id="team-panel-messages" data-team-panel="messages" role="tabpanel">
+                <section class="team-push-section task-token-section" aria-label="Benachrichtigungen">
+                  <h2 class="task-token-heading">Benachrichtigungen</h2>
+                  <label class="team-push-toggle-wrap">
+                    <input type="checkbox" id="team-push-toggle">
+                    <span>Push für neue Team-Infos &amp; Aufgaben</span>
+                  </label>
+                  <p class="customer-order-hint" id="team-push-status">Push aus – nur Anzeige in der App.</p>
+                </section>
+
+                <section class="team-compose-section task-token-section" aria-label="Team-Nachricht senden">
+                  <h2 class="task-token-heading">Nachricht senden</h2>
+                  <p class="customer-order-hint">Info oder Aufgabe – für alle, Gruppen, Kollegen oder Betriebsbereiche.</p>
+                  <div id="team-compose-mount"></div>
+                </section>
+
+                <div class="task-token-section">
+                  <h2 class="task-token-heading">Team-Infos für mich</h2>
+                  <p class="task-token-empty hidden" id="team-info-empty">Keine offenen Infos für uns.</p>
+                  <div id="team-info-feed" class="team-info-feed"></div>
+                </div>
+              </div>
+
+              <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
+                <div class="customer-order-section task-token-section" id="customer-order-section">
+                  <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
+                  <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
+                  <form id="customer-order-form" class="customer-order-form">
+                    <label class="form-label" for="order-customer-name">Name des Kunden</label>
+                    <input type="text" id="order-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+
+                    <div class="customer-order-contact-grid">
+                      <label class="form-label" for="order-callback-phone">Rückrufnummer</label>
+                      <input type="tel" id="order-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                      <label class="form-label" for="order-customer-email">oder E-Mail</label>
+                      <input type="email" id="order-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                    </div>
+
+                    <div class="customer-order-ready-grid">
+                      <label class="form-label" for="order-ready-date">Bereit am</label>
+                      <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                      <label class="form-label" for="order-ready-time">Uhrzeit</label>
+                      <input type="time" id="order-ready-time" class="input-text-touch" required>
+                    </div>
+
+                    <div class="customer-order-lines-head">
+                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
+                      <button type="button" class="btn btn-secondary btn-compact" id="order-add-line-btn">+ Position</button>
+                    </div>
+                    <div id="order-lines-container" class="order-lines-container"></div>
+
+                    <fieldset class="customer-order-wish-tags">
+                      <legend>Weitere Wünsche</legend>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="mariniert"> mariniert</label>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="vakuumiert"> vakuumiert</label>
+                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="TK"> TK</label>
+                    </fieldset>
+                    <label class="form-label" for="order-additional-wishes">Sonstige Hinweise</label>
+                    <textarea id="order-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. dünn geschnitten, ohne Knoblauch"></textarea>
+
+                    <div class="order-slip-upload">
+                      <label class="form-label">Bestellzettel (Foto / PDF)</label>
+                      <div class="bulletin-dropzone order-slip-dropzone" id="order-slip-dropzone" tabindex="0" role="button" aria-label="Bestellzettel hochladen">
+                        <span class="bulletin-dropzone-icon">📷</span>
+                        <span>Zettel fotografieren oder PDF wählen</span>
+                        <span class="bulletin-dropzone-hint">Übergang: Zettel reicht – Details können später ergänzt werden</span>
+                      </div>
+                      <input type="file" id="order-slip-file-input" class="visually-hidden" accept="image/*,application/pdf" multiple>
+                      <div class="bulletin-upload-preview hidden" id="order-slip-preview"></div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Bestellung speichern</button>
+                  </form>
+                </div>
+
+                <div class="customer-order-section task-token-section production-tasks-section" id="production-tasks-section">
+                  <h2 class="task-token-heading">Produktions-Aufträge</h2>
+                  <div class="production-tasks-grid">
+                    <section class="production-station-card" aria-label="In der Küche zu tun">
+                      <h3>🍳 Heute zu kochen (Küche)</h3>
+                      <div id="production-tasks-kitchen"></div>
+                    </section>
+                    <section class="production-station-card" aria-label="In der Metzgerei zu tun">
+                      <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                      <div id="production-tasks-butchery"></div>
+                    </section>
+                  </div>
+                </div>
+
+                <div class="customer-order-section task-token-section">
+                  <h2 class="task-token-heading">Offene Bestellungen</h2>
+                  <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
+                  <div id="customer-order-list" class="customer-order-list"></div>
+                </div>
+              </div>
+
+            </section>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN 2: MHD-MONITOR PAGE                     -->
+          <!-- ============================================== -->
+          <div class="page active" id="page-mhd">
+            <div class="mhd-monitor-toolbar">
+              <details class="mhd-toolbar-accordion" id="mhd-toolbar-accordion">
+                <summary class="mhd-toolbar-accordion-summary" id="mhd-toolbar-accordion-summary">
+                  <span class="mhd-toolbar-accordion-label" id="mhd-toolbar-accordion-label">Suche/Filter</span>
+                  <span class="mhd-toolbar-accordion-meta" id="mhd-toolbar-accordion-meta" hidden></span>
+                </summary>
+                <div class="mhd-toolbar-accordion-panel">
+                  <div class="mhd-search-panel" id="mhd-search-panel">
+                    <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname eingeben…" aria-label="MHD-Artikel suchen" autocomplete="off">
+                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
+                  </div>
+                  <div class="mhd-filter-row mhd-filter-row--monitor">
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
+                    <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
+                      <span class="mhd-filter-label">Zeitraum</span>
+                      <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
+                        <option value="21" selected>0-21 Tage</option>
+                      </select>
+                    </label>
+                    <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
+                      <span class="mhd-filter-label">Kategorie</span>
+                      <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
+                        <option value="all" selected>Alle Kategorien</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="mhd-render-limit-hint mhd-toolbar-limit-hint hidden" id="mhd-toolbar-limit-hint" role="status" aria-live="polite"></div>
+                </div>
+              </details>
+            </div>
+
+            <div class="mhd-list" id="mhd-items-container">
+              <!-- Cards are rendered dynamically by app.js -->
+            </div>
+            
+            <!-- Sticky bottom save bar for this screen -->
+            <div class="sticky-action-bar">
+              <button class="btn btn-primary" id="btn-save-mhd">
+                💾 Änderungen speichern
+              </button>
+            </div>
+          </div>
+
+          <div class="page" id="page-receiving">
+            <div class="haccp-card receiving-card">
+              <div class="section-title">Wareneingang</div>
+              <p class="learn-mode-desc">Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).</p>
+
+              <div class="receiving-mode-switch" role="tablist" aria-label="Wareneingang Bereich">
+                <button type="button" class="receiving-mode-tab active" id="receiving-mode-schnell" data-receiving-mode="schnell" role="tab" aria-selected="true" aria-controls="receiving-panel-schnell">
+                  Laden
+                </button>
+                <button type="button" class="receiving-mode-tab" id="receiving-mode-metzgerei" data-receiving-mode="metzgerei" role="tab" aria-selected="false" aria-controls="receiving-panel-metzgerei">
+                  Metzgerei
+                </button>
+              </div>
+
+              <div id="we-editing-draft-banner" class="receiving-editing-banner hidden" role="status" aria-live="polite"></div>
+
+              <div id="receiving-panel-schnell" class="receiving-mode-panel" role="tabpanel" aria-labelledby="receiving-mode-schnell">
+              <section class="receiving-section receiving-section--posten" aria-labelledby="we-posten-title">
+                <h3 class="receiving-section-title" id="we-posten-title">Posten erfassen</h3>
+                <div class="receiving-form-stack">
+                  <label class="receiving-field" for="we-category-quick">
+                    <span>Kategorie (Laden)</span>
+                    <select id="we-category-quick" class="gastro-input">
+                      <option value="" selected>-- Kategorie wählen --</option>
+                    </select>
+                  </label>
+                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
+                    <span>Initiale Temperatur (°C) · nur TK/Kühlware</span>
+                    <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                  </label>
+                  <button class="btn btn-primary btn-receiving-scan" id="btn-receiving-scan" type="button">
+                    Barcode scannen
+                  </button>
+                  <label class="receiving-field" for="we-ean">
+                    <span>EAN / Barcode</span>
+                    <div class="receiving-ean-row">
+                      <input type="text" id="we-ean" class="gastro-input receiving-ean-input" placeholder="EAN eintippen…" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="EAN oder Barcode">
+                      <button type="button" class="btn btn-secondary receiving-ean-apply" id="we-ean-apply" aria-label="EAN übernehmen">OK</button>
+                    </div>
+                  </label>
+                  <div id="we-product-resolved" class="we-product-resolved hidden" role="status" aria-live="polite">
+                    <span class="we-product-resolved-label">Erkannt:</span>
+                    <strong id="we-product-resolved-name"></strong>
+                  </div>
+                  <div id="we-unknown-barcode-actions" class="we-unknown-barcode-actions hidden" role="status" aria-live="polite">
+                    <p class="we-unknown-barcode-hint">Barcode unbekannt – Artikel kann manuell angelegt werden.</p>
+                    <button type="button" class="btn btn-primary" id="we-manual-create-btn">Artikel manuell anlegen</button>
+                  </div>
+                  <label class="receiving-field" for="we-product-name">
+                    <span>Produktname</span>
+                    <input type="text" id="we-product-name" class="gastro-input" placeholder="Produktname eingeben oder per Scan übernehmen…" autocomplete="off">
+                  </label>
+                  <label class="receiving-field" for="we-hersteller-zusatz">
+                    <span>Hersteller / Zusatz</span>
+                    <input type="text" id="we-hersteller-zusatz" class="gastro-input" placeholder="z. B. Bauer Meier, im Glas, Frisch in Pack" autocomplete="off">
+                  </label>
+                  <label class="receiving-field we-product-manual-wrap hidden" id="we-product-manual-wrap" for="we-product-manual">
+                    <span>Produktname (unbekannte EAN)</span>
+                    <input type="text" id="we-product-manual" class="gastro-input" placeholder="z. B. Schwarzkümmel" autocomplete="off">
+                  </label>
+                  <label class="receiving-field" for="we-qty">
+                    <span id="we-qty-label">Menge (Stk)</span>
+                    <input type="number" id="we-qty" class="gastro-input" placeholder="1" min="1" step="1" inputmode="numeric">
+                  </label>
+                  <label class="receiving-field" for="we-mhd">
+                    <span>MHD</span>
+                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
+                  </label>
+                </div>
+                <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
+                  ➕ Posten hinzufügen
+                </button>
+                <div id="we-current-items-table" class="we-items-table" aria-live="polite">
+                  <div class="we-items-table-empty">Noch keine Posten in dieser Lieferung.</div>
+                </div>
+              </section>
+
+              <div class="receiving-tool-row">
+                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📸 Lieferschein fotografieren / hochladen</button>
+                <input type="file" id="delivery-parser-file-input" accept="image/*" capture="environment" hidden>
+                <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
+                <input type="file" id="delivery-note-file-input" accept="image/*" capture="environment" hidden>
+                <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
+                <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
+              </div>
+              <div class="batch-audit-grid receiving-stats">
+                <div>
+                  <span class="batch-audit-label">VPE-Stamm</span>
+                  <strong id="receiving-vpe-count">-</strong>
+                </div>
+                <div>
+                  <span class="batch-audit-label">Posten in Lieferung</span>
+                  <strong id="receiving-item-count">0</strong>
+                </div>
+                <div>
+                  <span class="batch-audit-label">Status</span>
+                  <strong id="receiving-status">Bereit</strong>
+                </div>
+              </div>
+              </div>
+
+              <div id="receiving-panel-metzgerei" class="receiving-mode-panel hidden" role="tabpanel" aria-labelledby="receiving-mode-metzgerei" hidden>
+              <section class="receiving-section receiving-section--kopf receiving-section--metzgerei" aria-labelledby="we-kopf-title">
+                <h3 class="receiving-section-title" id="we-kopf-title">Lieferant &amp; Lieferschein</h3>
+                <div class="receiving-form-stack">
+                  <div class="receiving-supplier-row">
+                    <label class="receiving-field receiving-field--supplier" for="we-supplier">
+                      <span>Lieferant</span>
+                      <input type="text" id="we-supplier" class="gastro-input" placeholder="Lieferant (z. B. Bauer Meier)" autocomplete="organization">
+                    </label>
+                    <button type="button" class="btn btn-eigenproduktion" id="we-eigenproduktion-btn" title="Lieferant auf Eigene Produktion setzen">
+                      🏠 Eigenproduktion
+                    </button>
+                  </div>
+                  <label class="receiving-field" for="we-category">
+                    <span>Waren-Kategorie</span>
+                    <select id="we-category" class="gastro-input">
+                      <option value="Fremdfleisch" selected>Fremdfleisch</option>
+                      <option value="Wurst Zukauf">Wurst Zukauf</option>
+                      <option value="Geflügel Zukauf">Geflügel Zukauf</option>
+                      <option value="Gewürze Metzgerei">Gewürze Metzgerei</option>
+                    </select>
+                  </label>
+                  <label class="receiving-field" for="we-temperature-metz">
+                    <span>Temperatur (°C)</span>
+                    <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                  </label>
+                </div>
+                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="image/*" capture="environment">
+                <button type="button" class="btn btn-primary btn-receiving-photo" id="we-photo-btn">
+                  📸 Lieferscheine fotografieren
+                </button>
+                <div id="we-photo-previews" class="we-photo-previews" aria-live="polite"></div>
+              </section>
+              </div>
+
+              <div class="receiving-action-row">
+                <button id="we-save-draft-btn" class="gastro-btn gastro-btn--draft" type="button" disabled aria-disabled="true">
+                  📝 Als offenen Entwurf speichern
+                </button>
+                <button id="we-save-delivery-btn" class="gastro-btn" type="button" disabled aria-disabled="true">
+                  💾 Gesamte Lieferung abschließen
+                </button>
+              </div>
+
+              <section class="receiving-section open-drafts-section open-drafts-section--footer" id="open-drafts-section" aria-labelledby="open-drafts-title">
+                <h3 class="receiving-section-title" id="open-drafts-title">📋 Offene Lieferungen zur Nachbearbeitung</h3>
+                <div id="open-drafts-list" class="open-drafts-list" aria-live="polite">
+                  <div class="open-drafts-empty">Keine offenen Entwürfe – alles nachgetragen.</div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
+          <!-- ============================================== -->
+          <div class="page" id="page-kitchen">
+            <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
+              <summary>Rezepte</summary>
+              <div class="recipe-toolbar">
+                <input type="search" class="input-text-touch recipe-search-input" id="recipe-search-input" placeholder="🔍 Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
+                <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
+                  <span class="recipe-filter-button-label" id="recipe-category-filter-label">Alle Kategorien</span>
+                  <span class="recipe-filter-button-icon" aria-hidden="true">▾</span>
+                </button>
+              </div>
+              <div class="recipe-list" id="recipe-list-container">
+                <!-- Recipes list rendered dynamically by app.js -->
+              </div>
+            </details>
+
+            <details class="kitchen-collapsible" id="kitchen-wrs-panel">
+              <summary>WRS Kalkulation</summary>
+              <section class="wrs-board" id="wrs-board" aria-labelledby="wrs-title">
+                <div class="wrs-board-header">
+                  <div>
+                    <div class="app-subtitle">BEFFE-Kalkulation</div>
+                    <h2 id="wrs-title">WRS Rezept-Skalierer</h2>
+                  </div>
+                  <div class="wrs-board-header-actions">
+                    <button
+                      type="button"
+                      id="wrs-meat-price-update-btn"
+                      class="btn btn-secondary btn-sm wrs-meat-price-update-btn"
+                      style="display: none;"
+                      aria-label="Fleischpreise manuell aktualisieren"
+                    >
+                      <span class="wrs-meat-price-update-icon" aria-hidden="true">↻</span>
+                      <span class="wrs-meat-price-update-label">Preise aktualisieren</span>
+                    </button>
+                    <span class="wrs-status-pill" id="wrs-status-pill">Lädt</span>
+                  </div>
+                </div>
+
+                <div class="wrs-controls">
+                  <label class="wrs-field" for="recipe-select">
+                    <span>Rezept</span>
+                    <select id="recipe-select" class="input-text-touch wrs-select">
+                      <option value="">Rezept laden...</option>
+                    </select>
+                  </label>
+                  <label class="wrs-field" for="target-weight">
+                    <span>Zielgewicht kg</span>
+                    <input id="target-weight" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0.5" max="500" step="0.5" value="10">
+                  </label>
+                  <button type="button" class="btn btn-primary wrs-calc-btn" id="btn-calculate-wrs">Berechnen</button>
+                </div>
+
+                <div class="wrs-warning-box" id="wrs-warning-box" role="alert" hidden></div>
+
+                <div class="wrs-dashboard" aria-label="WRS Kennzahlen">
+                  <div class="wrs-metric">
+                    <span>Kosten</span>
+                    <strong id="wrs-total-cost">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>Kosten/kg</span>
+                    <strong id="wrs-cost-per-kg">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>BEFFE</span>
+                    <strong id="wrs-beffe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>Fett</span>
+                    <strong id="wrs-fat-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>Wasser</span>
+                    <strong id="wrs-water-percent">-</strong>
+                  </div>
+                </div>
+
+                <div class="wrs-table-wrap">
+                  <table class="wrs-table" aria-label="Einwiege-Packliste">
+                    <thead>
+                      <tr>
+                        <th>Zutat</th>
+                        <th>kg</th>
+                        <th>g</th>
+                        <th>EUR</th>
+                      </tr>
+                    </thead>
+                    <tbody id="wrs-packlist-body">
+                      <tr>
+                        <td colspan="4">Keine Berechnung geladen.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </details>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN 3: HACCP-PROTOKOLL PAGE                 -->
+          <!-- ============================================== -->
+          <div class="page" id="page-haccp">
+            <div id="haccp-operator-container"></div>
+
+            <div class="haccp-card haccp-daily-card">
+              <div class="section-title">Heute prüfen</div>
+              <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
+                <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
+                <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
+                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete" aria-label="Geräte einrichten" title="Geräte einrichten">+</button>
+              </div>
+              <div id="haccp-daily-container"></div>
+            </div>
+
+            <div class="haccp-card haccp-export-card">
+              <div class="section-title">Protokolle drucken</div>
+              <p class="learn-mode-desc">Temperatur- und Reinigungsnachweise der letzten 7 Tage als druckbare Übersicht – z. B. für Behördenkontrollen.</p>
+              <button type="button" class="btn btn-primary btn-haccp-print" id="btn-haccp-print">
+                🖨️ Druckansicht öffnen
+              </button>
+            </div>
+
+            <div class="haccp-card haccp-legacy-production-card">
+              <div class="section-title">Produktion dokumentieren</div>
+              <p class="learn-mode-desc">Charge, Kerntemperatur und pH-Wert nach der Herstellung festhalten.</p>
+
+              <div class="form-group">
+                <label class="form-label" for="haccp-batch">
+                  <span>Chargen-Nummer</span>
+                </label>
+                <div class="batch-input-grid">
+                  <input type="text" id="haccp-batch" class="input-text-touch" placeholder="z.B. CH-2026-0523" value="CH-2026-0523-A">
+                  <button class="btn btn-primary btn-batch-auto" id="btn-batch-generate">
+                    ⚡ Neu
+                  </button>
+                </div>
+              </div>
+
+              <details class="haccp-collapsible" id="haccp-measurements-panel">
+                <summary>Kerntemperatur &amp; pH-Wert</summary>
+                <div class="haccp-collapsible-body">
+                  <div class="form-group">
+                    <label class="form-label" for="haccp-temp">
+                      <span>Kerntemperatur (°C)</span>
+                      <span class="form-value-badge" id="temp-badge">75.0 °C</span>
+                    </label>
+                    <div class="haccp-slider-container">
+                      <input type="range" id="haccp-temp" class="touch-slider" min="-10.0" max="100.0" step="0.5" value="75.0">
+                      <div class="slider-limits">
+                        <span>❄️ -10°C</span>
+                        <span>🔥 Garziel &gt; 72°C</span>
+                        <span>💨 100°C</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label" for="haccp-ph">
+                      <span>pH-Wert Messung</span>
+                      <span class="form-value-badge" id="ph-badge">5.50</span>
+                    </label>
+                    <div class="haccp-slider-container">
+                      <input type="range" id="haccp-ph" class="touch-slider" min="4.00" max="7.00" step="0.05" value="5.50">
+                      <div class="slider-limits">
+                        <span>🔴 4.0 (Sauer)</span>
+                        <span>🟢 Optimal (5.2 - 5.8)</span>
+                        <span>🔴 7.0 (Alkalisch)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="haccp-status-box" id="haccp-alert-box">
+                    <div class="haccp-status-title" id="haccp-alert-title">Warnung</div>
+                    <div class="haccp-status-desc" id="haccp-alert-desc">Qualität außerhalb der Toleranz!</div>
+                  </div>
+                </div>
+              </details>
+
+              <div class="haccp-submit-bar">
+                <button class="btn btn-submit-haccp" id="btn-submit-haccp">
+                  📝 Protokoll eintragen
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN: WISSEN                                  -->
+          <!-- ============================================== -->
+          <div class="page" id="page-knowledge">
+            <section class="knowledge-panel" aria-label="Wissensdatenbank">
+              <details class="knowledge-accordion" open>
+                <summary>🥩 Fleisch-Lexikon (Cuts)</summary>
+                <div class="knowledge-accordion-body">
+                  <div class="cut-glossary-shell" aria-label="Fleisch-Lexikon">
+                    <div class="cut-glossary-intro">
+                      <div>
+                        <p class="cut-glossary-kicker">Zuschnitte einordnen</p>
+                        <h2 class="cut-glossary-title">Regionale Cut-Bezeichnungen</h2>
+                      </div>
+                      <span class="cut-glossary-count" id="cut-glossary-count">0 Zuschnitte</span>
+                    </div>
+
+                    <div class="cut-glossary-tools">
+                      <div class="cut-search-panel">
+                        <input
+                          type="search"
+                          id="cut-glossary-search"
+                          class="input-text-touch cut-search-input"
+                          placeholder="Zuschnitt, Teilstück oder Nutzung suchen"
+                          autocomplete="off"
+                          aria-label="Zuschnitt suchen"
+                        >
+                        <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">×</button>
+                      </div>
+
+                      <div class="cut-quick-filter" role="group" aria-label="Schnellsuche nach Verwendung">
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Gulasch" aria-pressed="false">🥘 Für Gulasch</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Kurzbraten" aria-pressed="false">🔥 Zum Grillen/Kurzbraten</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="wenig Sehnen" aria-pressed="false">🥩 Ohne Sehnen/Mager</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Schmoren" aria-pressed="false">⏳ Zum Schmoren</button>
+                      </div>
+
+                      <div class="cut-species-filter" role="group" aria-label="Tierart filtern">
+                        <button type="button" class="cut-species-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="poultry" aria-pressed="false">Geflügel</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="offal" aria-pressed="false">Innereien</button>
+                      </div>
+                    </div>
+
+                    <div class="cut-glossary-results">
+                      <p class="learn-mode-desc cut-glossary-hint">Die Liste ordnet gebräuchliche, regionale und internationale Namen ein. Der Vergleich mit dem Menschen hilft uns, Lage und Verwendung schneller zu verstehen.</p>
+
+                      <p class="cut-empty" id="cut-glossary-empty" hidden>Kein passender Zuschnitt gefunden.</p>
+                      <div class="cut-list" id="cut-glossary-list"></div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="knowledge-accordion">
+                <summary>📋 Hofladen-Handbücher</summary>
+                <div class="knowledge-accordion-body">
+                  <article class="knowledge-handbook-card">
+                    <h2>MHD-Ablauf-Regeln</h2>
+                    <p>Wir starten im Tab <strong>MHD</strong> und prüfen alle Posten im passenden Zeitraum. MoPro ist besonders kurz im Blick, Trockenware länger.</p>
+                    <ol>
+                      <li>Zeitraum und Kategorie wählen, wenn wir die Liste eingrenzen möchten.</li>
+                      <li>Kritische Ware nacheinander prüfen.</li>
+                      <li>Status setzen: <strong>OK</strong>, <strong>Raus</strong>, <strong>Küche</strong> oder <strong>Ausverkauft</strong>.</li>
+                      <li>Menge bei Bedarf korrigieren.</li>
+                      <li><strong>Änderungen speichern</strong> tippen.</li>
+                    </ol>
+                    <p>Wenn ein MHD falsch erfasst wurde, ändern wir nur diesen Posten und bestätigen die Korrektur vor dem Speichern.</p>
+                  </article>
+
+                  <article class="knowledge-handbook-card">
+                    <h2>Reinigung der Wurstküche</h2>
+                    <p>Die Reinigung dokumentieren wir unter <strong>HACCP</strong> im Bereich <strong>Reinigung</strong>. Für jede erledigte Aufgabe tippen wir <strong>Reinigung erledigt</strong>.</p>
+                    <ol>
+                      <li>Arbeitsflächen und Geräte nach der Produktion reinigen.</li>
+                      <li>Kontaktflächen desinfizieren und Einwirkzeit beachten.</li>
+                      <li>Reinigungsaufgabe in unserer App abhaken.</li>
+                      <li>Bei Auffälligkeiten eine kurze Notiz ergänzen.</li>
+                    </ol>
+                    <p>Neue oder geänderte Reinigungsaufgaben pflegen wir nur im Admin-Bereich ein.</p>
+                  </article>
+
+                  <article class="knowledge-handbook-card">
+                    <h2>HACCP-Erklärung</h2>
+                    <p>HACCP hilft uns, Temperaturen, Reinigung und Produktionswerte nachvollziehbar festzuhalten. So sehen wir schnell, ob heute alles geprüft wurde.</p>
+                    <ol>
+                      <li>Temperaturen der Kühlstellen eintragen.</li>
+                      <li>Reinigung dokumentieren.</li>
+                      <li>Bei Produktion pH-Wert, Kerntemperatur und Charge erfassen.</li>
+                      <li>Bei erhöhten Werten direkt die Kühlung prüfen.</li>
+                    </ol>
+                    <p>Die Druckansicht bleibt für Büro und Kontrollen im Admin-Bereich.</p>
+                  </article>
+                </div>
+              </details>
+            </section>
+          </div>
+
+          <div class="page" id="page-batches">
+            <div id="office-access-lock" class="office-access-lock hidden" hidden aria-hidden="true">
+              <div class="office-access-lock-card" role="dialog" aria-modal="true" aria-labelledby="office-access-lock-title">
+                <div class="office-access-lock-icon" aria-hidden="true">🔒</div>
+                <h2 class="office-access-lock-title" id="office-access-lock-title">Büro-Bereich gesperrt</h2>
+                <p class="office-access-lock-desc">Chargen-Archiv, Leitstand und Stammdaten sind für Admin-Konten reserviert. Bitte im Büro mit Admin-Zugang anmelden.</p>
+                <form id="office-login-form" class="office-access-lock-form">
+                  <label class="office-access-lock-field">
+                    <span>Admin E-Mail</span>
+                    <input type="email" id="office-login-email" class="gastro-input" autocomplete="username" required>
+                  </label>
+                  <label class="office-access-lock-field">
+                    <span>Passwort</span>
+                    <input type="password" id="office-login-password" class="gastro-input" autocomplete="current-password" required>
+                  </label>
+                  <button type="submit" class="btn btn-primary office-access-lock-submit">Als Admin anmelden</button>
+                </form>
+                <div id="office-login-error" class="office-access-lock-error" role="alert" hidden></div>
+                <button type="button" class="btn btn-secondary office-access-lock-back" id="office-lock-back-btn">Zurück zum Laden</button>
+              </div>
+            </div>
+
+            <div id="office-access-content" class="office-access-content">
+            <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
+              <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
+
+              <div class="admin-leitstand-block">
+                <h3>Nachricht des Tages</h3>
+                <textarea id="bulletin-message-input" class="bulletin-message-input" rows="4" placeholder="Wichtige Info für das Team (Schlachtplan, Hygiene, Kundenfeedback…)"></textarea>
+                <div class="bulletin-dropzone" id="bulletin-dropzone" tabindex="0" role="button" aria-label="Bild oder PDF hochladen">
+                  <span class="bulletin-dropzone-icon">📎</span>
+                  <span>Foto oder PDF hierher ziehen oder tippen</span>
+                  <span class="bulletin-dropzone-hint">Zerlege-Ergebnis, Lieferschein, Hygiene-Hinweis</span>
+                </div>
+                <input type="file" id="bulletin-file-input" class="visually-hidden" accept="image/*,application/pdf" multiple>
+                <div class="bulletin-upload-preview hidden" id="bulletin-upload-preview"></div>
+                <button type="button" class="btn btn-primary bulletin-save-btn" id="bulletin-save-btn">Nachricht veröffentlichen</button>
+              </div>
+
+              <div class="admin-leitstand-block">
+                <h3>Team-Nachricht / Aufgabe (Büro)</h3>
+                <div id="admin-compose-mount"></div>
+              </div>
+
+              <div class="admin-leitstand-block">
+                <h3>Offene Aufgaben</h3>
+                <div id="admin-task-list" class="admin-task-list"></div>
+              </div>
+
+              <div class="admin-leitstand-block">
+                <h3>Kundenbestellungen (Übersicht)</h3>
+                <p class="admin-leitstand-hint">Alle angenommenen Bestellungen – auch erledigte der letzten Tage.</p>
+                <div class="production-tasks-grid production-tasks-grid--admin">
+                  <section class="production-station-card" aria-label="In der Küche zu tun">
+                    <h3>🍳 Heute zu kochen (Küche)</h3>
+                    <div id="production-tasks-kitchen-admin"></div>
+                  </section>
+                  <section class="production-station-card" aria-label="In der Metzgerei zu tun">
+                    <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                    <div id="production-tasks-butchery-admin"></div>
+                  </section>
+                </div>
+                <button type="button" class="btn btn-primary sammel-pickliste-open-btn" id="sammel-pickliste-open-btn">Sammel-Pickliste für heute</button>
+                <div id="admin-customer-order-list" class="customer-order-list customer-order-list--admin"></div>
+              </div>
+
+              <div class="sammel-pickliste-modal" id="sammel-pickliste-modal" hidden role="dialog" aria-modal="true" aria-labelledby="sammel-pickliste-title">
+                <div class="sammel-pickliste-view">
+                  <header class="sammel-pickliste-head">
+                    <div>
+                      <p class="sammel-pickliste-kicker">Zusammenstellen</p>
+                      <h2 id="sammel-pickliste-title">Sammel-Pickliste</h2>
+                      <p id="sammel-pickliste-summary" class="sammel-pickliste-summary">Offene Bestellungen zum Zusammenstellen.</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-compact" id="sammel-pickliste-close-btn" aria-label="Sammel-Pickliste schließen">Schließen</button>
+                  </header>
+                  <div class="sammel-pickliste-toolbar">
+                    <button type="button" class="btn btn-secondary" id="sammel-pickliste-reset-btn">Liste zurücksetzen</button>
+                    <button type="button" class="btn btn-primary sammel-pickliste-ready-btn" id="sammel-pickliste-ready-btn">Alle enthaltenen Bestellungen als 'Abholbereit' markieren</button>
+                  </div>
+                  <div class="sammel-pickliste-confirm hidden" id="sammel-pickliste-confirm">
+                    <p>Sind alle Artikel für heute wirklich eingepackt?</p>
+                    <div class="sammel-pickliste-confirm-actions">
+                      <button type="button" class="btn btn-secondary" id="sammel-pickliste-confirm-cancel">Noch nicht</button>
+                      <button type="button" class="btn btn-primary" id="sammel-pickliste-confirm-ready">Ja, in den Laden-Kühlschrank gestellt</button>
+                    </div>
+                  </div>
+                  <div id="sammel-pickliste-body" class="sammel-pickliste-body"></div>
+                </div>
+              </div>
+
+              <div class="delivery-note-modal" id="delivery-note-modal" hidden role="dialog" aria-modal="true" aria-labelledby="delivery-note-title">
+                <div class="delivery-note-view">
+                  <header class="delivery-note-toolbar">
+                    <h2 id="delivery-note-title">Lieferschein</h2>
+                    <div class="delivery-note-toolbar-actions">
+                      <button type="button" class="btn btn-secondary btn-compact" id="delivery-note-close-btn">Schließen</button>
+                      <button type="button" class="btn btn-primary btn-compact" id="delivery-note-print-btn">Kisten-Zettel drucken</button>
+                    </div>
+                  </header>
+                  <div id="delivery-note-print-area" class="delivery-note-print-area"></div>
+                </div>
+              </div>
+
+              <details class="leitstand-collapsible admin-team-config-block hidden" id="admin-team-config-panel" aria-label="Team-Konfiguration">
+                <summary>Team-Gruppen &amp; Mitarbeiter</summary>
+                <div class="leitstand-collapsible-body">
+                  <p class="admin-leitstand-hint">Namen und Gruppen für Empfänger-Auswahl – ohne Code-Anpassung.</p>
+                  <label class="form-label" for="team-config-employees">Mitarbeiter (kommagetrennt)</label>
+                  <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
+                  <div id="team-config-groups" class="team-config-groups"></div>
+                  <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
+                  <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
+                  <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
+                  <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
+                  <button type="button" class="btn btn-primary" id="team-config-save-btn">Konfiguration speichern</button>
+                </div>
+              </details>
+            </section>
+
+            <section class="batch-audit-card office-tools-panel hidden" id="office-tools-panel" aria-label="Büro Bestand und Stammdaten">
+              <div class="batch-audit-title">Bestand &amp; Korrektur (Büro)</div>
+              <p class="admin-leitstand-hint">Stammdaten und Wareneingangs-Historie für Auswertung und Korrekturen – nicht für den schnellen Laden-Scan.</p>
+              <div class="office-tools-actions">
+                <button type="button" class="btn btn-secondary" id="btn-office-recent-receipts">Letzte Eingänge</button>
+                <button type="button" class="btn btn-secondary" id="btn-office-master-data">Stammdaten</button>
+              </div>
+            </section>
+
+            <section class="batch-audit-card retter-box-panel hidden" id="retter-box-panel" aria-label="Retter-Boxen" hidden>
+              <div class="batch-audit-title">Retter-Boxen</div>
+              <p class="admin-leitstand-hint">Aus MHD-Posten entsteht ein druckbarer Box-Vorschlag mit Rezeptidee. Vor dem Verkauf pruefen wir die Ware wie gewohnt.</p>
+              <div id="retter-box-list" class="retter-box-list"></div>
+            </section>
+            <div class="batch-audit-card" id="recipe-cloud-audit-card">
+              <div class="batch-audit-title">Rezeptdaten-Prüfung</div>
+              <div class="batch-audit-grid">
+                <div>
+                  <span class="batch-audit-label">Masterliste</span>
+                  <strong id="audit-master-count">-</strong>
+                </div>
+                <div>
+                  <span class="batch-audit-label">Cloud</span>
+                  <strong id="audit-cloud-count">-</strong>
+                </div>
+                <div>
+                  <span class="batch-audit-label">Status</span>
+                  <strong id="audit-cloud-status">Warte auf Daten</strong>
+                </div>
+              </div>
+              <div class="batch-audit-detail" id="audit-cloud-detail">Die Rezeptdaten werden automatisch geprüft, sobald die Verbindung bereit ist.</div>
+            </div>
+
+            <div class="batch-toolbar">
+              <input type="search" class="input-text-touch batch-search-input" id="batch-search-input" placeholder="🔍 Charge, Rezept oder Macher suchen…" aria-label="Chargen suchen" autocomplete="off">
+            </div>
+
+            <div class="batch-list" id="batch-list-container">
+              <!-- Chargen werden dynamisch von app.js gerendert -->
+            </div>
+            </div>
+          </div>
+
+        </main>
+
+        <!-- Detail overlay slide-in panel (within app frame, outside scrollable main content) -->
+        <div class="recipe-detail-panel" id="recipe-detail-panel">
+          <div class="detail-header">
+            <button class="btn-back" id="btn-recipe-back" aria-label="Schließen">❌</button>
+            <div class="detail-title-group">
+              <span class="app-subtitle">Rezepturen & Skalierung</span>
+              <h2 id="detail-recipe-title">Gallo-Rizo-Patties</h2>
+              <span id="recipe-data-source-badge"></span>
+            </div>
+          </div>
+
+          <!-- production kg input -->
+          <div class="production-input-card">
+            <label class="production-input-label" for="production-target">
+              Tagesproduktion festlegen (kg)
+            </label>
+            <div class="production-input-wrapper">
+              <button class="btn-stepper" id="btn-prod-minus" aria-label="Menge verringern">−</button>
+              <input type="number" id="production-target" class="production-input" inputmode="decimal" value="10.0" min="0.5" max="500" step="0.5" aria-label="Tagesproduktion in Kilogramm">
+              <span class="production-unit">kg</span>
+              <button class="btn-stepper" id="btn-prod-plus" aria-label="Menge erhöhen">+</button>
+            </div>
+          </div>
+
+          <!-- Warning Box (Allergens / Core Temp) -->
+          <div class="warning-box">
+            <div class="warning-title">⚠️ WICHTIGE SICHERHEITS- & ALLERGENWARNUNG</div>
+            <div class="warning-text" id="detail-recipe-warning">
+              Fleischtemperatur zwingend bei <strong>0° bis 2°C</strong> halten. <br>
+              Allergene: Enthält Sulfite (aus Rotwein). Nitritpökelsalz zwingend präzise auf Präzisionswaage abwiegen!
+            </div>
+          </div>
+
+          <!-- Statische Zutaten-Karte – Struktur nur in index.html, nie per JS ersetzen -->
+          <div class="section-title">⚖️ Zutaten berechnet</div>
+          <div class="ingredients-card" id="ingredients-card" data-static="true">
+            <div id="recipe-ingredients-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;"></div>
+          </div>
+
+          <!-- Statische SOP-Struktur – Texte werden per ID aus app.js befüllt -->
+          <div class="section-title">🥣 Handwerks-Anweisungen</div>
+          <div class="instructions-card">
+            <ul class="instructions-list" id="detail-recipe-instructions">
+              <li class="phase-sop-item" style="border-left:4px solid #2E7D32;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
+                <strong style="color:#2E7D32">Vorbereiten</strong><br>
+                <span id="recipe-phase-a-text" style="font-size:14px;line-height:1.4"></span>
+              </li>
+              <li class="phase-sop-item" style="border-left:4px solid #1565C0;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
+                <strong style="color:#1565C0">Verarbeiten</strong><br>
+                <span id="recipe-phase-b-text" style="font-size:14px;line-height:1.4"></span>
+              </li>
+              <li class="phase-sop-item" style="border-left:4px solid #F57F17;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
+                <strong style="color:#F57F17">Fertigstellen</strong><br>
+                <span id="recipe-phase-c-text" style="font-size:14px;line-height:1.4"></span>
+              </li>
+              <li class="phase-sop-item" style="border-left:4px solid #E65100;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
+                <strong style="color:#E65100">Kontrolle &amp; Lagerung</strong><br>
+                <span id="recipe-phase-d-text" style="font-size:14px;line-height:1.4"></span>
+              </li>
+              <li id="recipe-meister-tipp" class="meister-tipp-item" style="list-style:none;margin-top:12px;padding:10px;background:#eceff1;border-radius:8px;">
+                <strong>⭐ Meister-Tipp:</strong> <span id="recipe-meister-tipp-text"></span>
+              </li>
+              <li id="recipe-haltbarkeit" class="haltbar-item" style="list-style:none;margin-top:8px;padding:10px;background:#e8f5e9;border-radius:8px;">
+                <strong>⏱ Haltbarkeit:</strong> <span id="recipe-haltbarkeit-text"></span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="section-title">Charge dokumentieren</div>
+          <div class="production-log-card">
+            <div class="form-group">
+              <label class="form-label" for="recipe-batch-maker">
+                <span>Macher</span>
+              </label>
+              <input type="text" id="recipe-batch-maker" class="input-text-touch" placeholder="Wer hat es hergestellt?" autocomplete="name">
+            </div>
+            <div class="batch-input-grid">
+              <div class="form-group">
+                <label class="form-label" for="recipe-batch-ph">
+                  <span>pH-Wert</span>
+                </label>
+                <input type="number" id="recipe-batch-ph" class="input-text-touch" inputmode="decimal" placeholder="optional" min="3.5" max="7.5" step="0.05">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="recipe-batch-core-temp">
+                  <span>Kerntemperatur</span>
+                </label>
+                <input type="number" id="recipe-batch-core-temp" class="input-text-touch" inputmode="decimal" placeholder="optional" min="-5" max="100" step="0.5">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="recipe-batch-deviations">
+                <span>Abweichungen</span>
+              </label>
+              <textarea id="recipe-batch-deviations" class="input-text-touch recipe-deviation-input" placeholder="Was entsprach nicht exakt dem Rezept?"></textarea>
+            </div>
+            <div class="section-title">Verkaufs-Einheiten</div>
+            <div class="batch-input-grid">
+              <div class="form-group">
+                <label class="form-label" for="recipe-unit-large">
+                  <span>Großkaliber / Stücke</span>
+                </label>
+                <input type="number" id="recipe-unit-large" class="input-text-touch" min="0" step="1" placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="recipe-unit-sb">
+                  <span>SB-Packungen</span>
+                </label>
+                <input type="number" id="recipe-unit-sb" class="input-text-touch" min="0" step="1" placeholder="0">
+              </div>
+            </div>
+            <div class="batch-input-grid">
+              <div class="form-group">
+                <label class="form-label" for="recipe-unit-loose">
+                  <span>Lose Ware / Stück</span>
+                </label>
+                <input type="number" id="recipe-unit-loose" class="input-text-touch" min="0" step="1" placeholder="0">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="recipe-unit-glass">
+                  <span>Gläser / Dosen</span>
+                </label>
+                <input type="number" id="recipe-unit-glass" class="input-text-touch" min="0" step="1" placeholder="0">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="recipe-unit-note">
+                <span>Einheiten-Notiz</span>
+              </label>
+              <input type="text" id="recipe-unit-note" class="input-text-touch" placeholder="z.B. 8x 2er-Pack, 12x Theke">
+            </div>
+            <button type="button" class="btn btn-submit-haccp btn-document-batch" id="btn-document-recipe-batch">
+              Charge dokumentieren
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-backdrop recipe-category-backdrop hidden" id="recipe-category-backdrop" hidden></div>
+        <div class="bottom-sheet recipe-category-sheet hidden" id="recipe-category-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="recipe-category-sheet-title">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-header">
+            <h3 id="recipe-category-sheet-title">Rezepte filtern</h3>
+            <button type="button" class="sheet-close-btn" id="recipe-category-sheet-close">Fertig</button>
+          </div>
+          <div class="recipe-category-filter recipe-category-filter--sheet" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+          <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
+            <i>📌</i>
+            <span>Start</span>
+          </button>
+          <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
+            <i>💬</i>
+            <span>Team</span>
+          </button>
+          <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
+            <i>📅</i>
+            <span>MHD</span>
+          </button>
+          <button class="nav-item" data-tab="receiving" id="tab-receiving" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
+            <i>📥</i>
+            <span>Neu</span>
+          </button>
+          <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
+            <i>🥣</i>
+            <span>Prod.</span>
+          </button>
+          <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;">
+            <i>🛡️</i>
+            <span>HACCP</span>
+          </button>
+          <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
+            <i>📖</i>
+            <span>Wissen</span>
+          </button>
+          <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
+            <i>📋</i>
+            <span>Büro</span>
+          </button>
+        </nav>
+
+        <!-- Home Indicator Bar -->
+        <div class="home-indicator"></div>
+
+        <!-- Meister-Override bei HACCP-Temperatur-Abweichung -->
+        <div class="meister-override-modal" id="meister-override-modal" hidden>
+          <div class="meister-override-card" role="dialog" aria-modal="true" aria-labelledby="meister-override-title">
+            <div class="meister-override-title" id="meister-override-title">HACCP Temperatur-Sperre</div>
+            <p class="meister-override-desc" id="meister-override-desc">Temperatur liegt über 7,0 °C. Meister-Freigabe erforderlich.</p>
+            <label class="receiving-field" for="meister-override-reason">
+              <span>Begründung (Pflicht)</span>
+              <textarea id="meister-override-reason" class="gastro-input meister-override-reason" rows="3" placeholder="z. B. kurzzeitige Transportabweichung, Ware sofort gekühlt"></textarea>
+            </label>
+            <div class="pin-auth-subtitle">Meister-PIN (4-stellig)</div>
+            <div class="pin-dots-container" id="meister-override-pin-dots">
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+            </div>
+            <div class="pin-numpad" id="meister-override-numpad">
+              <button type="button" class="pin-key" data-meister-pin="1">1</button>
+              <button type="button" class="pin-key" data-meister-pin="2">2</button>
+              <button type="button" class="pin-key" data-meister-pin="3">3</button>
+              <button type="button" class="pin-key" data-meister-pin="4">4</button>
+              <button type="button" class="pin-key" data-meister-pin="5">5</button>
+              <button type="button" class="pin-key" data-meister-pin="6">6</button>
+              <button type="button" class="pin-key" data-meister-pin="7">7</button>
+              <button type="button" class="pin-key" data-meister-pin="8">8</button>
+              <button type="button" class="pin-key" data-meister-pin="9">9</button>
+              <button type="button" class="pin-key pin-key--cancel" data-meister-pin="cancel">Abbrechen</button>
+              <button type="button" class="pin-key" data-meister-pin="0">0</button>
+              <button type="button" class="pin-key pin-key--delete" data-meister-pin="delete">&#9003;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PIN-Authentifizierung Modal -->
+        <div class="pin-auth-modal" id="pin-auth-modal">
+          <div class="pin-auth-card">
+            <div class="pin-auth-title">Admin-Zugang</div>
+            <div class="pin-auth-subtitle">4-stellige Betriebs-PIN eingeben</div>
+            <div class="pin-dots-container" id="pin-dots">
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+              <span class="pin-dot"></span>
+            </div>
+            <div class="pin-display" id="pin-display"></div>
+            <div class="pin-numpad">
+              <button type="button" class="pin-key" data-pin="1">1</button>
+              <button type="button" class="pin-key" data-pin="2">2</button>
+              <button type="button" class="pin-key" data-pin="3">3</button>
+              <button type="button" class="pin-key" data-pin="4">4</button>
+              <button type="button" class="pin-key" data-pin="5">5</button>
+              <button type="button" class="pin-key" data-pin="6">6</button>
+              <button type="button" class="pin-key" data-pin="7">7</button>
+              <button type="button" class="pin-key" data-pin="8">8</button>
+              <button type="button" class="pin-key" data-pin="9">9</button>
+              <button type="button" class="pin-key pin-key--cancel" data-pin="cancel">Abbrechen</button>
+              <button type="button" class="pin-key" data-pin="0">0</button>
+              <button type="button" class="pin-key pin-key--delete" data-pin="delete">&#9003;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Update-Toast Banner -->
+        <div class="update-toast" id="update-toast" role="alert">
+          <div class="update-toast-body">
+            <div class="update-toast-text">
+              <strong>Neue Version verfügbar</strong>
+              <span>Bitte Arbeit speichern und aktualisieren.</span>
+            </div>
+            <div class="update-toast-actions">
+              <button type="button" class="update-toast-btn" id="update-toast-btn" onclick="window.forceAppUpdate && window.forceAppUpdate()">Aktualisieren</button>
+              <button type="button" class="update-toast-dismiss" id="update-toast-dismiss" aria-label="Später">Später</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- HUD Confirmation Overlay Modal (Inside App) -->
+        <div class="hud-overlay" id="hud-overlay">
+          <div class="hud-card">
+            <span class="hud-icon" id="hud-icon">✔️</span>
+            <div class="hud-title" id="hud-title">Gespeichert</div>
+            <div class="hud-desc" id="hud-desc">Änderungen wurden übernommen.</div>
+          </div>
+        </div>
+
+        <!-- Barcode-Scanner Kamera-Overlay (MHD-Monitor) -->
+        <div id="scanner-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000;">
+          <div style="position: absolute; top: 20px; left: 20px; z-index: 2100;">
+            <button id="close-scanner-btn" style="width: 64px; height: 64px; background: rgba(255,255,255,0.3); border: none; color: white; font-size: 24px; border-radius: 50%; cursor: pointer;" aria-label="Scanner schließen">X</button>
+          </div>
+          <video id="preview-video" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover;"></video>
+          <div id="quagga-reader" style="display:none; width:100%; height:100%;"></div>
+          <div id="html5-reader" style="display:none; width:100%; height:100%;"></div>
+
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(74vw, 520px); height: 96px; border: 4px solid #2E7D32; border-radius: 16px; box-shadow: 0 0 0 400px rgba(0,0,0,0.45); pointer-events: none;"></div>
+
+          <div style="position: absolute; bottom: 40px; width: 100%; text-align: center; color: white; font-weight: bold; font-family: sans-serif; padding: 0 20px; box-sizing: border-box; pointer-events: none;">
+            <span style="background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 8px;">15-25 cm Abstand, Barcode scharf halten</span>
+          </div>
+
+          <div class="scanner-status-panel">
+            <div id="scanner-status-text">Scanner wird vorbereitet...</div>
+            <div class="scanner-manual-entry" id="scanner-manual-entry">
+              <input id="scanner-manual-barcode-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Barcode">
+              <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+            </div>
+            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">Eintippen</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Desktop controls for usability simulation -->
+    <div class="desktop-controls">
+      <span>📱 <strong>iPhone 15 Pro Simulator</strong> (Touch-optimierte Ansicht)</span>
+      <button id="btn-simulate-wet">💧 Nasse Hände simulieren (Vergrößert Touch-Targets)</button>
+    </div>
+
+  </div>
+
+  <!-- QA Simulation Panel (localhost only, zero-overhead in production) -->
+  <div id="qa-test-panel" class="qa-panel" style="display:none;">
+    <button type="button" class="qa-panel-toggle" id="qa-panel-toggle" aria-label="QA-Panel umschalten">QA</button>
+    <div class="qa-panel-body" id="qa-panel-body">
+      <div class="qa-panel-header">QA Stress-Test Panel</div>
+      <div class="qa-panel-row">
+        <label class="qa-toggle-label">
+          <input type="checkbox" id="qa-toggle-latency">
+          <span>Künstliche Latenz (5s)</span>
+        </label>
+      </div>
+      <div class="qa-panel-row">
+        <label class="qa-toggle-label">
+          <input type="checkbox" id="qa-toggle-teardown">
+          <span>Netzwerk-Abreißer</span>
+        </label>
+      </div>
+      <div class="qa-panel-row">
+        <button type="button" class="qa-btn" id="qa-btn-inject-stale">Stale HACCP-Payload injizieren</button>
+      </div>
+      <div class="qa-panel-row">
+        <button type="button" class="qa-btn" id="qa-btn-inject-bad-schema">Bad-Schema MHD injizieren</button>
+      </div>
+      <div class="qa-panel-row qa-panel-log" id="qa-log">Bereit.</div>
+    </div>
+  </div>
+  <template id="team-compose-template">
+    <form class="team-compose-form admin-task-form">
+      <fieldset class="task-routing-fieldset">
+        <legend>Art</legend>
+        <label class="task-routing-option">
+          <input type="radio" name="entry-kind" value="info">
+          <span>Info (ohne Pflicht-Abarbeitung)</span>
+        </label>
+        <label class="task-routing-option">
+          <input type="radio" name="entry-kind" value="task" checked>
+          <span>Aufgabe (quittieren)</span>
+        </label>
+      </fieldset>
+
+      <label class="form-label">Titel</label>
+      <input type="text" name="compose-title" class="input-text-touch" required placeholder="Kurz &amp; klar">
+
+      <label class="form-label">Details (optional)</label>
+      <textarea name="compose-body" class="bulletin-message-input" rows="2" placeholder="Zusatzinfos…"></textarea>
+
+      <label class="form-label">Empfänger</label>
+      <select name="audience-type" class="input-text-touch">
+        <option value="all">Alle</option>
+        <option value="group">Team-Gruppe</option>
+        <option value="persons">Bestimmte Kollegen</option>
+        <option value="person">Eine Person</option>
+        <option value="area">Betriebsbereich + Zeitraum</option>
+      </select>
+
+      <div data-audience-panel="group" class="hidden">
+        <label class="form-label">Gruppe</label>
+        <select name="audience-group" class="input-text-touch"></select>
+      </div>
+
+      <div data-audience-panel="persons" class="hidden task-routing-fieldset">
+        <legend>Kollegen</legend>
+        <div data-audience-persons-list></div>
+      </div>
+
+      <div data-audience-panel="person" class="hidden">
+        <label class="form-label">Kollege</label>
+        <select name="audience-person-single" class="input-text-touch">
+          <option value="">Bitte wählen…</option>
+        </select>
+        <div class="task-date-range-grid">
+          <label class="form-label">Anzeigen ab (optional)</label>
+          <input type="text" name="person-valid-from" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+          <label class="form-label">Anzeigen bis (optional)</label>
+          <input type="text" name="person-valid-until" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+        </div>
+      </div>
+
+      <div data-audience-panel="area" class="hidden">
+        <label class="form-label">Betriebsbereich</label>
+        <select name="area-context" class="input-text-touch">
+          <option value="Laden / Verkauf">Laden / Verkauf</option>
+          <option value="Metzgerei / Produktion">Metzgerei / Produktion</option>
+          <option value="Küche / Gastro">Küche / Gastro</option>
+          <option value="Allgemein">Allgemein</option>
+        </select>
+        <div class="task-date-range-grid">
+          <label class="form-label">Zeitraum von</label>
+          <input type="text" name="valid-from" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+          <label class="form-label">Zeitraum bis</label>
+          <input type="text" name="valid-until" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+        </div>
+      </div>
+
+      <label class="form-label">Fällig bis (optional)</label>
+      <input type="text" name="due-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+
+      <div data-compose-priority class="task-priority-picker" role="group" aria-label="Priorität">
+        <input type="hidden" name="priority-value" value="Gelb">
+        <button type="button" class="task-priority-tile task-priority-tile--rot" data-priority-pick="Rot">🔴 Kritisch</button>
+        <button type="button" class="task-priority-tile task-priority-tile--gelb" data-priority-pick="Gelb">🟡 Wichtig</button>
+        <button type="button" class="task-priority-tile task-priority-tile--gruen" data-priority-pick="Grün">🟢 Routine</button>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Senden</button>
+    </form>
+  </template>
+
+  <script type="module" src="app.js?v=20260611-161"></script>
+</body>
+</html>

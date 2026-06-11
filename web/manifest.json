@@ -1,0 +1,25 @@
+{
+  "name": "CharcuLogic – Betriebs-App",
+  "short_name": "CharcuLogic",
+  "description": "MHD-Monitor, HACCP-Protokoll & Wurstküche für Hofläden und Metzgereien",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F5F7",
+  "theme_color": "#2E7D32",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

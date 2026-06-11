@@ -1,0 +1,575 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // GLOBAL AUTH & ROLE FUNCTIONS (Custom Claims only – no Firestore lookups)
+    // =========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function tokenTenantId() {
+      return request.auth.token.tenantId is string
+        ? request.auth.token.tenantId
+        : '';
+    }
+
+    function tokenRole() {
+      return request.auth.token.role is string
+        ? request.auth.token.role
+        : '';
+    }
+
+    function isTenantMember(tenantId) {
+      return isAuthenticated()
+        && tokenTenantId() == tenantId;
+    }
+
+    function isAdmin(tenantId) {
+      return isTenantMember(tenantId)
+        && (
+          request.auth.token.isAdmin == true
+          || tokenRole() == 'admin'
+        );
+    }
+
+    function isHelper(tenantId) {
+      return isTenantMember(tenantId)
+        && tokenRole() == 'helper';
+    }
+
+    function isEmployee(tenantId) {
+      return isTenantMember(tenantId)
+        && tokenRole() == 'employee';
+    }
+
+    function isEmployeeOrAdmin(tenantId) {
+      return isTenantMember(tenantId)
+        && !isHelper(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isEmployee(tenantId)
+        );
+    }
+
+    function hasWurstkuecheModule(tenantId) {
+      return tenantId != 'torfabrik';
+    }
+
+    function hasRetterBoxModule(tenantId) {
+      return tenantId == 'StevesHof_Hauptbetrieb';
+    }
+
+    // Legacy alias – tenant access requires matching Custom Claim tenantId
+    function isTenantUser(tenantId) {
+      return isTenantMember(tenantId);
+    }
+
+    // =========================================================================
+    // SCHEMA VALIDATION HELPERS
+    // =========================================================================
+
+    function isNonEmptyString(field) {
+      return field is string && field.size() > 0;
+    }
+
+    function isOptionalString(field) {
+      return field == null || field is string;
+    }
+
+    function isNumericOrNull(field) {
+      return field == null || field is int || field is float;
+    }
+
+    function isIntGteZero(field) {
+      return (field is int || field is float) && field >= 0;
+    }
+
+    function isDateStringOrNull(field) {
+      return field == null
+        || (field is string && field.size() >= 8 && field.size() <= 24);
+    }
+
+    function hasOnly(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    // =========================================================================
+    // USER PROFILES (read-only for the user, admin-managed)
+    // =========================================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /userTenants/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // STAMMDATEN (admin-only writes)
+    // =========================================================================
+
+    match /tenants/{tenantId}/stammdaten/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow write: if isAdmin(tenantId);
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentStock', 'updatedAt'
+        ])
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock <= resource.data.currentStock;
+    }
+
+    match /tenants/{tenantId}/settings/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow create, update: if isAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.keys().hasOnly([
+          'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy'
+        ]);
+      allow delete: if isAdmin(tenantId);
+    }
+
+    match /tenants/{tenantId}/terminalCredentials/{document} {
+      allow read, write: if false;
+    }
+
+    match /tenants/{tenantId}/pinAttempts/{document} {
+      allow read, write: if false;
+    }
+
+    match /tenants/{tenantId}/pushTokens/{tokenId} {
+      allow read: if false;
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.token)
+        && isNonEmptyString(request.resource.data.employeeName);
+      allow delete: if isEmployeeOrAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // MHD-POSTEN (mhd_liste) – Schema-validierte Schreibzugriffe
+    // =========================================================================
+
+    match /tenants/{tenantId}/mhd_liste/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+          'produkt', 'name', 'marke', 'brand',
+          'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+          'tage', 'resttage', 'status',
+          'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+          'kategorie', 'warenKategorie', 'soldOut',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'erfassungsDatum', 'meisterOverrideReason',
+          'vpeBarcode', 'vpeInhalt',
+          'source', 'postentyp', 'wareneingangAt',
+          'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+          'rabattiert', 'rabattiertAt',
+          'kuecheAngefragt', 'kuecheAngefragtAt',
+          'retterBoxAngefragt', 'retterBoxAngefragtAt',
+          'lieferungId'
+        ])
+        && (
+          isNonEmptyString(request.resource.data.name)
+          || isNonEmptyString(request.resource.data.produkt)
+        )
+        && isIntGteZero(request.resource.data.qty)
+        && request.resource.data.tenantId == tenantId;
+
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+          'produkt', 'name', 'marke', 'brand',
+          'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+          'tage', 'resttage', 'status',
+          'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+          'kategorie', 'warenKategorie', 'soldOut',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'erfassungsDatum', 'meisterOverrideReason',
+          'vpeBarcode', 'vpeInhalt',
+          'source', 'postentyp', 'wareneingangAt',
+          'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+          'rabattiert', 'rabattiertAt',
+          'kuecheAngefragt', 'kuecheAngefragtAt',
+          'retterBoxAngefragt', 'retterBoxAngefragtAt',
+          'lieferungId'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tenantId'])
+          || request.resource.data.tenantId == tenantId
+        );
+
+      allow delete: if isEmployeeOrAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // WARENEINGANG-LIEFERUNGEN (Kopf + Posten + Lieferschein-Fotos)
+    // =========================================================================
+
+    match /tenants/{tenantId}/inventory/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'artikel', 'menge', 'kategorie',
+          'tenantId', 'source', 'batchId', 'createdBy', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(request.resource.data.menge);
+
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'menge', 'kategorie', 'updatedAt'
+        ]);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // RETTER-BOXEN (abschaltbares Hofladen-Angebot aus MHD-Posten)
+    // =========================================================================
+
+    match /tenants/{tenantId}/retter_boxen/{document} {
+      allow read: if isTenantUser(tenantId)
+        && hasRetterBoxModule(tenantId);
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && hasRetterBoxModule(tenantId)
+        && hasOnly([
+          'id', 'title', 'date', 'status',
+          'items', 'itemCount',
+          'recipeTitle', 'recipeSteps', 'customerText', 'priceHint',
+          'tenantId', 'createdAt', 'updatedAt',
+          'printedAt', 'soldAt', 'discardedAt'
+        ])
+        && isNonEmptyString(request.resource.data.title)
+        && isNonEmptyString(request.resource.data.date)
+        && isNonEmptyString(request.resource.data.status)
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 30
+        && isIntGteZero(request.resource.data.itemCount);
+
+      allow delete: if isAdmin(tenantId)
+        && hasRetterBoxModule(tenantId);
+    }
+
+    match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'id', 'lieferant', 'warenKategorie', 'temperatur',
+          'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
+          'fotos', 'items', 'itemCount',
+          'source', 'scannedBy', 'tenantId',
+          'createdAt', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.lieferant)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(request.resource.data.itemCount);
+
+      allow delete: if isEmployeeOrAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // REZEPTE (admin-only writes)
+    // =========================================================================
+
+    match /tenants/{tenantId}/rezepte/{document} {
+      allow read: if isTenantUser(tenantId)
+        && hasWurstkuecheModule(tenantId);
+      allow write: if isAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
+    }
+
+    // =========================================================================
+    // FLEISCHPREISE (KI-Wochennotierung, nur Cloud Functions schreiben)
+    // =========================================================================
+
+    match /tenants/{tenantId}/fleischpreise/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // PRODUKTIONS-CHARGEN
+    // =========================================================================
+
+    match /tenants/{tenantId}/produktion_chargen/{document} {
+      allow read, create: if isEmployeeOrAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
+      allow update, delete: if isAdmin(tenantId)
+        && hasWurstkuecheModule(tenantId);
+    }
+
+    // =========================================================================
+    // HACCP-GERÄTE – Ausschließlich Admin-Zugriff für Schreiboperationen
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_geraete/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isAdmin(tenantId)
+        && hasOnly([
+          'name', 'protokollTyp', 'bereich', 'geraeteTyp',
+          'sollMin', 'sollMax', 'einheit', 'intervall',
+          'aktiv', 'tenantId', 'updatedAt', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.name)
+        && request.resource.data.tenantId == tenantId;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // HACCP-LOGS – Validierte Protokolleinträge (unveränderlich nach Anlage)
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_logs/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'logTyp', 'deviceId', 'deviceName', 'bereich',
+          'wert', 'temperatur', 'ph',
+          'einheit', 'sollMin', 'sollMax',
+          'status', 'massnahme',
+          'chargenNummer',
+          'tenantId', 'datum', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.logTyp)
+        && isNonEmptyString(request.resource.data.datum)
+        && request.resource.data.tenantId == tenantId
+        && isNumericOrNull(request.resource.data.wert)
+        && isNumericOrNull(request.resource.data.temperatur)
+        && isNumericOrNull(request.resource.data.ph)
+        && (
+          request.resource.data.createdAt == request.time
+          || (
+            request.resource.data.createdAt is timestamp
+            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
+          )
+          || (
+            request.resource.data.createdAt is string
+            && request.resource.data.createdAt.size() >= 20
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // HACCP STALE ARCHIVE – Cold-Storage für veraltete, abgewiesene Protokolle
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_stale_archive/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data._reason);
+
+      allow update, delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // SCHWARZES BRETT (bulletinBoard/current)
+    // =========================================================================
+
+    match /tenants/{tenantId}/bulletinBoard/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isAdmin(tenantId)
+        && hasOnly([
+          'message', 'attachments', 'updatedAt', 'author', 'tenantId'
+        ])
+        && isOptionalString(request.resource.data.message)
+        && request.resource.data.tenantId == tenantId;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // AUFGABEN-TOKENS (tasks)
+    // =========================================================================
+
+    function isTaskCompletionOnly() {
+      return resource.data.status == 'open'
+        && request.resource.data.status == 'completed'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'completedBy', 'completedAt'
+        ])
+        && isNonEmptyString(request.resource.data.completedBy);
+    }
+
+    function existingTaskCommentCount() {
+      return ('comments' in resource.data) && resource.data.comments is list
+        ? resource.data.comments.size()
+        : 0;
+    }
+
+    function newTaskComment() {
+      return request.resource.data.comments[request.resource.data.comments.size() - 1];
+    }
+
+    function isTaskCommentShape(comment) {
+      return comment is map
+        && comment.keys().hasAll(['author', 'text', 'createdAt'])
+        && comment.keys().hasOnly(['author', 'text', 'createdAt'])
+        && isNonEmptyString(comment.author)
+        && isNonEmptyString(comment.text)
+        && comment.text.size() <= 500
+        && isNonEmptyString(comment.createdAt);
+    }
+
+    function isTaskCommentOnly(tenantId) {
+      return isTenantUser(tenantId)
+        && resource.data.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments'])
+        && request.resource.data.comments is list
+        && request.resource.data.comments.size() == existingTaskCommentCount() + 1
+        && isTaskCommentShape(newTaskComment());
+    }
+
+    match /tenants/{tenantId}/tasks/{taskId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.title)
+        && isNonEmptyString(request.resource.data.author)
+        && request.resource.data.status == 'open'
+        && (
+          !('audienceMembers' in request.resource.data)
+          || request.resource.data.audienceMembers is list
+        );
+
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isTaskCompletionOnly()
+        )
+        || isTaskCommentOnly(tenantId);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // KUNDENBESTELLUNGEN (customerOrders)
+    // =========================================================================
+
+    function hasCustomerContact() {
+      return (request.resource.data.callbackPhone is string
+          && request.resource.data.callbackPhone.size() > 0)
+        || (request.resource.data.customerEmail is string
+          && request.resource.data.customerEmail.size() > 3);
+    }
+
+    function isCustomerOrderItemsList(items) {
+      return items is list && items.size() >= 1 && items.size() <= 40;
+    }
+
+    function isCustomerOrderStatusUpdate() {
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+        ])
+        && isNonEmptyString(request.resource.data.status)
+        && (
+          (resource.data.status == 'open' && request.resource.data.status == 'ready')
+          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+        );
+    }
+
+    match /tenants/{tenantId}/customerOrders/{orderId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'customerName', 'callbackPhone', 'customerEmail', 'readyAt',
+          'items', 'additionalWishes', 'orderSlipAttachments', 'inputMode',
+          'acceptedBy', 'acceptedAt', 'status', 'tenantId', 'createdAt'
+        ])
+        && isNonEmptyString(request.resource.data.acceptedBy)
+        && isNonEmptyString(request.resource.data.readyAt)
+        && request.resource.data.status == 'open'
+        && request.resource.data.tenantId == tenantId
+        && isOptionalString(request.resource.data.customerName)
+        && isOptionalString(request.resource.data.additionalWishes)
+        && isOptionalString(request.resource.data.callbackPhone)
+        && isOptionalString(request.resource.data.customerEmail)
+        && isOptionalString(request.resource.data.inputMode)
+        && (
+          isCustomerOrderItemsList(request.resource.data.items)
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        )
+        && (
+          !('customerName' in request.resource.data)
+          || isNonEmptyString(request.resource.data.customerName)
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        )
+        && (
+          hasCustomerContact()
+          || (
+            request.resource.data.orderSlipAttachments is list
+            && request.resource.data.orderSlipAttachments.size() > 0
+          )
+        );
+
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && (
+          isAdmin(tenantId)
+          || isCustomerOrderStatusUpdate()
+        );
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // SYSTEM ERRORS – Zentrales Error-Reporting (append-only Telemetrie)
+    // =========================================================================
+
+    match /system_errors/{document} {
+      allow read, update, delete: if false;
+
+      allow create: if request.auth != null
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.keys().hasAll(['tenantId', 'errorCode', 'message', 'timestamp'])
+        && request.resource.data.keys().hasOnly(['tenantId', 'errorCode', 'message', 'timestamp', 'userId', 'context'])
+        && request.resource.data.errorCode is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() < 1000
+        && request.resource.data.timestamp == request.time;
+    }
+
+    // =========================================================================
+    // PRICE RUNS – Lifecycle-Logging (nur Cloud Functions / Admin SDK)
+    // =========================================================================
+
+    match /priceRuns/{runId} {
+      allow read, write: if false;
+    }
+  }
+}

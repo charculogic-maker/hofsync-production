@@ -1,0 +1,175 @@
+Quelle,Kategorie,Rezept,Zeile,MaterialNr,Material,Menge_kg,Anteil_Prozent,Wasser_Prozent,Wasser_kg,BEFFE_Prozent,BEFFE_kg,BE_Prozent,BE_kg,Fett_Prozent,Fett_kg,Preis_kg,Kosten,Aktiv
+kochwurst,Kochwurst,Fein-Deli,4,1,S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,5,2,S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.6,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,6,3,S III,0,0,64.8,0,19.9,0,3.4,0,11.9,0,2.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,7,4,R I,0,0,69.4,0,23.8,0,1.8,0,5,0,4.7,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,8,5,R II,0,0,65.8,0,21.9,0,4,0,8.3,0,3.6,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,9,6,R III,0,0,51.98,0,12.92,0,1.61,0,29.83,0,2.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,10,7,S IV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,11,8,S V Bauch Fett,0,0,20.1,0,9,0,1.4,0,69.5,0,1.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,13,10,S V II Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,14,11,S V III Kutterfett,0,0,100,0,0,0,0,0,0,0,0.6,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,16,13,Kopffleisch,0,0,51,0,14.9,0,5.1,0,29,0,0.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,17,14,Zunge,0,0,61.2,0,15.4,0,3.4,0,20,0,2.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,18,15,Schwarten,0,0,55,0,0,0,30,0,15,0,0.05,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,19,16,Einlage S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,20,17,Einlage S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.9,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,21,18,Einlage SIV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.6,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,22,19,Einlage Wamme,0,0,27.5,0,11.6,0,2.7,0,58.2,0,1.1,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,23,20,Einlage Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.05,0,FALSE
+kochwurst,Kochwurst,Fein-Deli,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,4,1,S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,5,2,S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.6,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,6,3,S III,0,0,64.8,0,19.9,0,3.4,0,11.9,0,2.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,7,4,R I,0,0,69.4,0,23.8,0,1.8,0,5,0,4.7,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,8,5,R II,0,0,65.8,0,21.9,0,4,0,8.3,0,3.6,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,9,6,R III,0,0,51.98,0,12.92,0,1.61,0,29.83,0,2.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,10,7,S IV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,11,8,S V Bauch Fett,0,0,20.1,0,9,0,1.4,0,69.5,0,1.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,13,10,S V II Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,14,11,S V III Kutterfett,0,0,100,0,0,0,0,0,0,0,0.6,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,16,13,Kopffleisch,0,0,51,0,14.9,0,5.1,0,29,0,0.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,17,14,Zunge,0,0,61.2,0,15.4,0,3.4,0,20,0,2.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,18,15,Schwarten,0,0,55,0,0,0,30,0,15,0,0.05,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,19,16,Einlage S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,20,17,Einlage S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.9,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,21,18,Einlage SIV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.6,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,22,19,Einlage Wamme,0,0,27.5,0,11.6,0,2.7,0,58.2,0,1.1,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,23,20,Einlage Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.05,0,FALSE
+kochwurst,Kochwurst,Grob-Hausm.,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,4,1,S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,5,2,S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.6,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,6,3,S III,0,0,64.8,0,19.9,0,3.4,0,11.9,0,2.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,7,4,R I,0,0,69.4,0,23.8,0,1.8,0,5,0,4.7,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,8,5,R II,0,0,65.8,0,21.9,0,4,0,8.3,0,3.6,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,9,6,R III,0,0,51.98,0,12.92,0,1.61,0,29.83,0,2.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,10,7,S IV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,11,8,S V Bauch Fett,0,0,20.1,0,9,0,1.4,0,69.5,0,1.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,13,10,S V II Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,14,11,S V III Kutterfett,0,0,100,0,0,0,0,0,0,0,0.6,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,16,13,Kopffleisch,0,0,51,0,14.9,0,5.1,0,29,0,0.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,17,14,Zunge,0,0,61.2,0,15.4,0,3.4,0,20,0,2.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,18,15,Schwarten,0,0,55,0,0,0,30,0,15,0,0.05,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,19,16,Einlage S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,20,17,Einlage S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.9,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,21,18,Einlage SIV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.6,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,22,19,Einlage Wamme,0,0,27.5,0,11.6,0,2.7,0,58.2,0,1.1,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,23,20,Einlage Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.05,0,FALSE
+kochwurst,Kochwurst,Blutw.TH wolfen,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,4,1,S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,5,2,S II,0,0,66.7,0,23.7,0,1.4,0,8.2,0,2.6,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,6,3,S III,0.75,15,64.8,0.486,19.9,0.14925,3.4,0.0255,11.9,0.08925,2.1,1.575,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,7,4,R I,0,0,69.4,0,23.8,0,1.8,0,5,0,4.7,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,8,5,R II,0,0,65.8,0,21.9,0,4,0,8.3,0,3.6,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,9,6,R III,0,0,51.98,0,12.92,0,1.61,0,29.83,0,2.8,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,10,7,S IV Bauch,0,0,45.6,0,15,0,2.4,0,37,0,2.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,11,8,S V Bauch Fett,0,0,20.1,0,9,0,1.4,0,69.5,0,1.8,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,13,10,S V II Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,14,11,S V III Kutterfett,0.35,7,100,0.35,0,0,0,0,0,0,0.6,0.21,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,16,13,Kopffleisch,0.7,14,51,0.357,14.9,0.1043,5.1,0.0357,29,0.203,0.8,0.56,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,17,14,Zunge,0,0,61.2,0,15.4,0,3.4,0,20,0,2.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,18,15,Schwarten,0.9,18,55,0.495,0,0,30,0.27,15,0.135,0.05,0.045,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,19,16,Einlage S I,0,0,69.3,0,24.5,0,1.1,0,5.1,0,3.8,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,20,17,Einlage S II,1,20,66.7,0.667,23.7,0.237,1.4,0.014,8.2,0.082,2.9,2.9,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,21,18,Einlage SIV Bauch,0.7,14,45.6,0.3192,15,0.105,2.4,0.0168,37,0.259,2.6,1.82,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,22,19,Einlage Wamme,0,0,27.5,0,11.6,0,2.7,0,58.2,0,1.1,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,23,20,Einlage Speck,0,0,7.3,0,0.9,0,1.8,0,90,0,0.8,0,FALSE
+kochwurst,Kochwurst,Schwartemagen wolfen,24,21,Eis / Brühe,0.6,12,100,0.6,0,0,0,0,0,0,0.05,0.03,TRUE
+kochwurst,Kochwurst,Schwartemagen wolfen,25,22,Blut,0,0,100,0,0,0,0,0,0,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,4,1,S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,5,2,S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,6,3,S III,0,0,70,0,16.1,0,2.9,0,11,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,7,4,R I,0,0,75,0,19.5,0,1.5,0,4,0,4.7,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,8,5,R II,0,0,72,0,17,0,3,0,8,0,3.6,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,9,6,R III,0,0,69,0,15.6,0,3.4,0,12,0,2.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,10,7,S IV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,11,8,S V Bauch Fett,0,0,32,0,6.8,0,1.2,0,60,0,1.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,13,10,S V II Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,14,11,S V III Kutterfett,0,0,25,0,2.5,0,2.5,0,70,0,0.6,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,16,13,Schwarten,0,0,55,0,0,0,30,0,15,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,19,16,Einlage S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,20,17,Einlage S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,21,18,Einlage SIV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.3,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,23,20,Einlage Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.1,0,FALSE
+bruehwurst,Bruehwurst,Feinbrät-Schinkenw.,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.05,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,4,1,S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,5,2,S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,6,3,S III,0,0,70,0,16.1,0,2.9,0,11,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,7,4,R I,0,0,75,0,19.5,0,1.5,0,4,0,4.7,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,8,5,R II,0,0,72,0,17,0,3,0,8,0,3.6,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,9,6,R III,0,0,69,0,15.6,0,3.4,0,12,0,2.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,10,7,S IV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,11,8,S V Bauch Fett,0,0,32,0,6.8,0,1.2,0,60,0,1.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,13,10,S V II Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,14,11,S V III Kutterfett,0,0,25,0,2.5,0,2.5,0,70,0,0.6,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,16,13,Schwarten,0,0,55,0,0,0,30,0,15,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,19,16,Einlage S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,20,17,Einlage S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,21,18,Einlage SIV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.3,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,23,20,Einlage Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.1,0,FALSE
+bruehwurst,Bruehwurst,Gemüse-Paprika,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.05,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,4,1,S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,5,2,S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,6,3,S III,0,0,70,0,16.1,0,2.9,0,11,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,7,4,R I,0,0,75,0,19.5,0,1.5,0,4,0,4.7,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,8,5,R II,0,0,72,0,17,0,3,0,8,0,3.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,9,6,R III,0,0,69,0,15.6,0,3.4,0,12,0,2.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,10,7,S IV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,11,8,S V Bauch Fett,0,0,32,0,6.8,0,1.2,0,60,0,1.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,13,10,S V II Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,14,11,S V III Kutterfett,0,0,25,0,2.5,0,2.5,0,70,0,0.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,16,13,Schwarten,0,0,55,0,0,0,30,0,15,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,19,16,Einlage S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,20,17,Einlage S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,21,18,Einlage SIV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.3,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,23,20,Einlage Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenspicker 30%,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.05,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,4,1,S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,5,2,S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,6,3,S III,0,0,70,0,16.1,0,2.9,0,11,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,7,4,R I,0,0,75,0,19.5,0,1.5,0,4,0,4.7,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,8,5,R II,0,0,72,0,17,0,3,0,8,0,3.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,9,6,R III,0,0,69,0,15.6,0,3.4,0,12,0,2.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,10,7,S IV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,11,8,S V Bauch Fett,0,0,32,0,6.8,0,1.2,0,60,0,1.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,13,10,S V II Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,14,11,S V III Kutterfett,0,0,25,0,2.5,0,2.5,0,70,0,0.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,16,13,Schwarten,0,0,55,0,0,0,30,0,15,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,19,16,Einlage S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,20,17,Einlage S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,21,18,Einlage SIV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.3,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,23,20,Einlage Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.1,0,FALSE
+bruehwurst,Bruehwurst,Einlage-Schinkenjagdw. 40%,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.05,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,4,1,S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,5,2,S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,6,3,S III,0,0,70,0,16.1,0,2.9,0,11,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,7,4,R I,0,0,75,0,19.5,0,1.5,0,4,0,4.7,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,8,5,R II,0,0,72,0,17,0,3,0,8,0,3.6,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,9,6,R III,0,0,69,0,15.6,0,3.4,0,12,0,2.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,10,7,S IV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.1,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,11,8,S V Bauch Fett,0,0,32,0,6.8,0,1.2,0,60,0,1.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,13,10,S V II Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,14,11,S V III Kutterfett,0,0,25,0,2.5,0,2.5,0,70,0,0.6,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,15,12,Leber,0,0,76,0,17.9,0,1.1,0,5,0,1.1,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,16,13,Schwarten,0,0,55,0,0,0,30,0,15,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,19,16,Einlage S I,0,0,75,0,19,0,1,0,5,0,3.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,20,17,Einlage S II,0,0,73,0,17.5,0,1.5,0,8,0,2.6,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,21,18,Einlage SIV Bauch,0,0,53,0,11.9,0,2.1,0,33,0,2.3,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,23,20,Einlage Speck,0,0,8,0,0.3,0,1.7,0,90,0,0.8,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,24,21,Eis / Brühe,0,0,100,0,0,0,0,0,0,0,0.1,0,FALSE
+bruehwurst,Bruehwurst,MB-Bierwurst,25,22,Blut,0,0,76.4,0,21,0,1.8,0,0.8,0,0.05,0,FALSE

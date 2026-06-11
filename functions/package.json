@@ -1,0 +1,25 @@
+{
+  "name": "craft-food-functions",
+  "description": "Scheduled meat-price sync for CharcuLogic / HofSync",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "test": "vitest run --config vitest.config.mjs --configLoader runner",
+    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js --config vitest.config.mjs --configLoader runner"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.2.5",
+    "nodemailer": "^7.0.5",
+    "twilio": "^5.7.1"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  },
+  "private": true
+}

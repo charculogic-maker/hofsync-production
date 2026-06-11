@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "hofsync-production",
+    "whitelabel": "charculogic-whitelabel-test"
+  },
+  "targets": {},
+  "etags": {}
+}
