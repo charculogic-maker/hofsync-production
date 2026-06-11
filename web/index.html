@@ -752,28 +752,37 @@
                         <p class="cut-glossary-kicker">Zuschnitte einordnen</p>
                         <h2 class="cut-glossary-title">Regionale Cut-Bezeichnungen</h2>
                       </div>
-                      <span class="cut-glossary-count" id="cut-glossary-count">0 Cuts</span>
+                      <span class="cut-glossary-count" id="cut-glossary-count">0 Zuschnitte</span>
                     </div>
 
-                    <div class="cut-search-panel">
-                      <input
-                        type="search"
-                        id="cut-glossary-search"
-                        class="input-text-touch cut-search-input"
-                        placeholder="Zuschnitt, Teilstück oder Nutzung suchen"
-                        autocomplete="off"
-                        aria-label="Zuschnitt suchen"
-                      >
-                      <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">x</button>
-                    </div>
+                    <div class="cut-glossary-tools">
+                      <div class="cut-search-panel">
+                        <input
+                          type="search"
+                          id="cut-glossary-search"
+                          class="input-text-touch cut-search-input"
+                          placeholder="Zuschnitt, Teilstück oder Nutzung suchen"
+                          autocomplete="off"
+                          aria-label="Zuschnitt suchen"
+                        >
+                        <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">×</button>
+                      </div>
 
-                    <div class="recipe-category-filter cut-species-filter" role="group" aria-label="Tierart filtern">
-                      <button type="button" class="recipe-category-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
-                      <button type="button" class="recipe-category-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
-                      <button type="button" class="recipe-category-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
-                      <button type="button" class="recipe-category-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
-                      <button type="button" class="recipe-category-chip" data-cut-species="poultry" aria-pressed="false">Gefluegel</button>
-                      <button type="button" class="recipe-category-chip" data-cut-species="offal" aria-pressed="false">Innereien</button>
+                      <div class="cut-quick-filter" role="group" aria-label="Schnellsuche nach Verwendung">
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Gulasch" aria-pressed="false">🥘 Für Gulasch</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Kurzbraten" aria-pressed="false">🔥 Zum Grillen/Kurzbraten</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="wenig Sehnen" aria-pressed="false">🥩 Ohne Sehnen/Mager</button>
+                        <button type="button" class="cut-quick-chip" data-cut-quick="Schmoren" aria-pressed="false">⏳ Zum Schmoren</button>
+                      </div>
+
+                      <div class="cut-species-filter" role="group" aria-label="Tierart filtern">
+                        <button type="button" class="cut-species-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="poultry" aria-pressed="false">Geflügel</button>
+                        <button type="button" class="cut-species-chip" data-cut-species="offal" aria-pressed="false">Innereien</button>
+                      </div>
                     </div>
 
                     <p class="learn-mode-desc cut-glossary-hint">Die Liste ordnet gebräuchliche, regionale und internationale Namen ein. Der Vergleich mit dem Menschen hilft uns, Lage und Verwendung schneller zu verstehen.</p>

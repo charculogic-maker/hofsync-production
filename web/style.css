@@ -6536,13 +6536,17 @@ body.role-helper #team-subnav-orders {
   background: var(--surface-color);
 }
 
-.knowledge-panel .recipe-category-chip {
-  min-height: 48px;
-}
-
 .knowledge-panel .cut-search-clear {
   width: 48px;
   height: 48px;
+}
+
+.knowledge-panel .cut-quick-chip {
+  min-height: 48px;
+}
+
+#page-knowledge .learn-mode-desc.cut-glossary-hint {
+  margin-bottom: 0;
 }
 
 .knowledge-handbook-card {
@@ -6578,7 +6582,8 @@ body.role-helper #team-subnav-orders {
 .cut-glossary-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
 }
 
 .cut-glossary-intro {
@@ -6593,6 +6598,11 @@ body.role-helper #team-subnav-orders {
   box-shadow: var(--shadow-card);
 }
 
+.cut-glossary-intro > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .cut-glossary-kicker {
   margin-bottom: 4px;
   color: var(--primary-on-light);
@@ -6604,18 +6614,29 @@ body.role-helper #team-subnav-orders {
 
 .cut-glossary-title {
   font-size: 19px;
-  line-height: 1.2;
+  line-height: 1.25;
   color: var(--text-dark);
+  overflow-wrap: anywhere;
 }
 
 .cut-glossary-count {
   flex: 0 0 auto;
-  padding: 7px 9px;
-  border-radius: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
   background: var(--primary-tint-bg);
   color: var(--primary-on-light);
   font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
+}
+
+.cut-glossary-tools {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
 }
 
 .cut-search-panel {
@@ -6624,7 +6645,7 @@ body.role-helper #team-subnav-orders {
 
 .cut-search-input {
   width: 100%;
-  padding-right: 50px;
+  padding-right: 52px;
 }
 
 .cut-search-clear {
@@ -6636,25 +6657,98 @@ body.role-helper #team-subnav-orders {
   transform: translateY(-50%);
   border: 0;
   border-radius: 50%;
-  background: var(--surface-secondary);
+  background: var(--surface-color);
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cut-quick-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  margin: 0 -2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cut-quick-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.cut-quick-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--primary-color) 22%, var(--border-subtle));
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color));
+  color: var(--primary-on-light);
+  font-size: 13px;
   font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--shadow-card);
+}
+
+.cut-quick-chip.active-category {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
 }
 
 .cut-species-filter {
-  padding-bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cut-species-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 2px solid var(--primary-alpha-16);
+  background: var(--surface-color);
+  color: var(--text-dark);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cut-species-chip.active-category {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
 }
 
 .cut-glossary-hint {
   margin: 0;
-  padding: 0 2px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--primary-alpha-06);
+  border: 1px solid var(--primary-alpha-12);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .cut-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .cut-card {
@@ -6666,40 +6760,42 @@ body.role-helper #team-subnav-orders {
   background: var(--surface-color);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-card);
+  min-width: 0;
 }
 
 .cut-card-head {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .cut-species {
-  margin-bottom: 3px;
-  color: var(--text-muted);
+  color: var(--primary-on-light);
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .cut-title {
+  margin: 0;
   font-size: 18px;
-  line-height: 1.2;
+  line-height: 1.25;
   color: var(--text-dark);
   overflow-wrap: anywhere;
 }
 
 .cut-region-pill {
-  flex: 0 1 42%;
-  padding: 7px 8px;
+  margin: 0;
+  padding: 8px 10px;
   border-radius: 8px;
   background: var(--surface-secondary);
   color: var(--text-dark);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  line-height: 1.25;
-  text-align: right;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .cut-alias-row {
@@ -6709,12 +6805,17 @@ body.role-helper #team-subnav-orders {
 }
 
 .cut-alias {
-  padding: 5px 8px;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
   background: var(--primary-alpha-12);
   color: var(--primary-on-light);
   font-size: 11px;
   font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .cut-facts {
@@ -6723,33 +6824,41 @@ body.role-helper #team-subnav-orders {
 }
 
 .cut-facts > div {
-  padding: 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   background: var(--surface-secondary);
+  min-width: 0;
 }
 
 .cut-facts dt {
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .cut-facts dd {
+  margin: 0;
   color: var(--text-dark);
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .cut-note {
-  padding-left: 10px;
+  margin: 0;
+  padding: 10px 12px 10px 14px;
   border-left: 3px solid var(--accent-action);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent-action) 6%, transparent);
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .cut-empty {
@@ -6763,11 +6872,35 @@ body.role-helper #team-subnav-orders {
 
 [data-theme="dark"] .cut-search-clear,
 [data-theme="dark"] .cut-glossary-intro,
+[data-theme="dark"] .cut-glossary-tools,
 [data-theme="dark"] .knowledge-accordion,
 [data-theme="dark"] .knowledge-handbook-card,
 [data-theme="dark"] .cut-card,
 [data-theme="dark"] .cut-empty {
   border-color: var(--border-subtle);
+}
+
+[data-theme="dark"] .cut-species-chip {
+  background: var(--surface-color);
+}
+
+[data-theme="dark"] .cut-species-chip.active-category {
+  background: var(--primary-tint-bg);
+}
+
+[data-theme="dark"] .cut-quick-chip {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+  border-color: color-mix(in srgb, var(--primary-color) 28%, var(--border-subtle));
+}
+
+[data-theme="dark"] .cut-quick-chip.active-category {
+  background: var(--primary-tint-bg);
+}
+
+@media (min-width: 480px) {
+  .cut-species-filter {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 #page-receiving .haccp-card {

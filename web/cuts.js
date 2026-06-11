@@ -3,7 +3,7 @@ const CUT_SPECIES = {
   beef: 'Rind',
   pork: 'Schwein',
   lamb: 'Lamm',
-  poultry: 'Gefluegel',
+  poultry: 'Geflügel',
   offal: 'Innereien',
 };
 
@@ -16,7 +16,7 @@ const CUT_GLOSSARY = [
     aliases: ['Zungenstueck', 'Kamm', 'Neck', 'Collar'],
     muscles: ['M. longissimus cervicis', 'M. splenius', 'M. semispinalis capitis'],
     human: 'Nacken- und oberer Halsbereich hinter dem Kopf, grob zwischen Wirbelsaeule und seitlichem Nacken.',
-    use: 'Gulasch, Suppenfleisch, Burger-Patties, langsam geschmort.',
+    use: 'Gulasch, Schmoren, Suppenfleisch, Burger-Patties.',
     note: 'Zungenstueck und Kamm werden regional unterschiedlich zugeordnet; faserig, aber aromatisch.',
   },
   {
@@ -27,7 +27,7 @@ const CUT_GLOSSARY = [
     aliases: ['Chuck Roll', 'Schulterruecken', 'Bug'],
     muscles: ['M. longissimus thoracis (vorderer Anteil)', 'M. trapezius', 'M. rhomboideus'],
     human: 'Oberer Ruecken und Schulterblattbereich, etwa zwischen Schulter und Nacken.',
-    use: 'Schmorbraten, saftiges Gulasch, Hack und duenne Scheiben.',
+    use: 'Gulasch, Schmoren, Schmorbraten, Hack und duenne Scheiben.',
     note: 'Im Hofladen ein klassischer Schmor- und Gulaschklassiker mit guter Bindegewebsstruktur.',
   },
   {
@@ -38,7 +38,7 @@ const CUT_GLOSSARY = [
     aliases: ['Hochrippe', 'Rostbraten', 'Rib Eye', 'Cube Roll'],
     muscles: ['M. longissimus thoracis', 'M. spinalis dorsi'],
     human: 'Rueckenstrecker entlang der Brustwirbelsaeule; der Fettdeckel entspricht grob dem seitlichen oberen Ruecken.',
-    use: 'Kurzbraten, Steak, Roastbeef-artige Zuschnitte. Stark marmorierte Stuecke bleiben saftig.',
+    use: 'Kurzbraten, Grillen, Steak, Roastbeef-artige Zuschnitte.',
     note: 'Regional werden Entrecote, Hochrippe und Rostbraten nicht immer deckungsgleich genutzt.',
   },
   {
@@ -49,7 +49,7 @@ const CUT_GLOSSARY = [
     aliases: ['Denver Steak', 'Denver Cut Steak'],
     muscles: ['M. serratus ventralis', 'M. infraspinatus (angrenzend)'],
     human: 'Tiefer Schulterbereich unter dem Schulterblatt, etwa seitlich am oberen Brustkorb.',
-    use: 'Kurzbraten, intensiv marmoriertes Steak bei hoher Hitze.',
+    use: 'Kurzbraten, Grillen, intensiv marmoriertes Steak bei hoher Hitze.',
     note: 'Relativ neuer US-Zuschnitt aus dem Chuck; im Hofladen selten, aber sehr geschmacksintensiv.',
   },
   {
@@ -60,8 +60,8 @@ const CUT_GLOSSARY = [
     aliases: ['Beiried', 'Rumpsteak', 'Strip Loin', 'Sirloin Strip'],
     muscles: ['M. longissimus lumborum'],
     human: 'Langer Rueckenstrecker im unteren Ruecken, neben der Lendenwirbelsaeule.',
-    use: 'Steaks, Roastbeef am Stueck, kalter Aufschnitt.',
-    note: 'Nicht mit Filet verwechseln: Filet liegt innen unter der Wirbelsaeule, Roastbeef aussen.',
+    use: 'Kurzbraten, Grillen, Steaks, Roastbeef am Stueck, kalter Aufschnitt.',
+    note: 'Wenig Sehnen, bindegewebsarm und saftig; nicht mit Filet verwechseln.',
   },
   {
     id: 'beef-tenderloin',
@@ -71,8 +71,8 @@ const CUT_GLOSSARY = [
     aliases: ['Lungenbraten', 'Tenderloin', 'Psoas'],
     muscles: ['M. psoas major', 'M. iliacus'],
     human: 'Hueftbeuger tief im Becken und unteren Ruecken.',
-    use: 'Kurzbraten, Medaillons, Tournedos, Chateaubriand.',
-    note: 'Sehr zart, aber mager; zu langes Garen macht es trocken.',
+    use: 'Kurzbraten, Grillen, Medaillons, Tournedos, Chateaubriand.',
+    note: 'Wenig Sehnen, bindegewebsarm und sehr zart; nicht zu lange garen.',
   },
   {
     id: 'beef-top-sirloin-cap',
@@ -104,7 +104,7 @@ const CUT_GLOSSARY = [
     aliases: ['Rolle', 'Schwanzstueck', 'Eye of Round', 'Weisses Scherzel'],
     muscles: ['M. semitendinosus'],
     human: 'Einer der ischiokruralen Muskeln an der Rueckseite des Oberschenkels.',
-    use: 'Schmorbraten, Sauerbraten, Poekeln, duenn aufgeschnitten.',
+    use: 'Schmoren, Schmorbraten, Sauerbraten, Poekeln, duenn aufgeschnitten.',
     note: 'Sehr mager und faserig; braucht Feuchtigkeit oder sehr praezise Garung.',
   },
   {
@@ -115,8 +115,8 @@ const CUT_GLOSSARY = [
     aliases: ['Hüfte', 'Blume', 'Sirloin', 'Hüftsteak'],
     muscles: ['Hüftmuskulatur, je nach Zuschnitt mit mehreren Teilstücken'],
     human: 'Seitlicher Hüft- und oberer Oberschenkelbereich.',
-    use: 'Steaks, Rouladen, Hüftbraten.',
-    note: 'Im Hofladen ein vielseitiger Klassiker: zart genug für Kurzbraten, als Braten aber trotzdem sauber gegen die Faser schneiden.',
+    use: 'Kurzbraten, Grillen, Steaks, Rouladen, Hüftbraten.',
+    note: 'Im Hofladen ein vielseitiger Klassiker; als Braten sauber gegen die Faser schneiden.',
   },
   {
     id: 'beef-shin-slice',
@@ -126,7 +126,7 @@ const CUT_GLOSSARY = [
     aliases: ['Hesse', 'Rinderhesse', 'Osso Buco', 'Shin'],
     muscles: ['Unterschenkelmuskulatur mit Knochen, Mark und Sehnen'],
     human: 'Unterschenkelbereich rund um Schienbein und Wadenmuskulatur.',
-    use: 'Suppenfleisch, Osso Buco.',
+    use: 'Schmoren, Suppenfleisch, Osso Buco.',
     note: 'Braucht Zeit und Feuchtigkeit; das Bindegewebe gibt Suppen und Schmorgerichten Kraft.',
   },
   {
@@ -137,8 +137,8 @@ const CUT_GLOSSARY = [
     aliases: ['Rouladenfleisch', 'Topside', 'Innere Keule', 'Silberseite'],
     muscles: ['M. semimembranosus', 'M. adductor'],
     human: 'Innere Oberschenkelmuskulatur an der Rueckseite des Schenkels.',
-    use: 'Rinderrouladen, Schnitzel, Tatar, Schmorbraten.',
-    note: 'Die Top-Basis fuer Rinderrouladen; mager und gleichmaessig, fuer Kurzbraten duenn schneiden.',
+    use: 'Rinderrouladen, Schnitzel, Tatar, Schmoren, Kurzbraten.',
+    note: 'Wenig Sehnen, bindegewebsarm; Top-Basis fuer Rinderrouladen, fuer Kurzbraten duenn schneiden.',
   },
   {
     id: 'beef-round-bottomside',
@@ -148,7 +148,7 @@ const CUT_GLOSSARY = [
     aliases: ['Aeussere Keule', 'Bottom Round', 'Silverside'],
     muscles: ['M. biceps femoris', 'M. semitendinosus (angrenzend)'],
     human: 'Aeussere und hintere Oberschenkelmuskulatur.',
-    use: 'Schmorbraten, Rouladen, Roastbeef-Ersatz, duenn aufgeschnitten.',
+    use: 'Schmoren, Schmorbraten, Rouladen, Roastbeef-Ersatz, duenn aufgeschnitten.',
     note: 'Mager und faserig; nicht mit Semerrolle verwechseln, auch wenn beide zur Keule gehoeren.',
   },
   {
@@ -159,8 +159,8 @@ const CUT_GLOSSARY = [
     aliases: ['Kugel', 'Knuckle', 'Round Tip', 'Hueftkugel'],
     muscles: ['M. rectus femoris', 'M. vastus lateralis', 'M. vastus medialis'],
     human: 'Vordere Oberschenkelmuskulatur, also der Quadrizeps am Oberschenkel.',
-    use: 'Fonduefleisch, Minutensteaks, magerer Braten, duenne Scheiben.',
-    note: 'Kompakter, magerer Keulenzuschnitt; bei Braten vor Austrocknung schuetzen.',
+    use: 'Kurzbraten, Fonduefleisch, Minutensteaks, magerer Braten, duenne Scheiben.',
+    note: 'Wenig Sehnen, mager und kompakt; bei Braten vor Austrocknung schuetzen.',
   },
   {
     id: 'beef-chuck-tender',
@@ -181,7 +181,7 @@ const CUT_GLOSSARY = [
     aliases: ['Bavette de Flanchet', 'Duenner Lappen', 'Flanke'],
     muscles: ['M. rectus abdominis'],
     human: 'Gerader Bauchmuskel, also die sichtbare Bauchmuskelplatte.',
-    use: 'Kurz grillen, quer zur Faser schneiden, Marinaden.',
+    use: 'Kurzbraten, Grillen, quer zur Faser schneiden, Marinaden.',
     note: 'Die Faser ist lang und deutlich; falsche Schnittfuehrung macht es zaeh.',
   },
   {
@@ -192,7 +192,7 @@ const CUT_GLOSSARY = [
     aliases: ['Kronfleisch', 'Skirt', 'Duenner Saum'],
     muscles: ['Zwerchfellanteile, v. a. M. diaphragma'],
     human: 'Zwerchfell, der Atemmuskel zwischen Brust- und Bauchraum.',
-    use: 'Sehr heiss kurzbraten, Fajitas, Steaks mit kraeftigem Geschmack.',
+    use: 'Kurzbraten, Grillen, Fajitas, Steaks mit kraeftigem Geschmack.',
     note: 'Kronfleisch, Saumfleisch und Nierenzapfen werden regional oft uneinheitlich benannt.',
   },
   {
@@ -203,7 +203,7 @@ const CUT_GLOSSARY = [
     aliases: ['Hanger Steak', 'Herzzapfen', 'Onglet'],
     muscles: ['M. crura diaphragmatis'],
     human: 'Innere Schenkel des Zwerchfells an der Lendenwirbelsaeule.',
-    use: 'Kurzbraten nach sauberem Entfernen der Mittelsehne.',
+    use: 'Kurzbraten, Grillen nach sauberem Entfernen der Mittelsehne.',
     note: 'Fachlich nicht dasselbe wie Skirt Steak, auch wenn es in Listen oft zusammenrutscht.',
   },
   {
@@ -214,7 +214,7 @@ const CUT_GLOSSARY = [
     aliases: ['Flap Steak', 'Bavette', 'Bottom Sirloin Flap'],
     muscles: ['M. obliquus abdominis internus', 'M. transversus abdominis (Hueftbereich)'],
     human: 'Tiefe Bauchmuskulatur an der Huefte, grob seitlich am unteren Ruecken und Becken.',
-    use: 'Kurzbraten, grobfaserig aber extrem saftig, quer zur Faser schneiden.',
+    use: 'Kurzbraten, Grillen, grobfaserig aber extrem saftig, quer zur Faser schneiden.',
     note: 'Nicht mit Flank Steak verwechseln: Bavette d\'Aloyau sitzt am Hueftende, Flank am Bauch.',
   },
   {
@@ -225,7 +225,7 @@ const CUT_GLOSSARY = [
     aliases: ['Brustkern', 'Brustspitz', 'Flat', 'Point'],
     muscles: ['M. pectoralis profundus', 'M. pectoralis superficialis'],
     human: 'Brustmuskulatur, grob grosser und kleiner Brustmuskel.',
-    use: 'Sieden, Poekeln, Pastrami, Low-and-slow BBQ.',
+    use: 'Schmoren, Sieden, Poekeln, Pastrami, Low-and-slow BBQ.',
     note: 'Flat und Point sind unterschiedliche Teilstuecke mit sehr verschiedener Fettstruktur.',
   },
   {
@@ -236,7 +236,7 @@ const CUT_GLOSSARY = [
     aliases: ['Short Ribs', 'Leiterstueck', 'Flankenrippe', 'Jacobs Ladder'],
     muscles: ['M. serratus ventralis', 'Interkostalmuskulatur', 'M. longissimus dorsi (Rippe)'],
     human: 'Rippenabschnitte quer durch Brust und Bauch, mit Fleisch zwischen und auf den Knochen.',
-    use: 'Kraeftige Suppen, BBQ Ribs, langsam geschmort.',
+    use: 'Gulasch, Schmoren, kraeftige Suppen, BBQ Ribs.',
     note: 'Leiterstueck ist die quer geschnittene Variante; braucht Zeit und Feuchtigkeit fuer zarte Textur.',
   },
   {
@@ -258,7 +258,7 @@ const CUT_GLOSSARY = [
     aliases: ['Blattschulter', 'Blade', 'Shoulder Clod'],
     muscles: ['M. trapezius', 'M. infraspinatus', 'M. teres major', 'M. subscapularis'],
     human: 'Schulterguertel und Schulterblattmuskulatur, grob der gesamte Schulterbereich.',
-    use: 'Klassischer Schmorbraten, Sieden, Gulasch, Hack.',
+    use: 'Gulasch, Schmoren, Schmorbraten, Sieden, Hack.',
     note: 'Faserig und kollagenreich; fuer Kurzbraten nur einzelne Muskeln sauber ausloesen.',
   },
   {
@@ -280,7 +280,7 @@ const CUT_GLOSSARY = [
     aliases: ['Lachs', 'Karbonade', 'Kotelettstrang', 'Loin'],
     muscles: ['M. longissimus thoracis et lumborum'],
     human: 'Langer Rueckenstrecker entlang Brust- und Lendenwirbelsaeule.',
-    use: 'Koteletts, Schnitzel aus dem Ruecken, Kasseler, Braten.',
+    use: 'Kurzbraten, Grillen, Koteletts, Schnitzel aus dem Ruecken, Kasseler, Braten.',
     note: 'Schweinelachs ist der ausgeloeste magere Ruecken, Karree meist mit Knochen.',
   },
   {
@@ -302,8 +302,8 @@ const CUT_GLOSSARY = [
     aliases: ['Lungenbraten', 'Tenderloin'],
     muscles: ['M. psoas major'],
     human: 'Hueftbeuger tief im Becken und unteren Ruecken.',
-    use: 'Medaillons, Kurzbraten, Filet im Speckmantel.',
-    note: 'Mager und schnell gar; nicht mit Schweinelachs verwechseln.',
+    use: 'Kurzbraten, Grillen, Medaillons, Filet im Speckmantel.',
+    note: 'Wenig Sehnen, bindegewebsarm und mager; nicht mit Schweinelachs verwechseln.',
   },
   {
     id: 'pork-ham-topside',
@@ -313,8 +313,8 @@ const CUT_GLOSSARY = [
     aliases: ['Topside', 'Schnitzelschale'],
     muscles: ['M. semimembranosus', 'Adduktorengruppe'],
     human: 'Innere und hintere Oberschenkelmuskulatur.',
-    use: 'Schnitzel, Braten, Kochschinken, magere Wursteinlage.',
-    note: 'Sehr mager; bei Braten vor Austrocknung schuetzen.',
+    use: 'Kurzbraten, Schnitzel, Braten, Kochschinken, magere Wursteinlage.',
+    note: 'Wenig Sehnen, mager; bei Braten vor Austrocknung schuetzen.',
   },
   {
     id: 'pork-ham-schnitzel-bottomside',
@@ -335,8 +335,8 @@ const CUT_GLOSSARY = [
     aliases: ['Kugel', 'Knuckle', 'Schinkennuss'],
     muscles: ['M. rectus femoris', 'M. vastus lateralis', 'M. vastus medialis'],
     human: 'Vordere Oberschenkelmuskulatur, also Quadrizeps.',
-    use: 'Schnitzel, Braten, Kochschinken, feine Wuerfel.',
-    note: 'Kompakter Zuschnitt mit mehreren Muskelanteilen und sauberer Form.',
+    use: 'Kurzbraten, Schnitzel, Braten, Kochschinken, feine Wuerfel.',
+    note: 'Wenig Sehnen, mager und kompakt; sauberer Zuschnitt mit gleichmaessiger Form.',
   },
   {
     id: 'pork-belly',
@@ -357,7 +357,7 @@ const CUT_GLOSSARY = [
     aliases: ['Schaefle', 'Boston Butt', 'Picnic Shoulder'],
     muscles: ['Schulterblatt- und Oberarmmuskulatur'],
     human: 'Schulterguertel und Oberarmbereich.',
-    use: 'Schmorbraten, Pulled Pork, Gulasch, Wurstfleisch.',
+    use: 'Gulasch, Schmoren, Schmorbraten, Pulled Pork, Wurstfleisch.',
     note: 'Boston Butt meint im US-Schnitt eher den oberen Schulter-/Nackenanteil.',
   },
   {
@@ -379,7 +379,7 @@ const CUT_GLOSSARY = [
     aliases: ['Schaelrippchen', 'Spare Ribs', 'BBQ Ribs'],
     muscles: ['Interkostalmuskulatur', 'M. serratus ventralis', 'Bauchwandanteile'],
     human: 'Rippenabschnitte am unteren Brustkorb mit Fleisch zwischen den Knochen.',
-    use: 'BBQ Slow and Low, marinieren und langsam garen.',
+    use: 'Schmoren, BBQ Slow and Low, marinieren und langsam garen.',
     note: 'Brauchen niedrige Temperatur und Zeit; Kollagen macht sie erst zart und saftig.',
   },
   {
@@ -401,7 +401,7 @@ const CUT_GLOSSARY = [
     aliases: ['Eisbein', 'Stelze', 'Hock', 'Knuckle'],
     muscles: ['Unterschenkelmuskulatur mit Sehnen und Haut'],
     human: 'Unterschenkel mit Knochen, Sehnen und Kraustenfett.',
-    use: 'Gepoekelt und gekocht (Eisbein) oder kross gebacken (Haxe).',
+    use: 'Schmoren, gepoekelt und gekocht (Eisbein) oder kross gebacken (Haxe).',
     note: 'Klassischer Hofladen-Braten; beim Backen zuerst langsam garen, dann hohe Hitze fuer Kruste.',
   },
   {
@@ -423,7 +423,7 @@ const CUT_GLOSSARY = [
     aliases: ['Deckelchen', 'Schnippelfleisch', 'Cushion Meat'],
     muscles: ['M. gluteus medius', 'M. gluteus superficialis'],
     human: 'Muskel ueber dem Beckenknochen, kaum belastet und daher sehr zart.',
-    use: 'Pfanne, Grill, kurz und heiss braten.',
+    use: 'Kurzbraten, Grillen, Pfanne, kurz und heiss braten.',
     note: 'Extrem saftig durch geringe Belastung; im Hofladen oft unterschaetzt.',
   },
   {
@@ -434,7 +434,7 @@ const CUT_GLOSSARY = [
     aliases: ['Geheimes Steak', 'Secreto Iberico'],
     muscles: ['M. splenius', 'M. longissimus cervicis (Schulteransatz)'],
     human: 'Tiefer Nacken-Schulter-Uebergang, ein kaum beanspruchter Muskel.',
-    use: 'Kurzbraten bei hoher Hitze, starke Marmorierung ausnutzen.',
+    use: 'Kurzbraten, Grillen bei hoher Hitze, starke Marmorierung ausnutzen.',
     note: 'Iberico-Klassiker; auch bei deutschem Schwein ein sehr aromatisches Teilstueck.',
   },
   {
@@ -456,7 +456,7 @@ const CUT_GLOSSARY = [
     aliases: ['Schulterkern', 'Presa Iberico', 'Coppa-Kern'],
     muscles: ['M. splenius', 'M. semispinalis capitis', 'M. longissimus cervicis'],
     human: 'Nackenmuskulatur hinter dem Kopf, ein sehr beanspruchungsarmer Kern.',
-    use: 'Rosa grillen oder kurz braten, Iberico-Steak.',
+    use: 'Kurzbraten, Grillen, rosa gebraten, Iberico-Steak.',
     note: 'Stark marmoriert und aromatisch; einer der edelsten Schweinezuschnitte.',
   },
   {
@@ -467,7 +467,7 @@ const CUT_GLOSSARY = [
     aliases: ['Lammnacken', 'Collar', 'Scrag End'],
     muscles: ['M. longissimus cervicis', 'M. splenius', 'M. semispinalis capitis'],
     human: 'Nacken- und oberer Halsbereich hinter dem Kopf.',
-    use: 'Eintoepfe, geschmorte Halsscheiben, Ragout.',
+    use: 'Gulasch, Schmoren, Eintoepfe, geschmorte Halsscheiben, Ragout.',
     note: 'Faserig und kollagenreich; braucht langsame Garung fuer Zartheit.',
   },
   {
@@ -489,7 +489,7 @@ const CUT_GLOSSARY = [
     aliases: ['Lammkarree', 'Rack of Lamb', 'Lachs'],
     muscles: ['M. longissimus thoracis et lumborum'],
     human: 'Rueckenstrecker entlang der Wirbelsaeule.',
-    use: 'Karree, Koteletts, Lammruecken rosa gebraten.',
+    use: 'Kurzbraten, Grillen, Karree, Koteletts, Lammruecken rosa gebraten.',
     note: 'Lammfilet liegt innen; Lammruecken oder Lachs liegt aussen am Ruecken.',
   },
   {
@@ -522,7 +522,7 @@ const CUT_GLOSSARY = [
     aliases: ['Lammbrust', 'Breast', 'Flank'],
     muscles: ['M. rectus abdominis', 'Bauchwandmuskulatur mit Fett'],
     human: 'Bauchwand zwischen Rippenbogen und Becken.',
-    use: 'Rollbraten, Suppenfleisch, Hackfleisch-Basis.',
+    use: 'Schmoren, Rollbraten, Suppenfleisch, Hackfleisch-Basis.',
     note: 'Fettreich und kollagenhaltig; als Rollbraten mit Fuellung besonders saftig.',
   },
   {
@@ -566,7 +566,7 @@ const CUT_GLOSSARY = [
     aliases: ['Schlaegel', 'Keule', 'Leg Quarter', 'Hinterviertel'],
     muscles: ['M. iliotibialis lateralis', 'M. gastrocnemius', 'M. flexor digitorum'],
     human: 'Oberschenkel und Unterschenkel mit Knochen – das dunklere, saftigere Gefluegelfleisch.',
-    use: 'Im Ganzen knusprig braten oder grillen, confieren, schmoren.',
+    use: 'Schmoren, Grillen, im Ganzen knusprig braten, confieren.',
     note: 'Dunkles Fleisch vertraegt laengere Garung besser als Brust; Haut fuer Kruste lassen.',
   },
   {
@@ -698,6 +698,33 @@ const cutState = {
   query: '',
 };
 
+function getSearchInput() {
+  return document.getElementById('cut-glossary-search');
+}
+
+function getSearchClearButton() {
+  return document.getElementById('cut-glossary-clear');
+}
+
+function syncSearchUi() {
+  const input = getSearchInput();
+  const clear = getSearchClearButton();
+  if (input) input.value = cutState.query;
+  if (clear) clear.hidden = !cutState.query;
+  document.querySelectorAll('.cut-quick-chip').forEach((chip) => {
+    const quickQuery = chip.getAttribute('data-cut-quick') || '';
+    const active = Boolean(cutState.query) && normalize(cutState.query) === normalize(quickQuery);
+    chip.classList.toggle('active-category', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function applyCutSearch(query) {
+  cutState.query = query || '';
+  syncSearchUi();
+  renderCutGlossary();
+}
+
 const normalize = (value) => String(value || '')
   .toLowerCase()
   .normalize('NFD')
@@ -731,11 +758,9 @@ function renderCutCard(cut) {
   return `
     <article class="cut-card" data-cut-id="${cut.id}">
       <div class="cut-card-head">
-        <div>
-          <div class="cut-species">${CUT_SPECIES[cut.species]}</div>
-          <h2 class="cut-title">${cut.name}</h2>
-        </div>
-        <span class="cut-region-pill">${cut.region}</span>
+        <div class="cut-species">${CUT_SPECIES[cut.species]}</div>
+        <h2 class="cut-title">${cut.name}</h2>
+        <p class="cut-region-pill">${cut.region}</p>
       </div>
       <div class="cut-alias-row" aria-label="Weitere Bezeichnungen">
         ${renderAliasList(cut.aliases)}
@@ -767,15 +792,16 @@ function renderCutGlossary() {
 
   const matches = CUT_GLOSSARY.filter(matchesCut);
   list.innerHTML = matches.map(renderCutCard).join('');
-  if (count) count.textContent = `${matches.length} Cuts`;
+  if (count) count.textContent = `${matches.length} Zuschnitte`;
   if (empty) empty.hidden = matches.length > 0;
+  syncSearchUi();
 }
 
 function bindSpeciesChips() {
   document.querySelectorAll('[data-cut-species]').forEach((button) => {
     button.addEventListener('click', () => {
       cutState.species = button.getAttribute('data-cut-species') || 'all';
-      document.querySelectorAll('[data-cut-species]').forEach((chip) => {
+      document.querySelectorAll('.cut-species-chip').forEach((chip) => {
         const active = chip.getAttribute('data-cut-species') === cutState.species;
         chip.classList.toggle('active-category', active);
         chip.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -786,22 +812,28 @@ function bindSpeciesChips() {
 }
 
 function bindSearch() {
-  const input = document.getElementById('cut-glossary-search');
-  const clear = document.getElementById('cut-glossary-clear');
+  const input = getSearchInput();
+  const clear = getSearchClearButton();
   if (!input) return;
 
   input.addEventListener('input', () => {
     cutState.query = input.value || '';
-    if (clear) clear.hidden = !cutState.query;
     renderCutGlossary();
   });
 
   clear?.addEventListener('click', () => {
-    input.value = '';
-    cutState.query = '';
-    clear.hidden = true;
+    applyCutSearch('');
     input.focus();
-    renderCutGlossary();
+  });
+}
+
+function bindQuickFilters() {
+  document.querySelectorAll('.cut-quick-chip').forEach((button) => {
+    button.addEventListener('click', () => {
+      const query = button.getAttribute('data-cut-quick') || '';
+      applyCutSearch(query);
+      getSearchInput()?.focus();
+    });
   });
 }
 
@@ -810,6 +842,7 @@ export function initCutGlossaryModule() {
   cutState.initialized = true;
   bindSpeciesChips();
   bindSearch();
+  bindQuickFilters();
   renderCutGlossary();
 }
 
