@@ -36,6 +36,12 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
 
+## Gesamtdokumentation App
+
+| Dokument | Zielgruppe | Inhalt |
+|----------|------------|--------|
+| [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) | Alle (technisch) | **Ausführlicher Ist-Stand:** Architektur, Module, Mandanten, Rollen, Sync, Functions, Kunden-Signal, Deployment (Juni 2026) |
+
 ## Technik & Betrieb
 
 | Dokument | Zielgruppe | Inhalt |

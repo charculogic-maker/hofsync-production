@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260610-136-haccp-sales-cooling';
+const CACHE_NAME = 'charculogic-v20260611-158-mhd-filter-label';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -24,11 +24,13 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/mhd.js',
   '/retter-box.js',
+  '/date-input.js',
   '/delivery-note.js',
   '/delivery-parser.js',
   '/haccp.js',
   '/production.js',
   '/beffe_calc.js',
+  '/cuts.js',
   '/sync.js',
 ];
 

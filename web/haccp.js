@@ -14,16 +14,16 @@ const HACCP_DRAFT_KEY = 'charculogic.draft.haccp';
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 
 const HACCP_CLEANING_TEAM = [
-  'Paddy',
-  'Heiko',
-  'Thomas',
-  'Stephie',
-  'Finn',
   'Bettina',
-  'Nicole',
+  'Efecan',
+  'Finn',
+  'Heiko',
   'Melanie',
   'Mimi',
-  'Efecan',
+  'Nicole',
+  'Paddy',
+  'Stephie',
+  'Thomas',
   'Aushilfe (andere)',
 ];
 

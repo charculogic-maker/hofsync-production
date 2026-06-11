@@ -11,7 +11,7 @@ Zwei aufklappbare Bereiche:
 ### Rezepte (oben, standardmäßig offen)
 
 - **Suche** nach Rezeptname
-- **Kategorien** filtern
+- **Kategorie-Button** antippen und Rezepte im Filterblatt eingrenzen
 - Rezept antippen → **Detailansicht** (Overlay)
 
 ### WRS Kalkulation (unten, standardmäßig zu)

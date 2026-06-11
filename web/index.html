@@ -137,8 +137,7 @@
           <div class="app-header-actions">
             <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
             <button type="button" class="app-refresh-btn" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
-              <span aria-hidden="true">↻</span>
-              <span>Update</span>
+              <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
             </button>
             <div class="sync-indicator" id="sync-indicator" title="Sync-Status">
               <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
@@ -355,7 +354,7 @@
             <div class="mhd-monitor-toolbar">
               <details class="mhd-toolbar-accordion" id="mhd-toolbar-accordion">
                 <summary class="mhd-toolbar-accordion-summary" id="mhd-toolbar-accordion-summary">
-                  <span class="mhd-toolbar-accordion-label" id="mhd-toolbar-accordion-label">🔍 Suche &amp; Filter einblenden</span>
+                  <span class="mhd-toolbar-accordion-label" id="mhd-toolbar-accordion-label">Suche/Filter</span>
                   <span class="mhd-toolbar-accordion-meta" id="mhd-toolbar-accordion-meta" hidden></span>
                 </summary>
                 <div class="mhd-toolbar-accordion-panel">
@@ -368,7 +367,7 @@
                     <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
                       <span class="mhd-filter-label">Zeitraum</span>
                       <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
-                        <option value="21" selected>21 Tage</option>
+                        <option value="21" selected>0-21 Tage</option>
                       </select>
                     </label>
                     <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
@@ -557,7 +556,10 @@
               <summary>Rezepte</summary>
               <div class="recipe-toolbar">
                 <input type="search" class="input-text-touch recipe-search-input" id="recipe-search-input" placeholder="🔍 Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
-                <div class="recipe-category-filter" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
+                <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
+                  <span class="recipe-filter-button-label" id="recipe-category-filter-label">Alle Kategorien</span>
+                  <span class="recipe-filter-button-icon" aria-hidden="true">▾</span>
+                </button>
               </div>
               <div class="recipe-list" id="recipe-list-container">
                 <!-- Recipes list rendered dynamically by app.js -->
@@ -658,7 +660,7 @@
               <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
                 <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
                 <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
-                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete">Einrichten</button>
+                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete" aria-label="Geräte einrichten" title="Geräte einrichten">+</button>
               </div>
               <div id="haccp-daily-container"></div>
             </div>
@@ -736,8 +738,44 @@
           </div>
 
           <!-- ============================================== -->
-          <!-- SCREEN 4: CHARGEN-ARCHIV / BÜRO-KONTROLLE       -->
+          <!-- SCREEN: CUT-LEXIKON                            -->
           <!-- ============================================== -->
+          <div class="page" id="page-cuts">
+            <section class="cut-glossary-shell" aria-label="Cut-Lexikon">
+              <div class="cut-glossary-intro">
+                <div>
+                  <p class="cut-glossary-kicker">Zuschnitte einordnen</p>
+                  <h2 class="cut-glossary-title">Regionale Cut-Bezeichnungen</h2>
+                </div>
+                <span class="cut-glossary-count" id="cut-glossary-count">0 Cuts</span>
+              </div>
+
+              <div class="cut-search-panel">
+                <input
+                  type="search"
+                  id="cut-glossary-search"
+                  class="input-text-touch cut-search-input"
+                  placeholder="Cut, Muskel oder Synonym suchen"
+                  autocomplete="off"
+                  aria-label="Cut suchen"
+                >
+                <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">x</button>
+              </div>
+
+              <div class="recipe-category-filter cut-species-filter" role="group" aria-label="Tierart filtern">
+                <button type="button" class="recipe-category-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
+                <button type="button" class="recipe-category-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
+                <button type="button" class="recipe-category-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
+                <button type="button" class="recipe-category-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
+              </div>
+
+              <p class="learn-mode-desc cut-glossary-hint">Die Liste ordnet gebraeuchliche, regionale und internationale Namen fachlich ein. Der Vergleich mit dem Menschen hilft uns, Lage und Funktion schneller zu verstehen.</p>
+
+              <p class="cut-empty" id="cut-glossary-empty" hidden>Kein passender Cut gefunden.</p>
+              <div class="cut-list" id="cut-glossary-list"></div>
+            </section>
+          </div>
+
           <div class="page" id="page-batches">
             <div id="office-access-lock" class="office-access-lock hidden" hidden aria-hidden="true">
               <div class="office-access-lock-card" role="dialog" aria-modal="true" aria-labelledby="office-access-lock-title">
@@ -1040,6 +1078,16 @@
           </div>
         </div>
 
+        <div class="sheet-backdrop recipe-category-backdrop hidden" id="recipe-category-backdrop" hidden></div>
+        <div class="bottom-sheet recipe-category-sheet hidden" id="recipe-category-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="recipe-category-sheet-title">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-header">
+            <h3 id="recipe-category-sheet-title">Rezepte filtern</h3>
+            <button type="button" class="sheet-close-btn" id="recipe-category-sheet-close">Fertig</button>
+          </div>
+          <div class="recipe-category-filter recipe-category-filter--sheet" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
+        </div>
+
         <!-- Bottom Navigation Bar -->
         <nav class="bottom-nav">
           <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
@@ -1065,6 +1113,10 @@
           <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;">
             <i>🛡️</i>
             <span>HACCP</span>
+          </button>
+          <button class="nav-item" data-tab="cuts" id="tab-cuts" hidden style="display: none;">
+            <i>&#129385;</i>
+            <span>Cuts</span>
           </button>
           <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
             <i>📋</i>

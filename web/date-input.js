@@ -4,6 +4,7 @@
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DOTTED_DATE_RE = /^\d{2}\.\d{2}\.\d{4}$/;
+const COMPACT_DATE_RE = /^\d{8}$/;
 
 function isValidDateParts(year, month, day) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
@@ -25,6 +26,9 @@ export function parseGermanDateToIso(value = '') {
   const raw = String(value).trim();
   if (!raw) return '';
   if (ISO_DATE_RE.test(raw)) return raw;
+  if (COMPACT_DATE_RE.test(raw)) {
+    return parseGermanDateToIso(`${raw.slice(0, 2)}.${raw.slice(2, 4)}.${raw.slice(4, 8)}`);
+  }
   if (!DOTTED_DATE_RE.test(raw)) return '';
   const [dayStr, monthStr, yearStr] = raw.split('.');
   const year = Number.parseInt(yearStr, 10);
@@ -32,6 +36,13 @@ export function parseGermanDateToIso(value = '') {
   const day = Number.parseInt(dayStr, 10);
   if (!isValidDateParts(year, month, day)) return '';
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function formatDateInputWhileTyping(value = '') {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
 }
 
 export function readGermanDateField(el) {
@@ -72,6 +83,20 @@ function normalizeGermanDateField(el) {
   el.classList.remove('input-date-de--invalid');
 }
 
+function handleGermanDateInput(el) {
+  if (!el) return;
+  const formatted = formatDateInputWhileTyping(el.value);
+  if (formatted !== el.value) el.value = formatted;
+  const iso = parseGermanDateToIso(formatted);
+  if (iso) {
+    el.dataset.isoValue = iso;
+    el.classList.remove('input-date-de--invalid');
+  } else {
+    delete el.dataset.isoValue;
+    el.classList.remove('input-date-de--invalid');
+  }
+}
+
 export function initGermanDateInputs(root = document) {
   const scope = root && root.querySelectorAll ? root : document;
   scope.querySelectorAll('input.input-date-de, input[type="date"].input-date-de').forEach((el) => {
@@ -92,6 +117,7 @@ export function initGermanDateInputs(root = document) {
       normalizeGermanDateField(el);
     }
 
+    el.addEventListener('input', () => handleGermanDateInput(el));
     el.addEventListener('blur', () => normalizeGermanDateField(el));
     el.addEventListener('change', () => normalizeGermanDateField(el));
   });

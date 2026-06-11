@@ -62,6 +62,10 @@ import {
   pickLatestFleischpreiseDoc,
 } from './beffe_calc.js';
 import {
+  activateCutGlossaryTab,
+  initCutGlossaryModule,
+} from './cuts.js';
+import {
   activateTeamboardTab,
   initTeamboardModule,
   refreshTeamboardAdminPanel,
@@ -146,6 +150,20 @@ function showHUD(title, desc, icon) {
 }
 window.showHUD = showHUD;
 
+function showAdminDevHint(title, desc = '') {
+  let hint = document.getElementById('admin-dev-hint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.id = 'admin-dev-hint';
+    hint.className = 'admin-dev-hint';
+    document.body.appendChild(hint);
+  }
+  hint.textContent = title;
+  hint.title = desc || title;
+  hint.setAttribute('role', 'status');
+  hint.setAttribute('aria-label', desc ? `${title}: ${desc}` : title);
+}
+
 function applyBrandingCssVars(branding) {
   const root = document.documentElement;
   const setVar = (name, value) => {
@@ -205,6 +223,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     receiving: modules.wareneingang !== false,
     kitchen: kitchenEnabled,
     haccp: modules.haccp !== false,
+    cuts: modules.cutGlossary === true,
     batches: modules.batches !== false,
   };
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -244,7 +263,7 @@ function applyRoleBasedUi(authSession) {
   document.body.classList.toggle('role-office', isOffice);
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
 
-  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'batches']);
+  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'cuts', 'batches']);
   const stevesHofOfficeTabs = new Set(['batches']);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -1142,6 +1161,10 @@ tabs.forEach(tab => {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
       headerSubtitle.textContent = "Tageskontrollen";
+    } else if (targetTab === 'cuts') {
+      showPage('page-cuts');
+      headerTitle.textContent = "Cut-Lexikon";
+      headerSubtitle.textContent = "Zuschnitte & Muskelkunde";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
       headerTitle.textContent = "Chargen-Archiv";
@@ -1160,6 +1183,7 @@ tabs.forEach(tab => {
       if (targetTab === 'receiving') activateReceivingTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
+      if (targetTab === 'cuts') activateCutGlossaryTab();
       if (targetTab === 'batches') {
         activateBatchesTab();
         refreshTeamboardAdminPanel();
@@ -1521,10 +1545,9 @@ async function bootstrapAuthenticatedApp() {
     await initAppCheckModule();
   } catch (err) {
     console.error('[CharcuLogic AppCheck] Initialisierung fehlgeschlagen:', err);
-    showHUD(
-      'App Check nicht aktiv',
-      'KI-Scanner und PIN-Prüfung sind gesperrt, bis reCAPTCHA v3 konfiguriert ist.',
-      '!',
+    showAdminDevHint(
+      'Admin-Hinweis: App Check fehlt',
+      'KI-Scanner und PIN-Pruefung sind erst nach App-Check-Konfiguration aktiv.',
     );
   }
 
@@ -1622,6 +1645,7 @@ async function bootstrapAuthenticatedApp() {
     tenantId,
     getFirebase: () => firebase,
   });
+  initCutGlossaryModule();
   refreshTeamboardAdminPanel();
   refreshAdminTeamConfigPanel();
   syncPushRegistration();

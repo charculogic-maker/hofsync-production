@@ -11,8 +11,12 @@ import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
 const HACCP_TEMP_LIMIT_C = 7.0;
-const MHD_MONITOR_HORIZON_OPTIONS = [7, 14, 21];
+const MHD_MONITOR_HORIZON_OPTIONS = [3, 7, 14, 21];
 const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
+const MHD_MONITOR_CATEGORY_HORIZON_DAYS = {
+  mopro: 3,
+  trockenware: 21,
+};
 
 const RECEIVING_FORM_IDS = [
   'we-supplier',
@@ -406,15 +410,25 @@ function applyMhdHorizonOptions() {
     ? mhdState.monitorHorizonDays
     : MHD_MONITOR_DEFAULT_HORIZON_DAYS;
   select.innerHTML = MHD_MONITOR_HORIZON_OPTIONS
-    .map((days) => `<option value="${days}">${days} Tage</option>`)
+    .map((days) => `<option value="${days}">${formatMhdHorizonLabel(days)}</option>`)
     .join('');
   select.value = String(current);
   mhdState.monitorHorizonDays = current;
 }
 
+function formatMhdHorizonLabel(days) {
+  return `0-${days} Tage`;
+}
+
 function updateMhdMonitorHintText(monitorHint) {
   if (monitorHint) {
-    monitorHint.textContent = `MHD in den kommenden ${mhdState.monitorHorizonDays} Tagen`;
+    if (mhdState.categoryFilter === 'mopro') {
+      monitorHint.textContent = 'MoPro: MHD 0-3 Tage';
+    } else if (mhdState.categoryFilter === 'trockenware') {
+      monitorHint.textContent = 'Trockenware: MHD 0-21 Tage';
+    } else {
+      monitorHint.textContent = `MoPro 0-3 Tage · Trockenware 0-21 Tage · sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)}`;
+    }
   }
 }
 
@@ -441,7 +455,9 @@ function updateMhdToolbarAccordionMeta() {
   if (query) parts.push(query.length > 16 ? `${query.slice(0, 16)}…` : query);
   const horizonSelect = document.getElementById('mhd-horizon-select');
   const categorySelect = document.getElementById('mhd-category-select');
-  const horizon = horizonSelect?.selectedOptions[0]?.textContent?.trim() || `${mhdState.monitorHorizonDays} Tage`;
+  const horizon = mhdState.categoryFilter === 'all'
+    ? `MoPro 0-3 · Trockenware 0-21 · sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)}`
+    : horizonSelect?.selectedOptions[0]?.textContent?.trim() || formatMhdHorizonLabel(mhdState.monitorHorizonDays);
   const category = categorySelect?.selectedOptions[0]?.textContent?.trim() || 'Alle Kategorien';
   if (mhdState.categoryFilter !== 'all') parts.push(category);
   else parts.push(horizon);
@@ -465,6 +481,8 @@ function updateMhdToolbarLimitHint(visibleCount) {
 
 function refreshMhdToolbarSummary() {
   updateMhdToolbarAccordionLabel();
+  const label = document.getElementById('mhd-toolbar-accordion-label');
+  if (label) label.textContent = 'Suche/Filter';
   updateMhdToolbarAccordionMeta();
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
@@ -820,6 +838,35 @@ function decodeVpeCsvBuffer(buffer) {
   return Array.from(bytes, decodeCp850Byte).join('');
 }
 
+function normalizeTextForCategory(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss');
+}
+
+function inferMhdCategoryFromProductName(productName = '', fallbackCategory = '') {
+  const normalizedName = normalizeTextForCategory(productName);
+  if (!normalizedName) return normalizeMhdCategory(fallbackCategory || '');
+
+  const fallback = normalizeMhdCategory(fallbackCategory || '');
+  const looksLikeDryMilkChocolate = /(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9].*)?(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern)/.test(normalizedName)
+    || /(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern).*(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9]|$)/.test(normalizedName);
+  const looksLikeDryRice = /milchreis.*(rundkorn|reis|weiss|weiss)/.test(normalizedName);
+  if (looksLikeDryMilkChocolate || looksLikeDryRice) return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
+
+  if (/(joghurt|joghurtdrink|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|butter|feta|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|mozzarella|ricotta|mascarpone|brie|camembert)/.test(normalizedName)) {
+    return MHD_CANONICAL_CATEGORIES.mopro;
+  }
+
+  if (/(^|[^a-z0-9])(h-?milch|frische milch|fettarme milch|alpenmilch|heumilch|weidemilch|vollmilch|milch|kakao-milch|schokoladen-milch|milch alternative)([^a-z0-9]|$)/.test(normalizedName)) {
+    return MHD_CANONICAL_CATEGORIES.mopro;
+  }
+
+  return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
+}
+
 function mapVpeCsv(text) {
   const rows = parseCsvRows(text);
   if (rows.length < 2) return {};
@@ -837,13 +884,16 @@ function mapVpeCsv(text) {
     const barcode = cleanScannedBarcode(row[indexes.gebinde]);
     if (!barcode) return master;
 
+    const name = repairLegacyGermanText(row[indexes.name]).trim();
+    const brand = repairLegacyGermanText(row[indexes.brand]).trim();
+
     master[barcode] = {
       barcode,
       einzelBarcode: cleanScannedBarcode(row[indexes.einzel]),
-      name: repairLegacyGermanText(row[indexes.name]).trim(),
-      brand: repairLegacyGermanText(row[indexes.brand]).trim(),
+      name,
+      brand,
       packageSize: parseVpeSize(row[indexes.size]),
-      category: '📦 Trockenware',
+      category: inferMhdCategoryFromProductName(name, MHD_CANONICAL_CATEGORIES.trockenware),
       isVpe: true,
       source: 'csv-vpe-stammdaten',
     };
@@ -996,6 +1046,11 @@ function lookupScannedProduct(scannedCode) {
     return { ...vpeMaster[scannedCode], barcode: scannedCode, existingProduct, isVpe: true, source: 'vpe-stammdaten' };
   }
 
+  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  if (productMaster[scannedCode]) {
+    return { ...productMaster[scannedCode], barcode: scannedCode, source: 'lokale-stammdaten' };
+  }
+
   if (csvVpeMaster[scannedCode]) {
     const csvVpe = csvVpeMaster[scannedCode];
     const existingProduct = mhdState.products.find((product) => {
@@ -1033,11 +1088,6 @@ function lookupScannedProduct(scannedCode) {
       existingProduct: existing,
       source: 'bestand',
     };
-  }
-
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
-  if (productMaster[scannedCode]) {
-    return { ...productMaster[scannedCode], barcode: scannedCode, source: 'lokale-stammdaten' };
   }
 
   return null;
@@ -1689,7 +1739,12 @@ function normalizeMhdCategory(kategorie) {
 }
 
 function getProductCategory(prod) {
-  return normalizeMhdCategory(prod.kategorie);
+  const storedCategory = normalizeMhdCategory(prod.kategorie || prod.category || prod.warenKategorie || '');
+  const productName = prod.name || prod.produkt || prod.product || '';
+  if (!storedCategory || storedCategory === MHD_CANONICAL_CATEGORIES.trockenware) {
+    return inferMhdCategoryFromProductName(productName, storedCategory);
+  }
+  return storedCategory;
 }
 
 function resolveMhdActionKey(category, tage) {
@@ -1711,12 +1766,17 @@ function computeResttageFromMhd(mhdDateStr) {
   return Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
 }
 
+function getExplicitMhdDateValue(prod = {}) {
+  return prod.mhd || prod.mhdDate || '';
+}
+
 function getMhdResttage(prod) {
+  const computed = computeResttageFromMhd(getExplicitMhdDateValue(prod));
+  if (Number.isFinite(computed)) return computed;
   const rawValue = prod.tage ?? prod.resttage;
   const days = Number(rawValue);
   if (Number.isFinite(days)) return days;
-  const computed = computeResttageFromMhd(prod.mhd || prod.mhdDate || prod.date);
-  return Number.isFinite(computed) ? computed : Number.POSITIVE_INFINITY;
+  return Number.POSITIVE_INFINITY;
 }
 
 function sortMhdProductsByResttage(products) {
@@ -1735,8 +1795,19 @@ function matchesMhdMonitorHorizon(prod) {
   if (prod.soldOut) return false;
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
-  // Heute (0), überfällig (<0) und die nächsten 7 Tage (1–7).
-  return days <= mhdState.monitorHorizonDays;
+  const category = getProductCategory(prod);
+  const upperLimit = category === MHD_CANONICAL_CATEGORIES.mopro
+    ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro
+    : category === MHD_CANONICAL_CATEGORIES.trockenware
+      ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware
+      : mhdState.monitorHorizonDays;
+  return days <= upperLimit;
+}
+
+function getMhdMonitorEmptyHorizonText() {
+  if (mhdState.categoryFilter === 'mopro') return 'im Zeitraum 0-3 Tage';
+  if (mhdState.categoryFilter === 'trockenware') return 'im Zeitraum 0-21 Tage';
+  return `im passenden Zeitraum (MoPro 0-3 Tage, Trockenware 0-21 Tage, sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)})`;
 }
 
 function getMhdCategoryFilterLabel(filterKey = 'all') {
@@ -1758,12 +1829,64 @@ function filterMhdProducts(products) {
   });
 }
 
-function productPostenCount(prod) {
-  const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
-  if (!barcode) return 1;
-  return mhdState.products.filter((entry) =>
-    !entry.soldOut && cleanScannedBarcode(entry.ean || entry.barcode || entry.scanBarcode) === barcode
-  ).length;
+function formatMhdDateForCardMeta(prod = {}) {
+  const rawMhd = getExplicitMhdDateValue(prod);
+  const dotted = normalizeDateInputToDotted(rawMhd);
+  return dotted || '';
+}
+
+function getCategoryBadgeLabel(prod = {}) {
+  const category = getProductCategory(prod);
+  return category || 'Kategorie';
+}
+
+function buildMhdProductMetaHtml(prod = {}) {
+  const parts = [];
+  const brand = String(prod.brand || prod.marke || '').trim();
+  const mhdDate = formatMhdDateForCardMeta(prod);
+  if (brand) parts.push(brand);
+  if (mhdDate) parts.push(`MHD ${mhdDate}`);
+  return parts.map((part) => escapeHtml(part)).join(' · ');
+}
+
+function getProductBarcode(prod = {}) {
+  return cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode || prod.id);
+}
+
+function findProductsByBarcode(barcode) {
+  const clean = cleanScannedBarcode(barcode);
+  if (!clean) return [];
+  return mhdState.products.filter((entry) => getProductBarcode(entry) === clean);
+}
+
+function rememberCategoryForBarcode(product = {}, barcode, kategorie) {
+  const clean = cleanScannedBarcode(barcode);
+  if (!clean || !kategorie) return;
+  const name = product.name || product.produkt || '';
+  const brand = product.brand || product.marke || '';
+
+  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  productMaster[clean] = {
+    ...(productMaster[clean] || {}),
+    barcode: clean,
+    name: productMaster[clean]?.name || name,
+    brand: productMaster[clean]?.brand || brand,
+    category: kategorie,
+  };
+  writeLocalMaster(PRODUCT_MASTER_STORAGE_KEY, productMaster);
+
+  const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
+  if (vpeMaster[clean] || product.isVpe) {
+    vpeMaster[clean] = {
+      ...(vpeMaster[clean] || {}),
+      barcode: clean,
+      name: vpeMaster[clean]?.name || name,
+      brand: vpeMaster[clean]?.brand || brand,
+      category: kategorie,
+      packageSize: Number(vpeMaster[clean]?.packageSize || product.packageSize || 1),
+    };
+    writeLocalMaster(VPE_MASTER_STORAGE_KEY, vpeMaster);
+  }
 }
 
 function openPostenHistory(prodId) {
@@ -1781,7 +1904,7 @@ function openPostenHistory(prodId) {
         <div class="utility-row recent-receipt-row">
           <div class="utility-row-title">${escapeHtml(entry.name || entry.produkt || 'Posten')}</div>
           <div class="utility-row-meta">
-            MHD: ${escapeHtml(entry.mhd || entry.mhdDate || entry.date || '-')} · Resttage: ${escapeHtml(entry.tage ?? entry.resttage ?? '-')} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}
+            MHD: ${escapeHtml(formatMhdDateForCardMeta(entry) || '-')} · Resttage: ${escapeHtml(getMhdResttage(entry))} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}
           </div>
           <div class="utility-row-meta">${entry.soldOut ? 'Erledigt / abverkauft' : 'Aktiv'}</div>
         </div>
@@ -1791,13 +1914,31 @@ function openPostenHistory(prodId) {
 }
 
 function computeMhdAction(prod) {
-  const tage = prod.tage ?? 0;
+  const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
   const key = resolveMhdActionKey(category, tage);
   if (key === 'pruefen' && category === MHD_TROCKEN_CATEGORY) {
     return { label: '📦 SONDERFLÄCHE / 20%', color: '#F57F17', bg: 'rgba(245, 127, 23, 0.14)' };
   }
   return MHD_ACTION_STYLES[key];
+}
+
+function getMhdCardAction(prod) {
+  const tage = getMhdResttage(prod);
+  const category = getProductCategory(prod);
+  const key = resolveMhdActionKey(category, tage);
+  const action = computeMhdAction(prod);
+  const shortLabels = {
+    tonne: 'Abschreiben',
+    rabatt50: '50%',
+    rabatt30: '30%',
+    pruefen: category === MHD_TROCKEN_CATEGORY ? '20%' : 'Prüfen',
+    ok: 'OK',
+  };
+  return {
+    ...action,
+    label: shortLabels[key] || action.label,
+  };
 }
 
 function initMhdSubnavAndSearch() {
@@ -1847,6 +1988,7 @@ function initMhdSubnavAndSearch() {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
       mhdState.categoryFilter = categorySelect.value || 'all';
+      updateMonitorHint();
       refreshMhdToolbarSummary();
       mhdState.playClickSound(940, 0.04, 0.12);
       renderMhdList();
@@ -1884,13 +2026,22 @@ function initMhdSubnavAndSearch() {
 
 function mapMhdDoc(doc) {
   const data = doc.data();
-  let tage = data.tage ?? data.resttage ?? null;
-  if (!Number.isFinite(Number(tage))) {
-    tage = computeResttageFromMhd(data.mhd || data.mhdDate || data.date);
-  }
-  const category = normalizeMhdCategory(data.kategorie);
+  const computedTage = computeResttageFromMhd(getExplicitMhdDateValue(data));
+  const storedTage = Number(data.tage ?? data.resttage);
+  const tage = Number.isFinite(computedTage)
+    ? computedTage
+    : Number.isFinite(storedTage)
+      ? storedTage
+      : null;
+  const category = getProductCategory({
+    kategorie: data.kategorie,
+    category: data.category,
+    warenKategorie: data.warenKategorie,
+    name: data.name,
+    produkt: data.produkt,
+  });
   let status = data.status;
-  if (status === 'aktiv' && tage != null) {
+  if (!data.soldOut && Number.isFinite(Number(tage))) {
     const actionKey = resolveMhdActionKey(category, tage);
     status = actionKey === 'tonne' ? 'expired' : actionKey === 'rabatt50' || actionKey === 'rabatt30' ? 'critical' : actionKey === 'pruefen' ? 'warning' : 'ok';
   }
@@ -1981,32 +2132,43 @@ function renderMhdList() {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Artikel mit MHD in den kommenden ${mhdState.monitorHorizonDays} Tagen${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
+        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()}${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
       </div>`;
     return;
   }
 
   container.innerHTML = renderedProducts.map((prod) => {
-    const action = computeMhdAction(prod);
-    const postenCount = productPostenCount(prod);
-    const resttage = prod.tage ?? prod.resttage;
+    const action = getMhdCardAction(prod);
+    const resttage = getMhdResttage(prod);
     const isZeroDay = resttage === 0;
+    const isOverdue = resttage < 0;
     const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
+    const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
     const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
+    const productMetaHtml = buildMhdProductMetaHtml(prod);
+    const mhdDateEditButton = formatMhdDateForCardMeta(prod)
+      ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
+      : '';
+    const categoryBadgeLabel = getCategoryBadgeLabel(prod);
     const retterBoxAction = window.BRANDING?.modules?.retterBox === true
       ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
       : '';
     return `
-    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
-      <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};font-weight:800;font-size:13px;text-align:center;padding:10px 12px;border-radius:10px;margin-bottom:4px;letter-spacing:0.3px;">
-        ${action.label}
+    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
+      <div class="mhd-card-badge-row">
+        <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
+          ${action.label}
+        </div>
+        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
+          ${escapeHtml(categoryBadgeLabel)}
+        </button>
       </div>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
           <span class="mhd-product-name">${prod.name}</span>
-          <span class="mhd-product-meta">${prod.brand ? prod.brand + ' · ' : ''}${prod.mhdText || ''}${postenCount > 1 ? ` · ${postenCount} aktive Posten` : ''}</span>
+          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
         </div>
-        <div class="mhd-badge"${badgeStyle}>${prod.tage ?? '–'} Tage</div>
+        <div class="mhd-badge"${badgeStyle}>${badgeLabel} Tage</div>
       </div>
       <div class="mhd-controls-row">
         <div class="qty-stepper">
@@ -2194,6 +2356,226 @@ async function setSoldOut(id) {
     mhdState.showHUD("Fehler", "Status konnte nicht gespeichert werden.", "!");
   }
 };
+
+function openMhdCategoryEditor(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  const barcode = getProductBarcode(prod);
+  const matchingProducts = barcode ? findProductsByBarcode(barcode) : [prod];
+  const currentCategory = prod.warenKategorie || prod.kategorie || getProductCategory(prod);
+  showUtilityDialog('Kategorie ändern', `
+    <p class="learn-mode-desc">${escapeHtml(prod.name || prod.produkt || 'Produkt')}${barcode ? ` · EAN ${escapeHtml(barcode)}` : ''}</p>
+    <label class="form-label" for="mhd-card-category-select">Kategorie</label>
+    <select class="input-text-touch" id="mhd-card-category-select">
+      ${renderReceivingCategoryOptions(currentCategory)}
+    </select>
+    <p class="learn-mode-desc">Wir bereiten die Änderung für ${matchingProducts.length} vorhandene MHD-Einträge mit gleicher EAN vor.</p>
+    <button type="button" class="btn btn-primary" id="mhd-card-category-save" style="width:100%;min-height:52px;margin-top:12px;">Änderung prüfen</button>
+  `);
+  document.getElementById('mhd-card-category-save')?.addEventListener('click', () => confirmMhdCategoryChange(id));
+}
+
+function getMhdCategoryChangeDraft(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  const select = document.getElementById('mhd-card-category-select');
+  const warenKategorie = String(select?.value || '').trim();
+  if (!prod || !warenKategorie) return null;
+  const barcode = getProductBarcode(prod);
+  const matchingProducts = barcode ? findProductsByBarcode(barcode) : [prod];
+  const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
+  return { prod, barcode, matchingProducts, warenKategorie, kategorie };
+}
+
+function confirmMhdCategoryChange(id) {
+  const draft = getMhdCategoryChangeDraft(id);
+  if (!draft) {
+    mhdState.showHUD('Kategorie fehlt', 'Bitte eine Kategorie auswählen.', '!');
+    return;
+  }
+  const { prod, barcode, matchingProducts, kategorie } = draft;
+  showUtilityDialog('Wirklich ändern?', `
+    <p class="learn-mode-desc">${escapeHtml(prod.name || prod.produkt || 'Produkt')}${barcode ? ` · EAN ${escapeHtml(barcode)}` : ''}</p>
+    <div class="utility-list">
+      <div class="utility-row">
+        <div class="utility-row-title">Neue Kategorie</div>
+        <div class="utility-row-meta">${escapeHtml(kategorie)}</div>
+      </div>
+      <div class="utility-row">
+        <div class="utility-row-title">Wird angepasst</div>
+        <div class="utility-row-meta">${matchingProducts.length} vorhandene MHD-Einträge mit gleicher EAN und die künftige Kategorie beim nächsten Scan.</div>
+      </div>
+    </div>
+    <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+      <button type="button" class="btn btn-primary" id="mhd-card-category-confirm" style="width:100%;min-height:52px;">Ja, Kategorie ändern</button>
+      <button type="button" class="btn btn-secondary" id="mhd-card-category-cancel" style="width:100%;min-height:52px;">Abbrechen</button>
+    </div>
+  `);
+  document.getElementById('mhd-card-category-confirm')?.addEventListener('click', () => saveMhdCategoryForBarcode(id, draft));
+  document.getElementById('mhd-card-category-cancel')?.addEventListener('click', () => resetScanState({ keepLearnOverlay: false }));
+}
+
+async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
+  const draft = preparedDraft || getMhdCategoryChangeDraft(id);
+  if (!draft) {
+    mhdState.showHUD('Kategorie fehlt', 'Bitte eine Kategorie auswählen.', '!');
+    return;
+  }
+  const { prod, barcode, matchingProducts, warenKategorie, kategorie } = draft;
+  const updatedAtIso = new Date().toISOString();
+  const onlineData = {
+    warenKategorie,
+    kategorie,
+    category: kategorie,
+    updatedAt: serverTimestampFallback(),
+  };
+  const queueData = {
+    warenKategorie,
+    kategorie,
+    category: kategorie,
+    updatedAt: updatedAtIso,
+  };
+
+  try {
+    rememberCategoryForBarcode(prod, barcode, kategorie);
+    await Promise.all(matchingProducts.map((entry) =>
+      mhdState.writeOrQueueFirestore({
+        collectionPath: mhdCollectionPath(),
+        docId: entry.id,
+        onlineData,
+        queueData,
+        offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
+      })
+    ));
+    matchingProducts.forEach((entry) => {
+      entry.warenKategorie = warenKategorie;
+      entry.kategorie = kategorie;
+      entry.category = kategorie;
+      entry.updatedAt = updatedAtIso;
+    });
+    resetScanState({ keepLearnOverlay: false });
+    renderMhdList();
+    mhdState.showHUD('Kategorie gespeichert', `Kategorie für ${matchingProducts.length} MHD-Einträge aktualisiert.`);
+  } catch (err) {
+    console.error('[CharcuLogic Firebase] EAN-Kategorie speichern fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
+  }
+}
+
+function openMhdDateEditor(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  const currentIso = normalizeDateInputToIso(getExplicitMhdDateValue(prod));
+  showUtilityDialog('MHD korrigieren', `
+    <p class="learn-mode-desc">${escapeHtml(prod.name || prod.produkt || 'Produkt')}</p>
+    <label class="form-label" for="mhd-card-date-input">Korrigiertes MHD</label>
+    <input type="text" id="mhd-card-date-input" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+    <p class="learn-mode-desc">Wir ändern nur diesen MHD-Eintrag. Für neue Ware mit gleicher EAN wird kein MHD gemerkt.</p>
+    <button type="button" class="btn btn-primary" id="mhd-card-date-check" style="width:100%;min-height:52px;margin-top:12px;">Änderung prüfen</button>
+  `);
+  const input = document.getElementById('mhd-card-date-input');
+  if (currentIso) setGermanDateField(input, currentIso);
+  initGermanDateInputs(learnModeOverlay || document);
+  document.getElementById('mhd-card-date-check')?.addEventListener('click', () => confirmMhdDateChange(id));
+}
+
+function getMhdDateChangeDraft(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  const input = document.getElementById('mhd-card-date-input');
+  const newIso = readGermanDateField(input);
+  if (!prod || !newIso) return null;
+  const oldIso = normalizeDateInputToIso(getExplicitMhdDateValue(prod));
+  return {
+    prod,
+    oldIso,
+    newIso,
+    oldLabel: oldIso ? formatIsoToGerman(oldIso) : formatMhdDateForCardMeta(prod) || '-',
+    newLabel: formatIsoToGerman(newIso),
+  };
+}
+
+function confirmMhdDateChange(id) {
+  const draft = getMhdDateChangeDraft(id);
+  if (!draft) {
+    mhdState.showHUD('MHD fehlt', 'Bitte ein gültiges MHD eingeben.', '!');
+    return;
+  }
+  if (draft.oldIso && draft.oldIso === draft.newIso) {
+    mhdState.showHUD('Keine Änderung', 'Das MHD ist bereits so eingetragen.');
+    return;
+  }
+
+  const newDays = computeResttageFromMhd(draft.newIso);
+  showUtilityDialog('Wirklich MHD ändern?', `
+    <p class="learn-mode-desc">${escapeHtml(draft.prod.name || draft.prod.produkt || 'Produkt')}</p>
+    <div class="utility-list">
+      <div class="utility-row">
+        <div class="utility-row-title">Bisheriges MHD</div>
+        <div class="utility-row-meta">${escapeHtml(draft.oldLabel)}</div>
+      </div>
+      <div class="utility-row">
+        <div class="utility-row-title">Neues MHD</div>
+        <div class="utility-row-meta">${escapeHtml(draft.newLabel)} · ${escapeHtml(Number.isFinite(newDays) ? `${newDays} Resttage` : 'Resttage offen')}</div>
+      </div>
+    </div>
+    <p class="learn-mode-desc">Wir ändern nur diesen MHD-Eintrag.</p>
+    <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+      <button type="button" class="btn btn-primary" id="mhd-card-date-confirm" style="width:100%;min-height:52px;">Ja, MHD ändern</button>
+      <button type="button" class="btn btn-secondary" id="mhd-card-date-cancel" style="width:100%;min-height:52px;">Abbrechen</button>
+    </div>
+  `);
+  document.getElementById('mhd-card-date-confirm')?.addEventListener('click', () => saveMhdDateForPosten(id, draft));
+  document.getElementById('mhd-card-date-cancel')?.addEventListener('click', () => resetScanState({ keepLearnOverlay: false }));
+}
+
+async function saveMhdDateForPosten(id, preparedDraft = null) {
+  const draft = preparedDraft || getMhdDateChangeDraft(id);
+  if (!draft) {
+    mhdState.showHUD('MHD fehlt', 'Bitte ein gültiges MHD eingeben.', '!');
+    return;
+  }
+  const tage = computeResttageFromMhd(draft.newIso);
+  const category = getProductCategory(draft.prod);
+  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(category, tage) : 'ok';
+  const status = actionKey === 'tonne'
+    ? 'expired'
+    : actionKey === 'rabatt50' || actionKey === 'rabatt30'
+      ? 'critical'
+      : actionKey === 'pruefen'
+        ? 'warning'
+        : 'ok';
+  const updatedAtIso = new Date().toISOString();
+  const onlineData = {
+    mhd: draft.newIso,
+    mhdDate: draft.newIso,
+    date: mhdDateToDisplay(draft.newIso),
+    tage,
+    resttage: tage,
+    mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'MHD korrigiert',
+    status,
+    updatedAt: serverTimestampFallback(),
+  };
+  const queueData = {
+    ...onlineData,
+    updatedAt: updatedAtIso,
+  };
+
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: id,
+      onlineData,
+      queueData,
+      offlineMessage: 'MHD-Korrektur wird nachträglich synchronisiert.',
+    });
+    Object.assign(draft.prod, queueData);
+    resetScanState({ keepLearnOverlay: false });
+    renderMhdList();
+    mhdState.showHUD('MHD gespeichert', `Neues MHD: ${draft.newLabel}.`);
+  } catch (err) {
+    console.error('[CharcuLogic Firebase] MHD-Korrektur speichern fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'MHD konnte nicht gespeichert werden.', '!');
+  }
+}
 
 async function markMhdAction(id, actionStatus) {
   const today = new Date().toISOString().slice(0, 10);
@@ -2421,6 +2803,8 @@ function bindMhdCardActions() {
     if (command === 'soldout') setSoldOut(id);
     if (command === 'action') markMhdAction(id, button.dataset.mhdActionStatus);
     if (command === 'retterbox') addMhdItemToRetterBox(id);
+    if (command === 'category') openMhdCategoryEditor(id);
+    if (command === 'mhd-date') openMhdDateEditor(id);
   });
   container.addEventListener('change', (event) => {
     const input = event.target.closest('.mhd-qty-input');

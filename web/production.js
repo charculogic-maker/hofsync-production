@@ -4125,6 +4125,9 @@ function renderRecipeCategoryFilters(recipes) {
       label: `${category} (${recipes.filter((recipe) => recipeCategoryOf(recipe) === category).length})`,
     })),
   ];
+  const activeButton = buttons.find((button) => button.id === productionState.recipeCategoryFilter) || buttons[0];
+  const filterLabel = document.getElementById('recipe-category-filter-label');
+  if (filterLabel) filterLabel.textContent = activeButton?.label || 'Alle Kategorien';
 
   filter.innerHTML = buttons.map((button) => `
     <button type="button" class="recipe-category-chip ${productionState.recipeCategoryFilter === button.id ? 'active-category' : ''}" data-category="${button.id}">
@@ -4146,6 +4149,28 @@ function filteredRecipesForKitchen(recipes) {
 function initRecipeSearchAndFilters() {
   const searchInput = document.getElementById('recipe-search-input');
   const categoryFilter = document.getElementById('recipe-category-filter');
+  const categoryButton = document.getElementById('recipe-category-filter-button');
+  const categorySheet = document.getElementById('recipe-category-sheet');
+  const categoryBackdrop = document.getElementById('recipe-category-backdrop');
+  const categoryClose = document.getElementById('recipe-category-sheet-close');
+
+  const closeCategorySheet = () => {
+    if (!categorySheet || !categoryBackdrop || !categoryButton) return;
+    categorySheet.classList.add('hidden');
+    categoryBackdrop.classList.add('hidden');
+    categorySheet.hidden = true;
+    categoryBackdrop.hidden = true;
+    categoryButton.setAttribute('aria-expanded', 'false');
+  };
+
+  const openCategorySheet = () => {
+    if (!categorySheet || !categoryBackdrop || !categoryButton) return;
+    categorySheet.hidden = false;
+    categoryBackdrop.hidden = false;
+    categorySheet.classList.remove('hidden', 'closed');
+    categoryBackdrop.classList.remove('hidden');
+    categoryButton.setAttribute('aria-expanded', 'true');
+  };
 
   if (searchInput && searchInput.dataset.eventsBound !== '1') {
     searchInput.dataset.eventsBound = '1';
@@ -4155,6 +4180,21 @@ function initRecipeSearchAndFilters() {
     });
   }
 
+  if (categoryButton && categoryButton.dataset.eventsBound !== '1') {
+    categoryButton.dataset.eventsBound = '1';
+    categoryButton.addEventListener('click', openCategorySheet);
+  }
+
+  if (categoryBackdrop && categoryBackdrop.dataset.eventsBound !== '1') {
+    categoryBackdrop.dataset.eventsBound = '1';
+    categoryBackdrop.addEventListener('click', closeCategorySheet);
+  }
+
+  if (categoryClose && categoryClose.dataset.eventsBound !== '1') {
+    categoryClose.dataset.eventsBound = '1';
+    categoryClose.addEventListener('click', closeCategorySheet);
+  }
+
   if (categoryFilter && categoryFilter.dataset.eventsBound !== '1') {
     categoryFilter.dataset.eventsBound = '1';
     categoryFilter.addEventListener('click', (event) => {
@@ -4162,6 +4202,7 @@ function initRecipeSearchAndFilters() {
       if (!button) return;
       productionState.recipeCategoryFilter = button.dataset.category || 'all';
       renderRecipes();
+      closeCategorySheet();
     });
   }
 }
@@ -4169,6 +4210,7 @@ function initRecipeSearchAndFilters() {
 function renderRecipes() {
   const container = document.getElementById('recipe-list-container');
   if (!container) return;
+  initRecipeSearchAndFilters();
 
   const recipes = recipesForKitchenList();
   const searchInput = document.getElementById('recipe-search-input');

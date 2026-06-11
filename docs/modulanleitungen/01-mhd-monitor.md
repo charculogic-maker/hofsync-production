@@ -7,7 +7,7 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Automatische Liste aller Posten mit **MHD im gewählten Zeitraum**; Standard sind **21 Tage**
+- Automatische Liste aller Posten mit **MHD im passenden Zeitraum**: MoPro 0-3 Tage, Trockenware 0-21 Tage
 - Optional nach **Zeitraum** und **Kategorie** filtern
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
@@ -17,7 +17,7 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 
 | Element | Funktion |
 |---------|----------|
-| **Zeitraum** | Auswahl zwischen **7**, **14** und **21 Tagen**; Standard sind **21 Tage** |
+| **Zeitraum** | Auswahl zwischen **0-3**, **0-7**, **0-14** und **0-21 Tagen**; MoPro bleibt bei **0-3**, Trockenware bei **0-21** |
 | **Kategorie** | Alle Kategorien oder gezielt: Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze |
 
 Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
@@ -29,6 +29,8 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 ![MHD-Karte mit Aktionen](./screenshots/01b-mhd-karte.png)
 
 - **Badge oben**: empfohlene Aktion (z. B. Rabatt, Prüfen, Tonne)
+- **Kategorie-Badge oben**: antippen, wenn die Kategorie falsch ist; vor dem Speichern bestätigen wir die Änderung
+- **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
 - **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
 - **🗑️ Ausverkauft** oder Wischen nach **links**
 - **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche**
@@ -55,6 +57,5 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ## Hinweise
 
-- **„X aktive Posten“** unter dem Namen = mehrere offene Einträge mit gleichem Barcode
-- **Hersteller / Zusatz** erscheint in der Meta-Zeile, wenn beim Wareneingang erfasst
+- Die zweite Zeile zeigt **Hersteller / Zusatz** und das echte **MHD-Datum**
 - Ohne Firebase-Verbindung erscheint ein Hinweis, dass keine MHD-Daten geladen werden können

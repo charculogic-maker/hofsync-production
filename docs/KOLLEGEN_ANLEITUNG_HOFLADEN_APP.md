@@ -37,7 +37,11 @@ Im Tab **Team** nutzen wir am Laden-iPhone den **🌡️ Temperatur-Check**. Die
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** zeigt unsere App automatisch alle Posten, deren MHD im gewählten Zeitraum abläuft. Standard ist **21 Tage**; bei Bedarf stellen wir den Zeitraum auf **7**, **14** oder **21 Tage**.
+Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
+
+Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte das Kategorie-Badge an und bestätigen die Änderung. Unsere App speichert sie für alle vorhandenen Einträge mit gleicher EAN und nutzt sie beim nächsten Scan wieder.
+
+Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 
 1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
 2. Bei Bedarf den **Zeitraum** oder die **Kategorie** wählen (z. B. MoPro, Frische, TK).
@@ -114,6 +118,7 @@ So berichtigen wir falsch zugeordnete Artikel ohne Zugriff auf die technische Da
 ## 3. Prod. öffnen
 
 Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
+Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 

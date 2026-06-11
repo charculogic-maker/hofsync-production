@@ -38,12 +38,16 @@ Der Tab **Team** zeigt am Laden-iPhone den schlanken **🌡️ Temperatur-Check*
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab zeigt automatisch alle relevanten Posten im gewählten Zeitraum. Standard ist **21 Tage**; über **Zeitraum** können wir auf **7**, **14** oder **21 Tage** umstellen. Es gibt zwei Filter:
+Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
 
 - **Zeitraum** — 7, 14 oder 21 Tage
 - **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze
 
 Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
+
+Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir das Kategorie-Badge oben an. Vor dem Speichern bestätigen wir die Änderung. Unsere App übernimmt die neue Kategorie für alle vorhandenen MHD-Einträge mit gleicher EAN und merkt sie für den nächsten Scan.
+
+Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen MHD-Eintrag und fragt vor dem Speichern noch einmal nach.
 
 Änderungen an Mengen und Status bündeln wir mit **Änderungen speichern**.
 
@@ -88,6 +92,8 @@ Unter **Neu → Letzte Eingänge** sehen wir die zuletzt erfassten Artikel mit i
 ## 5. Prod. öffnen
 
 Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
+
+Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 
