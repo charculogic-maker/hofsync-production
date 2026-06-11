@@ -10,7 +10,7 @@ Professionelle Bedienungs- und Administrator-Anleitungen (Stand: Security- & Mul
 
 | Handbuch | Cursor `@` | Zielgruppe | Mandant / Rolle |
 |----------|------------|------------|-----------------|
-| [ANLEITUNG_STEVESHOF.md](./ANLEITUNG_STEVESHOF.md) | `@ANLEITUNG_STEVESHOF.md` | Laden-iPhone (Team) | `StevesHof_Hauptbetrieb` · CharcuLogic |
+| [ANLEITUNG_STEVESHOF.md](./ANLEITUNG_STEVESHOF.md) | `@ANLEITUNG_STEVESHOF.md` | Laden-iPhone (Team) | `StevesHof_Hauptbetrieb` · CharcuLogic · MHD, Retter-Box, HACCP, Wissen |
 | [ANLEITUNG_TORFABRIK.md](./ANLEITUNG_TORFABRIK.md) | `@ANLEITUNG_TORFABRIK.md` | Industrielle Lebensmittelproduktion (Team) | `torfabrik` · CenterLogic |
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./ANLEITUNG_WHITELABEL_ADMIN.md) | `@ANLEITUNG_WHITELABEL_ADMIN.md` | SaaS-Plattform-Administratoren | Mandanten-Onboarding |
 

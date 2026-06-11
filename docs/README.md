@@ -29,7 +29,7 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 | Handbuch | Inhalt |
 |----------|--------|
-| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Neutraler Laden-iPhone-Zugang, MHD, Laden-Wareneingang inkl. Letzte Eingänge, Prod., Offline |
+| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Barcode-Wareneingang, Prod., HACCP, Wissen, Offline |
 | [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation |
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |

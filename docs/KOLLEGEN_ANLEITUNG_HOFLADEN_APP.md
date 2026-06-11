@@ -2,10 +2,11 @@
 
 Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt **CharcuLogic** und ist im Laden bewusst auf die wichtigsten Aufgaben reduziert:
 
-1. **MHD kontrollieren**
-2. **Neue Ware erfassen**
+1. **MHD kontrollieren** (inkl. Retter-Box vormerken)
+2. **Neue Ware erfassen** (Barcode-Scan)
 3. **Rezepte und Produktion öffnen**
-4. **Wissen nachlesen**
+4. **Temperaturen und Reinigung dokumentieren** (HACCP)
+5. **Wissen nachlesen**
 
 Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
@@ -57,6 +58,12 @@ Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unse
 
 Optional nutzen wir **Artikel suchen**, um gezielt nach einem Produkt zu filtern.
 
+### Retter-Box vormerken
+
+Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der MHD-Karte mit **Box**. Kurz erscheint **Zur Retter-Box gelegt** — der Posten ist im heutigen Vorschlag gespeichert.
+
+**Drucken**, Rezeptvorschlag und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** mit Admin-Zugang unter **Retter-Boxen**. Am neutralen Laden-iPhone nutzen wir nur die **Box**-Aktion in der MHD-Karte.
+
 ![StevesHof MHD-Start mit Kategoriefilter und Artikelkarte](./modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
 ---
@@ -88,19 +95,19 @@ Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerad
 
 Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
 
-### Lieferschein per Foto einlesen (KI-Wareneingang)
+### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
 
-Wenn wir nicht jeden Artikel einzeln eintippen möchten, lassen wir den Lieferschein von der KI lesen:
+Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+
+Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
 
 1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein mit dem Laden-iPhone fotografieren oder ein Foto auswählen.
-3. Kurz warten, während die Animation **„Die KI liest den Lieferschein für uns...“** läuft.
-4. In der Vorschau-Tabelle **Name**, **Liefermenge** und das **vorgeschlagene MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen.
+2. Lieferschein fotografieren oder ein Foto wählen.
+3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
+4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
+5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 
-Wir sehen dann die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
-Das **vorgeschlagene MHD** ist schon ausgefüllt: Unsere App nutzt die **Erfahrungswerte der letzten Lieferungen** für denselben Artikel. Gab es noch keine Lieferung, greift ein Standardwert (Gemüse 3 Tage, Molkerei 10 Tage). Jedes MHD lässt sich vorher noch als `TT.MM.JJJJ` anpassen.
+Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -134,6 +141,8 @@ Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
 - **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
 
 Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir sie auch im Arbeitsalltag sicher treffen.
+
+![StevesHof Wissen · Fleisch-Lexikon](./modulanleitungen/screenshots/steveshof-06-wissen.png)
 
 ---
 
@@ -170,6 +179,8 @@ Unter jeder Karte steht der zuletzt eingetragene Wert (z. B. *„Heute, 08:30 �
 
 Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** und überträgt den Wert automatisch, sobald WLAN wieder verfügbar ist.
 
+![StevesHof HACCP Temperaturen](./modulanleitungen/screenshots/steveshof-05-haccp.png)
+
 ---
 
 ## Liefertag: Kurzfassung
@@ -190,6 +201,8 @@ Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** u
 | Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
+| KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
+| **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
 
 ## Logout am Laden-iPhone
 

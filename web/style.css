@@ -6763,6 +6763,38 @@ body.role-helper #team-subnav-orders {
   min-width: 0;
 }
 
+.cut-card--definition {
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--surface-color));
+  border-color: color-mix(in srgb, var(--primary-color) 28%, var(--border-subtle));
+  border-left: 4px solid var(--primary-color);
+}
+
+.cut-species--definition {
+  color: var(--primary-on-light);
+}
+
+.cut-title--definition::before {
+  content: '💡 ';
+}
+
+.cut-region-pill--definition {
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
+  font-weight: 900;
+}
+
+.cut-definition-body {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-secondary);
+  color: var(--text-dark);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .cut-card-head {
   display: flex;
   flex-direction: column;
@@ -6876,8 +6908,17 @@ body.role-helper #team-subnav-orders {
 [data-theme="dark"] .knowledge-accordion,
 [data-theme="dark"] .knowledge-handbook-card,
 [data-theme="dark"] .cut-card,
+[data-theme="dark"] .cut-card--definition,
 [data-theme="dark"] .cut-empty {
   border-color: var(--border-subtle);
+}
+
+[data-theme="dark"] .cut-card--definition {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
+}
+
+[data-theme="dark"] .cut-definition-body {
+  background: var(--surface-color);
 }
 
 [data-theme="dark"] .cut-species-chip {
@@ -7288,4 +7329,135 @@ body.role-helper #team-subnav-orders {
 
 .retter-box-count {
   white-space: nowrap;
+}
+
+/* =========================================================================
+   Desktop wide layout (Wissen + Büro), ab 1024px
+   Mobile/PWA unter 768px bleibt unverändert.
+   ========================================================================= */
+
+@media (min-width: 1024px) {
+  body.desktop-wide-layout {
+    align-items: flex-start;
+    padding: 16px 24px;
+  }
+
+  body.desktop-wide-layout .preview-container {
+    width: min(100%, 1440px);
+    max-width: none;
+    align-self: stretch;
+  }
+
+  body.desktop-wide-layout .iphone-frame {
+    width: 100%;
+    max-width: 1440px;
+    height: min(100dvh - 32px, 960px);
+    min-height: 600px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  body.desktop-wide-layout .iphone-island,
+  body.desktop-wide-layout .home-indicator,
+  body.desktop-wide-layout .status-bar,
+  body.desktop-wide-layout .desktop-controls {
+    display: none;
+  }
+
+  body.desktop-wide-layout .app-container {
+    border-radius: 12px;
+    height: 100%;
+  }
+
+  body.desktop-wide-layout .app-content {
+    padding: 20px 28px 100px;
+  }
+
+  /* Fleisch-Lexikon: 2-Spalten (Tools links, Ergebnisse rechts) */
+  body.desktop-wide-layout .cut-glossary-shell {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    grid-template-areas:
+      "intro intro"
+      "tools results";
+    gap: 20px 28px;
+    align-items: start;
+  }
+
+  body.desktop-wide-layout .cut-glossary-intro {
+    grid-area: intro;
+  }
+
+  body.desktop-wide-layout .cut-glossary-tools {
+    grid-area: tools;
+    position: sticky;
+    top: 8px;
+    align-self: start;
+  }
+
+  body.desktop-wide-layout .cut-glossary-results {
+    grid-area: results;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  body.desktop-wide-layout .cut-glossary-results .cut-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+
+  body.desktop-wide-layout #page-knowledge .cut-species-filter {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.desktop-wide-layout #page-knowledge .cut-quick-filter {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  /* Büro-Tab: volle Breite, Admin-Grids nebeneinander */
+  body.desktop-wide-layout #page-batches,
+  body.desktop-wide-layout #page-buero {
+    max-width: none;
+  }
+
+  body.desktop-wide-layout #page-batches .office-access-content,
+  body.desktop-wide-layout #page-buero .office-access-content {
+    max-width: none;
+  }
+
+  body.desktop-wide-layout #page-batches .admin-leitstand-panel,
+  body.desktop-wide-layout #page-batches .batch-audit-card {
+    max-width: none;
+  }
+
+  body.desktop-wide-layout #page-batches .production-tasks-grid--admin {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.desktop-wide-layout #page-batches .batch-audit-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.desktop-wide-layout #page-batches .batch-card-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.desktop-wide-layout #page-batches .customer-order-list--admin {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+  }
+
+  body.desktop-wide-layout #page-batches table,
+  body.desktop-wide-layout #page-buero table {
+    width: 100%;
+    table-layout: auto;
+  }
 }

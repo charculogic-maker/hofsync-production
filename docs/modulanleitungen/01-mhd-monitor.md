@@ -33,7 +33,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 - **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
 - **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
 - **🗑️ Ausverkauft** oder Wischen nach **links**
-- **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche**
+- **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken)*
 - **Reduziert**: Karte nach **rechts wischen**
 
 ### 3. Artikel suchen (optional)
@@ -54,6 +54,12 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 2. Bei Bedarf **Zeitraum** und **Kategorie** wählen
 3. Karten der Reihe nach abarbeiten
 4. **Änderungen speichern**
+
+## Retter-Box (StevesHof)
+
+Mit **Box** in der MHD-Karte merken wir einen Posten für die heutige **Retter-Box** vor. Die Bestätigung lautet **Zur Retter-Box gelegt**.
+
+**Drucken**, Rezeptvorschlag und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** unter **Retter-Boxen** (Admin-Zugang). Am neutralen Laden-iPhone steht nur die **Box**-Aktion zur Verfügung.
 
 ## Hinweise
 

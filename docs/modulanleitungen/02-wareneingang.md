@@ -15,7 +15,7 @@ Oben wählen wir zwischen:
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Derzeit ist bewusst nur der Bereich **Laden** aktiv. Die Metzgerei-Erfassung bleibt für diesen Mandanten ausgeblendet.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Derzeit ist bewusst nur der Bereich **Laden** aktiv. Die Metzgerei-Erfassung bleibt ausgeblendet. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
 
 ---
 
@@ -75,6 +75,8 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ## 📸 Lieferschein einlesen (KI-Wareneingang)
 
+> **StevesHof:** Am neutralen Laden-iPhone ist dieser Button **noch ausgeblendet** (interner Testlauf). Für StevesHof gilt bis zur Freigabe der Barcode-Scan im Bereich **Laden**.
+
 Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
 
 ### Schritte
@@ -93,13 +95,13 @@ Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle B
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
 
 - Gab es denselben Artikel schon einmal, übernimmt sie die damals bewährte Haltbarkeits-Spanne und rechnet sie ab heute neu aus (Kennzeichen **Erfahrungswert**).
-- Kennt unsere App den Artikel noch nicht, nutzt sie einen soliden Standardwert je Warengruppe – **Gemüse 3 Tage**, **Molkerei 10 Tage** (Kennzeichen **Standardwert**).
+- Kennt unsere App den Artikel noch nicht, nutzt sie einen Standardwert je Warengruppe — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**).
 
 Wir können jedes vorgeschlagene MHD vor dem Einbuchen einfach als `TT.MM.JJJJ` anpassen. Mit jedem eingebuchten Lieferschein werden die Erfahrungswerte besser.
 
 ### Bestand
 
-Beim Einbuchen erhöht unsere App den Bestand (`currentStock`) der gelieferten Artikel automatisch und legt jeden Artikel mit dem errechneten MHD im Tab **MHD** an.
+Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisch und legt jeden Artikel mit dem errechneten MHD im Tab **MHD** an.
 
 ---
 

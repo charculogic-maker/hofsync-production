@@ -4,7 +4,7 @@
 > **Zielgruppe:** Menschen, die einzelne App-Bereiche wie MHD, Neu, Prod. oder HACCP nachvollziehen wollen.
 > **Nicht hier:** Mandanten-Komplettanleitungen; diese sind über [docs/README.md](../README.md) verlinkt.
 
-Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Screenshots werden im **iPhone-Geräterahmen** erzeugt und zeigen das aktuelle Hofladen-Profil (**MHD**, **Neu**, **Prod.**). Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
+Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Screenshots werden im **iPhone-Geräterahmen** erzeugt und zeigen das aktuelle Hofladen-Profil (**MHD**, **Neu**, **Prod.**, **HACCP**, **Wissen**). Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
 
 | Modul | Tab (Leiste) | Details |
 |-------|----------------|---------|
@@ -37,6 +37,8 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 | `steveshof-02-neu-wareneingang.png` | StevesHof: Laden-Wareneingang mit Hersteller/Zusatz und MHD-Datum |
 | `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
 | `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
+| `steveshof-05-haccp.png` | StevesHof: HACCP · Temperaturen |
+| `steveshof-06-wissen.png` | StevesHof: Wissen · Fleisch-Lexikon |
 | `01-mhd-monitor.png` | MHD: Zeitraum- und Kategoriefilter |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |
@@ -70,7 +72,7 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
    # Vollständige Modul-Übersicht (alle Tabs)
    npm run screenshots:modules
 
-   # StevesHof Hofladen (nur MHD · Neu · Prod., ohne PIN-Karte)
+   # StevesHof Hofladen (MHD · Neu · Prod. · HACCP · Wissen, ohne PIN-Karte)
    npm run screenshots:steveshof
    ```
 

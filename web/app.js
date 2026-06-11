@@ -1038,6 +1038,16 @@ function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
   employeeSessionBadge.style.display = 'inline-flex';
 }
 
+const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero']);
+
+function syncDesktopWideLayout(pageId) {
+  const activeId = pageId || document.querySelector('.page.active')?.id || '';
+  document.body.classList.toggle(
+    'desktop-wide-layout',
+    DESKTOP_WIDE_PAGES.has(activeId) && window.matchMedia('(min-width: 1024px)').matches,
+  );
+}
+
 function showPage(pageId) {
   pages.forEach((page) => {
     const isTarget = page.id === pageId;
@@ -1046,7 +1056,10 @@ function showPage(pageId) {
     // where .active class exists but page still does not paint.
     page.style.display = isTarget ? 'block' : 'none';
   });
+  syncDesktopWideLayout(pageId);
 }
+
+window.addEventListener('resize', () => syncDesktopWideLayout());
 
 function showTab(tabId) {
   const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);

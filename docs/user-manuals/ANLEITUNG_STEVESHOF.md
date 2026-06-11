@@ -4,8 +4,8 @@
 
 CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten im Alltag nur mit:
 
-- **MHD**: tägliche Haltbarkeitskontrolle (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
-- **Neu**: Wareneingang im Laden (Schnellerfassung)
+- **MHD**: tägliche Haltbarkeitskontrolle inkl. **Retter-Box** vormerken (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
+- **Neu**: Wareneingang im Laden per Barcode (Schnellerfassung)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 - **HACCP**: Temperaturen und Reinigung dokumentieren
 - **Wissen**: Fleisch-Lexikon und Hofladen-Handbücher
@@ -55,6 +55,12 @@ Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in 
 
 Änderungen an Mengen und Status bündeln wir mit **Änderungen speichern**.
 
+### Retter-Box vormerken
+
+Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Karte **Box**. Kurz erscheint **Zur Retter-Box gelegt** — der Posten landet im heutigen Vorschlag.
+
+**Drucken**, Rezeptidee und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** mit Admin-Zugang unter **Retter-Boxen**. Am neutralen Laden-iPhone steht nur die **Box**-Aktion in der MHD-Karte zur Verfügung.
+
 ![StevesHof MHD-Start](../modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
 ## 4. Wareneingang mit Serien-Scans
@@ -73,17 +79,19 @@ Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 
-### Lieferschein per Foto einlesen (KI-Wareneingang)
+### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
 
-Statt jeden Posten einzeln zu scannen, lassen wir den Lieferschein von der KI lesen:
+Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (siehe oben). Der KI-Wareneingang ist vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+
+Nach Freigabe läuft der Ablauf so:
 
 1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein mit dem Laden-iPhone fotografieren oder ein vorhandenes Foto wählen.
-3. Es läuft kurz die Animation **„Die KI liest den Lieferschein für uns...“**.
-4. In der Vorschau prüfen wir je Artikel **Name**, **Liefermenge** und das **vorgeschlagene MHD**.
-5. **📥 Artikel in den Bestand einbuchen** tippen — die Bestätigung lautet **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+2. Lieferschein fotografieren oder ein Foto wählen.
+3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
+4. In der Vorschau je Artikel **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
+5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 
-Das **vorgeschlagene MHD** stammt aus den **Erfahrungswerten der letzten Lieferungen**: Unsere App merkt sich, wie lange derselbe Artikel zuletzt haltbar war, und rechnet die Spanne ab heute neu aus. Ohne Erfahrungswert nutzt sie einen soliden Standardwert je Warengruppe (Gemüse 3 Tage, Molkerei 10 Tage). Vor dem Einbuchen können wir jedes MHD noch als `TT.MM.JJJJ` anpassen. Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisch.
+Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Vor dem Einbuchen können wir jedes MHD als `TT.MM.JJJJ` anpassen.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
@@ -110,6 +118,8 @@ Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
 
 Alle Balken und Filter sind groß genug für die Bedienung am Laden-iPhone.
 
+![StevesHof Wissen · Fleisch-Lexikon](../modulanleitungen/screenshots/steveshof-06-wissen.png)
+
 ## 7. Kundenbestellungen und Sammel-Pickliste
 
 Kundenbestellungen sind am Laden-iPhone im aktuellen StevesHof-Profil nicht aktiv. Für das tägliche Zusammenstellen bleibt im Bürobereich die **Sammel-Pickliste für heute** vorbereitet, falls Bestellungen später wieder freigeschaltet werden.
@@ -124,9 +134,9 @@ Für die Kiste im Kühlschrank drucken wir danach bei der Bestellung den **Liefe
 
 Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab; wenn kein Waagen-Wert erfasst wurde, nutzt sie die bestellte Menge. Danach sehen wir kurz **Bestand aktualisiert**.
 
-## 8. Temperatur-Check
+## 8. Temperatur-Check (HACCP)
 
-Im Tab **HACCP** dokumentieren wir die Kühlungs-Temperaturen und Reinigungen.
+Im Tab **HACCP** dokumentieren wir die Kühlungs-Temperaturen und Reinigungen. Der Tab **Team** ist für StevesHof deaktiviert — alle Tageskontrollen laufen hier.
 
 1. **HACCP** öffnen.
 2. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **MoPro-Kühlung**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.
@@ -135,6 +145,8 @@ Im Tab **HACCP** dokumentieren wir die Kühlungs-Temperaturen und Reinigungen.
 Wird ein Wert zu hoch, färbt sich das Feld orange und wir lesen **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“**. Der Wert wird trotzdem gespeichert; die Kühlung prüfen wir direkt danach. Unter jeder Karte steht der zuletzt eingetragene Wert mit Uhrzeit, damit wir den Tagesstand im Blick haben.
 
 Die Werte landen sicher bei den HACCP-Protokollen unseres Betriebs. Die Druckansicht bleibt dem Admin-Bereich vorbehalten.
+
+![StevesHof HACCP Temperaturen](../modulanleitungen/screenshots/steveshof-05-haccp.png)
 
 ## 9. Offline-Betrieb
 

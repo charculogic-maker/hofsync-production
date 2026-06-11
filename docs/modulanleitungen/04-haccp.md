@@ -31,7 +31,9 @@ Umschalter:
 
 Messwert eintragen → **OK**. Optional Notiz bei Abweichung.
 
-> **Schnell-Eintrag im Team-Tab:** Für den Alltag gibt es dieselben Kühlstellen auch als schlanken Reiter **🌡️ Temperatur-Check** im Tab **Team** (siehe [06-team.md](./06-team.md)). Dort tippt das Team nur den Wert ein und tippt **Speichern**; bei zu hohen Werten erscheint ein orangefarbener Hinweis. Stationen, Sollwerte und Speicherweg sind identisch – die Werte landen in denselben Protokollen. Reinigung, Einrichten und Druckansicht bleiben dieser HACCP-Seite vorbehalten.
+> **StevesHof Hofladen:** Wir dokumentieren Temperaturen und Reinigung **ausschließlich im Tab HACCP**. Der Tab **Team** ist für `StevesHof_Hauptbetrieb` deaktiviert.
+>
+> **Andere Mandanten:** Zusätzlich gibt es dieselben Kühlstellen als schlanken Reiter **🌡️ Temperatur-Check** im Tab **Team** (siehe [06-team.md](./06-team.md)). Stationen, Sollwerte und Speicherweg sind identisch — die Werte landen in denselben Protokollen. Reinigung, Einrichten und Druckansicht bleiben auf der HACCP-Seite.
 
 ### Reinigung
 

@@ -47,7 +47,7 @@ async function injectSteveshofTerminalDemo(page) {
       window.applyBranding();
     }
 
-    const enabledTabs = new Set(['mhd', 'receiving', 'kitchen']);
+    const enabledTabs = new Set(['mhd', 'receiving', 'kitchen', 'haccp', 'knowledge']);
     document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
       const tabId = tab.getAttribute('data-tab');
       const enabled = enabledTabs.has(tabId);
@@ -56,7 +56,7 @@ async function injectSteveshofTerminalDemo(page) {
       tab.classList.toggle('active', tabId === 'mhd');
     });
 
-    ['page-teamboard', 'page-team', 'page-haccp', 'page-batches'].forEach((id) => {
+    ['page-teamboard', 'page-team', 'page-batches'].forEach((id) => {
       const pageEl = document.getElementById(id);
       if (pageEl) {
         pageEl.classList.remove('active');
@@ -142,6 +142,7 @@ function injectMhdDemoCard() {
         <button class="btn-mhd-action" type="button">↩️ Raus</button>
         <button class="btn-mhd-action btn-mhd-action--primary" type="button">✓ OK</button>
         <button class="btn-mhd-action" type="button">🥣 Küche</button>
+        <button class="btn-mhd-action" type="button">Box</button>
       </div>
     </div>
     <div class="mhd-card status-warning">
@@ -242,6 +243,8 @@ const shots = [
         if (qty) qty.value = '6';
         const mhd = document.getElementById('we-mhd');
         if (mhd) mhd.value = '2026-06-15';
+        const deliveryParserBtn = document.getElementById('btn-delivery-parser');
+        if (deliveryParserBtn) deliveryParserBtn.hidden = true;
         document.getElementById('we-hersteller-zusatz')?.scrollIntoView({ block: 'center' });
       });
       await page.waitForTimeout(200);
@@ -301,6 +304,83 @@ const shots = [
         }
       });
       await page.waitForTimeout(600);
+    },
+  },
+  {
+    file: 'steveshof-05-haccp.png',
+    label: 'HACCP · StevesHof',
+    async prepare(page) {
+      await injectSteveshofTerminalDemo(page);
+      await page.locator('#tab-haccp').click({ force: true });
+      await page.evaluate(() => {
+        document.getElementById('header-title').textContent = 'HACCP-Protokoll';
+        document.getElementById('header-subtitle').textContent = 'StevesHof Hofladen';
+        const container = document.getElementById('haccp-daily-container');
+        if (!container) return;
+        container.innerHTML = `
+          <article class="haccp-daily-station-card">
+            <h3 class="haccp-daily-station-title">Kühlauslage Hofladen</h3>
+            <p class="haccp-daily-station-hint">Alles gut bis 7 °C.</p>
+            <div class="haccp-daily-input-row">
+              <input type="text" class="gastro-input haccp-daily-temp-input" value="3,5" inputmode="decimal" aria-label="Temperatur in Grad Celsius">
+              <span class="haccp-daily-unit">°C</span>
+              <button type="button" class="btn btn-primary">Speichern</button>
+            </div>
+            <p class="haccp-daily-last">Heute, 08:30 – 3,5 °C (in Ordnung)</p>
+          </article>
+          <article class="haccp-daily-station-card">
+            <h3 class="haccp-daily-station-title">MoPro-Kühlung</h3>
+            <p class="haccp-daily-station-hint">Alles gut bis 7 °C.</p>
+            <div class="haccp-daily-input-row">
+              <input type="text" class="gastro-input haccp-daily-temp-input" placeholder="____" inputmode="decimal" aria-label="Temperatur in Grad Celsius">
+              <span class="haccp-daily-unit">°C</span>
+              <button type="button" class="btn btn-primary">Speichern</button>
+            </div>
+          </article>`;
+        const exportCard = document.querySelector('.haccp-export-card');
+        if (exportCard) exportCard.style.display = 'none';
+        const legacyCard = document.querySelector('.haccp-legacy-production-card');
+        if (legacyCard) legacyCard.style.display = 'none';
+      });
+      await page.waitForTimeout(300);
+    },
+  },
+  {
+    file: 'steveshof-06-wissen.png',
+    label: 'Wissen · StevesHof',
+    async prepare(page) {
+      await injectSteveshofTerminalDemo(page);
+      await page.locator('#tab-knowledge').click({ force: true });
+      await page.evaluate(() => {
+        document.getElementById('header-title').textContent = 'Wissen';
+        document.getElementById('header-subtitle').textContent = 'StevesHof Hofladen';
+        const pageEl = document.getElementById('page-knowledge');
+        if (pageEl) {
+          pageEl.classList.add('active');
+          pageEl.style.display = 'block';
+          pageEl.hidden = false;
+        }
+        document.querySelectorAll('.knowledge-accordion').forEach((details, index) => {
+          details.open = index === 0;
+        });
+        const list = document.getElementById('cut-glossary-list');
+        const empty = document.getElementById('cut-glossary-empty');
+        if (list && !list.children.length) {
+          list.innerHTML = `
+            <article class="cut-card">
+              <h3 class="cut-card-title">Oberschale (Rind)</h3>
+              <p class="cut-card-meta">Kurzbraten · Schulter · mager</p>
+            </article>
+            <article class="cut-card">
+              <h3 class="cut-card-title">Schweinenacken</h3>
+              <p class="cut-card-meta">Grillen · Schmorbraten · durchwachsen</p>
+            </article>`;
+        }
+        if (empty) empty.hidden = true;
+        const count = document.getElementById('cut-glossary-count');
+        if (count) count.textContent = '2 Zuschnitte';
+      });
+      await page.waitForTimeout(400);
     },
   },
 ];
