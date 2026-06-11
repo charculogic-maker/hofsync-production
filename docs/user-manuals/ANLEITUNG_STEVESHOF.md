@@ -7,6 +7,8 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **MHD**: tägliche Haltbarkeitskontrolle (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
 - **Neu**: Wareneingang im Laden (Schnellerfassung)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
+- **HACCP**: Temperaturen und Reinigung dokumentieren
+- **Wissen**: Fleisch-Lexikon und Hofladen-Handbücher
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 
@@ -26,15 +28,17 @@ Für diesen Zugang überspringt unsere App die zusätzliche Mitarbeiter-PIN-Abfr
 
 Nach erfolgreicher Anmeldung öffnet CharcuLogic automatisch den Tab **MHD**.
 
-In der unteren Navigation sehen wir drei Tabs:
+In der unteren Navigation sehen wir fünf Tabs:
 
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus, Küche oder Ausverkauft markieren |
 | **Neu** | Neue Ware scannen; Menge, MHD und optional **Hersteller / Zusatz** erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
+| **HACCP** | Temperaturen, Reinigung und Produktionswerte dokumentieren |
+| **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
 
-Der Tab **Team** zeigt am Laden-iPhone den schlanken **🌡️ Temperatur-Check** für die tägliche Kühlkontrolle. Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. Die ausführliche Tageskontrolle unter **HACCP** sowie Büro/Chargen sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleiben diese Bereiche ausgeblendet.
+Der Tab **Wissen** ist die zentrale Wissensdatenbank für unser Team. Dort lesen wir das Fleisch-Lexikon und die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung. Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. Büro/Chargen sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleibt dieser Bereich ausgeblendet.
 
 ## 3. MHD-Monitor (vereinfacht)
 
@@ -97,9 +101,18 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 
-## 6. Kundenbestellungen und Sammel-Pickliste
+## 6. Wissen
 
-Im Tab **Team** erfassen wir Kundenbestellungen und sehen offene Bestellungen. Für das tägliche Zusammenstellen öffnen wir im Bürobereich **Sammel-Pickliste für heute**.
+Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
+
+- **🥩 Fleisch-Lexikon (Cuts)**: Suche nach Zuschnitten, regionalen Namen, Lage und Verwendung.
+- **📋 Hofladen-Handbücher**: kurze Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
+
+Alle Balken und Filter sind groß genug für die Bedienung am Laden-iPhone.
+
+## 7. Kundenbestellungen und Sammel-Pickliste
+
+Kundenbestellungen sind am Laden-iPhone im aktuellen StevesHof-Profil nicht aktiv. Für das tägliche Zusammenstellen bleibt im Bürobereich die **Sammel-Pickliste für heute** vorbereitet, falls Bestellungen später wieder freigeschaltet werden.
 
 Unter **Produktions-Aufträge** sehen wir zwei kompakte Listen: **Heute zu kochen (Küche)** und **Heute zu zerlegen/packen (Metzgerei)**. Unsere App zeigt dort nur die zusammengefassten Mengen, die für Küche oder Metzgerei aus offenen Bestellungen entstehen. Bei Wiegeartikeln tragen wir den **Waagen-Wert** ein. Fertige Posten haken wir als **Fertig für den Laden** ab.
 
@@ -111,19 +124,19 @@ Für die Kiste im Kühlschrank drucken wir danach bei der Bestellung den **Liefe
 
 Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab; wenn kein Waagen-Wert erfasst wurde, nutzt sie die bestellte Menge. Danach sehen wir kurz **Bestand aktualisiert**.
 
-## 7. Temperatur-Check im Team-Tab
+## 8. Temperatur-Check
 
-Im Tab **Team** finden wir den Reiter **🌡️ Temperatur-Check**. Damit dokumentieren wir die Kühlungs-Temperaturen schnell und ohne technische Begriffe.
+Im Tab **HACCP** dokumentieren wir die Kühlungs-Temperaturen und Reinigungen.
 
-1. **Team** öffnen, oben **🌡️ Temperatur-Check** wählen.
+1. **HACCP** öffnen.
 2. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **MoPro-Kühlung**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.
 3. **Speichern** tippen — kurz erscheint **Wert gespeichert**.
 
 Wird ein Wert zu hoch, färbt sich das Feld orange und wir lesen **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“**. Der Wert wird trotzdem gespeichert; die Kühlung prüfen wir direkt danach. Unter jeder Karte steht der zuletzt eingetragene Wert mit Uhrzeit, damit wir den Tagesstand im Blick haben.
 
-Die Werte landen sicher bei den HACCP-Protokollen unseres Betriebs. Die vollständige Tageskontrolle, Reinigungsnachweise und die Druckansicht bleiben dem Admin-Bereich unter **HACCP** vorbehalten.
+Die Werte landen sicher bei den HACCP-Protokollen unseres Betriebs. Die Druckansicht bleibt dem Admin-Bereich vorbehalten.
 
-## 8. Offline-Betrieb
+## 9. Offline-Betrieb
 
 Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar; unsere App zeigt beim Speichern **Lokal vorgemerkt** und synchronisiert die Einträge automatisch, sobald WLAN wieder verfügbar ist.
 
@@ -133,7 +146,7 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 | Verbindung kommt zurück | Vorgemerkte Einträge werden automatisch übertragen. |
 | Erstmalige Anmeldung am Laden-iPhone | Benötigt eine Internetverbindung. |
 
-## 9. Administration
+## 10. Administration
 
 | Thema | Vorgehen |
 |-------|----------|

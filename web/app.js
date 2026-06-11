@@ -223,6 +223,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     receiving: modules.wareneingang !== false,
     kitchen: kitchenEnabled,
     haccp: modules.haccp !== false,
+    knowledge: modules.knowledge === true || modules.cutGlossary === true,
     cuts: modules.cutGlossary === true,
     batches: modules.batches !== false,
   };
@@ -263,7 +264,7 @@ function applyRoleBasedUi(authSession) {
   document.body.classList.toggle('role-office', isOffice);
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
 
-  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'cuts', 'batches']);
+  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
   const stevesHofOfficeTabs = new Set(['batches']);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -1161,10 +1162,14 @@ tabs.forEach(tab => {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
       headerSubtitle.textContent = "Tageskontrollen";
+    } else if (targetTab === 'knowledge') {
+      showPage('page-knowledge');
+      headerTitle.textContent = "Wissen";
+      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'cuts') {
-      showPage('page-cuts');
-      headerTitle.textContent = "Cut-Lexikon";
-      headerSubtitle.textContent = "Zuschnitte & Muskelkunde";
+      showPage('page-knowledge');
+      headerTitle.textContent = "Wissen";
+      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
       headerTitle.textContent = "Chargen-Archiv";
@@ -1183,6 +1188,7 @@ tabs.forEach(tab => {
       if (targetTab === 'receiving') activateReceivingTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
+      if (targetTab === 'knowledge') activateCutGlossaryTab();
       if (targetTab === 'cuts') activateCutGlossaryTab();
       if (targetTab === 'batches') {
         activateBatchesTab();
@@ -1372,8 +1378,9 @@ const manualBarcodeInput = document.getElementById('scanner-manual-barcode-input
 const scannerManualEntry = document.getElementById('scanner-manual-entry');
 const scannerStatusText = document.getElementById('scanner-status-text');
 function updateScannerButtonVisibility() {
-  if (!btnOpenScanner) return;
-  btnOpenScanner.classList.add('hidden');
+  const scannerButton = document.getElementById('btn-open-scanner');
+  if (!scannerButton) return;
+  scannerButton.classList.add('hidden');
 }
 
 function setScannerStatus(message) {
@@ -1500,7 +1507,7 @@ document.getElementById('app-refresh-btn')?.addEventListener('click', () => appl
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260609-120')
+    navigator.serviceWorker.register('./sw.js?v=20260611-163')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

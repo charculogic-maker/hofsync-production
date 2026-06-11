@@ -5,6 +5,7 @@ Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt 
 1. **MHD kontrollieren**
 2. **Neue Ware erfassen**
 3. **Rezepte und Produktion öffnen**
+4. **Wissen nachlesen**
 
 Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
@@ -29,9 +30,10 @@ In der unteren Leiste sehen wir im Hofladen diese Tabs:
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
 | **Neu** | Neue Ware im Laden per Barcode erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
-| **Team** | 🌡️ Temperatur-Check (Kühlungs-Temperaturen eintragen) |
+| **HACCP** | Temperaturen und Reinigung dokumentieren |
+| **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
 
-Im Tab **Team** nutzen wir am Laden-iPhone den **🌡️ Temperatur-Check**. Die Kundenbestellungen (Abschnitt 4) erscheinen dort nur, wenn das Bestell-Modul für unseren Hofladen freigeschaltet ist. Weitere Bereiche der Plattform sind am Laden-iPhone absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich die ausführliche HACCP-Seite und Büro/Chargen sehen.
+Im Tab **Wissen** lesen wir direkt am Laden-iPhone das Fleisch-Lexikon und die kurzen Hofladen-Handbücher zu MHD, Reinigung und HACCP. Weitere Bereiche der Plattform sind am Laden-iPhone absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich Büro/Chargen sehen.
 
 ---
 
@@ -124,21 +126,26 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ---
 
-## 4. Kundenbestellungen zusammenstellen
+## 4. Wissen nachlesen
 
-Im Tab **Team** nehmen wir Kundenbestellungen auf und behalten die offenen Bestellungen im Blick. Im Bürobereich gibt es dafür die **Sammel-Pickliste für heute**.
+Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
 
-1. **Team** öffnen.
-2. Unter **Produktions-Aufträge** sehen wir, was in der Küche und in der Metzgerei zu tun ist.
-3. Bei Wiegeartikeln prüfen wir **Tatsächliches Gewicht** und übernehmen den **Waagen-Wert**.
-4. Fertige Posten haken wir als **Fertig für den Laden** ab.
-5. Im Bereich **Kundenbestellungen** auf **Sammel-Pickliste für heute** tippen.
-6. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
-7. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
-8. Beim Einpacken haken wir jede Zeile direkt am Laden-iPhone ab und korrigieren bei Bedarf den **Waagen-Wert**.
-9. Wenn alles im Laden-Kühlschrank steht, tippen wir auf **Alle enthaltenen Bestellungen als 'Abholbereit' markieren**.
-10. Wir bestätigen **Sind alle Artikel für heute wirklich eingepackt?**.
-11. Mit **Liste zurücksetzen** beginnen wir die Runde bei Bedarf neu.
+- **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
+- **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
+
+Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir sie auch im Arbeitsalltag sicher treffen.
+
+---
+
+## 5. Kundenbestellungen zusammenstellen
+
+Kundenbestellungen sind am Laden-iPhone im aktuellen StevesHof-Profil nicht aktiv. Im Bürobereich gibt es dafür weiterhin die **Sammel-Pickliste für heute**, wenn Bestellungen später wieder freigeschaltet werden.
+
+1. Im Bürobereich **Sammel-Pickliste für heute** öffnen.
+2. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
+3. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
+4. Beim Einpacken haken wir jede Zeile ab und korrigieren bei Bedarf den **Waagen-Wert**.
+5. Wenn alles im Laden-Kühlschrank steht, markieren wir die Bestellungen als **Abholbereit**.
 
 Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen, schreibt automatisch eine kurze Info aufs Schwarze Brett und verschickt das **Kunden-Signal** als freundliche **Abhol-Nachricht** an die Kunden. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 
@@ -148,18 +155,18 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ---
 
-## 5. Temperatur-Check (Qualität sichern)
+## 6. Temperatur-Check (Qualität sichern)
 
-Im Tab **Team** gibt es jetzt den schlanken Reiter **🌡️ Temperatur-Check**. Hier tragen wir schnell die aktuellen Werte unserer Kühlstellen ein – ohne Umwege.
+Im Tab **HACCP** tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
 
-1. **Team** öffnen und oben auf **🌡️ Temperatur-Check** tippen.
+1. **HACCP** öffnen.
 2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).
 3. Den gemessenen Wert in das große Feld **„____ °C“** eintippen.
 4. **Speichern** tippen. Es erscheint kurz **Wert gespeichert**.
 
 Ist ein Wert zu hoch – zum Beispiel die Kühlung über 7 °C – färbt sich das Feld dezent orange und wir sehen sofort den Hinweis **„⚠️ Wert erhöht! Bitte Kühlung prüfen.“**. Den Wert speichern wir trotzdem, damit nichts verloren geht, und kümmern uns gleich um die Kühlung.
 
-Unter jeder Karte steht der zuletzt eingetragene Wert (z. B. *„Heute, 08:30 – 3,5 °C (in Ordnung)“*), damit wir auf einen Blick sehen, was heute schon kontrolliert wurde. Die ausführliche Tageskontrolle und die Druckansicht bleiben wie gewohnt im Admin-Bereich unter **HACCP**.
+Unter jeder Karte steht der zuletzt eingetragene Wert (z. B. *„Heute, 08:30 – 3,5 °C (in Ordnung)“*), damit wir auf einen Blick sehen, was heute schon kontrolliert wurde.
 
 Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** und überträgt den Wert automatisch, sobald WLAN wieder verfügbar ist.
 

@@ -6468,6 +6468,7 @@ body.role-helper #team-subnav-orders {
 #page-receiving,
 #page-kitchen,
 #page-haccp,
+#page-knowledge,
 #page-cuts,
 #page-batches {
   padding-bottom: 16px;
@@ -6482,8 +6483,97 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Cut-Lexikon
+   Wissen & Cut-Lexikon
    ========================================================================= */
+
+.knowledge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.knowledge-accordion {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.knowledge-accordion > summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 14px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.knowledge-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.knowledge-accordion > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 900;
+}
+
+.knowledge-accordion:not([open]) > summary::after {
+  content: '▸';
+}
+
+.knowledge-accordion-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-color);
+}
+
+.knowledge-panel .recipe-category-chip {
+  min-height: 48px;
+}
+
+.knowledge-panel .cut-search-clear {
+  width: 48px;
+  height: 48px;
+}
+
+.knowledge-handbook-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-secondary);
+}
+
+.knowledge-handbook-card h2 {
+  color: var(--text-dark);
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.knowledge-handbook-card p,
+.knowledge-handbook-card li {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.42;
+}
+
+.knowledge-handbook-card ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
 
 .cut-glossary-shell {
   display: flex;
@@ -6673,6 +6763,8 @@ body.role-helper #team-subnav-orders {
 
 [data-theme="dark"] .cut-search-clear,
 [data-theme="dark"] .cut-glossary-intro,
+[data-theme="dark"] .knowledge-accordion,
+[data-theme="dark"] .knowledge-handbook-card,
 [data-theme="dark"] .cut-card,
 [data-theme="dark"] .cut-empty {
   border-color: var(--border-subtle);

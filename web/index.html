@@ -77,6 +77,7 @@
         mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: 'StevesHof Hofladen' },
         receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: 'StevesHof Hofladen' },
         kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: 'StevesHof Hofladen' },
+        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: 'StevesHof Hofladen' },
       };
       const target = pageMap[tabId] || pageMap.mhd;
       document.querySelectorAll('.page').forEach((page) => {
@@ -105,7 +106,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260609-130">
+  <link rel="stylesheet" href="/style.css?v=20260611-161">
 </head>
 <body>
 
@@ -738,41 +739,92 @@
           </div>
 
           <!-- ============================================== -->
-          <!-- SCREEN: CUT-LEXIKON                            -->
+          <!-- SCREEN: WISSEN                                  -->
           <!-- ============================================== -->
-          <div class="page" id="page-cuts">
-            <section class="cut-glossary-shell" aria-label="Cut-Lexikon">
-              <div class="cut-glossary-intro">
-                <div>
-                  <p class="cut-glossary-kicker">Zuschnitte einordnen</p>
-                  <h2 class="cut-glossary-title">Regionale Cut-Bezeichnungen</h2>
+          <div class="page" id="page-knowledge">
+            <section class="knowledge-panel" aria-label="Wissensdatenbank">
+              <details class="knowledge-accordion" open>
+                <summary>🥩 Fleisch-Lexikon (Cuts)</summary>
+                <div class="knowledge-accordion-body">
+                  <div class="cut-glossary-shell" aria-label="Fleisch-Lexikon">
+                    <div class="cut-glossary-intro">
+                      <div>
+                        <p class="cut-glossary-kicker">Zuschnitte einordnen</p>
+                        <h2 class="cut-glossary-title">Regionale Cut-Bezeichnungen</h2>
+                      </div>
+                      <span class="cut-glossary-count" id="cut-glossary-count">0 Cuts</span>
+                    </div>
+
+                    <div class="cut-search-panel">
+                      <input
+                        type="search"
+                        id="cut-glossary-search"
+                        class="input-text-touch cut-search-input"
+                        placeholder="Zuschnitt, Teilstück oder Nutzung suchen"
+                        autocomplete="off"
+                        aria-label="Zuschnitt suchen"
+                      >
+                      <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">x</button>
+                    </div>
+
+                    <div class="recipe-category-filter cut-species-filter" role="group" aria-label="Tierart filtern">
+                      <button type="button" class="recipe-category-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
+                      <button type="button" class="recipe-category-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
+                      <button type="button" class="recipe-category-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
+                      <button type="button" class="recipe-category-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
+                      <button type="button" class="recipe-category-chip" data-cut-species="poultry" aria-pressed="false">Gefluegel</button>
+                      <button type="button" class="recipe-category-chip" data-cut-species="offal" aria-pressed="false">Innereien</button>
+                    </div>
+
+                    <p class="learn-mode-desc cut-glossary-hint">Die Liste ordnet gebräuchliche, regionale und internationale Namen ein. Der Vergleich mit dem Menschen hilft uns, Lage und Verwendung schneller zu verstehen.</p>
+
+                    <p class="cut-empty" id="cut-glossary-empty" hidden>Kein passender Zuschnitt gefunden.</p>
+                    <div class="cut-list" id="cut-glossary-list"></div>
+                  </div>
                 </div>
-                <span class="cut-glossary-count" id="cut-glossary-count">0 Cuts</span>
-              </div>
+              </details>
 
-              <div class="cut-search-panel">
-                <input
-                  type="search"
-                  id="cut-glossary-search"
-                  class="input-text-touch cut-search-input"
-                  placeholder="Cut, Muskel oder Synonym suchen"
-                  autocomplete="off"
-                  aria-label="Cut suchen"
-                >
-                <button type="button" class="cut-search-clear" id="cut-glossary-clear" hidden aria-label="Suche leeren">x</button>
-              </div>
+              <details class="knowledge-accordion">
+                <summary>📋 Hofladen-Handbücher</summary>
+                <div class="knowledge-accordion-body">
+                  <article class="knowledge-handbook-card">
+                    <h2>MHD-Ablauf-Regeln</h2>
+                    <p>Wir starten im Tab <strong>MHD</strong> und prüfen alle Posten im passenden Zeitraum. MoPro ist besonders kurz im Blick, Trockenware länger.</p>
+                    <ol>
+                      <li>Zeitraum und Kategorie wählen, wenn wir die Liste eingrenzen möchten.</li>
+                      <li>Kritische Ware nacheinander prüfen.</li>
+                      <li>Status setzen: <strong>OK</strong>, <strong>Raus</strong>, <strong>Küche</strong> oder <strong>Ausverkauft</strong>.</li>
+                      <li>Menge bei Bedarf korrigieren.</li>
+                      <li><strong>Änderungen speichern</strong> tippen.</li>
+                    </ol>
+                    <p>Wenn ein MHD falsch erfasst wurde, ändern wir nur diesen Posten und bestätigen die Korrektur vor dem Speichern.</p>
+                  </article>
 
-              <div class="recipe-category-filter cut-species-filter" role="group" aria-label="Tierart filtern">
-                <button type="button" class="recipe-category-chip active-category" data-cut-species="all" aria-pressed="true">Alle</button>
-                <button type="button" class="recipe-category-chip" data-cut-species="beef" aria-pressed="false">Rind</button>
-                <button type="button" class="recipe-category-chip" data-cut-species="pork" aria-pressed="false">Schwein</button>
-                <button type="button" class="recipe-category-chip" data-cut-species="lamb" aria-pressed="false">Lamm</button>
-              </div>
+                  <article class="knowledge-handbook-card">
+                    <h2>Reinigung der Wurstküche</h2>
+                    <p>Die Reinigung dokumentieren wir unter <strong>HACCP</strong> im Bereich <strong>Reinigung</strong>. Für jede erledigte Aufgabe tippen wir <strong>Reinigung erledigt</strong>.</p>
+                    <ol>
+                      <li>Arbeitsflächen und Geräte nach der Produktion reinigen.</li>
+                      <li>Kontaktflächen desinfizieren und Einwirkzeit beachten.</li>
+                      <li>Reinigungsaufgabe in unserer App abhaken.</li>
+                      <li>Bei Auffälligkeiten eine kurze Notiz ergänzen.</li>
+                    </ol>
+                    <p>Neue oder geänderte Reinigungsaufgaben pflegen wir nur im Admin-Bereich ein.</p>
+                  </article>
 
-              <p class="learn-mode-desc cut-glossary-hint">Die Liste ordnet gebraeuchliche, regionale und internationale Namen fachlich ein. Der Vergleich mit dem Menschen hilft uns, Lage und Funktion schneller zu verstehen.</p>
-
-              <p class="cut-empty" id="cut-glossary-empty" hidden>Kein passender Cut gefunden.</p>
-              <div class="cut-list" id="cut-glossary-list"></div>
+                  <article class="knowledge-handbook-card">
+                    <h2>HACCP-Erklärung</h2>
+                    <p>HACCP hilft uns, Temperaturen, Reinigung und Produktionswerte nachvollziehbar festzuhalten. So sehen wir schnell, ob heute alles geprüft wurde.</p>
+                    <ol>
+                      <li>Temperaturen der Kühlstellen eintragen.</li>
+                      <li>Reinigung dokumentieren.</li>
+                      <li>Bei Produktion pH-Wert, Kerntemperatur und Charge erfassen.</li>
+                      <li>Bei erhöhten Werten direkt die Kühlung prüfen.</li>
+                    </ol>
+                    <p>Die Druckansicht bleibt für Büro und Kontrollen im Admin-Bereich.</p>
+                  </article>
+                </div>
+              </details>
             </section>
           </div>
 
@@ -1114,9 +1166,9 @@
             <i>🛡️</i>
             <span>HACCP</span>
           </button>
-          <button class="nav-item" data-tab="cuts" id="tab-cuts" hidden style="display: none;">
-            <i>&#129385;</i>
-            <span>Cuts</span>
+          <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
+            <i>📖</i>
+            <span>Wissen</span>
           </button>
           <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
             <i>📋</i>
@@ -1356,6 +1408,6 @@
     </form>
   </template>
 
-  <script type="module" src="app.js?v=20260609-130"></script>
+  <script type="module" src="app.js?v=20260611-161"></script>
 </body>
 </html>
