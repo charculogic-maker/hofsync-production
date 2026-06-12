@@ -10,6 +10,13 @@ import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
+function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
+  if (!window.isFirestorePermissionDeniedError(err)) return false;
+  void window.resetAuthStateOnPermissionDenied?.(err, context);
+  return true;
+}
+
 const HACCP_TEMP_LIMIT_C = 7.0;
 const MHD_MONITOR_HORIZON_OPTIONS = [3, 7, 14, 21];
 const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
@@ -1445,6 +1452,7 @@ async function handleScannedEan(ean) {
       mhdState.playFeedbackSound('success');
       mhdState.showHUD("➕ Bestand erhöht", `${existing.name} – Menge: ${newQty}`);
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'handleScannedEan')) return;
       console.error('[CharcuLogic Firebase] handleScannedEan() Update fehlgeschlagen:', err);
     }
     resetScanState({ keepLearnOverlay: false });
@@ -1533,6 +1541,7 @@ function showLegacyLearnModeDialog(ean) {
       mhdState.playClickSound(1300, 0.08, 0.2);
       mhdState.showHUD("✅ Artikel gelernt", `${name} wurde in Firestore verbucht.`);
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'mhd-learn-mode')) return;
       console.error('[CharcuLogic Firebase] Lernmodus speichern fehlgeschlagen:', err);
       mhdState.showHUD("⚠️ Fehler", "Artikel konnte nicht gespeichert werden.", "⚠️");
     }
@@ -1789,6 +1798,7 @@ function showLearnModeDialog(ean) {
       const saveResults = await Promise.allSettled(saveJobs);
       const failedSave = saveResults.find((result) => result.status === 'rejected');
       if (failedSave) {
+        if (maybeResetOnFirestorePermissionError(failedSave.reason, 'receiving-learn-save')) return;
         console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
       }
       const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
@@ -1822,6 +1832,7 @@ function showLearnModeDialog(ean) {
       }
       resetScanState({ keepLearnOverlay: false });
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'receiving-learn-save')) return;
       console.error('[CharcuLogic Firebase] Lernmodus speichern fehlgeschlagen:', err);
       mhdState.showHUD("Fehler", "Artikel konnte nicht gespeichert werden.", "!");
       resetScanState({ keepLearnOverlay: false });
@@ -2188,6 +2199,7 @@ function loadMhdFromCloud() {
       renderMhdList();
     },
     (err) => {
+      if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
       console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
     }
   );
@@ -2216,6 +2228,7 @@ async function importMhdBestandToCloud() {
     );
     console.info(`[CharcuLogic Firebase] ${mhdBestandSeed.length} MHD-Artikel in Firestore geseedet.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'importMhdBestandToCloud')) return;
     console.error('[CharcuLogic Firebase] MHD-Seed fehlgeschlagen:', err);
   }
 }
@@ -2422,6 +2435,7 @@ async function saveMhdCardQty(id, newQty) {
       offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
     });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCardQty')) return;
     console.error('[CharcuLogic Firebase] saveMhdCardQty() Update fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Menge konnte nicht gespeichert werden.', '!');
   }
@@ -2467,6 +2481,7 @@ async function setSoldOut(id) {
       offlineMessage: "Ausverkauft-Status wird nachträglich synchronisiert.",
     });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'setSoldOut')) return;
     console.error('[CharcuLogic Firebase] setSoldOut() Update fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "Status konnte nicht gespeichert werden.", "!");
   }
@@ -2572,6 +2587,7 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
     renderMhdList();
     mhdState.showHUD('Kategorie gespeichert', `Kategorie für ${matchingProducts.length} MHD-Einträge aktualisiert.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryByEan')) return;
     console.error('[CharcuLogic Firebase] EAN-Kategorie speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
   }
@@ -2689,6 +2705,7 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
     renderMhdList();
     mhdState.showHUD('MHD gespeichert', `Neues MHD: ${draft.newLabel}.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdDateCorrection')) return;
     console.error('[CharcuLogic Firebase] MHD-Korrektur speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'MHD konnte nicht gespeichert werden.', '!');
   }
@@ -2756,6 +2773,7 @@ async function markMhdAction(id, actionStatus) {
           : 'Posten als geprüft markiert.';
     mhdState.showHUD("Morgencheck erledigt", successMessage);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'markMhdAction')) return;
     console.error('[CharcuLogic Firebase] MHD-Aktion speichern fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "MHD-Aktion konnte nicht gespeichert werden.", "!");
   }
@@ -2784,6 +2802,7 @@ async function deleteMhdPosten(id) {
     mhdState.showHUD("Gelöscht", "Der Posten wurde entfernt oder zur Löschung vorgemerkt.");
     resetScanState({ keepLearnOverlay: false });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'deleteMhdPosten')) return;
     console.error('[CharcuLogic Firebase] Posten löschen fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "Posten konnte nicht gelöscht werden.", "!");
   }
@@ -2872,6 +2891,7 @@ async function updateRecentReceiptCategory(id) {
     mhdState.showHUD('Kategorie gespeichert', `Der Posten wurde ${kategorie} zugeordnet.`);
     showRecentReceipts();
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryCorrection')) return;
     console.error('[CharcuLogic Firebase] Kategorie-Korrektur fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
   }
@@ -3744,6 +3764,7 @@ function subscribeToPendingDeliveryDrafts() {
         updateDraftEditingBanner();
       },
       (err) => {
+        if (maybeResetOnFirestorePermissionError(err, 'subscribeToPendingDeliveryDrafts')) return;
         console.error('[CharcuLogic MHD] Offene Lieferungs-Entwürfe konnten nicht geladen werden:', err);
       }
     );
@@ -3893,6 +3914,7 @@ async function saveDeliveryDraft() {
     renderReceivingStatus({ status: 'Entwurf für Büro gesichert' });
     window.showToast?.('Entwurf erfolgreich für das Büro gesichert!', 'success');
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveDeliveryDraft')) return;
     console.error('[CharcuLogic MHD] Lieferungs-Entwurf speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Entwurf konnte nicht gespeichert werden.', '!');
     window.showToast?.('Entwurf konnte nicht gespeichert werden.', 'error');
@@ -4109,6 +4131,10 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
+    if (rejectedMhdWrite && maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd')) {
+      return;
+    }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
@@ -4122,6 +4148,7 @@ async function finalizeDelivery() {
     renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
     window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');

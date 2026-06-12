@@ -7,6 +7,7 @@ import {
   isHelperUser,
   isOfficeUser,
   loginTenant,
+  logoutTenant,
   verifyAdminAction,
   waitForAuthReady,
 } from './auth.js';
@@ -95,7 +96,13 @@ import {
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  ACTIVE_AREA_STORAGE_KEY,
+  clearTeamboardTenantStorage,
+  LEGACY_SHIFT_STORAGE_KEY,
+  scopedTeamboardStorageKey,
+} from './teamboard-storage.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
@@ -103,6 +110,17 @@ const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
+const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
+const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
+const AUTH_LOCAL_STORAGE_MARKERS = [
+  CACHED_TENANT_ID_KEY,
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  TERMINAL_DEVICE_TOKEN_KEY,
+  PROFILE_LAST_ACTION_STORAGE_KEY,
+  PROFILE_GUEST_NAMES_KEY,
+  ACTIVE_AREA_STORAGE_KEY,
+  LEGACY_SHIFT_STORAGE_KEY,
+];
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving']);
@@ -712,6 +730,93 @@ window.ensureTenantFirebaseAuth = ensureTenantFirebaseAuth;
 window.isInventoryWriteReady = isInventoryWriteReady;
 window.isNamedProfileSession = isNamedProfileSession;
 
+function isFirestorePermissionDeniedError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const raw = String(err?.message || err || '').toLowerCase();
+  return code.includes('permission-denied')
+    || code === 'permission-denied'
+    || raw.includes('missing or insufficient permissions')
+    || raw.includes('permission_denied');
+}
+
+function isAuthLocalStorageKey(key = '') {
+  const cleanKey = String(key || '').trim();
+  if (!cleanKey) return false;
+  return AUTH_LOCAL_STORAGE_MARKERS.some(
+    (marker) => cleanKey === marker || cleanKey.endsWith(`_${marker}`),
+  );
+}
+
+function clearAllAuthLocalStorage() {
+  try {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key) keys.push(key);
+    }
+    keys.forEach((key) => {
+      if (isAuthLocalStorageKey(key)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Auth-LocalStorage konnte nicht geleert werden:', err);
+  }
+}
+
+function clearTenantProfileLocalStorage(tenantId = '') {
+  const tenant = String(
+    tenantId
+    || (typeof getGlobalTenantId === 'function' ? getGlobalTenantId() : '')
+    || (typeof getTenantId === 'function' ? getTenantId() : '')
+    || resolveEarlyTenantId(),
+  ).trim();
+
+  if (tenant) {
+    clearTeamboardTenantStorage(tenant);
+    try {
+      localStorage.removeItem(scopedTeamboardStorageKey(PROFILE_LAST_ACTION_STORAGE_KEY, tenant));
+      localStorage.removeItem(scopedTeamboardStorageKey(PROFILE_GUEST_NAMES_KEY, tenant));
+      localStorage.removeItem(scopedTeamboardStorageKey(TERMINAL_DEVICE_TOKEN_KEY, tenant));
+    } catch (_) { /* noop */ }
+  }
+
+  try {
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+  } catch (_) { /* noop */ }
+}
+
+let authPermissionResetInFlight = false;
+
+async function resetAuthStateOnPermissionDenied(err, context = '') {
+  if (authPermissionResetInFlight) return;
+  if (!isFirestorePermissionDeniedError(err)) return;
+  authPermissionResetInFlight = true;
+  console.warn('[CharcuLogic Auth] Firestore-Berechtigung verweigert — Session-Reset', {
+    context,
+    code: err?.code,
+    message: err?.message,
+  });
+
+  clearTenantProfileLocalStorage();
+
+  try {
+    await logoutTenant();
+  } catch (signOutErr) {
+    console.warn('[CharcuLogic Auth] logoutTenant beim Berechtigungs-Reset fehlgeschlagen:', signOutErr);
+    try {
+      if (typeof firebase !== 'undefined' && firebase.apps?.length) {
+        await firebase.auth().signOut();
+      }
+    } catch (_) { /* noop */ }
+  }
+
+  window.location.reload();
+}
+
+window.isFirestorePermissionDeniedError = isFirestorePermissionDeniedError;
+window.resetAuthStateOnPermissionDenied = resetAuthStateOnPermissionDenied;
+
 function isSteveshofTenantId(tenantId = '') {
   return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
 }
@@ -1045,6 +1150,30 @@ function isFirebaseConfigValid(config) {
   });
 }
 
+async function handleAuthUrlResetIfRequested() {
+  const params = new URLSearchParams(window.location.search);
+  const shouldReset = params.get('logout') === 'true' || params.get('reset') === 'true';
+  if (!shouldReset) return false;
+
+  console.warn('[CharcuLogic Auth] URL-Reset ausgelöst — Auth-Daten werden bereinigt.');
+  clearAllAuthLocalStorage();
+
+  try {
+    if (typeof firebase !== 'undefined' && isFirebaseConfigValid(firebaseConfig)) {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      await firebase.auth().signOut();
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Firebase signOut beim URL-Reset fehlgeschlagen:', err);
+  }
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
+  window.location.replace(cleanUrl);
+  return true;
+}
+
 function initFirebase() {
   if (typeof firebase === 'undefined') {
     console.error('[CharcuLogic Firebase] Firebase SDK nicht geladen. Prüfe die Script-Tags in index.html.');
@@ -1241,6 +1370,10 @@ function subscribeFleischpreise() {
       applyFleischpreiseSnapshot(snapshot, `cloud:${tenantId}`);
     },
     (err) => {
+      if (isFirestorePermissionDeniedError(err)) {
+        void resetAuthStateOnPermissionDenied(err, 'subscribeFleischpreise');
+        return;
+      }
       console.warn(`[CharcuLogic WRS] Fleischpreise-Listener (${tenantId}) fehlgeschlagen:`, err);
       if (wrsState.priceSource === 'fallback') {
         setWrsStatus('Offline (Fallback)', 'error');
@@ -1841,11 +1974,16 @@ tabs.forEach(tab => {
   });
 });
 
-applyEarlyTenantShell();
-updateHeaderLogoutVisibility(AppState.activeTab);
-purgeInvalidProfileSession(window.BRANDING);
-expireProfileSessionIfIdle(window.BRANDING);
-updateEmployeeSessionBadge();
+async function startAppShell() {
+  if (await handleAuthUrlResetIfRequested()) return;
+  applyEarlyTenantShell();
+  updateHeaderLogoutVisibility(AppState.activeTab);
+  purgeInvalidProfileSession(window.BRANDING);
+  expireProfileSessionIfIdle(window.BRANDING);
+  updateEmployeeSessionBadge();
+}
+
+void startAppShell();
 
 const SYNC_STATUS = {
   online: 'ONLINE',
@@ -2170,6 +2308,8 @@ if ('serviceWorker' in navigator) {
 
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
+  if (await handleAuthUrlResetIfRequested()) return;
+
   applyBranding();
 
   if (!initFirebase()) {
