@@ -4,7 +4,7 @@ import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGerman
 import {
   getGlobalTenantId,
   getTenantCollection,
-  getTenantCollectionPath,
+  setGlobalTenantId,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -243,18 +243,52 @@ const mhdState = {
 
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
-function requireMhdTenantId() {
+
+function resolveMhdTenantId() {
   const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
-  if (!tenantId) { console.error('[CharcuLogic Firebase] MHD-Modul ohne Mandanten-ID initialisiert.'); return null; }
+  if (!tenantId) return '';
+  if (!getGlobalTenantId()) {
+    setGlobalTenantId(tenantId);
+  }
+  mhdState.tenantId = tenantId;
   return tenantId;
 }
-function mhdCollectionPath() {
-  if (!requireMhdTenantId()) return null;
-  try {
-    return getTenantCollectionPath('mhd_liste');
-  } catch {
+
+function requireMhdTenantId() {
+  const tenantId = resolveMhdTenantId();
+  if (!tenantId) {
+    console.error('[CharcuLogic Firebase] MHD-Modul ohne Mandanten-ID initialisiert.');
     return null;
   }
+  return tenantId;
+}
+
+function buildTenantScopedCollectionPath(collectionName) {
+  const tenantId = requireMhdTenantId();
+  if (!tenantId) return null;
+  const name = String(collectionName || '').replace(/^\/+|\/+$/g, '');
+  if (!name) return null;
+  return `tenants/${tenantId}/${name}`;
+}
+
+function resolveFinalizeDeliveryFirestoreTargets() {
+  const tenantId = requireMhdTenantId();
+  if (!tenantId) return null;
+  return {
+    tenantId,
+    deliveryPath: `tenants/${tenantId}/wareneingang_lieferungen`,
+    mhdPath: `tenants/${tenantId}/mhd_liste`,
+  };
+}
+
+function alertFinalizeDeliveryFirestoreError(err, targetPath = 'unbekannt') {
+  const details = err?.message || String(err || 'Unbekannter Fehler');
+  const code = err?.code ? ` [${err.code}]` : '';
+  window.alert(`FEHLER BEIM ABSCHLIESSEN! Pfad: ${targetPath} - Details: ${details}${code}`);
+}
+
+function mhdCollectionPath() {
+  return buildTenantScopedCollectionPath('mhd_liste');
 }
 function mhdDocRef(docId) {
   try {
@@ -3089,12 +3123,7 @@ function mapMhdCategoryToHeadCategory(mhdCategory = '') {
 }
 
 function deliveryCollectionPath() {
-  if (!requireMhdTenantId()) return null;
-  try {
-    return getTenantCollectionPath('wareneingang_lieferungen');
-  } catch {
-    return null;
-  }
+  return buildTenantScopedCollectionPath('wareneingang_lieferungen');
 }
 
 function createDeliveryId() {
@@ -3630,7 +3659,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     wareneingangAt: erfassungsDatum,
     erfassungsDatum,
     scannedBy: getActiveEmployee() || getAuditActorName(),
-    tenantId: mhdState.tenantId,
+    tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
     ...buildHiddenAuditFields(),
   };
@@ -3640,6 +3669,9 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   }
   if (meisterOverrideReason) {
     record.meisterOverrideReason = meisterOverrideReason;
+  }
+  if (!record.tenantId) {
+    delete record.tenantId;
   }
   return record;
 }
@@ -3736,7 +3768,7 @@ function buildDeliveryBundlePayload(head, {
     itemCount: includeItems ? currentDeliveryItems.length : 0,
     source: 'wareneingang-lieferung',
     scannedBy: getActiveEmployee() || getAuditActorName(),
-    tenantId: mhdState.tenantId,
+    tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
     ...buildHiddenAuditFields(),
   };
@@ -3746,6 +3778,9 @@ function buildDeliveryBundlePayload(head, {
   }
   if (head.temperatur === null || Number.isNaN(head.temperatur)) {
     delete bundle.temperatur;
+  }
+  if (!bundle.tenantId) {
+    delete bundle.tenantId;
   }
   return bundle;
 }
@@ -4124,6 +4159,17 @@ async function finalizeDelivery() {
 
   const queuedBundle = auditedDelivery.queueData;
   const deliveryBundleOnline = auditedDelivery.onlineData;
+  const firestoreTargets = resolveFinalizeDeliveryFirestoreTargets();
+  if (!firestoreTargets) {
+    mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    return;
+  }
+
+  const { tenantId: activeTenantId, deliveryPath, mhdPath } = firestoreTargets;
+  if (deliveryBundleOnline) deliveryBundleOnline.tenantId = activeTenantId;
+  if (queuedBundle) queuedBundle.tenantId = activeTenantId;
+
+  let finalizeTargetPath = deliveryPath;
 
   try {
     if (saveBtn) {
@@ -4132,7 +4178,7 @@ async function finalizeDelivery() {
     }
 
     const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryCollectionPath(),
+      collectionPath: deliveryPath,
       docId: deliveryId,
       op: 'set',
       onlineData: deliveryBundleOnline,
@@ -4142,12 +4188,14 @@ async function finalizeDelivery() {
 
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
+      record.tenantId = activeTenantId;
       const auditedRecord = withHiddenAudit(
-        { ...record, updatedAt: serverTimestampFallback() },
-        { ...record, updatedAt: completedAt },
+        { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
+        { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
+      finalizeTargetPath = `${mhdPath}/${record.id}`;
       const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdCollectionPath(),
+        collectionPath: mhdPath,
         docId: record.id,
         op: 'set',
         onlineData: auditedRecord.onlineData,
@@ -4160,8 +4208,11 @@ async function finalizeDelivery() {
 
     const mhdResults = await Promise.allSettled(mhdWrites);
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite && maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd')) {
-      return;
+    if (rejectedMhdWrite) {
+      alertFinalizeDeliveryFirestoreError(rejectedMhdWrite.reason, finalizeTargetPath);
+      if (maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd')) {
+        return;
+      }
     }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
@@ -4176,6 +4227,7 @@ async function finalizeDelivery() {
     renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
+    alertFinalizeDeliveryFirestoreError(err, finalizeTargetPath || deliveryPath);
     if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
