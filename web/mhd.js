@@ -4193,7 +4193,7 @@ async function finalizeDelivery() {
     return;
   }
 
-  const { tenantId: activeTenantId, deliveryPath, mhdPath } = firestoreTargets;
+  const { deliveryPath, mhdPath } = firestoreTargets;
   if (deliveryBundleOnline) deliveryBundleOnline.tenantId = activeTenantId;
   if (queuedBundle) queuedBundle.tenantId = activeTenantId;
 
