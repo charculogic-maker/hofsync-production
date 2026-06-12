@@ -3385,7 +3385,8 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   min-width: 64px;
 }
 
-#pin-auth-overlay {
+#pin-auth-overlay,
+.profile-session-overlay {
   position: fixed;
   inset: 0;
   z-index: 99998;
@@ -3396,6 +3397,29 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   background: rgba(8, 12, 18, 0.72);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+.profile-gate-actions,
+.profile-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.profile-gate-btn,
+.profile-picker-btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 17px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.profile-picker-cancel {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 4px;
 }
 
 .pin-auth-card {

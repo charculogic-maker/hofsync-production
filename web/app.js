@@ -75,6 +75,7 @@ import {
 } from './customer-orders.js';
 import { activateTeamHubTab } from './team-tab.js';
 import {
+  getTeamEmployees,
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
   syncPushRegistration,
@@ -96,7 +97,347 @@ import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teambo
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
-const STEVESHOF_TERMINAL_EMPLOYEE = 'StevesHof-Team';
+
+const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'haccp']);
+const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
+const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
+
+function isEmployeePinRequired(branding = window.BRANDING) {
+  return branding?.modules?.employeePin !== false;
+}
+
+function isProfileEmployeeAuth(branding = window.BRANDING) {
+  return branding?.modules?.employeeAuth === 'profile';
+}
+
+function isTeamSessionName(employeeName, branding = window.BRANDING) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) return false;
+  return cleanName === resolveTeamSessionName(branding);
+}
+
+function isNamedProfileSession(employeeName, branding = window.BRANDING) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) return false;
+  return !isTeamSessionName(cleanName, branding);
+}
+
+function profileLastActionStorageKey() {
+  return scopedTeamboardStorageKey(
+    PROFILE_LAST_ACTION_STORAGE_KEY,
+    getGlobalTenantId() || getTenantId(),
+  );
+}
+
+function touchProfileLastActionTime() {
+  if (!isProfileEmployeeAuth()) return;
+  try {
+    localStorage.setItem(profileLastActionStorageKey(), new Date().toISOString());
+  } catch (err) {
+    console.warn('[CharcuLogic Profile] lastActionTime konnte nicht gespeichert werden:', err);
+  }
+}
+
+function clearProfileLastActionTime() {
+  try {
+    localStorage.removeItem(profileLastActionStorageKey());
+  } catch (_) { /* noop */ }
+}
+
+function clearNamedProfileSession(branding = window.BRANDING) {
+  const current = readActiveEmployee();
+  if (!isNamedProfileSession(current, branding)) return false;
+  try {
+    localStorage.removeItem(activeEmployeeStorageKey());
+  } catch (err) {
+    console.warn('[CharcuLogic Profile] Session konnte nicht gelöscht werden:', err);
+  }
+  clearProfileLastActionTime();
+  if (!isEmployeePinRequired(branding)) {
+    configureTeamSessionWithoutPin(branding);
+  } else {
+    window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+      detail: { employeeName: '' },
+    }));
+    updateEmployeeSessionBadge('');
+  }
+  return true;
+}
+
+function expireProfileSessionIfIdle(branding = window.BRANDING) {
+  if (!isProfileEmployeeAuth(branding)) return false;
+  const current = readActiveEmployee();
+  if (!isNamedProfileSession(current, branding)) return false;
+
+  let lastRaw = '';
+  try {
+    lastRaw = localStorage.getItem(profileLastActionStorageKey()) || '';
+  } catch (_) { /* noop */ }
+
+  if (!lastRaw) {
+    touchProfileLastActionTime();
+    return false;
+  }
+
+  const lastMs = Date.parse(lastRaw);
+  if (Number.isNaN(lastMs) || (Date.now() - lastMs) <= PROFILE_SESSION_IDLE_MS) {
+    return false;
+  }
+
+  clearNamedProfileSession(branding);
+  return true;
+}
+
+function persistNamedProfileSession(employeeName, branding = window.BRANDING) {
+  const cleanName = persistActiveEmployeeSession(employeeName);
+  if (cleanName && isProfileEmployeeAuth(branding) && isNamedProfileSession(cleanName, branding)) {
+    touchProfileLastActionTime();
+  }
+  return cleanName;
+}
+
+function buildProfileSessionOverlayShell(cardNode) {
+  const overlay = document.createElement('div');
+  overlay.className = 'profile-session-overlay';
+  const card = document.createElement('div');
+  card.className = 'pin-auth-card profile-session-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.appendChild(cardNode);
+  overlay.appendChild(card);
+  return { overlay, card };
+}
+
+function openProfileEmployeePicker() {
+  return new Promise((resolve) => {
+    const employees = getTeamEmployees().map((name) => String(name).trim()).filter(Boolean);
+    if (!employees.length) {
+      window.showToast?.('Keine Mitarbeiterprofile hinterlegt.', 'warning');
+      resolve('');
+      return;
+    }
+
+    document.getElementById('profile-picker-overlay')?.remove();
+
+    const body = document.createDocumentFragment();
+    const title = document.createElement('div');
+    title.className = 'pin-auth-title';
+    title.textContent = 'Profil wählen';
+    body.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'pin-auth-scan';
+    hint.textContent = 'Wer bearbeitet den Wareneingang?';
+    body.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'profile-picker-list';
+    employees.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-primary profile-picker-btn';
+      btn.dataset.profileName = name;
+      btn.textContent = name;
+      list.appendChild(btn);
+    });
+    body.appendChild(list);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn btn-secondary profile-picker-cancel';
+    cancelBtn.textContent = 'Abbrechen';
+    body.appendChild(cancelBtn);
+
+    const { overlay } = buildProfileSessionOverlayShell(body);
+    overlay.id = 'profile-picker-overlay';
+
+    const close = (pickedName = '') => {
+      overlay.remove();
+      resolve(pickedName);
+    };
+
+    overlay.addEventListener('click', (event) => {
+      const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
+      if (picked) {
+        persistNamedProfileSession(picked);
+        window.showToast?.(`Angemeldet als ${picked}`, 'success');
+        close(picked);
+        return;
+      }
+      if (event.target.closest('.profile-picker-cancel')) {
+        close('');
+      }
+    });
+
+    document.body.appendChild(overlay);
+    list.querySelector('button')?.focus();
+  });
+}
+
+function showReceivingProfileGatekeeper(employeeName) {
+  return new Promise((resolve) => {
+    const cleanName = String(employeeName || '').trim();
+    if (!cleanName) {
+      resolve('skip');
+      return;
+    }
+
+    document.getElementById('receiving-profile-gate-overlay')?.remove();
+
+    const body = document.createDocumentFragment();
+    const title = document.createElement('div');
+    title.className = 'pin-auth-title';
+    title.textContent = 'MHD-Wareneingang aktiv';
+    body.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'pin-auth-scan';
+    hint.textContent = `Angemeldet als: ${cleanName}`;
+    body.appendChild(hint);
+
+    const actions = document.createElement('div');
+    actions.className = 'profile-gate-actions';
+
+    const continueBtn = document.createElement('button');
+    continueBtn.type = 'button';
+    continueBtn.className = 'btn btn-primary profile-gate-btn';
+    continueBtn.dataset.gateAction = 'continue';
+    continueBtn.textContent = `Weiter als ${cleanName}`;
+    actions.appendChild(continueBtn);
+
+    const switchBtn = document.createElement('button');
+    switchBtn.type = 'button';
+    switchBtn.className = 'btn btn-secondary profile-gate-btn';
+    switchBtn.dataset.gateAction = 'switch';
+    switchBtn.textContent = 'Neu anmelden / Wechseln';
+    actions.appendChild(switchBtn);
+
+    const logoutBtn = document.createElement('button');
+    logoutBtn.type = 'button';
+    logoutBtn.className = 'btn btn-secondary profile-gate-btn';
+    logoutBtn.dataset.gateAction = 'logout';
+    logoutBtn.textContent = 'Abmelden';
+    actions.appendChild(logoutBtn);
+
+    body.appendChild(actions);
+
+    const { overlay } = buildProfileSessionOverlayShell(body);
+    overlay.id = 'receiving-profile-gate-overlay';
+
+    const finish = (action) => {
+      overlay.remove();
+      resolve(action);
+    };
+
+    overlay.addEventListener('click', (event) => {
+      const action = event.target.closest('[data-gate-action]')?.dataset.gateAction;
+      if (!action) return;
+      if (action === 'continue') {
+        touchProfileLastActionTime();
+        finish('continue');
+        return;
+      }
+      if (action === 'logout') {
+        clearNamedProfileSession();
+        finish('logout');
+        return;
+      }
+      if (action === 'switch') {
+        void (async () => {
+          overlay.remove();
+          const picked = await openProfileEmployeePicker();
+          if (picked) {
+            finish('switch');
+            return;
+          }
+          const current = readActiveEmployee();
+          if (isNamedProfileSession(current)) {
+            await showReceivingProfileGatekeeper(current);
+          }
+          finish('cancel');
+        })();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    continueBtn.focus();
+  });
+}
+
+async function showReceivingProfileGatekeeperIfNeeded() {
+  if (!isProfileEmployeeAuth()) return;
+  const employeeName = readActiveEmployee();
+  if (!isNamedProfileSession(employeeName)) return;
+  await showReceivingProfileGatekeeper(employeeName);
+}
+
+function resolveTeamSessionName(branding = window.BRANDING) {
+  const betriebsName = String(branding?.betriebsName || 'Betrieb').trim();
+  const shortName = betriebsName.split(/\s+/)[0] || betriebsName;
+  return `Team ${shortName}`;
+}
+
+function persistActiveEmployeeSession(employeeName) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) return '';
+  try {
+    localStorage.setItem(activeEmployeeStorageKey(), cleanName);
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+  } catch (err) {
+    console.warn('[CharcuLogic Session] Team-Sitzung konnte nicht gespeichert werden:', err);
+  }
+  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+    detail: { employeeName: cleanName },
+  }));
+  updateEmployeeSessionBadge(cleanName);
+  return cleanName;
+}
+
+function configureTeamSessionWithoutPin(branding = window.BRANDING) {
+  const employeeName = resolveTeamSessionName(branding);
+  const teamLoginCard = document.getElementById('team-login-card');
+  if (teamLoginCard) teamLoginCard.hidden = true;
+  return persistActiveEmployeeSession(employeeName);
+}
+
+function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
+  expireProfileSessionIfIdle(branding);
+
+  const teamLoginCard = document.getElementById('team-login-card');
+
+  if (isProfileEmployeeAuth(branding)) {
+    if (teamLoginCard) teamLoginCard.hidden = true;
+    const current = readActiveEmployee();
+    if (isNamedProfileSession(current, branding)) {
+      return current;
+    }
+    if (!isEmployeePinRequired(branding)) {
+      return configureTeamSessionWithoutPin(branding);
+    }
+    if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== 'steveshof') {
+      teamLoginCard.hidden = false;
+    }
+    return current;
+  }
+
+  if (!isEmployeePinRequired(branding)) {
+    if (teamLoginCard) teamLoginCard.hidden = true;
+    return configureTeamSessionWithoutPin(branding);
+  }
+  if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== 'steveshof') {
+    teamLoginCard.hidden = false;
+  }
+  return readActiveEmployee();
+}
+
+window.isEmployeePinRequired = isEmployeePinRequired;
+window.isProfileEmployeeAuth = isProfileEmployeeAuth;
+window.resolveTeamSessionName = resolveTeamSessionName;
+window.ensureEmployeeSessionForProtectedArea = ensureEmployeeSessionForProtectedArea;
+window.touchProfileLastActionTime = touchProfileLastActionTime;
+window.expireProfileSessionIfIdle = expireProfileSessionIfIdle;
+window.showReceivingProfileGatekeeperIfNeeded = showReceivingProfileGatekeeperIfNeeded;
+window.openProfileEmployeePicker = openProfileEmployeePicker;
 
 function isSteveshofTenantId(tenantId = '') {
   return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
@@ -1101,6 +1442,7 @@ function applyEarlyTenantShell() {
     tenantId: STEVESHOF_TENANT_ID,
     email: STEVESHOF_TERMINAL_EMAIL,
   });
+  ensureEmployeeSessionForProtectedArea(window.BRANDING);
   showTab('mhd');
 }
 
@@ -1113,26 +1455,19 @@ function configureSteveshofTerminalSession(authSession) {
   if (!isSteveshofTerminalSession(authSession)) return '';
   document.documentElement.dataset.fixedTerminal = 'steveshof';
   updateHeaderLogoutVisibility(AppState.activeTab);
-  const teamLoginCard = document.getElementById('team-login-card');
-  if (teamLoginCard) teamLoginCard.hidden = true;
-  try {
-    localStorage.setItem(activeEmployeeStorageKey(), STEVESHOF_TERMINAL_EMPLOYEE);
-    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
-  } catch (err) {
-    console.warn('[CharcuLogic Terminal] Neutraler Bearbeiter konnte nicht gespeichert werden:', err);
-  }
-  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
-    detail: { employeeName: STEVESHOF_TERMINAL_EMPLOYEE },
-  }));
-  return STEVESHOF_TERMINAL_EMPLOYEE;
+  return ensureEmployeeSessionForProtectedArea(window.BRANDING);
 }
 
 window.addEventListener('charculogic:active-employee-changed', (event) => {
-  updateEmployeeSessionBadge(event.detail?.employeeName || readActiveEmployee());
+  const employeeName = event.detail?.employeeName || readActiveEmployee();
+  updateEmployeeSessionBadge(employeeName);
+  if (isProfileEmployeeAuth() && isNamedProfileSession(employeeName)) {
+    touchProfileLastActionTime();
+  }
 });
 
 tabs.forEach(tab => {
-  tab.addEventListener('click', () => {
+  tab.addEventListener('click', async () => {
     const targetTab = tab.getAttribute('data-tab');
     if (tab.hidden || tab.style.display === 'none') {
       return;
@@ -1140,6 +1475,10 @@ tabs.forEach(tab => {
     if (targetTab === 'kitchen' && !isWurstkuecheEnabledForTenant(getTenantId())) {
       showToast('Das Produktionsmodul ist für diesen Betrieb nicht freigeschaltet.', 'warning');
       return;
+    }
+    expireProfileSessionIfIdle();
+    if (PIN_PROTECTED_TABS.has(targetTab)) {
+      ensureEmployeeSessionForProtectedArea();
     }
     AppState.activeTab = targetTab;
 
@@ -1198,7 +1537,7 @@ tabs.forEach(tab => {
       if (targetTab === 'teamboard') activateTeamboardTab();
       if (targetTab === 'team') activateTeamHubTab();
       if (targetTab === 'mhd') activateMhdTab();
-      if (targetTab === 'receiving') activateReceivingTab();
+      if (targetTab === 'receiving') await activateReceivingTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
       if (targetTab === 'knowledge') activateCutGlossaryTab();
@@ -1227,6 +1566,8 @@ tabs.forEach(tab => {
 
 applyEarlyTenantShell();
 updateHeaderLogoutVisibility(AppState.activeTab);
+expireProfileSessionIfIdle(window.BRANDING);
+ensureEmployeeSessionForProtectedArea(window.BRANDING);
 updateEmployeeSessionBadge();
 
 const SYNC_STATUS = {
@@ -1592,8 +1933,11 @@ async function bootstrapAuthenticatedApp() {
     applyModuleVisibility(window.BRANDING);
     applyRoleBasedUi(nextSession);
     refreshRetterBoxModule();
+    ensureEmployeeSessionForProtectedArea(window.BRANDING);
   });
-  const terminalEmployeeName = configureSteveshofTerminalSession(authSession);
+  configureSteveshofTerminalSession(authSession);
+  expireProfileSessionIfIdle(window.BRANDING);
+  const terminalEmployeeName = ensureEmployeeSessionForProtectedArea(window.BRANDING);
   const tenantId = getGlobalTenantId();
 
   const recipeModuleEnabled = isWurstkuecheEnabledForTenant(authSession.tenantId);

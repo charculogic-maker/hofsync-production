@@ -22,6 +22,8 @@ const DEFAULT_BRANDING = {
     haccp: true,
     orders: true,
     retterBox: false,
+    employeePin: true,
+    employeeAuth: 'pin',
   },
 };
 
@@ -49,6 +51,8 @@ const TENANT_BRANDING = {
       orders: false,
       batches: true,
       retterBox: true,
+      employeePin: false,
+      employeeAuth: 'profile',
     },
   },
   torfabrik: {
@@ -70,6 +74,8 @@ const TENANT_BRANDING = {
       cutGlossary: false,
       haccp: true,
       orders: true,
+      employeePin: true,
+      employeeAuth: 'pin',
     },
   },
 };

@@ -238,6 +238,58 @@ function serverTimestampFallback() {
     : new Date().toISOString();
 }
 
+const RECEIVING_SAVE_LOCK_MS = 1500;
+
+function resolveTeamSessionDisplayName() {
+  if (typeof window.resolveTeamSessionName === 'function') {
+    return window.resolveTeamSessionName();
+  }
+  const betriebsName = String(window.BRANDING?.betriebsName || 'Betrieb').trim();
+  const shortName = betriebsName.split(/\s+/)[0] || betriebsName;
+  return `Team ${shortName}`;
+}
+
+function getAuditActorName() {
+  return getActiveEmployee() || resolveTeamSessionDisplayName();
+}
+
+function buildHiddenAuditFields() {
+  return {
+    createdAt: serverTimestampFallback(),
+    createdBy: getAuditActorName(),
+  };
+}
+
+function buildHiddenQueuedAuditFields() {
+  return {
+    createdAt: new Date().toISOString(),
+    createdBy: getAuditActorName(),
+  };
+}
+
+function withHiddenAudit(onlineData, queueData = onlineData) {
+  recordInventoryProfileActivity();
+  return {
+    onlineData: { ...onlineData, ...buildHiddenAuditFields() },
+    queueData: { ...queueData, ...buildHiddenQueuedAuditFields() },
+  };
+}
+
+function recordInventoryProfileActivity() {
+  window.touchProfileLastActionTime?.();
+}
+
+function beginReceivingSaveButtonLock(button, restoreState) {
+  if (!button || button.dataset.receivingSaveLock === '1') return false;
+  button.dataset.receivingSaveLock = '1';
+  button.disabled = true;
+  setTimeout(() => {
+    delete button.dataset.receivingSaveLock;
+    if (typeof restoreState === 'function') restoreState();
+  }, RECEIVING_SAVE_LOCK_MS);
+  return true;
+}
+
 const MHD_TROCKEN_CATEGORY = '📦 Trockenware';
 const MHD_RENDER_LIMIT = 50;
 const MHD_CANONICAL_CATEGORIES = {
@@ -649,6 +701,15 @@ function setActiveEmployee(employeeName) {
 }
 
 function requestEmployeePinForScan(barcode) {
+  if (window.isEmployeePinRequired?.() === false) {
+    const employeeName = getActiveEmployee()
+      || (typeof window.ensureEmployeeSessionForProtectedArea === 'function'
+        ? window.ensureEmployeeSessionForProtectedArea()
+        : resolveTeamSessionDisplayName());
+    if (employeeName) setActiveEmployee(employeeName);
+    return Promise.resolve(employeeName || null);
+  }
+
   return new Promise((resolve) => {
     document.getElementById('pin-auth-overlay')?.remove();
 
@@ -1133,6 +1194,7 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
     return false;
   }
 
+  recordInventoryProfileActivity();
   const eanEl = document.getElementById('we-ean');
   if (eanEl) eanEl.value = code;
   currentDeliveryItemBarcode = code;
@@ -1190,6 +1252,7 @@ function applyTorfabrikFassMhdSuggestion() {
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
+  recordInventoryProfileActivity();
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
@@ -1202,6 +1265,7 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
 }
 
 async function processScannedBarcode(decodedText, source = 'camera') {
+  recordInventoryProfileActivity();
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
@@ -1220,9 +1284,12 @@ async function processScannedBarcode(decodedText, source = 'camera') {
   currentBarcode = scannedCode;
   mhdState.closeScanner({ preserveScanState: true });
   let employeeName = getActiveEmployee();
+  if (!employeeName && typeof window.ensureEmployeeSessionForProtectedArea === 'function') {
+    employeeName = window.ensureEmployeeSessionForProtectedArea() || '';
+  }
   if (employeeName) {
     window.showToast?.(`Erfasst durch ${employeeName}`, "success");
-  } else {
+  } else if (window.isEmployeePinRequired?.() !== false) {
     employeeName = await requestEmployeePinForScan(scannedCode);
   }
   if (!employeeName) {
@@ -1326,14 +1393,15 @@ async function handleScannedEan(ean) {
     selectedProduct = existing;
     const newQty = existing.soldOut ? 1 : (existing.qty ?? 0) + 1;
     const updates = { qty: newQty, soldOut: false, scannedBy: activeScan?.scannedBy || '' };
+    const audited = withHiddenAudit(updates);
 
     try {
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: existing.id,
         op: 'update',
-        onlineData: updates,
-        queueData: updates,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
         offlineMessage: 'Bestandsaenderung wird nachtraeglich synchronisiert.',
       });
       activeScan.handled = true;
@@ -1386,6 +1454,8 @@ function showLegacyLearnModeDialog(ean) {
   setTimeout(() => inputName?.focus(), 100);
 
   btnLearnSave?.addEventListener('click', async () => {
+    if (!beginReceivingSaveButtonLock(btnLearnSave)) return;
+
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || 'StevesHof';
 
@@ -1409,13 +1479,15 @@ function showLegacyLearnModeDialog(ean) {
       tenantId: mhdState.tenantId,
     };
 
+    const auditedProduct = withHiddenAudit(newProduct);
+
     try {
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: learnDocId,
         op: 'set',
-        onlineData: { ...newProduct, createdAt: serverTimestampFallback() },
-        queueData: { ...newProduct, createdAt: new Date().toISOString() },
+        onlineData: auditedProduct.onlineData,
+        queueData: auditedProduct.queueData,
         offlineMessage: 'Neuer Artikel wird nachträglich synchronisiert.',
       });
       learnModeOverlay?.remove();
@@ -1568,6 +1640,8 @@ function showLearnModeDialog(ean) {
   });
 
   btnLearnSave?.addEventListener('click', async () => {
+    if (!beginReceivingSaveButtonLock(btnLearnSave, updateLotGate)) return;
+
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
     const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
@@ -1648,15 +1722,15 @@ function showLearnModeDialog(ean) {
       source: 'wareneingang-app',
       postentyp: 'wareneingang',
       wareneingangAt: new Date().toISOString(),
-      scannedBy: activeScan?.scannedBy || '',
+      scannedBy: activeScan?.scannedBy || getAuditActorName(),
       tenantId: mhdState.tenantId,
       updatedAt: serverTimestampFallback(),
-      createdAt: serverTimestampFallback()
     };
+    const auditedProduct = withHiddenAudit(newProduct);
+    const newProductOnline = { ...auditedProduct.onlineData, updatedAt: serverTimestampFallback() };
     const queuedProduct = {
-      ...newProduct,
+      ...auditedProduct.queueData,
       updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
     };
 
     try {
@@ -1670,7 +1744,7 @@ function showLearnModeDialog(ean) {
           collectionPath: mhdCollectionPath(),
           docId: postenId,
           op: 'set',
-          onlineData: newProduct,
+          onlineData: newProductOnline,
           queueData: queuedProduct,
           offlineMessage: "Wareneingang wird nachträglich synchronisiert.",
         }),
@@ -2300,12 +2374,14 @@ async function saveMhdCardQty(id, newQty) {
   if (!prod || prod.soldOut) return;
   if (newQty === (prod.qty ?? 0)) return;
 
+  const audited = withHiddenAudit({ qty: newQty });
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: { qty: newQty },
-      queueData: { qty: newQty },
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
     });
   } catch (err) {
@@ -2343,12 +2419,14 @@ async function setSoldOut(id) {
   };
   mhdState.playClickSound(400, 0.08, 0.2);
 
+  const audited = withHiddenAudit(updates);
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: updates,
-      queueData: updates,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: "Ausverkauft-Status wird nachträglich synchronisiert.",
     });
   } catch (err) {
@@ -2434,6 +2512,7 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
     category: kategorie,
     updatedAt: updatedAtIso,
   };
+  const audited = withHiddenAudit(onlineData, queueData);
 
   try {
     rememberCategoryForBarcode(prod, barcode, kategorie);
@@ -2441,8 +2520,8 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
       mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: entry.id,
-        onlineData,
-        queueData,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
         offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
       })
     ));
@@ -2558,16 +2637,17 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
     ...onlineData,
     updatedAt: updatedAtIso,
   };
+  const audited = withHiddenAudit(onlineData, queueData);
 
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData,
-      queueData,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'MHD-Korrektur wird nachträglich synchronisiert.',
     });
-    Object.assign(draft.prod, queueData);
+    Object.assign(draft.prod, audited.queueData);
     resetScanState({ keepLearnOverlay: false });
     renderMhdList();
     mhdState.showHUD('MHD gespeichert', `Neues MHD: ${draft.newLabel}.`);
@@ -2614,12 +2694,14 @@ async function markMhdAction(id, actionStatus) {
     queuedUpdates.retterBoxAngefragt = true;
     queuedUpdates.retterBoxAngefragtAt = nowIso;
   }
+  const audited = withHiddenAudit(updates, queuedUpdates);
+
   try {
     const actionResult = await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: updates,
-      queueData: queuedUpdates,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: "MHD-Aktion wird nachträglich synchronisiert.",
     });
     const successMessage = actionResult === 'queued'
@@ -2723,20 +2805,25 @@ async function updateRecentReceiptCategory(id) {
   }
   const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
   const updatedAtIso = new Date().toISOString();
+  const audited = withHiddenAudit(
+    {
+      warenKategorie,
+      kategorie,
+      updatedAt: serverTimestampFallback(),
+    },
+    {
+      warenKategorie,
+      kategorie,
+      updatedAt: updatedAtIso,
+    },
+  );
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: {
-        warenKategorie,
-        kategorie,
-        updatedAt: serverTimestampFallback(),
-      },
-      queueData: {
-        warenKategorie,
-        kategorie,
-        updatedAt: updatedAtIso,
-      },
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
     });
     const localEntry = mhdState.products.find((entry) => entry.id === id);
@@ -3298,6 +3385,7 @@ function clearDeliveryItemFields() {
 }
 
 function addDeliveryItem() {
+  recordInventoryProfileActivity();
   const { product, barcode, qtyValue, qtyUnit, mhdDate, category, herstellerZusatz } = readDeliveryItemDraftValues();
   if (!barcode) {
     mhdState.showHUD('EAN fehlt', 'Bitte Barcode scannen oder EAN eintippen.', '!');
@@ -3450,10 +3538,10 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     postentyp: 'wareneingang',
     wareneingangAt: erfassungsDatum,
     erfassungsDatum,
-    scannedBy: getActiveEmployee() || '',
+    scannedBy: getActiveEmployee() || getAuditActorName(),
     tenantId: mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    createdAt: serverTimestampFallback(),
+    ...buildHiddenAuditFields(),
   };
 
   if (head.temperatur != null && !Number.isNaN(head.temperatur)) {
@@ -3556,10 +3644,10 @@ function buildDeliveryBundlePayload(head, {
       : [],
     itemCount: includeItems ? currentDeliveryItems.length : 0,
     source: 'wareneingang-lieferung',
-    scannedBy: getActiveEmployee() || '',
+    scannedBy: getActiveEmployee() || getAuditActorName(),
     tenantId: mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    createdAt: serverTimestampFallback(),
+    ...buildHiddenAuditFields(),
   };
 
   if (meisterOverrideReason) {
@@ -3731,11 +3819,10 @@ async function saveDeliveryDraft() {
     includeItems: false,
   });
 
-  const queuedBundle = {
+  const auditedBundle = withHiddenAudit(deliveryBundle, {
     ...deliveryBundle,
-    createdAt: erfassungsDatum,
     updatedAt: erfassungsDatum,
-  };
+  });
 
   try {
     if (draftBtn) {
@@ -3747,8 +3834,8 @@ async function saveDeliveryDraft() {
       collectionPath: deliveryCollectionPath(),
       docId: deliveryId,
       op: 'set',
-      onlineData: deliveryBundle,
-      queueData: queuedBundle,
+      onlineData: auditedBundle.onlineData,
+      queueData: auditedBundle.queueData,
       offlineMessage: 'Lieferungs-Entwurf wird nachträglich synchronisiert.',
     });
 
@@ -3895,6 +3982,8 @@ async function finalizeDelivery() {
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
 
+  if (!beginReceivingSaveButtonLock(saveBtn, updateReceivingSaveButtonState)) return;
+
   if (!currentDeliveryItems.length) {
     setReceivingMode('schnell');
     mhdState.showHUD('Keine Posten', 'Bitte mindestens einen Waren-Posten unter Schnellerfassung hinzufügen.', '!');
@@ -3924,13 +4013,23 @@ async function finalizeDelivery() {
     includeItems: true,
   });
   deliveryBundle.completedAt = completedAt;
-  deliveryBundle.createdAt = existingDraft?.createdAt || serverTimestampFallback();
-
-  const queuedBundle = {
+  const auditedDelivery = withHiddenAudit(deliveryBundle, {
     ...deliveryBundle,
-    createdAt: existingDraft?.createdAt || erfassungsDatum,
     updatedAt: completedAt,
-  };
+  });
+  if (existingDraft?.createdAt) {
+    auditedDelivery.onlineData.createdAt = existingDraft.createdAt;
+    auditedDelivery.queueData.createdAt = typeof existingDraft.createdAt === 'string'
+      ? existingDraft.createdAt
+      : (existingDraft.erfassungsDatum || new Date().toISOString());
+  }
+  if (existingDraft?.createdBy) {
+    auditedDelivery.onlineData.createdBy = existingDraft.createdBy;
+    auditedDelivery.queueData.createdBy = existingDraft.createdBy;
+  }
+
+  const queuedBundle = auditedDelivery.queueData;
+  const deliveryBundleOnline = auditedDelivery.onlineData;
 
   try {
     if (saveBtn) {
@@ -3942,24 +4041,23 @@ async function finalizeDelivery() {
       collectionPath: deliveryCollectionPath(),
       docId: deliveryId,
       op: 'set',
-      onlineData: deliveryBundle,
+      onlineData: deliveryBundleOnline,
       queueData: queuedBundle,
       offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
     });
 
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
-      const queuedRecord = {
-        ...record,
-        updatedAt: completedAt,
-        createdAt: completedAt,
-      };
+      const auditedRecord = withHiddenAudit(
+        { ...record, updatedAt: serverTimestampFallback() },
+        { ...record, updatedAt: completedAt },
+      );
       const result = await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: record.id,
         op: 'set',
-        onlineData: record,
-        queueData: queuedRecord,
+        onlineData: auditedRecord.onlineData,
+        queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
       saveProductMaster(record);
@@ -4327,11 +4425,16 @@ function restoreMhdDraftFields() {
   mhdState.restoreDraftFields(fields);
 }
 export function activateMhdTab() {
+  window.expireProfileSessionIfIdle?.();
+  window.ensureEmployeeSessionForProtectedArea?.();
   applyMhdCategoryFilterOptions();
   renderMhdList();
   restoreMhdDraftFields();
 }
-export function activateReceivingTab() {
+export async function activateReceivingTab() {
+  window.expireProfileSessionIfIdle?.();
+  window.ensureEmployeeSessionForProtectedArea?.();
+  await window.showReceivingProfileGatekeeperIfNeeded?.();
   applyReceivingMetzgereiVisibility(window.BRANDING || {});
   ensureReceivingFormDefaults();
   subscribeToPendingDeliveryDrafts();
