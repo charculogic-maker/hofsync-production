@@ -4,7 +4,7 @@ import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGerman
 import {
   getGlobalTenantId,
   getTenantCollection,
-  normalizeTenantId,
+  canonicalTenantId,
   setGlobalTenantId,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
@@ -29,11 +29,16 @@ function hasActiveFirebaseAuthUserForSelfHealing() {
 }
 
 function maybeResetOnFirestorePermissionError(err, context = '') {
-  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
-  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
-  if (!window.isFirestorePermissionDeniedError(err)) return false;
-  void window.resetAuthStateOnPermissionDenied?.(err, context);
-  return true;
+  if (typeof window.isFirestorePermissionDeniedError === 'function'
+    && window.isFirestorePermissionDeniedError(err)) {
+    console.warn('[CharcuLogic MHD] Firestore-Zugriff verweigert — kein Auto-Logout', {
+      context,
+      code: err?.code,
+      message: err?.message,
+    });
+    window.showToast?.('Speichern nicht erlaubt. Bitte im Büro Bescheid geben.', 'error');
+  }
+  return false;
 }
 
 const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
@@ -251,7 +256,7 @@ function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 
 function resolveMhdTenantId() {
-  const tenantId = normalizeTenantId(getGlobalTenantId() || mhdState.tenantId);
+  const tenantId = canonicalTenantId(getGlobalTenantId() || mhdState.tenantId);
   if (!tenantId) return '';
   if (!getGlobalTenantId()) {
     setGlobalTenantId(tenantId);
@@ -331,27 +336,106 @@ function getAuditActorName() {
 }
 
 function buildHiddenAuditFields() {
-  return {
+  const actor = getAuditActorName();
+  const fields = {
     createdAt: serverTimestampFallback(),
-    createdBy: getAuditActorName(),
+    updatedAt: serverTimestampFallback(),
   };
+  if (actor) fields.scannedBy = actor;
+  return fields;
+}
+
+const MHD_LISTE_WRITE_FIELDS = new Set([
+  'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+  'produkt', 'name', 'marke', 'brand',
+  'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+  'tage', 'resttage', 'status',
+  'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+  'kategorie', 'warenKategorie', 'soldOut',
+  'lot', 'chargenNummer', 'lieferant', 'temperatur',
+  'erfassungsDatum', 'meisterOverrideReason',
+  'vpeBarcode', 'vpeInhalt',
+  'source', 'postentyp', 'wareneingangAt',
+  'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+  'rabattiert', 'rabattiertAt',
+  'kuecheAngefragt', 'kuecheAngefragtAt',
+  'retterBoxAngefragt', 'retterBoxAngefragtAt',
+  'lieferungId',
+]);
+
+const DELIVERY_WRITE_FIELDS = new Set([
+  'id', 'lieferant', 'warenKategorie', 'temperatur',
+  'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
+  'fotos', 'items', 'itemCount',
+  'source', 'scannedBy', 'tenantId',
+  'createdAt', 'updatedAt',
+]);
+
+function pickFirestoreFields(payload, allowedFields) {
+  const clean = {};
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (!allowedFields.has(key) || value === undefined) return;
+    clean[key] = value;
+  });
+  return clean;
+}
+
+function sanitizeMhdListePayload(payload) {
+  return pickFirestoreFields(payload, MHD_LISTE_WRITE_FIELDS);
+}
+
+function sanitizeDeliveryPayload(payload) {
+  return pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
 }
 
 function buildHiddenQueuedAuditFields() {
-  return {
-    createdAt: new Date().toISOString(),
-    createdBy: getAuditActorName(),
+  const actor = getAuditActorName();
+  const nowIso = new Date().toISOString();
+  const fields = {
+    createdAt: nowIso,
+    updatedAt: nowIso,
   };
+  if (actor) fields.scannedBy = actor;
+  return fields;
+}
+
+function syncInventoryActorBetweenModules() {
+  const fromApp = String(window.readActiveEmployee?.() || '').trim();
+  const fromMhd = getActiveEmployee();
+  if (fromApp && fromApp !== fromMhd) {
+    setActiveEmployee(fromApp);
+    return fromApp;
+  }
+  if (fromMhd && !fromApp) {
+    window.persistActiveEmployeeSession?.(fromMhd);
+    return fromMhd;
+  }
+  return fromMhd || fromApp;
 }
 
 function withHiddenAudit(onlineData, queueData = onlineData) {
-  if (window.isProfileEmployeeAuth?.() && !window.isInventoryWriteReady?.()) {
-    throw new Error('PROFILE_OR_FIREBASE_AUTH_REQUIRED');
-  }
+  syncInventoryActorBetweenModules();
   recordInventoryProfileActivity();
   return {
     onlineData: { ...onlineData, ...buildHiddenAuditFields() },
     queueData: { ...queueData, ...buildHiddenQueuedAuditFields() },
+  };
+}
+
+function withSanitizedDeliveryAudit(onlineData, queueData = onlineData) {
+  const audited = withHiddenAudit(onlineData, queueData);
+  return {
+    onlineData: sanitizeDeliveryPayload(audited.onlineData),
+    queueData: sanitizeDeliveryPayload(audited.queueData),
+  };
+}
+
+function withSanitizedMhdAudit(onlineData, queueData = onlineData) {
+  const audited = withHiddenAudit(onlineData, queueData);
+  return {
+    onlineData: sanitizeMhdListePayload(audited.onlineData),
+    queueData: sanitizeMhdListePayload(audited.queueData),
   };
 }
 
@@ -821,6 +905,7 @@ async function ensureInventoryProfileReadyForDelivery() {
     );
     return false;
   }
+  syncInventoryActorBetweenModules();
   return true;
 }
 
@@ -3654,7 +3739,6 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     name: item.product,
     marke: manufacturer,
     brand: manufacturer,
-    herstellerZusatz: manufacturer,
     lieferant: head.supplier,
     mhd: item.mhdDate,
     mhdDate: item.mhdDate,
@@ -4170,7 +4254,7 @@ async function finalizeDelivery() {
     includeItems: true,
   });
   deliveryBundle.completedAt = completedAt;
-  const auditedDelivery = withHiddenAudit(deliveryBundle, {
+  const auditedDelivery = withSanitizedDeliveryAudit(deliveryBundle, {
     ...deliveryBundle,
     updatedAt: completedAt,
   });
@@ -4180,9 +4264,10 @@ async function finalizeDelivery() {
       ? existingDraft.createdAt
       : (existingDraft.erfassungsDatum || new Date().toISOString());
   }
-  if (existingDraft?.createdBy) {
-    auditedDelivery.onlineData.createdBy = existingDraft.createdBy;
-    auditedDelivery.queueData.createdBy = existingDraft.createdBy;
+  const draftActor = existingDraft?.scannedBy || existingDraft?.createdBy;
+  if (draftActor) {
+    auditedDelivery.onlineData.scannedBy = draftActor;
+    auditedDelivery.queueData.scannedBy = draftActor;
   }
 
   const queuedBundle = auditedDelivery.queueData;
@@ -4217,7 +4302,7 @@ async function finalizeDelivery() {
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
-      const auditedRecord = withHiddenAudit(
+      const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
@@ -4237,10 +4322,11 @@ async function finalizeDelivery() {
     const mhdResults = await Promise.allSettled(mhdWrites);
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
     if (rejectedMhdWrite) {
-      alertFinalizeDeliveryFirestoreError(rejectedMhdWrite.reason, finalizeTargetPath);
-      if (maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd')) {
-        return;
-      }
+      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
+      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
+      return;
     }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
@@ -4255,11 +4341,11 @@ async function finalizeDelivery() {
     renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
-    alertFinalizeDeliveryFirestoreError(err, finalizeTargetPath || deliveryPath);
-    if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
+    const message = String(err?.message || err || 'Unbekannter Fehler');
+    window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');
+    if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
   } finally {
     if (saveBtn) {
       saveBtn.textContent = activeEditingDraftId ? DRAFT_FINALIZE_LABEL : DEFAULT_FINALIZE_LABEL;

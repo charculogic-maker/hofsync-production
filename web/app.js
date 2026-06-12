@@ -99,8 +99,10 @@ import {
   getTenantCollection,
   getTenantCollectionPath,
   initTenantDb,
+  canonicalTenantId,
   normalizeTenantId,
   setGlobalTenantId,
+  tenantIdsMatch,
 } from './tenant-db.js';
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
@@ -277,7 +279,7 @@ function expireProfileSessionIfIdle(branding = window.BRANDING) {
   try {
     lastRaw = readScopedLocalStorageValue(
       PROFILE_LAST_ACTION_STORAGE_KEY,
-      resolveInventoryTenantId(),
+      resolveInventoryStorageTenantKey(),
     ) || '';
   } catch (_) { /* noop */ }
 
@@ -537,9 +539,13 @@ async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
 }
 
 function resolveInventoryTenantId() {
-  return normalizeTenantId(
+  return canonicalTenantId(
     getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '',
   );
+}
+
+function resolveInventoryStorageTenantKey() {
+  return normalizeTenantId(resolveInventoryTenantId());
 }
 
 function isInventoryWriteReady(branding = window.BRANDING) {
@@ -558,7 +564,10 @@ async function ensureInventoryProfileReadyForWrite(branding = window.BRANDING) {
     return false;
   }
 
-  let employeeName = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+  let employeeName = readScopedLocalStorageValue(
+    ACTIVE_EMPLOYEE_STORAGE_KEY,
+    normalizeTenantId(tenantId),
+  );
   const firebaseReady = await ensureTenantFirebaseAuth(branding);
   if (!firebaseReady) {
     window.showToast?.(
@@ -580,6 +589,13 @@ async function ensureInventoryProfileReadyForWrite(branding = window.BRANDING) {
 
   if (employeeName) {
     persistActiveEmployeeSession(employeeName);
+  }
+
+  expireProfileSessionIfIdle(branding);
+  purgeInvalidProfileSession(branding);
+  if (!isInventoryWriteReady(branding)) {
+    window.showToast?.('Bitte zuerst dein Profil für den Wareneingang wählen.', 'warning');
+    return false;
   }
   return true;
 }
@@ -740,7 +756,7 @@ function persistActiveEmployeeSession(employeeName) {
   try {
     writeScopedLocalStorageValue(
       ACTIVE_EMPLOYEE_STORAGE_KEY,
-      resolveInventoryTenantId(),
+      resolveInventoryStorageTenantKey(),
       cleanName,
     );
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
@@ -805,6 +821,9 @@ window.ensureEmployeeSessionForProtectedAreaAsync = ensureEmployeeSessionForProt
 window.ensureTenantFirebaseAuth = ensureTenantFirebaseAuth;
 window.ensureInventoryProfileReadyForWrite = ensureInventoryProfileReadyForWrite;
 window.isInventoryWriteReady = isInventoryWriteReady;
+window.readActiveEmployee = readActiveEmployee;
+window.persistActiveEmployeeSession = persistActiveEmployeeSession;
+window.isFirebaseAuthActiveForTenant = isFirebaseAuthActiveForTenant;
 window.isNamedProfileSession = isNamedProfileSession;
 
 function isFirestorePermissionDeniedError(err) {
@@ -903,26 +922,23 @@ async function awaitFirebaseAuthSignOut(options = {}) {
   }
 }
 
+let lastPermissionDeniedResetAt = 0;
+
 async function resetAuthStateOnPermissionDenied(err, context = '') {
-  if (!hasActiveFirebaseAuthUser()) return;
-  if (authPermissionResetInFlight) return;
   if (!isFirestorePermissionDeniedError(err)) return;
-  authPermissionResetInFlight = true;
-  console.warn('[CharcuLogic Auth] Firestore-Berechtigung verweigert — Session-Reset', {
+  console.warn('[CharcuLogic Auth] Firestore-Zugriff verweigert — kein Auto-Logout', {
     context,
     code: err?.code,
     message: err?.message,
+    tenantId: getGlobalTenantId(),
   });
-
-  activateAuthLoopBreaker();
-  clearTenantProfileLocalStorage();
-  await awaitFirebaseAuthSignOut();
-  window.location.reload();
+  window.showToast?.('Speichern nicht erlaubt. Bitte im Büro Bescheid geben.', 'error');
 }
 
 window.isFirestorePermissionDeniedError = isFirestorePermissionDeniedError;
 window.hasActiveFirebaseAuthUser = hasActiveFirebaseAuthUser;
 window.resetAuthStateOnPermissionDenied = resetAuthStateOnPermissionDenied;
+window.tenantIdsMatch = tenantIdsMatch;
 
 function isSteveshofTenantId(tenantId = '') {
   return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
@@ -1871,7 +1887,10 @@ function updateHeaderLogoutVisibility(activeTab) {
 
 function readActiveEmployee() {
   try {
-    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveInventoryTenantId());
+    return readScopedLocalStorageValue(
+      ACTIVE_EMPLOYEE_STORAGE_KEY,
+      resolveInventoryStorageTenantKey(),
+    );
   } catch (_) {
     return '';
   }
@@ -1933,23 +1952,24 @@ function resolveEarlyTenantId() {
 }
 
 function applyEarlyTenantShell() {
-  const tenantId = resolveEarlyTenantId() || STEVESHOF_TENANT_ID;
-  if (!isSteveshofTenantId(tenantId)) return;
+  const tenantKey = resolveEarlyTenantId() || normalizeTenantId(STEVESHOF_TENANT_ID);
+  if (!isSteveshofTenantId(tenantKey)) return;
+  const firestoreTenantId = STEVESHOF_TENANT_ID;
   if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding(tenantId);
+    window.applyResolvedBranding(firestoreTenantId);
   } else {
     applyBranding();
   }
-  setGlobalTenantId(tenantId);
+  setGlobalTenantId(firestoreTenantId);
   applyModuleVisibility(window.BRANDING);
   applyRoleBasedUi({
-    tenantId: STEVESHOF_TENANT_ID,
+    tenantId: firestoreTenantId,
     role: 'employee',
     isAdmin: false,
     isHelper: false,
   });
   configureSteveshofTerminalSession({
-    tenantId: STEVESHOF_TENANT_ID,
+    tenantId: firestoreTenantId,
     email: STEVESHOF_TERMINAL_EMAIL,
   });
   purgeInvalidProfileSession(window.BRANDING);
@@ -1957,7 +1977,7 @@ function applyEarlyTenantShell() {
 }
 
 function isSteveshofTerminalSession(authSession) {
-  return authSession?.tenantId === STEVESHOF_TENANT_ID
+  return tenantIdsMatch(authSession?.tenantId, STEVESHOF_TENANT_ID)
     && String(authSession?.email || '').trim().toLowerCase() === STEVESHOF_TERMINAL_EMAIL;
 }
 
@@ -2392,7 +2412,7 @@ document.getElementById('app-refresh-btn')?.addEventListener('click', () => appl
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260611-163')
+    navigator.serviceWorker.register('./sw.js?v=20260612-1405')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
@@ -2471,9 +2491,6 @@ async function bootstrapAuthenticatedApp() {
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
     startTenantLiveDataListeners();
-    if (isProfileEmployeeAuth(window.BRANDING) && INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
-      void requireProfileSessionForInventory();
-    }
   });
   configureSteveshofTerminalSession(authSession);
   purgeInvalidProfileSession(window.BRANDING);
@@ -2565,7 +2582,7 @@ async function bootstrapAuthenticatedApp() {
     }
   }
 
-  if (authSession.tenantId === STEVESHOF_TENANT_ID) {
+  if (tenantIdsMatch(authSession.tenantId, STEVESHOF_TENANT_ID)) {
     showTab('mhd');
   }
   updateSyncIndicator();

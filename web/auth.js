@@ -1,4 +1,9 @@
-import { setGlobalTenantId } from './tenant-db.js';
+import {
+  getGlobalTenantId,
+  normalizeTenantId,
+  setGlobalTenantId,
+  tenantIdsMatch,
+} from './tenant-db.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   clearTeamboardTenantStorage,
@@ -10,6 +15,7 @@ const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
 let authContext = null;
 let authReadyPromise = null;
 let resolveAuthReady = null;
+let authStateListenerBound = false;
 
 let authState = {
   firebase: null,
@@ -113,7 +119,7 @@ export async function shutdownFirestoreClient({ clearPersistence = false } = {})
 }
 
 function cleanTenantId(value) {
-  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function terminalDeviceTokenStorageKey(tenantId) {
@@ -129,7 +135,7 @@ function readTerminalDeviceToken(tenantId) {
 }
 
 function cacheTerminalDeviceToken(tenantId, token) {
-  const cleanTenant = cleanTenantId(tenantId);
+  const cleanTenant = normalizeTenantId(tenantId);
   const cleanToken = String(token || '').trim();
   if (!cleanTenant || !cleanToken) return;
   try {
@@ -544,13 +550,20 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   ensureLoginOverlay();
   bindHeaderLogoutButton();
 
-  authReadyPromise = new Promise((resolve) => {
-    resolveAuthReady = resolve;
-  });
+  if (!authReadyPromise) {
+    authReadyPromise = new Promise((resolve) => {
+      resolveAuthReady = resolve;
+    });
+  }
 
   authState.firebase.auth().setPersistence(authState.firebase.auth.Auth.Persistence.LOCAL).catch((err) => {
     console.warn('[CharcuLogic Auth] Persistenz konnte nicht gesetzt werden:', err);
   });
+
+  if (authStateListenerBound) {
+    return authReadyPromise;
+  }
+  authStateListenerBound = true;
 
   authState.firebase.auth().onAuthStateChanged(async (user) => {
     if (!user) {
@@ -607,9 +620,9 @@ export function getFirebaseAuthUser() {
 }
 
 export function isFirebaseAuthActiveForTenant(expectedTenantId) {
-  const expected = cleanTenantId(expectedTenantId);
-  if (!expected) return false;
-  return cleanTenantId(authContext?.tenantId) === expected && Boolean(getFirebaseAuthUser());
+  const sessionTenantId = authContext?.tenantId || getGlobalTenantId();
+  if (!tenantIdsMatch(expectedTenantId, sessionTenantId)) return false;
+  return Boolean(getFirebaseAuthUser());
 }
 
 export async function waitForFirebaseUser(timeoutMs = 4000) {
@@ -634,7 +647,7 @@ export async function waitForFirebaseUser(timeoutMs = 4000) {
 
 export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}) {
   const expected = cleanTenantId(expectedTenantId);
-  if (!expected) return false;
+  if (!normalizeTenantId(expected)) return false;
   if (options.skipAutoRestore) {
     prefillTerminalLoginEmail(options.terminalEmail);
     showLoginOverlay('');
@@ -646,7 +659,7 @@ export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}
   const restoredUser = await waitForFirebaseUser(3000);
   if (restoredUser) {
     try {
-      if (!authContext || cleanTenantId(authContext.tenantId) !== expected) {
+      if (!authContext || !tenantIdsMatch(authContext.tenantId, expected)) {
         authContext = await buildAuthContext(restoredUser);
       }
       if (isFirebaseAuthActiveForTenant(expected)) {
@@ -661,7 +674,11 @@ export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}
   const storedToken = readTerminalDeviceToken(expected);
   if (storedToken) {
     try {
-      await loginWithToken(storedToken, { persistDeviceToken: true });
+      await loginWithToken(storedToken, { persistDeviceToken: true, expectedTenantId: expected });
+      const restoredAfterToken = authState.firebase.auth().currentUser;
+      if (!authContext && restoredAfterToken) {
+        authContext = await buildAuthContext(restoredAfterToken);
+      }
       if (isFirebaseAuthActiveForTenant(expected)) {
         hideLoginOverlay();
         return true;
@@ -677,40 +694,56 @@ export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}
   return false;
 }
 
+let lastSuccessfulAuthUnlockKey = '';
+let lastAuthUnlockAt = 0;
+
 function completeSuccessfulAuthUnlock(nextContext) {
+  const unlockKey = `${nextContext?.uid || ''}:${normalizeTenantId(nextContext?.tenantId)}`;
+  const now = Date.now();
+  const isRepeatUnlock = Boolean(
+    unlockKey
+    && unlockKey === lastSuccessfulAuthUnlockKey
+    && (now - lastAuthUnlockAt) < 30000,
+  );
+
   clearAuthLoopBreaker();
   hideLoginOverlay();
   restoreAppShellAfterAuth();
+
+  if (!isRepeatUnlock) {
+    lastSuccessfulAuthUnlockKey = unlockKey;
+    lastAuthUnlockAt = now;
+    if (typeof window.startTenantLiveDataListeners === 'function') {
+      window.startTenantLiveDataListeners();
+    }
+    window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
+    return;
+  }
+
   if (typeof window.startTenantLiveDataListeners === 'function') {
     window.startTenantLiveDataListeners();
   }
-  authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
-  window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
 }
 
 export async function loginTenant(email, password) {
   ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
-  const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
-  if (credential?.user) {
-    authContext = await buildAuthContext(credential.user);
-    document.documentElement.dataset.authenticatedTenant = authContext.tenantId;
-    completeSuccessfulAuthUnlock(authContext);
-  }
-  return credential;
+  return authState.firebase.auth().signInWithEmailAndPassword(email, password);
 }
 
 export async function loginWithToken(token, options = {}) {
   ensureAuthConfigured();
   if (!token) throw new Error('Zugangscode fehlt.');
+
+  const expectedTenantId = cleanTenantId(options.expectedTenantId || '');
+  if (expectedTenantId && isFirebaseAuthActiveForTenant(expectedTenantId)) {
+    return { user: authState.firebase.auth().currentUser };
+  }
+
   const credential = await authState.firebase.auth().signInWithCustomToken(token);
-  if (credential?.user) {
-    authContext = await buildAuthContext(credential.user);
-    if (options.persistDeviceToken !== false && authContext?.tenantId) {
-      cacheTerminalDeviceToken(authContext.tenantId, token);
-    }
-    document.documentElement.dataset.authenticatedTenant = authContext.tenantId;
-    completeSuccessfulAuthUnlock(authContext);
+  if (credential?.user && options.persistDeviceToken !== false) {
+    const tenantId = authContext?.tenantId || expectedTenantId || getGlobalTenantId();
+    if (tenantId) cacheTerminalDeviceToken(tenantId, token);
   }
   return credential;
 }

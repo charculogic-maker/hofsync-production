@@ -7,13 +7,25 @@ export function initTenantDb(database) {
   firestoreDb = database || null;
 }
 
+/** Firestore-Pfade und Custom Claims: exakte Schreibweise beibehalten. */
+export function canonicalTenantId(tenantId) {
+  return typeof tenantId === 'string' ? tenantId.trim() : '';
+}
+
+/** localStorage, Branding-Index, Vergleiche: immer lowercase. */
 export function normalizeTenantId(tenantId) {
-  return typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';
+  return canonicalTenantId(tenantId).toLowerCase();
+}
+
+export function tenantIdsMatch(left, right) {
+  const a = normalizeTenantId(left);
+  const b = normalizeTenantId(right);
+  return Boolean(a && b && a === b);
 }
 
 export function setGlobalTenantId(tenantId) {
-  const normalized = normalizeTenantId(tenantId);
-  globalTenantId = normalized || null;
+  const canonical = canonicalTenantId(tenantId);
+  globalTenantId = canonical || null;
   if (globalTenantId) {
     console.log(`[CharcuLogic] Mandant aktiv: ${globalTenantId}`);
   }

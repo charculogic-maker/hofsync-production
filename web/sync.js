@@ -1,4 +1,4 @@
-import { getGlobalTenantId } from './tenant-db.js';
+import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
@@ -20,11 +20,15 @@ function hasActiveFirebaseAuthUserForSelfHealing() {
 }
 
 function maybeResetOnFirestorePermissionError(err, context = '') {
-  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
-  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
-  if (!window.isFirestorePermissionDeniedError(err)) return false;
-  void window.resetAuthStateOnPermissionDenied?.(err, context);
-  return true;
+  if (typeof window.isFirestorePermissionDeniedError === 'function'
+    && window.isFirestorePermissionDeniedError(err)) {
+    console.warn('[CharcuLogic Sync] Firestore-Zugriff verweigert — kein Auto-Logout', {
+      context,
+      code: err?.code,
+      message: err?.message,
+    });
+  }
+  return false;
 }
 
 let syncContext = {
@@ -84,7 +88,7 @@ function normalizeTenantCollectionPath(collectionPath) {
 
   if (path.startsWith('tenants/')) {
     const [, pathTenantId] = path.split('/');
-    if (pathTenantId !== tenantId) {
+    if (!tenantIdsMatch(pathTenantId, tenantId)) {
       throw new Error('Mandantenkonflikt: Firestore-Pfad passt nicht zum angemeldeten Betrieb.');
     }
     return path;

@@ -1,4 +1,4 @@
-import { getGlobalTenantId, getTenantCollectionPath, normalizeTenantId } from './tenant-db.js';
+import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   readScopedLocalStorageValue,
@@ -250,7 +250,7 @@ export function activateHaccpTab() {
 }
 
 function resolveHaccpTenantId() {
-  return normalizeTenantId(getGlobalTenantId() || haccpState.tenantId);
+  return canonicalTenantId(getGlobalTenantId() || haccpState.tenantId);
 }
 
 function haccpCollectionPath() {
