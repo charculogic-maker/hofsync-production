@@ -56,20 +56,13 @@ export function canStartFirestoreLiveListeners(firebaseInstance = authState.fire
 
 export function hideAppShellForAuthLockdown() {
   document.body?.classList.add('auth-loop-lockdown');
-  const appContent = document.getElementById('app-content');
-  if (appContent) appContent.style.display = 'none';
-  document.querySelector('.bottom-nav')?.style.setProperty('display', 'none');
-  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
-    tab.hidden = true;
-    tab.style.display = 'none';
-  });
+  ensureLoginOverlay();
+  showLoginOverlay('');
+  setAuthError('');
 }
 
 export function restoreAppShellAfterAuth() {
   document.body?.classList.remove('auth-loop-lockdown');
-  const appContent = document.getElementById('app-content');
-  if (appContent) appContent.style.display = '';
-  document.querySelector('.bottom-nav')?.style.removeProperty('display');
   if (typeof window.applyModuleVisibility === 'function') {
     window.applyModuleVisibility(window.BRANDING || {});
   }
@@ -77,11 +70,6 @@ export function restoreAppShellAfterAuth() {
 
 export function enforceAuthLoopBreakerShell() {
   hideAppShellForAuthLockdown();
-  if (authState.firebase?.auth) {
-    ensureLoginOverlay();
-    showLoginOverlay('');
-    setAuthError('');
-  }
 }
 
 function withTimeout(promise, timeoutMs, label = 'Operation') {
@@ -245,6 +233,15 @@ function ensureLoginOverlay() {
         color: #f8fafc;
       }
       #auth-lock-screen.active { display: flex; }
+      body.auth-loop-lockdown #auth-lock-screen {
+        display: flex !important;
+        z-index: 100000;
+        pointer-events: auto;
+      }
+      body.auth-loop-lockdown .app-container {
+        pointer-events: none;
+        user-select: none;
+      }
       .auth-lock-card {
         width: min(440px, 100%);
         background: #111827;
@@ -521,40 +518,27 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   });
 
   authState.firebase.auth().onAuthStateChanged(async (user) => {
-    if (isAuthLoopBreakerActive()) {
-      authContext = null;
-      setGlobalTenantId(null);
-      document.documentElement.dataset.authenticatedTenant = '';
-      if (user) {
-        try {
-          await authState.firebase.auth().signOut();
-        } catch (signOutErr) {
-          console.warn('[CharcuLogic Auth] Breaker-SignOut fehlgeschlagen:', signOutErr);
-        }
-      }
-      showLoginOverlay('');
-      setAuthError('');
-      return;
-    }
-
     if (!user) {
       authContext = null;
-      setGlobalTenantId(null);
-      showLoginOverlay();
+      document.documentElement.dataset.authenticatedTenant = '';
+      if (isAuthLoopBreakerActive()) {
+        enforceAuthLoopBreakerShell();
+      } else {
+        setGlobalTenantId(null);
+        showLoginOverlay();
+      }
       return;
     }
 
     try {
       const nextContext = await buildAuthContext(user);
+      clearAuthLoopBreaker();
       authContext = nextContext;
       document.documentElement.dataset.authenticatedTenant = nextContext.tenantId;
       if (typeof window.applyResolvedBranding === 'function') {
         window.applyResolvedBranding(nextContext.tenantId);
       }
-      hideLoginOverlay();
-      restoreAppShellAfterAuth();
-      authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
-      window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
+      completeSuccessfulAuthUnlock(nextContext);
       if (resolveAuthReady) {
         resolveAuthReady(nextContext);
         resolveAuthReady = null;
@@ -658,14 +642,25 @@ export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}
   return false;
 }
 
+function completeSuccessfulAuthUnlock(nextContext) {
+  clearAuthLoopBreaker();
+  hideLoginOverlay();
+  restoreAppShellAfterAuth();
+  if (typeof window.startTenantLiveDataListeners === 'function') {
+    window.startTenantLiveDataListeners();
+  }
+  authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
+  window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
+}
+
 export async function loginTenant(email, password) {
   ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
   const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
   if (credential?.user) {
     authContext = await buildAuthContext(credential.user);
-    hideLoginOverlay();
-    window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: authContext }));
+    document.documentElement.dataset.authenticatedTenant = authContext.tenantId;
+    completeSuccessfulAuthUnlock(authContext);
   }
   return credential;
 }
@@ -679,8 +674,8 @@ export async function loginWithToken(token, options = {}) {
     if (options.persistDeviceToken !== false && authContext?.tenantId) {
       cacheTerminalDeviceToken(authContext.tenantId, token);
     }
-    hideLoginOverlay();
-    window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: authContext }));
+    document.documentElement.dataset.authenticatedTenant = authContext.tenantId;
+    completeSuccessfulAuthUnlock(authContext);
   }
   return credential;
 }

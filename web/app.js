@@ -510,7 +510,6 @@ async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
 
   if (isAuthLoopBreakerActive()) {
     enforceAuthLoopBreakerShell();
-    clearAuthLoopBreaker();
     await ensureFirebaseAuthForTenant(tenantId, {
       terminalEmail: resolveTerminalAuthEmail(branding),
       skipAutoRestore: true,
@@ -2016,18 +2015,18 @@ function startTenantLiveDataListeners() {
 }
 
 window.canStartFirestoreLiveListeners = () => canStartFirestoreLiveListeners(firebase);
+window.startTenantLiveDataListeners = startTenantLiveDataListeners;
 
 async function startAppShell() {
   if (await handleAuthUrlResetIfRequested()) return;
-  if (isAuthLoopBreakerActive()) {
-    hideAppShellForAuthLockdown();
-    return;
-  }
   applyEarlyTenantShell();
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
   updateEmployeeSessionBadge();
+  if (isAuthLoopBreakerActive()) {
+    hideAppShellForAuthLockdown();
+  }
 }
 
 void startAppShell();
@@ -2356,9 +2355,6 @@ if ('serviceWorker' in navigator) {
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
   if (await handleAuthUrlResetIfRequested()) return;
-  if (isAuthLoopBreakerActive()) {
-    hideAppShellForAuthLockdown();
-  }
 
   applyBranding();
 
@@ -2380,6 +2376,9 @@ async function bootstrapAuthenticatedApp() {
   }
 
   initAuthModule(firebase, db, { showHUD });
+  if (isAuthLoopBreakerActive()) {
+    hideAppShellForAuthLockdown();
+  }
   const authSession = await waitForAuthReady();
   if (typeof window.applyResolvedBranding === 'function') {
     window.applyResolvedBranding(authSession.tenantId);
