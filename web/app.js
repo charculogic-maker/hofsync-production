@@ -1,9 +1,12 @@
 import {
   activateAuthLoopBreaker,
+  canStartFirestoreLiveListeners,
   clearAuthLoopBreaker,
+  enforceAuthLoopBreakerShell,
   ensureFirebaseAuthForTenant,
   getAuthContext,
   getTenantId,
+  hideAppShellForAuthLockdown,
   initAuthModule,
   isAuthLoopBreakerActive,
   isFirebaseAuthActiveForTenant,
@@ -37,6 +40,7 @@ import {
 import {
   activateHaccpTab,
   initHaccpModule,
+  startHaccpLiveSync,
 } from './haccp.js';
 import {
   activateMhdTab,
@@ -46,8 +50,8 @@ import {
   handleMhdBarcodeScan,
   handleMhdScannerStatus,
   initMhdModule,
-  loadMhdFromCloud,
   renderMhdList,
+  startMhdLiveSync,
 } from './mhd.js';
 import {
   addRetterBoxCandidate,
@@ -503,13 +507,19 @@ function resolveTerminalAuthEmail(branding = window.BRANDING) {
 async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
   const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
   if (!tenantId) return false;
-  const skipAutoRestore = isAuthLoopBreakerActive();
-  if (skipAutoRestore) {
+
+  if (isAuthLoopBreakerActive()) {
+    enforceAuthLoopBreakerShell();
     clearAuthLoopBreaker();
+    await ensureFirebaseAuthForTenant(tenantId, {
+      terminalEmail: resolveTerminalAuthEmail(branding),
+      skipAutoRestore: true,
+    });
+    return false;
   }
+
   return ensureFirebaseAuthForTenant(tenantId, {
     terminalEmail: resolveTerminalAuthEmail(branding),
-    skipAutoRestore,
   });
 }
 
@@ -796,6 +806,15 @@ function clearTenantProfileLocalStorage(tenantId = '') {
 
 let authPermissionResetInFlight = false;
 
+function hasActiveFirebaseAuthUser() {
+  try {
+    if (typeof firebase === 'undefined' || !firebase.apps?.length) return false;
+    return Boolean(firebase.auth().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
 async function awaitFirebaseAuthSignOut() {
   try {
     try {
@@ -820,6 +839,7 @@ async function awaitFirebaseAuthSignOut() {
 }
 
 async function resetAuthStateOnPermissionDenied(err, context = '') {
+  if (!hasActiveFirebaseAuthUser()) return;
   if (authPermissionResetInFlight) return;
   if (!isFirestorePermissionDeniedError(err)) return;
   authPermissionResetInFlight = true;
@@ -836,6 +856,7 @@ async function resetAuthStateOnPermissionDenied(err, context = '') {
 }
 
 window.isFirestorePermissionDeniedError = isFirestorePermissionDeniedError;
+window.hasActiveFirebaseAuthUser = hasActiveFirebaseAuthUser;
 window.resetAuthStateOnPermissionDenied = resetAuthStateOnPermissionDenied;
 
 function isSteveshofTenantId(tenantId = '') {
@@ -951,6 +972,8 @@ function isWurstkuecheEnabledForTenant(tenantId = '', branding = window.BRANDING
   const normalizedTenantId = String(tenantId || '').trim().toLowerCase();
   return normalizedTenantId !== 'torfabrik' && branding.modules?.wurstkueche !== false;
 }
+
+window.applyModuleVisibility = applyModuleVisibility;
 
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
@@ -1986,8 +2009,20 @@ tabs.forEach(tab => {
   });
 });
 
+function startTenantLiveDataListeners() {
+  if (!canStartFirestoreLiveListeners(firebase)) return;
+  startMhdLiveSync();
+  startHaccpLiveSync();
+}
+
+window.canStartFirestoreLiveListeners = () => canStartFirestoreLiveListeners(firebase);
+
 async function startAppShell() {
   if (await handleAuthUrlResetIfRequested()) return;
+  if (isAuthLoopBreakerActive()) {
+    hideAppShellForAuthLockdown();
+    return;
+  }
   applyEarlyTenantShell();
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
@@ -2321,6 +2356,9 @@ if ('serviceWorker' in navigator) {
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
   if (await handleAuthUrlResetIfRequested()) return;
+  if (isAuthLoopBreakerActive()) {
+    hideAppShellForAuthLockdown();
+  }
 
   applyBranding();
 
@@ -2363,6 +2401,7 @@ async function bootstrapAuthenticatedApp() {
     applyRoleBasedUi(nextSession);
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
+    startTenantLiveDataListeners();
     if (isProfileEmployeeAuth(window.BRANDING) && INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
       void requireProfileSessionForInventory();
     }
@@ -2461,7 +2500,7 @@ async function bootstrapAuthenticatedApp() {
     showTab('mhd');
   }
   updateSyncIndicator();
-  loadMhdFromCloud();
+  startTenantLiveDataListeners();
   if (recipeModuleEnabled) {
     loadRecipesFromCloud();
     loadProductionBatchesFromCloud();

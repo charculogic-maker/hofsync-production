@@ -1,11 +1,37 @@
 import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
+function hasActiveFirebaseAuthUserForSelfHealing() {
+  if (typeof window.hasActiveFirebaseAuthUser === 'function') {
+    return window.hasActiveFirebaseAuthUser();
+  }
+  try {
+    const firebaseApi = haccpState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    return Boolean(firebaseApi?.apps?.length && firebaseApi.auth?.().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
 function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
   if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
   if (!window.isFirestorePermissionDeniedError(err)) return false;
   void window.resetAuthStateOnPermissionDenied?.(err, context);
   return true;
+}
+
+const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
+
+function canStartHaccpFirestoreLiveSync() {
+  try {
+    if (sessionStorage.getItem(AUTH_LOOP_BREAKER_KEY) === 'true') return false;
+  } catch (_) { /* noop */ }
+  if (typeof window.canStartFirestoreLiveListeners === 'function') {
+    return window.canStartFirestoreLiveListeners();
+  }
+  const authApi = haccpState.getFirebase?.()?.auth?.();
+  return Boolean(authApi?.currentUser);
 }
 
 const DEFAULT_HACCP_DEVICES = [
@@ -202,11 +228,14 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
   updateHACCPAlerts();
   renderHaccpOperatorSelector();
   renderHaccpDaily();
+}
 
-  if (haccpState.db) {
-    loadHaccpDevicesFromCloud();
-    loadHaccpLogsFromCloud();
-  }
+export function startHaccpLiveSync() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
+  if (!haccpState.db) return;
+  loadHaccpDevicesFromCloud();
+  loadHaccpLogsFromCloud();
+  void seedDefaultHaccpDevicesIfEmpty();
 }
 
 export function activateHaccpTab() {
@@ -348,6 +377,7 @@ function activeHaccpDevices(type) {
 }
 
 async function seedDefaultHaccpDevicesIfEmpty() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpDevicesCollectionPath();
   if (!path) return;
@@ -367,6 +397,7 @@ async function seedDefaultHaccpDevicesIfEmpty() {
 }
 
 function loadHaccpDevicesFromCloud() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpDevicesCollectionPath();
   if (!path) return;
@@ -384,6 +415,7 @@ function loadHaccpDevicesFromCloud() {
 }
 
 function loadHaccpLogsFromCloud() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpCollectionPath();
   if (!path) return;

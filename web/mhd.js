@@ -10,11 +10,37 @@ import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
+function hasActiveFirebaseAuthUserForSelfHealing() {
+  if (typeof window.hasActiveFirebaseAuthUser === 'function') {
+    return window.hasActiveFirebaseAuthUser();
+  }
+  try {
+    const firebaseApi = mhdState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    return Boolean(firebaseApi?.apps?.length && firebaseApi.auth?.().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
 function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
   if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
   if (!window.isFirestorePermissionDeniedError(err)) return false;
   void window.resetAuthStateOnPermissionDenied?.(err, context);
   return true;
+}
+
+const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
+
+function canStartMhdFirestoreLiveSync() {
+  try {
+    if (sessionStorage.getItem(AUTH_LOOP_BREAKER_KEY) === 'true') return false;
+  } catch (_) { /* noop */ }
+  if (typeof window.canStartFirestoreLiveListeners === 'function') {
+    return window.canStartFirestoreLiveListeners();
+  }
+  const authApi = mhdState.getFirebase?.()?.auth?.();
+  return Boolean(authApi?.currentUser);
 }
 
 const HACCP_TEMP_LIMIT_C = 7.0;
@@ -2183,8 +2209,8 @@ function mapMhdDoc(doc) {
 }
 
 function loadMhdFromCloud() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!isFirebaseReady() || !mhdState.db) {
-    console.error('[CharcuLogic Firebase] loadMhdFromCloud(): Firebase ist nicht initialisiert.');
     return;
   }
 
@@ -2206,13 +2232,14 @@ function loadMhdFromCloud() {
 }
 
 async function isMhdCollectionEmpty() {
+  if (!canStartMhdFirestoreLiveSync()) return true;
   const snap = await mhdState.db.collection(mhdCollectionPath()).limit(1).get();
   return snap.empty;
 }
 
 async function importMhdBestandToCloud() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!isFirebaseReady() || !mhdState.db) {
-    console.error('[CharcuLogic Firebase] importMhdBestandToCloud(): Firebase nicht initialisiert.');
     return;
   }
   try {
@@ -3746,6 +3773,7 @@ function renderOpenDraftsSection() {
 }
 
 function subscribeToPendingDeliveryDrafts() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!mhdState.db || !deliveryCollectionPath()) return;
   if (deliveryDraftsUnsubscribe) {
     deliveryDraftsUnsubscribe();
@@ -4481,9 +4509,14 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   }
   applyReceivingCategoryOptions();
   applyMhdCategoryFilterOptions();
-  subscribeToPendingDeliveryDrafts();
   renderReceivingStatus(); renderMhdList();
   restoreMhdDraftFields();
+}
+
+export function startMhdLiveSync() {
+  if (!canStartMhdFirestoreLiveSync()) return;
+  loadMhdFromCloud();
+  subscribeToPendingDeliveryDrafts();
 }
 function restoreMhdDraftFields() {
   const fields = ['manual-barcode-input', ...RECEIVING_FORM_IDS];

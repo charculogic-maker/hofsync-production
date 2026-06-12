@@ -42,6 +42,48 @@ export function clearAuthLoopBreaker() {
   } catch (_) { /* noop */ }
 }
 
+export function canStartFirestoreLiveListeners(firebaseInstance = authState.firebase) {
+  if (isAuthLoopBreakerActive()) return false;
+  try {
+    const auth = firebaseInstance?.auth?.();
+    if (!auth?.currentUser) return false;
+    if (!authContext?.tenantId) return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function hideAppShellForAuthLockdown() {
+  document.body?.classList.add('auth-loop-lockdown');
+  const appContent = document.getElementById('app-content');
+  if (appContent) appContent.style.display = 'none';
+  document.querySelector('.bottom-nav')?.style.setProperty('display', 'none');
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    tab.hidden = true;
+    tab.style.display = 'none';
+  });
+}
+
+export function restoreAppShellAfterAuth() {
+  document.body?.classList.remove('auth-loop-lockdown');
+  const appContent = document.getElementById('app-content');
+  if (appContent) appContent.style.display = '';
+  document.querySelector('.bottom-nav')?.style.removeProperty('display');
+  if (typeof window.applyModuleVisibility === 'function') {
+    window.applyModuleVisibility(window.BRANDING || {});
+  }
+}
+
+export function enforceAuthLoopBreakerShell() {
+  hideAppShellForAuthLockdown();
+  if (authState.firebase?.auth) {
+    ensureLoginOverlay();
+    showLoginOverlay('');
+    setAuthError('');
+  }
+}
+
 function withTimeout(promise, timeoutMs, label = 'Operation') {
   return Promise.race([
     promise,
@@ -510,6 +552,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
         window.applyResolvedBranding(nextContext.tenantId);
       }
       hideLoginOverlay();
+      restoreAppShellAfterAuth();
       authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
       window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
       if (resolveAuthReady) {

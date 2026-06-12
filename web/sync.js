@@ -7,7 +7,20 @@ const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
 
 let flushInFlight = false;
 
+function hasActiveFirebaseAuthUserForSelfHealing() {
+  if (typeof window.hasActiveFirebaseAuthUser === 'function') {
+    return window.hasActiveFirebaseAuthUser();
+  }
+  try {
+    const firebaseApi = syncContext.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    return Boolean(firebaseApi?.apps?.length && firebaseApi.auth?.().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
 function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
   if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
   if (!window.isFirestorePermissionDeniedError(err)) return false;
   void window.resetAuthStateOnPermissionDenied?.(err, context);
