@@ -3967,6 +3967,10 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const failedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
+    if (failedMhdWrite) {
+      throw failedMhdWrite.reason || new Error('MHD-Posten konnte nicht gespeichert werden.');
+    }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 

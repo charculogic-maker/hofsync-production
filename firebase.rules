@@ -487,13 +487,30 @@ service cloud.firestore {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
         && (
           (resource.data.status == 'open' && request.resource.data.status == 'ready')
           || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
           || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && isOptionalString(request.resource.data.pickupPlace)
+          )
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && isCustomerOrderItemsList(request.resource.data.items)
+          )
         );
     }
 
