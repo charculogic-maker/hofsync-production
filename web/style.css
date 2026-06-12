@@ -3422,6 +3422,19 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-top: 4px;
 }
 
+.profile-other-input {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-guest-list {
+  margin-top: 4px;
+}
+
 .pin-auth-card {
   width: min(390px, 100%);
   padding: 24px;

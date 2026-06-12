@@ -250,7 +250,11 @@ function resolveTeamSessionDisplayName() {
 }
 
 function getAuditActorName() {
-  return getActiveEmployee() || resolveTeamSessionDisplayName();
+  const active = getActiveEmployee();
+  if (window.isProfileEmployeeAuth?.()) {
+    return window.isNamedProfileSession?.(active) ? active : active || '';
+  }
+  return active || resolveTeamSessionDisplayName();
 }
 
 function buildHiddenAuditFields() {
@@ -700,14 +704,26 @@ function setActiveEmployee(employeeName) {
   }));
 }
 
-function requestEmployeePinForScan(barcode) {
+async function resolveInventoryActorForScan() {
+  if (window.isProfileEmployeeAuth?.()) {
+    const employeeName = await window.requireProfileSessionForInventory?.();
+    if (employeeName) setActiveEmployee(employeeName);
+    return employeeName || '';
+  }
   if (window.isEmployeePinRequired?.() === false) {
     const employeeName = getActiveEmployee()
       || (typeof window.ensureEmployeeSessionForProtectedArea === 'function'
         ? window.ensureEmployeeSessionForProtectedArea()
         : resolveTeamSessionDisplayName());
     if (employeeName) setActiveEmployee(employeeName);
-    return Promise.resolve(employeeName || null);
+    return employeeName || '';
+  }
+  return '';
+}
+
+function requestEmployeePinForScan(barcode) {
+  if (window.isProfileEmployeeAuth?.() || window.isEmployeePinRequired?.() === false) {
+    return resolveInventoryActorForScan().then((employeeName) => employeeName || null);
   }
 
   return new Promise((resolve) => {
@@ -1252,6 +1268,11 @@ function applyTorfabrikFassMhdSuggestion() {
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
+  const actor = await resolveInventoryActorForScan();
+  if (!actor) {
+    mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
+    return;
+  }
   recordInventoryProfileActivity();
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
@@ -1265,7 +1286,6 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
 }
 
 async function processScannedBarcode(decodedText, source = 'camera') {
-  recordInventoryProfileActivity();
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
@@ -1284,19 +1304,19 @@ async function processScannedBarcode(decodedText, source = 'camera') {
   currentBarcode = scannedCode;
   mhdState.closeScanner({ preserveScanState: true });
   let employeeName = getActiveEmployee();
-  if (!employeeName && typeof window.ensureEmployeeSessionForProtectedArea === 'function') {
-    employeeName = window.ensureEmployeeSessionForProtectedArea() || '';
+  if (!employeeName || (window.isProfileEmployeeAuth?.() && !window.isNamedProfileSession?.(employeeName))) {
+    employeeName = await resolveInventoryActorForScan();
   }
-  if (employeeName) {
-    window.showToast?.(`Erfasst durch ${employeeName}`, "success");
-  } else if (window.isEmployeePinRequired?.() !== false) {
+  if (!employeeName && window.isEmployeePinRequired?.() !== false) {
     employeeName = await requestEmployeePinForScan(scannedCode);
   }
   if (!employeeName) {
-    renderReceivingStatus({ lastScan: scannedCode, status: 'Scan abgebrochen' });
+    renderReceivingStatus({ lastScan: scannedCode, status: 'Profil erforderlich' });
     resetScanState({ keepLearnOverlay: false });
     return;
   }
+  recordInventoryProfileActivity();
+  window.showToast?.(`Erfasst durch ${employeeName}`, 'success');
   activeScan = {
     barcode: scannedCode,
     scannedAt: Date.now(),
@@ -3384,7 +3404,14 @@ function clearDeliveryItemFields() {
   updateDeliveryItemProductUi();
 }
 
-function addDeliveryItem() {
+async function addDeliveryItem() {
+  if (window.isProfileEmployeeAuth?.()) {
+    const actor = await resolveInventoryActorForScan();
+    if (!actor) {
+      mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
+      return;
+    }
+  }
   recordInventoryProfileActivity();
   const { product, barcode, qtyValue, qtyUnit, mhdDate, category, herstellerZusatz } = readDeliveryItemDraftValues();
   if (!barcode) {
@@ -4424,16 +4451,15 @@ function restoreMhdDraftFields() {
   }
   mhdState.restoreDraftFields(fields);
 }
-export function activateMhdTab() {
+export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
-  window.ensureEmployeeSessionForProtectedArea?.();
+  await window.ensureInventoryProfileSessionForTab?.('mhd');
   applyMhdCategoryFilterOptions();
   renderMhdList();
   restoreMhdDraftFields();
 }
 export async function activateReceivingTab() {
   window.expireProfileSessionIfIdle?.();
-  window.ensureEmployeeSessionForProtectedArea?.();
   await window.showReceivingProfileGatekeeperIfNeeded?.();
   applyReceivingMetzgereiVisibility(window.BRANDING || {});
   ensureReceivingFormDefaults();

@@ -30,7 +30,31 @@ const DEFAULT_GROUPS = {
   laden: { label: 'Hofladen / Theke', members: ['Stephie', 'Finn', 'Paddy'] },
 };
 
+const STEVESHOF_EMPLOYEES = [
+  'Bettina',
+  'Efecan',
+  'Finn',
+  'Heiko',
+  'Melanie',
+  'Mimi',
+  'Nicole',
+  'Paddy',
+  'Stephie',
+];
+
 const TENANT_TEAM_DEFAULTS = {
+  steveshof_hauptbetrieb: {
+    employees: [...STEVESHOF_EMPLOYEES],
+    groups: {
+      finn_stephie: { label: 'Finn & Stephie', members: ['Finn', 'Stephie'] },
+      metzgerei: { label: 'Metzgerei', members: ['Nicole', 'Bettina', 'Heiko', 'Paddy'] },
+      laden: {
+        label: 'Hofladen / Theke',
+        members: ['Stephie', 'Finn', 'Paddy', 'Melanie', 'Efecan', 'Mimi'],
+      },
+      aushilfe: { label: 'Aushilfe', members: ['Melanie', 'Efecan', 'Mimi'] },
+    },
+  },
   torfabrik: {
     employees: ['Stephan', 'Boris', 'Aushilfe'],
     groups: {
@@ -173,10 +197,21 @@ function configRef() {
   }
 }
 
+function mergeEmployeeLists(primary = [], secondary = []) {
+  const merged = [];
+  [...primary, ...secondary].forEach((name) => {
+    const cleanName = String(name).trim();
+    if (!cleanName) return;
+    if (merged.some((entry) => entry.toLowerCase() === cleanName.toLowerCase())) return;
+    merged.push(cleanName);
+  });
+  return merged.sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
+}
+
 function normalizeConfig(data) {
   const tenantDefaults = getTenantTeamDefaults();
   let employees = Array.isArray(data?.employees)
-    ? data.employees.map((n) => String(n).trim()).filter(Boolean)
+    ? mergeEmployeeLists(data.employees, tenantDefaults.employees)
     : [...tenantDefaults.employees];
   const rawGroups = data?.groups && typeof data.groups === 'object' ? data.groups : {};
   const groups = {};

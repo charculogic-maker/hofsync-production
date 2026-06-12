@@ -100,7 +100,11 @@ const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
+const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
+const PROFILE_OTHER_LABEL = 'Andere';
+const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving']);
+const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
 
 function isEmployeePinRequired(branding = window.BRANDING) {
   return branding?.modules?.employeePin !== false;
@@ -112,7 +116,10 @@ function isProfileEmployeeAuth(branding = window.BRANDING) {
 
 function isTeamSessionName(employeeName, branding = window.BRANDING) {
   const cleanName = String(employeeName || '').trim();
-  if (!cleanName) return false;
+  if (!cleanName) return true;
+  const normalized = cleanName.toLowerCase();
+  if (LEGACY_TEAM_SESSION_MARKERS.includes(normalized)) return true;
+  if (normalized.startsWith('team ')) return true;
   return cleanName === resolveTeamSessionName(branding);
 }
 
@@ -144,24 +151,83 @@ function clearProfileLastActionTime() {
   } catch (_) { /* noop */ }
 }
 
-function clearNamedProfileSession(branding = window.BRANDING) {
-  const current = readActiveEmployee();
-  if (!isNamedProfileSession(current, branding)) return false;
+function clearProfileSession() {
   try {
     localStorage.removeItem(activeEmployeeStorageKey());
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic Profile] Session konnte nicht gelöscht werden:', err);
   }
   clearProfileLastActionTime();
-  if (!isEmployeePinRequired(branding)) {
+  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+    detail: { employeeName: '' },
+  }));
+  updateEmployeeSessionBadge('');
+}
+
+function clearNamedProfileSession(branding = window.BRANDING) {
+  const current = readActiveEmployee();
+  if (!current) return false;
+  clearProfileSession();
+  if (!isProfileEmployeeAuth(branding) && !isEmployeePinRequired(branding)) {
     configureTeamSessionWithoutPin(branding);
-  } else {
-    window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
-      detail: { employeeName: '' },
-    }));
-    updateEmployeeSessionBadge('');
   }
   return true;
+}
+
+function purgeInvalidProfileSession(branding = window.BRANDING) {
+  if (!isProfileEmployeeAuth(branding)) return;
+  const current = readActiveEmployee();
+  if (!current) return;
+  if (!isNamedProfileSession(current, branding)) {
+    clearProfileSession();
+  }
+}
+
+function profileGuestNamesStorageKey() {
+  return scopedTeamboardStorageKey(
+    PROFILE_GUEST_NAMES_KEY,
+    getGlobalTenantId() || getTenantId(),
+  );
+}
+
+function readProfileGuestNames() {
+  try {
+    const raw = localStorage.getItem(profileGuestNamesStorageKey());
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.map((name) => String(name).trim()).filter(Boolean)
+      : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function rememberProfileGuestName(name) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return;
+  const next = [
+    cleanName,
+    ...readProfileGuestNames().filter((entry) => entry.toLowerCase() !== cleanName.toLowerCase()),
+  ].slice(0, 12);
+  try {
+    localStorage.setItem(profileGuestNamesStorageKey(), JSON.stringify(next));
+  } catch (err) {
+    console.warn('[CharcuLogic Profile] Gastnamen konnten nicht gespeichert werden:', err);
+  }
+}
+
+function getSortedProfilePickerEmployees() {
+  const blocked = new Set([
+    PROFILE_OTHER_LABEL.toLowerCase(),
+    ...LEGACY_TEAM_SESSION_MARKERS,
+    resolveTeamSessionName().toLowerCase(),
+  ]);
+  return getTeamEmployees()
+    .map((name) => String(name).trim())
+    .filter((name) => name && !blocked.has(name.toLowerCase()) && !isTeamSessionName(name))
+    .sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
 }
 
 function expireProfileSessionIfIdle(branding = window.BRANDING) {
@@ -208,10 +274,167 @@ function buildProfileSessionOverlayShell(cardNode) {
   return { overlay, card };
 }
 
-function openProfileEmployeePicker() {
+function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
+  card.replaceChildren();
+
+  const title = document.createElement('div');
+  title.className = 'pin-auth-title';
+  title.textContent = PROFILE_OTHER_LABEL;
+  card.appendChild(title);
+
+  const hint = document.createElement('p');
+  hint.className = 'pin-auth-scan';
+  hint.textContent = 'Bitte Namen eintragen – wir merken uns häufige Aushilfen auf diesem Gerät.';
+  card.appendChild(hint);
+
+  const guestNames = readProfileGuestNames();
+  if (guestNames.length) {
+    const guestList = document.createElement('div');
+    guestList.className = 'profile-picker-list profile-guest-list';
+    guestNames.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-secondary profile-picker-btn';
+      btn.dataset.profileGuestName = name;
+      btn.textContent = name;
+      guestList.appendChild(btn);
+    });
+    card.appendChild(guestList);
+  }
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'input-text-touch profile-other-input';
+  input.placeholder = 'Name der Aushilfe';
+  input.autocomplete = 'name';
+  input.maxLength = 48;
+  card.appendChild(input);
+
+  const actions = document.createElement('div');
+  actions.className = 'profile-gate-actions';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = 'btn btn-primary profile-gate-btn';
+  confirmBtn.dataset.profileOtherConfirm = '1';
+  confirmBtn.textContent = 'Namen übernehmen';
+  actions.appendChild(confirmBtn);
+
+  const backBtn = document.createElement('button');
+  backBtn.type = 'button';
+  backBtn.className = 'btn btn-secondary profile-gate-btn';
+  backBtn.dataset.profileOtherBack = '1';
+  backBtn.textContent = 'Zurück zur Liste';
+  actions.appendChild(backBtn);
+
+  card.appendChild(actions);
+
+  const pickName = (name) => {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) {
+      window.showToast?.('Bitte einen Namen eintragen.', 'warning');
+      input.focus();
+      return;
+    }
+    rememberProfileGuestName(cleanName);
+    persistNamedProfileSession(cleanName);
+    window.showToast?.(`Angemeldet als ${cleanName}`, 'success');
+    onPick(cleanName);
+  };
+
+  card.onclick = (event) => {
+    const guestName = event.target.closest('[data-profile-guest-name]')?.dataset.profileGuestName;
+    if (guestName) {
+      pickName(guestName);
+      return;
+    }
+    if (event.target.closest('[data-profile-other-confirm]')) {
+      pickName(input.value);
+      return;
+    }
+    if (event.target.closest('[data-profile-other-back]')) {
+      onBack();
+    }
+  };
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      pickName(input.value);
+    }
+  });
+
+  input.focus();
+}
+
+function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther }) {
+  card.replaceChildren();
+  const employees = getSortedProfilePickerEmployees();
+
+  const title = document.createElement('div');
+  title.className = 'pin-auth-title';
+  title.textContent = 'Profil wählen';
+  card.appendChild(title);
+
+  const hint = document.createElement('p');
+  hint.className = 'pin-auth-scan';
+  hint.textContent = mandatory
+    ? 'Bitte auswählen, wer MHD und Wareneingang bearbeitet.'
+    : 'Wer bearbeitet den Wareneingang?';
+  card.appendChild(hint);
+
+  const list = document.createElement('div');
+  list.className = 'profile-picker-list';
+  employees.forEach((name) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary profile-picker-btn';
+    btn.dataset.profileName = name;
+    btn.textContent = name;
+    list.appendChild(btn);
+  });
+
+  const otherBtn = document.createElement('button');
+  otherBtn.type = 'button';
+  otherBtn.className = 'btn btn-secondary profile-picker-btn profile-picker-other';
+  otherBtn.dataset.profileOther = '1';
+  otherBtn.textContent = PROFILE_OTHER_LABEL;
+  list.appendChild(otherBtn);
+  card.appendChild(list);
+
+  if (!mandatory) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn btn-secondary profile-picker-cancel';
+    cancelBtn.textContent = 'Abbrechen';
+    card.appendChild(cancelBtn);
+  }
+
+  card.onclick = (event) => {
+    const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
+    if (picked) {
+      persistNamedProfileSession(picked);
+      window.showToast?.(`Angemeldet als ${picked}`, 'success');
+      onPick(picked);
+      return;
+    }
+    if (event.target.closest('[data-profile-other]')) {
+      onOther();
+      return;
+    }
+    if (!mandatory && event.target.closest('.profile-picker-cancel')) {
+      onPick('');
+    }
+  };
+
+  list.querySelector('button')?.focus();
+}
+
+function openProfileEmployeePicker(options = {}) {
+  const mandatory = options.mandatory !== false;
+
   return new Promise((resolve) => {
-    const employees = getTeamEmployees().map((name) => String(name).trim()).filter(Boolean);
-    if (!employees.length) {
+    if (!getSortedProfilePickerEmployees().length) {
       window.showToast?.('Keine Mitarbeiterprofile hinterlegt.', 'warning');
       resolve('');
       return;
@@ -219,36 +442,7 @@ function openProfileEmployeePicker() {
 
     document.getElementById('profile-picker-overlay')?.remove();
 
-    const body = document.createDocumentFragment();
-    const title = document.createElement('div');
-    title.className = 'pin-auth-title';
-    title.textContent = 'Profil wählen';
-    body.appendChild(title);
-
-    const hint = document.createElement('p');
-    hint.className = 'pin-auth-scan';
-    hint.textContent = 'Wer bearbeitet den Wareneingang?';
-    body.appendChild(hint);
-
-    const list = document.createElement('div');
-    list.className = 'profile-picker-list';
-    employees.forEach((name) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-primary profile-picker-btn';
-      btn.dataset.profileName = name;
-      btn.textContent = name;
-      list.appendChild(btn);
-    });
-    body.appendChild(list);
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'btn btn-secondary profile-picker-cancel';
-    cancelBtn.textContent = 'Abbrechen';
-    body.appendChild(cancelBtn);
-
-    const { overlay } = buildProfileSessionOverlayShell(body);
+    const { overlay, card } = buildProfileSessionOverlayShell(document.createDocumentFragment());
     overlay.id = 'profile-picker-overlay';
 
     const close = (pickedName = '') => {
@@ -256,22 +450,41 @@ function openProfileEmployeePicker() {
       resolve(pickedName);
     };
 
-    overlay.addEventListener('click', (event) => {
-      const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
-      if (picked) {
-        persistNamedProfileSession(picked);
-        window.showToast?.(`Angemeldet als ${picked}`, 'success');
-        close(picked);
-        return;
-      }
-      if (event.target.closest('.profile-picker-cancel')) {
-        close('');
-      }
-    });
+    const showList = () => {
+      mountProfileEmployeePickerList(card, {
+        mandatory,
+        onPick: (pickedName) => close(pickedName),
+        onOther: () => {
+          mountProfileOtherNameForm(card, {
+            mandatory,
+            onBack: showList,
+            onPick: (pickedName) => close(pickedName),
+          });
+        },
+      });
+    };
 
+    showList();
     document.body.appendChild(overlay);
-    list.querySelector('button')?.focus();
   });
+}
+
+async function requireProfileSessionForInventory(options = {}) {
+  const branding = window.BRANDING || {};
+  if (!isProfileEmployeeAuth(branding)) {
+    return ensureEmployeeSessionForProtectedArea(branding) || readActiveEmployee();
+  }
+
+  purgeInvalidProfileSession(branding);
+  expireProfileSessionIfIdle(branding);
+
+  const current = readActiveEmployee();
+  if (isNamedProfileSession(current, branding) && options.forcePicker !== true) {
+    return current;
+  }
+
+  const picked = await openProfileEmployeePicker({ mandatory: true });
+  return picked || '';
 }
 
 function showReceivingProfileGatekeeper(employeeName) {
@@ -338,23 +551,20 @@ function showReceivingProfileGatekeeper(employeeName) {
         return;
       }
       if (action === 'logout') {
-        clearNamedProfileSession();
-        finish('logout');
+        clearProfileSession();
+        void (async () => {
+          overlay.remove();
+          await requireProfileSessionForInventory({ forcePicker: true });
+          finish('logout');
+        })();
         return;
       }
       if (action === 'switch') {
         void (async () => {
           overlay.remove();
-          const picked = await openProfileEmployeePicker();
-          if (picked) {
-            finish('switch');
-            return;
-          }
-          const current = readActiveEmployee();
-          if (isNamedProfileSession(current)) {
-            await showReceivingProfileGatekeeper(current);
-          }
-          finish('cancel');
+          clearProfileSession();
+          await requireProfileSessionForInventory({ forcePicker: true });
+          finish('switch');
         })();
       }
     });
@@ -366,9 +576,16 @@ function showReceivingProfileGatekeeper(employeeName) {
 
 async function showReceivingProfileGatekeeperIfNeeded() {
   if (!isProfileEmployeeAuth()) return;
-  const employeeName = readActiveEmployee();
-  if (!isNamedProfileSession(employeeName)) return;
+  const employeeName = await requireProfileSessionForInventory();
+  if (!employeeName) return;
   await showReceivingProfileGatekeeper(employeeName);
+}
+
+async function ensureInventoryProfileSessionForTab(tabId = AppState.activeTab) {
+  if (!isProfileEmployeeAuth()) return readActiveEmployee();
+  purgeInvalidProfileSession();
+  if (!INVENTORY_PROFILE_TABS.has(tabId)) return readActiveEmployee();
+  return requireProfileSessionForInventory();
 }
 
 function resolveTeamSessionName(branding = window.BRANDING) {
@@ -407,17 +624,12 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
 
   if (isProfileEmployeeAuth(branding)) {
     if (teamLoginCard) teamLoginCard.hidden = true;
+    purgeInvalidProfileSession(branding);
     const current = readActiveEmployee();
     if (isNamedProfileSession(current, branding)) {
       return current;
     }
-    if (!isEmployeePinRequired(branding)) {
-      return configureTeamSessionWithoutPin(branding);
-    }
-    if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== 'steveshof') {
-      teamLoginCard.hidden = false;
-    }
-    return current;
+    return '';
   }
 
   if (!isEmployeePinRequired(branding)) {
@@ -438,6 +650,9 @@ window.touchProfileLastActionTime = touchProfileLastActionTime;
 window.expireProfileSessionIfIdle = expireProfileSessionIfIdle;
 window.showReceivingProfileGatekeeperIfNeeded = showReceivingProfileGatekeeperIfNeeded;
 window.openProfileEmployeePicker = openProfileEmployeePicker;
+window.requireProfileSessionForInventory = requireProfileSessionForInventory;
+window.ensureInventoryProfileSessionForTab = ensureInventoryProfileSessionForTab;
+window.isNamedProfileSession = isNamedProfileSession;
 
 function isSteveshofTenantId(tenantId = '') {
   return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
@@ -1442,7 +1657,7 @@ function applyEarlyTenantShell() {
     tenantId: STEVESHOF_TENANT_ID,
     email: STEVESHOF_TERMINAL_EMAIL,
   });
-  ensureEmployeeSessionForProtectedArea(window.BRANDING);
+  purgeInvalidProfileSession(window.BRANDING);
   showTab('mhd');
 }
 
@@ -1455,7 +1670,8 @@ function configureSteveshofTerminalSession(authSession) {
   if (!isSteveshofTerminalSession(authSession)) return '';
   document.documentElement.dataset.fixedTerminal = 'steveshof';
   updateHeaderLogoutVisibility(AppState.activeTab);
-  return ensureEmployeeSessionForProtectedArea(window.BRANDING);
+  purgeInvalidProfileSession(window.BRANDING);
+  return readActiveEmployee();
 }
 
 window.addEventListener('charculogic:active-employee-changed', (event) => {
@@ -1479,6 +1695,9 @@ tabs.forEach(tab => {
     expireProfileSessionIfIdle();
     if (PIN_PROTECTED_TABS.has(targetTab)) {
       ensureEmployeeSessionForProtectedArea();
+    }
+    if (INVENTORY_PROFILE_TABS.has(targetTab)) {
+      await ensureInventoryProfileSessionForTab(targetTab);
     }
     AppState.activeTab = targetTab;
 
@@ -1536,7 +1755,7 @@ tabs.forEach(tab => {
     try {
       if (targetTab === 'teamboard') activateTeamboardTab();
       if (targetTab === 'team') activateTeamHubTab();
-      if (targetTab === 'mhd') activateMhdTab();
+      if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
@@ -1566,8 +1785,8 @@ tabs.forEach(tab => {
 
 applyEarlyTenantShell();
 updateHeaderLogoutVisibility(AppState.activeTab);
+purgeInvalidProfileSession(window.BRANDING);
 expireProfileSessionIfIdle(window.BRANDING);
-ensureEmployeeSessionForProtectedArea(window.BRANDING);
 updateEmployeeSessionBadge();
 
 const SYNC_STATUS = {
@@ -1933,11 +2152,12 @@ async function bootstrapAuthenticatedApp() {
     applyModuleVisibility(window.BRANDING);
     applyRoleBasedUi(nextSession);
     refreshRetterBoxModule();
-    ensureEmployeeSessionForProtectedArea(window.BRANDING);
+    purgeInvalidProfileSession(window.BRANDING);
   });
   configureSteveshofTerminalSession(authSession);
+  purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
-  const terminalEmployeeName = ensureEmployeeSessionForProtectedArea(window.BRANDING);
+  const terminalEmployeeName = readActiveEmployee();
   const tenantId = getGlobalTenantId();
 
   const recipeModuleEnabled = isWurstkuecheEnabledForTenant(authSession.tenantId);
@@ -2014,6 +2234,12 @@ async function bootstrapAuthenticatedApp() {
   refreshAdminTeamConfigPanel();
   syncPushRegistration();
   initGermanDateInputs(document);
+
+  purgeInvalidProfileSession(window.BRANDING);
+  expireProfileSessionIfIdle(window.BRANDING);
+  if (isProfileEmployeeAuth(window.BRANDING) && INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
+    await requireProfileSessionForInventory();
+  }
 
   if (authSession.tenantId === STEVESHOF_TENANT_ID) {
     showTab('mhd');
