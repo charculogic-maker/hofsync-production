@@ -14,6 +14,7 @@ import {
   isOfficeUser,
   loginTenant,
   logoutTenant,
+  shutdownFirestoreClient,
   verifyAdminAction,
   waitForAuthReady,
 } from './auth.js';
@@ -873,10 +874,14 @@ function hasActiveFirebaseAuthUser() {
   }
 }
 
-async function awaitFirebaseAuthSignOut() {
+async function awaitFirebaseAuthSignOut(options = {}) {
+  const shutdownOptions = {
+    clearPersistence: options.clearPersistence === true,
+  };
+
   try {
     try {
-      await logoutTenant();
+      await logoutTenant(shutdownOptions);
       return;
     } catch (err) {
       const message = String(err?.message || '');
@@ -884,6 +889,8 @@ async function awaitFirebaseAuthSignOut() {
         console.warn('[CharcuLogic Auth] logoutTenant beim SignOut fehlgeschlagen:', err);
       }
     }
+
+    await shutdownFirestoreClient(shutdownOptions);
 
     if (typeof firebase === 'undefined') return;
     if (!firebase.apps?.length) {
@@ -1254,13 +1261,17 @@ function isFirebaseConfigValid(config) {
 
 async function handleAuthUrlResetIfRequested() {
   const params = new URLSearchParams(window.location.search);
-  const shouldReset = params.get('logout') === 'true' || params.get('reset') === 'true';
-  if (!shouldReset) return false;
+  const shouldLogout = params.get('logout') === 'true';
+  const shouldReset = params.get('reset') === 'true';
+  if (!shouldLogout && !shouldReset) return false;
 
-  console.warn('[CharcuLogic Auth] URL-Reset ausgelöst — Auth-Daten werden bereinigt.');
+  console.warn('[CharcuLogic Auth] URL-Reset ausgelöst — Auth-Daten werden bereinigt.', {
+    logout: shouldLogout,
+    reset: shouldReset,
+  });
   activateAuthLoopBreaker();
   clearAllAuthLocalStorage();
-  await awaitFirebaseAuthSignOut();
+  await awaitFirebaseAuthSignOut({ clearPersistence: shouldReset });
 
   const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
   window.location.replace(cleanUrl);

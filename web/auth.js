@@ -81,6 +81,37 @@ function withTimeout(promise, timeoutMs, label = 'Operation') {
   ]);
 }
 
+function resolveFirebaseAppInstance() {
+  if (authState.firebase?.apps?.length) return authState.firebase;
+  if (typeof firebase !== 'undefined' && firebase.apps?.length) return firebase;
+  return authState.firebase || (typeof firebase !== 'undefined' ? firebase : null);
+}
+
+export async function shutdownFirestoreClient({ clearPersistence = false } = {}) {
+  const firebaseApp = resolveFirebaseAppInstance();
+  if (!firebaseApp?.apps?.length) return;
+
+  let firestoreInstance = null;
+  try {
+    firestoreInstance = firebaseApp.firestore();
+    if (firestoreInstance && typeof firestoreInstance.terminate === 'function') {
+      await firestoreInstance.terminate();
+    }
+  } catch (e) {
+    console.error('Firestore termination failed', e);
+  }
+
+  if (!clearPersistence || !firestoreInstance) return;
+
+  try {
+    if (typeof firestoreInstance.clearPersistence === 'function') {
+      await firestoreInstance.clearPersistence();
+    }
+  } catch (e) {
+    console.error('Firestore clearPersistence failed', e);
+  }
+}
+
 function cleanTenantId(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
@@ -368,6 +399,7 @@ function bindHeaderLogoutButton() {
       window.showToast?.("Abgemeldet. System wird neu geladen...", "warning");
       clearSessionCaches();
       authContext = null;
+      await shutdownFirestoreClient();
       if (authState.firebase?.auth) {
         await authState.firebase.auth().signOut();
       }
@@ -680,11 +712,12 @@ export async function loginWithToken(token, options = {}) {
   return credential;
 }
 
-export async function logoutTenant() {
+export async function logoutTenant(options = {}) {
   ensureAuthConfigured();
   const tenantId = authContext?.tenantId || cachedTenantId();
   clearSessionCaches();
   if (tenantId) clearTerminalDeviceToken(tenantId);
+  await shutdownFirestoreClient(options);
   return authState.firebase.auth().signOut();
 }
 
