@@ -82,7 +82,7 @@ function withTimeout(promise, timeoutMs, label = 'Operation') {
 }
 
 function cleanTenantId(value) {
-  return typeof value === 'string' ? value.trim() : '';
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function terminalDeviceTokenStorageKey(tenantId) {

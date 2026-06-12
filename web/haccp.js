@@ -1,5 +1,10 @@
-import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import { getGlobalTenantId, getTenantCollectionPath, normalizeTenantId } from './tenant-db.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+  scopedTeamboardStorageKey,
+  writeScopedLocalStorageValue,
+} from './teamboard-storage.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -184,7 +189,7 @@ function restoreCleaningPerson() {
   if (haccpState.cleaningDoneBy) return;
   try {
     const stored = localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
-      || localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()))
+      || readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId())
       || '';
     haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(stored) ? stored : '';
   } catch (_) { /* noop */ }
@@ -195,7 +200,7 @@ function rememberCleaningPerson(name) {
   try {
     if (haccpState.cleaningDoneBy) {
       localStorage.setItem(HACCP_CLEANING_PERSON_KEY, haccpState.cleaningDoneBy);
-      localStorage.setItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()), haccpState.cleaningDoneBy);
+      writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId(), haccpState.cleaningDoneBy);
     } else {
       localStorage.removeItem(HACCP_CLEANING_PERSON_KEY);
       localStorage.removeItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()));
@@ -245,7 +250,7 @@ export function activateHaccpTab() {
 }
 
 function resolveHaccpTenantId() {
-  return getGlobalTenantId() || haccpState.tenantId || '';
+  return normalizeTenantId(getGlobalTenantId() || haccpState.tenantId);
 }
 
 function haccpCollectionPath() {

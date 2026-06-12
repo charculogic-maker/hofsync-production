@@ -98,6 +98,7 @@ import {
   getTenantCollection,
   getTenantCollectionPath,
   initTenantDb,
+  normalizeTenantId,
   setGlobalTenantId,
 } from './tenant-db.js';
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
@@ -108,7 +109,9 @@ import {
   ACTIVE_AREA_STORAGE_KEY,
   clearTeamboardTenantStorage,
   LEGACY_SHIFT_STORAGE_KEY,
+  readScopedLocalStorageValue,
   scopedTeamboardStorageKey,
+  writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
@@ -159,7 +162,7 @@ function isNamedProfileSession(employeeName, branding = window.BRANDING) {
 function profileLastActionStorageKey() {
   return scopedTeamboardStorageKey(
     PROFILE_LAST_ACTION_STORAGE_KEY,
-    getGlobalTenantId() || getTenantId(),
+    normalizeTenantId(getGlobalTenantId() || getTenantId()),
   );
 }
 
@@ -214,13 +217,16 @@ function purgeInvalidProfileSession(branding = window.BRANDING) {
 function profileGuestNamesStorageKey() {
   return scopedTeamboardStorageKey(
     PROFILE_GUEST_NAMES_KEY,
-    getGlobalTenantId() || getTenantId(),
+    normalizeTenantId(getGlobalTenantId() || getTenantId()),
   );
 }
 
 function readProfileGuestNames() {
   try {
-    const raw = localStorage.getItem(profileGuestNamesStorageKey());
+    const raw = readScopedLocalStorageValue(
+      PROFILE_GUEST_NAMES_KEY,
+      normalizeTenantId(getGlobalTenantId() || getTenantId()),
+    );
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -239,7 +245,11 @@ function rememberProfileGuestName(name) {
     ...readProfileGuestNames().filter((entry) => entry.toLowerCase() !== cleanName.toLowerCase()),
   ].slice(0, 12);
   try {
-    localStorage.setItem(profileGuestNamesStorageKey(), JSON.stringify(next));
+    writeScopedLocalStorageValue(
+      PROFILE_GUEST_NAMES_KEY,
+      resolveInventoryTenantId(),
+      JSON.stringify(next),
+    );
   } catch (err) {
     console.warn('[CharcuLogic Profile] Gastnamen konnten nicht gespeichert werden:', err);
   }
@@ -264,7 +274,10 @@ function expireProfileSessionIfIdle(branding = window.BRANDING) {
 
   let lastRaw = '';
   try {
-    lastRaw = localStorage.getItem(profileLastActionStorageKey()) || '';
+    lastRaw = readScopedLocalStorageValue(
+      PROFILE_LAST_ACTION_STORAGE_KEY,
+      resolveInventoryTenantId(),
+    ) || '';
   } catch (_) { /* noop */ }
 
   if (!lastRaw) {
@@ -522,11 +535,52 @@ async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
   });
 }
 
+function resolveInventoryTenantId() {
+  return normalizeTenantId(
+    getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '',
+  );
+}
+
 function isInventoryWriteReady(branding = window.BRANDING) {
-  const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
-  if (!isFirebaseAuthActiveForTenant(tenantId)) return false;
+  const tenantId = resolveInventoryTenantId();
+  if (!tenantId || !isFirebaseAuthActiveForTenant(tenantId)) return false;
   if (!isProfileEmployeeAuth(branding)) return true;
   return isNamedProfileSession(readActiveEmployee(), branding);
+}
+
+async function ensureInventoryProfileReadyForWrite(branding = window.BRANDING) {
+  if (!isProfileEmployeeAuth(branding)) return true;
+
+  const tenantId = resolveInventoryTenantId();
+  if (!tenantId) {
+    window.showToast?.('Betriebs-Kontext fehlt. Bitte Geräte-Zugang erneut bestätigen.', 'warning');
+    return false;
+  }
+
+  let employeeName = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+  const firebaseReady = await ensureTenantFirebaseAuth(branding);
+  if (!firebaseReady) {
+    window.showToast?.(
+      'Betriebs-Anmeldung fehlt. Bitte den Geräte-Zugang am Laden-iPhone bestätigen.',
+      'warning',
+    );
+    return false;
+  }
+
+  if (!isInventoryWriteReady(branding)) {
+    const picked = employeeName || await requireProfileSessionForInventory();
+    if (!picked || !isInventoryWriteReady(branding)) {
+      window.showToast?.('Bitte zuerst dein Profil für den Wareneingang wählen.', 'warning');
+      return false;
+    }
+    persistActiveEmployeeSession(picked);
+    return true;
+  }
+
+  if (employeeName) {
+    persistActiveEmployeeSession(employeeName);
+  }
+  return true;
 }
 
 async function requireProfileSessionForInventory(options = {}) {
@@ -683,7 +737,11 @@ function persistActiveEmployeeSession(employeeName) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return '';
   try {
-    localStorage.setItem(activeEmployeeStorageKey(), cleanName);
+    writeScopedLocalStorageValue(
+      ACTIVE_EMPLOYEE_STORAGE_KEY,
+      resolveInventoryTenantId(),
+      cleanName,
+    );
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic Session] Team-Sitzung konnte nicht gespeichert werden:', err);
@@ -744,6 +802,7 @@ window.requireProfileSessionForInventory = requireProfileSessionForInventory;
 window.ensureInventoryProfileSessionForTab = ensureInventoryProfileSessionForTab;
 window.ensureEmployeeSessionForProtectedAreaAsync = ensureEmployeeSessionForProtectedAreaAsync;
 window.ensureTenantFirebaseAuth = ensureTenantFirebaseAuth;
+window.ensureInventoryProfileReadyForWrite = ensureInventoryProfileReadyForWrite;
 window.isInventoryWriteReady = isInventoryWriteReady;
 window.isNamedProfileSession = isNamedProfileSession;
 
@@ -782,12 +841,12 @@ function clearAllAuthLocalStorage() {
 }
 
 function clearTenantProfileLocalStorage(tenantId = '') {
-  const tenant = String(
+  const tenant = normalizeTenantId(
     tenantId
     || (typeof getGlobalTenantId === 'function' ? getGlobalTenantId() : '')
     || (typeof getTenantId === 'function' ? getTenantId() : '')
     || resolveEarlyTenantId(),
-  ).trim();
+  );
 
   if (tenant) {
     clearTeamboardTenantStorage(tenant);
@@ -1787,7 +1846,10 @@ const employeeSessionBadge = document.getElementById('employee-session-badge');
 const employeeSessionName = document.getElementById('employee-session-name');
 
 function activeEmployeeStorageKey() {
-  return scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || getTenantId());
+  return scopedTeamboardStorageKey(
+    ACTIVE_EMPLOYEE_STORAGE_KEY,
+    normalizeTenantId(getGlobalTenantId() || getTenantId()),
+  );
 }
 
 function updateHeaderLogoutVisibility(activeTab) {
@@ -1798,10 +1860,7 @@ function updateHeaderLogoutVisibility(activeTab) {
 
 function readActiveEmployee() {
   try {
-    return String(
-      localStorage.getItem(activeEmployeeStorageKey())
-      || '',
-    ).trim();
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveInventoryTenantId());
   } catch (_) {
     return '';
   }
@@ -1853,9 +1912,9 @@ window.showTab = showTab;
 function resolveEarlyTenantId() {
   try {
     if (typeof window.resolveEffectiveTenantId === 'function') {
-      return window.resolveEffectiveTenantId();
+      return normalizeTenantId(window.resolveEffectiveTenantId());
     }
-    return localStorage.getItem('charculogic_cached_tenant_id') || '';
+    return normalizeTenantId(localStorage.getItem('charculogic_cached_tenant_id') || '');
   } catch (err) {
     console.warn('[CharcuLogic Bootstrap] Gespeicherter Mandant konnte nicht gelesen werden:', err);
     return '';

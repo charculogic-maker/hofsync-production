@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260611-171-knowledge-tab';
+const CACHE_NAME = 'charculogic-v20260611-172-knowledge-tab';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [

@@ -18,8 +18,10 @@ import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   ACTIVE_AREA_STORAGE_KEY,
   LEGACY_SHIFT_STORAGE_KEY,
+  readScopedLocalStorageValue,
   scopedTeamboardStorageKey,
   clearTeamboardTenantStorage,
+  writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
 
 export { clearTeamboardTenantStorage };
@@ -244,7 +246,7 @@ function entryKindOf(task) {
 
 export function getActiveEmployeeName() {
   try {
-    return String(localStorage.getItem(scopedStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY)) || '').trim();
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, teamboardState.tenantId);
   } catch (_) {
     return '';
   }
@@ -252,10 +254,7 @@ export function getActiveEmployeeName() {
 
 function getCommentAuthorName() {
   try {
-    return String(
-      localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, teamboardState.tenantId))
-      || '',
-    ).trim();
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, teamboardState.tenantId);
   } catch (_) {
     return '';
   }
@@ -775,11 +774,10 @@ function bindAreaSelector() {
 function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   try {
-    const key = scopedStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY);
     if (cleanName) {
-      localStorage.setItem(key, cleanName);
+      writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, teamboardState.tenantId, cleanName);
     } else {
-      localStorage.removeItem(key);
+      localStorage.removeItem(scopedStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY));
     }
   } catch (_) { /* noop */ }
   window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {

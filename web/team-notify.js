@@ -3,9 +3,12 @@
  */
 
 import { isPushEnabledLocally } from './team-config.js';
+import { getGlobalTenantId } from './tenant-db.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
+
 function getActiveEmployeeNameLocal() {
   try {
-    return String(localStorage.getItem('charculogic_active_employee') || '').trim();
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId());
   } catch (_) {
     return '';
   }

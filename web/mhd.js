@@ -4,11 +4,17 @@ import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGerman
 import {
   getGlobalTenantId,
   getTenantCollection,
+  normalizeTenantId,
   setGlobalTenantId,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+  scopedTeamboardStorageKey,
+  writeScopedLocalStorageValue,
+} from './teamboard-storage.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -245,7 +251,7 @@ function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 
 function resolveMhdTenantId() {
-  const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
+  const tenantId = normalizeTenantId(getGlobalTenantId() || mhdState.tenantId);
   if (!tenantId) return '';
   if (!getGlobalTenantId()) {
     setGlobalTenantId(tenantId);
@@ -747,9 +753,8 @@ function openReceivingManualCreateForm() {
 
 function getActiveEmployee() {
   try {
-    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
     return String(
-      localStorage.getItem(key)
+      readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId())
       || mhdState.terminalEmployeeName
       || '',
     ).trim();
@@ -763,8 +768,7 @@ function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return;
   try {
-    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
-    localStorage.setItem(key, cleanName);
+    writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId(), cleanName);
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gespeichert werden:', err);
@@ -803,6 +807,21 @@ async function resolveInventoryActorForScan() {
     return employeeName || '';
   }
   return '';
+}
+
+async function ensureInventoryProfileReadyForDelivery() {
+  if (!window.isProfileEmployeeAuth?.()) return true;
+  resolveMhdTenantId();
+  const ready = await window.ensureInventoryProfileReadyForWrite?.();
+  if (!ready) {
+    mhdState.showHUD(
+      'Profil fehlt',
+      'Bitte zuerst dein Profil für den Wareneingang wählen.',
+      '!',
+    );
+    return false;
+  }
+  return true;
 }
 
 function requestEmployeePinForScan(barcode) {
@@ -4125,6 +4144,15 @@ async function finalizeDelivery() {
 
   const tempGuard = await applyDeliveryTemperatureGuard(head);
   if (!tempGuard) return;
+
+  const activeTenantId = resolveMhdTenantId();
+  if (!activeTenantId) {
+    mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    return;
+  }
+  if (!(await ensureInventoryProfileReadyForDelivery())) {
+    return;
+  }
 
   const { mhdItemStatus, meisterOverrideReason } = tempGuard;
   const existingDraft = isDraftCompletion

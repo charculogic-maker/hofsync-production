@@ -6,14 +6,11 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { getTenantCollection } from './tenant-db.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
 function getActiveEmployeeNameLocal() {
   try {
-    return String(
-      localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, configState.tenantId))
-      || '',
-    ).trim();
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, configState.tenantId);
   } catch (_) {
     return '';
   }

@@ -7,8 +7,12 @@ export function initTenantDb(database) {
   firestoreDb = database || null;
 }
 
+export function normalizeTenantId(tenantId) {
+  return typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';
+}
+
 export function setGlobalTenantId(tenantId) {
-  const normalized = typeof tenantId === 'string' ? tenantId.trim() : '';
+  const normalized = normalizeTenantId(tenantId);
   globalTenantId = normalized || null;
   if (globalTenantId) {
     console.log(`[CharcuLogic] Mandant aktiv: ${globalTenantId}`);
