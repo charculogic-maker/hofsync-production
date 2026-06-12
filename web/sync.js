@@ -6,6 +6,14 @@ const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
 const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
 
 let flushInFlight = false;
+
+function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
+  if (!window.isFirestorePermissionDeniedError(err)) return false;
+  void window.resetAuthStateOnPermissionDenied?.(err, context);
+  return true;
+}
+
 let syncContext = {
   getDatabase: () => null,
   isFirebaseReady: () => false,
@@ -476,10 +484,15 @@ export async function flushOnePendingSync(item) {
   const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _attempts, data, ...legacyData } = item;
   if (_syncType === 'haccp' && _collectionPath) {
     const collectionPath = normalizeTenantCollectionPath(_collectionPath);
-    await db.collection(collectionPath).add({
-      ...legacyData,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    try {
+      await db.collection(collectionPath).add({
+        ...legacyData,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
+      throw err;
+    }
     return;
   }
   if (_syncType === 'appsScript') {
@@ -516,6 +529,7 @@ export async function flushOnePendingSync(item) {
         await ref.update(payload);
       }
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
       if (isPermissionOrExistsError(err) && _op !== 'delete') {
         if (isStaleHaccpPayload(item)) {
           const archived = await tryStaleArchiveFallback(item);
@@ -593,6 +607,7 @@ export async function safeServerWrite(collectionPath, payload) {
     refreshSyncConnectivityUi();
     return result;
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return;
     if (err?.name === 'NetworkTimeoutError') {
       refreshSyncConnectivityUi();
     }
@@ -671,6 +686,7 @@ export async function writeFirestoreDocOrQueue({
     refreshSyncConnectivityUi();
     return 'written';
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return 'written';
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
       if (!silentPermissionDenied) {
@@ -716,6 +732,7 @@ export async function flushPendingSyncs() {
       try {
         await flushOnePendingSync(item);
       } catch (err) {
+        if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
         console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
         const attempts = (item._attempts || 0) + 1;
         if (attempts >= 5) {

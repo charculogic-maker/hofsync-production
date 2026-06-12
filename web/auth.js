@@ -20,6 +20,27 @@ let authState = {
 };
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
+export const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
+
+export function activateAuthLoopBreaker() {
+  try {
+    sessionStorage.setItem(AUTH_LOOP_BREAKER_KEY, 'true');
+  } catch (_) { /* noop */ }
+}
+
+export function isAuthLoopBreakerActive() {
+  try {
+    return sessionStorage.getItem(AUTH_LOOP_BREAKER_KEY) === 'true';
+  } catch (_) {
+    return false;
+  }
+}
+
+export function clearAuthLoopBreaker() {
+  try {
+    sessionStorage.removeItem(AUTH_LOOP_BREAKER_KEY);
+  } catch (_) { /* noop */ }
+}
 
 function withTimeout(promise, timeoutMs, label = 'Operation') {
   return Promise.race([
@@ -458,6 +479,22 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   });
 
   authState.firebase.auth().onAuthStateChanged(async (user) => {
+    if (isAuthLoopBreakerActive()) {
+      authContext = null;
+      setGlobalTenantId(null);
+      document.documentElement.dataset.authenticatedTenant = '';
+      if (user) {
+        try {
+          await authState.firebase.auth().signOut();
+        } catch (signOutErr) {
+          console.warn('[CharcuLogic Auth] Breaker-SignOut fehlgeschlagen:', signOutErr);
+        }
+      }
+      showLoginOverlay('');
+      setAuthError('');
+      return;
+    }
+
     if (!user) {
       authContext = null;
       setGlobalTenantId(null);
@@ -536,6 +573,12 @@ export async function waitForFirebaseUser(timeoutMs = 4000) {
 export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}) {
   const expected = cleanTenantId(expectedTenantId);
   if (!expected) return false;
+  if (options.skipAutoRestore) {
+    prefillTerminalLoginEmail(options.terminalEmail);
+    showLoginOverlay('');
+    setAuthError('');
+    return false;
+  }
   if (isFirebaseAuthActiveForTenant(expected)) return true;
 
   const restoredUser = await waitForFirebaseUser(3000);

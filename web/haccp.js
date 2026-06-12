@@ -1,6 +1,12 @@
-import { isPermissionDeniedError } from './sync.js';
 import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+
+function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
+  if (!window.isFirestorePermissionDeniedError(err)) return false;
+  void window.resetAuthStateOnPermissionDenied?.(err, context);
+  return true;
+}
 
 const DEFAULT_HACCP_DEVICES = [
   { name: 'Kühlauslage Hofladen', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
@@ -347,12 +353,17 @@ async function seedDefaultHaccpDevicesIfEmpty() {
   if (!path) return;
   const snap = await haccpState.db.collection(path).limit(1).get();
   if (!snap.empty) return;
-  const batch = haccpState.db.batch();
-  DEFAULT_HACCP_DEVICES.forEach((device) => {
-    const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
-    batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
-  });
-  await batch.commit();
+  try {
+    const batch = haccpState.db.batch();
+    DEFAULT_HACCP_DEVICES.forEach((device) => {
+      const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
+      batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
+    });
+    await batch.commit();
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.warn('[CharcuLogic HACCP] Standard-Geräte konnten nicht geseedet werden:', err);
+  }
 }
 
 function loadHaccpDevicesFromCloud() {
@@ -366,7 +377,10 @@ function loadHaccpDevicesFromCloud() {
   haccpState.devicesUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.devices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
-  }, (err) => console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err));
+  }, (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err);
+  });
 }
 
 function loadHaccpLogsFromCloud() {
@@ -380,7 +394,10 @@ function loadHaccpLogsFromCloud() {
   haccpState.logsUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
-  }, (err) => console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err));
+  }, (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err);
+  });
 }
 
 function temperatureStatus(device, value) {
@@ -464,11 +481,7 @@ async function saveHaccpLog(entry) {
       haccpState.showHUD("Bereits erfasst", "Dieser Protokolleintrag existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      console.warn(`[CharcuLogic HACCP] permission-denied für ${docId}`);
-      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.warn('[CharcuLogic HACCP] Speichern fehlgeschlagen:', err);
     throw err;
   }
@@ -556,10 +569,7 @@ async function saveTemperatureCheck(stationId) {
       haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -600,10 +610,7 @@ async function saveLegacyTemperatureCheck(deviceId) {
       haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -691,10 +698,7 @@ async function saveCleaningCheck(taskId) {
       haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im BÃ¼ro die Berechtigung prÃ¼fen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -726,10 +730,7 @@ async function saveLegacyCleaningCheck(deviceId) {
       haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -750,8 +751,9 @@ function deactivateHaccpDevice(deviceId) {
       });
       haccpState.showHUD("Deaktiviert", "Kühlstelle oder Aufgabe wurde deaktiviert.");
     } catch (err) {
-    console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
     }
   });
 }
@@ -784,19 +786,25 @@ function addHaccpDeviceFromForm() {
       aktiv: true,
       tenantId: resolveHaccpTenantId(),
     };
-    await haccpState.writeOrQueueFirestore({
-      collectionPath: path,
-      docId: haccpDeviceDocId(name),
-      op: 'set',
-      onlineData: { ...payload, updatedAt: serverTimestamp() },
-      queueData: { ...payload, updatedAt: new Date().toISOString() },
-      offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
-    });
-    haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
-    ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
+    try {
+      await haccpState.writeOrQueueFirestore({
+        collectionPath: path,
+        docId: haccpDeviceDocId(name),
+        op: 'set',
+        onlineData: { ...payload, updatedAt: serverTimestamp() },
+        queueData: { ...payload, updatedAt: new Date().toISOString() },
+        offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
+      });
+      haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
+      ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Gerät anlegen fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht gespeichert werden.", "!");
+    }
   });
 }
 
@@ -1118,8 +1126,9 @@ function bindStaticHaccpControls() {
       }
       haccpState.showHUD("📝 HACCP erfasst", `Charge ${chargenNummer} dokumentiert.`);
     } catch (err) {
-    console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
     }
   });
 

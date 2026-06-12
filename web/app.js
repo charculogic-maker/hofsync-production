@@ -1,8 +1,11 @@
 import {
+  activateAuthLoopBreaker,
+  clearAuthLoopBreaker,
   ensureFirebaseAuthForTenant,
   getAuthContext,
   getTenantId,
   initAuthModule,
+  isAuthLoopBreakerActive,
   isFirebaseAuthActiveForTenant,
   isHelperUser,
   isOfficeUser,
@@ -500,8 +503,13 @@ function resolveTerminalAuthEmail(branding = window.BRANDING) {
 async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
   const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
   if (!tenantId) return false;
+  const skipAutoRestore = isAuthLoopBreakerActive();
+  if (skipAutoRestore) {
+    clearAuthLoopBreaker();
+  }
   return ensureFirebaseAuthForTenant(tenantId, {
     terminalEmail: resolveTerminalAuthEmail(branding),
+    skipAutoRestore,
   });
 }
 
@@ -788,6 +796,29 @@ function clearTenantProfileLocalStorage(tenantId = '') {
 
 let authPermissionResetInFlight = false;
 
+async function awaitFirebaseAuthSignOut() {
+  try {
+    try {
+      await logoutTenant();
+      return;
+    } catch (err) {
+      const message = String(err?.message || '');
+      if (!message.includes('nicht geladen') && !message.includes('nicht initialisiert')) {
+        console.warn('[CharcuLogic Auth] logoutTenant beim SignOut fehlgeschlagen:', err);
+      }
+    }
+
+    if (typeof firebase === 'undefined') return;
+    if (!firebase.apps?.length) {
+      if (!isFirebaseConfigValid(firebaseConfig)) return;
+      firebase.initializeApp(firebaseConfig);
+    }
+    await firebase.auth().signOut();
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Firebase signOut fehlgeschlagen:', err);
+  }
+}
+
 async function resetAuthStateOnPermissionDenied(err, context = '') {
   if (authPermissionResetInFlight) return;
   if (!isFirestorePermissionDeniedError(err)) return;
@@ -798,19 +829,9 @@ async function resetAuthStateOnPermissionDenied(err, context = '') {
     message: err?.message,
   });
 
+  activateAuthLoopBreaker();
   clearTenantProfileLocalStorage();
-
-  try {
-    await logoutTenant();
-  } catch (signOutErr) {
-    console.warn('[CharcuLogic Auth] logoutTenant beim Berechtigungs-Reset fehlgeschlagen:', signOutErr);
-    try {
-      if (typeof firebase !== 'undefined' && firebase.apps?.length) {
-        await firebase.auth().signOut();
-      }
-    } catch (_) { /* noop */ }
-  }
-
+  await awaitFirebaseAuthSignOut();
   window.location.reload();
 }
 
@@ -1156,18 +1177,9 @@ async function handleAuthUrlResetIfRequested() {
   if (!shouldReset) return false;
 
   console.warn('[CharcuLogic Auth] URL-Reset ausgelöst — Auth-Daten werden bereinigt.');
+  activateAuthLoopBreaker();
   clearAllAuthLocalStorage();
-
-  try {
-    if (typeof firebase !== 'undefined' && isFirebaseConfigValid(firebaseConfig)) {
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      await firebase.auth().signOut();
-    }
-  } catch (err) {
-    console.warn('[CharcuLogic Auth] Firebase signOut beim URL-Reset fehlgeschlagen:', err);
-  }
+  await awaitFirebaseAuthSignOut();
 
   const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash || ''}`;
   window.location.replace(cleanUrl);
