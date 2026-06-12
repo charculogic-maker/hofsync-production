@@ -272,6 +272,9 @@ function buildHiddenQueuedAuditFields() {
 }
 
 function withHiddenAudit(onlineData, queueData = onlineData) {
+  if (window.isProfileEmployeeAuth?.() && !window.isInventoryWriteReady?.()) {
+    throw new Error('PROFILE_OR_FIREBASE_AUTH_REQUIRED');
+  }
   recordInventoryProfileActivity();
   return {
     onlineData: { ...onlineData, ...buildHiddenAuditFields() },
@@ -706,7 +709,21 @@ function setActiveEmployee(employeeName) {
 
 async function resolveInventoryActorForScan() {
   if (window.isProfileEmployeeAuth?.()) {
-    const employeeName = await window.requireProfileSessionForInventory?.();
+    const firebaseReady = await window.ensureTenantFirebaseAuth?.();
+    if (!firebaseReady) {
+      mhdState.showHUD(
+        'Betriebs-Anmeldung fehlt',
+        'Bitte zuerst den Geräte-Zugang bestätigen, danach Profil wählen.',
+        '!',
+      );
+      return '';
+    }
+    if (!window.isInventoryWriteReady?.()) {
+      const employeeName = await window.requireProfileSessionForInventory?.();
+      if (employeeName) setActiveEmployee(employeeName);
+      return employeeName || '';
+    }
+    const employeeName = getActiveEmployee() || await window.requireProfileSessionForInventory?.();
     if (employeeName) setActiveEmployee(employeeName);
     return employeeName || '';
   }

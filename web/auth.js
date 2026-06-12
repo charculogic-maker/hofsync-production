@@ -1,5 +1,11 @@
 import { setGlobalTenantId } from './tenant-db.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, clearTeamboardTenantStorage } from './teamboard-storage.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  clearTeamboardTenantStorage,
+  scopedTeamboardStorageKey,
+} from './teamboard-storage.js';
+
+const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
 
 let authContext = null;
 let authReadyPromise = null;
@@ -26,6 +32,44 @@ function withTimeout(promise, timeoutMs, label = 'Operation') {
 
 function cleanTenantId(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function terminalDeviceTokenStorageKey(tenantId) {
+  return scopedTeamboardStorageKey(TERMINAL_DEVICE_TOKEN_KEY, tenantId);
+}
+
+function readTerminalDeviceToken(tenantId) {
+  try {
+    return String(localStorage.getItem(terminalDeviceTokenStorageKey(tenantId)) || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function cacheTerminalDeviceToken(tenantId, token) {
+  const cleanTenant = cleanTenantId(tenantId);
+  const cleanToken = String(token || '').trim();
+  if (!cleanTenant || !cleanToken) return;
+  try {
+    localStorage.setItem(terminalDeviceTokenStorageKey(cleanTenant), cleanToken);
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Geräte-Zugangscode konnte nicht gespeichert werden:', err);
+  }
+}
+
+function clearTerminalDeviceToken(tenantId) {
+  try {
+    localStorage.removeItem(terminalDeviceTokenStorageKey(tenantId));
+  } catch (_) { /* noop */ }
+}
+
+function prefillTerminalLoginEmail(terminalEmail = '') {
+  const email = String(terminalEmail || '').trim();
+  if (!email) return;
+  const emailEl = document.getElementById('auth-login-email');
+  if (emailEl && !emailEl.value.trim()) {
+    emailEl.value = email;
+  }
 }
 
 function cachedTenantId() {
@@ -459,25 +503,107 @@ export function getTenantId() {
   return authContext?.tenantId || '';
 }
 
+export function getFirebaseAuthUser() {
+  return authState.firebase?.auth?.().currentUser || authContext?.user || null;
+}
+
+export function isFirebaseAuthActiveForTenant(expectedTenantId) {
+  const expected = cleanTenantId(expectedTenantId);
+  if (!expected) return false;
+  return cleanTenantId(authContext?.tenantId) === expected && Boolean(getFirebaseAuthUser());
+}
+
+export async function waitForFirebaseUser(timeoutMs = 4000) {
+  ensureAuthConfigured();
+  const auth = authState.firebase.auth();
+  if (auth.currentUser) return auth.currentUser;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (user) => {
+      if (settled) return;
+      settled = true;
+      unsub();
+      resolve(user || auth.currentUser || null);
+    };
+    const unsub = auth.onAuthStateChanged((user) => {
+      if (user) finish(user);
+    });
+    setTimeout(() => finish(auth.currentUser || null), timeoutMs);
+  });
+}
+
+export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}) {
+  const expected = cleanTenantId(expectedTenantId);
+  if (!expected) return false;
+  if (isFirebaseAuthActiveForTenant(expected)) return true;
+
+  const restoredUser = await waitForFirebaseUser(3000);
+  if (restoredUser) {
+    try {
+      if (!authContext || cleanTenantId(authContext.tenantId) !== expected) {
+        authContext = await buildAuthContext(restoredUser);
+      }
+      if (isFirebaseAuthActiveForTenant(expected)) {
+        hideLoginOverlay();
+        return true;
+      }
+    } catch (err) {
+      console.warn('[CharcuLogic Auth] Wiederhergestellte Firebase-Session ist ungültig:', err);
+    }
+  }
+
+  const storedToken = readTerminalDeviceToken(expected);
+  if (storedToken) {
+    try {
+      await loginWithToken(storedToken, { persistDeviceToken: true });
+      if (isFirebaseAuthActiveForTenant(expected)) {
+        hideLoginOverlay();
+        return true;
+      }
+    } catch (err) {
+      console.warn('[CharcuLogic Auth] Gespeicherter Geräte-Zugangscode ist ungültig:', err);
+      clearTerminalDeviceToken(expected);
+    }
+  }
+
+  prefillTerminalLoginEmail(options.terminalEmail);
+  showLoginOverlay('Bitte den Betriebs-Gerätezugang bestätigen. Die Mitarbeiter-Auswahl folgt danach.');
+  return false;
+}
+
 export async function loginTenant(email, password) {
   ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
   const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
   if (credential?.user) {
     authContext = await buildAuthContext(credential.user);
+    hideLoginOverlay();
+    window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: authContext }));
   }
   return credential;
 }
 
-export async function loginWithToken(token) {
+export async function loginWithToken(token, options = {}) {
   ensureAuthConfigured();
   if (!token) throw new Error('Zugangscode fehlt.');
-  return authState.firebase.auth().signInWithCustomToken(token);
+  const credential = await authState.firebase.auth().signInWithCustomToken(token);
+  if (credential?.user) {
+    authContext = await buildAuthContext(credential.user);
+    if (options.persistDeviceToken !== false && authContext?.tenantId) {
+      cacheTerminalDeviceToken(authContext.tenantId, token);
+    }
+    hideLoginOverlay();
+    window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: authContext }));
+  }
+  return credential;
 }
 
 export async function logoutTenant() {
   ensureAuthConfigured();
+  const tenantId = authContext?.tenantId || cachedTenantId();
   clearSessionCaches();
+  if (tenantId) clearTerminalDeviceToken(tenantId);
   return authState.firebase.auth().signOut();
 }
 

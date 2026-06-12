@@ -30,6 +30,9 @@ const DEFAULT_BRANDING = {
 const TENANT_BRANDING = {
   steveshof_hauptbetrieb: {
     betriebsName: 'StevesHof Hofladen',
+    terminalAuth: {
+      email: 'bestellung@steveshof-hofladen.de',
+    },
     appName: 'CharcuLogic',
     primaryColor: '#5D4037',
     primaryColorHover: '#4E342E',

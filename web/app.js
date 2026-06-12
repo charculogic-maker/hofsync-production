@@ -1,7 +1,9 @@
 import {
+  ensureFirebaseAuthForTenant,
   getAuthContext,
   getTenantId,
   initAuthModule,
+  isFirebaseAuthActiveForTenant,
   isHelperUser,
   isOfficeUser,
   loginTenant,
@@ -469,10 +471,42 @@ function openProfileEmployeePicker(options = {}) {
   });
 }
 
+function resolveTerminalAuthEmail(branding = window.BRANDING) {
+  const fromBranding = String(branding?.terminalAuth?.email || '').trim();
+  if (fromBranding) return fromBranding;
+  const tenantId = getGlobalTenantId() || window.resolveEffectiveTenantId?.() || '';
+  if (isSteveshofTenantId(tenantId)) return STEVESHOF_TERMINAL_EMAIL;
+  return '';
+}
+
+async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
+  const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
+  if (!tenantId) return false;
+  return ensureFirebaseAuthForTenant(tenantId, {
+    terminalEmail: resolveTerminalAuthEmail(branding),
+  });
+}
+
+function isInventoryWriteReady(branding = window.BRANDING) {
+  const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
+  if (!isFirebaseAuthActiveForTenant(tenantId)) return false;
+  if (!isProfileEmployeeAuth(branding)) return true;
+  return isNamedProfileSession(readActiveEmployee(), branding);
+}
+
 async function requireProfileSessionForInventory(options = {}) {
   const branding = window.BRANDING || {};
   if (!isProfileEmployeeAuth(branding)) {
     return ensureEmployeeSessionForProtectedArea(branding) || readActiveEmployee();
+  }
+
+  const firebaseReady = await ensureTenantFirebaseAuth(branding);
+  if (!firebaseReady) {
+    window.showToast?.(
+      'Betriebs-Anmeldung fehlt. Bitte den Geräte-Zugang am Laden-iPhone bestätigen.',
+      'warning',
+    );
+    return '';
   }
 
   purgeInvalidProfileSession(branding);
@@ -581,10 +615,26 @@ async function showReceivingProfileGatekeeperIfNeeded() {
   await showReceivingProfileGatekeeper(employeeName);
 }
 
+async function ensureEmployeeSessionForProtectedAreaAsync(branding = window.BRANDING) {
+  if (isProfileEmployeeAuth(branding)) {
+    const firebaseReady = await ensureTenantFirebaseAuth(branding);
+    if (!firebaseReady) return '';
+    expireProfileSessionIfIdle(branding);
+    purgeInvalidProfileSession(branding);
+    const teamLoginCard = document.getElementById('team-login-card');
+    if (teamLoginCard) teamLoginCard.hidden = true;
+    const current = readActiveEmployee();
+    return isNamedProfileSession(current, branding) ? current : '';
+  }
+  return ensureEmployeeSessionForProtectedArea(branding);
+}
+
 async function ensureInventoryProfileSessionForTab(tabId = AppState.activeTab) {
   if (!isProfileEmployeeAuth()) return readActiveEmployee();
-  purgeInvalidProfileSession();
-  if (!INVENTORY_PROFILE_TABS.has(tabId)) return readActiveEmployee();
+  if (!INVENTORY_PROFILE_TABS.has(tabId)) {
+    await ensureEmployeeSessionForProtectedAreaAsync();
+    return readActiveEmployee();
+  }
   return requireProfileSessionForInventory();
 }
 
@@ -625,6 +675,11 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
   if (isProfileEmployeeAuth(branding)) {
     if (teamLoginCard) teamLoginCard.hidden = true;
     purgeInvalidProfileSession(branding);
+    const tenantId = getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '';
+    if (!isFirebaseAuthActiveForTenant(tenantId)) {
+      void ensureTenantFirebaseAuth(branding);
+      return '';
+    }
     const current = readActiveEmployee();
     if (isNamedProfileSession(current, branding)) {
       return current;
@@ -652,6 +707,9 @@ window.showReceivingProfileGatekeeperIfNeeded = showReceivingProfileGatekeeperIf
 window.openProfileEmployeePicker = openProfileEmployeePicker;
 window.requireProfileSessionForInventory = requireProfileSessionForInventory;
 window.ensureInventoryProfileSessionForTab = ensureInventoryProfileSessionForTab;
+window.ensureEmployeeSessionForProtectedAreaAsync = ensureEmployeeSessionForProtectedAreaAsync;
+window.ensureTenantFirebaseAuth = ensureTenantFirebaseAuth;
+window.isInventoryWriteReady = isInventoryWriteReady;
 window.isNamedProfileSession = isNamedProfileSession;
 
 function isSteveshofTenantId(tenantId = '') {
@@ -1693,8 +1751,8 @@ tabs.forEach(tab => {
       return;
     }
     expireProfileSessionIfIdle();
-    if (PIN_PROTECTED_TABS.has(targetTab)) {
-      ensureEmployeeSessionForProtectedArea();
+    if (PIN_PROTECTED_TABS.has(targetTab) || INVENTORY_PROFILE_TABS.has(targetTab)) {
+      await ensureEmployeeSessionForProtectedAreaAsync();
     }
     if (INVENTORY_PROFILE_TABS.has(targetTab)) {
       await ensureInventoryProfileSessionForTab(targetTab);
@@ -2153,6 +2211,9 @@ async function bootstrapAuthenticatedApp() {
     applyRoleBasedUi(nextSession);
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
+    if (isProfileEmployeeAuth(window.BRANDING) && INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
+      void requireProfileSessionForInventory();
+    }
   });
   configureSteveshofTerminalSession(authSession);
   purgeInvalidProfileSession(window.BRANDING);
@@ -2237,8 +2298,11 @@ async function bootstrapAuthenticatedApp() {
 
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
-  if (isProfileEmployeeAuth(window.BRANDING) && INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
-    await requireProfileSessionForInventory();
+  if (isProfileEmployeeAuth(window.BRANDING)) {
+    await ensureTenantFirebaseAuth(window.BRANDING);
+    if (INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
+      await requireProfileSessionForInventory();
+    }
   }
 
   if (authSession.tenantId === STEVESHOF_TENANT_ID) {
