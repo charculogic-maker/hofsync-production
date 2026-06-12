@@ -454,6 +454,64 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 5b: customer order status transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'order-ready-1');
+    const torfabrikEmployee = () => authContext(
+      testEnv,
+      'tf-employee-orders',
+      TENANTS.TORFABRIK,
+      'employee',
+    );
+
+    function sampleCustomerOrder(overrides = {}) {
+      return {
+        tenantId: TENANTS.TORFABRIK,
+        customerName: 'Testkunde',
+        callbackPhone: '0123456789',
+        readyAt: '2026-06-13T10:00:00.000Z',
+        acceptedBy: 'Mitarbeiter',
+        acceptedAt: '2026-06-12T10:00:00.000Z',
+        status: 'open',
+        items: [{ name: 'Bratwurst', quantity: 2, unit: 'kg' }],
+        ...overrides,
+      };
+    }
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder());
+    });
+
+    it('allows employee to mark a picklist order ready with pickup place and adjusted items', async () => {
+      const ctx = torfabrikEmployee();
+
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Mitarbeiter',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kuehlschrank',
+        items: [{ name: 'Bratwurst', quantity: 1.8, unit: 'kg', actualQuantity: 1.8 }],
+      });
+    });
+
+    it('denies employee item edits once the order is already ready', async () => {
+      await seedFirestoreDoc(
+        testEnv,
+        orderPath,
+        sampleCustomerOrder({
+          status: 'ready',
+          readyMarkedBy: 'Mitarbeiter',
+          readyMarkedAt: '2026-06-12T10:05:00.000Z',
+          pickupPlace: 'Laden-Kuehlschrank',
+        }),
+      );
+      const ctx = torfabrikEmployee();
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        items: [{ name: 'Bratwurst', quantity: 99, unit: 'kg' }],
+      });
+    });
+  });
+
   describe('TEST CASE 6: pushTokens read lockout', () => {
     it('denies employee read on pushTokens', async () => {
       const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TORFABRIK, 'employee');
