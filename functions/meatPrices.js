@@ -34,6 +34,16 @@ const logger = {
   error: (...args) => console.error(...args),
 };
 
+const MEAT_PRICE_PROJECT_ID = String(
+  process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || '',
+).trim();
+
+const WHITELABEL_TEST_PROJECT_ID = 'charculogic-whitelabel-test';
+
+function shouldSkipScheduledMeatPriceRun(projectId = MEAT_PRICE_PROJECT_ID) {
+  return projectId === WHITELABEL_TEST_PROJECT_ID;
+}
+
 function resolveSchedulerTenantId() {
   const fromEnv = String(process.env.MEAT_PRICE_TENANT_ID || '').trim();
   return fromEnv || SCHEDULER_DEFAULT_TENANT_ID;
@@ -465,6 +475,19 @@ const scheduledMeatPriceOptions = {
 exports.fetchWeeklyMeatPrices = onSchedule(
   scheduledMeatPriceOptions,
   async (event) => {
+    if (shouldSkipScheduledMeatPriceRun()) {
+      console.log(
+        '[fetchWeeklyMeatPrices] Scheduler übersprungen — Whitelabel-Testprojekt ohne Fleischpreis-Pipeline.',
+        { projectId: MEAT_PRICE_PROJECT_ID },
+      );
+      return {
+        ok: true,
+        skipped: true,
+        reason: 'whitelabel-test-project',
+        projectId: MEAT_PRICE_PROJECT_ID,
+      };
+    }
+
     logGeminiDiagnostics('scheduler-start');
     return executeMeatPriceRun({
       tenantId: resolveSchedulerTenantId(),
@@ -517,6 +540,8 @@ module.exports = {
   ERROR_CODES,
   GoogleGenerativeAIFetchError,
   resolveSchedulerTenantId,
+  shouldSkipScheduledMeatPriceRun,
+  WHITELABEL_TEST_PROJECT_ID,
   SCHEDULER_DEFAULT_TENANT_ID,
   MODEL_VERSION,
   modelName: MODEL_VERSION,

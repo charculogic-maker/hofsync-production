@@ -87,7 +87,7 @@ try {
 
 **Module aktiv:** MHD · Wareneingang (**Laden**) · Wurstküche / WRS (**Prod.**) · HACCP · Wissen
 
-**Hofladen-Terminal:** Startet direkt im Tab **MHD**. Der neutrale Zugang `bestellung@steveshof-hofladen.de` arbeitet ohne zusätzliche Mitarbeiter-PIN als `StevesHof-Team`. Team, Metzgerei und Büro sind derzeit bewusst ausgeblendet. **Wissen** ist als fünfter Alltagstab aktiv. Der Alltags-Logout bleibt am Laden-iPhone verborgen.
+**Hofladen-Terminal:** Startet nach Geräte-Zugang (`bestellung@steveshof-hofladen.de`) und **Profilwahl** im Tab **MHD**. Keine Mitarbeiter-PIN — stattdessen Profil-Picker für MHD und Wareneingang. Team, Metzgerei und Büro sind bewusst ausgeblendet. **Wissen** ist als fünfter Alltagstab aktiv. Der Alltags-Logout bleibt am Laden-iPhone verborgen.
 
 ### 2.3 Graceful Offline & Fallback
 

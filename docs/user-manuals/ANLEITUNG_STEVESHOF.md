@@ -5,35 +5,42 @@
 CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten im Alltag nur mit:
 
 - **MHD**: tägliche Haltbarkeitskontrolle inkl. **Retter-Box** vormerken (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
-- **Neu**: Wareneingang im Laden per Barcode (Schnellerfassung)
+- **Neu**: Wareneingang im Laden (Barcode-Scan, Lieferung abschließen)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 - **HACCP**: Temperaturen und Reinigung dokumentieren
 - **Wissen**: Fleisch-Lexikon und Hofladen-Handbücher
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 
-## 1. Gemeinsamer Zugang am Laden-iPhone
+## 1. Zugang am Laden-iPhone (Gerät + Profil)
 
-Unser **Laden-iPhone** wird einmal mit diesem neutralen Betriebszugang angemeldet:
+### Geräte-Zugang (einmalig auf dem Laden-iPhone)
 
 ```text
 bestellung@steveshof-hofladen.de
 ```
 
-Das Passwort bleibt intern. Es gehört nicht in Anleitungen oder Aushänge.
+Das Passwort bleibt intern. Es gehört nicht in Anleitungen oder Aushänge. Diese Anmeldung bleibt auf dem Gerät gespeichert. Statt einer PIN wählen wir danach unser **Profil** aus der Liste.
 
-Für diesen Zugang überspringt unsere App die zusätzliche Mitarbeiter-PIN-Abfrage. Alle Vorgänge werden neutral als **StevesHof-Team** erfasst. Ein persönlicher Wechsel zwischen einzelnen Kolleginnen und Kollegen ist im Hofladen-Modus nicht nötig.
+### Profil wählen (für MHD und Wareneingang)
+
+Nach dem Geräte-Zugang wählen wir **unser Profil** aus der Liste — z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan, Mimi oder **Andere** mit freiem Namen.
+
+- Das aktive Profil steht **oben rechts** in der Kopfzeile.
+- **MHD** und **Neu** verlangen ein gültiges Profil; Erfassungen werden unter diesem Namen gespeichert.
+- Nach **zwei Stunden ohne Aktivität** erscheint die Profil-Auswahl beim nächsten Wareneingang oder MHD erneut.
+- Safari **nicht** im privaten Modus — sonst geht der Geräte-Zugang nach dem Schließen verloren.
 
 ## 2. Verhalten nach dem Start
 
-Nach erfolgreicher Anmeldung öffnet CharcuLogic automatisch den Tab **MHD**.
+Nach Geräte-Zugang und Profilwahl öffnet CharcuLogic automatisch den Tab **MHD**.
 
 In der unteren Navigation sehen wir fünf Tabs:
 
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus, Küche oder Ausverkauft markieren |
-| **Neu** | Neue Ware scannen; Menge, MHD und optional **Hersteller / Zusatz** erfassen |
+| **Neu** | Ware scannen, Posten sammeln, **Gesamte Lieferung abschließen** |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 | **HACCP** | Temperaturen, Reinigung und Produktionswerte dokumentieren |
 | **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
@@ -63,19 +70,24 @@ Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Kart
 
 ![StevesHof MHD-Start](../modulanleitungen/screenshots/steveshof-01-mhd-start.png)
 
-## 4. Wareneingang mit Serien-Scans
+## 4. Wareneingang mit Serien-Scans und Lieferungsabschluss
+
+Im Modus **Laden** sammeln wir Posten in einer Lieferung. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
 
 Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Nach einem erfolgreichen Scan werden Barcode und Menge geleert, die **Kategorie (Laden)** bleibt erhalten.
 
 Beispiel:
 
-1. **Neu** öffnen (Modus **Laden**).
+1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
 2. **MoPro** auswählen.
-3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **Posten hinzufügen**.
-4. Den nächsten MoPro-Artikel scannen.
-5. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
+3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
+4. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
+5. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
+6. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
-Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer, damit wir nichts löschen müssen. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
+Ohne eingetragenen Lieferanten speichert unsere App eine **Direkterfassung** mit unserem Profilnamen — das ist für schnelles Verräumen ohne Lieferschein vorgesehen.
+
+Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 
@@ -158,12 +170,29 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 | Verbindung kommt zurück | Vorgemerkte Einträge werden automatisch übertragen. |
 | Erstmalige Anmeldung am Laden-iPhone | Benötigt eine Internetverbindung. |
 
-## 10. Administration
+## 10. App aktualisieren
+
+Nach einem Büro-Update laden wir die neue Version so:
+
+1. Offene Eingaben speichern oder abbrechen.
+2. Oben rechts **↻ App aktualisieren** tippen.
+3. Nach dem Neuladen ggf. Geräte-Zugang und Profil erneut wählen.
+
+Bei hartnäckigen Problemen (Schleife, weißer Bildschirm): einmal  
+`https://hofsync-production.web.app/?reset=true` in Safari öffnen.
+
+## 11. Datensicherung (Hintergrund)
+
+Unsere Betriebsdaten (MHD, Lieferungen, HACCP) liegen in **Firestore** (`hofsync-production`). **Point-in-Time Recovery (PITR)** ist in der Default-Datenbank aktiv — das Büro kann bei Bedarf auf frühere Stände zurückgreifen. Der Quellcode ist in GitHub gesichert; das Laden-iPhone speichert nur temporär (Offline-Queue, Entwürfe).
+
+## 12. Administration
 
 | Thema | Vorgehen |
 |-------|----------|
 | Passwort Hofladen-Zugang ändern | Firebase Console → Authentication → Nutzer → `bestellung@steveshof-hofladen.de` → **Passwort zurücksetzen** |
-| Laden-iPhone neu anmelden | Neutralen Betriebszugang verwenden und angemeldet lassen |
+| Laden-iPhone neu anmelden | Geräte-Zugang `bestellung@…` + Profil wählen |
+| Profil fehlt beim Wareneingang | Namen aus der Liste oder **Andere** wählen |
+| App-Update | **↻** oben rechts; Notfall: `?reset=true` |
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Weitere Module aktivieren | Erst nach Abstimmung in `web/branding.js` für `steveshof_hauptbetrieb` freischalten |

@@ -3,7 +3,7 @@
 Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt **CharcuLogic** und ist im Laden bewusst auf die wichtigsten Aufgaben reduziert:
 
 1. **MHD kontrollieren** (inkl. Retter-Box vormerken)
-2. **Neue Ware erfassen** (Barcode-Scan)
+2. **Neue Ware erfassen** (Barcode-Scan, Lieferung abschließen)
 3. **Rezepte und Produktion öffnen**
 4. **Temperaturen und Reinigung dokumentieren** (HACCP)
 5. **Wissen nachlesen**
@@ -12,15 +12,25 @@ Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
 ## Anmeldung am Laden-iPhone
 
-Unser **Laden-iPhone** wird einmal mit dem neutralen Hofladen-Zugang angemeldet:
+Unser **Laden-iPhone** hat zwei Stufen — **Geräte-Zugang** (einmalig) und **Profil** (pro Schicht oder Kollege).
+
+### 1. Geräte-Zugang (einmal am Laden-iPhone)
 
 ```text
 bestellung@steveshof-hofladen.de
 ```
 
-Das Passwort verwalten wir intern. Die Anmeldung bleibt auf dem Laden-iPhone gespeichert.
+Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone gespeichert. Eine **PIN** brauchen wir im Hofladen nicht.
 
-Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN brauchen wir im Hofladen nicht. Alle Vorgänge werden neutral als **StevesHof-Team** gespeichert.
+### 2. Profil wählen (vor MHD und Wareneingang)
+
+Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
+
+- Das gewählte Profil erscheint **oben rechts** in der App.
+- Für **MHD** und **Neu** (Wareneingang) ist ein Profil **Pflicht** — so wissen wir später, wer einen Posten erfasst oder eine Lieferung abgeschlossen hat.
+- Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten Wareneingang oder MHD erneut nach dem Profil.
+
+**Wichtig:** Safari **nicht** im privaten Modus nutzen — sonst vergisst das Laden-iPhone den Geräte-Zugang nach dem Schließen.
 
 ## Navigation
 
@@ -29,7 +39,7 @@ In der unteren Leiste sehen wir im Hofladen diese Tabs:
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
-| **Neu** | Neue Ware im Laden per Barcode erfassen |
+| **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 | **HACCP** | Temperaturen und Reinigung dokumentieren |
 | **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
@@ -68,11 +78,11 @@ Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der M
 
 ---
 
-## 2. Neue Ware erfassen
+## 2. Neue Ware erfassen (Wareneingang)
 
-Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnellerfassung).
+Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
 
-1. Tab **Neu** öffnen.
+1. Tab **Neu** öffnen — bei Bedarf zuerst **unser Profil** wählen.
 2. Einmal die passende **Kategorie (Laden)** wählen:
    - Frische
    - MoPro
@@ -86,8 +96,12 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnell
 5. Bei unbekannter EAN den **Produktnamen** ergänzen.
 6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
 7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-8. **Posten hinzufügen** wählen.
-9. Den nächsten Artikel scannen.
+8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
+9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
+10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
+11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
+
+Fehlt der Lieferant, speichert unsere App die Lieferung als **Direkterfassung** (mit unserem Profilnamen). Das ist in Ordnung für schnelles Einräumen ohne Lieferschein.
 
 ### Wichtig: Kategorie bleibt erhalten
 
@@ -185,24 +199,40 @@ Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** u
 
 ## Liefertag: Kurzfassung
 
-1. CharcuLogic öffnen: **MHD**-Kontrolle erscheint automatisch.
-2. Offene MHD-Punkte bearbeiten und **Änderungen speichern**.
-3. Zu **Neu** wechseln.
+1. CharcuLogic öffnen — **Profil** wählen, falls gefragt.
+2. **MHD**-Kontrolle erscheint automatisch; offene Punkte bearbeiten und **Änderungen speichern**.
+3. Zu **Neu** wechseln (ggf. erneut Profil bestätigen).
 4. Kategorie für die aktuelle Warenart einmal wählen.
-5. Artikel nacheinander scannen und als Posten hinzufügen.
-6. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
+5. Artikel scannen, **Posten hinzufügen**, nächsten Artikel scannen.
+6. **Gesamte Lieferung abschließen**.
+7. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
+
+## App aktualisieren (nach Büro-Update)
+
+Wenn uns das Büro bittet, die App zu aktualisieren:
+
+1. Offene Eingaben kurz **speichern** oder abbrechen.
+2. Oben rechts den **runden Pfeil ↻** tippen (**App aktualisieren**).
+3. Warten, bis die App neu lädt.
+4. Ggf. Geräte-Zugang und **Profil** erneut wählen.
+
+Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal  
+`https://hofsync-production.web.app/?reset=true` in Safari öffnen, dann Schritt 4.
 
 ## Hilfe
 
 | Problem | Lösung |
 |---------|-------|
-| Laden-iPhone zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
+| Laden-iPhone zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden, danach Profil wählen. |
+| „Bitte zuerst dein Profil wählen“ | Namen aus der Profil-Liste oder **Andere** tippen. |
 | Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Passwort für den Hofladen-Zugang bitten. |
 | Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
+| Lieferung lässt sich nicht abschließen | Profil prüfen (oben rechts), WLAN prüfen, **↻** App aktualisieren. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
 | KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
+| App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |
 
 ## Logout am Laden-iPhone
 

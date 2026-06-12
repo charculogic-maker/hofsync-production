@@ -47,7 +47,11 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Terminal-PINs:** Gehashte Zugangsdaten liegen in `tenants/{tenantId}/terminalCredentials/current` (Client: kein Lesezugriff). Prüfung über Callable `verifyTerminalPin` (Region `europe-west3`).
 
-**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` ein neutraler Terminalmodus. Die zusätzliche Mitarbeiter-PIN-Abfrage wird übersprungen, als Bearbeiter wird `StevesHof-Team` gesetzt, der Alltags-Logout ausgeblendet und nach dem App-Start direkt `showTab('mhd')` aufgerufen. Das ist bewusst auf genau diese Kombination aus Mandant und E-Mail-Adresse begrenzt.
+**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
+
+**Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
+
+**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine WRS/Fleischpreis-Pipeline für TorFabrik).
 
 **Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`). In Produktion ist Mandantenzuordnung **ausschließlich token-claim-gesteuert** — URL-Parameter oder Payload-Manipulation reichen nicht aus, um fremde `tenants/{tenantId}/…`-Pfade zu erreichen.
 

@@ -4,7 +4,7 @@ Der Tab **Team** bündelt Kommunikation, Kundenbestellungen und den schnellen **
 
 **Mitarbeiter & PINs** sind mandantenabhängig (z. B. TorFabrik: Stephan, Boris, Aushilfe). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
 
-> **StevesHof Hofladen:** Im schlanken Hofladen-Profil zeigt der Tab **Team** ausschließlich den Reiter **🌡️ Temperatur-Check** (Nachrichten und Bestellungen bleiben ausgeblendet). Das gemeinsame Laden-iPhone arbeitet neutral als `StevesHof-Team` ohne zusätzliche Mitarbeiter-PIN.
+> **StevesHof Hofladen:** Der Tab **Team** ist ausgeblendet — Temperaturen dokumentieren wir im Tab **HACCP**. Am Laden-iPhone melden wir uns mit dem Geräte-Zugang an und wählen danach unser **Profil** (ohne PIN) für MHD und Wareneingang.
 
 ![Team – Nachrichten und Bestellungen](./screenshots/07-team.png)
 

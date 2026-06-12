@@ -342,4 +342,12 @@ describe('Vector 5 – meat price corruption guard', () => {
 
     loggerSpy.mockRestore();
   });
+
+  test('skips scheduled meat price run on whitelabel test project', async () => {
+    const meatPrices = await import('../meatPrices.js');
+
+    expect(meatPrices.shouldSkipScheduledMeatPriceRun('charculogic-whitelabel-test')).toBe(true);
+    expect(meatPrices.shouldSkipScheduledMeatPriceRun('hofsync-production')).toBe(false);
+    expect(meatPrices.shouldSkipScheduledMeatPriceRun('')).toBe(false);
+  });
 });
