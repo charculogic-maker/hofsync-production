@@ -126,6 +126,31 @@ function normalizeTenantKey(tenantId) {
   return typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';
 }
 
+function buildTenantBrandingIndex(source = TENANT_BRANDING) {
+  const index = Object.create(null);
+  Object.entries(source).forEach(([rawKey, config]) => {
+    const normalizedKey = normalizeTenantKey(rawKey);
+    if (!normalizedKey || index[normalizedKey]) return;
+    index[normalizedKey] = config;
+  });
+  return index;
+}
+
+const TENANT_BRANDING_INDEX = buildTenantBrandingIndex(TENANT_BRANDING);
+
+function lookupTenantBranding(tenantKey) {
+  const normalizedKey = normalizeTenantKey(tenantKey);
+  if (!normalizedKey) return null;
+  return TENANT_BRANDING_INDEX[normalizedKey] || null;
+}
+
+function hasDistinctTenantBranding(branding) {
+  if (!branding) return false;
+  return branding.betriebsName !== DEFAULT_BRANDING.betriebsName
+    || branding.appName !== DEFAULT_BRANDING.appName
+    || branding.primaryColor !== DEFAULT_BRANDING.primaryColor;
+}
+
 function readCachedTenantId() {
   try {
     return normalizeTenantKey(localStorage.getItem(CACHED_TENANT_ID_KEY));
@@ -159,12 +184,15 @@ function resolveEffectiveTenantId(explicitTenantId) {
 
 function resolveBranding(tenantId) {
   const key = resolveEffectiveTenantId(tenantId);
-  const tenantOverrides = key ? TENANT_BRANDING[key] : null;
-  if (!key || !tenantOverrides) {
+  const tenantOverrides = lookupTenantBranding(key);
+  if (key && !tenantOverrides) {
     console.warn(
       '[CharcuLogic Branding] Kein Mandanten-Profil gefunden — neutrale White-Label-Vorlage aktiv. '
-      + 'Bitte TENANT_BRANDING konfigurieren oder anmelden.',
+      + `tenantId="${key}". Bitte TENANT_BRANDING konfigurieren oder anmelden.`,
     );
+  }
+  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
+    return window.BRANDING;
   }
   return {
     ...DEFAULT_BRANDING,
@@ -184,6 +212,7 @@ function applyResolvedBranding(tenantId) {
 }
 
 window.TENANT_BRANDING = TENANT_BRANDING;
+window.TENANT_BRANDING_INDEX = TENANT_BRANDING_INDEX;
 window.resolveBranding = resolveBranding;
 window.resolveEffectiveTenantId = resolveEffectiveTenantId;
 window.resolveHostingDefaultTenant = resolveHostingDefaultTenant;

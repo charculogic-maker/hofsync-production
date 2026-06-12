@@ -352,7 +352,10 @@ function ensureLoginOverlay() {
   authState.errorBox = document.getElementById('auth-login-error');
 
   if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding();
+    const brandingTenantId = typeof window.resolveEffectiveTenantId === 'function'
+      ? window.resolveEffectiveTenantId()
+      : '';
+    window.applyResolvedBranding(brandingTenantId || undefined);
   } else if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }

@@ -1936,11 +1936,11 @@ function applyEarlyTenantShell() {
   const tenantId = resolveEarlyTenantId() || STEVESHOF_TENANT_ID;
   if (!isSteveshofTenantId(tenantId)) return;
   if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding(STEVESHOF_TENANT_ID);
+    window.applyResolvedBranding(tenantId);
   } else {
     applyBranding();
   }
-  setGlobalTenantId(STEVESHOF_TENANT_ID);
+  setGlobalTenantId(tenantId);
   applyModuleVisibility(window.BRANDING);
   applyRoleBasedUi({
     tenantId: STEVESHOF_TENANT_ID,
