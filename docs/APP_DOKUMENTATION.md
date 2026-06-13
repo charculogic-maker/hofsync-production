@@ -39,6 +39,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 | **Wareneingang** | Schnellerfassung per Barcode, Lieferungen dokumentieren |
 | **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
+| **Wissen** | Hofladen-Handbücher und Fleisch-Lexikon als Offline-Nachschlagewerk |
 | **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
 | **Büro** | Chargen-Archiv, Leitstand, Team-Konfiguration (Admin) |
 
@@ -120,10 +121,11 @@ Pro Mandant konfigurierbar:
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
-| `cutGlossary` | Tab **Cuts** (regionales Cut-Lexikon, optional) |
+| `knowledge` | Tab **Wissen** (`page-knowledge`) mit Handbüchern und Fleisch-Lexikon |
+| `cutGlossary` | Optionaler Tab **Cuts**; nutzt dieselbe Lexikon-Seite wie **Wissen** |
 | `haccp` | Tab **HACCP** |
 | `teamboard` | Tab **Start** (Teamboard) |
-| `team` | Tab **Team** (nur wenn explizit `true` oder abhängige Module aktiv) |
+| `team` | Master-Gate für Tab **Team**; `false` blendet Team trotz `orders`/`haccp` aus |
 | `orders` | Kundenbestellungen im Team-Tab |
 | `batches` | Tab **Büro** (Chargen & Leitstand) |
 | `rezeptAudit` | Rezept-Audit-Karte in Prod. |
@@ -145,7 +147,8 @@ Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS |
 | `haccp` | HACCP | `page-haccp` | `haccp.js` | Tageskontrollen, Geräte-Setup |
-| `cuts` | Cuts | `page-cuts` | `cuts.js` | Cut-Bezeichnungen, Synonyme, Muskelgruppen, Menschen-Vergleich |
+| `knowledge` | Wissen | `page-knowledge` | `cuts.js` | Handbücher, Cut-Bezeichnungen, Synonyme, Muskelgruppen, Menschen-Vergleich |
+| `cuts` | Cuts | `page-knowledge` | `cuts.js` | Optionaler Lexikon-Alias für Mandanten ohne Hofladen-Handbücher |
 | `batches` | Büro | `page-batches` | `production.js`, `team-config.js` | Chargen, Leitstand, Admin-Panels |
 
 ### MHD-Monitor (`web/mhd.js`)
@@ -191,12 +194,13 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 - Meister-Override bei Temperatur-Abweichung (PIN via `verifyTerminalPin`)
 - Druckansicht für Tagesprotokoll
 
-### Cut-Lexikon (`web/cuts.js`)
+### Wissen & Cut-Lexikon (`web/cuts.js`, `page-knowledge`)
 
-- Optionaler Tab **Cuts** ueber `modules.cutGlossary: true`
-- Kuratierte Offline-Liste fuer Rind, Schwein und Lamm
-- Suche ueber Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
-- Keine Firestore-Daten und keine Schreibvorgaenge; reines Nachschlage-Modul
+- Tab **Wissen** über `modules.knowledge: true`; optionaler Tab **Cuts** über `modules.cutGlossary: true`
+- `web/index.html` kombiniert kurze Hofladen-Handbücher und das Fleisch-Lexikon in `page-knowledge`
+- Kuratierte Offline-Liste für Rind, Schwein und Lamm; erweitert um CharcuLogic-Campus-Wissen
+- Suche über Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe, Menschen-Vergleich und Verwendung
+- Keine Firestore-Daten und keine Schreibvorgänge; reines Nachschlage-Modul
 
 ### Team & Teamboard
 
@@ -235,6 +239,7 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | Team (Bestellungen) | ❌ |
 | Kundenbestellungen (`orders`) | ❌ (Backend vorbereitet, UI aus) |
 | Büro / Chargen | ✅ (nur Admin/Büro) |
+| Wissen | ✅ |
 | Retter-Box | ✅ |
 
 ### Sichtbare Tabs am Laden-iPhone (Terminal)
@@ -247,6 +252,7 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | Neu | ✅ |
 | Prod. | ✅ |
 | HACCP | ✅ |
+| Wissen | ✅ |
 | Büro | ❌ (nur persönliche Admin-Konten) |
 | Team / Start | ❌ |
 
@@ -314,6 +320,7 @@ Login schlägt fehl ohne `tenantId` **und** `role` in den Custom Claims.
 | Element | Helper | Employee | Admin (Büro) |
 |---------|--------|----------|----------------|
 | Tabs team, receiving, kitchen, batches | ausgeblendet | — | — |
+| Tab Wissen / Cuts | ausgeblendet | sichtbar wenn Modul aktiv | sichtbar wenn Modul aktiv |
 | Tab HACCP bei StevesHof | **sichtbar** (Ausnahme) | sichtbar | sichtbar |
 | Tab Büro bei StevesHof | ausgeblendet | ausgeblendet | sichtbar |
 | Stammdaten, KI-Lieferschein, Office-Tools | ausgeblendet | ausgeblendet | sichtbar |

@@ -43,12 +43,20 @@ const TENANT_BRANDING = {
     betriebsName: "Metzgerei Müller",
     primaryColor: "#c62828",
     lightBg: "#fff8f8",
-    modules: { mhdMonitor: true, wareneingang: true, wurstkueche: true, haccp: true, orders: true },
+    modules: {
+      mhdMonitor: true,
+      wareneingang: true,
+      wurstkueche: true,
+      knowledge: false,
+      cutGlossary: false,
+      haccp: true,
+      orders: true,
+    },
   },
 };
 ```
 
-Die Modul-Flags können auch ein bewusst schlankes Terminalprofil abbilden. Beispiel StevesHof Hofladen: `mhdMonitor`, `wareneingang` und `wurstkueche` sind aktiv; `teamboard`, `orders`, `wareneingangMetzgerei`, `haccp` und `batches` bleiben deaktiviert.
+Die Modul-Flags können auch ein bewusst schlankes Terminalprofil abbilden. Beispiel StevesHof Hofladen (`web/branding.js`): `mhdMonitor`, `wareneingang`, `wurstkueche`, `knowledge`, `haccp`, `batches` und `retterBox` sind aktiv; `teamboard`, `team`, `orders`, `wareneingangMetzgerei` und `cutGlossary` bleiben deaktiviert. Dadurch sieht das Laden-iPhone MHD, Neu, Prod., HACCP und Wissen, aber keinen Team-/Start-Tab.
 
 **So wirken die Farben technisch:**
 
