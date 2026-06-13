@@ -3809,6 +3809,13 @@ function resetReceivingForm() {
   mhdState.onFormSaved?.(RECEIVING_FORM_IDS);
 }
 
+function summarizeDeliveryFinalizeWrites(deliveryResult, mhdResults) {
+  const failedWrite = mhdResults.find((result) => result.status === 'rejected') || null;
+  const hasQueuedWrites = deliveryResult === 'queued'
+    || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
+  return { failedWrite, hasQueuedWrites };
+}
+
 function showMeisterOverrideModal(temperature) {
   return new Promise((resolve) => {
     const modal = document.getElementById('meister-override-modal');
@@ -3967,8 +3974,11 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
-    const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
+    const { failedWrite, hasQueuedWrites } = summarizeDeliveryFinalizeWrites(deliveryResult, mhdResults);
+    if (failedWrite) {
+      console.warn('[CharcuLogic MHD] Mindestens ein Lieferposten konnte nicht gespeichert werden:', failedWrite.reason);
+      throw failedWrite.reason || new Error('Mindestens ein Lieferposten konnte nicht gespeichert werden.');
+    }
 
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
@@ -4357,4 +4367,5 @@ export {
   saveManualReceiving,
   saveProductMaster,
   showMhdAnomalyWarning,
+  summarizeDeliveryFinalizeWrites,
 };
