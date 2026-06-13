@@ -29,8 +29,8 @@ Bekannte Mandanten:
 
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
-| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Laden-Wareneingang + Prod. |
-| `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
+| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Laden-Wareneingang + Prod. + HACCP + Wissen; Team/Start/Bestellungen aus |
+| `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`), mit Team/Bestellungen/HACCP |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
 
@@ -86,6 +86,22 @@ Beispiel: `torfabrik_charculogic_active_employee`.
 - **Logout:** `web/auth.js` → `clearSessionCaches()` ruft `clearTeamboardTenantStorage(tenantId)` auf und leert mandantenspezifische Keys beim Betriebs-Abmelden.
 - **StevesHof-Ausnahme:** Der neutrale Hofladen-Zugang setzt den aktiven Bearbeiter automatisch auf `StevesHof-Team`; ein persönlicher PIN-Wechsel ist dort derzeit nicht Teil des Ablaufs.
 
+### 1.3 Modul-Flags sind UI-Gates, keine Sicherheitsgrenze
+
+`web/branding.js` steuert mit `modules.*`, welche Tabs `web/app.js -> applyModuleVisibility()` rendert. Danach schränkt `applyRoleBasedUi()` einzelne Rollen weiter ein. Diese Flags ersetzen **nicht** Firestore Rules oder Callable-Auth; sie verhindern nur, dass Mandanten irrelevante UI sehen.
+
+Wichtige aktuelle Regeln:
+
+| Flag / Kombination | Wirkung |
+|--------------------|---------|
+| `knowledge: true` | Tab **Wissen** (`page-knowledge`) mit Handbüchern und Fleisch-Lexikon |
+| `cutGlossary: true` | Optionaler Tab **Cuts** als Lexikon-Alias auf dieselbe Seite |
+| `team: false` | Blendet Tab **Team** vollständig aus, auch wenn `orders` oder `haccp` aktiv sind |
+| `orders: true` | Aktiviert im Tab **Team** die Panels Nachrichten + Bestellungen (`web/team-tab.js`) |
+| `haccp: true` | Aktiviert den eigenen Tab **HACCP**; kein Team-Panel für Temperatur-Check |
+
+Für neue Mandanten immer `web/branding.js`, `docs/APP_DOKUMENTATION.md` und das Admin-Handbuch gemeinsam prüfen, damit Setup-Beispiele und UI-Matrix synchron bleiben.
+
 ---
 
 ## 2. Firestore-Datenmodell
@@ -95,7 +111,9 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | Collection | Inhalt | Schreibrechte (Kurz) |
 |------------|--------|----------------------|
 | `mhd_liste/{itemId}` | MHD-Posten (Verkauf & Kühlung) | Mandanten-Nutzer (schema-validiert) |
+| `retter_boxen/{id}` | Retter-Box-Angebote kurz vor MHD (mandantenspezifisch) | Mandanten-Nutzer nur bei aktivem Retter-Box-Modul |
 | `wareneingang_lieferungen/{id}` | Lieferungen (Kopf, Posten, Fotos) | Mandanten-Nutzer (schema-validiert) |
+| `stammdaten/{id}` | Artikel-/Kategorie-Stammdaten für Wareneingang | read: Mandanten-Nutzer; write: Admin |
 | `rezepte/{id}` | Rezepturen (Betriebswissen) | nur Admin |
 | `produktion_chargen/{id}` | Produktions-/Chargen-Doku | create: Nutzer; update/delete: Admin |
 | `haccp_geraete/{id}` | HACCP-Geräte/Messpunkte | nur Admin |
@@ -108,6 +126,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `terminalCredentials/current` | Gehashte Terminal-PINs | Client read/write: false; nur Admin SDK / Functions |
+| `pinAttempts/{id}` | Lockout-Zähler für Terminal-PINs | Client read/write: false; nur Functions |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
@@ -288,6 +308,8 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
 - **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
+
+**Zweiter Frontend-Pfad:** `web/delivery-parser.js` nutzt denselben Callable derzeit als testweise StevesHof-Parser hinter `FEATURE_TEST_EMAIL = 'patrik@charculogic.de'` und schreibt nach Bestätigung in `mhd_liste` / `stammdaten`. Dieser Client-Pfad ist kein separater Function-Export; App Check und Callable-Auth bleiben identisch.
 
 ### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
 
@@ -483,7 +505,7 @@ firebase deploy --only storage
 
 ### 6.1 Vitest — Functions Security Suite
 
-Suite: `functions/tests/security.test.js` (PIN-Leak-Contract, Fleischpreis-Corruption-Guard, optional Staging-Smoke für App Check).
+Suites: `functions/tests/security.test.js` (PIN-Leak-Contract, Fleischpreis-Corruption-Guard, optional Staging-Smoke für App Check) und `functions/tests/appCheckCoverage.test.js` (statischer Contract: alle `onCall()`-Registrierungen müssen in der App-Check-Inventarliste stehen und `enforceAppCheck: true` setzen).
 
 **Lokal (ohne Netzwerk, Standard-CI):**
 

@@ -118,7 +118,10 @@ const TENANT_BRANDING = {
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang); `wareneingangMetzgerei` zusätzlich den Metzgerei-Modus |
 | `wurstkueche` | Tab **Prod.** (Rezepte / WRS) |
-| `haccp` | Admin-Seite **HACCP** **und** den Team-Reiter **🌡️ Temperatur-Check** |
+| `knowledge` | Tab **Wissen** (`page-knowledge`) mit Hofladen-Handbüchern und Fleisch-Lexikon |
+| `cutGlossary` | Optionaler Tab **Cuts**; nutzt dieselbe Lexikon-Seite wie **Wissen** |
+| `haccp` | Tab **HACCP** (Temperaturen, Reinigung, Geräte einrichten) |
+| `team` | Master-Gate für Tab **Team**; `false` blendet Team auch dann aus, wenn `orders` oder `haccp` aktiv sind |
 | `orders` | Im Tab **Team** die Reiter **💬 Nachrichten** und **🛒 Bestellungen** |
 | `teamboard` | Tab **Start / Schwarzes Brett** und den Team-Reiter **💬 Nachrichten** |
 | `batches` | Tab **Büro / Chargen** |
@@ -126,22 +129,22 @@ const TENANT_BRANDING = {
 
 **Tab Team — kombinierte Sichtbarkeit (Stand Juni 2026):**
 
-- Der Tab **Team** erscheint, sobald **`orders`** *oder* **`haccp`** aktiv ist (`web/app.js` → `applyModuleVisibility`).
+- Der Tab **Team** erscheint nur, wenn `team !== false` **und** mindestens einer der Bereiche `team`, `orders`, `haccp` oder `teamboard` aktiv ist (`web/app.js` → `applyModuleVisibility`).
 - Die Reiter innerhalb von **Team** werden einzeln nach Modul geschaltet (`web/team-tab.js` → `visibleTeamPanels`):
   - **💬 Nachrichten**: `teamboard` *oder* `orders` aktiv
   - **🛒 Bestellungen**: `orders` aktiv
-  - **🌡️ Temperatur-Check**: `haccp` aktiv (nutzt dieselben Stationen/Protokolle wie die HACCP-Seite)
+- Einen Team-Reiter **🌡️ Temperatur-Check** gibt es nicht mehr; Temperaturen und Reinigung laufen ausschließlich im Tab **HACCP**.
 - Helper-Konten (`role: helper`) sehen den Tab **Team** grundsätzlich nicht.
 
 **Konkrete Profile:**
 
-| Mandant | `orders` | `haccp` | `teamboard` | Tab **Team** zeigt |
-|---------|----------|---------|-------------|--------------------|
-| `steveshof_hauptbetrieb` | `false` | `true` | `false` | nur **🌡️ Temperatur-Check** |
-| `torfabrik` | `true` | `true` | (Standard `true`) | **Nachrichten · Bestellungen · Temperatur-Check** |
-| `DEFAULT_BRANDING` | `true` | `true` | `true` | **Nachrichten · Bestellungen · Temperatur-Check** |
+| Mandant | `team` | `orders` | `haccp` | `teamboard` | Tab **Team** zeigt |
+|---------|--------|----------|---------|-------------|--------------------|
+| `steveshof_hauptbetrieb` | `false` | `false` | `true` | `false` | ausgeblendet; Temperatur-Check im Tab **HACCP** |
+| `torfabrik` | Standard | `true` | `true` | Standard `true` | **Nachrichten · Bestellungen** |
+| `DEFAULT_BRANDING` | Standard | `true` | `true` | Standard `true` | **Nachrichten · Bestellungen** |
 
-> **Kundenbestellungen für StevesHof:** Im Hofladen-Profil ist `orders: false`, daher erfasst StevesHof aktuell **keine** Kundenbestellungen über den Tab **Team** — dort steht nur der **Temperatur-Check**. Soll der Hofladen Bestellungen aufnehmen, in `TENANT_BRANDING.steveshof_hauptbetrieb.modules` `orders: true` setzen und die Service-Worker-Cache-Version erhöhen. Die Kollegen-Anleitung beschreibt den Bestell-Ablauf bereits für diesen Fall.
+> **Kundenbestellungen für StevesHof:** Im Hofladen-Profil ist `orders: false` und `team: false`, daher erfasst StevesHof aktuell **keine** Kundenbestellungen über den Tab **Team**. Soll der Hofladen Bestellungen aufnehmen, in `TENANT_BRANDING.steveshof_hauptbetrieb.modules` `team: true` und `orders: true` setzen und die Service-Worker-Cache-Version erhöhen. HACCP bleibt davon unabhängig im eigenen Tab.
 
 #### 2.3 Bootstrap-Daten (kein Client-Seeding)
 
