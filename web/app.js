@@ -4,6 +4,7 @@ import {
   initAuthModule,
   isHelperUser,
   isOfficeUser,
+  loginOfficeTenant,
   loginTenant,
   verifyAdminAction,
   waitForAuthReady,
@@ -331,7 +332,7 @@ function bindOfficeAccessLock() {
       const submitBtn = form.querySelector('.office-access-lock-submit');
       if (submitBtn) submitBtn.disabled = true;
       try {
-        await loginTenant(email, password);
+        await loginOfficeTenant(email, password);
         const ctx = getAuthContext();
         if (!isOfficeUser(ctx)) {
           setOfficeLoginError('Dieses Konto hat keinen Büro-Zugang. Bitte Admin-Zugangsdaten verwenden.');
@@ -346,7 +347,9 @@ function bindOfficeAccessLock() {
       } catch (err) {
         console.warn('[CharcuLogic Büro] Admin-Anmeldung fehlgeschlagen:', err);
         const code = String(err?.code || '');
-        if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+        if (code === 'auth/not-office-user') {
+          setOfficeLoginError('Dieses Konto hat keinen Büro-Zugang. Bitte Admin-Zugangsdaten verwenden.');
+        } else if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
           setOfficeLoginError('Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen.');
         } else {
           setOfficeLoginError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.');

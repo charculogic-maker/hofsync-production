@@ -11,6 +11,7 @@ let authState = {
   showHUD: () => {},
   overlay: null,
   errorBox: null,
+  suspendAuthBroadcast: false,
 };
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
@@ -291,6 +292,50 @@ function hideLoginOverlay() {
   setAuthError('');
 }
 
+function applyAuthenticatedContext(nextContext, { showHud = true } = {}) {
+  authContext = nextContext;
+  document.documentElement.dataset.authenticatedTenant = nextContext.tenantId;
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(nextContext.tenantId);
+  }
+  hideLoginOverlay();
+  if (showHud) {
+    authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
+  }
+  window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
+  if (resolveAuthReady) {
+    resolveAuthReady(nextContext);
+    resolveAuthReady = null;
+  }
+}
+
+async function restorePreviousAuthSession(previousUser, previousContext) {
+  const auth = authState.firebase.auth();
+  if (previousUser && typeof auth.updateCurrentUser === 'function') {
+    try {
+      await auth.updateCurrentUser(previousUser);
+      if (previousContext) {
+        cacheTenantId(previousContext.tenantId);
+        setGlobalTenantId(previousContext.tenantId);
+        applyAuthenticatedContext({ ...previousContext, user: previousUser }, { showHud: false });
+      } else {
+        authContext = null;
+        setGlobalTenantId(null);
+        showLoginOverlay();
+      }
+      return;
+    } catch (err) {
+      console.warn('[CharcuLogic Auth] Vorherige Sitzung konnte nicht wiederhergestellt werden:', err);
+    }
+  }
+
+  clearSessionCaches();
+  authContext = null;
+  setGlobalTenantId(null);
+  await auth.signOut();
+  showLoginOverlay();
+}
+
 async function waitForAuthDb(maxMs = 5000) {
   const started = Date.now();
   while (!authState.db && Date.now() - started < maxMs) {
@@ -414,6 +459,8 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   });
 
   authState.firebase.auth().onAuthStateChanged(async (user) => {
+    if (authState.suspendAuthBroadcast) return;
+
     if (!user) {
       authContext = null;
       setGlobalTenantId(null);
@@ -423,18 +470,7 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
 
     try {
       const nextContext = await buildAuthContext(user);
-      authContext = nextContext;
-      document.documentElement.dataset.authenticatedTenant = nextContext.tenantId;
-      if (typeof window.applyResolvedBranding === 'function') {
-        window.applyResolvedBranding(nextContext.tenantId);
-      }
-      hideLoginOverlay();
-      authState.showHUD('Angemeldet', `Betrieb: ${nextContext.tenantId}`);
-      window.dispatchEvent(new CustomEvent('charculogic:auth-changed', { detail: nextContext }));
-      if (resolveAuthReady) {
-        resolveAuthReady(nextContext);
-        resolveAuthReady = null;
-      }
+      applyAuthenticatedContext(nextContext);
     } catch (err) {
       authContext = null;
       setGlobalTenantId(null);
@@ -467,6 +503,39 @@ export async function loginTenant(email, password) {
     authContext = await buildAuthContext(credential.user);
   }
   return credential;
+}
+
+export async function loginOfficeTenant(email, password) {
+  ensureAuthConfigured();
+  if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
+
+  const auth = authState.firebase.auth();
+  const previousUser = auth.currentUser || null;
+  const previousContext = authContext;
+  let restoredSession = false;
+  authState.suspendAuthBroadcast = true;
+
+  try {
+    const credential = await auth.signInWithEmailAndPassword(email, password);
+    const nextContext = credential?.user ? await buildAuthContext(credential.user) : null;
+    if (!isOfficeUser(nextContext)) {
+      await restorePreviousAuthSession(previousUser, previousContext);
+      restoredSession = true;
+      const err = new Error('Dieses Konto hat keinen Büro-Zugang. Bitte Admin-Zugangsdaten verwenden.');
+      err.code = 'auth/not-office-user';
+      throw err;
+    }
+
+    applyAuthenticatedContext(nextContext);
+    return credential;
+  } catch (err) {
+    if (!restoredSession) {
+      await restorePreviousAuthSession(previousUser, previousContext);
+    }
+    throw err;
+  } finally {
+    authState.suspendAuthBroadcast = false;
+  }
 }
 
 export async function loginWithToken(token) {
