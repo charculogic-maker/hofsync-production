@@ -156,6 +156,9 @@ export async function expectStorageUploadDeny(ctx, objectPath, contentType = 'im
 export function sampleMhdItem(tenantId) {
   return {
     name: 'Emulator Test Artikel',
+    produkt: 'Emulator Test Artikel',
+    brand: 'Test-Manufaktur',
+    herstellerZusatz: 'Test-Manufaktur',
     qty: 1,
     tenantId,
   };

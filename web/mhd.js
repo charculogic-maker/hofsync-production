@@ -1676,11 +1676,15 @@ function showLearnModeDialog(ean) {
         }),
       ];
       const saveResults = await Promise.allSettled(saveJobs);
-      const failedSave = saveResults.find((result) => result.status === 'rejected');
-      if (failedSave) {
-        console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
+      const appsScriptResult = saveResults[0];
+      const firestoreSave = saveResults[1];
+      if (appsScriptResult?.status === 'rejected') {
+        console.warn('[CharcuLogic Firebase] Apps-Script-Speicherziel hat nicht geantwortet:', appsScriptResult.reason);
       }
-      const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
+      if (firestoreSave?.status === 'rejected') {
+        throw firestoreSave.reason || new Error('Wareneingang konnte nicht in Firestore gespeichert werden.');
+      }
+      const firestoreResult = firestoreSave?.status === 'fulfilled' ? firestoreSave.value : null;
       saveProductMaster(newProduct);
       rememberMhdScanCategory(kategorie);
       if (isVpe) {
@@ -3967,6 +3971,10 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const failedMhdWrites = mhdResults.filter((result) => result.status === 'rejected');
+    if (failedMhdWrites.length > 0) {
+      throw failedMhdWrites[0].reason || new Error(`${failedMhdWrites.length} MHD-Posten konnten nicht gespeichert werden.`);
+    }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
