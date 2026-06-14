@@ -96,6 +96,19 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'list',
       );
     });
+
+    it('requires tenantId on receiving MHD records even with the accepted manufacturer fields', async () => {
+      const ctx = torfabrikEmployee();
+      const payload = sampleMhdItem(TENANTS.TORFABRIK);
+      delete payload.tenantId;
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'missing-tenant'),
+        'create',
+        payload,
+      );
+    });
   });
 
   describe('TEST CASE 2: helper Role Constraints', () => {

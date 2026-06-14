@@ -9,7 +9,7 @@
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
-import { getTenantCollection } from './tenant-db.js';
+import { getTenantCollection, getGlobalTenantId } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -38,6 +38,7 @@ const parserState = {
   ocrInFlight: false,
   saveInFlight: false,
   featureEnabled: true,
+  tenantId: '',
 };
 
 function isSteveshofTenant(tenantId) {
@@ -394,6 +395,7 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId: parserState.tenantId || getGlobalTenantId(),
     updatedAt: nowIso,
     createdAt: nowIso,
   };
@@ -431,17 +433,28 @@ async function bucheLieferungEin(rows) {
   try {
     parserState.saveInFlight = true;
     let hatWartende = false;
+    let bestandUpdateFehlgeschlagen = false;
     for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
       const result = await schreibeMhdPosten(row, author, nowIso);
       if (result === 'queued') hatWartende = true;
+      if (result === 'queued') continue;
+      try {
+        await erhoeheBestand(row, author, nowIso);
+      } catch (stockErr) {
+        bestandUpdateFehlgeschlagen = true;
+        console.warn('[DeliveryParser] Stammdaten-Bestand konnte nicht aktualisiert werden:', stockErr);
+      }
     }
     removePreviewOverlay();
-    if (hatWartende) {
-      window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
+    if (bestandUpdateFehlgeschlagen) {
+      window.showToast?.('Lieferschein als MHD-Posten verbucht. Die Bestandssumme bitte im Büro prüfen.', 'warning');
       return;
     }
-    window.showToast?.('Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!', 'success');
+    if (hatWartende) {
+      window.showToast?.('Lieferschein gespeichert - MHD-Posten werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
+      return;
+    }
+    window.showToast?.('Lieferschein erfolgreich als MHD-Posten verbucht.', 'success');
   } catch (err) {
     console.error('[DeliveryParser] Einbuchen fehlgeschlagen:', err);
     window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
@@ -518,6 +531,7 @@ export function initDeliveryParser(options = {}) {
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;
   parserState.getHistory = typeof options.getHistory === 'function' ? options.getHistory : parserState.getHistory;
+  parserState.tenantId = String(options.tenantId || getGlobalTenantId() || '').trim();
   parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
 
   bindUi();
