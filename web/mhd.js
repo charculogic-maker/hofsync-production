@@ -7,6 +7,10 @@ import {
   getTenantCollectionPath,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
+import {
+  requireAllSettledWritesFulfilled,
+  requireSettledWriteFulfilled,
+} from './receiving-write-results.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
 
@@ -1676,11 +1680,13 @@ function showLearnModeDialog(ean) {
         }),
       ];
       const saveResults = await Promise.allSettled(saveJobs);
-      const failedSave = saveResults.find((result) => result.status === 'rejected');
-      if (failedSave) {
-        console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
+      if (saveResults[0]?.status === 'rejected') {
+        console.warn('[CharcuLogic Firebase] Apps Script hat nicht geantwortet:', saveResults[0].reason);
       }
-      const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
+      const firestoreResult = requireSettledWriteFulfilled(
+        saveResults[1],
+        'Wareneingang konnte nicht in Firestore gespeichert werden.',
+      );
       saveProductMaster(newProduct);
       rememberMhdScanCategory(kategorie);
       if (isVpe) {
@@ -3967,8 +3973,12 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const mhdWriteResults = requireAllSettledWritesFulfilled(
+      mhdResults,
+      'Mindestens ein MHD-Posten konnte nicht gespeichert werden.',
+    );
     const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
+      || mhdWriteResults.some((result) => result === 'queued');
 
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
