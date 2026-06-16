@@ -163,7 +163,7 @@ service cloud.firestore {
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
@@ -189,7 +189,7 @@ service cloud.firestore {
       allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',

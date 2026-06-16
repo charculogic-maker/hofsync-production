@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260611-165-knowledge-tab';
+const CACHE_NAME = 'charculogic-v20260616-166-receiving-write-guard';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -23,6 +23,7 @@ const CRITICAL_ASSETS = [
   '/auth.js',
   '/scanner.js',
   '/mhd.js',
+  '/receiving-write-results.js',
   '/retter-box.js',
   '/date-input.js',
   '/delivery-note.js',
