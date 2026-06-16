@@ -96,6 +96,47 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'list',
       );
     });
+
+    it('allows receiving MHD records with manufacturer supplement for own tenant only', async () => {
+      const ctx = torfabrikEmployee();
+      const payload = {
+        ...sampleMhdItem(TENANTS.TORFABRIK),
+        herstellerZusatz: 'Bio-Hof Test',
+      };
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'with-manufacturer'),
+        'create',
+        payload,
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'foreign-manufacturer'),
+        'create',
+        {
+          ...payload,
+          tenantId: TENANTS.STEVES_HOF,
+        },
+      );
+    });
+
+    it('requires tenantId on receiving MHD records with manufacturer supplement', async () => {
+      const ctx = torfabrikEmployee();
+      const payload = {
+        ...sampleMhdItem(TENANTS.TORFABRIK),
+        herstellerZusatz: 'Bio-Hof Test',
+      };
+      delete payload.tenantId;
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'missing-tenant'),
+        'create',
+        payload,
+      );
+    });
   });
 
   describe('TEST CASE 2: helper Role Constraints', () => {
