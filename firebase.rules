@@ -483,18 +483,45 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
-    function isCustomerOrderStatusUpdate() {
+    function isCustomerOrderReadyUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
         ])
-        && isNonEmptyString(request.resource.data.status)
+        && resource.data.status == 'open'
+        && request.resource.data.status == 'ready'
+        && isOptionalString(request.resource.data.pickupPlace)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          !('items' in request.resource.data)
+          || isCustomerOrderItemsList(request.resource.data.items)
         );
+    }
+
+    function isCustomerOrderPickedUpUpdate() {
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'pickedUpBy', 'pickedUpAt'
+        ])
+        && resource.data.status == 'ready'
+        && request.resource.data.status == 'picked_up';
+    }
+
+    function isCustomerOrderCancelUpdate() {
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status'
+        ])
+        && resource.data.status == 'open'
+        && request.resource.data.status == 'cancelled';
+    }
+
+    function isCustomerOrderStatusUpdate() {
+      return isCustomerOrderReadyUpdate()
+        || isCustomerOrderPickedUpUpdate()
+        || isCustomerOrderCancelUpdate();
     }
 
     match /tenants/{tenantId}/customerOrders/{orderId} {

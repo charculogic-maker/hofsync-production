@@ -332,19 +332,25 @@ async function findStockDocForOrderItem(item) {
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
-    if (!amount) continue;
+    if (amount <= 0) continue;
     const ref = await findStockDocForOrderItem(item);
     if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    const key = ref.path;
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    const existing = deductionsByPath.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      if (!existing.product.includes(product)) {
+        existing.product = `${existing.product}, ${product}`;
+      }
+    } else {
+      deductionsByPath.set(key, { ref, amount, product });
+    }
   }
-  return deductions;
+  return Array.from(deductionsByPath.values());
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -377,6 +383,9 @@ async function markOrderPickedUpWithStock(order, employee) {
     stockSnaps.forEach(({ deduction, snap }) => {
       if (!snap.exists) return;
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
+      if (deduction.amount > currentStock) {
+        throw new Error(`Für ${deduction.product} ist weniger Bestand im System als in der Bestellung. Bitte im Büro prüfen.`);
+      }
       const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
       transaction.update(deduction.ref, {
         currentStock: nextStock,
@@ -1239,6 +1248,8 @@ async function updateOrderStatus(orderId, nextStatus) {
       window.showToast?.(
         message.includes('WLAN')
           ? 'Bitte bei WLAN erneut versuchen, damit wir den Bestand aktualisieren können.'
+          : message.includes('weniger Bestand im System')
+            ? message
           : 'Bestellung konnte nicht als abgeholt markiert werden. Bitte erneut versuchen.',
         'error',
       );
