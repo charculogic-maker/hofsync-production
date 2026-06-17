@@ -335,7 +335,7 @@ async function prepareStockDeductionsForOrder(order) {
   const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
-    if (!amount) continue;
+    if (amount <= 0) continue;
     const ref = await findStockDocForOrderItem(item);
     if (!ref) continue;
     const key = ref.path;
