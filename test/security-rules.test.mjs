@@ -228,6 +228,103 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order staff status updates', () => {
+    const openOrderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'bulk-ready-order');
+    const openOrder = {
+      customerName: 'Meyer',
+      callbackPhone: '0123456789',
+      readyAt: '2026-06-17T15:00:00.000Z',
+      items: [
+        {
+          product: 'Fleischsalat',
+          quantity: '2',
+          unit: 'kg',
+          pricePerKg: '12,90',
+        },
+      ],
+      acceptedBy: 'Stephan',
+      acceptedAt: '2026-06-17T09:00:00.000Z',
+      status: 'open',
+      tenantId: TENANTS.STEVES_HOF,
+      createdAt: '2026-06-17T09:00:00.000Z',
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, openOrderPath, openOrder);
+    });
+
+    it('allows employees to mark a bulk picklist order ready with pickup place and weighed quantity', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-orders', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        openOrderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              ...openOrder.items[0],
+              actualQuantity: '1,85',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-06-17T10:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies helpers and cross-tenant employees from changing customer order status', async () => {
+      const helperCtx = authContext(testEnv, 'sh-helper-orders', TENANTS.STEVES_HOF, 'helper');
+      await expectFirestoreDeny(
+        helperCtx,
+        openOrderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Aushilfe',
+          readyMarkedAt: serverTimestamp(),
+        },
+      );
+
+      const otherTenantCtx = authContext(testEnv, 'tf-employee-orders', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        otherTenantCtx,
+        openOrderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'TorFabrik',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+        },
+      );
+    });
+
+    it('denies employee item edits that are not part of an open-to-ready transition', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-item-edit', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        openOrderPath,
+        'update',
+        {
+          items: [
+            {
+              ...openOrder.items[0],
+              actualQuantity: '1,85',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-06-17T10:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
