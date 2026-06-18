@@ -228,6 +228,124 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order status transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'pickup-ready-1');
+
+    function sampleCustomerOrder(overrides = {}) {
+      return {
+        customerName: 'Kundin Test',
+        callbackPhone: '+491701234567',
+        customerEmail: '',
+        readyAt: '2026-06-19',
+        items: [
+          {
+            product: 'Fleischsalat',
+            quantity: '2',
+            unit: 'kg',
+          },
+        ],
+        additionalWishes: '',
+        inputMode: 'manual',
+        acceptedBy: 'Stephan',
+        acceptedAt: '2026-06-18T08:30:00.000Z',
+        status: 'open',
+        tenantId: TENANTS.STEVES_HOF,
+        createdAt: '2026-06-18T08:30:00.000Z',
+        ...overrides,
+      };
+    }
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder());
+    });
+
+    it('allows employees to mark a bulk picklist order ready with pickup place', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+      });
+    });
+
+    it('allows employees to persist measured item quantities while marking ready', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-items', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [
+          {
+            product: 'Fleischsalat',
+            quantity: '2',
+            unit: 'kg',
+            actualQuantity: '1.95',
+            actualQuantityUnit: 'kg',
+            actualQuantityRecordedAt: '2026-06-18T09:00:00.000Z',
+          },
+        ],
+      });
+    });
+
+    it('denies employees changing unrelated order fields during status updates', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-inject', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        customerName: 'Geänderte Kundin',
+      });
+    });
+
+    it('denies employees adding order lines while marking ready', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-extra-line', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [
+          {
+            product: 'Fleischsalat',
+            quantity: '2',
+            unit: 'kg',
+          },
+          {
+            product: 'Rinderfilet',
+            quantity: '1',
+            unit: 'kg',
+          },
+        ],
+      });
+    });
+
+    it('denies employees changing items during pickup completion', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder({ status: 'ready' }));
+      const ctx = authContext(testEnv, 'sh-employee-order-pickup-items', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Stephan',
+        pickedUpAt: serverTimestamp(),
+        items: [
+          {
+            product: 'Fleischsalat',
+            quantity: '2',
+            unit: 'kg',
+            actualQuantity: '1.90',
+          },
+        ],
+      });
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

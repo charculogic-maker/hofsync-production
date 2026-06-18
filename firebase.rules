@@ -483,12 +483,35 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
+    function isCustomerOrderReadyDetailsUpdate() {
+      return (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && isNonEmptyString(request.resource.data.pickupPlace)
+          )
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && isCustomerOrderItemsList(request.resource.data.items)
+            && resource.data.items is list
+            && request.resource.data.items.size() == resource.data.items.size()
+          )
+        );
+    }
+
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
+        && isCustomerOrderReadyDetailsUpdate()
         && isNonEmptyString(request.resource.data.status)
         && (
           (resource.data.status == 'open' && request.resource.data.status == 'ready')
