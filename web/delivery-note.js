@@ -3,6 +3,7 @@
  */
 
 import { getAuthContext } from './auth.js';
+import { waitForAppCheckReady } from './app-check.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 
 const TORFABRIK_TENANT_ID = 'torfabrik';
