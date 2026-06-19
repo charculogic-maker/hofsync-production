@@ -7,6 +7,7 @@
     "seed:tenant": "node tools/seed-tenant-bootstrap.mjs",
     "claims:sync": "node tools/set-user-claims.mjs",
     "preview": "vite preview",
+    "test:web-critical": "mocha test/web-critical-regressions.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --timeout 15000\"",
     "test:rules:watch": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --watch --timeout 15000\"",
     "test:functions:security": "npm --prefix functions run test:security",
