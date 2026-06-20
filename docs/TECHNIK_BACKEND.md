@@ -115,6 +115,21 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 
 Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehen in `firebase.rules`.
 
+### 2.1 Client-seitige EAN-Stammdaten im Wareneingang
+
+Der Barcode-Wareneingang (`web/mhd.js`) kombiniert Firestore-Bestand mit geräte-lokalem Lernspeicher. Diese Daten sind **kein** mandantenweiter Stammdatendienst, sondern helfen dem jeweiligen Laden-iPhone beim nächsten Scan.
+
+| Speicher | Inhalt | Quelle / Pflege |
+|----------|--------|------------------|
+| `charculogic.productMaster.v1` | Gelernte Einzel-EANs mit Name, Marke und Kategorie | `rememberProductLocally()`, `rememberCategoryForBarcode()` |
+| `charculogic.vpeMaster.v1` | Gelernte VPE-Barcodes inkl. `packageSize` | Lernmodus / `rememberVpeLocally()` |
+| `web/vpe-master.csv` | ausgelieferter VPE-Seed | `loadVpeMasterFromCsv()` |
+| `lastReceivingHeadCategory` | Session-Gedächtnis für die zuletzt gewählte Warengruppe | `rememberReceivingHeadCategory()`, nicht persistent |
+
+Unbekannte Barcodes blockieren den Scan-Fluss nicht: Im Wareneingang erscheint `#we-unknown-barcode-actions`, im MHD-Monitor `#mhd-unknown-barcode-prompt` mit manueller Anlage bzw. Lernmodus. Kategorie-Korrekturen aus **Letzte Eingänge** aktualisieren alle passenden EAN-Zeilen über `saveMhdCategoryForBarcode()` und laufen offline über `writeOrQueueFirestore()`.
+
+**Troubleshooting:** Falsche Kategorie beim nächsten Scan → lokale Keys im Browser prüfen, ggf. Kategorie in **Letzte Eingänge** korrigieren. Offline-Korrekturen liegen bis zum Flush unter `charculogic.pendingSyncs.{tenantId}` (siehe §3.8).
+
 ---
 
 ## 3. Security Rules & Rollenmodell
@@ -204,6 +219,25 @@ Roh-Fehlerdetails bleiben in `console.error`; Operatoren sehen über `web/operat
 
 `match /tenants/{tenantId}/pushTokens/{tokenId}`: **`allow read: if false`** — Clients können FCM-Tokens anderer Geräte/Mitarbeiter nicht enumerieren. Schreiben/Löschen bleibt für authentifizierte Mandanten-Nutzer schema-validiert.
 
+### 3.8 Client-Sync & Telemetrie-Warteschlangen
+
+`web/sync.js` kapselt alle Offline-Schreibwege. Mandantenpfade werden vor dem Schreiben über `normalizeTenantCollectionPath()` gegen den aktuellen `tenantId` geprüft; ein Queue-Eintrag mit fremdem `tenants/{tenantId}/…`-Pfad wird clientseitig abgewiesen und zusätzlich durch Firestore Rules blockiert.
+
+| localStorage-Key | Zweck | Begrenzung / Flush |
+|------------------|-------|--------------------|
+| `charculogic.pendingSyncs.{tenantId}` | Ausstehende Firestore-Schreibvorgänge (`create`, `set`, `update`, `delete`) | Flush bei `online`, `visibilitychange` und nach App-Start |
+| `charculogic.pendingSyncs.dead.{tenantId}` | Dead Letter nach wiederholten Fehlern | max. 100 Einträge; erzeugt `ERR_SYNC_DEAD_LETTER` |
+| `charculogic.errorTelemetry.{tenantId}` | Client-Fehler vor dem Server-Flush | max. 200 Einträge; Flush nach `/system_errors` |
+
+`flushErrorTelemetry()` schreibt nur bei Online-Status, initialisiertem Firebase-Kontext und gültigem Mandant. Das Firestore-Dokument wird über `buildSystemErrorDocument()` auf das erlaubte Schema aus §3.6 reduziert (`tenantId`, `errorCode`, `message`, `timestamp`, optional `userId`, `context`).
+
+**Runbook „Änderung kommt nicht an“:**
+
+1. Browser DevTools → Application → localStorage: `pendingSyncs`, `pendingSyncs.dead`, `errorTelemetry` für den Mandanten prüfen.
+2. Netzwerk/Auth prüfen: `navigator.onLine`, gültiger Login, Custom Claim `tenantId`.
+3. Bei Dead Letter: `system_errors` nur per Admin SDK / Console auswerten; Client hat absichtlich kein Leserecht.
+4. Bei Toast „Administrator benachrichtigt“: `console.error` enthält technische Details, die Nutzeransicht bleibt bereinigt über `operator-errors.js`.
+
 ---
 
 ## 4. Cloud Functions (`functions/`)
@@ -281,13 +315,24 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+### 4.3 `parseDeliveryNote` – KI-Lieferschein
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
 - **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
-- **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
-- **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
+- **Backend:** `functions/parseDeliveryNoteCallable.js` ruft `deliveryNote.handleParseDeliveryNote()`; die Antwort ist `previewOnly: true`, Persistenz passiert ausschließlich im jeweiligen Client.
+- **Auth:** angemeldeter Mandanten-Nutzer mit Mitarbeiter/Admin-Rechten; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
+
+Zwei Frontend-Clients nutzen dieselbe Callable, schreiben aber in unterschiedliche Collections:
+
+| Mandant / UI | Client | Sichtbarkeit | Schreibziel nach Prüfung |
+|--------------|--------|--------------|--------------------------|
+| TorFabrik → Tab **Neu** → „Lieferschein scannen (KI)“ | `web/delivery-note.js` | Büro-Controls (`#btn-delivery-note-ai`) und Mandant `torfabrik` beim Speichern | `tenants/torfabrik/inventory/{batchId_index}` |
+| StevesHof → Tab **Neu** → „Lieferschein fotografieren / hochladen“ | `web/delivery-parser.js` | Beta-Gate: StevesHof nur für `FEATURE_TEST_EMAIL = patrik@charculogic.de`; andere Mandanten sichtbar | `tenants/{tenantId}/stammdaten/{artikel}` und `tenants/{tenantId}/mhd_liste/{postenId}` |
+
+StevesHof ergänzt nach der KI-Antwort MHD-Vorschläge aus Lieferhistorie (`vorhersagenMhd()`) oder Fallback-Schlüsselwörtern. Offline wird nur der MHD-Posten über `writeOrQueueFirestore()` vorgemerkt; der Stammdaten-Stock-Update läuft direkt gegen Firestore.
+
+**Freigabe-Runbook StevesHof:** Gate in `isDeliveryParserVisible()` bewusst anpassen, Hosting inkl. `web/sw.js`-Cache-Version deployen, App Check / Callable-Smoke prüfen und anschließend im Laden-iPhone bestätigen, dass `#btn-delivery-parser` nur für die gewünschte Rolle/Gruppe erscheint.
 
 ### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
 
@@ -388,7 +433,29 @@ Nach Erstellung in der Console **Notification Channels** an die Policy binden.
 - Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
 - Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
 
-### 4.7 Lokales Testen
+### 4.7 `onOrderReadySendSignal` – Kunden-Signal
+
+- **Typ:** Firestore-Trigger (`onDocumentUpdated`) auf `tenants/{tenantId}/customerOrders/{orderId}`, Region `europe-west3`.
+- **Export:** `functions/index.js` → `onOrderReadySendSignal`; Implementierung in `functions/orderNotifications.js`.
+- **Auslöser:** `before.status !== "ready"` und `after.status === "ready"`. Wenn `after.tenantId` gesetzt ist und nicht zum Pfad-Mandanten passt, wird der Versand übersprungen.
+- **Preislogik:** `calculateFinalOrderPrice()` nutzt `actualQuantity`, falls vorhanden, sonst Bestellmenge; Preisquellen sind u. a. `pricePerKg`, `unitPrice`, `lineTotal`.
+
+| Kanal | Voraussetzung | Verhalten bei fehlender Konfiguration |
+|-------|---------------|----------------------------------------|
+| E-Mail | `customerEmail` + SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL`) | Kanal wird mit Warnlog übersprungen |
+| SMS | `callbackPhone` + Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `FROM_NUMBER`) | Kanal wird mit Warnlog übersprungen |
+
+Versandfehler werden geloggt, aber nicht erneut geworfen; der Trigger soll Bestellstatus-Updates nicht zurückrollen. Bei Kunden ohne E-Mail und Telefonnummer loggt die Function „Kein Kundenkanal hinterlegt“ und beendet sich ohne Versand.
+
+**Deploy / Betrieb:**
+
+```bash
+firebase deploy --only functions:onOrderReadySendSignal
+```
+
+StevesHof hat im aktuellen Branding `orders: false`; die Function bleibt deploybar, aber die Bestell-UI ist ausgeblendet. Für eine Freischaltung `modules.orders` setzen, Hosting mit neuer Service-Worker-Version deployen und SMTP/Twilio-Parameter vor dem ersten echten Versand prüfen.
+
+### 4.8 Lokales Testen
 
 ```bash
 cd functions

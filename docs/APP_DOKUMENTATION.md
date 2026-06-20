@@ -120,7 +120,8 @@ Pro Mandant konfigurierbar:
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
-| `cutGlossary` | Tab **Cuts** (regionales Cut-Lexikon, optional) |
+| `knowledge` | Tab **Wissen** (`page-knowledge`) mit Fleisch-Lexikon und statischen Hofladen-Handbüchern |
+| `cutGlossary` | Tab **Cuts** (`page-cuts`) als reines Cut-Lexikon; aktiviert ebenfalls **Wissen**, wenn kein eigener Wissen-Flag gesetzt ist |
 | `haccp` | Tab **HACCP** |
 | `teamboard` | Tab **Start** (Teamboard) |
 | `team` | Tab **Team** (nur wenn explizit `true` oder abhängige Module aktiv) |
@@ -135,7 +136,7 @@ Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danac
 
 ## 4. Navigation & Module
 
-Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
+Untere Navigationsleiste — bis zu neun Tabs, mandanten- und rollenabhängig:
 
 | Tab-ID | Label | Seite | Hauptmodule | Kurzbeschreibung |
 |--------|-------|-------|-------------|------------------|
@@ -145,7 +146,8 @@ Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS |
 | `haccp` | HACCP | `page-haccp` | `haccp.js` | Tageskontrollen, Geräte-Setup |
-| `cuts` | Cuts | `page-cuts` | `cuts.js` | Cut-Bezeichnungen, Synonyme, Muskelgruppen, Menschen-Vergleich |
+| `knowledge` | Wissen | `page-knowledge` | `cuts.js`, statische HTML-Handbücher | Wissen-Akkordeon mit Fleisch-Lexikon und Hofladen-Infos |
+| `cuts` | Cuts | `page-cuts` | `cuts.js` | Standalone-Cut-Lexikon, nur bei `modules.cutGlossary: true` |
 | `batches` | Büro | `page-batches` | `production.js`, `team-config.js` | Chargen, Leitstand, Admin-Panels |
 
 ### MHD-Monitor (`web/mhd.js`)
@@ -191,9 +193,16 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 - Meister-Override bei Temperatur-Abweichung (PIN via `verifyTerminalPin`)
 - Druckansicht für Tagesprotokoll
 
-### Cut-Lexikon (`web/cuts.js`)
+### Wissen (`page-knowledge`, `web/cuts.js`)
 
-- Optionaler Tab **Cuts** ueber `modules.cutGlossary: true`
+- Sichtbar, wenn `modules.knowledge === true` oder `modules.cutGlossary === true`
+- StevesHof nutzt `knowledge: true`, `cutGlossary: false`: ein Tab **Wissen** mit Akkordeon statt separatem **Cuts**-Tab
+- Enthält das Fleisch-Lexikon (`cuts.js`) plus statische Hofladen-Handbücher aus `web/index.html`
+- Keine Firestore-Schreibvorgänge; Inhalte sind lokal im Frontend gebündelt
+
+### Cut-Lexikon (`page-cuts`, `web/cuts.js`)
+
+- Optionaler Standalone-Tab **Cuts** über `modules.cutGlossary: true`
 - Kuratierte Offline-Liste fuer Rind, Schwein und Lamm
 - Suche ueber Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
 - Keine Firestore-Daten und keine Schreibvorgaenge; reines Nachschlage-Modul
@@ -231,6 +240,7 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | Wareneingang Metzgerei | ❌ |
 | Wurstküche / Prod. | ✅ |
 | HACCP | ✅ |
+| Wissen | ✅ (`knowledge: true`, kein separater Cuts-Tab) |
 | Teamboard (Start) | ❌ |
 | Team (Bestellungen) | ❌ |
 | Kundenbestellungen (`orders`) | ❌ (Backend vorbereitet, UI aus) |
@@ -247,6 +257,7 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | Neu | ✅ |
 | Prod. | ✅ |
 | HACCP | ✅ |
+| Wissen | ✅ |
 | Büro | ❌ (nur persönliche Admin-Konten) |
 | Team / Start | ❌ |
 
@@ -346,6 +357,7 @@ node tools/set-user-claims.mjs --all --project=hofsync-production
 | Lie-Fi-Timeout | 3,5 s, dann Queue |
 | Flush | bei `online` und `visibilitychange`, max. 5 Versuche |
 | Dead Letter | `charculogic.pendingSyncs.dead.{tenantId}` (max. 100) |
+| Fehler-Telemetrie | `charculogic.errorTelemetry.{tenantId}` bis zum Flush nach `system_errors` |
 | Mandanten-Safety | Pfade werden gegen Token-`tenantId` geprüft |
 
 Nutzer-Toasts bei Offline: *„Wird automatisch synchronisiert, sobald WLAN verfügbar ist.“*
