@@ -105,6 +105,25 @@ service cloud.firestore {
         );
     }
 
+    function hasField(fieldName) {
+      return request.resource.data.keys().hasAny([fieldName]);
+    }
+
+    function isNumericFieldOrMissing(fieldName) {
+      return !hasField(fieldName)
+        || isNumericOrNull(request.resource.data[fieldName]);
+    }
+
+    function isOptionalStringField(fieldName) {
+      return !hasField(fieldName)
+        || isOptionalString(request.resource.data[fieldName]);
+    }
+
+    function isTimestampOrIsoStringFieldOrMissing(fieldName) {
+      return !hasField(fieldName)
+        || isTimestampOrIsoStringOrNull(request.resource.data[fieldName]);
+    }
+
     function hasOnly(allowedFields) {
       return request.resource.data.keys().hasOnly(allowedFields);
     }
@@ -370,20 +389,20 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.value)
-        && isNumericOrNull(request.resource.data.thresholdMax)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
-        && isOptionalString(request.resource.data.type)
-        && isOptionalString(request.resource.data.stationId)
-        && isOptionalString(request.resource.data.facility)
-        && isOptionalString(request.resource.data.doneBy)
-        && isOptionalString(request.resource.data.taskId)
-        && isOptionalString(request.resource.data.task)
-        && isOptionalString(request.resource.data.periodType)
-        && isOptionalString(request.resource.data.periodKey)
-        && isTimestampOrIsoStringOrNull(request.resource.data.timestamp)
+        && isNumericFieldOrMissing('wert')
+        && isNumericFieldOrMissing('value')
+        && isNumericFieldOrMissing('thresholdMax')
+        && isNumericFieldOrMissing('temperatur')
+        && isNumericFieldOrMissing('ph')
+        && isOptionalStringField('type')
+        && isOptionalStringField('stationId')
+        && isOptionalStringField('facility')
+        && isOptionalStringField('doneBy')
+        && isOptionalStringField('taskId')
+        && isOptionalStringField('task')
+        && isOptionalStringField('periodType')
+        && isOptionalStringField('periodKey')
+        && isTimestampOrIsoStringFieldOrMissing('timestamp')
         && isTimestampOrIsoStringOrNull(request.resource.data.createdAt);
 
       allow update, delete: if false;
