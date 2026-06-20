@@ -92,6 +92,38 @@ service cloud.firestore {
         || (field is string && field.size() >= 8 && field.size() <= 24);
     }
 
+    function isTimestampOrIsoStringOrNull(field) {
+      return field == null
+        || field == request.time
+        || (
+          field is timestamp
+          && field > request.time - duration.value(48, 'h')
+        )
+        || (
+          field is string
+          && field.size() >= 20
+        );
+    }
+
+    function hasField(fieldName) {
+      return request.resource.data.keys().hasAny([fieldName]);
+    }
+
+    function isNumericFieldOrMissing(fieldName) {
+      return !hasField(fieldName)
+        || isNumericOrNull(request.resource.data[fieldName]);
+    }
+
+    function isOptionalStringField(fieldName) {
+      return !hasField(fieldName)
+        || isOptionalString(request.resource.data[fieldName]);
+    }
+
+    function isTimestampOrIsoStringFieldOrMissing(fieldName) {
+      return !hasField(fieldName)
+        || isTimestampOrIsoStringOrNull(request.resource.data[fieldName]);
+    }
+
     function hasOnly(allowedFields) {
       return request.resource.data.keys().hasOnly(allowedFields);
     }
@@ -345,6 +377,10 @@ service cloud.firestore {
         && hasOnly([
           'logTyp', 'deviceId', 'deviceName', 'bereich',
           'wert', 'temperatur', 'ph',
+          'type', 'stationId', 'facility', 'doneBy',
+          'value', 'thresholdMax',
+          'taskId', 'task', 'periodType', 'periodKey',
+          'timestamp',
           'einheit', 'sollMin', 'sollMax',
           'status', 'massnahme',
           'chargenNummer',
@@ -353,20 +389,21 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
-        && (
-          request.resource.data.createdAt == request.time
-          || (
-            request.resource.data.createdAt is timestamp
-            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
-          )
-          || (
-            request.resource.data.createdAt is string
-            && request.resource.data.createdAt.size() >= 20
-          )
-        );
+        && isNumericFieldOrMissing('wert')
+        && isNumericFieldOrMissing('value')
+        && isNumericFieldOrMissing('thresholdMax')
+        && isNumericFieldOrMissing('temperatur')
+        && isNumericFieldOrMissing('ph')
+        && isOptionalStringField('type')
+        && isOptionalStringField('stationId')
+        && isOptionalStringField('facility')
+        && isOptionalStringField('doneBy')
+        && isOptionalStringField('taskId')
+        && isOptionalStringField('task')
+        && isOptionalStringField('periodType')
+        && isOptionalStringField('periodKey')
+        && isTimestampOrIsoStringFieldOrMissing('timestamp')
+        && isTimestampOrIsoStringOrNull(request.resource.data.createdAt);
 
       allow update, delete: if false;
     }
