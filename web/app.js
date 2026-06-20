@@ -19,7 +19,6 @@ import {
   qaState,
   requeueDeadPendingSyncs,
   reportCriticalError,
-  savePendingSyncs,
   updateSyncIndicator,
   writeFirestoreDocOrQueue,
 } from './sync.js';
@@ -1344,7 +1343,6 @@ function showSyncQueueDialog() {
       </div>
       <div style="display:flex;gap:8px;">
         <button type="button" class="btn btn-primary" id="sync-queue-retry">Jetzt synchronisieren</button>
-        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Liste leeren</button>
       </div>
     </div>
   `;
@@ -1366,12 +1364,6 @@ function showSyncQueueDialog() {
         : 'Übertragung erneut angestoßen.',
       'success',
     );
-  });
-  document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
-    savePendingSyncs([]);
-    updateSyncIndicator();
-    close();
-    showToast('Liste lokal geleert.', 'warning');
   });
 }
 

@@ -228,6 +228,93 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: HACCP daily log writes', () => {
+    const employee = () => authContext(
+      testEnv,
+      'sh-employee-haccp',
+      TENANTS.STEVES_HOF,
+      'employee',
+    );
+
+    function temperaturePayload(tenantId = TENANTS.STEVES_HOF) {
+      return {
+        logTyp: 'temperatur',
+        type: 'temperature',
+        stationId: 'hofladen-kuehlung',
+        deviceId: 'hofladen-kuehlung',
+        facility: 'Kühlauslage Hofladen',
+        deviceName: 'Kühlauslage Hofladen',
+        doneBy: 'Stephan',
+        value: 4.2,
+        wert: 4.2,
+        einheit: '°C',
+        thresholdMax: 7,
+        sollMax: 7,
+        bereich: 'Verkauf',
+        status: 'ok',
+        massnahme: '',
+        tenantId,
+        datum: '2026-06-20',
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+    }
+
+    function cleaningPayload(tenantId = TENANTS.STEVES_HOF) {
+      return {
+        logTyp: 'reinigung',
+        type: 'cleaning',
+        taskId: 'wurstkueche-flaechen',
+        task: 'Arbeitsflächen reinigen',
+        doneBy: 'Stephan',
+        periodType: 'day',
+        periodKey: '2026-06-20',
+        deviceName: 'Arbeitsflächen reinigen',
+        bereich: 'Wurstküche',
+        status: 'erledigt',
+        massnahme: 'Stephan',
+        tenantId,
+        datum: '2026-06-20',
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+    }
+
+    it('allows employee to create current HACCP temperature and cleaning logs', async () => {
+      const ctx = employee();
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'temp-2026-06-20'),
+        'create',
+        temperaturePayload(),
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'clean-2026-06-20'),
+        'create',
+        cleaningPayload(),
+      );
+    });
+
+    it('denies HACCP logs with foreign fields or mismatched tenantId', async () => {
+      const ctx = employee();
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'haccp-extra-field'),
+        'create',
+        { ...temperaturePayload(), injected: true },
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'haccp-wrong-tenant'),
+        'create',
+        cleaningPayload(TENANTS.TORFABRIK),
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

@@ -466,8 +466,7 @@ async function saveHaccpLog(entry) {
     }
     if (isPermissionDeniedError(err)) {
       console.warn(`[CharcuLogic HACCP] permission-denied für ${docId}`);
-      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
+      throw err;
     }
     console.warn('[CharcuLogic HACCP] Speichern fehlgeschlagen:', err);
     throw err;
