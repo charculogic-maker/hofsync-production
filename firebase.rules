@@ -370,21 +370,22 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
-        && isNumericOrNull(request.resource.data.value)
-        && isNumericOrNull(request.resource.data.thresholdMax)
-        && isOptionalString(request.resource.data.type)
-        && isOptionalString(request.resource.data.stationId)
-        && isOptionalString(request.resource.data.facility)
-        && isOptionalString(request.resource.data.doneBy)
-        && isOptionalString(request.resource.data.taskId)
-        && isOptionalString(request.resource.data.task)
-        && isOptionalString(request.resource.data.periodType)
-        && isOptionalString(request.resource.data.periodKey)
+        && (!('wert' in request.resource.data) || isNumericOrNull(request.resource.data.wert))
+        && (!('temperatur' in request.resource.data) || isNumericOrNull(request.resource.data.temperatur))
+        && (!('ph' in request.resource.data) || isNumericOrNull(request.resource.data.ph))
+        && (!('value' in request.resource.data) || isNumericOrNull(request.resource.data.value))
+        && (!('thresholdMax' in request.resource.data) || isNumericOrNull(request.resource.data.thresholdMax))
+        && (!('type' in request.resource.data) || isOptionalString(request.resource.data.type))
+        && (!('stationId' in request.resource.data) || isOptionalString(request.resource.data.stationId))
+        && (!('facility' in request.resource.data) || isOptionalString(request.resource.data.facility))
+        && (!('doneBy' in request.resource.data) || isOptionalString(request.resource.data.doneBy))
+        && (!('taskId' in request.resource.data) || isOptionalString(request.resource.data.taskId))
+        && (!('task' in request.resource.data) || isOptionalString(request.resource.data.task))
+        && (!('periodType' in request.resource.data) || isOptionalString(request.resource.data.periodType))
+        && (!('periodKey' in request.resource.data) || isOptionalString(request.resource.data.periodKey))
+        && ('createdAt' in request.resource.data)
         && isClientTimestampOrRecent(request.resource.data.createdAt)
-        && isClientTimestampOrRecent(request.resource.data.timestamp);
+        && (!('timestamp' in request.resource.data) || isClientTimestampOrRecent(request.resource.data.timestamp));
 
       allow update, delete: if false;
     }
@@ -510,7 +511,10 @@ service cloud.firestore {
           'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
-        && isOptionalString(request.resource.data.pickupPlace)
+        && (
+          !('pickupPlace' in request.resource.data)
+          || isOptionalString(request.resource.data.pickupPlace)
+        )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
           || isCustomerOrderItemsList(request.resource.data.items)
