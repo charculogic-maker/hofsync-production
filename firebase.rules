@@ -83,6 +83,10 @@ service cloud.firestore {
       return field == null || field is int || field is float;
     }
 
+    function isNumericFieldOrMissing(fieldName) {
+      return isNumericOrNull(request.resource.data.get(fieldName, null));
+    }
+
     function isIntGteZero(field) {
       return (field is int || field is float) && field >= 0;
     }
@@ -356,11 +360,11 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.value)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
-        && isNumericOrNull(request.resource.data.thresholdMax)
+        && isNumericFieldOrMissing('wert')
+        && isNumericFieldOrMissing('value')
+        && isNumericFieldOrMissing('temperatur')
+        && isNumericFieldOrMissing('ph')
+        && isNumericFieldOrMissing('thresholdMax')
         && (
           request.resource.data.createdAt == request.time
           || (
