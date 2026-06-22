@@ -473,7 +473,7 @@ async function tryStaleArchiveFallback(item) {
 export async function flushOnePendingSync(item) {
   const db = syncContext.getDatabase();
   const firebase = syncContext.getFirebase();
-  const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _attempts, data, ...legacyData } = item;
+  const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _merge, _attempts, data, ...legacyData } = item;
   if (_syncType === 'haccp' && _collectionPath) {
     const collectionPath = normalizeTenantCollectionPath(_collectionPath);
     await db.collection(collectionPath).add({
@@ -505,7 +505,7 @@ export async function flushOnePendingSync(item) {
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
           setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         }
-        await ref.set(setPayload, { merge: false });
+        await ref.set(setPayload, { merge: Boolean(_merge) });
       } else if (writeOp === 'create') {
         const createPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -606,6 +606,7 @@ export async function writeFirestoreDocOrQueue({
   op = 'update',
   onlineData = {},
   queueData = onlineData,
+  merge = false,
   offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.",
   silentPermissionDenied = false,
 }) {
@@ -623,6 +624,7 @@ export async function writeFirestoreDocOrQueue({
       _collectionPath: normalizedCollectionPath,
       _docId: docId,
       _op: syncOp,
+      _merge: Boolean(merge),
       data: syncData,
     });
     if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
@@ -651,7 +653,7 @@ export async function writeFirestoreDocOrQueue({
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {
         setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       }
-      writePromise = ref.set(setPayload, { merge: false });
+      writePromise = ref.set(setPayload, { merge: Boolean(merge) });
     } else if (writeOp === 'create') {
       const createPayload = { ...onlinePayload };
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -683,6 +685,7 @@ export async function writeFirestoreDocOrQueue({
       _collectionPath: normalizedCollectionPath,
       _docId: docId,
       _op: syncOp,
+      _merge: Boolean(merge),
       data: syncData,
     });
     if (!saved) throw err;

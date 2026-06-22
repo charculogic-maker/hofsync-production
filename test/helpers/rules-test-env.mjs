@@ -190,6 +190,52 @@ export function sampleSettings(tenantId) {
   };
 }
 
+export function sampleHaccpTemperatureLog(tenantId, overrides = {}) {
+  return {
+    logTyp: 'temperatur',
+    type: 'temperature',
+    stationId: 'fresh-cooling-kaese-theke',
+    deviceId: 'fresh-cooling-kaese-theke',
+    facility: 'Käse-Theke',
+    deviceName: 'Käse-Theke',
+    doneBy: 'Bettina',
+    value: 4.2,
+    wert: 4.2,
+    einheit: '°C',
+    thresholdMax: 7,
+    sollMax: 7,
+    bereich: 'FRISCHE-KÜHLUNG',
+    status: 'ok',
+    massnahme: '',
+    tenantId,
+    datum: '2026-06-22',
+    timestamp: '2026-06-22T08:00:00.000Z',
+    createdAt: '2026-06-22T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+export function sampleHaccpCleaningLog(tenantId, overrides = {}) {
+  return {
+    logTyp: 'reinigung',
+    type: 'cleaning',
+    taskId: 'verkaufstheke-waagen',
+    task: 'Verkaufstheke & Waagen gereinigt',
+    doneBy: 'Bettina',
+    periodType: 'day',
+    periodKey: '2026-06-22',
+    deviceName: 'Verkaufstheke & Waagen gereinigt',
+    bereich: 'TÄGLICH (IM LADENBETRIEB)',
+    status: 'erledigt',
+    massnahme: 'Bettina',
+    tenantId,
+    datum: '2026-06-22',
+    timestamp: '2026-06-22T08:00:00.000Z',
+    createdAt: '2026-06-22T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
 /** Production path is bulletin/ (singular) – see web/teamboard.js */
 export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;

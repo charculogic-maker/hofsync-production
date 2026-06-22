@@ -21,6 +21,8 @@ import {
   expectStorageUploadDeny,
   resetEmulatorData,
   sampleInventoryItem,
+  sampleHaccpCleaningLog,
+  sampleHaccpTemperatureLog,
   sampleMhdItem,
   sampleSettings,
   sampleTask,
@@ -224,6 +226,47 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: HACCP client payloads', () => {
+    it('allows employee temperature and cleaning logs shaped like the web client payloads', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-haccp', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'temperature_fresh-cooling-kaese-theke_2026-06-22'),
+        'create',
+        sampleHaccpTemperatureLog(TENANTS.STEVES_HOF, {
+          timestamp: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        }),
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'cleaning_verkaufstheke-waagen_2026-06-22'),
+        'create',
+        sampleHaccpCleaningLog(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies HACCP logs across tenants and for helpers', async () => {
+      const torfabrikEmployee = authContext(testEnv, 'tf-employee-haccp-cross', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        torfabrikEmployee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'cross-tenant-temp'),
+        'create',
+        sampleHaccpTemperatureLog(TENANTS.STEVES_HOF),
+      );
+
+      const helper = authContext(testEnv, 'sh-helper-haccp', TENANTS.STEVES_HOF, 'helper');
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'helper-cleaning'),
+        'create',
+        sampleHaccpCleaningLog(TENANTS.STEVES_HOF),
       );
     });
   });
