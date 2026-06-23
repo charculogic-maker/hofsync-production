@@ -132,12 +132,12 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.artikel)
         && isNonEmptyString(request.resource.data.name)
         && (
-          resource.data.currentStock == null
+          !('currentStock' in resource.data)
           || isIntGteZero(resource.data.currentStock)
         )
         && isIntGteZero(request.resource.data.currentStock)
         && (
-          resource.data.currentStock == null
+          !('currentStock' in resource.data)
           || request.resource.data.currentStock >= resource.data.currentStock
         );
     }
@@ -153,6 +153,7 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'currentStock', 'updatedAt'
             ])
+            && ('currentStock' in resource.data)
             && isIntGteZero(resource.data.currentStock)
             && isIntGteZero(request.resource.data.currentStock)
             && request.resource.data.currentStock <= resource.data.currentStock
