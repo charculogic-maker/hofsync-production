@@ -27,7 +27,7 @@ import {
   seedFirestoreDoc,
   tenantDocPath,
 } from './helpers/rules-test-env.mjs';
-import { arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { arrayUnion, increment, serverTimestamp } from 'firebase/firestore';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -224,6 +224,171 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: employee delivery booking stock increases', () => {
+    const existingStockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'delivery-fleischsalat');
+    const catalogOnlyStockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'catalog-only-item');
+    const newStockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'delivery-new-item');
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, existingStockPath, {
+        artikel: 'Fleischsalat',
+        name: 'Fleischsalat',
+        kategorie: 'Wurst',
+        currentStock: 12,
+        tenantId: TENANTS.STEVES_HOF,
+      });
+      await seedFirestoreDoc(testEnv, catalogOnlyStockPath, {
+        artikel: 'Joghurt',
+        name: 'Joghurt',
+        kategorie: 'MoPro',
+        tenantId: TENANTS.STEVES_HOF,
+      });
+    });
+
+    function deliveryBookingPayload(overrides = {}) {
+      return {
+        artikel: 'Fleischsalat',
+        name: 'Fleischsalat',
+        kategorie: 'Wurst',
+        currentStock: increment(3),
+        lastMhd: '2026-07-15',
+        lastDeliveryAt: '2026-06-23T10:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        updatedAt: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    it('allows employee to increase stock with delivery metadata on own tenant item', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-update', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        existingStockPath,
+        'update',
+        deliveryBookingPayload(),
+      );
+    });
+
+    it('allows employee delivery booking to initialize missing current stock', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-init', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        catalogOnlyStockPath,
+        'update',
+        deliveryBookingPayload({
+          artikel: 'Joghurt',
+          name: 'Joghurt',
+          kategorie: 'MoPro',
+          currentStock: increment(6),
+        }),
+      );
+    });
+
+    it('allows employee to create a new stock item from a delivery booking', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-create', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        newStockPath,
+        'create',
+        deliveryBookingPayload({ currentStock: 3 }),
+      );
+    });
+
+    it('denies delivery stock bookings across tenants or with foreign fields', async () => {
+      const foreignCtx = authContext(testEnv, 'tf-employee-delivery-cross', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        existingStockPath,
+        'update',
+        deliveryBookingPayload(),
+      );
+
+      const ownCtx = authContext(testEnv, 'sh-employee-delivery-wide', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        existingStockPath,
+        'update',
+        deliveryBookingPayload({ einkaufspreis: 4.99 }),
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: customer order picklist completion', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-picklist-1');
+
+    function sampleOrder(tenantId, overrides = {}) {
+      return {
+        customerName: 'Testkunde',
+        callbackPhone: '+49123456789',
+        readyAt: '2026-06-23',
+        items: [{ name: 'Fleischsalat', amount: 1, unit: 'kg' }],
+        acceptedBy: 'Team',
+        acceptedAt: '2026-06-23T09:00:00.000Z',
+        status: 'open',
+        tenantId,
+        createdAt: '2026-06-23T09:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleOrder(TENANTS.STEVES_HOF));
+    });
+
+    it('allows employee to mark picklist order ready with pickup place and final items', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-picklist-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [{ name: 'Fleischsalat', amount: 0.85, unit: 'kg', actualQuantity: 0.85 }],
+        },
+      );
+    });
+
+    it('denies cross-tenant picklist completion and item changes during pickup', async () => {
+      const foreignCtx = authContext(testEnv, 'tf-employee-picklist-cross', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+        },
+      );
+
+      const ownCtx = authContext(testEnv, 'sh-employee-picklist-pickup-wide', TENANTS.STEVES_HOF, 'employee');
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-pickup-locked'),
+        sampleOrder(TENANTS.STEVES_HOF, { status: 'ready' }),
+      );
+      await expectFirestoreDeny(
+        ownCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-pickup-locked'),
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Team',
+          pickedUpAt: serverTimestamp(),
+          items: [{ name: 'Fleischsalat', amount: 99, unit: 'kg' }],
+        },
       );
     });
   });
