@@ -5,8 +5,6 @@
 import { isLocalDevHost } from './dev-guards.js';
 import { FIREBASE_PROJECTS, resolveFirebaseProjectKey } from './firebase-config.js';
 
-const DEBUG_TOKEN_STORAGE_KEY = 'charculogic_appcheck_debug_token';
-
 /** @type {Promise<void> | null} */
 let appCheckReadyPromise = null;
 let appCheckActivationFailed = false;
@@ -19,14 +17,25 @@ function readConfiguredSiteKey() {
   return trimmed;
 }
 
+function readLocalDebugToken() {
+  if (!isLocalDevHost()) return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = String(params.get('appCheckDebugToken') || '').trim();
+    if (fromQuery) return fromQuery;
+    const fromStorage = String(localStorage.getItem('charculogic_appcheck_debug_token') || '').trim();
+    if (fromStorage) return fromStorage;
+  } catch (_) { /* noop */ }
+  return true;
+}
+
 export function configureAppCheckDebugProvider() {
   if (!isLocalDevHost()) return false;
 
   try {
-    try { localStorage.removeItem(DEBUG_TOKEN_STORAGE_KEY); } catch (_) { /* noop */ }
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = "92603496-35B1-47B1-BBC1-6FE31249BF21";
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = readLocalDebugToken();
     console.info(
-      '[AppCheck] Lokaler Debug-Modus aktiv. Registrierter Debug-Schlüssel wird verwendet.',
+      '[AppCheck] Lokaler Debug-Modus aktiv. Debug-Schlüssel aus Console/LocalStorage verwenden oder neu registrieren.',
     );
     return true;
   } catch (err) {

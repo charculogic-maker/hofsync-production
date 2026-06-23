@@ -114,16 +114,51 @@ service cloud.firestore {
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
+    function isStammdatenDeliveryBookingCreate() {
+      return hasOnly([
+          'artikel', 'name', 'kategorie', 'currentStock',
+          'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
+    function isStammdatenDeliveryBookingUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'name', 'kategorie', 'currentStock',
+          'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && (
+          resource.data.currentStock == null
+          || isIntGteZero(resource.data.currentStock)
+        )
+        && isIntGteZero(request.resource.data.currentStock)
+        && (
+          resource.data.currentStock == null
+          || request.resource.data.currentStock >= resource.data.currentStock
+        );
+    }
+
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && isStammdatenDeliveryBookingCreate();
       allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'currentStock', 'updatedAt'
-        ])
-        && isIntGteZero(resource.data.currentStock)
-        && isIntGteZero(request.resource.data.currentStock)
-        && request.resource.data.currentStock <= resource.data.currentStock;
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'currentStock', 'updatedAt'
+            ])
+            && isIntGteZero(resource.data.currentStock)
+            && isIntGteZero(request.resource.data.currentStock)
+            && request.resource.data.currentStock <= resource.data.currentStock
+          )
+          || isStammdatenDeliveryBookingUpdate()
+        );
     }
 
     match /tenants/{tenantId}/settings/{document} {
@@ -486,14 +521,37 @@ service cloud.firestore {
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
+            ])
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+              || isOptionalString(request.resource.data.pickupPlace)
+            )
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+              || isCustomerOrderItemsList(request.resource.data.items)
+            )
+          )
+          || (
+            resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'pickedUpBy', 'pickedUpAt'
+            ])
+          )
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status'
+            ])
+          )
         );
     }
 
