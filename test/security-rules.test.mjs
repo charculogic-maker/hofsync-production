@@ -228,6 +228,86 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order fulfillment status updates', () => {
+    function sampleCustomerOrder(tenantId, overrides = {}) {
+      return {
+        customerName: 'Regeltest Kunde',
+        callbackPhone: '012345678',
+        customerEmail: '',
+        readyAt: '2026-06-24T12:00:00.000Z',
+        items: [
+          { product: 'Rindersteak', quantity: '1', unit: 'kg' },
+        ],
+        acceptedBy: 'Stephan',
+        acceptedAt: '2026-06-24T09:00:00.000Z',
+        status: 'open',
+        tenantId,
+        createdAt: '2026-06-24T09:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('allows employee bulk-ready update with pickup place and weighed items', async () => {
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'bulk-ready-ok');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.TORFABRIK));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-ready', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              product: 'Rindersteak',
+              quantity: '1',
+              unit: 'kg',
+              actualQuantity: '0,98',
+              actualQuantityUnit: 'kg',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies employee bulk-ready updates that change item count or tenant', async () => {
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'bulk-ready-deny');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.TORFABRIK));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-deny', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          items: [
+            { product: 'Rindersteak', quantity: '1', unit: 'kg' },
+            { product: 'Zusatzartikel', quantity: '1', unit: 'Stück' },
+          ],
+        },
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          tenantId: TENANTS.STEVES_HOF,
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
