@@ -483,17 +483,31 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
+    function isCustomerOrderReadyUpdate() {
+      return resource.data.status == 'open'
+        && request.resource.data.status == 'ready'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
+        ])
+        && isOptionalString(request.resource.data.pickupPlace)
+        && isCustomerOrderItemsList(request.resource.data.items);
+    }
+
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          isCustomerOrderReadyUpdate()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+            ])
+            && (
+              (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+              || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+            )
+          )
         );
     }
 
