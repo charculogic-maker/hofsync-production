@@ -786,6 +786,15 @@ function setActiveEmployee(employeeName) {
 }
 
 function refreshTeamLoginUi() {
+  if (window.isFirebaseRoleAuth?.()) {
+    document.getElementById('team-login-card')?.setAttribute('hidden', '');
+    const authName = window.resolveFirebaseEmployeeName?.() || window.syncFirebaseEmployeeSession?.() || '';
+    const status = document.getElementById('team-login-status');
+    if (status) {
+      status.textContent = authName ? `Angemeldet als: ${authName}` : 'Angemeldet als: —';
+    }
+    return;
+  }
   const select = document.getElementById('team-login-employee');
   const pinInput = document.getElementById('team-login-pin');
   const current = getActiveEmployeeName();
@@ -797,6 +806,10 @@ function refreshTeamLoginUi() {
 }
 
 function bindTeamLogin() {
+  if (window.isFirebaseRoleAuth?.()) {
+    document.getElementById('team-login-card')?.setAttribute('hidden', '');
+    return;
+  }
   const submit = document.getElementById('team-login-submit');
   const logout = document.getElementById('team-login-logout');
   if (!submit || submit.dataset.teamboardBound === '1') return;

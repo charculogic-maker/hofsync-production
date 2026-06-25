@@ -5,6 +5,7 @@
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
+import { createHttpsCallable } from './firebase-functions.js';
 import { getTenantCollection } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
@@ -98,7 +99,7 @@ function getVerifyPinCallable() {
   const firebase = configState.getFirebase();
   if (!firebase?.functions) return null;
   if (!configState.verifyPinCallable) {
-    configState.verifyPinCallable = firebase.app().functions('europe-west3').httpsCallable('verifyTerminalPin');
+    configState.verifyPinCallable = createHttpsCallable('verifyTerminalPin', undefined, firebase);
   }
   return configState.verifyPinCallable;
 }

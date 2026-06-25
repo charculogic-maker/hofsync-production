@@ -1,0 +1,730 @@
+/**
+ * Enterprise Dev-Dashboard – /dev-dashboard
+ * Super-Admin: alle Mandanten | Mandanten-Admin: nur eigener Mandant
+ */
+import { TENANT_MODULE_KEYS } from './tenant-modules.js';
+import { createHttpsCallable } from './firebase-functions.js';
+import { waitForAppCheckReady } from './app-check.js';
+import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
+
+// ⚡ Notausgang: auch hier ganz oben prüfen, falls /dev-dashboard direkt mit
+// ?logout=true / ?forceLogout=true geladen wird (vor jedem Auth-/Routing-Check).
+if (isEmergencyLogoutRequested()) {
+  void handleEmergencyLogoutParam();
+}
+
+export const DEV_DASHBOARD_ADMIN_UIDS = [
+  'VYwMy5IAlAR26pj8ZbFfc5PNdou2',
+];
+
+export const SUPER_ADMIN_EMAIL = 'patrik@charculogic.de';
+
+const EMPLOYEE_PERMISSION_KEYS = ['mhd', 'kitchen', 'buero'];
+
+const MODULE_LABELS = {
+  mhd: 'MHD',
+  receiving: 'Wareneingang',
+  kitchen: 'Küche',
+  haccp: 'HACCP',
+  knowledge: 'Wissen',
+  buero: 'Büro',
+};
+
+const EMPLOYEE_MODULE_LABELS = {
+  mhd: 'MHD',
+  kitchen: 'Küche',
+  buero: 'Büro',
+};
+
+export function isDevDashboardRoute() {
+  const path = String(window.location?.pathname || '');
+  return path === '/dev-dashboard' || path.endsWith('/dev-dashboard');
+}
+
+export function isSuperAdmin(user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (email === SUPER_ADMIN_EMAIL) return true;
+  const uid = String(user?.uid || '').trim();
+  return DEV_DASHBOARD_ADMIN_UIDS.includes(uid);
+}
+
+export function isDevDashboardAdmin(user, authContext = null) {
+  if (authContext?.role === 'admin' || authContext?.isAdmin === true) return true;
+  if (isSuperAdmin(user)) return true;
+  const uid = String(user?.uid || '').trim();
+  if (!uid) return false;
+  return DEV_DASHBOARD_ADMIN_UIDS.includes(uid);
+}
+
+async function signOutFromDashboard() {
+  try {
+    const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+    if (firebaseApi?.apps?.length && typeof firebaseApi.auth === 'function') {
+      await firebaseApi.auth().signOut();
+    }
+  } catch (err) {
+    console.warn('[Dev-Dashboard] SignOut fehlgeschlagen:', err);
+  }
+}
+
+function ensureAccessDeniedPanel() {
+  let panel = document.getElementById('dev-dashboard-denied');
+  if (panel) return panel;
+
+  const page = document.getElementById('page-dev-dashboard');
+  if (!page) return null;
+
+  panel = document.createElement('div');
+  panel.id = 'dev-dashboard-denied';
+  panel.className = 'dev-dashboard-denied';
+  panel.hidden = true;
+  panel.innerHTML = `
+    <div class="dev-dashboard-denied-card" role="alert">
+      <div class="dev-dashboard-denied-icon" aria-hidden="true">🔒</div>
+      <h1 class="dev-dashboard-denied-title">Zugriff verweigert</h1>
+      <p class="dev-dashboard-denied-text">Dieser Bereich ist nur für Admins.</p>
+      <button type="button" class="dev-dashboard-denied-logout" id="dev-dashboard-denied-logout">
+        Abmelden / Account wechseln
+      </button>
+    </div>
+  `;
+  page.appendChild(panel);
+
+  const logoutBtn = panel.querySelector('#dev-dashboard-denied-logout');
+  logoutBtn?.addEventListener('click', async () => {
+    logoutBtn.disabled = true;
+    logoutBtn.textContent = 'Wird abgemeldet…';
+    await signOutFromDashboard();
+    // Nach dem SignOut sauber neu laden (Notausgang räumt den Rest ab).
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('logout', 'true');
+      window.location.replace(url.toString());
+    } catch (_) {
+      window.location.reload();
+    }
+  });
+
+  return panel;
+}
+
+function showDevDashboardAccessDenied() {
+  const shell = document.querySelector('#page-dev-dashboard .dev-dashboard-shell');
+  if (shell) shell.hidden = true;
+  const panel = ensureAccessDeniedPanel();
+  if (panel) panel.hidden = false;
+}
+
+function hideDevDashboardAccessDenied() {
+  const shell = document.querySelector('#page-dev-dashboard .dev-dashboard-shell');
+  if (shell) shell.hidden = false;
+  const panel = document.getElementById('dev-dashboard-denied');
+  if (panel) panel.hidden = true;
+}
+
+export function navigateBackToMainApp() {
+  teardownDevDashboard();
+  document.body?.classList.remove('dev-dashboard-view');
+  window.syncDesktopWideLayout?.();
+  window.location.replace('/#page-mhd');
+}
+
+const EMPTY_TENANTS_MESSAGE = 'ℹ️ Keine Mandanten in der Datenbank. Wurde das Seeding-Skript ausgeführt?';
+const PERMISSION_DENIED_MESSAGE = '⚠️ Zugriff verweigert! Bitte prüfe deine firestore.rules für die UID.';
+
+function isPermissionDeniedError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  return code === 'permission-denied' || code.includes('permission');
+}
+
+function normalizeAllowedModules(value) {
+  const result = {};
+  EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
+    if (value && typeof value === 'object' && key in value) {
+      result[key] = value[key] !== false;
+    } else {
+      result[key] = true;
+    }
+  });
+  return result;
+}
+
+function hideMainAppChrome() {
+  document.body?.classList.add('dev-dashboard-view');
+  document.querySelector('.bottom-nav')?.setAttribute('hidden', '');
+  document.querySelector('.admin-header-dropdown')?.setAttribute('hidden', '');
+  const dropdown = document.getElementById('admin-header-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+  window.syncDesktopWideLayout?.('page-dev-dashboard');
+}
+
+function showDevDashboardPage() {
+  document.querySelectorAll('.page').forEach((page) => {
+    const active = page.id === 'page-dev-dashboard';
+    page.classList.toggle('active', active);
+    page.style.display = active ? 'block' : 'none';
+  });
+  const titleEl = document.getElementById('header-title');
+  const subtitleEl = document.getElementById('header-subtitle');
+  if (titleEl) titleEl.textContent = 'Verwaltung';
+  if (subtitleEl) subtitleEl.textContent = 'Mandant & Mitarbeiter';
+  const appContent = document.getElementById('app-content');
+  if (appContent) appContent.scrollTop = 0;
+}
+
+function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
+  const enabled = data.enabledModules && typeof data.enabledModules === 'object'
+    ? data.enabledModules
+    : {};
+  const displayName = String(data.displayName || tenantId).trim();
+  const toggles = TENANT_MODULE_KEYS.map((key) => {
+    const checked = enabled[key] === true;
+    return `
+      <label class="dev-dashboard-toggle" title="${MODULE_LABELS[key]}">
+        <input
+          type="checkbox"
+          data-tenant-id="${tenantId}"
+          data-module-key="${key}"
+          ${checked ? 'checked' : ''}
+        >
+        <span>${MODULE_LABELS[key]}</span>
+      </label>
+    `;
+  }).join('');
+
+  if (compact) {
+    return `
+      <div class="dev-dashboard-tenant-compact" data-tenant-row="${tenantId}">
+        <div class="dev-dashboard-tenant-id">
+          <strong>${displayName}</strong>
+          <span class="dev-dashboard-tenant-sub">${tenantId}</span>
+        </div>
+        <div class="dev-dashboard-toggles">${toggles}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <tr data-tenant-row="${tenantId}">
+      <td class="dev-dashboard-tenant-id">
+        <strong>${displayName}</strong>
+        <span class="dev-dashboard-tenant-sub">${tenantId}</span>
+      </td>
+      <td class="dev-dashboard-toggles">${toggles}</td>
+    </tr>
+  `;
+}
+
+function renderTenantTable(tenants, { emptyMessage = '', targetBodyId = 'dev-dashboard-tenant-body' } = {}) {
+  const tbody = document.getElementById(targetBodyId);
+  if (!tbody) return;
+  if (!tenants.length) {
+    const message = emptyMessage || EMPTY_TENANTS_MESSAGE;
+    const tone = message.startsWith('⚠️') ? 'error' : 'info';
+    tbody.innerHTML = `<tr><td colspan="2" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--${tone}">${message}</td></tr>`;
+    return;
+  }
+  const rows = tenants
+    .slice()
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), 'de'))
+    .map(({ id, data }) => renderTenantRow(id, data))
+    .join('');
+  tbody.innerHTML = rows;
+}
+
+function renderSingleTenantPanel(tenantId, data = {}) {
+  const container = document.getElementById('dev-dashboard-single-tenant');
+  if (!container) return;
+  container.innerHTML = renderTenantRow(tenantId, data, { compact: true });
+}
+
+async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
+  const ref = db.collection('tenants').doc(tenantId);
+  const snap = await ref.get();
+  const current = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
+    ? { ...snap.data().enabledModules }
+    : {};
+  current[moduleKey] = enabled;
+  await ref.update({
+    enabledModules: current,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+function bindTenantToggleHandlers(db, statusEl) {
+  const page = document.getElementById('page-dev-dashboard');
+  if (!page || page.dataset.togglesBound === '1') return;
+  page.dataset.togglesBound = '1';
+
+  page.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
+    const tenantId = input.getAttribute('data-tenant-id');
+    const moduleKey = input.getAttribute('data-module-key');
+    if (!tenantId || !moduleKey) return;
+
+    const previous = !input.checked;
+    input.disabled = true;
+    if (statusEl) statusEl.textContent = `Speichere ${tenantId} · ${moduleKey}…`;
+
+    try {
+      await toggleTenantModule(db, tenantId, moduleKey, input.checked);
+      if (statusEl) statusEl.textContent = `Gespeichert: ${tenantId} · ${MODULE_LABELS[moduleKey] || moduleKey}`;
+    } catch (err) {
+      input.checked = previous;
+      console.error('[Dev-Dashboard] Modul-Toggle fehlgeschlagen:', err);
+      if (statusEl) statusEl.textContent = `Fehler: ${err?.message || 'Speichern fehlgeschlagen'}`;
+      window.showToast?.('Modul konnte nicht gespeichert werden.', 'error');
+    } finally {
+      input.disabled = false;
+    }
+  });
+}
+
+function bindDevDashboardBackButton() {
+  const backBtn = document.getElementById('dev-dashboard-back-btn');
+  if (!backBtn || backBtn.dataset.bound === '1') return;
+  backBtn.dataset.bound = '1';
+  backBtn.addEventListener('click', () => {
+    navigateBackToMainApp();
+  });
+}
+
+let createEmployeeCallable = null;
+let manageEmployeesCallable = null;
+
+function getCreateEmployeeCallable() {
+  if (createEmployeeCallable) return createEmployeeCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  createEmployeeCallable = createHttpsCallable('createTenantEmployee', undefined, firebaseApi);
+  return createEmployeeCallable;
+}
+
+function getManageEmployeesCallable() {
+  if (manageEmployeesCallable) return manageEmployeesCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  manageEmployeesCallable = createHttpsCallable('manageTenantEmployees', undefined, firebaseApi);
+  return manageEmployeesCallable;
+}
+
+function setEmployeeFormStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('dev-dashboard-employee-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+}
+
+function readCreateFormAllowedModules() {
+  const allowedModules = {};
+  EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
+    const input = document.getElementById(`dev-dashboard-create-mod-${key}`);
+    allowedModules[key] = input instanceof HTMLInputElement ? input.checked : true;
+  });
+  return allowedModules;
+}
+
+function bindEmployeeCreateForm(dashboardState) {
+  const form = document.getElementById('dev-dashboard-employee-form');
+  if (!form || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitBtn = form.querySelector('[type="submit"]');
+    const name = document.getElementById('dev-dashboard-employee-name')?.value.trim() || '';
+    const email = document.getElementById('dev-dashboard-employee-email')?.value.trim() || '';
+    const password = document.getElementById('dev-dashboard-employee-password')?.value || '';
+    const tenantId = dashboardState.selectedTenantId;
+
+    if (!name || !email || !password) {
+      setEmployeeFormStatus('Bitte Name, E-Mail und Passwort ausfüllen.', 'error');
+      return;
+    }
+    if (!tenantId) {
+      setEmployeeFormStatus('Kein Mandant ausgewählt.', 'error');
+      return;
+    }
+
+    const callable = getCreateEmployeeCallable();
+    if (!callable) {
+      setEmployeeFormStatus('Cloud Function nicht verfügbar.', 'error');
+      return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    setEmployeeFormStatus('Erstelle Mitarbeiter-Konto…');
+
+    try {
+      await waitForAppCheckReady();
+      const result = await callable({
+        name,
+        email,
+        password,
+        tenantId,
+        allowedModules: readCreateFormAllowedModules(),
+      });
+      const createdEmail = result?.data?.email || email;
+      setEmployeeFormStatus(`Mitarbeiter ${createdEmail} angelegt.`, 'success');
+      window.showToast?.(`Mitarbeiter ${name} wurde angelegt.`, 'success');
+      form.reset();
+      EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
+        const input = document.getElementById(`dev-dashboard-create-mod-${key}`);
+        if (input instanceof HTMLInputElement) input.checked = true;
+      });
+      await refreshEmployeeTable(dashboardState);
+    } catch (err) {
+      console.error('[Dev-Dashboard] Mitarbeiter-Anlage fehlgeschlagen:', err);
+      const message = String(err?.message || 'Anlage fehlgeschlagen.');
+      setEmployeeFormStatus(message, 'error');
+      window.showToast?.('Mitarbeiter konnte nicht angelegt werden.', 'error');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
+function renderEmployeePermissionToggles(uid, allowedModules = {}, tenantId) {
+  return EMPLOYEE_PERMISSION_KEYS.map((key) => {
+    const checked = allowedModules[key] !== false;
+    return `
+      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="${EMPLOYEE_MODULE_LABELS[key]}">
+        <input
+          type="checkbox"
+          data-employee-uid="${uid}"
+          data-employee-tenant="${tenantId}"
+          data-permission-key="${key}"
+          ${checked ? 'checked' : ''}
+        >
+        <span>${EMPLOYEE_MODULE_LABELS[key]}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+function renderEmployeeRow(employee, currentUserUid) {
+  const roleLabel = employee.role === 'admin' ? 'Admin' : 'Mitarbeiter';
+  const isSelf = employee.uid === currentUserUid;
+  const roleBtnLabel = employee.role === 'admin' ? '→ Mitarbeiter' : '→ Admin';
+  const nextRole = employee.role === 'admin' ? 'employee' : 'admin';
+
+  return `
+    <tr data-employee-row="${employee.uid}">
+      <td class="dev-dashboard-employee-name">
+        <strong>${employee.displayName || '—'}</strong>
+        <span class="dev-dashboard-tenant-sub">${employee.email || ''}</span>
+      </td>
+      <td>
+        <span class="dev-dashboard-role-badge dev-dashboard-role-badge--${employee.role}">${roleLabel}</span>
+      </td>
+      <td class="dev-dashboard-employee-perms">
+        ${renderEmployeePermissionToggles(employee.uid, employee.allowedModules, employee.tenantId)}
+      </td>
+      <td class="dev-dashboard-employee-actions">
+        <button
+          type="button"
+          class="dev-dashboard-action-btn"
+          data-action="toggle-role"
+          data-uid="${employee.uid}"
+          data-tenant-id="${employee.tenantId}"
+          data-next-role="${nextRole}"
+          ${isSelf ? 'disabled title="Eigene Rolle kann hier nicht geändert werden"' : ''}
+        >${roleBtnLabel}</button>
+        <button
+          type="button"
+          class="dev-dashboard-action-btn dev-dashboard-action-btn--danger"
+          data-action="remove"
+          data-uid="${employee.uid}"
+          data-tenant-id="${employee.tenantId}"
+          data-display-name="${employee.displayName || employee.email}"
+          ${isSelf ? 'disabled title="Du kannst dich nicht selbst entfernen"' : ''}
+        >Entfernen</button>
+      </td>
+    </tr>
+  `;
+}
+
+function renderEmployeeTable(employees, currentUserUid) {
+  const tbody = document.getElementById('dev-dashboard-employee-body');
+  if (!tbody) return;
+  if (!employees.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Mitarbeiter für diesen Mandanten.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = employees.map((emp) => renderEmployeeRow(emp, currentUserUid)).join('');
+}
+
+async function refreshEmployeeTable(dashboardState) {
+  const callable = getManageEmployeesCallable();
+  const statusEl = document.getElementById('dev-dashboard-employee-list-status');
+  const tenantId = dashboardState.selectedTenantId;
+  if (!callable || !tenantId) {
+    renderEmployeeTable([], dashboardState.currentUserUid);
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Lade Mitarbeiter…';
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({ action: 'list', tenantId });
+    const employees = Array.isArray(result?.data?.employees) ? result.data.employees : [];
+    dashboardState.employees = employees;
+    renderEmployeeTable(employees, dashboardState.currentUserUid);
+    if (statusEl) statusEl.textContent = `${employees.length} Mitarbeiter`;
+  } catch (err) {
+    console.error('[Dev-Dashboard] Mitarbeiter-Liste fehlgeschlagen:', err);
+    renderEmployeeTable([], dashboardState.currentUserUid);
+    if (statusEl) statusEl.textContent = `Fehler: ${err?.message || 'Laden fehlgeschlagen'}`;
+  }
+}
+
+function bindEmployeeTableActions(dashboardState) {
+  const section = document.getElementById('dev-dashboard-employee-list');
+  if (!section || section.dataset.bound === '1') return;
+  section.dataset.bound = '1';
+
+  section.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
+    const uid = input.getAttribute('data-employee-uid');
+    const tenantId = input.getAttribute('data-employee-tenant');
+    const permissionKey = input.getAttribute('data-permission-key');
+    if (!uid || !tenantId || !permissionKey) return;
+
+    const employee = dashboardState.employees?.find((e) => e.uid === uid);
+    const allowedModules = normalizeAllowedModules(employee?.allowedModules);
+    allowedModules[permissionKey] = input.checked;
+
+    const callable = getManageEmployeesCallable();
+    if (!callable) return;
+
+    const previous = !input.checked;
+    input.disabled = true;
+    try {
+      await waitForAppCheckReady();
+      await callable({ action: 'update', uid, tenantId, allowedModules });
+      if (employee) employee.allowedModules = allowedModules;
+      window.showToast?.('Berechtigung gespeichert.', 'success');
+    } catch (err) {
+      input.checked = previous;
+      console.error('[Dev-Dashboard] Berechtigung speichern fehlgeschlagen:', err);
+      window.showToast?.('Berechtigung konnte nicht gespeichert werden.', 'error');
+    } finally {
+      input.disabled = false;
+    }
+  });
+
+  section.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-action]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+
+    const action = btn.getAttribute('data-action');
+    const uid = btn.getAttribute('data-uid');
+    const tenantId = btn.getAttribute('data-tenant-id');
+    if (!uid || !tenantId) return;
+
+    const callable = getManageEmployeesCallable();
+    if (!callable) return;
+
+    if (action === 'toggle-role') {
+      const nextRole = btn.getAttribute('data-next-role');
+      if (!nextRole) return;
+      btn.disabled = true;
+      try {
+        await waitForAppCheckReady();
+        await callable({ action: 'update', uid, tenantId, role: nextRole });
+        window.showToast?.('Rolle aktualisiert.', 'success');
+        await refreshEmployeeTable(dashboardState);
+      } catch (err) {
+        console.error('[Dev-Dashboard] Rolle ändern fehlgeschlagen:', err);
+        window.showToast?.(err?.message || 'Rolle konnte nicht geändert werden.', 'error');
+        btn.disabled = false;
+      }
+      return;
+    }
+
+    if (action === 'remove') {
+      const displayName = btn.getAttribute('data-display-name') || 'Mitarbeiter';
+      if (!window.confirm(`${displayName} wirklich entfernen? Das Konto wird gelöscht.`)) return;
+      btn.disabled = true;
+      try {
+        await waitForAppCheckReady();
+        await callable({ action: 'remove', uid, tenantId });
+        window.showToast?.(`${displayName} entfernt.`, 'success');
+        await refreshEmployeeTable(dashboardState);
+      } catch (err) {
+        console.error('[Dev-Dashboard] Mitarbeiter entfernen fehlgeschlagen:', err);
+        window.showToast?.(err?.message || 'Entfernen fehlgeschlagen.', 'error');
+        btn.disabled = false;
+      }
+    }
+  });
+}
+
+function bindTenantSelector(dashboardState, tenants) {
+  const select = document.getElementById('dev-dashboard-tenant-select');
+  if (!select) return;
+
+  select.innerHTML = tenants
+    .slice()
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), 'de'))
+    .map(({ id, data }) => {
+      const label = String(data?.displayName || id).trim();
+      return `<option value="${id}">${label} (${id})</option>`;
+    })
+    .join('');
+
+  const initial = dashboardState.selectedTenantId || tenants[0]?.id || '';
+  select.value = initial;
+  dashboardState.selectedTenantId = select.value;
+
+  if (select.dataset.bound === '1') {
+    void refreshEmployeeTable(dashboardState);
+    return;
+  }
+  select.dataset.bound = '1';
+  select.addEventListener('change', () => {
+    dashboardState.selectedTenantId = select.value;
+    void refreshEmployeeTable(dashboardState);
+  });
+}
+
+function applyDashboardVisibility(dashboardState) {
+  const globalPanel = document.getElementById('dev-dashboard-global-panel');
+  const singlePanel = document.getElementById('dev-dashboard-single-panel');
+  const tenantSelectWrap = document.getElementById('dev-dashboard-tenant-select-wrap');
+  const roleBadge = document.getElementById('dev-dashboard-role-badge');
+
+  if (roleBadge) {
+    roleBadge.textContent = dashboardState.isSuperAdmin ? 'Super-Admin' : 'Mandanten-Admin';
+    roleBadge.dataset.role = dashboardState.isSuperAdmin ? 'super' : 'tenant';
+  }
+
+  if (globalPanel) {
+    globalPanel.hidden = !dashboardState.isSuperAdmin;
+  }
+  if (singlePanel) {
+    singlePanel.hidden = dashboardState.isSuperAdmin;
+  }
+  if (tenantSelectWrap) {
+    tenantSelectWrap.hidden = !dashboardState.isSuperAdmin;
+  }
+}
+
+let tenantsUnsubscribe = null;
+let singleTenantUnsubscribe = null;
+const dashboardState = {
+  isSuperAdmin: false,
+  selectedTenantId: '',
+  currentUserUid: '',
+  employees: [],
+};
+
+function subscribeAllTenants(db, statusEl) {
+  if (tenantsUnsubscribe) tenantsUnsubscribe();
+  tenantsUnsubscribe = db.collection('tenants').onSnapshot(
+    (snap) => {
+      const tenants = snap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
+      renderTenantTable(tenants, {
+        emptyMessage: tenants.length ? '' : EMPTY_TENANTS_MESSAGE,
+      });
+      bindTenantSelector(dashboardState, tenants);
+      if (statusEl && tenants.length) {
+        statusEl.textContent = `${tenants.length} Mandant${tenants.length === 1 ? '' : 'en'} geladen`;
+      }
+    },
+    (err) => {
+      console.error('[Dev-Dashboard] Mandanten-Listener fehlgeschlagen:', err);
+      const emptyMessage = isPermissionDeniedError(err)
+        ? PERMISSION_DENIED_MESSAGE
+        : `⚠️ Fehler beim Laden: ${err?.message || 'Unbekannt'}`;
+      renderTenantTable([], { emptyMessage });
+      if (statusEl) {
+        statusEl.textContent = isPermissionDeniedError(err)
+          ? 'Firestore-Zugriff verweigert'
+          : `Fehler beim Laden: ${err?.message || 'Unbekannt'}`;
+      }
+    },
+  );
+  return tenantsUnsubscribe;
+}
+
+function subscribeSingleTenant(db, tenantId, statusEl) {
+  if (singleTenantUnsubscribe) singleTenantUnsubscribe();
+  if (!tenantId) return null;
+
+  singleTenantUnsubscribe = db.collection('tenants').doc(tenantId).onSnapshot(
+    (snap) => {
+      const data = snap.data() || {};
+      renderSingleTenantPanel(tenantId, data);
+      if (statusEl) statusEl.textContent = `Mandant: ${data.displayName || tenantId}`;
+    },
+    (err) => {
+      console.error('[Dev-Dashboard] Mandanten-Dokument fehlgeschlagen:', err);
+      const container = document.getElementById('dev-dashboard-single-tenant');
+      if (container) {
+        container.innerHTML = `<p class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${PERMISSION_DENIED_MESSAGE}</p>`;
+      }
+    },
+  );
+  return singleTenantUnsubscribe;
+}
+
+export async function initDevDashboard(db, { currentUser, authContext } = {}) {
+  const statusEl = document.getElementById('dev-dashboard-status');
+
+  // Desktop-Layout immer aktivieren — auch im Fehlerfall, damit weder
+  // Fehlermeldung noch Login-Overlay im Smartphone-Simulator landen.
+  hideMainAppChrome();
+  showDevDashboardPage();
+
+  // Kein Redirect mehr: ohne Admin-Rechte saubere Desktop-Fehlermeldung zeigen.
+  if (!isDevDashboardAdmin(currentUser, authContext)) {
+    showDevDashboardAccessDenied();
+    if (statusEl) statusEl.textContent = 'Zugriff verweigert';
+    return false;
+  }
+  hideDevDashboardAccessDenied();
+
+  dashboardState.isSuperAdmin = isSuperAdmin(currentUser);
+  dashboardState.selectedTenantId = authContext?.tenantId || '';
+  dashboardState.currentUserUid = currentUser?.uid || '';
+
+  applyDashboardVisibility(dashboardState);
+
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(authContext?.tenantId || window.resolveEffectiveTenantId?.());
+  }
+  bindDevDashboardBackButton();
+  bindTenantToggleHandlers(db, statusEl);
+  bindEmployeeCreateForm(dashboardState);
+  bindEmployeeTableActions(dashboardState);
+
+  if (dashboardState.isSuperAdmin) {
+    subscribeAllTenants(db, statusEl);
+  } else {
+    subscribeSingleTenant(db, dashboardState.selectedTenantId, statusEl);
+    bindTenantSelector(dashboardState, [{ id: dashboardState.selectedTenantId, data: {} }]);
+  }
+
+  await refreshEmployeeTable(dashboardState);
+
+  if (statusEl && dashboardState.isSuperAdmin) {
+    statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Super-Admin'} · Lade Mandanten…`;
+  } else if (statusEl) {
+    statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Admin'} · ${dashboardState.selectedTenantId}`;
+  }
+  return true;
+}
+
+export function teardownDevDashboard() {
+  if (tenantsUnsubscribe) {
+    tenantsUnsubscribe();
+    tenantsUnsubscribe = null;
+  }
+  if (singleTenantUnsubscribe) {
+    singleTenantUnsubscribe();
+    singleTenantUnsubscribe = null;
+  }
+}

@@ -4,6 +4,8 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+import { waitForAppCheckReady } from './app-check.js';
+import { createHttpsCallable } from './firebase-functions.js';
 
 const TORFABRIK_TENANT_ID = 'torfabrik';
 
@@ -57,8 +59,7 @@ async function callParseDeliveryNote(imageBase64, mimeType) {
   if (!firebase?.functions) {
     throw new Error('Firebase Functions SDK nicht geladen.');
   }
-  const functionsRegion = firebase.app().functions('europe-west3');
-  const callable = functionsRegion.httpsCallable('parseDeliveryNote');
+  const callable = createHttpsCallable('parseDeliveryNote', undefined, firebase);
   await waitForAppCheckReady();
   const result = await callable({ imageBase64, mimeType });
   return normalizeParsedItems(result?.data?.items);

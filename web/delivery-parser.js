@@ -9,6 +9,7 @@
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
+import { createHttpsCallable } from './firebase-functions.js';
 import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 
@@ -208,8 +209,7 @@ async function callParseDeliveryNote(imageBase64, mimeType) {
   if (!firebase?.app) {
     throw new Error('Lieferschein-Einlesen ist gerade nicht bereit.');
   }
-  const functionsRegion = firebase.app().functions('europe-west3');
-  const callable = functionsRegion.httpsCallable('parseDeliveryNote');
+  const callable = createHttpsCallable('parseDeliveryNote', undefined, firebase);
   await waitForAppCheckReady();
   const result = await callable({ imageBase64, mimeType });
   return normalizeParsedItems(result?.data?.items);

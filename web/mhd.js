@@ -252,6 +252,16 @@ const mhdState = {
   initialized: false,
 };
 
+const MHD_ADMIN_SEARCH_LIMIT = 40;
+const MHD_ADMIN_SEARCH_DEBOUNCE_MS = 280;
+const mhdAdminSearchState = {
+  query: '',
+  requestId: 0,
+  debounceTimer: null,
+  loading: false,
+  results: [],
+};
+
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 
@@ -554,6 +564,93 @@ const TORFABRIK_RECEIVING_CATEGORIES = [
 ];
 
 const TORFABRIK_FASS_SHELF_DAYS = 14;
+const KAESE_THEKE_CATEGORY_VALUE = 'kaese_theke';
+let kaeseThekeQtyMode = 'stueck';
+
+function isAdvancedKaeseUpgradeEnabled() {
+  return window.BRANDING?.advancedKaeseUpgrade === true;
+}
+
+function isKaeseThekeCategory(category = '') {
+  const normalized = String(category || '').trim().toLowerCase();
+  return normalized === KAESE_THEKE_CATEGORY_VALUE || normalized === 'käse-theke';
+}
+
+function getBrandingReceivingCategoriesExtra() {
+  if (!isAdvancedKaeseUpgradeEnabled()) return [];
+  const extra = window.BRANDING?.receivingCategoriesExtra;
+  return Array.isArray(extra) ? extra : [];
+}
+
+function ensureKaeseThekeQtyToggle() {
+  try {
+    const existing = document.getElementById('we-kaese-qty-mode-wrap');
+    if (!isAdvancedKaeseUpgradeEnabled()) {
+      existing?.remove();
+      return null;
+    }
+    if (existing?.isConnected) return existing;
+    if (existing) existing.remove();
+
+    const categorySelect = document.getElementById('we-category-quick');
+    const categoryField = categorySelect?.closest?.('.receiving-field');
+    if (!categoryField?.parentElement) return null;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'we-kaese-qty-mode-wrap';
+    wrap.className = 'receiving-field hidden';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+    <span class="kaese-qty-field-label">Einheit (Käse-Theke)</span>
+    <div class="kaese-qty-segment" role="group" aria-label="Käse-Theke Einheit">
+      <button type="button" class="kaese-qty-segment-btn active" data-kaese-qty-mode="stueck" aria-pressed="true">Stück</button>
+      <button type="button" class="kaese-qty-segment-btn" data-kaese-qty-mode="gewicht" aria-pressed="false">Gewicht (kg)</button>
+    </div>
+  `;
+    categoryField.insertAdjacentElement('afterend', wrap);
+    if (!wrap.isConnected) return null;
+
+    if (wrap.dataset.kaeseQtyBound !== '1') {
+      wrap.dataset.kaeseQtyBound = '1';
+      wrap.addEventListener('click', (event) => {
+        const modeBtn = event.target?.closest?.('[data-kaese-qty-mode]');
+        if (!modeBtn || !wrap.isConnected) return;
+        kaeseThekeQtyMode = modeBtn.dataset.kaeseQtyMode === 'gewicht' ? 'gewicht' : 'stueck';
+        wrap.querySelectorAll('[data-kaese-qty-mode]').forEach((btn) => {
+          const active = btn.dataset.kaeseQtyMode === kaeseThekeQtyMode;
+          btn.classList.toggle('active', active);
+          btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        updateReceivingQtyFieldUi();
+      });
+    }
+
+    return wrap;
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Käse-Theke Einheit konnte nicht initialisiert werden:', err);
+    return null;
+  }
+}
+
+function updateKaeseThekeQtyModeVisibility(category = '') {
+  try {
+    const wrap = ensureKaeseThekeQtyToggle();
+    if (!wrap?.isConnected) return;
+    const show = isAdvancedKaeseUpgradeEnabled() && isKaeseThekeCategory(category);
+    wrap.classList.toggle('hidden', !show);
+    wrap.hidden = !show;
+    if (!show && kaeseThekeQtyMode !== 'stueck') {
+      kaeseThekeQtyMode = 'stueck';
+      wrap.querySelectorAll('[data-kaese-qty-mode]').forEach((btn) => {
+        const active = btn.dataset.kaeseQtyMode === 'stueck';
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Käse-Theke Sichtbarkeit konnte nicht aktualisiert werden:', err);
+  }
+}
 
 function isTorfabrikTenant() {
   const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
@@ -561,7 +658,10 @@ function isTorfabrikTenant() {
 }
 
 function getReceivingCategoriesForTenant() {
-  return isTorfabrikTenant() ? TORFABRIK_RECEIVING_CATEGORIES : RECEIVING_CATEGORIES;
+  if (isTorfabrikTenant()) return TORFABRIK_RECEIVING_CATEGORIES;
+  const extra = getBrandingReceivingCategoriesExtra();
+  if (!extra.length) return RECEIVING_CATEGORIES;
+  return [...RECEIVING_CATEGORIES, ...extra];
 }
 
 function formatIsoToGermanDate(isoDate) {
@@ -587,24 +687,30 @@ function suggestTorfabrikMhdAfterAnstich(kategorie, produktName = '') {
 }
 
 function applyReceivingCategoryOptions() {
-  const select = document.getElementById('we-category-quick');
-  if (!select) return;
-  const categories = getReceivingCategoriesForTenant();
-  const previous = normalizeMhdCategory(select.value || lastReceivingHeadCategory);
-  const optionsHtml = [
-    '<option value="">-- Kategorie wählen --</option>',
-    ...categories.map((cat) => `<option value="${escapeHtml(cat.value)}">${escapeHtml(cat.label)}</option>`),
-  ].join('');
-  select.innerHTML = optionsHtml;
-  const hasPrevious = categories.some((cat) => normalizeMhdCategory(cat.value) === previous);
-  if (hasPrevious) {
-    select.value = categories.find((cat) => normalizeMhdCategory(cat.value) === previous)?.value || '';
-  } else if (lastReceivingHeadCategory) {
-    const sticky = categories.find((cat) => normalizeMhdCategory(cat.value) === normalizeMhdCategory(lastReceivingHeadCategory));
-    if (sticky) select.value = sticky.value;
+  try {
+    const select = document.getElementById('we-category-quick');
+    if (!select) return;
+    const categories = getReceivingCategoriesForTenant() || RECEIVING_CATEGORIES;
+    const previous = normalizeMhdCategory(select.value || lastReceivingHeadCategory || '');
+    const optionsHtml = [
+      '<option value="">-- Kategorie wählen --</option>',
+      ...categories.map((cat) => `<option value="${escapeHtml(cat?.value || '')}">${escapeHtml(cat?.label || cat?.value || '')}</option>`),
+    ].join('');
+    select.innerHTML = optionsHtml;
+    const hasPrevious = categories.some((cat) => normalizeMhdCategory(cat?.value || '') === previous);
+    if (hasPrevious) {
+      select.value = categories.find((cat) => normalizeMhdCategory(cat?.value || '') === previous)?.value || '';
+    } else if (lastReceivingHeadCategory) {
+      const sticky = categories.find(
+        (cat) => normalizeMhdCategory(cat?.value || '') === normalizeMhdCategory(lastReceivingHeadCategory),
+      );
+      if (sticky?.value) select.value = sticky.value;
+    }
+    updateReceivingQtyFieldUi();
+    updateReceivingTemperatureFieldUi();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Kategorien konnten nicht aktualisiert werden:', err);
   }
-  updateReceivingQtyFieldUi();
-  updateReceivingTemperatureFieldUi();
 }
 
 function applyMhdCategoryFilterOptions() {
@@ -749,13 +855,16 @@ function rememberMhdScanCategory(category) {
 }
 
 function applyLastReceivingHeadCategory() {
-  const categorySelect = document.getElementById('we-category-quick');
-  if (!categorySelect || !lastReceivingHeadCategory) return;
-  const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === lastReceivingHeadCategory);
-  if (hasOption) {
+  try {
+    const categorySelect = document.getElementById('we-category-quick');
+    if (!categorySelect || !lastReceivingHeadCategory) return;
+    const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === lastReceivingHeadCategory);
+    if (!hasOption) return;
     categorySelect.value = lastReceivingHeadCategory;
     updateReceivingQtyFieldUi();
     updateReceivingTemperatureFieldUi();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Letzte Wareneingang-Kategorie konnte nicht wiederhergestellt werden:', err);
   }
 }
 
@@ -863,6 +972,13 @@ function setActiveEmployee(employeeName) {
 }
 
 async function resolveInventoryActorForScan() {
+  if (window.isFirebaseRoleAuth?.()) {
+    const employeeName = window.syncFirebaseEmployeeSession?.()
+      || window.resolveFirebaseEmployeeName?.()
+      || getActiveEmployee();
+    if (employeeName) setActiveEmployee(employeeName);
+    return employeeName || '';
+  }
   if (window.isProfileEmployeeAuth?.()) {
     const firebaseReady = await window.ensureTenantFirebaseAuth?.();
     if (!firebaseReady) {
@@ -894,6 +1010,10 @@ async function resolveInventoryActorForScan() {
 }
 
 async function ensureInventoryProfileReadyForDelivery() {
+  if (window.isFirebaseRoleAuth?.()) {
+    resolveMhdTenantId();
+    return window.ensureInventoryProfileReadyForWrite?.();
+  }
   if (!window.isProfileEmployeeAuth?.()) return true;
   resolveMhdTenantId();
   const ready = await window.ensureInventoryProfileReadyForWrite?.();
@@ -910,7 +1030,7 @@ async function ensureInventoryProfileReadyForDelivery() {
 }
 
 function requestEmployeePinForScan(barcode) {
-  if (window.isProfileEmployeeAuth?.() || window.isEmployeePinRequired?.() === false) {
+  if (window.isFirebaseRoleAuth?.() || window.isProfileEmployeeAuth?.() || window.isEmployeePinRequired?.() === false) {
     return resolveInventoryActorForScan().then((employeeName) => employeeName || null);
   }
 
@@ -2013,6 +2133,7 @@ function showLearnModeDialog(ean) {
 function normalizeMhdCategory(kategorie) {
   const kat = (kategorie || '').trim();
   if (!kat) return MHD_CANONICAL_CATEGORIES.mopro;
+  if (kat === 'kaese_theke' || kat === 'Käse-Theke') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === '❄️Kühlware' || kat === '❄️ Kühlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === 'Gewürze' || kat === '🌿Gewürze' || kat === '🌿 Gewürze') return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke/i.test(kat) || kat.startsWith('🍺')) return MHD_CANONICAL_CATEGORIES.getraenke;
@@ -2121,6 +2242,62 @@ function formatMhdDateForCardMeta(prod = {}) {
   return dotted || '';
 }
 
+function parseMhdRecordTimestamp(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveMhdRecordCreatedAt(prod = {}) {
+  return parseMhdRecordTimestamp(prod.createdAt)
+    || parseMhdRecordTimestamp(prod.wareneingangAt)
+    || parseMhdRecordTimestamp(prod.erfassungsDatum)
+    || parseMhdRecordTimestamp(prod.updatedAt)
+    || null;
+}
+
+function resolveMhdRecordActor(prod = {}) {
+  const scannedBy = String(prod.scannedBy || '').trim();
+  if (scannedBy) return scannedBy;
+  const lieferant = String(prod.lieferant || '').trim();
+  const match = /^Direkterfassung\s*\(([^)]+)\)/i.exec(lieferant);
+  return match ? match[1].trim() : '';
+}
+
+function formatMhdRecordTimestampLabel(prod = {}) {
+  const createdAt = resolveMhdRecordCreatedAt(prod);
+  if (!createdAt) return '';
+
+  const now = new Date();
+  const isToday = createdAt.toDateString() === now.toDateString();
+  const timeStr = createdAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  let label = isToday
+    ? `Erfasst: ${timeStr} Uhr`
+    : `Eingepflegt am ${createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${timeStr} Uhr`;
+
+  const actor = resolveMhdRecordActor(prod);
+  if (actor) label += ` (${actor})`;
+  return label;
+}
+
+function appendMhdRecordActorLabel(label, prod = {}) {
+  const actor = resolveMhdRecordActor(prod);
+  if (!actor) return label;
+  return `${label} (${actor})`;
+}
+
+function resolveMhdProductMetaSecondaryLabel(prod = {}) {
+  const timestampLabel = formatMhdRecordTimestampLabel(prod);
+  if (timestampLabel) return timestampLabel;
+
+  const mhdDate = formatMhdDateForCardMeta(prod);
+  if (mhdDate) return appendMhdRecordActorLabel(`MHD: ${mhdDate}`, prod);
+
+  return appendMhdRecordActorLabel('Zugefügt vor Update', prod);
+}
+
 function getCategoryBadgeLabel(prod = {}) {
   const category = getProductCategory(prod);
   return category || 'Kategorie';
@@ -2129,10 +2306,20 @@ function getCategoryBadgeLabel(prod = {}) {
 function buildMhdProductMetaHtml(prod = {}) {
   const parts = [];
   const brand = String(prod.brand || prod.marke || '').trim();
-  const mhdDate = formatMhdDateForCardMeta(prod);
+  const secondaryLabel = resolveMhdProductMetaSecondaryLabel(prod);
   if (brand) parts.push(brand);
-  if (mhdDate) parts.push(`MHD ${mhdDate}`);
+  if (secondaryLabel) parts.push(secondaryLabel);
+  if (isOfficeUser()) {
+    const barcodeLabel = resolveMhdRecordBarcodeLabel(prod);
+    if (barcodeLabel) parts.push(barcodeLabel);
+  }
   return parts.map((part) => escapeHtml(part)).join(' · ');
+}
+
+function resolveMhdRecordBarcodeLabel(prod = {}) {
+  const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  if (!barcode || !/^\d{4,}$/.test(barcode)) return '';
+  return `EAN: ${barcode}`;
 }
 
 function getProductBarcode(prod = {}) {
@@ -2361,6 +2548,7 @@ function loadMhdFromCloud() {
     (snapshot) => {
       mhdState.products = snapshot.docs.map(mapMhdDoc);
       renderMhdList();
+      refreshMhdAdminSearchFromCache();
     },
     (err) => {
       if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
@@ -2398,6 +2586,306 @@ async function importMhdBestandToCloud() {
   }
 }
 
+function normalizeAdminSearchQuery(value = '') {
+  return String(value || '').trim();
+}
+
+function isAdminBarcodeSearchQuery(query = '') {
+  const clean = cleanScannedBarcode(query);
+  return Boolean(clean && /^\d{4,}$/.test(clean));
+}
+
+function matchesAdminSearchLocally(prod = {}, needle = '', rawQuery = '') {
+  const name = String(prod.name || prod.produkt || '').toLowerCase();
+  const brand = String(prod.brand || prod.marke || '').toLowerCase();
+  const barcode = getProductBarcode(prod);
+  if (isAdminBarcodeSearchQuery(rawQuery)) {
+    return barcode === cleanScannedBarcode(rawQuery);
+  }
+  const cleanNeedle = cleanScannedBarcode(rawQuery) || '';
+  return name.includes(needle)
+    || brand.includes(needle)
+    || (cleanNeedle && barcode.includes(cleanNeedle));
+}
+
+function mergeMhdAdminSearchDocs(...snapshots) {
+  const byId = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot?.docs?.forEach((doc) => {
+      if (!byId.has(doc.id)) byId.set(doc.id, mapMhdDoc(doc));
+    });
+  });
+  return [...byId.values()];
+}
+
+async function fetchMhdAdminSearchSnapshot(queryPromise) {
+  try {
+    return await queryPromise;
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'queryMhdListeAdmin')) return { docs: [] };
+    console.warn('[CharcuLogic MHD Admin] Firestore-Suche fehlgeschlagen:', err);
+    return { docs: [] };
+  }
+}
+
+async function queryMhdListeAdmin(searchText = '') {
+  if (!mhdState.db || !canStartMhdFirestoreLiveSync()) return [];
+  const query = normalizeAdminSearchQuery(searchText);
+  if (query.length < 2) return [];
+
+  const coll = mhdState.db.collection(mhdCollectionPath());
+  const snapshots = [];
+
+  if (isAdminBarcodeSearchQuery(query)) {
+    const barcode = cleanScannedBarcode(query);
+    const [eanSnap, barcodeSnap, scanSnap] = await Promise.all([
+      fetchMhdAdminSearchSnapshot(coll.where('ean', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+      fetchMhdAdminSearchSnapshot(coll.where('barcode', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+      fetchMhdAdminSearchSnapshot(coll.where('scanBarcode', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+    ]);
+    snapshots.push(eanSnap, barcodeSnap, scanSnap);
+  } else {
+    const prefixVariants = [...new Set([
+      query,
+      query.charAt(0).toUpperCase() + query.slice(1),
+      query.toLowerCase(),
+    ])].filter(Boolean);
+
+    for (const prefix of prefixVariants) {
+      const end = `${prefix}\uf8ff`;
+      const [nameSnap, produktSnap] = await Promise.all([
+        fetchMhdAdminSearchSnapshot(
+          coll.where('name', '>=', prefix).where('name', '<=', end).limit(MHD_ADMIN_SEARCH_LIMIT).get(),
+        ),
+        fetchMhdAdminSearchSnapshot(
+          coll.where('produkt', '>=', prefix).where('produkt', '<=', end).limit(MHD_ADMIN_SEARCH_LIMIT).get(),
+        ),
+      ]);
+      snapshots.push(nameSnap, produktSnap);
+    }
+  }
+
+  const needle = query.toLowerCase();
+  const byId = new Map(mergeMhdAdminSearchDocs(...snapshots).map((prod) => [prod.id, prod]));
+  mhdState.products.forEach((prod) => {
+    if (matchesAdminSearchLocally(prod, needle, query)) {
+      byId.set(prod.id, prod);
+    }
+  });
+
+  return sortMhdProductsByResttage([...byId.values()])
+    .filter((prod) => matchesAdminSearchLocally(prod, needle, query))
+    .slice(0, MHD_ADMIN_SEARCH_LIMIT);
+}
+
+function syncMhdAdminSearchLayout() {
+  const mainList = document.getElementById('mhd-items-container');
+  const hasQuery = normalizeAdminSearchQuery(mhdAdminSearchState.query).length >= 2;
+  if (!mainList || !isOfficeUser()) return;
+  mainList.hidden = hasQuery;
+  mainList.style.display = hasQuery ? 'none' : '';
+}
+
+function clearMhdAdminSearch() {
+  mhdAdminSearchState.query = '';
+  mhdAdminSearchState.results = [];
+  mhdAdminSearchState.loading = false;
+  mhdAdminSearchState.requestId += 1;
+  if (mhdAdminSearchState.debounceTimer) {
+    clearTimeout(mhdAdminSearchState.debounceTimer);
+    mhdAdminSearchState.debounceTimer = null;
+  }
+  const input = document.getElementById('mhd-admin-search-input');
+  if (input) input.value = '';
+  syncMhdAdminSearchLayout();
+  renderMhdAdminSearchResults();
+}
+
+function renderMhdAdminSearchResults() {
+  const container = document.getElementById('mhd-admin-search-results');
+  const statusEl = document.getElementById('mhd-admin-search-status');
+  if (!container) return;
+
+  const query = normalizeAdminSearchQuery(mhdAdminSearchState.query);
+  syncMhdAdminSearchLayout();
+
+  if (query.length < 2) {
+    container.hidden = true;
+    container.innerHTML = '';
+    if (statusEl) statusEl.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  if (statusEl) statusEl.hidden = false;
+
+  if (mhdAdminSearchState.loading) {
+    container.innerHTML = '<div class="mhd-empty-hint">Suche läuft…</div>';
+    if (statusEl) statusEl.textContent = 'Firestore-Abfrage läuft…';
+    return;
+  }
+
+  const results = mhdAdminSearchState.results;
+  if (statusEl) {
+    statusEl.textContent = results.length
+      ? `${results.length} Treffer für „${query}“`
+      : `Keine Treffer für „${query}“`;
+  }
+
+  if (!results.length) {
+    container.innerHTML = '<div class="mhd-empty-hint">Kein passender Bestandseintrag gefunden.</div>';
+    return;
+  }
+
+  container.innerHTML = results.map((prod) => buildMhdCardHtml(prod)).join('');
+}
+
+function refreshMhdAdminSearchFromCache() {
+  const query = normalizeAdminSearchQuery(mhdAdminSearchState.query);
+  if (query.length < 2 || !isOfficeUser() || mhdAdminSearchState.loading) return;
+  const needle = query.toLowerCase();
+  const byId = new Map(mhdAdminSearchState.results.map((prod) => [prod.id, prod]));
+  mhdState.products.forEach((prod) => {
+    if (matchesAdminSearchLocally(prod, needle, query)) {
+      byId.set(prod.id, prod);
+    }
+  });
+  mhdAdminSearchState.results = sortMhdProductsByResttage([...byId.values()])
+    .filter((prod) => matchesAdminSearchLocally(prod, needle, query))
+    .slice(0, MHD_ADMIN_SEARCH_LIMIT);
+  renderMhdAdminSearchResults();
+}
+
+function scheduleMhdAdminSearch(rawQuery = '') {
+  const query = normalizeAdminSearchQuery(rawQuery);
+  mhdAdminSearchState.query = query;
+  mhdAdminSearchState.requestId += 1;
+  const requestId = mhdAdminSearchState.requestId;
+
+  if (mhdAdminSearchState.debounceTimer) {
+    clearTimeout(mhdAdminSearchState.debounceTimer);
+  }
+
+  if (query.length < 2) {
+    mhdAdminSearchState.loading = false;
+    mhdAdminSearchState.results = [];
+    renderMhdAdminSearchResults();
+    return;
+  }
+
+  mhdAdminSearchState.loading = true;
+  renderMhdAdminSearchResults();
+
+  mhdAdminSearchState.debounceTimer = setTimeout(() => {
+    void (async () => {
+      const results = await queryMhdListeAdmin(query);
+      if (requestId !== mhdAdminSearchState.requestId) return;
+      mhdAdminSearchState.loading = false;
+      mhdAdminSearchState.results = results;
+      renderMhdAdminSearchResults();
+    })();
+  }, MHD_ADMIN_SEARCH_DEBOUNCE_MS);
+}
+
+function initMhdAdminSearch() {
+  const section = document.getElementById('mhd-admin-search');
+  const input = document.getElementById('mhd-admin-search-input');
+  if (!section || !input || section.dataset.mhdAdminBound === '1') return;
+  section.dataset.mhdAdminBound = '1';
+
+  input.addEventListener('input', (event) => {
+    scheduleMhdAdminSearch(event.target.value);
+  });
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      clearMhdAdminSearch();
+      section.open = false;
+    }
+  });
+
+  section.addEventListener('toggle', () => {
+    if (!section.open) clearMhdAdminSearch();
+  });
+}
+
+export function updateMhdAdminSearchVisibility(isAdmin = isOfficeUser()) {
+  const section = document.getElementById('mhd-admin-search');
+  if (!section) return;
+  section.hidden = !isAdmin;
+  if (!isAdmin) {
+    section.open = false;
+    clearMhdAdminSearch();
+  }
+}
+
+function buildMhdCardHtml(prod = {}) {
+  const action = getMhdCardAction(prod);
+  const resttage = getMhdResttage(prod);
+  const isZeroDay = resttage === 0;
+  const isOverdue = resttage < 0;
+  const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
+  const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
+  const badgeDaysLabel = `${badgeLabel} Tage`;
+  const badgeDateLabel = formatMhdDateForCardMeta(prod) || '–';
+  const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
+  const productMetaHtml = buildMhdProductMetaHtml(prod);
+  const mhdDateEditButton = formatMhdDateForCardMeta(prod)
+    ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
+    : '';
+  const categoryBadgeLabel = getCategoryBadgeLabel(prod);
+  const retterBoxAction = window.BRANDING?.modules?.retterBox === true
+    ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
+    : '';
+  return `
+    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
+      <div class="mhd-card-badge-row">
+        <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
+          ${action.label}
+        </div>
+        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
+          ${escapeHtml(categoryBadgeLabel)}
+        </button>
+      </div>
+      <div class="mhd-card-header">
+        <div class="mhd-product-info">
+          <span class="mhd-product-name">${prod.name}</span>
+          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
+        </div>
+        <button
+          type="button"
+          class="mhd-badge mhd-days-badge badge-days"
+          data-mhd-days-badge="1"
+          data-mhd-id="${prod.id}"
+          data-mhd-days-label="${escapeHtml(badgeDaysLabel)}"
+          data-mhd-date-label="${escapeHtml(badgeDateLabel)}"
+          data-mhd-badge-mode="days"
+          aria-label="MHD-Datum anzeigen"
+          title="Tippen für MHD-Datum"${badgeStyle}
+        >${escapeHtml(badgeDaysLabel)}</button>
+      </div>
+      <div class="mhd-controls-row">
+        <div class="qty-stepper">
+          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
+          <div class="qty-value-container">
+            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
+          </div>
+          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
+        </div>
+        <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
+          <span aria-hidden="true">🗑️</span> Ausverkauft
+        </button>
+      </div>
+      <div class="mhd-action-row">
+        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
+        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
+        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
+        ${retterBoxAction}
+      </div>
+    </div>
+  `;
+}
+
 
 function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
@@ -2426,60 +2914,7 @@ function renderMhdList() {
     return;
   }
 
-  container.innerHTML = renderedProducts.map((prod) => {
-    const action = getMhdCardAction(prod);
-    const resttage = getMhdResttage(prod);
-    const isZeroDay = resttage === 0;
-    const isOverdue = resttage < 0;
-    const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
-    const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
-    const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
-    const productMetaHtml = buildMhdProductMetaHtml(prod);
-    const mhdDateEditButton = formatMhdDateForCardMeta(prod)
-      ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
-      : '';
-    const categoryBadgeLabel = getCategoryBadgeLabel(prod);
-    const retterBoxAction = window.BRANDING?.modules?.retterBox === true
-      ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
-      : '';
-    return `
-    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
-      <div class="mhd-card-badge-row">
-        <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
-          ${action.label}
-        </div>
-        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
-          ${escapeHtml(categoryBadgeLabel)}
-        </button>
-      </div>
-      <div class="mhd-card-header">
-        <div class="mhd-product-info">
-          <span class="mhd-product-name">${prod.name}</span>
-          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
-        </div>
-        <div class="mhd-badge"${badgeStyle}>${badgeLabel} Tage</div>
-      </div>
-      <div class="mhd-controls-row">
-        <div class="qty-stepper">
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
-          <div class="qty-value-container">
-            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
-          </div>
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
-        </div>
-        <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
-          <span aria-hidden="true">🗑️</span> Ausverkauft
-        </button>
-      </div>
-      <div class="mhd-action-row">
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
-        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
-        ${retterBoxAction}
-      </div>
-    </div>
-  `;
-  }).join('');
+  container.innerHTML = renderedProducts.map((prod) => buildMhdCardHtml(prod)).join('');
 
   initMhdSwipeGestures();
 }
@@ -3099,11 +3534,39 @@ if (btnSaveMhd) {
 
 
 
+function toggleMhdDaysBadge(badge) {
+  if (!badge) return;
+  const daysLabel = badge.dataset.mhdDaysLabel || '';
+  const dateLabel = badge.dataset.mhdDateLabel || '';
+  const showingDate = badge.dataset.mhdBadgeMode === 'date';
+  if (showingDate) {
+    badge.textContent = daysLabel;
+    badge.dataset.mhdBadgeMode = 'days';
+    badge.setAttribute('aria-label', 'MHD-Datum anzeigen');
+    badge.title = 'Tippen für MHD-Datum';
+    badge.classList.remove('mhd-days-badge--date');
+    return;
+  }
+  badge.textContent = dateLabel;
+  badge.dataset.mhdBadgeMode = 'date';
+  badge.setAttribute('aria-label', 'Resttage anzeigen');
+  badge.title = 'Tippen für Resttage';
+  badge.classList.add('mhd-days-badge--date');
+}
+
 function bindMhdCardActions() {
-  const container = document.getElementById('mhd-items-container');
-  if (!container || container.dataset.mhdActionBound === '1') return;
-  container.dataset.mhdActionBound = '1';
-  container.addEventListener('click', (event) => {
+  const page = document.getElementById('page-mhd');
+  if (!page || page.dataset.mhdActionBound === '1') return;
+  page.dataset.mhdActionBound = '1';
+  page.addEventListener('click', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
+    const daysBadge = event.target.closest('[data-mhd-days-badge]');
+    if (daysBadge) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMhdDaysBadge(daysBadge);
+      return;
+    }
     const button = event.target.closest('[data-mhd-command]');
     if (!button) return;
     const id = button.dataset.mhdId;
@@ -3115,12 +3578,14 @@ function bindMhdCardActions() {
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
   });
-  container.addEventListener('change', (event) => {
+  page.addEventListener('change', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
     commitMhdCardQtyFromInput(input.dataset.mhdQtyId, input.value);
   });
-  container.addEventListener('keydown', (event) => {
+  page.addEventListener('keydown', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
     if (event.key !== 'Enter') return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
@@ -3185,6 +3650,7 @@ function submitManualBarcodeFrom(inputEl) {
 
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
   const normalized = String(warenKategorie || '').trim().toLowerCase();
+  if (/kaese_theke|käse-theke|käsetheke/.test(normalized)) return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (/gewürze|gewuerze|🌿/.test(normalized)) return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke|🍺/.test(normalized)) return MHD_CANONICAL_CATEGORIES.getraenke;
   if (/trockenware/.test(normalized)) return MHD_CANONICAL_CATEGORIES.trockenware;
@@ -3246,6 +3712,9 @@ function readDeliveryHeadValues() {
 }
 
 function getReceivingQtyUnitFromCategory(warenKategorie = '') {
+  if (isAdvancedKaeseUpgradeEnabled() && isKaeseThekeCategory(warenKategorie)) {
+    return kaeseThekeQtyMode === 'gewicht' ? 'kg' : 'Stk';
+  }
   const normalized = String(warenKategorie).trim().toLowerCase();
   if (
     normalized.includes('trocken')
@@ -3353,40 +3822,50 @@ function setReceivingTemperatureValue(value) {
 }
 
 function updateReceivingTemperatureFieldUi() {
-  const categoryQuickSelect = document.getElementById('we-category-quick');
-  const wrap = document.getElementById('we-temperature-quick-wrap');
-  const { quick } = getReceivingTemperatureInputs();
-  const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
-  if (wrap) {
-    wrap.classList.toggle('hidden', !requiresTemperature);
-    wrap.hidden = !requiresTemperature;
-  }
-  if (quick) {
-    quick.required = requiresTemperature;
-    quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
-    if (!requiresTemperature) quick.value = '';
+  try {
+    const categoryQuickSelect = document.getElementById('we-category-quick');
+    const wrap = document.getElementById('we-temperature-quick-wrap');
+    const { quick } = getReceivingTemperatureInputs();
+    const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
+    if (wrap) {
+      wrap.classList.toggle('hidden', !requiresTemperature);
+      wrap.hidden = !requiresTemperature;
+    }
+    if (quick) {
+      quick.required = requiresTemperature;
+      quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
+      if (!requiresTemperature) quick.value = '';
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Temperaturfeld konnte nicht aktualisiert werden:', err);
   }
 }
 
 function updateReceivingQtyFieldUi() {
-  const qtyInput = document.getElementById('we-qty');
-  const qtyLabel = document.getElementById('we-qty-label');
-  const categoryQuickSelect = document.getElementById('we-category-quick');
-  const category = categoryQuickSelect?.value || lastReceivingHeadCategory || '';
-  const unit = getReceivingQtyUnitFromCategory(category);
-  if (!qtyInput) return;
+  try {
+    const qtyInput = document.getElementById('we-qty');
+    const qtyLabel = document.getElementById('we-qty-label');
+    const categoryQuickSelect = document.getElementById('we-category-quick');
+    const category = categoryQuickSelect?.value || lastReceivingHeadCategory || '';
+    updateKaeseThekeQtyModeVisibility(category);
+    const unit = getReceivingQtyUnitFromCategory(category);
+    if (!qtyInput) return;
 
-  if (qtyLabel) qtyLabel.textContent = `Menge (${unit})`;
-  qtyInput.placeholder = '1';
-  qtyInput.inputMode = 'numeric';
-  if (unit === 'Stk') {
-    qtyInput.min = '1';
-    qtyInput.step = '1';
-    return;
+    if (qtyLabel) qtyLabel.textContent = `Menge (${unit})`;
+    qtyInput.placeholder = unit === 'kg' ? '0,00' : '1';
+    if (unit === 'Stk') {
+      qtyInput.min = '1';
+      qtyInput.step = '1';
+      qtyInput.inputMode = 'numeric';
+      return;
+    }
+
+    qtyInput.min = '0.01';
+    qtyInput.step = '0.01';
+    qtyInput.inputMode = 'decimal';
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Mengenfeld konnte nicht aktualisiert werden:', err);
   }
-
-  qtyInput.min = '0.1';
-  qtyInput.step = '0.1';
 }
 
 function normalizeDeliveryHeadForFinalize(head) {
@@ -3638,7 +4117,12 @@ async function addDeliveryItem() {
     return;
   }
   if (!mhdDate) {
-    mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
+    const toastMessage = 'Bitte MHD eintragen, bevor der Posten zur Lieferung hinzugefügt wird.';
+    if (isAdvancedKaeseUpgradeEnabled()) {
+      window.showToast?.(toastMessage, 'error');
+    } else {
+      mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
+    }
     document.getElementById('we-mhd')?.focus();
     return;
   }
@@ -3983,34 +4467,38 @@ function isReceivingMetzgereiEnabled() {
 }
 
 export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || {}) {
-  const enabled = branding?.modules?.wareneingangMetzgerei !== false;
-  const switcher = document.querySelector('.receiving-mode-switch');
-  const metzTab = document.getElementById('receiving-mode-metzgerei');
-  const metzPanel = document.getElementById('receiving-panel-metzgerei');
-  const draftBtn = document.getElementById('we-save-draft-btn');
-  const openDrafts = document.getElementById('open-drafts-section');
-  const desc = document.querySelector('#page-receiving .receiving-card > .learn-mode-desc');
+  try {
+    const enabled = branding?.modules?.wareneingangMetzgerei !== false;
+    const switcher = document.querySelector('.receiving-mode-switch');
+    const metzTab = document.getElementById('receiving-mode-metzgerei');
+    const metzPanel = document.getElementById('receiving-panel-metzgerei');
+    const draftBtn = document.getElementById('we-save-draft-btn');
+    const openDrafts = document.getElementById('open-drafts-section');
+    const desc = document.querySelector('#page-receiving .receiving-card > .learn-mode-desc');
 
-  if (switcher) switcher.hidden = !enabled;
-  if (metzTab) {
-    metzTab.hidden = !enabled;
-    metzTab.style.display = enabled ? '' : 'none';
-  }
-  if (metzPanel) {
-    metzPanel.hidden = true;
-    metzPanel.classList.add('hidden');
-  }
-  if (draftBtn) draftBtn.hidden = !enabled;
-  if (openDrafts) openDrafts.hidden = !enabled;
+    if (switcher) switcher.hidden = !enabled;
+    if (metzTab) {
+      metzTab.hidden = !enabled;
+      metzTab.style.display = enabled ? '' : 'none';
+    }
+    if (metzPanel) {
+      metzPanel.hidden = true;
+      metzPanel.classList.add('hidden');
+    }
+    if (draftBtn) draftBtn.hidden = !enabled;
+    if (openDrafts) openDrafts.hidden = !enabled;
 
-  if (desc) {
-    desc.textContent = enabled
-      ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
-      : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
-  }
+    if (desc) {
+      desc.textContent = enabled
+        ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
+        : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
+    }
 
-  setReceivingMode('schnell');
-  updateReceivingSaveButtonState();
+    setReceivingMode('schnell');
+    refreshReceivingTabUiSafe();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Layout konnte nicht aktualisiert werden:', err);
+  }
 }
 
 async function saveDeliveryDraft() {
@@ -4366,9 +4854,15 @@ function mhdDateToDisplay(mhdDate) {
 }
 
 function ensureReceivingFormDefaults() {
-  const mhdInput = document.getElementById('we-mhd');
-  if (mhdInput && mhdInput.type !== 'text') mhdInput.type = 'text';
-  initGermanDateInputs(document.getElementById('page-receiving') || document);
+  try {
+    const receivingPage = document.getElementById('page-receiving');
+    if (!receivingPage) return;
+    const mhdInput = document.getElementById('we-mhd');
+    if (mhdInput && mhdInput.type !== 'text') mhdInput.type = 'text';
+    initGermanDateInputs(receivingPage);
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Formular konnte nicht initialisiert werden:', err);
+  }
 }
 
 function updateReceivingSaveButtonState() {
@@ -4510,6 +5004,7 @@ function bindReceivingControls() {
       updateReceivingSaveButtonState();
     });
   }
+  ensureKaeseThekeQtyToggle();
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';
     temperatureQuickInput.addEventListener('input', () => {
@@ -4671,11 +5166,20 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.terminalEmployeeName = String(uiCallbacks.terminalEmployeeName || mhdState.terminalEmployeeName || '').trim();
   mhdState.addRetterBoxCandidate = typeof uiCallbacks.addRetterBoxCandidate === 'function' ? uiCallbacks.addRetterBoxCandidate : mhdState.addRetterBoxCandidate;
   if (!mhdState.initialized) {
-    initMhdSubnavAndSearch(); bindMhdCardActions(); bindUtilityDialogActions(); bindReceivingControls(); bindMhdToolbar(); loadVpeMasterFromCsv(); mhdState.initialized = true;
+    initMhdSubnavAndSearch();
+    initMhdAdminSearch();
+    bindMhdCardActions();
+    bindUtilityDialogActions();
+    bindReceivingControls();
+    bindMhdToolbar();
+    loadVpeMasterFromCsv();
+    mhdState.initialized = true;
   }
   applyReceivingCategoryOptions();
   applyMhdCategoryFilterOptions();
-  renderReceivingStatus(); renderMhdList();
+  updateMhdAdminSearchVisibility(isOfficeUser());
+  renderReceivingStatus();
+  renderMhdList();
   restoreMhdDraftFields();
 }
 
@@ -4702,23 +5206,58 @@ export async function activateMhdTab() {
   restoreMhdDraftFields();
 }
 export async function activateReceivingTab() {
-  window.expireProfileSessionIfIdle?.();
-  await window.showReceivingProfileGatekeeperIfNeeded?.();
-  applyReceivingMetzgereiVisibility(window.BRANDING || {});
-  ensureReceivingFormDefaults();
-  subscribeToPendingDeliveryDrafts();
-  updateManualBarcodeFallback();
-  updateReceivingSaveButtonState();
-  renderReceivingStatus();
-  if (!activeEditingDraftId) {
-    loadDeliveryDraftFromIndexedDB();
-  }
-  restoreMhdDraftFields();
+  const runStep = async (label, step) => {
+    try {
+      await step();
+    } catch (err) {
+      console.warn(`[CharcuLogic MHD] Receiving-Tab Schritt fehlgeschlagen (${label}):`, err);
+    }
+  };
+
+  await runStep('profile-idle', async () => {
+    window.expireProfileSessionIfIdle?.();
+  });
+  await runStep('profile-gatekeeper', async () => {
+    await window.showReceivingProfileGatekeeperIfNeeded?.();
+  });
+  await runStep('layout', () => {
+    applyReceivingMetzgereiVisibility(window.BRANDING || {});
+    ensureReceivingFormDefaults();
+  });
+  await runStep('draft-sync', () => {
+    subscribeToPendingDeliveryDrafts();
+    updateManualBarcodeFallback();
+  });
+  await runStep('ui-refresh', () => {
+    refreshReceivingTabUiSafe();
+  });
+  await runStep('draft-load', async () => {
+    if (!activeEditingDraftId) {
+      await loadDeliveryDraftFromIndexedDB();
+    }
+  });
+  await runStep('draft-restore', () => {
+    restoreMhdDraftFields();
+  });
 }
 export function handleMhdBarcodeScan(decodedText) { processScannedBarcode(decodedText, 'camera'); }
 export function handleMhdScannerStatus({ status } = {}) { updateManualBarcodeFallback(); if (status) renderReceivingStatus({ status }); }
 export function resetMhdScanState(options) { resetScanState(options); }
 export function getMhdProducts() { return [...mhdState.products]; }
+export function refreshReceivingTabUiSafe() {
+  try {
+    applyReceivingCategoryOptions();
+    ensureKaeseThekeQtyToggle();
+    applyLastReceivingHeadCategory();
+    updateReceivingQtyFieldUi();
+    updateReceivingTemperatureFieldUi();
+    updateReceivingSaveButtonState();
+    renderReceivingStatus();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Oberfläche konnte nicht aktualisiert werden:', err);
+  }
+}
+
 export {
   checkMhdAnomaly,
   finalizeDelivery,

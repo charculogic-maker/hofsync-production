@@ -47,6 +47,16 @@ const DEFAULT_HACCP_DEVICES = [
   { name: 'Vakuumierer', bereich: 'Produktion', protokollTyp: 'reinigung', geraeteTyp: 'geraet', intervall: 'nach_benutzung', aktiv: true },
 ];
 
+const FLY_PREVENTION_HACCP_DEVICES = [
+  { name: 'Fliegengitter Verkaufsraum', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
+  { name: 'UV-Insektenlampe Käse-Theke', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
+];
+
+const FLY_PREVENTION_CLEANING_TASK = {
+  id: 'fliegengitter-uv-lampen',
+  name: 'Fliegengitter & UV-Insektenlampen geprüft',
+};
+
 const HACCP_DRAFT_KEY = 'charculogic.draft.haccp';
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 
@@ -320,9 +330,54 @@ function periodKeyForCleaning(group) {
 }
 
 function allCleaningTasks() {
-  return HACCP_CLEANING_GROUPS.flatMap((group) =>
+  return resolveHaccpCleaningGroups().flatMap((group) =>
     group.tasks.map((task) => ({ ...task, groupId: group.id, groupTitle: group.title, period: group.period }))
   );
+}
+
+function resolveCurrentTenantBranding() {
+  const tenantId = getGlobalTenantId()
+    || String(haccpState.tenantId || '').trim()
+    || (typeof window.resolveEffectiveTenantId === 'function' ? window.resolveEffectiveTenantId() : '');
+  if (typeof window.resolveBranding === 'function') {
+    return window.resolveBranding(tenantId);
+  }
+  return window.BRANDING || {};
+}
+
+function isAdvancedHaccpFlyUpgradeEnabled() {
+  return resolveCurrentTenantBranding()?.advancedKaeseUpgrade === true;
+}
+
+function resolveHaccpCleaningGroups() {
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return HACCP_CLEANING_GROUPS;
+  return HACCP_CLEANING_GROUPS.map((group) => {
+    if (group.id !== 'weekly') return group;
+    const hasFlyTask = group.tasks.some((task) => task.id === FLY_PREVENTION_CLEANING_TASK.id);
+    if (hasFlyTask) return group;
+    return {
+      ...group,
+      tasks: [
+        ...group.tasks,
+        { ...FLY_PREVENTION_CLEANING_TASK },
+      ],
+    };
+  });
+}
+
+function resolveVisibleHaccpDevices() {
+  const cloudDevices = Array.isArray(haccpState.devices) ? haccpState.devices : [];
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return cloudDevices;
+
+  const merged = [...cloudDevices];
+  FLY_PREVENTION_HACCP_DEVICES.forEach((device) => {
+    const docId = haccpDeviceDocId(device.name);
+    const exists = merged.some((entry) => entry.id === docId || entry.name === device.name);
+    if (!exists) {
+      merged.push({ ...device, id: docId, localFlyFallback: true });
+    }
+  });
+  return merged;
 }
 
 function cleaningTaskById(taskId) {
@@ -376,9 +431,14 @@ function haccpDeviceDocId(name) {
 }
 
 function activeHaccpDevices(type) {
-  return haccpState.devices
+  return resolveVisibleHaccpDevices()
     .filter((device) => device.aktiv !== false && device.protokollTyp === type)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
+}
+
+function resolveDefaultHaccpDevicesForSeed() {
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return DEFAULT_HACCP_DEVICES;
+  return [...DEFAULT_HACCP_DEVICES, ...FLY_PREVENTION_HACCP_DEVICES];
 }
 
 async function seedDefaultHaccpDevicesIfEmpty() {
@@ -390,7 +450,7 @@ async function seedDefaultHaccpDevicesIfEmpty() {
   if (!snap.empty) return;
   try {
     const batch = haccpState.db.batch();
-    DEFAULT_HACCP_DEVICES.forEach((device) => {
+    resolveDefaultHaccpDevicesForSeed().forEach((device) => {
       const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
       batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
     });
@@ -685,7 +745,7 @@ function upsertLocalCleaningLog(log) {
 
 async function saveCleaningCheck(taskId) {
   const task = cleaningTaskById(taskId);
-  const group = HACCP_CLEANING_GROUPS.find((entry) => entry.id === task?.groupId);
+  const group = resolveHaccpCleaningGroups().find((entry) => entry.id === task?.groupId);
   if (!task || !group) return;
   if (cleaningCompletionForTask(task, group)) {
     haccpState.showHUD("Schon erledigt", "Dieser Punkt ist bereits abgehakt.");
@@ -906,7 +966,7 @@ function renderCleaningChecks() {
       <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
     </div>
     <div class="haccp-cleaning-groups">
-      ${HACCP_CLEANING_GROUPS.map((group) => `
+      ${resolveHaccpCleaningGroups().map((group) => `
         <section class="haccp-cleaning-group" aria-label="${escapeHtml(group.title)}">
           <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
           <div class="haccp-cleaning-group-list">
@@ -1042,10 +1102,10 @@ function renderHaccpDaily() {
       </div>
       <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Einrichtung speichern</button>
       <div class="utility-list">
-        ${haccpState.devices.map((device) => `
+        ${resolveVisibleHaccpDevices().map((device) => `
           <div class="utility-row">
             <div class="utility-row-title">${escapeHtml(device.name)}</div>
-            <div class="utility-row-meta">${escapeHtml(device.protokollTyp || '')} · ${escapeHtml(device.bereich || '')} · ${device.aktiv === false ? 'inaktiv' : 'aktiv'}</div>
+            <div class="utility-row-meta">${escapeHtml(device.protokollTyp || '')} · ${escapeHtml(device.bereich || '')} · ${device.localFlyFallback ? 'lokal (Upgrade)' : device.aktiv === false ? 'inaktiv' : 'aktiv'}</div>
             ${device.aktiv === false ? '' : `<div class="utility-row-actions"><button class="btn-danger-small" type="button" data-haccp-deactivate="${escapeHtml(device.id)}">Deaktivieren</button></div>`}
           </div>
         `).join('')}

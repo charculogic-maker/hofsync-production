@@ -3,21 +3,13 @@
  * Requires firebase-app-check-compat.js loaded before this module runs.
  */
 import { isLocalDevHost } from './dev-guards.js';
-import { FIREBASE_PROJECTS, resolveFirebaseProjectKey } from './firebase-config.js';
+import { getAppCheckSiteKey, resolveFirebaseProjectKey } from './firebase-config.js';
 
 const DEBUG_TOKEN_STORAGE_KEY = 'charculogic_appcheck_debug_token';
 
 /** @type {Promise<void> | null} */
 let appCheckReadyPromise = null;
 let appCheckActivationFailed = false;
-
-function readConfiguredSiteKey() {
-  const projectKey = resolveFirebaseProjectKey();
-  const siteKey = FIREBASE_PROJECTS[projectKey]?.appCheckRecaptchaSiteKey || '';
-  const trimmed = String(siteKey).trim();
-  if (!trimmed || trimmed.startsWith('REPLACE_')) return '';
-  return trimmed;
-}
 
 export function configureAppCheckDebugProvider() {
   if (!isLocalDevHost()) return false;
@@ -54,9 +46,10 @@ export function initAppCheckModule() {
   appCheckReadyPromise = (async () => {
     assertCompatAppCheckAvailable();
 
-    const siteKey = readConfiguredSiteKey();
+    const projectKey = resolveFirebaseProjectKey();
+    const siteKey = getAppCheckSiteKey(projectKey);
     if (!siteKey) {
-      const msg = '[AppCheck] appCheckRecaptchaSiteKey fehlt oder ist Platzhalter in web/firebase-config.js.';
+      const msg = `[AppCheck] appCheckRecaptchaSiteKey fehlt oder ist Platzhalter für Profil "${projectKey}" in web/firebase-config.js.`;
       console.error(msg);
       appCheckActivationFailed = true;
       throw new Error(msg);
@@ -71,7 +64,7 @@ export function initAppCheckModule() {
     );
 
     appCheckActivationFailed = false;
-    console.info(`[AppCheck] Initialisiert (${resolveFirebaseProjectKey()}, Compat reCAPTCHA v3).`);
+    console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
   })().catch((err) => {
     appCheckActivationFailed = true;
     appCheckReadyPromise = null;

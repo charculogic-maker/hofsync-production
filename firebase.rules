@@ -111,6 +111,29 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // TENANT ROOT (enabledModules – platform dev admin writes)
+    // =========================================================================
+
+    function isPlatformDevAdmin() {
+      return isAuthenticated()
+        && request.auth.uid in ['VYwMy5IAlAR26pj8ZbFfc5PNdou2'];
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isTenantMember(tenantId) || isPlatformDevAdmin();
+      allow create: if isPlatformDevAdmin()
+        && request.resource.data.keys().hasOnly(['enabledModules', 'displayName', 'createdAt', 'updatedAt'])
+        && request.resource.data.enabledModules is map;
+      allow update: if isPlatformDevAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
+        && request.resource.data.enabledModules is map;
+      allow update: if isAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
+        && request.resource.data.enabledModules is map;
+      allow delete: if false;
+    }
+
+    // =========================================================================
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
@@ -400,6 +423,21 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId;
 
       allow delete: if isAdmin(tenantId);
+    }
+
+    match /tenants/{tenantId}/bulletinConfirmations/{confirmationId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && hasOnly([
+          'employeeName', 'confirmedAt', 'bulletinMessage', 'bulletinUpdatedAt',
+          'tenantId', 'deviceId', 'profileEmail'
+        ])
+        && isNonEmptyString(request.resource.data.employeeName)
+        && isNonEmptyString(request.resource.data.confirmedAt);
+
+      allow update, delete: if isAdmin(tenantId);
     }
 
     // =========================================================================

@@ -16,6 +16,11 @@ let authContext = null;
 let authReadyPromise = null;
 let resolveAuthReady = null;
 let authStateListenerBound = false;
+let firebaseCoreReadyPromise = Promise.resolve();
+
+export function registerFirebaseCoreReady(promise) {
+  if (promise) firebaseCoreReadyPromise = promise;
+}
 
 let authState = {
   firebase: null,
@@ -206,7 +211,17 @@ function claimsAreComplete(claims = {}) {
   return Boolean(tenantIdFromClaims(claims) && roleFromClaims(claims));
 }
 
-function ensureAuthConfigured() {
+async function ensureAuthConfigured() {
+  try {
+    await firebaseCoreReadyPromise;
+  } catch (err) {
+    throw new Error(`Firebase Auth ist nicht geladen (${err?.message || err}).`);
+  }
+
+  if (!authState.firebase?.auth && typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+    authState.firebase = authState.firebase || firebase;
+  }
+
   if (!authState.firebase?.auth) {
     throw new Error('Firebase Auth ist nicht geladen.');
   }
@@ -541,12 +556,12 @@ export function isOfficeUser(session = authContext) {
   return Boolean(session.isAdmin && !session.isHelper);
 }
 
-export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } = {}) {
+export async function initAuthModule(firebaseInstance, databaseInstance, { showHUD } = {}) {
   authState.firebase = firebaseInstance;
   authState.db = databaseInstance;
   authState.showHUD = typeof showHUD === 'function' ? showHUD : authState.showHUD;
 
-  ensureAuthConfigured();
+  await ensureAuthConfigured();
   ensureLoginOverlay();
   bindHeaderLogoutButton();
 
@@ -566,7 +581,9 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
   authStateListenerBound = true;
 
   authState.firebase.auth().onAuthStateChanged(async (user) => {
+    document.body.classList.toggle('auth-pending', Boolean(user));
     if (!user) {
+      document.body.classList.remove('auth-pending');
       authContext = null;
       document.documentElement.dataset.authenticatedTenant = '';
       if (isAuthLoopBreakerActive()) {
@@ -587,11 +604,13 @@ export function initAuthModule(firebaseInstance, databaseInstance, { showHUD } =
         window.applyResolvedBranding(nextContext.tenantId);
       }
       completeSuccessfulAuthUnlock(nextContext);
+      document.body.classList.remove('auth-pending');
       if (resolveAuthReady) {
         resolveAuthReady(nextContext);
         resolveAuthReady = null;
       }
     } catch (err) {
+      document.body.classList.remove('auth-pending');
       authContext = null;
       setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
@@ -626,7 +645,7 @@ export function isFirebaseAuthActiveForTenant(expectedTenantId) {
 }
 
 export async function waitForFirebaseUser(timeoutMs = 4000) {
-  ensureAuthConfigured();
+  await ensureAuthConfigured();
   const auth = authState.firebase.auth();
   if (auth.currentUser) return auth.currentUser;
 
@@ -690,7 +709,7 @@ export async function ensureFirebaseAuthForTenant(expectedTenantId, options = {}
   }
 
   prefillTerminalLoginEmail(options.terminalEmail);
-  showLoginOverlay('Bitte den Betriebs-Gerätezugang bestätigen. Die Mitarbeiter-Auswahl folgt danach.');
+  showLoginOverlay('Bitte mit E-Mail und Passwort anmelden.');
   return false;
 }
 
@@ -726,13 +745,13 @@ function completeSuccessfulAuthUnlock(nextContext) {
 }
 
 export async function loginTenant(email, password) {
-  ensureAuthConfigured();
+  await ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
   return authState.firebase.auth().signInWithEmailAndPassword(email, password);
 }
 
 export async function loginWithToken(token, options = {}) {
-  ensureAuthConfigured();
+  await ensureAuthConfigured();
   if (!token) throw new Error('Zugangscode fehlt.');
 
   const expectedTenantId = cleanTenantId(options.expectedTenantId || '');
@@ -749,7 +768,7 @@ export async function loginWithToken(token, options = {}) {
 }
 
 export async function logoutTenant(options = {}) {
-  ensureAuthConfigured();
+  await ensureAuthConfigured();
   const tenantId = authContext?.tenantId || cachedTenantId();
   clearSessionCaches();
   if (tenantId) clearTerminalDeviceToken(tenantId);

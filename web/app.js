@@ -14,6 +14,7 @@ import {
   isOfficeUser,
   loginTenant,
   logoutTenant,
+  registerFirebaseCoreReady,
   shutdownFirestoreClient,
   verifyAdminAction,
   waitForAuthReady,
@@ -51,8 +52,10 @@ import {
   handleMhdBarcodeScan,
   handleMhdScannerStatus,
   initMhdModule,
+  refreshReceivingTabUiSafe,
   renderMhdList,
   startMhdLiveSync,
+  updateMhdAdminSearchVisibility,
 } from './mhd.js';
 import {
   addRetterBoxCandidate,
@@ -66,6 +69,7 @@ import {
   initProductionModule,
   loadProductionBatchesFromCloud,
   loadRecipesFromCloud,
+  syncRecipeAdminFormVisibility,
 } from './production.js';
 import {
   BeffeCalcEngine,
@@ -104,8 +108,30 @@ import {
   setGlobalTenantId,
   tenantIdsMatch,
 } from './tenant-db.js';
-import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
+import { resolveFirebaseConfig, resolveFirebaseProjectKey, toFirebaseSdkConfig } from './firebase-config.js';
+import {
+  assertFirebaseProjectIsolation,
+  ensureFirebaseApp,
+  handleEmergencyLogoutParam,
+  isEmergencyLogoutRequested,
+} from './firebase-init.js';
+import {
+  createHttpsCallable,
+  getRegionalFunctions,
+  resolveFunctionsBaseUrl,
+} from './firebase-functions.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
+import { attachLocalFirebaseEmulators, isLocalFirebaseEmulatorHost } from './firebase-emulator.js';
+import {
+  hasAnyAdminModuleEnabled,
+  isTenantModuleEnabled,
+  loadTenantEnabledModules,
+  subscribeTenantEnabledModules,
+} from './tenant-modules.js';
+import {
+  initDevDashboard,
+  isDevDashboardRoute,
+} from './dev-dashboard.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
@@ -117,12 +143,21 @@ import {
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
 
+// ⚡ Notausgang: ganz oben vor jedem Auth-/Routing-Check prüfen.
+// Bei ?logout=true / ?forceLogout=true sofort abmelden, Cache leeren, sauber neu laden.
+const EMERGENCY_LOGOUT_REQUESTED = isEmergencyLogoutRequested();
+if (EMERGENCY_LOGOUT_REQUESTED) {
+  void handleEmergencyLogoutParam();
+}
+
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
+const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
+const BULLETIN_DOC_ID = 'current';
 const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
 const AUTH_LOCAL_STORAGE_MARKERS = [
@@ -140,11 +175,36 @@ const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving']);
 const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
 
 function isEmployeePinRequired(branding = window.BRANDING) {
+  if (isFirebaseRoleAuth(branding)) return false;
   return branding?.modules?.employeePin !== false;
+}
+
+function isFirebaseRoleAuth(branding = window.BRANDING) {
+  return branding?.modules?.employeeAuth === 'firebase';
 }
 
 function isProfileEmployeeAuth(branding = window.BRANDING) {
   return branding?.modules?.employeeAuth === 'profile';
+}
+
+function resolveFirebaseEmployeeName(authSession = getAuthContext()) {
+  const profile = authSession?.profile || {};
+  const fromProfile = String(profile.displayName || profile.name || '').trim();
+  if (fromProfile) return fromProfile;
+  const fromAuth = String(authSession?.user?.displayName || '').trim();
+  if (fromAuth) return fromAuth;
+  const emailLocal = String(authSession?.email || '').split('@')[0];
+  return emailLocal || 'Mitarbeiter';
+}
+
+function syncFirebaseEmployeeSession(authSession = getAuthContext()) {
+  if (!isFirebaseRoleAuth()) return '';
+  const employeeName = resolveFirebaseEmployeeName(authSession);
+  if (!employeeName) return '';
+  const teamLoginCard = document.getElementById('team-login-card');
+  if (teamLoginCard) teamLoginCard.hidden = true;
+  updateEmployeeSessionBadge(persistActiveEmployeeSession(employeeName));
+  return employeeName;
 }
 
 function isTeamSessionName(employeeName, branding = window.BRANDING) {
@@ -297,10 +357,476 @@ function expireProfileSessionIfIdle(branding = window.BRANDING) {
   return true;
 }
 
+function isAdvancedKaeseUpgradeEnabled(branding = window.BRANDING) {
+  return branding?.advancedKaeseUpgrade === true;
+}
+
+function normalizeProfileCapabilityKey(name = '') {
+  return String(name || '').trim().toLowerCase();
+}
+
+function resolveProfileCapabilities(employeeName, branding = window.BRANDING) {
+  const capabilities = branding?.profileCapabilities;
+  if (!capabilities || typeof capabilities !== 'object') return null;
+  const target = normalizeProfileCapabilityKey(employeeName);
+  if (!target) return null;
+  const match = Object.entries(capabilities).find(
+    ([profileName]) => normalizeProfileCapabilityKey(profileName) === target,
+  );
+  return match ? match[1] : null;
+}
+
+function bulletinAckStorageBaseKey(employeeName) {
+  return `${BULLETIN_ACK_STORAGE_PREFIX}_${normalizeProfileCapabilityKey(employeeName)}`;
+}
+
+function readLocalBulletinAck(employeeName) {
+  return readScopedLocalStorageValue(
+    bulletinAckStorageBaseKey(employeeName),
+    resolveInventoryStorageTenantKey(),
+  );
+}
+
+function writeLocalBulletinAck(employeeName, bulletinFingerprint) {
+  writeScopedLocalStorageValue(
+    bulletinAckStorageBaseKey(employeeName),
+    resolveInventoryStorageTenantKey(),
+    bulletinFingerprint,
+  );
+}
+
+function resolveBulletinFingerprint(bulletin) {
+  if (!bulletin) return '';
+  const updatedAt = bulletin.updatedAt;
+  if (updatedAt && typeof updatedAt.toDate === 'function') {
+    return updatedAt.toDate().toISOString();
+  }
+  const rawUpdated = String(updatedAt || '').trim();
+  if (rawUpdated) return rawUpdated;
+  return String(bulletin.message || '').trim();
+}
+
+function isBulletinUnreadForEmployee(bulletin, employeeName) {
+  const message = String(bulletin?.message || '').trim();
+  if (!message) return false;
+  const fingerprint = resolveBulletinFingerprint(bulletin);
+  if (!fingerprint) return false;
+  return readLocalBulletinAck(employeeName) !== fingerprint;
+}
+
+async function fetchCurrentBulletinDoc() {
+  const tenantId = getGlobalTenantId() || getTenantId();
+  if (!tenantId || !db) return null;
+  try {
+    const snap = await getTenantCollection('bulletinBoard').doc(BULLETIN_DOC_ID).get();
+    return snap.exists ? snap.data() : null;
+  } catch (err) {
+    console.warn('[CharcuLogic Bulletin] Nachricht des Tages konnte nicht geladen werden:', err);
+    return null;
+  }
+}
+
+function readTerminalDeviceIdForAudit() {
+  return readScopedLocalStorageValue(
+    TERMINAL_DEVICE_TOKEN_KEY,
+    resolveInventoryStorageTenantKey(),
+  ) || 'laden-iphone';
+}
+
+async function persistBulletinConfirmationAudit(bulletin, employeeName, branding = window.BRANDING) {
+  const cleanName = String(employeeName || '').trim();
+  const message = String(bulletin?.message || '').trim();
+  if (!cleanName || !message) return;
+
+  const profile = resolveProfileCapabilities(cleanName, branding) || {};
+  const confirmedAtIso = new Date().toISOString();
+  const docId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `ack_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const payload = {
+    employeeName: cleanName,
+    confirmedAt: confirmedAtIso,
+    bulletinMessage: message,
+    bulletinUpdatedAt: resolveBulletinFingerprint(bulletin),
+    tenantId: getGlobalTenantId() || getTenantId(),
+    deviceId: readTerminalDeviceIdForAudit(),
+    profileEmail: String(profile.email || '').trim(),
+  };
+
+  try {
+    const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+    const onlineData = firebaseApi?.firestore?.FieldValue
+      ? { ...payload, confirmedAt: firebaseApi.firestore.FieldValue.serverTimestamp() }
+      : payload;
+    await writeFirestoreDocOrQueue({
+      collectionPath: 'bulletinConfirmations',
+      docId,
+      op: 'set',
+      onlineData,
+      queueData: payload,
+      offlineMessage: 'Bestätigung wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic Bulletin] Audit-Bestätigung konnte nicht gespeichert werden:', err);
+  }
+}
+
+let bulletinAckGatePromise = null;
+
+function showBulletinAckGate(bulletin, employeeName) {
+  if (bulletinAckGatePromise) return bulletinAckGatePromise;
+
+  bulletinAckGatePromise = new Promise((resolve) => {
+    document.getElementById('bulletin-ack-gate-overlay')?.remove();
+
+    const message = String(bulletin?.message || '').trim();
+    const updatedLabel = resolveBulletinFingerprint(bulletin)
+      ? new Date(resolveBulletinFingerprint(bulletin)).toLocaleString('de-DE')
+      : '';
+    const author = String(bulletin?.author || '').trim();
+
+    const body = document.createDocumentFragment();
+    const kicker = document.createElement('div');
+    kicker.className = 'bulletin-card-kicker';
+    kicker.textContent = 'Nachricht des Tages';
+    body.appendChild(kicker);
+
+    if (updatedLabel || author) {
+      const meta = document.createElement('div');
+      meta.className = 'bulletin-card-meta';
+      meta.textContent = [updatedLabel, author].filter(Boolean).join(' · ');
+      body.appendChild(meta);
+    }
+
+    const text = document.createElement('p');
+    text.className = 'bulletin-card-message';
+    text.textContent = message;
+    body.appendChild(text);
+
+    const hint = document.createElement('p');
+    hint.className = 'pin-auth-scan';
+    hint.textContent = `Bitte als ${employeeName} lesen und bestätigen, bevor wir weiterarbeiten.`;
+    body.appendChild(hint);
+
+    const actions = document.createElement('div');
+    actions.className = 'profile-gate-actions';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn btn-primary profile-gate-btn';
+    confirmBtn.dataset.bulletinAckConfirm = '1';
+    confirmBtn.textContent = 'Gelesen & Bestätigt';
+    actions.appendChild(confirmBtn);
+    body.appendChild(actions);
+
+    const { overlay } = buildProfileSessionOverlayShell(body);
+    overlay.id = 'bulletin-ack-gate-overlay';
+
+    const finish = async () => {
+      writeLocalBulletinAck(employeeName, resolveBulletinFingerprint(bulletin));
+      await persistBulletinConfirmationAudit(bulletin, employeeName);
+      overlay.remove();
+      bulletinAckGatePromise = null;
+      window.showToast?.('Nachricht des Tages bestätigt.', 'success');
+      resolve();
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target.closest('[data-bulletin-ack-confirm]')) {
+        void finish();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    confirmBtn.focus();
+  });
+
+  return bulletinAckGatePromise;
+}
+
+async function maybeShowBulletinAckInterceptor(employeeName, branding = window.BRANDING) {
+  if (!isAdvancedKaeseUpgradeEnabled(branding)) return;
+  const cleanName = String(employeeName || '').trim();
+  if (!isNamedProfileSession(cleanName, branding)) return;
+
+  const bulletin = await fetchCurrentBulletinDoc();
+  if (!isBulletinUnreadForEmployee(bulletin, cleanName)) return;
+  await showBulletinAckGate(bulletin, cleanName);
+}
+
+const PROFILE_TAB_ALIASES = {
+  neu: 'receiving',
+  wissen: 'knowledge',
+};
+
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'kitchen']);
+const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
+
+function hasActiveFirebaseAuthUser() {
+  try {
+    if (typeof firebase === 'undefined' || !firebase.apps?.length) return false;
+    return Boolean(firebase.auth().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
+function hasAuthenticatedTenantContext(authSession = getAuthContext()) {
+  try {
+    if (!hasActiveFirebaseAuthUser()) return false;
+    const tenantId = normalizeTenantId(
+      authSession?.tenantId || getTenantId() || getGlobalTenantId() || '',
+    );
+    return Boolean(tenantId);
+  } catch (_) {
+    return false;
+  }
+}
+
+function hasAdminModuleAccess(branding = window.BRANDING, employeeName) {
+  try {
+    if (!hasAuthenticatedTenantContext()) return false;
+    if (isFirebaseRoleAuth(branding)) return isOfficeUser();
+    if (isOfficeUser()) return true;
+
+    if (!isProfileEmployeeAuth(branding)) return false;
+
+    const activeProfile = String(
+      employeeName !== undefined ? employeeName : readActiveEmployee(),
+    ).trim();
+    if (!activeProfile) return false;
+    if (!isNamedProfileSession(activeProfile, branding)) return false;
+
+    const allowed = resolveProfileAllowedTabIds(
+      resolveProfileCapabilities(activeProfile, branding)?.allowedTabs || [],
+    );
+    return ['haccp', 'knowledge', 'wissen', 'batches', 'buero'].some((tabId) => allowed.has(tabId));
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Modul-Zugriff konnte nicht geprüft werden:', err);
+    return false;
+  }
+}
+
+function resolveProfileAllowedTabsForSession(employeeName, branding = window.BRANDING) {
+  const capabilities = resolveProfileCapabilities(employeeName, branding);
+  return capabilities?.allowedTabs || [];
+}
+
+function resolveProfileAllowedTabIds(allowedTabs = []) {
+  return new Set(
+    allowedTabs.map((tabId) => PROFILE_TAB_ALIASES[tabId] || tabId),
+  );
+}
+
+function countVisibleBottomNavTabs() {
+  let count = 0;
+  document.querySelectorAll('.bottom-nav .nav-item[data-tab]').forEach((tab) => {
+    if (tab.hidden || tab.style.display === 'none') return;
+    count += 1;
+  });
+  return count;
+}
+
+function scrollActiveNavTabIntoView({ smooth = true } = {}) {
+  const scrollEl = document.getElementById('bottom-nav-scroll');
+  if (!scrollEl) return;
+  const active = scrollEl.querySelector('.nav-item.active');
+  if (!active || active.hidden || active.style.display === 'none') return;
+
+  try {
+    active.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'nearest',
+      inline: 'center',
+    });
+  } catch (_) {
+    active.scrollIntoView(false);
+  }
+}
+
+function syncBottomNavTabLayout() {
+  const nav = document.getElementById('bottom-nav') || document.querySelector('.bottom-nav');
+  if (!nav) return;
+
+  const visibleCount = countVisibleBottomNavTabs();
+  const scrollable = visibleCount > 3;
+
+  nav.classList.toggle('bottom-nav--scrollable', scrollable);
+  nav.classList.toggle('bottom-nav--compact', !scrollable);
+  nav.classList.remove('bottom-nav--three-tabs', 'bottom-nav--five-tabs', 'bottom-nav--six-tabs');
+
+  requestAnimationFrame(() => {
+    scrollActiveNavTabIntoView({ smooth: false });
+  });
+}
+
+window.scrollActiveNavTabIntoView = scrollActiveNavTabIntoView;
+
+function isAdminHeaderModuleActive() {
+  return document.body.classList.contains('admin-module-view');
+}
+
+function closeAdminHeaderDropdownMenu() {
+  try {
+    const dropdown = document.getElementById('admin-header-dropdown');
+    const menu = document.getElementById('admin-header-dropdown-menu');
+    const trigger = document.getElementById('admin-header-dropdown-btn');
+    dropdown?.classList.remove('is-open');
+    if (menu) menu.hidden = true;
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Dropdown-Menü konnte nicht geschlossen werden:', err);
+  }
+}
+
+function clearAdminModuleViewState() {
+  try {
+    document.body?.classList.remove('admin-module-view');
+    document.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
+      item.classList.remove('is-active');
+    });
+    closeAdminHeaderDropdownMenu();
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Modul-Ansicht konnte nicht zurückgesetzt werden:', err);
+  }
+}
+
+function hideAdminHeaderDropdown() {
+  try {
+    const dropdown = document.getElementById('admin-header-dropdown');
+    if (!dropdown) return;
+    dropdown.hidden = true;
+    dropdown.style.display = 'none';
+    clearAdminModuleViewState();
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Dropdown konnte nicht ausgeblendet werden:', err);
+  }
+}
+
+function syncAdminHeaderDropdown(branding = window.BRANDING) {
+  try {
+    const dropdown = document.getElementById('admin-header-dropdown');
+    if (!dropdown) return;
+    if (!hasAuthenticatedTenantContext()) {
+      hideAdminHeaderDropdown();
+      return;
+    }
+    const show = hasAdminModuleAccess(branding) && hasAnyAdminModuleEnabled(branding);
+    dropdown.hidden = !show;
+    dropdown.style.display = show ? '' : 'none';
+    if (!show) {
+      clearAdminModuleViewState();
+    } else {
+      syncAdminHeaderDropdownItems(branding);
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Dropdown-Sichtbarkeit fehlgeschlagen:', err);
+    hideAdminHeaderDropdown();
+  }
+}
+
+function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
+  try {
+    if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess(branding)) return;
+    const itemModuleMap = {
+      haccp: isTenantModuleEnabled('haccp', branding),
+      knowledge: isTenantModuleEnabled('knowledge', branding),
+      buero: isTenantModuleEnabled('buero', branding),
+    };
+    document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
+      const moduleKey = item.getAttribute('data-admin-module');
+      const enabled = itemModuleMap[moduleKey] !== false;
+      item.hidden = !enabled;
+      item.style.display = enabled ? '' : 'none';
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Dropdown-Einträge konnten nicht aktualisiert werden:', err);
+  }
+}
+
+function hideAdminTabsFromBottomNav() {
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    const tabId = tab.getAttribute('data-tab');
+    if (!ADMIN_HEADER_ONLY_TAB_IDS.has(tabId)) return;
+    tab.hidden = true;
+    tab.style.display = 'none';
+  });
+}
+
+function applyProfileCapabilityTabFilter(branding = window.BRANDING) {
+  if (!isProfileEmployeeAuth(branding)) return;
+
+  const employeeName = readActiveEmployee();
+  const allowedTabs = resolveProfileAllowedTabsForSession(employeeName, branding);
+  if (!allowedTabs.length) return;
+
+  const allowed = resolveProfileAllowedTabIds(allowedTabs);
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    if (tab.hidden) return;
+    const tabId = tab.getAttribute('data-tab');
+    if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
+      tab.style.display = 'none';
+      return;
+    }
+    tab.style.display = allowed.has(tabId) ? '' : 'none';
+  });
+  hideAdminTabsFromBottomNav();
+  syncBottomNavTabLayout();
+}
+
+function isProfileKitchenReadOnly(branding = window.BRANDING) {
+  if (!isProfileEmployeeAuth(branding)) return false;
+  const capabilities = resolveProfileCapabilities(readActiveEmployee(), branding);
+  return capabilities?.kitchenReadOnly === true;
+}
+
+function applyProfileKitchenRestrictions(branding = window.BRANDING) {
+  const readOnly = isProfileKitchenReadOnly(branding);
+  document.body.classList.toggle('profile-kitchen-readonly', readOnly);
+
+  if (!isProfileEmployeeAuth(branding)) {
+    document.body.classList.remove('profile-kitchen-readonly');
+    return;
+  }
+
+  [
+    '#btn-document-recipe-batch',
+    '#kitchen-wrs-panel',
+    '.production-input-card',
+    '.production-log-card',
+  ].forEach((selector) => {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.hidden = readOnly;
+    });
+  });
+
+  const readOnlyHint = document.getElementById('kitchen-readonly-hint');
+  if (readOnly) {
+    if (!readOnlyHint) {
+      const recipesPanel = document.getElementById('kitchen-recipes-panel');
+      if (recipesPanel) {
+        const hint = document.createElement('p');
+        hint.id = 'kitchen-readonly-hint';
+        hint.className = 'kitchen-readonly-hint';
+        hint.textContent = 'Rezeptansicht für Kundenberatung — Produktion und Chargen sind für dein Profil gesperrt.';
+        recipesPanel.insertAdjacentElement('afterbegin', hint);
+      }
+    }
+  } else {
+    readOnlyHint?.remove();
+  }
+}
+
+window.applyProfileKitchenRestrictions = applyProfileKitchenRestrictions;
+
 function persistNamedProfileSession(employeeName, branding = window.BRANDING) {
   const cleanName = persistActiveEmployeeSession(employeeName);
   if (cleanName && isProfileEmployeeAuth(branding) && isNamedProfileSession(cleanName, branding)) {
     touchProfileLastActionTime();
+  }
+  if (cleanName && isAdvancedKaeseUpgradeEnabled(branding)) {
+    applyRoleBasedUi(getAuthContext());
+    void maybeShowBulletinAckInterceptor(cleanName, branding);
   }
   return cleanName;
 }
@@ -410,7 +936,7 @@ function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
   input.focus();
 }
 
-function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther }) {
+function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther, onLogout }) {
   card.replaceChildren();
   const employees = getSortedProfilePickerEmployees();
 
@@ -453,6 +979,13 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
     card.appendChild(cancelBtn);
   }
 
+  const logoutLink = document.createElement('button');
+  logoutLink.type = 'button';
+  logoutLink.className = 'profile-picker-logout-link';
+  logoutLink.dataset.profileLogout = '1';
+  logoutLink.textContent = 'Logout / Abmelden';
+  card.appendChild(logoutLink);
+
   card.onclick = (event) => {
     const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
     if (picked) {
@@ -463,6 +996,10 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
     }
     if (event.target.closest('[data-profile-other]')) {
       onOther();
+      return;
+    }
+    if (event.target.closest('[data-profile-logout]')) {
+      onLogout?.();
       return;
     }
     if (!mandatory && event.target.closest('.profile-picker-cancel')) {
@@ -502,6 +1039,13 @@ function openProfileEmployeePicker(options = {}) {
             mandatory,
             onBack: showList,
             onPick: (pickedName) => close(pickedName),
+          });
+        },
+        onLogout: () => {
+          close('');
+          clearProfileSession();
+          void logoutTenant().catch((err) => {
+            console.warn('[CharcuLogic Auth] logoutTenant aus Profil-Modal fehlgeschlagen:', err);
           });
         },
       });
@@ -551,11 +1095,26 @@ function resolveInventoryStorageTenantKey() {
 function isInventoryWriteReady(branding = window.BRANDING) {
   const tenantId = resolveInventoryTenantId();
   if (!tenantId || !isFirebaseAuthActiveForTenant(tenantId)) return false;
+  if (isFirebaseRoleAuth(branding)) return Boolean(getAuthContext()?.uid);
   if (!isProfileEmployeeAuth(branding)) return true;
   return isNamedProfileSession(readActiveEmployee(), branding);
 }
 
 async function ensureInventoryProfileReadyForWrite(branding = window.BRANDING) {
+  if (isFirebaseRoleAuth(branding)) {
+    const tenantId = resolveInventoryTenantId();
+    if (!tenantId) {
+      window.showToast?.('Betriebs-Kontext fehlt. Bitte erneut anmelden.', 'warning');
+      return false;
+    }
+    if (!isFirebaseAuthActiveForTenant(tenantId)) {
+      window.showToast?.('Bitte zuerst anmelden.', 'warning');
+      return false;
+    }
+    syncFirebaseEmployeeSession(getAuthContext());
+    return true;
+  }
+
   if (!isProfileEmployeeAuth(branding)) return true;
 
   const tenantId = resolveInventoryTenantId();
@@ -715,10 +1274,14 @@ function showReceivingProfileGatekeeper(employeeName) {
 }
 
 async function showReceivingProfileGatekeeperIfNeeded() {
-  if (!isProfileEmployeeAuth()) return;
-  const employeeName = await requireProfileSessionForInventory();
-  if (!employeeName) return;
-  await showReceivingProfileGatekeeper(employeeName);
+  try {
+    if (!isProfileEmployeeAuth()) return;
+    const employeeName = await requireProfileSessionForInventory();
+    if (!employeeName) return;
+    await showReceivingProfileGatekeeper(employeeName);
+  } catch (err) {
+    console.warn('[CharcuLogic Profile] Wareneingang-Gatekeeper konnte nicht geöffnet werden:', err);
+  }
 }
 
 async function ensureEmployeeSessionForProtectedAreaAsync(branding = window.BRANDING) {
@@ -808,7 +1371,10 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
 }
 
 window.isEmployeePinRequired = isEmployeePinRequired;
+window.isFirebaseRoleAuth = isFirebaseRoleAuth;
 window.isProfileEmployeeAuth = isProfileEmployeeAuth;
+window.resolveFirebaseEmployeeName = resolveFirebaseEmployeeName;
+window.syncFirebaseEmployeeSession = syncFirebaseEmployeeSession;
 window.resolveTeamSessionName = resolveTeamSessionName;
 window.ensureEmployeeSessionForProtectedArea = ensureEmployeeSessionForProtectedArea;
 window.touchProfileLastActionTime = touchProfileLastActionTime;
@@ -884,15 +1450,6 @@ function clearTenantProfileLocalStorage(tenantId = '') {
 
 let authPermissionResetInFlight = false;
 
-function hasActiveFirebaseAuthUser() {
-  try {
-    if (typeof firebase === 'undefined' || !firebase.apps?.length) return false;
-    return Boolean(firebase.auth().currentUser);
-  } catch (_) {
-    return false;
-  }
-}
-
 async function awaitFirebaseAuthSignOut(options = {}) {
   const shutdownOptions = {
     clearPersistence: options.clearPersistence === true,
@@ -913,8 +1470,8 @@ async function awaitFirebaseAuthSignOut(options = {}) {
 
     if (typeof firebase === 'undefined') return;
     if (!firebase.apps?.length) {
-      if (!isFirebaseConfigValid(firebaseConfig)) return;
-      firebase.initializeApp(firebaseConfig);
+      if (!isFirebaseConfigValid(toFirebaseSdkConfig(firebaseConfig))) return;
+      ensureFirebaseApp(firebase);
     }
     await firebase.auth().signOut();
   } catch (err) {
@@ -1058,21 +1615,26 @@ window.applyModuleVisibility = applyModuleVisibility;
 
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
-  const kitchenEnabled = isWurstkuecheEnabledForTenant(getTenantId(), branding);
+  const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
   const tabModuleMap = {
     teamboard: modules.teamboard !== false,
     team: modules.team !== false
       && (modules.team === true || modules.orders !== false || modules.haccp !== false || modules.teamboard !== false),
-    mhd: modules.mhdMonitor !== false,
-    receiving: modules.wareneingang !== false,
+    mhd: isTenantModuleEnabled('mhd', branding),
+    receiving: isTenantModuleEnabled('receiving', branding),
     kitchen: kitchenEnabled,
-    haccp: modules.haccp !== false,
-    knowledge: modules.knowledge === true || modules.cutGlossary === true,
+    haccp: isTenantModuleEnabled('haccp', branding),
+    knowledge: isTenantModuleEnabled('knowledge', branding),
     cuts: modules.cutGlossary === true,
-    batches: modules.batches !== false,
+    batches: isTenantModuleEnabled('buero', branding),
   };
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     const tabId = tab.getAttribute('data-tab');
+    if (ADMIN_HEADER_ONLY_TAB_IDS.has(tabId)) {
+      tab.hidden = true;
+      tab.style.display = 'none';
+      return;
+    }
     const enabled = tabModuleMap[tabId] !== false;
     tab.hidden = !enabled;
     tab.style.display = enabled ? '' : 'none';
@@ -1091,6 +1653,14 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     applyReceivingMetzgereiVisibility(branding);
   }
 
+  syncBottomNavTabLayout();
+  try {
+    syncAdminHeaderDropdown(branding);
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Dropdown nach Modul-Sichtbarkeit fehlgeschlagen:', err);
+    hideAdminHeaderDropdown();
+  }
+
   const rezeptAuditEnabled = modules.rezeptAudit !== false;
   const auditCard = document.getElementById('recipe-cloud-audit-card');
   if (auditCard) {
@@ -1099,27 +1669,53 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   }
 }
 
+function resolveFirebaseEmployeeAllowedTabs(authSession) {
+  const allowed = authSession?.profile?.allowedModules
+    || authSession?.claims?.allowedModules
+    || null;
+  if (!allowed || typeof allowed !== 'object') {
+    return new Set(['mhd', 'receiving']);
+  }
+  const tabs = new Set();
+  if (allowed.mhd !== false) tabs.add('mhd');
+  if (allowed.kitchen !== false) tabs.add('kitchen');
+  if (allowed.buero !== false) tabs.add('batches');
+  return tabs;
+}
+
 function applyRoleBasedUi(authSession) {
   const isHelper = authSession?.isHelper || isHelperUser();
   const isOffice = isOfficeUser(authSession);
-  const isStevesHof = isSteveshofTenantId(authSession?.tenantId || getTenantId() || getGlobalTenantId());
+  const firebaseRoleAuth = isFirebaseRoleAuth(window.BRANDING || {});
   document.documentElement.dataset.userRole = authSession?.role || 'user';
   document.body.classList.toggle('role-helper', isHelper);
   document.body.classList.toggle('role-office', isOffice);
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
+  document.body.classList.toggle('role-firebase-auth', firebaseRoleAuth);
+  document.body.classList.toggle('role-admin', authSession?.role === 'admin');
 
   const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
-  const stevesHofOfficeTabs = new Set(['batches']);
+  const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
-    const hideForHelper = isHelper && helperHiddenTabs.has(tabId) && !(isStevesHof && tabId === 'haccp');
-    const hide =
-      hideForHelper
-      || (isStevesHof && !isOffice && stevesHofOfficeTabs.has(tabId));
-    tab.style.display = hide ? 'none' : '';
+    if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
+      tab.style.display = 'none';
+      return;
+    }
+    if (firebaseRoleAuth && authSession?.role === 'employee' && !isOffice) {
+      tab.style.display = firebaseEmployeeTabs.has(tabId) ? '' : 'none';
+      return;
+    }
+    const hideForHelper = isHelper && helperHiddenTabs.has(tabId);
+    tab.style.display = hideForHelper ? 'none' : '';
   });
+
+  if (firebaseRoleAuth) {
+    const teamLoginCard = document.getElementById('team-login-card');
+    if (teamLoginCard) teamLoginCard.hidden = true;
+  }
 
   ['btn-master-data', 'btn-delivery-note-ai', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
@@ -1132,8 +1728,24 @@ function applyRoleBasedUi(authSession) {
   const teamHub = document.getElementById('page-team');
   if (teamHub) teamHub.classList.toggle('role-helper-hidden', isHelper);
 
+  applyModuleVisibility(window.BRANDING || {});
+  applyProfileCapabilityTabFilter();
+  applyProfileKitchenRestrictions();
+  syncBottomNavTabLayout();
+  try {
+    if (hasAuthenticatedTenantContext(authSession)) {
+      syncAdminHeaderDropdown(window.BRANDING || {});
+    } else {
+      hideAdminHeaderDropdown();
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Admin-Dropdown während Rollen-UI fehlgeschlagen:', err);
+    hideAdminHeaderDropdown();
+  }
   refreshWrsMeatPriceAdminButton();
+  updateMhdAdminSearchVisibility(isOffice);
   updateOfficeAccessLock();
+  syncRecipeAdminFormVisibility();
 }
 
 function setOfficeLoginError(message = '') {
@@ -1295,29 +1907,38 @@ async function handleAuthUrlResetIfRequested() {
 }
 
 function initFirebase() {
+  if (firebaseReady && db) return true;
   if (typeof firebase === 'undefined') {
     console.error('[CharcuLogic Firebase] Firebase SDK nicht geladen. Prüfe die Script-Tags in index.html.');
     return false;
   }
-  if (!isFirebaseConfigValid(firebaseConfig)) {
+  if (!isFirebaseConfigValid(toFirebaseSdkConfig(firebaseConfig))) {
     console.error('[CharcuLogic Firebase] Ungültige firebaseConfig – bitte echte Projekt-Credentials eintragen.');
     return false;
   }
   try {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    ensureFirebaseApp(firebase);
+    assertFirebaseProjectIsolation(firebase);
+    if (isLocalFirebaseEmulatorHost()) {
+      attachLocalFirebaseEmulators(firebase);
     }
     db = firebase.firestore();
     initTenantDb(db);
+    if (typeof firebase.auth === 'function') {
+      firebase.auth();
+    }
     if (typeof firebase.functions === 'function') {
-      firebase.functions();
+      getRegionalFunctions(firebase);
+      console.log(`[CharcuLogic Functions] Base-URL: ${resolveFunctionsBaseUrl()}`);
     }
     db.enablePersistence().catch((err) => {
-      console.warn("Firestore Persistence Error:", err.code);
+      console.warn('Firestore Persistence Error:', err.code);
     });
     firebaseReady = true;
+    const modeLabel = isLocalFirebaseEmulatorHost() ? 'Emulator' : 'Cloud';
     console.log(
-      `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" (${resolveFirebaseProjectKey()}).`,
+      `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" `
+      + `(${resolveFirebaseProjectKey()}, ${modeLabel}).`,
     );
     return true;
   } catch (err) {
@@ -1326,6 +1947,21 @@ function initFirebase() {
     firebaseReady = false;
     return false;
   }
+}
+
+function bootstrapFirebaseCore() {
+  const ok = initFirebase();
+  if (!ok) {
+    throw new Error('Firebase-Core konnte nicht initialisiert werden.');
+  }
+  return true;
+}
+
+const firebaseCoreReadyPromise = Promise.resolve().then(() => bootstrapFirebaseCore());
+registerFirebaseCoreReady(firebaseCoreReadyPromise);
+
+async function waitForFirebaseCore() {
+  await firebaseCoreReadyPromise;
 }
 
 
@@ -1394,8 +2030,7 @@ async function callTriggerManualMeatPriceRun() {
   }
 
   await waitForAppCheckReady();
-  const functionsRegion = firebase.app().functions('europe-west3');
-  const callable = functionsRegion.httpsCallable('triggerManualMeatPriceRun', { timeout: 120000 });
+  const callable = createHttpsCallable('triggerManualMeatPriceRun', { timeout: 120000 }, firebase);
   const result = await callable({});
   return result?.data;
 }
@@ -1469,22 +2104,29 @@ function applyFleischpreiseSnapshot(snapshot, sourceLabel = 'cloud') {
 }
 
 function subscribeFleischpreise() {
-  if (!firebaseReady || !db) return;
-  const tenantId = resolveFleischpreiseTenantId();
-  if (!tenantId) return;
+  void (async () => {
+    try {
+      await waitForFirebaseCore();
+    } catch (err) {
+      console.warn('[CharcuLogic WRS] Firebase-Core nicht bereit — Fleischpreise-Listener übersprungen:', err);
+      return;
+    }
+    if (!firebaseReady || !db) return;
+    const tenantId = resolveFleischpreiseTenantId();
+    if (!tenantId) return;
 
-  wrsState.fleischpreiseUnsubscribe?.();
-  wrsState.fleischpreiseUnsubscribe = null;
+    wrsState.fleischpreiseUnsubscribe?.();
+    wrsState.fleischpreiseUnsubscribe = null;
 
-  let collectionRef;
-  try {
-    collectionRef = getTenantCollection('fleischpreise');
-  } catch (err) {
-    console.warn('[CharcuLogic WRS] Fleischpreise-Listener ohne Mandant:', err);
-    return;
-  }
+    let collectionRef;
+    try {
+      collectionRef = getTenantCollection('fleischpreise');
+    } catch (err) {
+      console.warn('[CharcuLogic WRS] Fleischpreise-Listener ohne Mandant:', err);
+      return;
+    }
 
-  wrsState.fleischpreiseUnsubscribe = collectionRef.onSnapshot(
+    wrsState.fleischpreiseUnsubscribe = collectionRef.onSnapshot(
     (snapshot) => {
       if (snapshot.empty) return;
       applyFleischpreiseSnapshot(snapshot, `cloud:${tenantId}`);
@@ -1500,6 +2142,7 @@ function subscribeFleischpreise() {
       }
     },
   );
+  })();
 }
 
 function setWrsStatus(text, type = 'ok') {
@@ -1882,6 +2525,10 @@ function activeEmployeeStorageKey() {
 function updateHeaderLogoutVisibility(activeTab) {
   if (!headerLogoutBtn) return;
   const isFixedTerminal = document.documentElement.dataset.fixedTerminal === 'steveshof';
+  if (isFirebaseRoleAuth()) {
+    headerLogoutBtn.style.display = !isFixedTerminal ? 'inline-block' : 'none';
+    return;
+  }
   headerLogoutBtn.style.display = !isFixedTerminal && activeTab === 'batches' ? 'inline-block' : 'none';
 }
 
@@ -1908,15 +2555,18 @@ function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
   employeeSessionBadge.style.display = 'inline-flex';
 }
 
-const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero']);
+const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero', 'page-dev-dashboard']);
 
 function syncDesktopWideLayout(pageId) {
   const activeId = pageId || document.querySelector('.page.active')?.id || '';
+  const isDevDashboard = activeId === 'page-dev-dashboard' || document.body.classList.contains('dev-dashboard-view');
   document.body.classList.toggle(
     'desktop-wide-layout',
-    DESKTOP_WIDE_PAGES.has(activeId) && window.matchMedia('(min-width: 1024px)').matches,
+    (DESKTOP_WIDE_PAGES.has(activeId) || isDevDashboard) && window.matchMedia('(min-width: 1024px)').matches,
   );
 }
+
+window.syncDesktopWideLayout = syncDesktopWideLayout;
 
 function showPage(pageId) {
   pages.forEach((page) => {
@@ -1931,7 +2581,151 @@ function showPage(pageId) {
 
 window.addEventListener('resize', () => syncDesktopWideLayout());
 
+const ADMIN_DROPDOWN_MODULES = {
+  haccp: {
+    tabId: 'haccp',
+    pageId: 'page-haccp',
+    title: 'HACCP-Protokoll',
+    subtitle: 'Tageskontrollen',
+    activate: () => activateHaccpTab(),
+  },
+  knowledge: {
+    tabId: 'knowledge',
+    pageId: 'page-knowledge',
+    title: 'Wissen',
+    subtitle: 'Handbücher & Fleisch-Lexikon',
+    activate: () => activateCutGlossaryTab(),
+  },
+  buero: {
+    tabId: 'batches',
+    pageId: 'page-batches',
+    title: 'Chargen-Archiv',
+    subtitle: 'Büro & Rückverfolgung',
+    activate: () => {
+      activateBatchesTab();
+      refreshTeamboardAdminPanel();
+      refreshAdminTeamConfigPanel();
+    },
+  },
+};
+
+function setAdminDropdownActiveItem(moduleKey = '') {
+  document.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
+    item.classList.toggle('is-active', item.getAttribute('data-admin-module') === moduleKey);
+  });
+}
+
+async function openAdminDropdownModule(moduleKey) {
+  try {
+    if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) return false;
+    const moduleConfig = ADMIN_DROPDOWN_MODULES[moduleKey];
+    if (!moduleConfig) return false;
+
+    const targetTab = moduleConfig.tabId;
+    expireProfileSessionIfIdle();
+    if (PIN_PROTECTED_TABS.has(targetTab) && !isFirebaseRoleAuth()) {
+      await ensureEmployeeSessionForProtectedAreaAsync();
+    }
+
+    playClickSound(800, 0.05, 0.15);
+    clearAdminModuleViewState();
+    document.body.classList.add('admin-module-view');
+    setAdminDropdownActiveItem(moduleKey);
+
+    tabs.forEach((navTab) => navTab.classList.remove('active'));
+    AppState.activeTab = targetTab;
+
+    showPage(moduleConfig.pageId);
+    if (headerTitle) headerTitle.textContent = moduleConfig.title;
+    if (headerSubtitle) headerSubtitle.textContent = moduleConfig.subtitle;
+
+    try {
+      moduleConfig.activate();
+    } catch (err) {
+      console.error(`[CharcuLogic Admin] Aktivierung fehlgeschlagen für "${moduleKey}":`, err);
+      window.showToast?.(`Bereich "${moduleConfig.title}" wurde geöffnet, Teilfunktionen konnten nicht geladen werden.`, 'warning');
+    }
+
+    if (appContent) {
+      appContent.scrollTop = 0;
+      requestAnimationFrame(() => { appContent.scrollTop = 0; });
+    }
+    updateScannerButtonVisibility();
+    updateHeaderLogoutVisibility(targetTab);
+    updateOfficeAccessLock();
+    return true;
+  } catch (err) {
+    console.warn(`[CharcuLogic Admin] Modul "${moduleKey}" konnte nicht geöffnet werden:`, err);
+    return false;
+  }
+}
+
+function bindAdminHeaderDropdown() {
+  try {
+    const dropdown = document.getElementById('admin-header-dropdown');
+    const trigger = document.getElementById('admin-header-dropdown-btn');
+    const menu = document.getElementById('admin-header-dropdown-menu');
+    if (!dropdown || !trigger || !menu) return;
+    hideAdminHeaderDropdown();
+    if (dropdown.dataset.bound === '1') return;
+    dropdown.dataset.bound = '1';
+
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
+        hideAdminHeaderDropdown();
+        return;
+      }
+      const willOpen = menu.hidden;
+      closeAdminHeaderDropdownMenu();
+      if (!willOpen) return;
+      dropdown.classList.add('is-open');
+      menu.hidden = false;
+      trigger.setAttribute('aria-expanded', 'true');
+    });
+
+    menu.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
+      item.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
+          hideAdminHeaderDropdown();
+          return;
+        }
+        const moduleKey = item.getAttribute('data-admin-module');
+        if (!moduleKey) return;
+        await openAdminDropdownModule(moduleKey);
+        closeAdminHeaderDropdownMenu();
+      });
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!dropdown.contains(event.target)) {
+        closeAdminHeaderDropdownMenu();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeAdminHeaderDropdownMenu();
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Dropdown-Bindung fehlgeschlagen:', err);
+    hideAdminHeaderDropdown();
+  }
+}
+bindAdminHeaderDropdown();
+
 function showTab(tabId) {
+  const adminModuleKey = {
+    haccp: 'haccp',
+    knowledge: 'knowledge',
+    cuts: 'knowledge',
+    batches: 'buero',
+    buero: 'buero',
+  }[tabId] || '';
+  if (adminModuleKey && hasAdminModuleAccess()) {
+    void openAdminDropdownModule(adminModuleKey);
+    return true;
+  }
   const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
   if (!tab || tab.hidden || tab.style.display === 'none') return false;
   tab.click();
@@ -1994,8 +2788,32 @@ window.addEventListener('charculogic:active-employee-changed', (event) => {
   updateEmployeeSessionBadge(employeeName);
   if (isProfileEmployeeAuth() && isNamedProfileSession(employeeName)) {
     touchProfileLastActionTime();
+    applyRoleBasedUi(getAuthContext());
+    applyProfileKitchenRestrictions();
+    if (isAdvancedKaeseUpgradeEnabled()) {
+      void maybeShowBulletinAckInterceptor(employeeName);
+    }
+  }
+  if (AppState.activeTab === 'receiving') {
+    refreshReceivingTabUiSafe();
   }
 });
+
+if (employeeSessionBadge) {
+  employeeSessionBadge.style.cursor = 'pointer';
+  employeeSessionBadge.setAttribute('role', 'button');
+  employeeSessionBadge.setAttribute('tabindex', '0');
+  employeeSessionBadge.setAttribute('aria-label', 'Profil wechseln');
+  employeeSessionBadge.addEventListener('click', () => {
+    if (!isProfileEmployeeAuth()) return;
+    void openProfileEmployeePicker({ mandatory: false });
+  });
+  employeeSessionBadge.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    employeeSessionBadge.click();
+  });
+}
 
 tabs.forEach(tab => {
   tab.addEventListener('click', async () => {
@@ -2003,16 +2821,21 @@ tabs.forEach(tab => {
     if (tab.hidden || tab.style.display === 'none') {
       return;
     }
-    if (targetTab === 'kitchen' && !isWurstkuecheEnabledForTenant(getTenantId())) {
+    if (isAdminHeaderModuleActive()) {
+      clearAdminModuleViewState();
+    }
+    if (targetTab === 'kitchen' && !isTenantModuleEnabled('kitchen')) {
       showToast('Das Produktionsmodul ist für diesen Betrieb nicht freigeschaltet.', 'warning');
       return;
     }
     expireProfileSessionIfIdle();
-    if (PIN_PROTECTED_TABS.has(targetTab) || INVENTORY_PROFILE_TABS.has(targetTab)) {
-      await ensureEmployeeSessionForProtectedAreaAsync();
-    }
-    if (INVENTORY_PROFILE_TABS.has(targetTab)) {
-      await ensureInventoryProfileSessionForTab(targetTab);
+    if (!isFirebaseRoleAuth()) {
+      if (PIN_PROTECTED_TABS.has(targetTab) || INVENTORY_PROFILE_TABS.has(targetTab)) {
+        await ensureEmployeeSessionForProtectedAreaAsync();
+      }
+      if (INVENTORY_PROFILE_TABS.has(targetTab)) {
+        await ensureInventoryProfileSessionForTab(targetTab);
+      }
     }
     AppState.activeTab = targetTab;
 
@@ -2022,6 +2845,7 @@ tabs.forEach(tab => {
     // Navigationselemente aktualisieren
     tabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
+    scrollActiveNavTabIntoView({ smooth: true });
 
     // Seite + Header immer zuerst stabil umschalten
     if (targetTab === 'teamboard') {
@@ -2098,18 +2922,62 @@ tabs.forEach(tab => {
   });
 });
 
+let tenantModulesUnsubscribe = null;
+
+function bindTenantModuleConfigListener(tenantId) {
+  if (!tenantId || isDevDashboardRoute()) return;
+  if (tenantModulesUnsubscribe) tenantModulesUnsubscribe();
+  tenantModulesUnsubscribe = subscribeTenantEnabledModules(db, tenantId, () => {
+    applyModuleVisibility(window.BRANDING);
+    try {
+      syncAdminHeaderDropdown(window.BRANDING);
+    } catch (_) {
+      hideAdminHeaderDropdown();
+    }
+    refreshRetterBoxModule();
+  });
+}
+
+window.addEventListener('popstate', () => {
+  if (!isDevDashboardRoute()) return;
+  // initDevDashboard prüft die Admin-Rolle selbst und zeigt ggf. die
+  // Desktop-Fehlermeldung — kein Redirect mehr in die mobile Ansicht.
+  const user = firebase?.auth?.()?.currentUser;
+  void initDevDashboard(db, { currentUser: user, authContext: getAuthContext() });
+});
+
 function startTenantLiveDataListeners() {
-  if (!canStartFirestoreLiveListeners(firebase)) return;
-  startMhdLiveSync();
-  startHaccpLiveSync();
+  void (async () => {
+    try {
+      await waitForFirebaseCore();
+    } catch (err) {
+      console.warn('[CharcuLogic Sync] Live-Listener ohne Firebase-Core übersprungen:', err);
+      return;
+    }
+    if (!canStartFirestoreLiveListeners(firebase)) return;
+    startMhdLiveSync();
+    startHaccpLiveSync();
+  })();
 }
 
 window.canStartFirestoreLiveListeners = () => canStartFirestoreLiveListeners(firebase);
 window.startTenantLiveDataListeners = startTenantLiveDataListeners;
 
 async function startAppShell() {
+  try {
+    await waitForFirebaseCore();
+  } catch (err) {
+    console.error('[CharcuLogic Bootstrap] Firebase-Core nicht bereit — UI-Shell wartet:', err);
+    return;
+  }
   if (await handleAuthUrlResetIfRequested()) return;
   applyEarlyTenantShell();
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(window.resolveEffectiveTenantId?.());
+  } else if (typeof window.applyBranding === 'function') {
+    window.applyBranding();
+  }
+  syncBottomNavTabLayout();
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
@@ -2119,7 +2987,7 @@ async function startAppShell() {
   }
 }
 
-void startAppShell();
+if (!EMERGENCY_LOGOUT_REQUESTED) void startAppShell();
 
 const SYNC_STATUS = {
   online: 'ONLINE',
@@ -2444,15 +3312,21 @@ if ('serviceWorker' in navigator) {
 
 // Initialer Render & Firebase-Start
 async function bootstrapAuthenticatedApp() {
-  if (await handleAuthUrlResetIfRequested()) return;
-
-  applyBranding();
-
-  if (!initFirebase()) {
+  try {
+    await waitForFirebaseCore();
+  } catch (err) {
     setSyncStatus('offline');
-    console.error('[CharcuLogic Auth] Firebase ist Pflicht fuer Mandantentrennung. App bleibt im Initialisierungsmodus.');
+    console.error('[CharcuLogic Auth] Firebase-Core nicht bereit:', err);
     showHUD('HofSync wird initialisiert', 'Mandantendaten konnten noch nicht geladen werden.', '!');
     return;
+  }
+
+  if (await handleAuthUrlResetIfRequested()) return;
+
+  if (typeof window.applyResolvedBranding === 'function') {
+    window.applyResolvedBranding(window.resolveEffectiveTenantId?.());
+  } else {
+    applyBranding();
   }
 
   try {
@@ -2465,9 +3339,16 @@ async function bootstrapAuthenticatedApp() {
     );
   }
 
-  initAuthModule(firebase, db, { showHUD });
+  await initAuthModule(firebase, db, { showHUD });
   if (isAuthLoopBreakerActive()) {
     hideAppShellForAuthLockdown();
+  }
+  // Auf /dev-dashboard schon vor dem Login das Desktop-Layout aktivieren,
+  // damit das (von auth.js gezeigte) Login-Overlay zentriert im Desktop liegt
+  // statt im schmalen Smartphone-Simulator.
+  if (isDevDashboardRoute()) {
+    document.body.classList.add('dev-dashboard-view');
+    window.syncDesktopWideLayout?.('page-dev-dashboard');
   }
   const authSession = await waitForAuthReady();
   if (typeof window.applyResolvedBranding === 'function') {
@@ -2476,18 +3357,42 @@ async function bootstrapAuthenticatedApp() {
     applyBranding();
   }
   setGlobalTenantId(authSession.tenantId);
+  await loadTenantEnabledModules(db, authSession.tenantId);
   applyModuleVisibility(window.BRANDING);
+
+  const currentUser = firebase.auth().currentUser;
+  if (isDevDashboardRoute()) {
+    // Kein Simulator-Redirect mehr: initDevDashboard zeigt bei fehlenden
+    // Admin-Rechten eine saubere Desktop-Fehlermeldung inkl. Logout-Button.
+    await initDevDashboard(db, { currentUser, authContext: authSession });
+    updateSyncIndicator();
+    return;
+  }
+
+  bindTenantModuleConfigListener(authSession.tenantId);
+  syncFirebaseEmployeeSession(authSession);
   applyRoleBasedUi(authSession);
+  if (isFirebaseRoleAuth(window.BRANDING) && authSession.role === 'employee') {
+    showTab('mhd');
+  }
   refreshRetterBoxModule();
   bindOfficeAccessLock();
+  bindAdminHeaderDropdown();
   window.addEventListener('charculogic:auth-changed', (event) => {
     const nextSession = event.detail || getAuthContext();
-    if (nextSession?.tenantId) setGlobalTenantId(nextSession.tenantId);
+    if (nextSession?.tenantId) {
+      setGlobalTenantId(nextSession.tenantId);
+      void loadTenantEnabledModules(db, nextSession.tenantId).then(() => {
+        applyModuleVisibility(window.BRANDING);
+        bindTenantModuleConfigListener(nextSession.tenantId);
+      });
+    }
     if (typeof window.applyResolvedBranding === 'function') {
       window.applyResolvedBranding(nextSession?.tenantId);
     }
     applyModuleVisibility(window.BRANDING);
     applyRoleBasedUi(nextSession);
+    syncFirebaseEmployeeSession(nextSession);
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
     startTenantLiveDataListeners();
@@ -2498,13 +3403,14 @@ async function bootstrapAuthenticatedApp() {
   const terminalEmployeeName = readActiveEmployee();
   const tenantId = getGlobalTenantId();
 
-  const recipeModuleEnabled = isWurstkuecheEnabledForTenant(authSession.tenantId);
+  const recipeModuleEnabled = isTenantModuleEnabled('kitchen', window.BRANDING);
   if (recipeModuleEnabled) {
     initProductionModule(db, writeFirestoreDocOrQueue, { playClickSound, playFeedbackSound }, showHUD, {
       tenantId,
       getFirebase: () => firebase,
       onFormSaved: (fieldIds) => clearDirty(fieldIds),
       restoreDraftFields,
+      getAuditActorName: () => readActiveEmployee() || resolveFirebaseEmployeeName(authSession),
     });
   } else {
     disableProductionModule();
@@ -2575,11 +3481,23 @@ async function bootstrapAuthenticatedApp() {
 
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
-  if (isProfileEmployeeAuth(window.BRANDING)) {
-    await ensureTenantFirebaseAuth(window.BRANDING);
-    if (INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
-      await requireProfileSessionForInventory();
+  if (!isFirebaseRoleAuth(window.BRANDING)) {
+    if (isProfileEmployeeAuth(window.BRANDING)) {
+      await ensureTenantFirebaseAuth(window.BRANDING);
+      if (INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
+        await requireProfileSessionForInventory();
+      }
+      const activeProfile = readActiveEmployee();
+      if (activeProfile) {
+        applyRoleBasedUi(authSession);
+        applyProfileKitchenRestrictions();
+        if (isAdvancedKaeseUpgradeEnabled(window.BRANDING)) {
+          await maybeShowBulletinAckInterceptor(activeProfile, window.BRANDING);
+        }
+      }
     }
+  } else {
+    syncFirebaseEmployeeSession(authSession);
   }
 
   if (tenantIdsMatch(authSession.tenantId, STEVESHOF_TENANT_ID)) {
@@ -2693,12 +3611,20 @@ function initQaPanel() {
 }
 initQaPanel();
 
-applyBranding();
+if (typeof window.applyResolvedBranding === 'function') {
+  window.applyResolvedBranding(window.resolveEffectiveTenantId?.());
+} else {
+  applyBranding();
+}
 
-initWrsModule();
+if (!EMERGENCY_LOGOUT_REQUESTED) {
+  void firebaseCoreReadyPromise.then(() => initWrsModule()).catch((err) => {
+    console.warn('[CharcuLogic WRS] Modul-Start nach Firebase-Core fehlgeschlagen:', err);
+  });
 
-bootstrapAuthenticatedApp().catch((err) => {
-  refreshSyncConnectivityUi();
-  console.error('[CharcuLogic Auth] App-Start nach Auth fehlgeschlagen:', err);
-  showHUD('HofSync wird initialisiert', 'Mandantendaten konnten noch nicht geladen werden.', '!');
-});
+  bootstrapAuthenticatedApp().catch((err) => {
+    refreshSyncConnectivityUi();
+    console.error('[CharcuLogic Auth] App-Start nach Auth fehlgeschlagen:', err);
+    showHUD('HofSync wird initialisiert', 'Mandantendaten konnten noch nicht geladen werden.', '!');
+  });
+}

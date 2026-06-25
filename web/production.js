@@ -4,7 +4,12 @@ import {
   getGlobalTenantId,
   getTenantCollection,
   getTenantCollectionPath,
+  tenantIdsMatch,
 } from './tenant-db.js';
+
+const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
+const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
+const EIGENPRODUKTION_SOURCE = 'eigenproduktion';
 
 const productionState = {
   db: null,
@@ -30,7 +35,52 @@ const productionState = {
   restoreDraftFields: () => 0,
   initialized: false,
   batchDocumentInFlight: false,
+  getAuditActorName: () => '',
 };
+
+function shouldUseBratwurstMasterlist() {
+  const brandingFlag = window.BRANDING?.modules?.bratwurstMasterlist;
+  if (brandingFlag === true) return true;
+  if (brandingFlag === false) return false;
+  const tenantId = getGlobalTenantId() || String(productionState.tenantId || '').trim();
+  return tenantIdsMatch(tenantId, STEVESHOF_TENANT_ID);
+}
+
+function isProductionAdmin() {
+  return document.documentElement?.dataset?.userRole === 'admin';
+}
+
+function mhdListeCollectionPath() {
+  try {
+    return getTenantCollectionPath('mhd_liste');
+  } catch {
+    return null;
+  }
+}
+
+function formatIsoDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToToday(days) {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + days);
+  return base;
+}
+
+function slugRecipeIdFromName(name) {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return '';
+  const slug = trimmed
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Za-z0-9ÄÖÜäöüß\-]+/g, '')
+    .slice(0, 80);
+  return getSafeFirestoreId(slug || trimmed);
+}
 
 function getFirebase() { return productionState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(productionState.db && getFirebase()); }
@@ -3762,6 +3812,7 @@ function recipeIdsMatch(a, b) {
 }
 
 function findLocalRecipe(recipe, fallbackId = '') {
+  if (!shouldUseBratwurstMasterlist()) return null;
   return localRecipeIndex.get(String(recipe?.id))
     || localRecipeIndex.get(String(fallbackId))
     || localRecipeLookup.get(recipeLookupKey(recipe?.id))
@@ -3772,6 +3823,7 @@ function findLocalRecipe(recipe, fallbackId = '') {
 }
 
 function ingredientsFromBratwurstSeed(recipeId) {
+  if (!shouldUseBratwurstMasterlist()) return [];
   if (recipeId == null || recipeId === '') return [];
   const seedRecipe = bratwurstRecipes.find((entry) => recipeIdsMatch(entry.id, recipeId));
   if (seedRecipe?.ingredients?.length) {
@@ -3801,9 +3853,11 @@ function ensureRecipeIngredients(recipe, recipeId = recipe?.id) {
 function recipesForKitchenList() {
   const recipesById = new Map();
 
-  bratwurstRecipes.forEach((recipe) => {
-    recipesById.set(String(recipe.id), ensureRecipeIngredients(recipe, recipe.id));
-  });
+  if (shouldUseBratwurstMasterlist()) {
+    bratwurstRecipes.forEach((recipe) => {
+      recipesById.set(String(recipe.id), ensureRecipeIngredients(recipe, recipe.id));
+    });
+  }
 
   productionState.recipes.forEach((cloudRecipe) => {
     const localRecipe = findLocalRecipe(cloudRecipe, cloudRecipe.id || cloudRecipe.docId);
@@ -3859,6 +3913,11 @@ function normalizeRecipeDoc(doc) {
 
 
 async function importBratwurstRecipesToCloud() {
+  if (!shouldUseBratwurstMasterlist()) {
+    console.warn('[CharcuLogic Firebase] Rezept-Seed nur für Mandanten mit Bratwurst-Masterliste.');
+    return;
+  }
+
   const tenantId = requireProductionTenantId();
 
   if (!tenantId) {
@@ -4221,9 +4280,14 @@ function renderRecipes() {
   const visibleRecipes = filteredRecipesForKitchen(recipes);
 
   if (!recipes.length) {
+    const emptyHint = shouldUseBratwurstMasterlist()
+      ? (isFirebaseReady() ? 'Keine Rezepte in der Cloud. Seed läuft?' : 'Firebase nicht konfiguriert – Rezepte können nicht geladen werden.')
+      : (isProductionAdmin()
+        ? 'Noch keine Rezepte. Als Admin unten „Neues Rezept anlegen“ nutzen.'
+        : 'Noch keine Rezepte hinterlegt. Bitte einen Admin bitten, Rezepte anzulegen.');
     container.innerHTML = `
       <div class="recipe-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        ${isFirebaseReady() ? 'Keine Rezepte in der Cloud. Seed l?uft?' : 'Firebase nicht konfiguriert - Rezepte k?nnen nicht geladen werden.'}
+        ${emptyHint}
       </div>`;
     return;
   }
@@ -4251,7 +4315,7 @@ function resolveActiveRecipeForDetail(recipeId) {
   let recipe = getRecipeWithLocalFallback(resolvedId);
   if (!recipe) return null;
 
-  if (!recipe.ingredients || recipe.ingredients.length === 0) {
+  if (shouldUseBratwurstMasterlist() && (!recipe.ingredients || recipe.ingredients.length === 0)) {
     const seedRecipe = bratwurstRecipes.find((entry) => recipeIdsMatch(entry.id, resolvedId));
     if (seedRecipe?.ingredients?.length) {
       recipe = { ...recipe, ingredients: [...seedRecipe.ingredients] };
@@ -4385,7 +4449,7 @@ function isRezeptAuditEnabled() {
 }
 
 function validateCloudRecipesAgainstMasterlist(cloudRecipes = productionState.recipes) {
-  if (!isRezeptAuditEnabled()) return null;
+  if (!shouldUseBratwurstMasterlist() || !isRezeptAuditEnabled()) return null;
 
   const missing = [];
   const incomplete = [];
@@ -4479,15 +4543,18 @@ function calculateIngredients() {
   }
 
   const cloudRecipe = productionState.recipes.find(r => recipeIdsMatch(r.id, productionState.selectedRecipeId));
-  const localRecipe = bratwurstRecipes.find(r => recipeIdsMatch(r.id, productionState.selectedRecipeId));
+  const localRecipe = shouldUseBratwurstMasterlist()
+    ? bratwurstRecipes.find(r => recipeIdsMatch(r.id, productionState.selectedRecipeId))
+    : null;
   const cloudRenderableCount = renderableIngredientCount(cloudRecipe);
   const localRenderableCount = renderableIngredientCount(localRecipe);
   let activeRecipe = cloudRecipe;
   let dataSource = 'cloud';
 
-  // SKELETT-FALLE KORREKTUR:
+  // SKELETT-FALLE KORREKTUR (nur StevesHof-Masterliste):
   // Wenn Cloud fehlt oder weniger renderbare Zutaten als die Masterliste hat -> lokale Vollversion nutzen.
-  if (!activeRecipe || cloudRenderableCount === 0 || localRenderableCount > cloudRenderableCount) {
+  if (shouldUseBratwurstMasterlist()
+    && (!activeRecipe || cloudRenderableCount === 0 || localRenderableCount > cloudRenderableCount)) {
     activeRecipe = localRecipe;
     dataSource = 'local';
   }
@@ -4625,6 +4692,188 @@ const PRODUCTION_FORM_FIELDS = [
   'recipe-unit-loose', 'recipe-unit-glass', 'recipe-unit-note',
 ];
 
+const RECIPE_CREATE_FORM_FIELDS = [
+  'recipe-create-name', 'recipe-create-category', 'recipe-create-haltbar',
+  'recipe-create-mhd-days',
+];
+
+function buildMhdRecordFromProductionBatch({ recipe, batchNumber, targetKg, maker }) {
+  const standardMhdTage = parseInt(recipe?.standardMhdTage, 10);
+  if (!Number.isFinite(standardMhdTage) || standardMhdTage < 0) return null;
+
+  const mhdPath = mhdListeCollectionPath();
+  if (!mhdPath) return null;
+
+  const mhdDateObj = addDaysToToday(standardMhdTage);
+  const mhdDateIso = formatIsoDateLocal(mhdDateObj);
+  const postenId = `${getSafeFirestoreId(batchNumber)}_${Date.now().toString(36)}`;
+  const qty = Math.max(1, Math.round(targetKg) || 1);
+  const actor = maker || productionState.getAuditActorName?.() || '';
+
+  return {
+    collectionPath: mhdPath,
+    docId: postenId,
+    onlineData: {
+      id: postenId,
+      postenId,
+      produkt: recipe.name,
+      name: recipe.name,
+      marke: '',
+      brand: '',
+      mhd: mhdDateIso,
+      mhdDate: mhdDateIso,
+      mhdText: `${standardMhdTage} Resttage`,
+      mhdTimestamp: mhdDateObj,
+      date: mhdDateObj.toLocaleDateString('de-DE'),
+      tage: standardMhdTage,
+      resttage: standardMhdTage,
+      status: 'aktiv',
+      qty,
+      menge: targetKg,
+      eingangMenge: targetKg,
+      mengeEinheit: 'kg',
+      einheit: 'kg',
+      kategorie: recipe.kat || 'Eigenproduktion',
+      warenKategorie: recipe.kat || 'Eigenproduktion',
+      soldOut: false,
+      lot: batchNumber,
+      chargenNummer: batchNumber,
+      lieferant: EIGENPRODUKTION_SUPPLIER,
+      source: EIGENPRODUKTION_SOURCE,
+      postentyp: EIGENPRODUKTION_SOURCE,
+      wareneingangAt: new Date().toISOString(),
+      scannedBy: actor,
+      tenantId: productionState.tenantId || getGlobalTenantId(),
+      updatedAt: serverTimestampFallback(),
+    },
+    queueData: null,
+  };
+}
+
+async function syncMhdEntryFromProductionBatch(context) {
+  const mhdWrite = buildMhdRecordFromProductionBatch(context);
+  if (!mhdWrite) return null;
+
+  const queuePayload = {
+    ...mhdWrite.onlineData,
+    mhdTimestamp: mhdWrite.onlineData.mhdDate,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await productionState.writeOrQueueFirestore({
+    collectionPath: mhdWrite.collectionPath,
+    docId: mhdWrite.docId,
+    op: 'set',
+    onlineData: mhdWrite.onlineData,
+    queueData: queuePayload,
+    offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+  });
+
+  return mhdWrite.docId;
+}
+
+async function createRecipeFromForm() {
+  if (!isProductionAdmin()) {
+    productionState.showHUD('Keine Berechtigung', 'Nur Admins können Rezepte anlegen.', '!');
+    return;
+  }
+
+  const name = document.getElementById('recipe-create-name')?.value.trim() || '';
+  const kat = document.getElementById('recipe-create-category')?.value.trim() || 'Hauptgericht';
+  const haltbar = document.getElementById('recipe-create-haltbar')?.value.trim() || '';
+  const mhdDaysRaw = document.getElementById('recipe-create-mhd-days')?.value;
+  const standardMhdTage = parseInt(String(mhdDaysRaw ?? '').trim(), 10);
+
+  if (!name) {
+    productionState.showHUD('Name fehlt', 'Bitte einen Rezeptnamen eintragen.', '!');
+    return;
+  }
+  if (!Number.isFinite(standardMhdTage) || standardMhdTage < 0) {
+    productionState.showHUD('MHD-Tage fehlen', 'Bitte gültige Haltbarkeit in Tagen eintragen (z. B. 3).', '!');
+    return;
+  }
+
+  const collectionPath = rezepteCollectionPath();
+  if (!collectionPath) {
+    productionState.showHUD('Mandant fehlt', 'Rezept konnte keinem Betrieb zugeordnet werden.', '!');
+    return;
+  }
+
+  const logicalId = slugRecipeIdFromName(name);
+  if (!logicalId) {
+    productionState.showHUD('Ungültiger Name', 'Der Rezeptname ergibt keine gültige ID.', '!');
+    return;
+  }
+
+  const existing = productionState.recipes.find(
+    (entry) => recipeIdsMatch(entry.id, logicalId) || recipeIdsMatch(entry.docId, logicalId),
+  );
+  if (existing) {
+    productionState.showHUD('Rezept existiert', `„${name}" ist bereits hinterlegt.`, '!');
+    return;
+  }
+
+  const tenantId = requireProductionTenantId();
+  const recipePayload = {
+    id: logicalId,
+    firestoreId: logicalId,
+    name,
+    kat,
+    haltbar: haltbar || `${standardMhdTage} Tage bei < 4°C`,
+    standardMhdTage,
+    kaliber: '',
+    basis_g: '1.000,00',
+    allergene: [],
+    ingredients: [],
+    hinweis: '',
+    tipp: '',
+    anweisung_A: '',
+    anweisung_B: '',
+    anweisung_C: '',
+    anweisung_D: '',
+    tenantId,
+    createdAt: serverTimestampFallback(),
+  };
+
+  const saveBtn = document.getElementById('btn-recipe-create-save');
+  try {
+    if (saveBtn) saveBtn.disabled = true;
+    await productionState.writeOrQueueFirestore({
+      collectionPath,
+      docId: logicalId,
+      op: 'set',
+      onlineData: recipePayload,
+      queueData: { ...recipePayload, createdAt: new Date().toISOString() },
+      offlineMessage: 'Rezept wird nachträglich synchronisiert.',
+    });
+
+    RECIPE_CREATE_FORM_FIELDS.forEach((fieldId) => {
+      const field = document.getElementById(fieldId);
+      if (field) field.value = '';
+    });
+
+    productionState.showHUD('Rezept gespeichert', `„${name}" wurde angelegt.`);
+    productionState.playClickSound(1200, 0.06, 0.15);
+    renderRecipes();
+  } catch (error) {
+    console.error('[CharcuLogic Firebase] Rezept anlegen fehlgeschlagen:', error);
+    productionState.showHUD('Fehler', 'Rezept konnte nicht gespeichert werden.', '!');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function initRecipeCreateForm() {
+  const formPanel = document.getElementById('kitchen-recipe-create-panel');
+  const saveBtn = document.getElementById('btn-recipe-create-save');
+  if (!formPanel || !saveBtn || saveBtn.dataset.productionBound === '1') return;
+  saveBtn.dataset.productionBound = '1';
+  saveBtn.addEventListener('click', async () => {
+    productionState.playClickSound(1100, 0.05, 0.12);
+    await createRecipeFromForm();
+  });
+}
+
 async function documentRecipeBatch() {
   if (productionState.batchDocumentInFlight) return;
   if (!productionState.selectedRecipeId) {
@@ -4691,10 +4940,39 @@ async function documentRecipeBatch() {
           op: 'set',
           onlineData: batchEntry,
           queueData: { ...batchEntry, zeitstempel: new Date().toISOString() },
-          offlineMessage: 'Charge wird nachtr?glich synchronisiert.',
+          offlineMessage: 'Charge wird nachträglich synchronisiert.',
         });
+
+    let mhdPostenId = null;
+    let mhdSyncFailed = false;
+    try {
+      mhdPostenId = await syncMhdEntryFromProductionBatch({
+        recipe,
+        batchNumber,
+        targetKg,
+        maker,
+      });
+    } catch (mhdError) {
+      mhdSyncFailed = true;
+      console.error('[CharcuLogic Firebase] MHD-Posten aus Charge fehlgeschlagen:', mhdError);
+      productionState.showHUD(
+        'Charge gespeichert',
+        `${batchNumber} wurde dokumentiert, aber der MHD-Posten konnte nicht angelegt werden.`,
+        '!',
+      );
+    }
+
     productionState.onFormSaved(PRODUCTION_FORM_FIELDS);
-    productionState.showHUD("Charge dokumentiert", `${batchNumber} wurde gespeichert.`);
+    if (!mhdSyncFailed) {
+      if (mhdPostenId) {
+        productionState.showHUD(
+          'Charge dokumentiert',
+          `${batchNumber} gespeichert – MHD-Posten „${recipe.name}" angelegt.`,
+        );
+      } else {
+        productionState.showHUD('Charge dokumentiert', `${batchNumber} wurde gespeichert.`);
+      }
+    }
     productionState.productionBatches = [{ ...batchEntry, id: batchNumber, zeitstempel: new Date() }, ...productionState.productionBatches]
       .filter((batch, index, self) => self.findIndex((entry) => entry.id === batch.id) === index)
       .slice(0, 50);
@@ -4770,17 +5048,24 @@ export function initProductionModule(databaseInstance, writeOrQueueFirestoreFunc
   productionState.tenantId = options.tenantId || productionState.tenantId;
   productionState.getFirebase = options.getFirebase || productionState.getFirebase;
   productionState.onFormSaved = typeof options.onFormSaved === 'function' ? options.onFormSaved : productionState.onFormSaved;
-  productionState.restoreDraftFields = typeof options.restoreDraftFields === 'function' ? options.restoreDraftFields : productionState.restoreDraftFields;
+  productionState.restoreDraftFields = typeof options.restoreDraftFields === 'function'
+    ? options.restoreDraftFields
+    : productionState.restoreDraftFields;
+  productionState.getAuditActorName = typeof options.getAuditActorName === 'function'
+    ? options.getAuditActorName
+    : productionState.getAuditActorName;
 
   if (!productionState.initialized) {
     initRecipeSearchAndFilters();
     initBatchArchiveSearch();
     initRecipeDetailPanelEvents();
     bindRecipeListEvents();
+    initRecipeCreateForm();
     initProductionControls();
     productionState.initialized = true;
   }
 
+  syncRecipeAdminFormVisibility();
   renderRecipeCloudAudit();
   renderRecipes();
   renderProductionBatches();
@@ -4805,10 +5090,20 @@ function restoreProductionDraftFields() {
   productionState.restoreDraftFields(PRODUCTION_FORM_FIELDS);
 }
 
+function syncRecipeAdminFormVisibility() {
+  const panel = document.getElementById('kitchen-recipe-create-panel');
+  if (!panel) return;
+  const visible = isProductionAdmin();
+  panel.hidden = !visible;
+  panel.classList.toggle('hidden', !visible);
+}
+
 export function activateKitchenTab() {
   productionState.activeTab = 'kitchen';
+  syncRecipeAdminFormVisibility();
   renderRecipes();
   restoreProductionDraftFields();
+  window.applyProfileKitchenRestrictions?.();
 }
 
 export function activateBatchesTab() {
@@ -4820,6 +5115,7 @@ export function activateBatchesTab() {
 
 export {
   calculateIngredients,
+  createRecipeFromForm,
   documentRecipeBatch as saveCharge,
   filteredProductionBatches as searchChargen,
   filteredRecipesForKitchen as searchRecipes,
@@ -4829,4 +5125,5 @@ export {
   renderProductionBatches as renderChargenList,
   renderProductionBatches,
   renderRecipes,
+  syncRecipeAdminFormVisibility,
 };
