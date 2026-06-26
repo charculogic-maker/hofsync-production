@@ -321,7 +321,6 @@ export async function postTeamboardBulletin(message, { author } = {}) {
 
   const payload = {
     message: cleanMessage,
-    attachments: [],
     author: String(author || resolveAuthorName()).trim() || resolveAuthorName(),
     tenantId: teamboardState.tenantId,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -330,14 +329,18 @@ export async function postTeamboardBulletin(message, { author } = {}) {
   const result = await writeFirestoreDocOrQueue({
     collectionPath: 'bulletinBoard',
     docId: BULLETIN_DOC_ID,
-    op: 'set',
+    op: 'merge',
     onlineData: payload,
     queueData: { ...payload, updatedAt: new Date().toISOString() },
     offlineMessage: 'Nachricht wird automatisch synchronisiert, sobald WLAN verfügbar ist.',
   });
 
   teamboardState.currentBulletin = {
+    ...(teamboardState.currentBulletin || {}),
     ...payload,
+    attachments: Array.isArray(teamboardState.currentBulletin?.attachments)
+      ? teamboardState.currentBulletin.attachments
+      : [],
     updatedAt: new Date().toISOString(),
   };
   renderBulletinCard(teamboardState.currentBulletin);
