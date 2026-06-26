@@ -1,5 +1,4 @@
-import { describe, it, beforeEach } from 'mocha';
-import { expect } from 'chai';
+import assert from 'node:assert/strict';
 
 function installBrowserStubs() {
   const storage = new Map();
@@ -90,20 +89,20 @@ describe('sync merge writes', () => {
       },
     });
 
-    expect(queued).to.equal('queued');
-    expect(writes).to.deep.equal([]);
+    assert.equal(queued, 'queued');
+    assert.deepEqual(writes, []);
 
     const queueKey = 'charculogic.pendingSyncs.StevesHof_Hauptbetrieb';
     const queuedEntries = JSON.parse(storage.get(queueKey));
-    expect(queuedEntries).to.have.length(1);
-    expect(queuedEntries[0]._op).to.equal('merge');
-    expect(queuedEntries[0].data).not.to.have.property('attachments');
+    assert.equal(queuedEntries.length, 1);
+    assert.equal(queuedEntries[0]._op, 'merge');
+    assert.equal(Object.hasOwn(queuedEntries[0].data, 'attachments'), false);
 
     navigator.onLine = true;
     firebaseReady = true;
     await sync.flushPendingSyncs();
 
-    expect(writes).to.deep.equal([
+    assert.deepEqual(writes, [
       {
         path: 'tenants/StevesHof_Hauptbetrieb/bulletinBoard/current',
         payload: {
@@ -115,6 +114,6 @@ describe('sync merge writes', () => {
         options: { merge: true },
       },
     ]);
-    expect(JSON.parse(storage.get(queueKey))).to.deep.equal([]);
+    assert.deepEqual(JSON.parse(storage.get(queueKey)), []);
   });
 });
