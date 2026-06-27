@@ -258,7 +258,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 - **Markup:** `web/index.html` → `#kitchen-wrs-panel` / `#wrs-meat-price-update-btn` (neben `#wrs-status-pill`).
 - **Logik:** `web/app.js` → `bindWrsMeatPriceUpdateButton()`, Callable `triggerManualMeatPriceRun` (Region `europe-west3`, App Check Pflicht via `waitForAppCheckReady()`).
 - **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
-- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
+- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.7**.
 
 #### Frontend – Wareneingang-Hilfen (Tab **Neu**)
 
@@ -297,7 +297,66 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Modi:** `employee` (Name + PIN), `resolve` (PIN → Name), `meister` (Meister-Freigabe).
 - **Schutz:** PBKDF2-Hash, Lockout nach 5 Fehlversuchen (15 min).
 
-### 4.5 Firebase App Check — Pflicht & Gateway-Schutz
+### 4.5 `onOrderReadySendSignal` – Kunden-Signal bei abholbereiten Bestellungen
+
+Implementierung: `functions/orderNotifications.js`, Export in `functions/index.js`.
+
+| Eigenschaft | Wert |
+|-------------|------|
+| Typ | Gen2 Firestore-Trigger `onDocumentUpdated` |
+| Region | `europe-west3` |
+| Pfad | `tenants/{tenantId}/customerOrders/{orderId}` |
+| Auslöser | `before.status !== "ready"` und `after.status === "ready"` |
+
+#### Ablauf
+
+1. Frontend setzt Bestellungen auf **Abholbereit**:
+   - Sammel-Pickliste: `web/customer-orders.js` → `markSammelPicklisteReady()` schreibt `status: "ready"`, `readyMarkedBy`, `readyMarkedAt`, `pickupPlace` und optionale `actualQuantity`-Werte.
+   - Einzelkarte: `updateOrderStatus(orderId, "ready")` nutzt denselben Statusübergang.
+2. Trigger baut die Nachricht über `buildCustomerSignal(after)`.
+3. Endpreis wird aus den Bestellpositionen berechnet: `actualQuantity` (falls vorhanden) ersetzt die bestellte Menge; Stück-/kg-Preis kommt aus `pricePerKg`, `unitPrice`, `lineTotal` oder verwandten Feldern.
+4. Versand läuft parallel über alle verfügbaren Kanäle:
+
+| Kanal | Bedingung | Verhalten bei fehlender Konfiguration |
+|-------|-----------|----------------------------------------|
+| E-Mail | `customerEmail` vorhanden | `SMTP_USER`, `SMTP_PASS` oder Absender fehlen → Warnlog, Kanal übersprungen |
+| SMS | `callbackPhone` vorhanden | Twilio-Parameter oder `FROM_NUMBER` fehlen → Warnlog, Kanal übersprungen |
+
+Fehlende Kundendaten oder fehlende Provider-Zugangsdaten lassen die Function **nicht** fehlschlagen. Sie loggt das Überspringen und beendet den Trigger, damit Statusänderungen nicht durch Benachrichtigungsprobleme blockiert werden.
+
+#### Tenant- und Idempotenz-Grenzen
+
+- Der Trigger hängt am Mandantenpfad; `tenantId` kommt aus `event.params.tenantId`.
+- Wenn das Dokument zusätzlich `tenantId` enthält und dieser Wert nicht zum Pfad passt, wird der Versand mit Warnlog abgebrochen.
+- Bereits abholbereite Bestellungen lösen keinen erneuten Versand aus (`before.status === "ready"` → Return). Ein erneuter Versand passiert erst nach einem echten späteren Statuswechsel zurück und wieder auf `ready`.
+- Der Status **`picked_up`** zieht Bestand in `web/customer-orders.js` per Firestore-Transaktion ab, löst aber **kein** Kunden-Signal aus.
+
+#### Firebase Params / Betrieb
+
+| Param | Zweck | Default |
+|-------|-------|---------|
+| `SMTP_HOST` | SMTP-Server | `mail.agenturserver.de` |
+| `SMTP_PORT` | SMTP-Port; `465` nutzt TLS, `587` setzt `requireTLS` | `465` |
+| `SMTP_USER`, `SMTP_PASS` | SMTP-Login | User: `bestellung@steveshof-hofladen.de`, Passwort leer |
+| `FROM_EMAIL` | Absenderadresse | `bestellung@steveshof-hofladen.de` |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `FROM_NUMBER` | optionaler SMS-Versand | leer |
+
+Deploy nur dieser Function:
+
+```bash
+firebase use default
+firebase deploy --only functions:onOrderReadySendSignal
+```
+
+Runbook bei ausbleibendem Kunden-Signal:
+
+1. Cloud Logging filtern: `textPayload=~"\[KundenSignal\]"` und `resource.labels.function_name="onOrderReadySendSignal"` (Gen2 ggf. `resource.type="cloud_run_revision"`).
+2. Prüfen, ob die Bestellung tatsächlich von einem anderen Status auf `ready` gewechselt ist.
+3. Firestore-Dokument `tenants/{tenantId}/customerOrders/{orderId}` prüfen: `customerEmail`, `callbackPhone`, `readyAt`, `items[].actualQuantity` / Preisfelder.
+4. Firebase Params für SMTP oder Twilio prüfen; leere Provider-Daten führen bewusst zu `skipped`.
+5. Nicht per direktem Firestore-Patch erneut auf `ready` setzen, wenn `before.status` bereits `ready` ist — das triggert keinen neuen Versand.
+
+### 4.6 Firebase App Check — Pflicht & Gateway-Schutz
 
 App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
@@ -342,7 +401,7 @@ Damit ist ein Deploy ohne gültige Keys sofort erkennbar, statt still fehlende B
 
 **Deploy-Reihenfolge:** App-Check-Provider in Console aktivieren → Site Keys pflegen → `npm run build` → Hosting + Rules + Functions deployen → Debug-Tokens für Entwickler/CI registrieren.
 
-### 4.6 GCP Cloud Monitoring & Alerting Setup
+### 4.7 GCP Cloud Monitoring & Alerting Setup
 
 Automatisierte Benachrichtigung, wenn der Fleischpreis-Engine-Lauf fehlschlägt (Gemini, Validierung, Firestore). Einrichtung im Firebase-/GCP-Projekt (z. B. `hofsync-production`).
 
@@ -388,7 +447,7 @@ Nach Erstellung in der Console **Notification Channels** an die Policy binden.
 - Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
 - Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
 
-### 4.7 Lokales Testen
+### 4.8 Lokales Testen
 
 ```bash
 cd functions
@@ -528,5 +587,5 @@ Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `te
 1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback in Storage perspektivisch entfernen).
 2. **App Check Enforcement** in Firebase Console für alle Zielressourcen aktivieren, sobald Site Keys in allen Umgebungen live sind.
 3. **Rules- + Security-Tests in CI** — `npm run test:rules` (JDK 21+) und `npm run test:functions:security` in Pipeline verankern.
-4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.6 in Produktion anlegen (`alert-policy.json` als Vorlage).
+4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.7 in Produktion anlegen (`alert-policy.json` als Vorlage).
 5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.
