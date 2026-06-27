@@ -228,6 +228,101 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order fulfillment status updates', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-flow');
+    const baseOrder = {
+      tenantId: TENANTS.STEVES_HOF,
+      customerName: 'Emulator Kunde',
+      callbackPhone: '0123456789',
+      readyAt: '2026-06-28T10:00:00.000Z',
+      items: [
+        {
+          product: 'Fleischsalat',
+          quantity: '2',
+          unit: 'kg',
+        },
+      ],
+      acceptedBy: 'Stephan',
+      acceptedAt: '2026-06-27T10:00:00.000Z',
+      status: 'open',
+      createdAt: '2026-06-27T10:00:00.000Z',
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, baseOrder);
+    });
+
+    it('allows employees to mark a bulk picklist order ready with pickup place and weighed items', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              product: 'Fleischsalat',
+              quantity: '2',
+              unit: 'kg',
+              actualQuantity: '1,8',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-06-27T11:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies employee item rewrites when marking a ready order picked up', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, {
+        ...baseOrder,
+        status: 'ready',
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: '2026-06-27T11:00:00.000Z',
+      });
+      const ctx = authContext(testEnv, 'sh-employee-order-pickup', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Stephan',
+          pickedUpAt: serverTimestamp(),
+          items: [
+            {
+              product: 'Fleischsalat',
+              quantity: '999',
+              unit: 'kg',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies customer order status updates across tenants', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-order-cross', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'TorFabrik',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
