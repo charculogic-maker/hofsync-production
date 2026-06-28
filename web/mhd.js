@@ -50,6 +50,14 @@ const EIGENPRODUKTION_SUPPLIER = 'Eigene Produktion';
 const DEFAULT_FINALIZE_LABEL = '💾 Gesamte Lieferung abschließen';
 const DRAFT_FINALIZE_LABEL = '💾 Lieferung final abschließen';
 
+function assertRequiredWritesSucceeded(results, message) {
+  const failed = (results || []).find((result) => result?.status === 'rejected');
+  if (!failed) return;
+  const err = new Error(message);
+  err.cause = failed.reason;
+  throw err;
+}
+
 // MHD-Bestand aus data/mhd_bestand.csv (aktive MoPro/Kühlware) + Trockenware-Tests
 const mhdBestandSeed = [
   {"id": "1b334d1b", "ean": "4035626114509", "produkt": "b*Joghurt mild 1,8% Demeter Glas", "marke": "", "menge": 6, "tage": 0, "status": "aktiv"},
@@ -1676,11 +1684,14 @@ function showLearnModeDialog(ean) {
         }),
       ];
       const saveResults = await Promise.allSettled(saveJobs);
-      const failedSave = saveResults.find((result) => result.status === 'rejected');
-      if (failedSave) {
-        console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
+      if (saveResults[0]?.status === 'rejected') {
+        console.warn('[CharcuLogic Firebase] Apps-Script-Ziel hat nicht geantwortet:', saveResults[0].reason);
       }
-      const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
+      assertRequiredWritesSucceeded(
+        [saveResults[1]],
+        'Wareneingang konnte nicht in Firestore gespeichert werden.',
+      );
+      const firestoreResult = saveResults[1].value;
       saveProductMaster(newProduct);
       rememberMhdScanCategory(kategorie);
       if (isVpe) {
@@ -3967,6 +3978,10 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    assertRequiredWritesSucceeded(
+      mhdResults,
+      'Mindestens ein MHD-Posten konnte nicht gespeichert werden.',
+    );
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
@@ -4351,6 +4366,7 @@ export {
   checkMhdAnomaly,
   finalizeDelivery,
   importMhdBestandToCloud,
+  assertRequiredWritesSucceeded,
   loadMhdFromCloud,
   renderMhdList,
   saveDeliveryDraft,
