@@ -98,7 +98,11 @@ Object.defineProperty(globalThis, 'crypto', {
 });
 Object.defineProperty(globalThis, 'fetch', {
   configurable: true,
-  value: async () => ({ ok: true, text: async () => '' }),
+  value: async () => ({
+    arrayBuffer: async () => new ArrayBuffer(0),
+    ok: true,
+    text: async () => '',
+  }),
 });
 
 [
@@ -172,9 +176,17 @@ initMhdModule(
 );
 
 element('we-add-item-btn').dispatch('click');
-await finalizeDelivery();
+const consoleErrors = [];
+const originalConsoleError = console.error;
+console.error = (...args) => consoleErrors.push(args);
+try {
+  await finalizeDelivery();
+} finally {
+  console.error = originalConsoleError;
+}
 
 assert.equal(writeCount, 2);
+assert.equal(consoleErrors.length, 1);
 assert.equal(element('receiving-item-count').textContent, '1');
 assert.equal(
   toasts.some((toast) => toast.message === 'Gesamte Lieferung erfolgreich gebucht!'),
