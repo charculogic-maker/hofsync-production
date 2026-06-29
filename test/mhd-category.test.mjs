@@ -1,10 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
+globalThis.document = {
+  getElementById: () => null,
+};
+globalThis.window = {
+  addEventListener: () => {},
+  dispatchEvent: () => {},
+  showToast: () => {},
+  BRANDING: {},
+};
+globalThis.localStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
+globalThis.CustomEvent = class CustomEvent {
+  constructor(type, options = {}) {
+    this.type = type;
+    this.detail = options.detail;
+  }
+};
+
+const {
   getProductCategory,
   matchesMhdMonitorHorizon,
-} from '../web/mhd.js';
+} = await import('../web/mhd.js');
 
 test('keeps explicit Trockenware category for MHD monitor horizon', () => {
   const product = {
