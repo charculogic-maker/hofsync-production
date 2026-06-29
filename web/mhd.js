@@ -1739,12 +1739,13 @@ function normalizeMhdCategory(kategorie) {
 }
 
 function getProductCategory(prod) {
-  const storedCategory = normalizeMhdCategory(prod.kategorie || prod.category || prod.warenKategorie || '');
+  const storedCategoryValue = [prod.kategorie, prod.category, prod.warenKategorie]
+    .find((value) => String(value || '').trim());
   const productName = prod.name || prod.produkt || prod.product || '';
-  if (!storedCategory || storedCategory === MHD_CANONICAL_CATEGORIES.trockenware) {
-    return inferMhdCategoryFromProductName(productName, storedCategory);
+  if (!storedCategoryValue) {
+    return inferMhdCategoryFromProductName(productName);
   }
-  return storedCategory;
+  return normalizeMhdCategory(storedCategoryValue);
 }
 
 function resolveMhdActionKey(category, tage) {
@@ -4350,8 +4351,10 @@ export function getMhdProducts() { return [...mhdState.products]; }
 export {
   checkMhdAnomaly,
   finalizeDelivery,
+  getProductCategory,
   importMhdBestandToCloud,
   loadMhdFromCloud,
+  matchesMhdMonitorHorizon,
   renderMhdList,
   saveDeliveryDraft,
   saveManualReceiving,
