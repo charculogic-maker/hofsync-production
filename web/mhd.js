@@ -848,9 +848,11 @@ function normalizeTextForCategory(value = '') {
 
 function inferMhdCategoryFromProductName(productName = '', fallbackCategory = '') {
   const normalizedName = normalizeTextForCategory(productName);
-  if (!normalizedName) return normalizeMhdCategory(fallbackCategory || '');
+  const fallback = String(fallbackCategory || '').trim()
+    ? normalizeMhdCategory(fallbackCategory)
+    : '';
+  if (!normalizedName) return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
 
-  const fallback = normalizeMhdCategory(fallbackCategory || '');
   const looksLikeDryMilkChocolate = /(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9].*)?(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern)/.test(normalizedName)
     || /(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern).*(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9]|$)/.test(normalizedName);
   const looksLikeDryRice = /milchreis.*(rundkorn|reis|weiss|weiss)/.test(normalizedName);
