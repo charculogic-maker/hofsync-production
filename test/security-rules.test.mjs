@@ -228,6 +228,111 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order ready weights', () => {
+    function sampleCustomerOrder(tenantId) {
+      return {
+        tenantId,
+        customerName: 'Testkunde',
+        callbackPhone: '0170 1234567',
+        readyAt: '2026-06-30T16:00:00.000Z',
+        acceptedBy: 'Stephan',
+        acceptedAt: '2026-06-30T09:00:00.000Z',
+        createdAt: '2026-06-30T09:00:00.000Z',
+        status: 'open',
+        items: [
+          {
+            product: 'Rindersteak',
+            quantity: '1',
+            unit: 'kg',
+            pricePerKg: '29,90',
+          },
+        ],
+      };
+    }
+
+    const orderPath = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'order-ready-weights');
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder(TENANTS.TORFABRIK));
+    });
+
+    it('allows an employee to mark an order ready with weighed item quantities', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-order-ready', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kuehlschrank',
+          items: [
+            {
+              product: 'Rindersteak',
+              quantity: '1',
+              unit: 'kg',
+              pricePerKg: '29,90',
+              actualQuantity: '0,86',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-06-30T10:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies ready item rewrites across tenants or with a different item count', async () => {
+      const foreignCtx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          items: [
+            {
+              product: 'Rindersteak',
+              quantity: '1',
+              unit: 'kg',
+              actualQuantity: '0,86',
+              actualQuantityUnit: 'kg',
+            },
+          ],
+        },
+      );
+
+      const ownCtx = authContext(testEnv, 'tf-employee-order-extra-line', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          items: [
+            {
+              product: 'Rindersteak',
+              quantity: '1',
+              unit: 'kg',
+              actualQuantity: '0,86',
+              actualQuantityUnit: 'kg',
+            },
+            {
+              product: 'Zusatzartikel',
+              quantity: '1',
+              unit: 'Stueck',
+            },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

@@ -703,8 +703,9 @@ function hideSammelPicklisteConfirm() {
   document.getElementById('sammel-pickliste-confirm')?.classList.add('hidden');
 }
 
-function collectActualQuantityUpdates(picklist) {
+function collectActualQuantityUpdatePlan(picklist) {
   const updatesByOrder = new Map();
+  const sourceKeysByOrder = new Map();
   const addItems = (items) => {
     items.forEach((item) => {
       if (!actualQuantityChanged(item.key, item.quantityLabel)) return;
@@ -721,6 +722,9 @@ function collectActualQuantityUpdates(picklist) {
           actualQuantityUnit: item.unit || null,
         });
         updatesByOrder.set(ref.orderId, list);
+        const keys = sourceKeysByOrder.get(ref.orderId) || new Set();
+        keys.add(item.key);
+        sourceKeysByOrder.set(ref.orderId, keys);
       });
     });
   };
@@ -731,7 +735,11 @@ function collectActualQuantityUpdates(picklist) {
   const productionTasks = getProductionTasksByStation();
   addItems(productionTasks.kitchen);
   addItems(productionTasks.butchery);
-  return updatesByOrder;
+  return { updatesByOrder, sourceKeysByOrder };
+}
+
+function collectActualQuantityUpdates(picklist) {
+  return collectActualQuantityUpdatePlan(picklist).updatesByOrder;
 }
 
 function applyActualQuantityUpdatesToItems(order, updates = []) {
@@ -1208,10 +1216,31 @@ async function updateOrderStatus(orderId, nextStatus) {
 
   const firebase = orderState.getFirebase();
   const payload = { status: nextStatus };
+  const queuedPayload = { status: nextStatus };
+  let consumedActualQuantityKeys = new Set();
 
   if (nextStatus === 'ready') {
+    const order = orderState.allOrders.find((entry) => entry.id === orderId);
+    if (!order) {
+      window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+      return;
+    }
+    if (!firebase?.firestore?.FieldValue) {
+      window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
+      return;
+    }
+    const actualUpdatePlan = collectActualQuantityUpdatePlan(generateSammelPickliste());
+    const actualUpdates = actualUpdatePlan.updatesByOrder.get(orderId) || [];
+    const updatedItems = applyActualQuantityUpdatesToItems(order, actualUpdates);
     payload.readyMarkedBy = employee;
     payload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
+    queuedPayload.readyMarkedBy = employee;
+    queuedPayload.readyMarkedAt = new Date().toISOString();
+    if (actualUpdates.length && updatedItems) {
+      payload.items = updatedItems;
+      queuedPayload.items = updatedItems;
+      consumedActualQuantityKeys = actualUpdatePlan.sourceKeysByOrder.get(orderId) || new Set();
+    }
   } else if (nextStatus === 'picked_up') {
     const order = orderState.allOrders.find((entry) => entry.id === orderId);
     if (!order) {
@@ -1258,20 +1287,23 @@ async function updateOrderStatus(orderId, nextStatus) {
       docId: orderId,
       op: 'update',
       onlineData: payload,
-      queueData: (() => {
-        const q = { status: nextStatus };
-        if (nextStatus === 'ready') {
-          q.readyMarkedBy = employee;
-          q.readyMarkedAt = new Date().toISOString();
-        }
-        if (nextStatus === 'picked_up') {
-          q.pickedUpBy = employee;
-          q.pickedUpAt = new Date().toISOString();
-        }
-        return q;
-      })(),
+      queueData: queuedPayload,
       offlineMessage: 'Status wird synchronisiert.',
     });
+    if (nextStatus === 'ready') {
+      orderState.allOrders = orderState.allOrders.map((entry) => (
+        entry.id === orderId
+          ? {
+            ...entry,
+            ...queuedPayload,
+          }
+          : entry
+      ));
+      consumedActualQuantityKeys.forEach((key) => orderState.actualQuantityByKey.delete(key));
+      renderOpenOrders();
+      renderAdminOrders();
+      renderProductionTasks();
+    }
     const labels = { ready: 'als bereit markiert', picked_up: 'als abgeholt markiert', cancelled: 'storniert' };
     window.showToast?.(
       result === 'queued'
