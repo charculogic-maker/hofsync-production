@@ -484,14 +484,28 @@ service cloud.firestore {
     }
 
     function isCustomerOrderStatusUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let isOpenToReady = resource.data.status == 'open'
+        && request.resource.data.status == 'ready';
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+        && changed.hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
+        && (!changed.hasAny(['pickupPlace', 'items']) || isOpenToReady)
+        && (!changed.hasAny(['pickupPlace']) || isOptionalString(request.resource.data.pickupPlace))
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
+          !changed.hasAny(['items'])
+          || (
+            isCustomerOrderItemsList(request.resource.data.items)
+            && resource.data.items is list
+            && request.resource.data.items.size() == resource.data.items.size()
+          )
+        )
+        && (
+          isOpenToReady
           || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
           || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
         );

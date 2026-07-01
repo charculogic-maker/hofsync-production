@@ -228,6 +228,101 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order ready updates', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'ready-order');
+    const seedOrder = {
+      tenantId: TENANTS.STEVES_HOF,
+      customerName: 'Familie Test',
+      callbackPhone: '+491700000000',
+      customerEmail: '',
+      readyAt: '2026-07-02T15:00:00.000Z',
+      acceptedBy: 'Mitarbeiter',
+      acceptedAt: '2026-07-01T10:00:00.000Z',
+      createdAt: '2026-07-01T10:00:00.000Z',
+      status: 'open',
+      inputMode: 'manual',
+      items: [
+        { product: 'Bratwurst', quantity: '2', unit: 'kg' },
+        { product: 'Fleischsalat', quantity: '1', unit: 'kg' },
+      ],
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, seedOrder);
+    });
+
+    it('allows employee bulk-ready updates with pickup place and same item lines', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Laden-Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              product: 'Bratwurst',
+              quantity: '2',
+              unit: 'kg',
+              actualQuantity: '2,1',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-07-01T12:00:00.000Z',
+            },
+            { product: 'Fleischsalat', quantity: '1', unit: 'kg' },
+          ],
+        },
+      );
+    });
+
+    it('denies employee item rewrites after the order is already ready', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-pickup-items', TENANTS.STEVES_HOF, 'employee');
+      await seedFirestoreDoc(testEnv, orderPath, {
+        ...seedOrder,
+        status: 'ready',
+        readyMarkedBy: 'Laden-Team',
+        readyMarkedAt: '2026-07-01T12:00:00.000Z',
+      });
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Laden-Team',
+          pickedUpAt: serverTimestamp(),
+          items: [
+            { product: 'Bratwurst', quantity: '20', unit: 'kg' },
+            { product: 'Fleischsalat', quantity: '1', unit: 'kg' },
+          ],
+        },
+      );
+    });
+
+    it('denies employee ready updates that add or remove order lines', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-ready-shape', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Laden-Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Bratwurst', quantity: '2', unit: 'kg' },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
