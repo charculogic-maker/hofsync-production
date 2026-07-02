@@ -6,6 +6,7 @@ import {
   getTenantCollection,
   getTenantCollectionPath,
 } from './tenant-db.js';
+import { summarizeDeliveryFinalizeResults } from './mhd-finalize-results.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
@@ -3967,8 +3968,18 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
-    const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
+    const { hasQueuedWrites, rejectedMhdWrites } = summarizeDeliveryFinalizeResults(deliveryResult, mhdResults);
+    if (rejectedMhdWrites.length) {
+      rejectedMhdWrites.forEach((result) => {
+        console.error('[CharcuLogic MHD] MHD-Posten konnte nicht gespeichert werden:', result.reason);
+      });
+      renderReceivingStatus({
+        status: `Lieferung unvollständig: ${rejectedMhdWrites.length} MHD-Posten nicht gespeichert`,
+      });
+      mhdState.showHUD('Unvollständig', 'Mindestens ein MHD-Posten wurde nicht gespeichert. Bitte prüfen und erneut speichern.', '!');
+      window.showToast?.('Lieferung nicht vollständig gespeichert. Bitte prüfen und erneut versuchen.', 'error');
+      return;
+    }
 
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();

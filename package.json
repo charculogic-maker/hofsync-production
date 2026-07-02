@@ -6,6 +6,7 @@
     "deploy": "npm run build && firebase deploy",
     "seed:tenant": "node tools/seed-tenant-bootstrap.mjs",
     "claims:sync": "node tools/set-user-claims.mjs",
+    "test:mhd": "mocha test/mhd-finalize-results.test.mjs",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --timeout 15000\"",
     "test:rules:watch": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --watch --timeout 15000\"",
