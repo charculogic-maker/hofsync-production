@@ -3890,6 +3890,15 @@ function showMeisterOverrideModal(temperature) {
   });
 }
 
+export function assertNoRejectedMhdWrites(results = []) {
+  const rejectedMhdWrites = results.filter((result) => result.status === 'rejected');
+  if (!rejectedMhdWrites.length) return;
+
+  const error = new Error(`${rejectedMhdWrites.length} MHD-Posten konnten nicht gespeichert werden.`);
+  error.causes = rejectedMhdWrites.map((result) => result.reason);
+  throw error;
+}
+
 async function finalizeDelivery() {
   const rawHead = readDeliveryHeadValues();
   const saveBtn = document.getElementById('we-save-delivery-btn');
@@ -3967,6 +3976,7 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    assertNoRejectedMhdWrites(mhdResults);
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
@@ -3982,7 +3992,13 @@ async function finalizeDelivery() {
   } catch (err) {
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');
+    const message = String(err?.message || '');
+    window.showToast?.(
+      message.includes('MHD-Posten')
+        ? 'Einige MHD-Posten konnten nicht gespeichert werden. Bitte erneut versuchen.'
+        : 'Speichern fehlgeschlagen. Bitte erneut versuchen.',
+      'error',
+    );
   } finally {
     if (saveBtn) {
       saveBtn.textContent = activeEditingDraftId ? DRAFT_FINALIZE_LABEL : DEFAULT_FINALIZE_LABEL;

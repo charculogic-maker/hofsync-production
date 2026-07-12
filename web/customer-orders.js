@@ -289,6 +289,7 @@ function actualQuantityChanged(key, fallback) {
 }
 
 function quantityForStock(item) {
+  if (String(item?.product || '').trim() === 'Siehe Bestellzettel (Scan)') return 0;
   const actual = parseQuantityValue(item?.actualQuantity);
   if (actual > 0) return actual;
   return parseQuantityValue(item?.quantity);
@@ -308,6 +309,10 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
+function productLabelFromOrderItem(item) {
+  return item?.product || item?.produkt || item?.name || 'Artikel';
+}
+
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
   if (!col) return null;
@@ -321,11 +326,17 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const byProdukt = await col.where('produkt', '==', product).limit(2).get();
+  if (byProdukt.size === 1) return byProdukt.docs[0].ref;
+  if (byProdukt.size > 1) {
+    throw new Error(`Bestand für ${product} ist mehrfach angelegt.`);
+  }
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const byName = await col.where('name', '==', product).limit(2).get();
+  if (byName.size === 1) return byName.docs[0].ref;
+  if (byName.size > 1) {
+    throw new Error(`Bestand für ${product} ist mehrfach angelegt.`);
+  }
 
   return null;
 }
@@ -333,16 +344,23 @@ async function findStockDocForOrderItem(item) {
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const deductions = [];
+  const unresolvedProducts = [];
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
+    if (!ref) {
+      unresolvedProducts.push(productLabelFromOrderItem(item));
+      continue;
+    }
     deductions.push({
       ref,
       amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      product: productLabelFromOrderItem(item),
     });
+  }
+  if (unresolvedProducts.length) {
+    throw new Error(`Bestand fehlt für: ${unresolvedProducts.join(', ')}`);
   }
   return deductions;
 }
@@ -375,7 +393,9 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Bestand fehlt für: ${deduction.product}`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
       const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
       transaction.update(deduction.ref, {
@@ -703,24 +723,39 @@ function hideSammelPicklisteConfirm() {
   document.getElementById('sammel-pickliste-confirm')?.classList.add('hidden');
 }
 
-function collectActualQuantityUpdates(picklist) {
+export function distributeActualQuantityForPicklistItem(item, actualTotal) {
+  const refs = Array.isArray(item?.refs) ? item.refs : [];
+  const totalOrdered = Number.isFinite(item?.quantity) ? item.quantity : 0;
+  if (totalOrdered <= 0 && refs.length > 1) {
+    throw new Error(`Waagen-Wert für ${item?.product || 'diesen Artikel'} bitte einzeln pro Bestellung erfassen.`);
+  }
+  return refs.map((ref) => {
+    if (!ref?.orderId || !Number.isInteger(ref.lineIndex)) return null;
+    const share = totalOrdered > 0 ? (actualTotal * ref.quantity) / totalOrdered : actualTotal;
+    return {
+      orderId: ref.orderId,
+      lineIndex: ref.lineIndex,
+      actualQuantity: formatQuantityValue(share),
+      actualQuantityUnit: item?.unit || null,
+    };
+  }).filter(Boolean);
+}
+
+export function collectActualQuantityUpdates(picklist) {
   const updatesByOrder = new Map();
   const addItems = (items) => {
     items.forEach((item) => {
       if (!actualQuantityChanged(item.key, item.quantityLabel)) return;
       const actualTotal = parseQuantityValue(actualQuantityValue(item.key, item.quantityLabel));
       if (!Number.isFinite(actualTotal)) return;
-      const totalOrdered = Number.isFinite(item.quantity) ? item.quantity : 0;
-      item.refs.forEach((ref) => {
-        if (!ref?.orderId || !Number.isInteger(ref.lineIndex)) return;
-        const share = totalOrdered > 0 ? (actualTotal * ref.quantity) / totalOrdered : actualTotal;
-        const list = updatesByOrder.get(ref.orderId) || [];
+      distributeActualQuantityForPicklistItem(item, actualTotal).forEach((update) => {
+        const list = updatesByOrder.get(update.orderId) || [];
         list.push({
-          lineIndex: ref.lineIndex,
-          actualQuantity: formatQuantityValue(share),
-          actualQuantityUnit: item.unit || null,
+          lineIndex: update.lineIndex,
+          actualQuantity: update.actualQuantity,
+          actualQuantityUnit: update.actualQuantityUnit,
         });
-        updatesByOrder.set(ref.orderId, list);
+        updatesByOrder.set(update.orderId, list);
       });
     });
   };
@@ -949,7 +984,13 @@ async function markSammelPicklisteReady() {
     );
   } catch (err) {
     console.error('[CustomerOrders] Pickliste abschließen fehlgeschlagen:', err);
-    window.showToast?.('Bestellungen konnten nicht aktualisiert werden. Bitte erneut versuchen.', 'error');
+    const message = String(err?.message || '');
+    window.showToast?.(
+      message.includes('Waagen-Wert')
+        ? message
+        : 'Bestellungen konnten nicht aktualisiert werden. Bitte erneut versuchen.',
+      'error',
+    );
   } finally {
     orderState.picklistReadyInFlight = false;
     renderSammelPickliste();
@@ -1239,6 +1280,8 @@ async function updateOrderStatus(orderId, nextStatus) {
       window.showToast?.(
         message.includes('WLAN')
           ? 'Bitte bei WLAN erneut versuchen, damit wir den Bestand aktualisieren können.'
+          : message.includes('Bestand')
+            ? `${message} Bitte Stammdaten prüfen und erneut versuchen.`
           : 'Bestellung konnte nicht als abgeholt markiert werden. Bitte erneut versuchen.',
         'error',
       );
