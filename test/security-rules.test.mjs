@@ -228,6 +228,112 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order status updates', () => {
+    function customerOrder(tenantId, overrides = {}) {
+      return {
+        customerName: 'Emulator Kunde',
+        callbackPhone: '0123456789',
+        readyAt: '2026-07-13T10:00',
+        items: [
+          {
+            product: 'Fleischsalat',
+            quantity: '1',
+            unit: 'kg',
+            stockItemId: 'fleischsalat',
+          },
+        ],
+        inputMode: 'manual',
+        acceptedBy: 'Stephie',
+        acceptedAt: '2026-07-12T10:00:00.000Z',
+        status: 'open',
+        tenantId,
+        createdAt: '2026-07-12T10:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('allows employee bulk-ready payload with pickup place and weighed items on own tenant', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'bulk-ready-order');
+      await seedFirestoreDoc(testEnv, path, customerOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'sh-employee-bulk-ready', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephie',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              product: 'Fleischsalat',
+              quantity: '1',
+              unit: 'kg',
+              stockItemId: 'fleischsalat',
+              actualQuantity: '1,2',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-07-12T12:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies customer order status updates across tenants', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'cross-tenant-order');
+      await seedFirestoreDoc(testEnv, path, customerOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-cross', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Aushilfe',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+        },
+      );
+    });
+
+    it('denies item rewrites while marking a ready order picked up', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'picked-up-item-rewrite');
+      await seedFirestoreDoc(
+        testEnv,
+        path,
+        customerOrder(TENANTS.STEVES_HOF, {
+          status: 'ready',
+          readyMarkedBy: 'Stephie',
+          readyMarkedAt: '2026-07-12T11:00:00.000Z',
+          pickupPlace: 'Laden-Kühlschrank',
+        }),
+      );
+
+      const ctx = authContext(testEnv, 'sh-employee-pickup-rewrite', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Stephie',
+          pickedUpAt: serverTimestamp(),
+          items: [
+            {
+              product: 'Fleischsalat',
+              quantity: '99',
+              unit: 'kg',
+              stockItemId: 'fleischsalat',
+            },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
