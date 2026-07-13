@@ -30,7 +30,7 @@ service cloud.firestore {
     function isAdmin(tenantId) {
       return isTenantMember(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          request.auth.token.get('isAdmin', false) == true
           || tokenRole() == 'admin'
         );
     }
