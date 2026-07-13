@@ -185,6 +185,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       currentStock: 12,
       tenantId: TENANTS.STEVES_HOF,
     };
+    const receivingPayload = (tenantId = TENANTS.TORFABRIK) => ({
+      tenantId,
+      artikel: 'Metro Cola',
+      name: 'Metro Cola',
+      kategorie: '🍺 Getränke',
+      currentStock: 6,
+      lastMhd: '2026-07-20',
+      lastDeliveryAt: '2026-07-13T10:00:00.000Z',
+      lastDeliveryBy: 'tf-employee',
+      updatedAt: serverTimestamp(),
+    });
 
     beforeEach(async () => {
       await seedFirestoreDoc(testEnv, stockPath, stockItem);
@@ -224,6 +235,52 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+
+    it('allows employee delivery-parser stock create and receiving increase on own tenant only', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-receiving', TENANTS.TORFABRIK, 'employee');
+      const newStockPath = tenantDocPath(TENANTS.TORFABRIK, 'stammdaten', 'metro-cola');
+
+      await expectFirestoreAllow(ctx, newStockPath, 'create', receivingPayload());
+
+      await expectFirestoreAllow(
+        ctx,
+        newStockPath,
+        'update',
+        {
+          currentStock: 10,
+          lastMhd: '2026-07-24',
+          lastDeliveryAt: '2026-07-14T10:00:00.000Z',
+          lastDeliveryBy: 'tf-employee',
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+
+    it('denies helper or cross-tenant delivery-parser stock writes', async () => {
+      const helperCtx = authContext(testEnv, 'tf-helper-receiving', TENANTS.TORFABRIK, 'helper');
+      const employeeCtx = authContext(testEnv, 'tf-employee-cross-receiving', TENANTS.TORFABRIK, 'employee');
+      const ownStockPath = tenantDocPath(TENANTS.TORFABRIK, 'stammdaten', 'helper-cola');
+
+      await expectFirestoreDeny(helperCtx, ownStockPath, 'create', receivingPayload());
+      await expectFirestoreDeny(
+        employeeCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'foreign-cola'),
+        'create',
+        receivingPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        employeeCtx,
+        stockPath,
+        'update',
+        {
+          currentStock: 15,
+          lastMhd: '2026-07-24',
+          lastDeliveryAt: '2026-07-14T10:00:00.000Z',
+          lastDeliveryBy: 'tf-employee',
+          updatedAt: serverTimestamp(),
+        },
       );
     });
   });

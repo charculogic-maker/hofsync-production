@@ -30,6 +30,7 @@ const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
 const FEATURE_TEST_EMAIL = 'patrik@charculogic.de';
 
 const parserState = {
+  tenantId: '',
   getFirebase: () => null,
   showHUD: () => {},
   writeOrQueueFirestore: null,
@@ -349,16 +350,36 @@ async function erhoeheBestand(row, author, nowIso) {
   const firebase = parserState.getFirebase();
   const FieldValue = firebase?.firestore?.FieldValue;
   const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
-    artikel: row.artikel,
-    name: row.artikel,
-    kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+  const db = docRef.firestore;
+  const updatedAt = FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso;
+
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(docRef);
+    if (snap.exists) {
+      const previousStock = Number(snap.data()?.currentStock);
+      const currentStock = Number.isFinite(previousStock) && previousStock > 0 ? previousStock : 0;
+      transaction.update(docRef, {
+        currentStock: Math.round((currentStock + row.menge) * 1000) / 1000,
+        lastMhd: row.mhdIso || '',
+        lastDeliveryAt: nowIso,
+        lastDeliveryBy: author,
+        updatedAt,
+      });
+      return;
+    }
+
+    transaction.set(docRef, {
+      tenantId: parserState.tenantId,
+      artikel: row.artikel,
+      name: row.artikel,
+      kategorie: toMhdKategorie(row.kategorie, row.artikel),
+      currentStock: row.menge,
+      lastMhd: row.mhdIso || '',
+      lastDeliveryAt: nowIso,
+      lastDeliveryBy: author,
+      updatedAt,
+    });
+  });
 }
 
 async function schreibeMhdPosten(row, author, nowIso) {
@@ -394,6 +415,7 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId: parserState.tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
@@ -514,6 +536,7 @@ function bindUi() {
 }
 
 export function initDeliveryParser(options = {}) {
+  parserState.tenantId = options.tenantId || '';
   parserState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : parserState.getFirebase;
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;

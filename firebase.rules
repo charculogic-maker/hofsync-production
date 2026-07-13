@@ -30,7 +30,7 @@ service cloud.firestore {
     function isAdmin(tenantId) {
       return isTenantMember(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          request.auth.token.get('isAdmin', false) == true
           || tokenRole() == 'admin'
         );
     }
@@ -114,16 +114,54 @@ service cloud.firestore {
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
-    match /tenants/{tenantId}/stammdaten/{document} {
-      allow read: if isTenantUser(tenantId);
-      allow write: if isAdmin(tenantId);
-      allow update: if isEmployeeOrAdmin(tenantId)
+    function isEmployeeStockDecrease(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'currentStock', 'updatedAt'
         ])
         && isIntGteZero(resource.data.currentStock)
         && isIntGteZero(request.resource.data.currentStock)
         && request.resource.data.currentStock <= resource.data.currentStock;
+    }
+
+    function isEmployeeStockReceivingCreate(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
+        && request.resource.data.keys().hasAll([
+          'tenantId', 'artikel', 'name', 'currentStock',
+          'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
+        ])
+        && hasOnly([
+          'tenantId', 'artikel', 'name', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isOptionalString(request.resource.data.kategorie)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
+    function isEmployeeStockReceivingUpdate(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentStock'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastDeliveryAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
+        ])
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && isNonEmptyString(request.resource.data.get('lastDeliveryBy', ''))
+        && request.resource.data.currentStock >= resource.data.currentStock;
+    }
+
+    match /tenants/{tenantId}/stammdaten/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow create: if isAdmin(tenantId) || isEmployeeStockReceivingCreate(tenantId);
+      allow update: if isAdmin(tenantId)
+        || isEmployeeStockDecrease(tenantId)
+        || isEmployeeStockReceivingUpdate(tenantId);
+      allow delete: if isAdmin(tenantId);
     }
 
     match /tenants/{tenantId}/settings/{document} {
