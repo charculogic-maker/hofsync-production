@@ -143,9 +143,10 @@ service cloud.firestore {
 
     function isEmployeeStockReceivingUpdate(tenantId) {
       return isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasAll([
-          'currentStock', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
-        ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentStock'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastDeliveryAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastDeliveryBy'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedAt'])
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
         ])
