@@ -151,7 +151,7 @@ service cloud.firestore {
         ])
         && isIntGteZero(resource.data.currentStock)
         && isIntGteZero(request.resource.data.currentStock)
-        && isNonEmptyString(request.resource.data.lastDeliveryBy)
+        && isNonEmptyString(request.resource.data.get('lastDeliveryBy', ''))
         && request.resource.data.currentStock >= resource.data.currentStock;
     }
 
