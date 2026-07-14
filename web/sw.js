@@ -210,9 +210,9 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/index.html');
 
   if (isNavigation && isOwnOrigin) {
-    const cleanRequest = new Request(url.pathname + url.hash, {
+    const cleanRequest = new Request(url.pathname + url.search, {
       headers: request.headers,
-      mode: request.mode,
+      mode: 'same-origin',
       credentials: request.credentials,
       redirect: request.redirect,
     });
