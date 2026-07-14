@@ -163,7 +163,7 @@ service cloud.firestore {
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
@@ -189,7 +189,7 @@ service cloud.firestore {
       allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
@@ -487,13 +487,33 @@ service cloud.firestore {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+              || isNonEmptyString(request.resource.data.pickupPlace)
+            )
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+              || isCustomerOrderItemsList(request.resource.data.items)
+            )
+          )
+          || (
+            resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace', 'items'])
+          )
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace', 'items'])
+          )
         );
     }
 

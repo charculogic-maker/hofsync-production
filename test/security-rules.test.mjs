@@ -228,6 +228,99 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order bulk-ready workflow', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'bulk-ready-order');
+    const openOrder = {
+      tenantId: TENANTS.STEVES_HOF,
+      status: 'open',
+      acceptedBy: 'Mira',
+      acceptedAt: '2026-07-14T09:00:00.000Z',
+      createdAt: '2026-07-14T09:00:00.000Z',
+      readyAt: '2026-07-14',
+      callbackPhone: '+49123456789',
+      items: [
+        { product: 'Fleischsalat', quantity: '1 kg' },
+      ],
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, openOrder);
+    });
+
+    it('allows employee bulk-ready update with pickup place and weighed item quantities', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-bulk-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Mira',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '1 kg', actualQuantity: '0,85 kg' },
+          ],
+        },
+      );
+    });
+
+    it('denies item rewrites outside the open-to-ready transition', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-bulk-cancel', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'cancelled',
+          items: [
+            { product: 'Fleischsalat', quantity: '2 kg' },
+          ],
+        },
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: MHD Wareneingang schema', () => {
+    it('allows delivery-created MHD records with manufacturer metadata', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd-brand', TENANTS.STEVES_HOF, 'employee');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'delivery-mhd-brand');
+
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'create',
+        {
+          ...sampleMhdItem(TENANTS.STEVES_HOF),
+          brand: 'StevesHof',
+          marke: 'StevesHof',
+          herstellerZusatz: 'StevesHof',
+          lieferungId: 'delivery-123',
+          source: 'wareneingang-app',
+          postentyp: 'wareneingang',
+        },
+      );
+    });
+
+    it('still denies unknown MHD fields', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd-unknown', TENANTS.STEVES_HOF, 'employee');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'delivery-mhd-unknown');
+
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'create',
+        {
+          ...sampleMhdItem(TENANTS.STEVES_HOF),
+          herstellerZusatz: 'StevesHof',
+          injectedField: true,
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

@@ -1315,8 +1315,9 @@ async function handleScannedEan(ean) {
     };
   }
 
-  const existing = null;
-  selectedProduct = lookupScannedProduct(scannedCode);
+  const productInfo = lookupScannedProduct(scannedCode);
+  selectedProduct = productInfo;
+  const existing = productInfo?.existingProduct || null;
   renderReceivingStatus({
     lastScan: scannedCode,
     status: selectedProduct?.name ? 'Produkt erkannt' : 'Unbekanntes Produkt'
@@ -1570,12 +1571,12 @@ function showLearnModeDialog(ean) {
   btnLearnSave?.addEventListener('click', async () => {
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
+    const isVpe = Boolean(inputIsVpe?.checked);
     const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
     const mhdDate = readGermanDateField(inputMhd) || today;
     const lot = inputLot?.value.trim() || '';
     const kategorie = normalizeMhdCategory(inputCategory?.value || '');
     const barcodeForSave = currentBarcode || cleanScannedBarcode(ean);
-    const isVpe = Boolean(inputIsVpe?.checked);
     const vpeSize = Math.max(2, parseFloat(String(inputVpeSize?.value || '6').replace(',', '.')) || 6);
     const inventoryBarcode = cleanScannedBarcode(productInfo?.einzelBarcode) || barcodeForSave;
 
@@ -3967,6 +3968,11 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const rejectedMhdWrites = mhdResults.filter((result) => result.status === 'rejected');
+    if (rejectedMhdWrites.length) {
+      console.error('[CharcuLogic MHD] MHD-Posten konnten nicht gespeichert werden:', rejectedMhdWrites);
+      throw rejectedMhdWrites[0].reason || new Error('MHD-Posten konnten nicht gespeichert werden.');
+    }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
