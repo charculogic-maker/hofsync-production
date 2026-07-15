@@ -226,6 +226,123 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
     });
+
+    it('allows employee receiving stock increases with tenant-scoped payload', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving-stock', TENANTS.STEVES_HOF, 'employee');
+      const nowIso = '2026-07-15T10:00:00.000Z';
+      const receivingPayload = {
+        artikel: 'Rinderhack',
+        name: 'Rinderhack',
+        produkt: 'Rinderhack',
+        kategorie: '🥩 Fleisch',
+        currentStock: 5,
+        lastMhd: '2026-07-20',
+        lastDeliveryAt: nowIso,
+        lastDeliveryBy: 'Team',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'rinderhack'),
+        'create',
+        receivingPayload,
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        {
+          artikel: 'Fleischsalat',
+          name: 'Fleischsalat',
+          produkt: 'Fleischsalat',
+          kategorie: '🥩 Fleisch',
+          currentStock: 15,
+          lastMhd: '2026-07-21',
+          lastDeliveryAt: nowIso,
+          lastDeliveryBy: 'Team',
+          tenantId: TENANTS.STEVES_HOF,
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+
+    it('denies receiving stock writes for helpers and foreign tenants', async () => {
+      const payload = {
+        artikel: 'Rinderhack',
+        name: 'Rinderhack',
+        produkt: 'Rinderhack',
+        kategorie: '🥩 Fleisch',
+        currentStock: 5,
+        lastMhd: '2026-07-20',
+        lastDeliveryAt: '2026-07-15T10:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      };
+
+      const helperCtx = authContext(testEnv, 'sh-helper-receiving-stock', TENANTS.STEVES_HOF, 'helper');
+      await expectFirestoreDeny(
+        helperCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'helper-rinderhack'),
+        'create',
+        payload,
+      );
+
+      const foreignCtx = authContext(testEnv, 'tf-employee-receiving-stock', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'foreign-rinderhack'),
+        'create',
+        payload,
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: MHD receiving records', () => {
+    it('allows Wareneingang MHD records with manufacturer supplement field', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd-receiving', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'mhd-receiving-hersteller'),
+        'create',
+        {
+          id: 'mhd-receiving-hersteller',
+          postenId: 'mhd-receiving-hersteller',
+          produkt: 'Salami',
+          name: 'Salami',
+          marke: 'Hof',
+          brand: 'Hof',
+          herstellerZusatz: 'Hof',
+          mhd: '2026-08-01',
+          mhdDate: '2026-08-01',
+          mhdText: '17 Resttage',
+          date: '01.08.2026',
+          tage: 17,
+          resttage: 17,
+          status: 'aktiv',
+          qty: 3,
+          menge: 3,
+          eingangMenge: 3,
+          mengeEinheit: 'Stk',
+          einheit: 'Stk',
+          kategorie: '🥩 Fleisch',
+          warenKategorie: 'Fleisch',
+          soldOut: false,
+          source: 'wareneingang-app',
+          postentyp: 'wareneingang',
+          wareneingangAt: '2026-07-15T10:00:00.000Z',
+          erfassungsDatum: '2026-07-15T10:00:00.000Z',
+          scannedBy: 'Team',
+          lieferungId: 'lieferung_test',
+          tenantId: TENANTS.STEVES_HOF,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        },
+      );
+    });
   });
 
   describe('TEST CASE 2b: task comments', () => {

@@ -294,57 +294,72 @@ function quantityForStock(item) {
   return parseQuantityValue(item?.quantity);
 }
 
-function stockItemIdFromOrderItem(item) {
+function explicitStockItemIdFromOrderItem(item) {
   return String(
     item?.stockItemId
     || item?.stammdatenId
     || item?.artikelId
     || item?.articleId
     || item?.productId
-    || item?.ean
-    || item?.barcode
-    || item?.sku
     || ''
   ).trim();
 }
 
+function stockProductLabel(item) {
+  return String(item?.product || item?.produkt || item?.name || 'Artikel').trim() || 'Artikel';
+}
+
+function isOrderSlipPlaceholderItem(item) {
+  return /^siehe bestellzettel/i.test(stockProductLabel(item));
+}
+
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
-  if (!col) return null;
+  if (!col) throw new Error('Bestand ist noch nicht bereit.');
 
-  const directId = stockItemIdFromOrderItem(item);
+  const product = stockProductLabel(item);
+  const directId = explicitStockItemIdFromOrderItem(item);
   if (directId) {
     const snap = await col.doc(directId).get();
     if (snap.exists) return snap.ref;
+    throw new Error(`Bestandsartikel "${product}" wurde nicht gefunden.`);
   }
 
-  const product = String(item?.product || item?.produkt || item?.name || '').trim();
-  if (!product) return null;
+  if (!product) throw new Error('Bestandsartikel ohne Namen kann nicht abgezogen werden.');
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
+  const byProdukt = await col.where('produkt', '==', product).limit(2).get();
+  if (byProdukt.size > 1) throw new Error(`Bestandsartikel "${product}" ist mehrfach angelegt.`);
   if (!byProdukt.empty) return byProdukt.docs[0].ref;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
+  const byName = await col.where('name', '==', product).limit(2).get();
+  if (byName.size > 1) throw new Error(`Bestandsartikel "${product}" ist mehrfach angelegt.`);
   if (!byName.empty) return byName.docs[0].ref;
 
-  return null;
+  throw new Error(`Bestandsartikel "${product}" wurde nicht gefunden.`);
 }
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
+    if (isOrderSlipPlaceholderItem(item)) continue;
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    const key = ref.path;
+    const existing = deductionsByPath.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      existing.product = `${existing.product}, ${stockProductLabel(item)}`;
+    } else {
+      deductionsByPath.set(key, {
+        ref,
+        amount,
+        product: stockProductLabel(item),
+      });
+    }
   }
-  return deductions;
+  return Array.from(deductionsByPath.values());
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +390,14 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Bestandsartikel "${deduction.product}" wurde nicht gefunden.`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (currentStock < deduction.amount) {
+        throw new Error(`Bestand für "${deduction.product}" reicht nicht aus.`);
+      }
+      const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1223,7 +1243,7 @@ async function updateOrderStatus(orderId, nextStatus) {
       orderState.statusUpdateOrderIds.add(orderId);
       renderOpenOrders();
       renderAdminOrders();
-      await markOrderPickedUpWithStock(order, employee);
+      const deductedCount = await markOrderPickedUpWithStock(order, employee);
       orderState.allOrders = orderState.allOrders.map((entry) => (
         entry.id === orderId
           ? { ...entry, status: 'picked_up', pickedUpBy: employee, pickedUpAt: new Date().toISOString() }
@@ -1232,7 +1252,12 @@ async function updateOrderStatus(orderId, nextStatus) {
       renderOpenOrders();
       renderAdminOrders();
       renderProductionTasks();
-      window.showToast?.('Bestellung erfolgreich als abgeholt markiert. Lagerbestand aktualisiert.', 'success');
+      window.showToast?.(
+        deductedCount > 0
+          ? 'Bestellung erfolgreich als abgeholt markiert. Lagerbestand aktualisiert.'
+          : 'Bestellung erfolgreich als abgeholt markiert. Kein Lagerartikel automatisch abgezogen.',
+        'success',
+      );
     } catch (err) {
       console.error('[CustomerOrders] Abholung mit Bestand fehlgeschlagen:', err);
       const message = String(err?.message || '');
