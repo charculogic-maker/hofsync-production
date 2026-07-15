@@ -3465,6 +3465,14 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   return record;
 }
 
+function assertDeliveryMhdWritesSucceeded(results) {
+  const rejected = results.filter((result) => result.status === 'rejected');
+  if (!rejected.length) return;
+  const error = new Error(`${rejected.length} MHD-Posten konnten nicht gespeichert werden.`);
+  error.cause = rejected[0].reason;
+  throw error;
+}
+
 function mapDeliveryDraftDoc(doc) {
   const data = doc.data() || {};
   return {
@@ -3967,6 +3975,7 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    assertDeliveryMhdWritesSucceeded(mhdResults);
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 

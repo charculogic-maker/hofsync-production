@@ -111,19 +111,64 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // STAMMDATEN (admin-only writes)
+    // STAMMDATEN (admin-managed, employee stock movements via app workflows)
     // =========================================================================
 
-    match /tenants/{tenantId}/stammdaten/{document} {
-      allow read: if isTenantUser(tenantId);
-      allow write: if isAdmin(tenantId);
-      allow update: if isEmployeeOrAdmin(tenantId)
+    function isStockDecreaseUpdate(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'currentStock', 'updatedAt'
         ])
         && isIntGteZero(resource.data.currentStock)
         && isIntGteZero(request.resource.data.currentStock)
         && request.resource.data.currentStock <= resource.data.currentStock;
+    }
+
+    function isReceivingStockCreate(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'artikel', 'name', 'produkt', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'tenantId', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isNonEmptyString(request.resource.data.produkt)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isOptionalString(request.resource.data.lastDeliveryAt)
+        && isOptionalString(request.resource.data.lastDeliveryBy)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
+    function isReceivingStockUpdate(tenantId) {
+      return isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'name', 'produkt', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'tenantId', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isNonEmptyString(request.resource.data.produkt)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isOptionalString(request.resource.data.lastDeliveryAt)
+        && isOptionalString(request.resource.data.lastDeliveryBy)
+        && request.resource.data.tenantId == tenantId
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock >= resource.data.currentStock;
+    }
+
+    match /tenants/{tenantId}/stammdaten/{document} {
+      allow read: if isTenantUser(tenantId);
+      allow create: if isAdmin(tenantId) || isReceivingStockCreate(tenantId);
+      allow update: if isAdmin(tenantId)
+        || isStockDecreaseUpdate(tenantId)
+        || isReceivingStockUpdate(tenantId);
+      allow delete: if isAdmin(tenantId);
     }
 
     match /tenants/{tenantId}/settings/{document} {
@@ -163,7 +208,7 @@ service cloud.firestore {
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
@@ -189,7 +234,7 @@ service cloud.firestore {
       allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
+          'produkt', 'name', 'marke', 'brand', 'herstellerZusatz',
           'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',

@@ -30,6 +30,7 @@ const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
 const FEATURE_TEST_EMAIL = 'patrik@charculogic.de';
 
 const parserState = {
+  tenantId: '',
   getFirebase: () => null,
   showHUD: () => {},
   writeOrQueueFirestore: null,
@@ -352,11 +353,13 @@ async function erhoeheBestand(row, author, nowIso) {
   await docRef.set({
     artikel: row.artikel,
     name: row.artikel,
+    produkt: row.artikel,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
     currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
     lastMhd: row.mhdIso || '',
     lastDeliveryAt: nowIso,
     lastDeliveryBy: author,
+    tenantId: parserState.tenantId,
     updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
   }, { merge: true });
 }
@@ -394,6 +397,7 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId: parserState.tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
@@ -514,6 +518,7 @@ function bindUi() {
 }
 
 export function initDeliveryParser(options = {}) {
+  parserState.tenantId = String(options.tenantId || '').trim();
   parserState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : parserState.getFirebase;
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;
