@@ -313,8 +313,7 @@ function isOrderSlipPlaceholderItem(item) {
   return /^siehe bestellzettel/i.test(stockProductLabel(item));
 }
 
-async function findStockDocForOrderItem(item) {
-  const col = stockCollectionRef();
+async function findStockDocForOrderItem(item, col = stockCollectionRef()) {
   if (!col) throw new Error('Bestand ist noch nicht bereit.');
 
   const product = stockProductLabel(item);
@@ -338,14 +337,14 @@ async function findStockDocForOrderItem(item) {
   throw new Error(`Bestandsartikel "${product}" wurde nicht gefunden.`);
 }
 
-async function prepareStockDeductionsForOrder(order) {
+export async function resolveStockDeductionsForOrder(order, collectionRef = stockCollectionRef()) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
     if (isOrderSlipPlaceholderItem(item)) continue;
-    const ref = await findStockDocForOrderItem(item);
+    const ref = await findStockDocForOrderItem(item, collectionRef);
     const key = ref.path;
     const existing = deductionsByPath.get(key);
     if (existing) {
@@ -372,7 +371,7 @@ async function markOrderPickedUpWithStock(order, employee) {
     throw new Error('Bitte bei WLAN erneut versuchen.');
   }
 
-  const deductions = await prepareStockDeductionsForOrder(order);
+  const deductions = await resolveStockDeductionsForOrder(order);
   await orderState.db.runTransaction(async (transaction) => {
     const orderSnap = await transaction.get(orderRef);
     if (!orderSnap.exists) throw new Error('Bestellung nicht gefunden.');
