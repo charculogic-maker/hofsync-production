@@ -126,6 +126,9 @@ service cloud.firestore {
           || isNonEmptyString(request.resource.data.produkt)
           || isNonEmptyString(request.resource.data.name)
         )
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy)
         && isIntGteZero(request.resource.data.currentStock);
     }
 
