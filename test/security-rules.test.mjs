@@ -177,6 +177,18 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2a: MHD receiving metadata', () => {
+    it('allows employee-created MHD records with manufacturer add-on text', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd-brand', TENANTS.STEVES_HOF, 'employee');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'mhd-hersteller-zusatz');
+
+      await expectFirestoreAllow(ctx, path, 'create', {
+        ...sampleMhdItem(TENANTS.STEVES_HOF),
+        herstellerZusatz: 'Biohof Müller',
+      });
+    });
+  });
+
   describe('TEST CASE 2c: stock updates from customer pickup', () => {
     const stockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'fleischsalat');
     const stockItem = {
@@ -225,6 +237,77 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
+    });
+
+    it('allows tenant employee receiving-shaped stock creates and increases', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving-stock', TENANTS.STEVES_HOF, 'employee');
+      const receivingPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'frischkaese');
+      const receivingPayload = {
+        artikel: 'Frischkäse',
+        produkt: 'Frischkäse',
+        name: 'Frischkäse',
+        kategorie: '🥛MoPro',
+        currentStock: 4,
+        lastMhd: '2026-07-30',
+        lastDeliveryAt: '2026-07-17T22:00:00.000Z',
+        lastDeliveryBy: 'team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(ctx, receivingPath, 'create', receivingPayload);
+      await expectFirestoreAllow(ctx, receivingPath, 'update', {
+        currentStock: 7,
+        lastMhd: '2026-08-01',
+        lastDeliveryAt: '2026-07-18T08:00:00.000Z',
+        lastDeliveryBy: 'team',
+        source: 'wareneingang-lieferschein',
+        updatedAt: serverTimestamp(),
+      });
+    });
+  });
+
+  describe('TEST CASE 2d: customer order fulfillment status updates', () => {
+    function sampleCustomerOrder(tenantId, status = 'open') {
+      return {
+        customerName: 'Emulator Kunde',
+        callbackPhone: '01234',
+        readyAt: '2026-07-18T10:00:00.000Z',
+        items: [{ product: 'Fleischsalat', quantity: '1', unit: 'kg' }],
+        acceptedBy: 'Maja',
+        acceptedAt: '2026-07-17T22:00:00.000Z',
+        status,
+        tenantId,
+        createdAt: '2026-07-17T22:00:00.000Z',
+      };
+    }
+
+    it('allows open to ready with pickup place and adjusted item quantities', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-with-items');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'sh-employee-ready-items', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(ctx, path, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Maja',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [{ product: 'Fleischsalat', quantity: '1', unit: 'kg', actualQuantity: '0,8' }],
+      });
+    });
+
+    it('denies picked-up status updates that rewrite order items', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-pickup-item-rewrite');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF, 'ready'));
+
+      const ctx = authContext(testEnv, 'sh-employee-pickup-items', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(ctx, path, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Maja',
+        pickedUpAt: serverTimestamp(),
+        items: [{ product: 'Fleischsalat', quantity: '99', unit: 'kg' }],
+      });
     });
   });
 

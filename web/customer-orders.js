@@ -310,7 +310,7 @@ function stockItemIdFromOrderItem(item) {
 
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
-  if (!col) return null;
+  if (!col) throw new Error('Bestand konnte nicht geprüft werden.');
 
   const directId = stockItemIdFromOrderItem(item);
   if (directId) {
@@ -319,32 +319,55 @@ async function findStockDocForOrderItem(item) {
   }
 
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
-  if (!product) return null;
+  if (!product) throw new Error('Bestand konnte nicht eindeutig zugeordnet werden.');
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const matches = new Map();
+  const rememberMatches = (snap) => {
+    snap.docs.forEach((doc) => {
+      const key = doc.ref.path || doc.ref.id;
+      matches.set(key, doc.ref);
+    });
+  };
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  rememberMatches(await col.where('produkt', '==', product).limit(2).get());
+  rememberMatches(await col.where('name', '==', product).limit(2).get());
 
-  return null;
+  if (matches.size === 1) return [...matches.values()][0];
+  if (matches.size > 1) throw new Error(`Bestand ist nicht eindeutig: ${product}.`);
+
+  throw new Error(`Kein Bestandseintrag gefunden: ${product}.`);
+}
+
+export async function prepareStockDeductionsForItems(items = [], findStockRef = findStockDocForOrderItem) {
+  const deductionsByRef = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const amount = quantityForStock(item);
+    if (!amount) continue;
+    const ref = await findStockRef(item);
+    const key = ref.path || ref.id;
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    const existing = deductionsByRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      existing.products.push(product);
+    } else {
+      deductionsByRef.set(key, {
+        ref,
+        amount,
+        product,
+        products: [product],
+      });
+    }
+  }
+  return [...deductionsByRef.values()].map((deduction) => ({
+    ...deduction,
+    product: [...new Set(deduction.products)].join(', '),
+  }));
 }
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
-  for (const item of items) {
-    const amount = quantityForStock(item);
-    if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
-  }
-  return deductions;
+  return prepareStockDeductionsForItems(items);
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +398,12 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) throw new Error(`Bestand nicht gefunden: ${deduction.product}.`);
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (currentStock < deduction.amount) {
+        throw new Error(`Nicht genug Bestand: ${deduction.product}.`);
+      }
+      const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1236,10 +1262,13 @@ async function updateOrderStatus(orderId, nextStatus) {
     } catch (err) {
       console.error('[CustomerOrders] Abholung mit Bestand fehlgeschlagen:', err);
       const message = String(err?.message || '');
+      const safeStockMessage = /^(Bestand|Kein Bestandseintrag|Nicht genug Bestand|Bestellung)/.test(message)
+        ? message
+        : '';
       window.showToast?.(
         message.includes('WLAN')
           ? 'Bitte bei WLAN erneut versuchen, damit wir den Bestand aktualisieren können.'
-          : 'Bestellung konnte nicht als abgeholt markiert werden. Bitte erneut versuchen.',
+          : safeStockMessage || 'Bestellung konnte nicht als abgeholt markiert werden. Bitte erneut versuchen.',
         'error',
       );
     } finally {
