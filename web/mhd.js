@@ -1,6 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
 import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import { assertDeliveryItemWritesSucceeded } from './mhd-finalize-results.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -3967,6 +3968,7 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    assertDeliveryItemWritesSucceeded(mhdResults);
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
