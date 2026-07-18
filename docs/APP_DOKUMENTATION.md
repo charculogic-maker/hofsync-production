@@ -193,16 +193,37 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 
 ### Cut-Lexikon (`web/cuts.js`)
 
-- Optionaler Tab **Cuts** ueber `modules.cutGlossary: true`
-- Kuratierte Offline-Liste fuer Rind, Schwein und Lamm
-- Suche ueber Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
-- Keine Firestore-Daten und keine Schreibvorgaenge; reines Nachschlage-Modul
+- Optionaler Tab **Cuts** über `modules.cutGlossary: true`
+- Kuratierte Offline-Liste für Rind, Schwein, Lamm, Geflügel, Innereien und allgemeines Campus-Wissen
+- Suche über Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
+- Keine Firestore-Daten und keine Schreibvorgänge; reines Nachschlage-Modul
 
 ### Team & Teamboard
 
 - **Teamboard** (`teamboard.js`): Mitarbeiter-PIN, Aufgaben, Bulletin, Push-Tokens
 - **Team-Tab** (`team-tab.js`): Unterpanels Nachrichten + Bestellungen
-- **Kundenbestellungen** (`customer-orders.js`): Annahme, Sammel-Pickliste, Status „abholbereit“, Gewichtsnachberechnung
+- **Kundenbestellungen** (`customer-orders.js`): Annahme, Sammel-Pickliste, Status „abholbereit“, Gewichtsnachberechnung, Lieferschein und Lagerabzug
+
+#### Kundenbestellungen – technischer Ablauf (`web/customer-orders.js`)
+
+`customerOrders` ist ein mandantenlokaler Workflow unter `tenants/{tenantId}/customerOrders/{orderId}`. Mitarbeiter erfassen Kundenwunsch, Abholzeit, Kontakt und Positionen manuell oder per Bestellzettel-Upload (`tenants/{tenantId}/order_slips/…`). Danach laufen die Bestellungen durch feste Status:
+
+| Status | Auslöser im UI | Firestore / Nebenwirkung |
+|--------|----------------|--------------------------|
+| `open` | Formular speichern | `writeFirestoreDocOrQueue({ op: 'set' })`; offline queuebar |
+| `ready` | Einzelkarte **Bereit** oder Sammel-Pickliste abschließen | `readyMarkedBy`, `readyMarkedAt`; die Sammel-Pickliste kann zusätzlich Waagen-Werte in `items[*].actualQuantity` vorbereiten. Löst `onOrderReadySendSignal` aus, sobald der Write online in Firestore landet |
+| `picked_up` | **Als abgeholt markieren** | Online-Transaktion: Statuswechsel + Lagerabzug in `stammdaten.currentStock`; bei fehlendem WLAN bewusst blockiert |
+| `cancelled` | Stornieren | Status-Update aus `open`; queuebar |
+
+**Sammel-Pickliste:** Offene Bestellungen für den aktuellen Abholtag werden nach Kategorie (`Wurstküche`, `Molkereiprodukte`, `Hofladen-Spezialitäten`, `Sonstiges`) und Artikel aggregiert. Waagen-Werte werden proportional auf die enthaltenen Bestellpositionen zurückgeschrieben (`actualQuantity`, `actualQuantityUnit`, `actualQuantityRecordedAt`). Beim Abschließen postet die App zusätzlich eine Teamboard-Nachricht, dass die Bestellungen im Laden-Kühlschrank stehen.
+
+**Produktionsaufträge:** Positionen mit Kategorien/Hinweisen wie `Küche`, `Gastro`, `Metzgerei` oder `Produktion` erscheinen in den Stationslisten. Diese Listen teilen sich denselben Waagen-Wert-Speicher wie die Sammel-Pickliste, damit ein korrigiertes Gewicht in die spätere Abholnachricht und den Lieferschein einfließt.
+
+**Lieferschein & Preis:** Für `ready`-Bestellungen kann der Laden einen Kisten-Zettel drucken. `calculateFinalOrderPrice()` nutzt `actualQuantity`, falls vorhanden, sonst die bestellte Menge, und sucht Stück-/Kilopreise in Feldern wie `pricePerKg`, `unitPrice`, `lineTotal` oder `price`.
+
+**Rules-Fallstrick:** `firebase.rules` erlaubt Nicht-Admins bei `customerOrders` nur reine Statusübergänge (`open → ready/cancelled`, `ready → picked_up`) mit den zugehörigen Zeit-/Bearbeiterfeldern. Erweiterte Felder wie `items` oder `pickupPlace` benötigen Admin-kompatible Rechte oder eine Rules-Anpassung.
+
+**Offline-Grenzen:** Erfassung, reine `ready`-/`cancelled`-Statuswechsel nutzen die Sync-Queue (`web/sync.js`). `picked_up` ist nicht queuebar, weil der Lagerabzug atomar zusammen mit dem Statuswechsel laufen muss.
 
 ### Büro (`page-batches`)
 
@@ -389,20 +410,32 @@ Konfiguration über `functions/.env` (lokal/Deploy) oder Firebase Params (`defin
 
 ### Ablauf
 
-1. Mitarbeiter markiert Bestellung als abholbereit (inkl. Gewichtsnachberechnung in `customer-orders.js`)
-2. Cloud Function berechnet Waagen-Endpreis aus `actualQuantity` × Stückpreis
-3. Versand parallel über verfügbare Kanäle:
+1. Mitarbeiter markiert eine Bestellung als abholbereit (Einzelkarte oder Sammel-Pickliste).
+2. `customer-orders.js` schreibt `status: 'ready'`, `readyMarkedBy`, `readyMarkedAt` und ggf. aktualisierte Waagen-Werte (`actualQuantity`) nach Firestore.
+3. `onOrderReadySendSignal` reagiert nur auf den ersten Übergang nach `ready`; spätere Updates an bereits abholbereiten Bestellungen versenden keine zweite Nachricht.
+4. Die Function berechnet den Endpreis aus `actualQuantity` (Fallback: bestellte Menge) und dem ersten gefundenen Preisfeld (`pricePerKg`, `kgPrice`, `unitPrice`, `lineTotal`, `price`, …).
+5. Versand läuft parallel über alle verfügbaren Kundenkanäle:
 
 | Kanal | Bedingung | Technik |
 |-------|-----------|---------|
 | E-Mail | `customerEmail` gesetzt + SMTP konfiguriert | nodemailer → `mail.agenturserver.de` |
 | SMS | `callbackPhone` gesetzt + Twilio konfiguriert | Twilio SDK, E.164-Normalisierung |
 
+### Constraints & Fallbacks
+
+| Situation | Verhalten |
+|-----------|-----------|
+| Kein Kundenkanal gesetzt | Function loggt `[KundenSignal] Kein Kundenkanal hinterlegt`, kein Fehler für die Bestellung |
+| SMTP/Twilio-Param fehlt | Betroffener Kanal wird mit `reason: 'not_configured'` übersprungen |
+| Ungültige Telefonnummer | SMS wird mit `reason: 'invalid_phone'` übersprungen; E-Mail kann trotzdem senden |
+| Tenant-Feld passt nicht zum Trigger-Pfad | Function bricht vor Versand ab |
+| Versandfehler eines Kanals | Fehler wird geloggt; Status `ready` bleibt bestehen und wird nicht zurückgerollt |
+
+Telefonnummern werden für Twilio normalisiert: `0171…` → `+49171…`, `0049…` → `+49…`, vorhandene `+`-Nummern bleiben unverändert.
+
 ### Beispiel-Nachricht (StevesHof-Stil)
 
 > Hallo Anna, dein Genuss-Paket ist fertig gepackt! Thomas aus der Metzgerei hat alles frisch vorbereitet. Der genaue Waagen-Endpreis beträgt 15,00 €. Du kannst es ab Fr. um 09:00 Uhr abholen. Wir freuen uns auf dich! Dein StevesHof-Team.
-
-Fehlende Zugangsdaten → Kanal wird übersprungen, Function bricht nicht ab.
 
 **Hinweis:** StevesHof hat `orders: false` — die Bestell-UI ist am Hofladen-iPhone derzeit ausgeblendet. Die Backend-Logik ist deploybereit, sobald das Modul freigeschaltet wird.
 
