@@ -308,8 +308,7 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
-async function findStockDocForOrderItem(item) {
-  const col = stockCollectionRef();
+async function findStockDocForOrderItemInCollection(item, col) {
   if (!col) return null;
 
   const directId = stockItemIdFromOrderItem(item);
@@ -321,30 +320,49 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
+  const byProdukt = await col.where('produkt', '==', product).limit(2).get();
+  if (byProdukt.docs.length > 1) {
+    throw new Error(`Bestand ist nicht eindeutig: ${product}`);
+  }
   if (!byProdukt.empty) return byProdukt.docs[0].ref;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
+  const byName = await col.where('name', '==', product).limit(2).get();
+  if (byName.docs.length > 1) {
+    throw new Error(`Bestand ist nicht eindeutig: ${product}`);
+  }
   if (!byName.empty) return byName.docs[0].ref;
 
   return null;
 }
 
-async function prepareStockDeductionsForOrder(order) {
+async function findStockDocForOrderItem(item) {
+  return findStockDocForOrderItemInCollection(item, stockCollectionRef());
+}
+
+async function prepareStockDeductionsForOrderWithCollection(order, col) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByRef = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
-    if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    if (amount <= 0) continue;
+    const ref = await findStockDocForOrderItemInCollection(item, col);
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    if (!ref) {
+      throw new Error(`Bestand nicht gefunden: ${product}`);
+    }
+    const key = ref.path || ref.id;
+    const existing = deductionsByRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+    } else {
+      deductionsByRef.set(key, { ref, amount, product });
+    }
   }
-  return deductions;
+  return Array.from(deductionsByRef.values());
+}
+
+async function prepareStockDeductionsForOrder(order) {
+  return prepareStockDeductionsForOrderWithCollection(order, stockCollectionRef());
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +393,14 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Bestand nicht gefunden: ${deduction.product}`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (currentStock < deduction.amount) {
+        throw new Error(`Bestand reicht nicht aus: ${deduction.product}`);
+      }
+      const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1479,3 +1502,5 @@ export function activateCustomerOrdersTab() {
   renderProductionTasks();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
 }
+
+export { prepareStockDeductionsForOrder, prepareStockDeductionsForOrderWithCollection };

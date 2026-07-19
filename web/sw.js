@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260611-165-knowledge-tab';
+const CACHE_NAME = 'charculogic-v20260719-166-integrity-fixes';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -212,7 +212,6 @@ self.addEventListener('fetch', (event) => {
   if (isNavigation && isOwnOrigin) {
     const cleanRequest = new Request(url.pathname + url.hash, {
       headers: request.headers,
-      mode: request.mode,
       credentials: request.credentials,
       redirect: request.redirect,
     });

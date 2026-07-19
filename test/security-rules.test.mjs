@@ -226,6 +226,139 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
     });
+
+    it('allows employee receiving flow to create and increase own-tenant stock only with delivery metadata', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving', TENANTS.STEVES_HOF, 'employee');
+      const newStockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'lieferung-neu');
+      const receivingStock = {
+        artikel: 'Lieferung Neu',
+        name: 'Lieferung Neu',
+        produkt: 'Lieferung Neu',
+        kategorie: '📦 Trockenware',
+        currentStock: 3,
+        lastMhd: '2026-07-30',
+        lastDeliveryAt: '2026-07-19T22:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(ctx, newStockPath, 'create', receivingStock);
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        {
+          artikel: 'Fleischsalat',
+          name: 'Fleischsalat',
+          produkt: 'Fleischsalat',
+          kategorie: '🥗 Kühlware',
+          currentStock: 15,
+          lastMhd: '2026-07-30',
+          lastDeliveryAt: '2026-07-19T22:00:00.000Z',
+          lastDeliveryBy: 'Team',
+          source: 'wareneingang-lieferschein',
+          tenantId: TENANTS.STEVES_HOF,
+          updatedAt: serverTimestamp(),
+        },
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        stockPath,
+        'update',
+        {
+          currentStock: 18,
+          source: 'manual-adjustment',
+          tenantId: TENANTS.STEVES_HOF,
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: delivery MHD and customer order ready updates', () => {
+    it('allows employee delivery MHD record with manufacturer add-on in own tenant only', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd-delivery', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'mhd-hersteller-ok'),
+        'create',
+        {
+          ...sampleMhdItem(TENANTS.STEVES_HOF),
+          herstellerZusatz: 'Hoflieferant',
+          source: 'wareneingang-app',
+        },
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'mhd-hersteller-cross'),
+        'create',
+        {
+          ...sampleMhdItem(TENANTS.TORFABRIK),
+          herstellerZusatz: 'Hoflieferant',
+          source: 'wareneingang-app',
+        },
+      );
+    });
+
+    it('allows bulk ready pickupPlace and same-length item actual quantities, but not picked-up item rewrites', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+      const openPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-open-ready');
+      const readyPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-pickup');
+      const items = [
+        { product: 'Fleischsalat', quantity: '1', unit: 'kg', stockItemId: 'fleischsalat' },
+      ];
+
+      await seedFirestoreDoc(testEnv, openPath, {
+        customerName: 'Testkunde',
+        callbackPhone: '01234',
+        readyAt: '2026-07-20T10:00:00.000Z',
+        items,
+        acceptedBy: 'Team',
+        acceptedAt: '2026-07-19T22:00:00.000Z',
+        status: 'open',
+        tenantId: TENANTS.STEVES_HOF,
+      });
+      await seedFirestoreDoc(testEnv, readyPath, {
+        customerName: 'Testkunde',
+        callbackPhone: '01234',
+        readyAt: '2026-07-20T10:00:00.000Z',
+        items,
+        acceptedBy: 'Team',
+        acceptedAt: '2026-07-19T22:00:00.000Z',
+        status: 'ready',
+        tenantId: TENANTS.STEVES_HOF,
+      });
+
+      await expectFirestoreAllow(
+        ctx,
+        openPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [{ ...items[0], actualQuantity: '1,2' }],
+        },
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        readyPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Team',
+          pickedUpAt: serverTimestamp(),
+          items: [{ ...items[0], actualQuantity: '0,5' }],
+        },
+      );
+    });
   });
 
   describe('TEST CASE 2b: task comments', () => {
