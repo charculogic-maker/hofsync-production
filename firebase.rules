@@ -87,6 +87,10 @@ service cloud.firestore {
       return (field is int || field is float) && field >= 0;
     }
 
+    function isPositiveNumber(field) {
+      return (field is int || field is float) && field > 0;
+    }
+
     function isDateStringOrNull(field) {
       return field == null
         || (field is string && field.size() >= 8 && field.size() <= 24);
@@ -117,13 +121,43 @@ service cloud.firestore {
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
-      allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'currentStock', 'updatedAt'
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && hasOnly([
+          'artikel', 'name', 'produkt', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'tenantId', 'updatedAt', 'createdAt'
         ])
-        && isIntGteZero(resource.data.currentStock)
-        && isIntGteZero(request.resource.data.currentStock)
-        && request.resource.data.currentStock <= resource.data.currentStock;
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.name)
+        && isPositiveNumber(request.resource.data.currentStock);
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'currentStock', 'updatedAt'
+            ])
+            && isIntGteZero(resource.data.currentStock)
+            && isIntGteZero(request.resource.data.currentStock)
+            && request.resource.data.currentStock <= resource.data.currentStock
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'artikel', 'name', 'produkt', 'kategorie',
+              'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+              'source', 'tenantId', 'updatedAt'
+            ])
+            && (
+              !('tenantId' in resource.data)
+              || resource.data.tenantId == tenantId
+            )
+            && request.resource.data.tenantId == tenantId
+            && request.resource.data.source == 'wareneingang-lieferschein'
+            && isIntGteZero(resource.data.currentStock)
+            && isPositiveNumber(request.resource.data.currentStock)
+            && request.resource.data.currentStock >= resource.data.currentStock
+          )
+        );
     }
 
     match /tenants/{tenantId}/settings/{document} {
@@ -168,7 +202,7 @@ service cloud.firestore {
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
           'kategorie', 'warenKategorie', 'soldOut',
-          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur', 'herstellerZusatz',
           'erfassungsDatum', 'meisterOverrideReason',
           'vpeBarcode', 'vpeInhalt',
           'source', 'postentyp', 'wareneingangAt',
@@ -194,7 +228,7 @@ service cloud.firestore {
           'tage', 'resttage', 'status',
           'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
           'kategorie', 'warenKategorie', 'soldOut',
-          'lot', 'chargenNummer', 'lieferant', 'temperatur',
+          'lot', 'chargenNummer', 'lieferant', 'temperatur', 'herstellerZusatz',
           'erfassungsDatum', 'meisterOverrideReason',
           'vpeBarcode', 'vpeInhalt',
           'source', 'postentyp', 'wareneingangAt',
@@ -487,13 +521,37 @@ service cloud.firestore {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+              || isOptionalString(request.resource.data.pickupPlace)
+            )
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+              || (
+                isCustomerOrderItemsList(resource.data.items)
+                && isCustomerOrderItemsList(request.resource.data.items)
+                && request.resource.data.items.size() == resource.data.items.size()
+              )
+            )
+          )
+          || (
+            resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace', 'items'])
+          )
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace', 'items'])
+          )
         );
     }
 
