@@ -566,6 +566,22 @@ const PROFILE_TAB_ALIASES = {
 const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
 
+/** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'kitchen'];
+
+const TAB_ID_TO_MODULE_KEY = {
+  teamboard: 'start',
+  team: 'team',
+  mhd: 'mhd',
+  receiving: 'receiving',
+  traceability: 'traceability',
+  kitchen: 'kitchen',
+  haccp: 'haccp',
+  knowledge: 'knowledge',
+  cuts: 'knowledge',
+  batches: 'buero',
+};
+
 function hasActiveFirebaseAuthUser() {
   try {
     if (typeof firebase === 'undefined' || !firebase.apps?.length) return false;
@@ -1621,9 +1637,8 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
   const tabModuleMap = {
-    teamboard: modules.teamboard !== false,
-    team: modules.team !== false
-      && (modules.team === true || modules.orders !== false || modules.haccp !== false || modules.teamboard !== false),
+    teamboard: isTenantModuleEnabled('start', branding),
+    team: isTenantModuleEnabled('team', branding),
     mhd: isTenantModuleEnabled('mhd', branding),
     receiving: isTenantModuleEnabled('receiving', branding),
     traceability: isTenantModuleEnabled('traceability', branding),
@@ -1640,7 +1655,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
       tab.style.display = 'none';
       return;
     }
-    const enabled = tabModuleMap[tabId] !== false;
+    const enabled = tabModuleMap[tabId] === true;
     tab.hidden = !enabled;
     tab.style.display = enabled ? '' : 'none';
   });
@@ -1673,6 +1688,69 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     auditCard.style.display = rezeptAuditEnabled ? '' : 'none';
   }
 }
+
+function isNavTabElementVisible(tabId) {
+  const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  return Boolean(tab && !tab.hidden && tab.style.display !== 'none');
+}
+
+function isTabAllowedByModules(tabId, branding = window.BRANDING || {}) {
+  const moduleKey = TAB_ID_TO_MODULE_KEY[tabId];
+  if (!moduleKey) return false;
+  return isTenantModuleEnabled(moduleKey, branding);
+}
+
+/** Erster sichtbarer Bottom-Nav-Tab; sonst erstes freigeschaltetes Modul. */
+function resolveDefaultBottomNavTab(branding = window.BRANDING || {}) {
+  for (const tabId of BOTTOM_NAV_TAB_PRIORITY) {
+    if (isNavTabElementVisible(tabId)) return tabId;
+  }
+  for (const tabId of BOTTOM_NAV_TAB_PRIORITY) {
+    if (isTabAllowedByModules(tabId, branding)) return tabId;
+  }
+  return 'traceability';
+}
+
+function isActiveTabAllowed(tabId, branding = window.BRANDING || {}) {
+  const current = tabId || AppState?.activeTab;
+  if (!current) return false;
+  if (ADMIN_HEADER_ONLY_TAB_IDS.has(current)) {
+    return isTabAllowedByModules(current, branding);
+  }
+  if (!BOTTOM_NAV_TAB_IDS.has(current)) return false;
+  return isNavTabElementVisible(current) && isTabAllowedByModules(current, branding);
+}
+
+/**
+ * Route-Guard: liegt der aktuelle Tab außerhalb der freigeschalteten Module,
+ * auf den ersten erlaubten Bottom-Nav-Tab umleiten.
+ */
+function ensureActiveTabAllowed({ force = false } = {}) {
+  if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) {
+    return AppState?.activeTab;
+  }
+  const current = AppState?.activeTab;
+  if (!force && isActiveTabAllowed(current)) return current;
+
+  const next = resolveDefaultBottomNavTab();
+  if (!next) return current;
+
+  if (typeof window.showTab === 'function') {
+    window.showTab(next);
+  } else {
+    window.fallbackShowTab?.(next);
+    if (AppState) AppState.activeTab = next;
+  }
+  return next;
+}
+
+function showPreferredStartTab() {
+  return ensureActiveTabAllowed({ force: true });
+}
+
+window.resolveDefaultBottomNavTab = resolveDefaultBottomNavTab;
+window.ensureActiveTabAllowed = ensureActiveTabAllowed;
+window.showPreferredStartTab = showPreferredStartTab;
 
 function resolveFirebaseEmployeeAllowedTabs(authSession) {
   const allowed = authSession?.profile?.allowedModules
@@ -1737,6 +1815,7 @@ function applyRoleBasedUi(authSession) {
   applyProfileCapabilityTabFilter();
   applyProfileKitchenRestrictions();
   syncBottomNavTabLayout();
+  ensureActiveTabAllowed();
   try {
     if (hasAuthenticatedTenantContext(authSession)) {
       syncAdminHeaderDropdown(window.BRANDING || {});
@@ -2728,11 +2807,20 @@ function showTab(tabId) {
     buero: 'buero',
   }[tabId] || '';
   if (adminModuleKey && hasAdminModuleAccess()) {
+    if (!isTabAllowedByModules(tabId === 'buero' ? 'batches' : tabId)) {
+      return showPreferredStartTab();
+    }
     void openAdminDropdownModule(adminModuleKey);
     return true;
   }
   const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
-  if (!tab || tab.hidden || tab.style.display === 'none') return false;
+  if (!tab || tab.hidden || tab.style.display === 'none' || !isTabAllowedByModules(tabId)) {
+    const fallback = resolveDefaultBottomNavTab();
+    if (fallback && fallback !== tabId) {
+      return showTab(fallback);
+    }
+    return false;
+  }
   tab.click();
   return true;
 }
@@ -2772,7 +2860,7 @@ function applyEarlyTenantShell() {
     email: STEVESHOF_TERMINAL_EMAIL,
   });
   purgeInvalidProfileSession(window.BRANDING);
-  showTab('mhd');
+  showPreferredStartTab();
 }
 
 function isSteveshofTerminalSession(authSession) {
@@ -2824,6 +2912,10 @@ tabs.forEach(tab => {
   tab.addEventListener('click', async () => {
     const targetTab = tab.getAttribute('data-tab');
     if (tab.hidden || tab.style.display === 'none') {
+      return;
+    }
+    if (!isTabAllowedByModules(targetTab)) {
+      showPreferredStartTab();
       return;
     }
     if (isAdminHeaderModuleActive()) {
@@ -2939,12 +3031,14 @@ function bindTenantModuleConfigListener(tenantId) {
   if (tenantModulesUnsubscribe) tenantModulesUnsubscribe();
   tenantModulesUnsubscribe = subscribeTenantEnabledModules(db, tenantId, () => {
     applyModuleVisibility(window.BRANDING);
+    applyProfileCapabilityTabFilter(window.BRANDING);
     try {
       syncAdminHeaderDropdown(window.BRANDING);
     } catch (_) {
       hideAdminHeaderDropdown();
     }
     refreshRetterBoxModule();
+    ensureActiveTabAllowed();
   });
 }
 
@@ -3382,9 +3476,7 @@ async function bootstrapAuthenticatedApp() {
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
   applyRoleBasedUi(authSession);
-  if (isFirebaseRoleAuth(window.BRANDING) && authSession.role === 'employee') {
-    showTab('mhd');
-  }
+  showPreferredStartTab();
   refreshRetterBoxModule();
   bindOfficeAccessLock();
   bindAdminHeaderDropdown();
@@ -3395,6 +3487,7 @@ async function bootstrapAuthenticatedApp() {
       void loadTenantEnabledModules(db, nextSession.tenantId).then(() => {
         applyModuleVisibility(window.BRANDING);
         bindTenantModuleConfigListener(nextSession.tenantId);
+        ensureActiveTabAllowed();
       });
     }
     if (typeof window.applyResolvedBranding === 'function') {
@@ -3405,6 +3498,7 @@ async function bootstrapAuthenticatedApp() {
     syncFirebaseEmployeeSession(nextSession);
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
+    ensureActiveTabAllowed();
     startTenantLiveDataListeners();
   });
   configureSteveshofTerminalSession(authSession);
@@ -3517,7 +3611,7 @@ async function bootstrapAuthenticatedApp() {
   }
 
   if (tenantIdsMatch(authSession.tenantId, STEVESHOF_TENANT_ID)) {
-    showTab('mhd');
+    showPreferredStartTab();
   }
   updateSyncIndicator();
   startTenantLiveDataListeners();

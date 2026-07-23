@@ -1,11 +1,23 @@
 /**
  * Tenant module flags from Firestore `tenants/{id}.enabledModules`.
- * Keys: mhd, receiving, kitchen, haccp, knowledge, buero, traceability
+ * Keys: start, team, mhd, receiving, kitchen, haccp, knowledge, buero, traceability
  */
 
-export const TENANT_MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'haccp', 'knowledge', 'buero', 'traceability'];
+export const TENANT_MODULE_KEYS = [
+  'start',
+  'team',
+  'mhd',
+  'receiving',
+  'kitchen',
+  'haccp',
+  'knowledge',
+  'buero',
+  'traceability',
+];
 
 export const ENABLED_MODULE_TO_BRANDING = {
+  start: 'teamboard',
+  team: 'team',
   mhd: 'mhdMonitor',
   receiving: 'wareneingang',
   kitchen: 'wurstkueche',
@@ -24,8 +36,12 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
   TENANT_MODULE_KEYS.forEach((key) => {
     if (!(key in enabledModules)) return;
     const brandingKey = ENABLED_MODULE_TO_BRANDING[key];
-    if (brandingKey) modules[brandingKey] = enabledModules[key] !== false;
+    if (brandingKey) modules[brandingKey] = enabledModules[key] === true;
   });
+  // Team-Tab-Inhalte (Bestellungen) folgen dem team-Schalter.
+  if ('team' in enabledModules) {
+    modules.orders = enabledModules.team === true;
+  }
   branding.modules = modules;
   return branding;
 }
@@ -33,10 +49,14 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
 export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {}) {
   const enabled = branding.enabledModules;
   if (enabled && typeof enabled === 'object' && moduleKey in enabled) {
-    return enabled[moduleKey] !== false;
+    return enabled[moduleKey] === true;
   }
   const modules = branding.modules || {};
   switch (moduleKey) {
+    case 'start':
+      return modules.teamboard === true;
+    case 'team':
+      return modules.team === true || modules.orders === true;
     case 'mhd':
       return modules.mhdMonitor !== false;
     case 'receiving':

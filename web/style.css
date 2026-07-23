@@ -8221,22 +8221,28 @@ body.dev-dashboard-view .admin-header-dropdown {
 .dev-dashboard-employee-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.dev-dashboard-employee-header .dev-dashboard-section-title {
+  margin: 0;
 }
 
 .dev-dashboard-tenant-select-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   font-size: 0.82rem;
   color: var(--text-muted, #64748b);
 }
 
 .dev-dashboard-tenant-select-field select {
-  min-width: 240px;
-  padding: 8px 10px;
+  min-width: 220px;
+  padding: 8px 12px;
   border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 8px;
   background: var(--card-bg, #fff);
@@ -8386,7 +8392,8 @@ body.dev-dashboard-view .admin-header-dropdown {
 .dev-dashboard-table--tenants th:nth-child(4),
 .dev-dashboard-table--tenants td:nth-child(4) {
   white-space: nowrap;
-  width: 6.5rem;
+  width: 7.5rem;
+  min-width: 7.5rem;
 }
 
 .dev-dashboard-tenant-status {
@@ -8409,6 +8416,12 @@ body.dev-dashboard-view .admin-header-dropdown {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.dev-dashboard-tenant-actions .dev-dashboard-action-btn {
+  white-space: nowrap;
+  min-width: 5.75rem;
+  padding: 8px 14px;
 }
 
 .dev-dashboard-toggle--compact {

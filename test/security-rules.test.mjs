@@ -544,6 +544,8 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       displayName: 'TorFabrik',
       status: 'active',
       enabledModules: {
+        start: true,
+        team: true,
         mhd: true,
         receiving: false,
         kitchen: false,

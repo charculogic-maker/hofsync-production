@@ -27,6 +27,8 @@ export const SUPER_ADMIN_EMAIL = 'patrik@charculogic.de';
 const EMPLOYEE_PERMISSION_KEYS = ['mhd', 'kitchen', 'buero'];
 
 const MODULE_LABELS = {
+  start: 'Start',
+  team: 'Team',
   mhd: 'MHD',
   receiving: 'Wareneingang',
   kitchen: 'Küche',
@@ -132,7 +134,8 @@ export function navigateBackToMainApp() {
   teardownDevDashboard();
   document.body?.classList.remove('dev-dashboard-view');
   window.syncDesktopWideLayout?.();
-  window.location.replace('/#page-mhd');
+  // Starttab wird nach Reload über enabledModules aufgelöst (kein hartes #page-mhd).
+  window.location.replace('/');
 }
 
 const EMPTY_TENANTS_MESSAGE = 'ℹ️ Keine Mandanten in der Datenbank. Wurde das Seeding-Skript ausgeführt?';

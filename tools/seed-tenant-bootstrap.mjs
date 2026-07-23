@@ -19,6 +19,8 @@ const CREDENTIALS_DOC_ID = 'current';
 const SEED_VERSION = 1;
 
 const DEFAULT_ENABLED_MODULES = {
+  start: false,
+  team: false,
   mhd: true,
   receiving: true,
   kitchen: true,
@@ -30,6 +32,8 @@ const DEFAULT_ENABLED_MODULES = {
 
 const TENANT_ENABLED_MODULES = {
   torfabrik: {
+    start: true,
+    team: true,
     mhd: true,
     receiving: true,
     kitchen: false,
@@ -39,6 +43,8 @@ const TENANT_ENABLED_MODULES = {
     traceability: true,
   },
   steveshof_hauptbetrieb: {
+    start: false,
+    team: false,
     mhd: true,
     receiving: true,
     kitchen: true,
@@ -48,6 +54,8 @@ const TENANT_ENABLED_MODULES = {
     traceability: true,
   },
   whitelabel_test: {
+    start: false,
+    team: false,
     mhd: true,
     receiving: true,
     kitchen: false,
@@ -57,6 +65,8 @@ const TENANT_ENABLED_MODULES = {
     traceability: true,
   },
   ap23: {
+    start: false,
+    team: false,
     mhd: true,
     receiving: false,
     kitchen: true,

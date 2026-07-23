@@ -55,20 +55,24 @@
     window.fallbackShowTab = function fallbackShowTab(tabId) {
       const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
       const pageMap = {
+        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Aufgaben & Tagesinfo' },
+        team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
         mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
         receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
         traceability: { page: 'page-traceability', title: 'Herkunft', subtitle: betriebsName },
         kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
         knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
       };
-      const target = pageMap[tabId] || pageMap.mhd;
+      const preferred = tabId || 'traceability';
+      const target = pageMap[preferred] || pageMap.traceability || pageMap.mhd;
+      const resolvedTabId = pageMap[preferred] ? preferred : 'traceability';
       document.querySelectorAll('.page').forEach((page) => {
         const active = page.id === target.page;
         page.classList.toggle('active', active);
         page.style.display = active ? 'block' : 'none';
       });
       document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
-        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+        tab.classList.toggle('active', tab.getAttribute('data-tab') === resolvedTabId);
       });
       window.scrollActiveNavTabIntoView?.({ smooth: true });
       const headerTitle = document.getElementById('header-title');
@@ -246,6 +250,14 @@
                       <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>Module (Start)</legend>
                         <div class="dev-dashboard-permissions-row">
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-start" type="checkbox" data-module-key="start">
+                            <span>Start</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-team" type="checkbox" data-module-key="team">
+                            <span>Team</span>
+                          </label>
                           <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                             <input id="dev-dashboard-tenant-mod-mhd" type="checkbox" data-module-key="mhd">
                             <span>MHD</span>
