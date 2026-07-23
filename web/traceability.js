@@ -213,10 +213,14 @@ async function uploadTraceabilityPhoto(file, recordId, tenantId) {
 function resetCaptureForm() {
   const lot = document.getElementById('trace-lot-number');
   const mark = document.getElementById('trace-health-mark');
+  const organicControlBody = document.getElementById('trace-organic-control-body');
+  const organicAssociation = document.getElementById('trace-organic-association');
   const animal = document.getElementById('trace-animal-type');
   const single = document.getElementById('trace-single-origin');
   if (lot) lot.value = '';
   if (mark) mark.value = '';
+  if (organicControlBody) organicControlBody.value = '';
+  if (organicAssociation) organicAssociation.value = 'EU-Bio';
   if (animal) animal.value = 'rind';
   if (single) single.checked = true;
   ['trace-single-country', 'trace-born-in', 'trace-raised-in', 'trace-slaughtered-in', 'trace-cut-in'].forEach((id) => {
@@ -239,6 +243,8 @@ async function saveTraceabilityRecord() {
 
   const lotNumber = String(document.getElementById('trace-lot-number')?.value || '').trim();
   const healthMark = String(document.getElementById('trace-health-mark')?.value || '').trim();
+  const organicControlBodyVal = String(document.getElementById('trace-organic-control-body')?.value || '').trim();
+  const organicAssociationVal = String(document.getElementById('trace-organic-association')?.value || '').trim();
   const animalType = String(document.getElementById('trace-animal-type')?.value || '').trim();
   const origin = readFormOrigin(animalType);
   const validationError = validateForm(lotNumber, animalType, origin, Boolean(traceState.pendingPhotoFile));
@@ -268,6 +274,8 @@ async function saveTraceabilityRecord() {
       status: 'active',
       lotNumber,
       healthMark,
+      organicControlBody: organicControlBodyVal || '',
+      organicAssociation: organicAssociationVal || 'EU-Bio',
       imageUrl,
       animalType,
       origin,
@@ -395,7 +403,7 @@ function filteredAdminRecords() {
   return traceState.adminRecords.filter((record) => {
     if (dateFilter && toDateKey(record.createdAt) !== dateFilter) return false;
     if (!query) return true;
-    const haystack = `${record.lotNumber || ''} ${record.healthMark || ''} ${animalTypeLabel(record.animalType)}`.toLowerCase();
+    const haystack = `${record.lotNumber || ''} ${record.healthMark || ''} ${record.organicControlBody || ''} ${record.organicAssociation || ''} ${animalTypeLabel(record.animalType)}`.toLowerCase();
     return haystack.includes(query);
   });
 }
@@ -420,6 +428,37 @@ function formatOriginForInspectors(origin = {}, animalType = '') {
     rows.push(`<div><dt>Zulassungsnr. Zerlegebetrieb</dt><dd>${escapeHtml(origin.cuttingPlantNo || '–')}</dd></div>`);
   }
   return `<dl class="trace-detail-dl">${rows.join('')}</dl>`;
+}
+
+function hasBioCertification(record = {}) {
+  const body = String(record.organicControlBody || '').trim();
+  const assoc = String(record.organicAssociation || '').trim();
+  if (body) return true;
+  if (!assoc || assoc === 'Keine / Konventionell') return false;
+  return true;
+}
+
+function formatBioCertificationSection(record = {}) {
+  if (!hasBioCertification(record)) return '';
+  const body = String(record.organicControlBody || '').trim();
+  const assoc = String(record.organicAssociation || '').trim();
+  return `
+    <section class="trace-bio-section" aria-label="Bio-Zertifizierung">
+      <div class="trace-bio-section-header">
+        <span class="trace-bio-badge">Bio-Zertifizierung</span>
+      </div>
+      <dl class="trace-detail-dl">
+        <div><dt>Öko-Kontrollstelle</dt><dd>${escapeHtml(body || '–')}</dd></div>
+        <div><dt>Bio-Verband</dt><dd>${escapeHtml(assoc || '–')}</dd></div>
+      </dl>
+    </section>
+  `;
+}
+
+function formatOrganicControlBodyCell(record = {}) {
+  const body = String(record.organicControlBody || '').trim();
+  if (!body) return '–';
+  return `<span class="dev-trace-organic-badge" title="Öko-Kontrollstelle">${escapeHtml(body)}</span>`;
 }
 
 function renderAdminDetail(record) {
@@ -450,6 +489,7 @@ function renderAdminDetail(record) {
           <div><dt>Erfasst am</dt><dd>${escapeHtml(formatDateTimeDe(record.createdAt))}</dd></div>
           <div><dt>Erfasst von (User-ID)</dt><dd><code>${escapeHtml(record.createdBy || '–')}</code></dd></div>
         </dl>
+        ${formatBioCertificationSection(record)}
         <h4 class="trace-detail-origin-title">Herkunft laut LMIV</h4>
         ${formatOriginForInspectors(record.origin, record.animalType)}
       </div>
@@ -467,7 +507,7 @@ function renderAdminTable() {
   if (!body) return;
   const rows = filteredAdminRecords();
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg">Keine Einträge für diese Suche.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Keine Einträge für diese Suche.</td></tr>';
     return;
   }
   body.innerHTML = rows.map((record) => {
@@ -479,6 +519,7 @@ function renderAdminTable() {
         <td>${escapeHtml(animalTypeLabel(record.animalType))}</td>
         <td>${escapeHtml(formatDateTimeDe(record.createdAt))}</td>
         <td>${escapeHtml(record.healthMark || '–')}</td>
+        <td>${formatOrganicControlBodyCell(record)}</td>
         <td>
           <span class="dev-trace-status-pill" data-status="${active ? 'active' : 'archived'}">${escapeHtml(statusLabel(record.status))}</span>
         </td>
@@ -564,7 +605,7 @@ export function startTraceabilityAdminView(tenantId) {
   if (!resolved || !traceState.db) {
     const body = document.getElementById('dev-trace-body');
     if (body) {
-      body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg">Mandant fehlt – Thekenklade kann nicht geladen werden.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Mandant fehlt – Thekenklade kann nicht geladen werden.</td></tr>';
     }
     return;
   }
@@ -603,7 +644,7 @@ export function startTraceabilityAdminView(tenantId) {
         if (statusEl) statusEl.textContent = 'Laden fehlgeschlagen';
         const body = document.getElementById('dev-trace-body');
         if (body) {
-          body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">Zugriff oder Verbindung fehlgeschlagen.</td></tr>';
+          body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">Zugriff oder Verbindung fehlgeschlagen.</td></tr>';
         }
       },
     );

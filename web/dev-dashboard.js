@@ -287,6 +287,122 @@ function bindTenantToggleHandlers(db, statusEl) {
   });
 }
 
+/** Anzeigename → Document-ID: Kleinbuchstaben, Umlaute aufgelöst, ohne Leer-/Sonderzeichen. */
+export function slugifyTenantId(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9_-]+/g, '')
+    .replace(/^[_-]+|[_-]+$/g, '')
+    .slice(0, 64);
+}
+
+function setTenantFormStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('dev-dashboard-tenant-form-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+}
+
+function readCreateTenantEnabledModules() {
+  const enabledModules = {};
+  TENANT_MODULE_KEYS.forEach((key) => {
+    const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
+    enabledModules[key] = input instanceof HTMLInputElement ? input.checked : false;
+  });
+  return enabledModules;
+}
+
+function resetTenantCreateForm() {
+  const form = document.getElementById('dev-dashboard-tenant-form');
+  if (form) form.reset();
+  TENANT_MODULE_KEYS.forEach((key) => {
+    const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
+    if (input instanceof HTMLInputElement) {
+      input.checked = key === 'traceability';
+    }
+  });
+  const idInput = document.getElementById('dev-dashboard-tenant-id');
+  if (idInput) idInput.dataset.manual = '0';
+}
+
+function bindTenantCreateForm(db) {
+  const form = document.getElementById('dev-dashboard-tenant-form');
+  const nameInput = document.getElementById('dev-dashboard-tenant-name');
+  const idInput = document.getElementById('dev-dashboard-tenant-id');
+  if (!form || !nameInput || !idInput || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  idInput.dataset.manual = idInput.dataset.manual || '0';
+
+  nameInput.addEventListener('input', () => {
+    if (idInput.dataset.manual === '1') return;
+    idInput.value = slugifyTenantId(nameInput.value);
+  });
+
+  idInput.addEventListener('input', () => {
+    idInput.dataset.manual = '1';
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitBtn = form.querySelector('[type="submit"]');
+    const displayName = nameInput.value.trim();
+    const tenantId = String(idInput.value || '').trim();
+
+    if (!displayName) {
+      setTenantFormStatus('Bitte einen Anzeigenamen eingeben.', 'error');
+      return;
+    }
+    if (!tenantId || !/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
+      setTenantFormStatus('Tenant-ID: nur Buchstaben, Zahlen, Unterstrich und Bindestrich.', 'error');
+      return;
+    }
+    if (!db) {
+      setTenantFormStatus('Firestore nicht verfügbar.', 'error');
+      return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    setTenantFormStatus('Lege Mandant an…');
+
+    try {
+      const ref = db.collection('tenants').doc(tenantId);
+      const existing = await ref.get();
+      if (existing.exists) {
+        setTenantFormStatus(`Mandant „${tenantId}“ existiert bereits.`, 'error');
+        window.showToast?.('Mandant existiert bereits.', 'error');
+        return;
+      }
+
+      const enabledModules = readCreateTenantEnabledModules();
+      await ref.set({
+        displayName,
+        enabledModules,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      resetTenantCreateForm();
+      setTenantFormStatus(`Mandant „${displayName}“ (${tenantId}) angelegt.`, 'success');
+      window.showToast?.(`Mandant ${displayName} wurde angelegt.`, 'success');
+      // Liste aktualisiert sich über den onSnapshot-Listener von subscribeAllTenants.
+    } catch (err) {
+      console.error('[Dev-Dashboard] Mandanten-Anlage fehlgeschlagen:', err);
+      const message = isPermissionDeniedError(err)
+        ? PERMISSION_DENIED_MESSAGE
+        : `Fehler: ${err?.message || 'Anlage fehlgeschlagen.'}`;
+      setTenantFormStatus(message, 'error');
+      window.showToast?.('Mandant konnte nicht angelegt werden.', 'error');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
+}
+
 function bindDevDashboardBackButton() {
   const backBtn = document.getElementById('dev-dashboard-back-btn');
   if (!backBtn || backBtn.dataset.bound === '1') return;
@@ -744,6 +860,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
   bindDevDashboardBackButton();
   bindDevDashboardTabs();
   bindTenantToggleHandlers(db, statusEl);
+  bindTenantCreateForm(db);
   bindEmployeeCreateForm(dashboardState);
   bindEmployeeTableActions(dashboardState);
 

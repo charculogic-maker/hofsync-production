@@ -209,6 +209,78 @@
                   <p class="dev-dashboard-intro">
                     Module pro Mandant aktivieren oder deaktivieren. Änderungen gelten sofort für alle Geräte.
                   </p>
+
+                  <div class="dev-dashboard-tenant-create">
+                    <h3 class="dev-dashboard-subsection-title">Neuen Mandanten anlegen</h3>
+                    <p class="dev-dashboard-intro">
+                      Legt ein neues Dokument unter <code>tenants/{tenantId}</code> an. Die Tenant-ID wird aus dem Namen vorgeschlagen und kann angepasst werden.
+                    </p>
+                    <form id="dev-dashboard-tenant-form" class="dev-dashboard-tenant-form">
+                      <div class="dev-dashboard-tenant-form-row">
+                        <label class="dev-dashboard-field" for="dev-dashboard-tenant-name">
+                          <span>Anzeigename</span>
+                          <input
+                            id="dev-dashboard-tenant-name"
+                            type="text"
+                            required
+                            maxlength="80"
+                            placeholder="z. B. SuperBioMarkt"
+                            autocomplete="organization"
+                          >
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-tenant-id">
+                          <span>Tenant-ID (Dokumenten-ID)</span>
+                          <input
+                            id="dev-dashboard-tenant-id"
+                            type="text"
+                            required
+                            maxlength="64"
+                            pattern="[a-zA-Z0-9_\-]+"
+                            title="Nur Buchstaben, Zahlen, Unterstrich und Bindestrich"
+                            placeholder="z. B. superbiomarkt"
+                            autocomplete="off"
+                            spellcheck="false"
+                          >
+                        </label>
+                      </div>
+                      <fieldset class="dev-dashboard-permissions-fieldset">
+                        <legend>Module (Start)</legend>
+                        <div class="dev-dashboard-permissions-row">
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-mhd" type="checkbox" data-module-key="mhd">
+                            <span>MHD</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-receiving" type="checkbox" data-module-key="receiving">
+                            <span>Wareneingang</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-kitchen" type="checkbox" data-module-key="kitchen">
+                            <span>Küche</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-haccp" type="checkbox" data-module-key="haccp">
+                            <span>HACCP</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-knowledge" type="checkbox" data-module-key="knowledge">
+                            <span>Wissen</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-buero" type="checkbox" data-module-key="buero">
+                            <span>Büro</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input id="dev-dashboard-tenant-mod-traceability" type="checkbox" data-module-key="traceability" checked>
+                            <span>Rückverfolgbarkeit</span>
+                          </label>
+                        </div>
+                      </fieldset>
+                      <button type="submit" class="dev-dashboard-submit-btn">Mandant anlegen</button>
+                    </form>
+                    <p class="dev-dashboard-employee-status" id="dev-dashboard-tenant-form-status" aria-live="polite"></p>
+                  </div>
+
                   <div class="dev-dashboard-table-wrap">
                     <table class="dev-dashboard-table">
                       <thead>
@@ -338,6 +410,7 @@
                           <th scope="col">Tierart</th>
                           <th scope="col">Erfasst</th>
                           <th scope="col">Kennzeichen</th>
+                          <th scope="col">Öko-Kontrollstelle</th>
                           <th scope="col">Status</th>
                           <th scope="col">Aktion</th>
                         </tr>
@@ -789,6 +862,20 @@
                 <label class="receiving-field" for="trace-health-mark">
                   <span>Identitätskennzeichen (oval)</span>
                   <input type="text" id="trace-health-mark" class="gastro-input" placeholder="z. B. DE-NW-12345-EG" autocomplete="off">
+                </label>
+                <label class="receiving-field" for="trace-organic-control-body">
+                  <span>Öko-Kontrollstelle (z. B. DE-ÖKO-006)</span>
+                  <input type="text" id="trace-organic-control-body" class="gastro-input" placeholder="z. B. DE-ÖKO-006" autocomplete="off" inputmode="text">
+                </label>
+                <label class="receiving-field" for="trace-organic-association">
+                  <span>Bio-Verband (optional)</span>
+                  <select id="trace-organic-association" class="gastro-input">
+                    <option value="EU-Bio" selected>EU-Bio</option>
+                    <option value="Bioland">Bioland</option>
+                    <option value="Demeter">Demeter</option>
+                    <option value="Naturland">Naturland</option>
+                    <option value="Keine / Konventionell">Keine / Konventionell</option>
+                  </select>
                 </label>
                 <label class="receiving-field" for="trace-animal-type">
                   <span>Tierart *</span>

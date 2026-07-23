@@ -474,6 +474,28 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(ctx, foreignPath, 'create', payload);
     });
 
+    it('allows create with optional organicControlBody and organicAssociation', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-bio', TENANTS.TORFABRIK, 'employee');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-bio');
+      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
+        id: 'trace-bio',
+        organicControlBody: 'DE-ÖKO-006',
+        organicAssociation: 'Bioland',
+      });
+      await expectFirestoreAllow(ctx, path, 'create', payload);
+    });
+
+    it('denies create when organicControlBody is not a string', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-bio-bad', TENANTS.TORFABRIK, 'employee');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-bio-bad');
+      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
+        id: 'trace-bio-bad',
+        organicControlBody: 6,
+        organicAssociation: 'EU-Bio',
+      });
+      await expectFirestoreDeny(ctx, path, 'create', payload);
+    });
+
     it('allows admin status toggle and denies employee status update', async () => {
       await seedFirestoreDoc(
         testEnv,

@@ -556,7 +556,8 @@ service cloud.firestore {
       return hasOnly([
           'id', 'createdAt', 'createdBy', 'status',
           'lotNumber', 'healthMark', 'imageUrl',
-          'animalType', 'origin', 'tenantId'
+          'animalType', 'origin', 'tenantId',
+          'organicControlBody', 'organicAssociation'
         ])
         && isNonEmptyString(request.resource.data.id)
         && isNonEmptyString(request.resource.data.createdBy)
@@ -570,6 +571,14 @@ service cloud.firestore {
           request.resource.data.animalType
         )
         && request.resource.data.tenantId == tenantId
+        && (
+          !('organicControlBody' in request.resource.data)
+          || request.resource.data.organicControlBody is string
+        )
+        && (
+          !('organicAssociation' in request.resource.data)
+          || request.resource.data.organicAssociation is string
+        )
         && (
           request.resource.data.createdAt == request.time
           || (

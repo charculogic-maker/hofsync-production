@@ -8387,6 +8387,29 @@ body.dev-dashboard-view .admin-header-dropdown {
   min-width: 160px;
 }
 
+.dev-dashboard-tenant-create {
+  margin: 0 0 20px;
+  padding: 16px 0 20px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.dev-dashboard-tenant-form {
+  display: grid;
+  gap: 14px;
+  max-width: none;
+}
+
+.dev-dashboard-tenant-form-row {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .dev-dashboard-tenant-form-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .dev-dashboard-employee-form {
   display: grid;
   gap: 14px;
@@ -8552,6 +8575,19 @@ body.role-firebase-auth #team-login-card {
   color: #475569;
 }
 
+.dev-trace-organic-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  white-space: nowrap;
+}
+
 .dev-trace-detail {
   margin-top: 18px;
   padding-top: 16px;
@@ -8596,6 +8632,30 @@ body.role-firebase-auth #team-login-card {
 .trace-detail-origin-title {
   margin: 16px 0 8px;
   font-size: 1rem;
+}
+
+.trace-bio-section {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  border-radius: 8px;
+}
+
+.trace-bio-section-header {
+  margin-bottom: 10px;
+}
+
+.trace-bio-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: #166534;
+  color: #f0fdf4;
 }
 
 .trace-detail-dl {

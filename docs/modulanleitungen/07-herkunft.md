@@ -11,11 +11,12 @@ Fleisch-Rückverfolgbarkeit nach LMIV: Etikett fotografieren, Charge und Herkunf
 1. Tab **Herkunft** öffnen (Profilpflicht wie bei MHD/Neu).
 2. **📸 Etikett fotografieren** — Kamera des Laden-iPhones.
 3. **Charge / LOT-Nummer** (Pflicht) und optional **Identitätskennzeichen** (oval).
-4. **Tierart** wählen: Rind · Schwein · Geflügel · Schaf · Ziege.
-5. Herkunft:
+4. Optional **Öko-Kontrollstelle** (z. B. DE-ÖKO-006) und **Bio-Verband** (EU-Bio, Bioland, Demeter, Naturland oder Keine / Konventionell).
+5. **Tierart** wählen: Rind · Schwein · Geflügel · Schaf · Ziege.
+6. Herkunft:
    - **Ursprung aus einem einzigen Land?** aktiv → nur Länderauswahl.
    - inaktiv → Mehrländer-Felder (**Aufgezogen/Gemästet**, **Geschlachtet**; bei **Rind** zusätzlich **Geboren**, **Zerlegt**, Zulassungsnummer).
-6. **💾 Herkunft speichern** — Status **aktiv in der Theke**.
+7. **💾 Herkunft speichern** — Status **aktiv in der Theke**.
 
 Offline: Unsere App speichert lokal und synchronisiert bei WLAN (*„Herkunftseintrag wird automatisch synchronisiert, sobald WLAN verfügbar ist.“*).
 
@@ -27,6 +28,7 @@ Unter **/dev-dashboard → Rückverfolgbarkeit**:
 - Suche nach LOT / Kennzeichen, Filter nach Erfassungsdatum
 - Status umschalten: **Aktiv in Theke** ↔ **Archiviert**
 - Detail: Original-Etikettfoto + formatierte LMIV-Daten für Kontrollen
+- Bei Bio-Ware: Abschnitt **Bio-Zertifizierung** (Öko-Kontrollstelle, Bio-Verband) sowie Spalte/Badge in der Tabelle
 
 ## Technik (Kurz)
 

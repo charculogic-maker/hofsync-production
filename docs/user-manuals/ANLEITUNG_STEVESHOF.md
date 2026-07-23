@@ -97,7 +97,7 @@ Im Tab **Herkunft** erfassen wir die gesetzliche Fleisch-Rückverfolgbarkeit:
 
 1. **Herkunft** öffnen (ggf. zuerst Profil wählen).
 2. **Etikett fotografieren**.
-3. **Charge / LOT-Nummer** (Pflicht) und optional **Identitätskennzeichen** eintragen.
+3. **Charge / LOT-Nummer** (Pflicht) und optional **Identitätskennzeichen**, **Öko-Kontrollstelle** und **Bio-Verband** eintragen.
 4. **Tierart** wählen; bei einem Ursprungsland nur das Land, sonst die Mehrländer-Felder (bei Rind inkl. Zulassungsnummer Zerlegebetrieb).
 5. **Herkunft speichern** — Status danach **aktiv in der Theke**.
 

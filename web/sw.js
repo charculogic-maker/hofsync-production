@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260611-187-knowledge-tab';
+const CACHE_NAME = 'charculogic-v20260723-188-benjamin-bio';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -35,6 +35,8 @@ const CRITICAL_ASSETS = [
   '/beffe_calc.js',
   '/cuts.js',
   '/sync.js',
+  '/traceability.js',
+  '/tenant-modules.js',
 ];
 
 const SCANNER_LIBS = [

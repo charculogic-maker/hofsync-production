@@ -119,9 +119,10 @@ Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit 
 2. **Etikett fotografieren** — die Kamera des Laden-iPhones öffnet sich.
 3. **Charge / LOT-Nummer** eintragen (Pflicht).
 4. Optional das **Identitätskennzeichen** (ovales Kennzeichen) ergänzen.
-5. **Tierart** wählen (Rind, Schwein, Geflügel, Schaf, Ziege).
-6. Bei **Ursprung aus einem einzigen Land** nur das Land wählen. Sonst die Mehrländer-Felder ausfüllen (bei Rind zusätzlich Geboren/Zerlegt inkl. Zulassungsnummer).
-7. **Herkunft speichern** tippen — der Eintrag ist danach **aktiv in der Theke**.
+5. Optional **Öko-Kontrollstelle** (z. B. DE-ÖKO-006) und **Bio-Verband** wählen.
+6. **Tierart** wählen (Rind, Schwein, Geflügel, Schaf, Ziege).
+7. Bei **Ursprung aus einem einzigen Land** nur das Land wählen. Sonst die Mehrländer-Felder ausfüllen (bei Rind zusätzlich Geboren/Zerlegt inkl. Zulassungsnummer).
+8. **Herkunft speichern** tippen — der Eintrag ist danach **aktiv in der Theke**.
 
 Ohne WLAN speichert unsere App den Eintrag lokal und synchronisiert automatisch, sobald WLAN wieder verfügbar ist.
 

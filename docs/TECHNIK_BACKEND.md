@@ -30,6 +30,7 @@ Bekannte Mandanten:
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
 | `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
+| `benjamin` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
 | `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
