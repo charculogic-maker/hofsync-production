@@ -6,6 +6,11 @@ import { TENANT_MODULE_KEYS } from './tenant-modules.js';
 import { createHttpsCallable } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
+import {
+  initTraceabilityModule,
+  startTraceabilityAdminView,
+  stopTraceabilityAdminView,
+} from './traceability.js';
 
 // ⚡ Notausgang: auch hier ganz oben prüfen, falls /dev-dashboard direkt mit
 // ?logout=true / ?forceLogout=true geladen wird (vor jedem Auth-/Routing-Check).
@@ -28,6 +33,7 @@ const MODULE_LABELS = {
   haccp: 'HACCP',
   knowledge: 'Wissen',
   buero: 'Büro',
+  traceability: 'Rückverfolgbarkeit',
 };
 
 const EMPLOYEE_MODULE_LABELS = {
@@ -587,6 +593,9 @@ function bindTenantSelector(dashboardState, tenants) {
   select.addEventListener('change', () => {
     dashboardState.selectedTenantId = select.value;
     void refreshEmployeeTable(dashboardState);
+    if (dashboardState.activeTab === 'traceability') {
+      startTraceabilityAdminView(dashboardState.selectedTenantId);
+    }
   });
 }
 
@@ -619,7 +628,42 @@ const dashboardState = {
   selectedTenantId: '',
   currentUserUid: '',
   employees: [],
+  activeTab: 'modules',
+  db: null,
 };
+
+function setDevDashboardTab(tabKey = 'modules') {
+  const nextTab = tabKey === 'traceability' ? 'traceability' : 'modules';
+  dashboardState.activeTab = nextTab;
+
+  document.querySelectorAll('.dev-dashboard-tab').forEach((btn) => {
+    const active = btn.getAttribute('data-dev-tab') === nextTab;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+
+  const modulesView = document.getElementById('dev-dashboard-view-modules');
+  const traceView = document.getElementById('dev-dashboard-view-traceability');
+  if (modulesView) modulesView.hidden = nextTab !== 'modules';
+  if (traceView) traceView.hidden = nextTab !== 'traceability';
+
+  if (nextTab === 'traceability') {
+    startTraceabilityAdminView(dashboardState.selectedTenantId);
+  } else {
+    stopTraceabilityAdminView();
+  }
+}
+
+function bindDevDashboardTabs() {
+  const tabs = document.querySelector('.dev-dashboard-tabs');
+  if (!tabs || tabs.dataset.bound === '1') return;
+  tabs.dataset.bound = '1';
+  tabs.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-dev-tab]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+    setDevDashboardTab(btn.getAttribute('data-dev-tab') || 'modules');
+  });
+}
 
 function subscribeAllTenants(db, statusEl) {
   if (tenantsUnsubscribe) tenantsUnsubscribe();
@@ -690,6 +734,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
   dashboardState.isSuperAdmin = isSuperAdmin(currentUser);
   dashboardState.selectedTenantId = authContext?.tenantId || '';
   dashboardState.currentUserUid = currentUser?.uid || '';
+  dashboardState.db = db;
 
   applyDashboardVisibility(dashboardState);
 
@@ -697,9 +742,18 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     window.applyResolvedBranding(authContext?.tenantId || window.resolveEffectiveTenantId?.());
   }
   bindDevDashboardBackButton();
+  bindDevDashboardTabs();
   bindTenantToggleHandlers(db, statusEl);
   bindEmployeeCreateForm(dashboardState);
   bindEmployeeTableActions(dashboardState);
+
+  initTraceabilityModule(db, null, (title, message) => {
+    window.showToast?.(`${title}: ${message}`, 'info');
+  }, {
+    tenantId: dashboardState.selectedTenantId,
+    getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
+    getCurrentUserId: () => currentUser?.uid || '',
+  });
 
   if (dashboardState.isSuperAdmin) {
     subscribeAllTenants(db, statusEl);
@@ -708,6 +762,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindTenantSelector(dashboardState, [{ id: dashboardState.selectedTenantId, data: {} }]);
   }
 
+  setDevDashboardTab(dashboardState.activeTab || 'modules');
   await refreshEmployeeTable(dashboardState);
 
   if (statusEl && dashboardState.isSuperAdmin) {
@@ -727,4 +782,5 @@ export function teardownDevDashboard() {
     singleTenantUnsubscribe();
     singleTenantUnsubscribe = null;
   }
+  stopTraceabilityAdminView();
 }

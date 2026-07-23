@@ -507,6 +507,103 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // RÜCKVERFOLGBARKEIT (traceabilityRecords) – LMIV Fleisch-Herkunft
+    // =========================================================================
+
+    function isValidTraceabilityAnimalType(value) {
+      return value in ['rind', 'schwein', 'gefluegel', 'schaf', 'ziege'];
+    }
+
+    function isValidTraceabilityStatus(value) {
+      return value in ['active', 'archived'];
+    }
+
+    function isValidTraceabilityOrigin(origin, animalType) {
+      return origin is map
+        && origin.keys().hasAll([
+          'isSingleOrigin', 'singleOriginCountry',
+          'bornIn', 'raisedIn', 'slaughteredIn', 'cutIn', 'cuttingPlantNo'
+        ])
+        && origin.isSingleOrigin is bool
+        && origin.singleOriginCountry is string
+        && origin.bornIn is string
+        && origin.raisedIn is string
+        && origin.slaughteredIn is string
+        && origin.cutIn is string
+        && origin.cuttingPlantNo is string
+        && (
+          (
+            origin.isSingleOrigin == true
+            && isNonEmptyString(origin.singleOriginCountry)
+          )
+          || (
+            origin.isSingleOrigin == false
+            && isNonEmptyString(origin.raisedIn)
+            && isNonEmptyString(origin.slaughteredIn)
+            && (
+              animalType != 'rind'
+              || (
+                isNonEmptyString(origin.bornIn)
+                && isNonEmptyString(origin.cutIn)
+                && isNonEmptyString(origin.cuttingPlantNo)
+              )
+            )
+          )
+        );
+    }
+
+    function isValidTraceabilityRecord(tenantId) {
+      return hasOnly([
+          'id', 'createdAt', 'createdBy', 'status',
+          'lotNumber', 'healthMark', 'imageUrl',
+          'animalType', 'origin', 'tenantId'
+        ])
+        && isNonEmptyString(request.resource.data.id)
+        && isNonEmptyString(request.resource.data.createdBy)
+        && isValidTraceabilityStatus(request.resource.data.status)
+        && isNonEmptyString(request.resource.data.lotNumber)
+        && request.resource.data.healthMark is string
+        && isNonEmptyString(request.resource.data.imageUrl)
+        && isValidTraceabilityAnimalType(request.resource.data.animalType)
+        && isValidTraceabilityOrigin(
+          request.resource.data.origin,
+          request.resource.data.animalType
+        )
+        && request.resource.data.tenantId == tenantId
+        && (
+          request.resource.data.createdAt == request.time
+          || (
+            request.resource.data.createdAt is timestamp
+            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
+          )
+          || (
+            request.resource.data.createdAt is string
+            && request.resource.data.createdAt.size() >= 20
+          )
+        );
+    }
+
+    function isTraceabilityStatusOnlyUpdate(tenantId) {
+      return resource.data.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && isValidTraceabilityStatus(request.resource.data.status);
+    }
+
+    match /tenants/{tenantId}/traceabilityRecords/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      // Erfassung für alle Mandanten-Rollen (inkl. helper / Aushilfe)
+      allow create: if isTenantUser(tenantId)
+        && isValidTraceabilityRecord(tenantId);
+
+      allow update: if isAdmin(tenantId)
+        && isTraceabilityStatusOnlyUpdate(tenantId);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
     // KUNDENBESTELLUNGEN (customerOrders)
     // =========================================================================
 

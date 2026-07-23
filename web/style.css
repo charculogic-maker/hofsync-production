@@ -8433,3 +8433,188 @@ body.dev-dashboard-view .admin-header-dropdown {
 body.role-firebase-auth #team-login-card {
   display: none !important;
 }
+
+/* ===== LMIV Rückverfolgbarkeit ===== */
+.trace-capture-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.trace-form-stack {
+  margin-top: 4px;
+}
+
+.trace-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.trace-checkbox-field input {
+  width: 22px;
+  height: 22px;
+}
+
+.trace-origin-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trace-photo-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trace-photo-preview img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.dev-dashboard-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.dev-dashboard-tab {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-color, #0f172a);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dev-dashboard-tab.is-active {
+  background: var(--primary-color, #2563eb);
+  border-color: var(--primary-color, #2563eb);
+  color: #fff;
+}
+
+.dev-dashboard-view[hidden] {
+  display: none !important;
+}
+
+.dev-trace-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 720px) {
+  .dev-trace-toolbar {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.dev-trace-lot-btn {
+  border: 0;
+  background: transparent;
+  color: var(--primary-color, #2563eb);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dev-trace-row.is-selected {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.dev-trace-status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.dev-trace-status-pill[data-status="active"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dev-trace-status-pill[data-status="archived"] {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.dev-trace-detail {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.trace-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.trace-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .trace-detail-grid {
+    grid-template-columns: minmax(240px, 360px) 1fr;
+  }
+}
+
+.trace-detail-photo img {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  object-fit: contain;
+  background: #f8fafc;
+  max-height: 420px;
+}
+
+.trace-detail-photo figcaption {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
+.trace-detail-origin-title {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+}
+
+.trace-detail-dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.trace-detail-dl > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 8px;
+}
+
+.trace-detail-dl dt {
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.trace-detail-dl dd {
+  margin: 0;
+}

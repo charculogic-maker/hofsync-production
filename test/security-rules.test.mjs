@@ -24,8 +24,10 @@ import {
   sampleMhdItem,
   sampleSettings,
   sampleTask,
+  sampleTraceabilityRecord,
   seedFirestoreDoc,
   tenantDocPath,
+  traceabilityObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -454,7 +456,50 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
-  describe('TEST CASE 6: pushTokens read lockout', () => {
+  describe('TEST CASE 6: traceabilityRecords tenant isolation', () => {
+    const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-own');
+    const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'traceabilityRecords', 'trace-foreign');
+
+    it('allows employee create/read on own tenant traceabilityRecords', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace', TENANTS.TORFABRIK, 'employee');
+      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-own' });
+      await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+      await expectFirestoreAllow(ctx, ownPath, 'read');
+    });
+
+    it('denies cross-tenant read/create on StevesHof traceabilityRecords', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-x', TENANTS.TORFABRIK, 'employee');
+      const payload = sampleTraceabilityRecord(TENANTS.STEVES_HOF, { id: 'trace-foreign' });
+      await expectFirestoreDeny(ctx, foreignPath, 'read');
+      await expectFirestoreDeny(ctx, foreignPath, 'create', payload);
+    });
+
+    it('allows admin status toggle and denies employee status update', async () => {
+      await seedFirestoreDoc(
+        testEnv,
+        ownPath,
+        sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-own' }),
+      );
+
+      const admin = authContext(testEnv, 'tf-admin-trace', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreAllow(admin, ownPath, 'update', { status: 'archived' });
+
+      const employee = authContext(testEnv, 'tf-employee-trace-upd', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(employee, ownPath, 'update', { status: 'active' });
+    });
+
+    it('allows employee upload to own tenant traceability storage path', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-storage', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadAllow(ctx, traceabilityObjectPath(TENANTS.TORFABRIK, 'trace-own.jpg'));
+    });
+
+    it('denies cross-tenant traceability storage upload', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadDeny(ctx, traceabilityObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
+    });
+  });
+
+  describe('TEST CASE 7: pushTokens read lockout', () => {
     it('denies employee read on pushTokens', async () => {
       const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TORFABRIK, 'employee');
       const path = tenantDocPath(TENANTS.TORFABRIK, 'pushTokens', 'token-1');

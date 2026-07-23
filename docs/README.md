@@ -29,8 +29,8 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 | Handbuch | Inhalt |
 |----------|--------|
-| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Barcode-Wareneingang, Prod., HACCP, Wissen, Offline |
-| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation |
+| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Wareneingang, Herkunft/LMIV, Prod., HACCP, Wissen, Offline |
+| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation, Herkunft |
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |
 
@@ -40,7 +40,7 @@ Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@A
 
 | Dokument | Zielgruppe | Inhalt |
 |----------|------------|--------|
-| [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) | Alle (technisch) | **Ausführlicher Ist-Stand:** Architektur, Module, Mandanten, Rollen, Sync, Functions, Kunden-Signal, Deployment (Juni 2026) |
+| [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) | Alle (technisch) | **Ausführlicher Ist-Stand:** Architektur, Module inkl. Herkunft/LMIV, Mandanten, Rollen, Sync, Functions, Kunden-Signal, Deployment (Juli 2026) |
 
 ## Technik & Betrieb
 

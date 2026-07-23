@@ -4,7 +4,7 @@
 > **Zielgruppe:** Entwicklung, Betrieb, Deployment und Security-Review.
 > **Nicht hier:** Bedienungsanleitungen für das Laden-iPhone; diese liegen unter [docs/README.md](docs/README.md).
 
-**CharcuLogic** (Produktivsystem: **HofSync**) ist eine touch-optimierte, offline-fähige Betriebs-App für Hofläden, handwerkliche Metzgereien und Lebensmittelproduzenten. Sie deckt MHD-Monitoring, Wareneingang, Wurstküche/Rezeptur, HACCP-Dokumentation, Chargen-Rückverfolgung, Team-Kommunikation und Kundenbestellungen ab.
+**CharcuLogic** (Produktivsystem: **HofSync**) ist eine touch-optimierte, offline-fähige Betriebs-App für Hofläden, handwerkliche Metzgereien und Lebensmittelproduzenten. Sie deckt MHD-Monitoring, Wareneingang, LMIV-Herkunft (Thekenklade), Wurstküche/Rezeptur, HACCP-Dokumentation, Chargen-Rückverfolgung, Team-Kommunikation und Kundenbestellungen ab.
 
 Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle Betriebsdaten liegen unter `tenants/{tenantId}/…`, sodass mehrere Betriebe auf derselben Infrastruktur strikt getrennt arbeiten können.
 
@@ -20,7 +20,7 @@ Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle
 | Auth & Mandant | Firebase Authentication (E-Mail/Passwort + Custom Token), Tenant + Rolle aus **Custom Claims** (`request.auth.token.tenantId`) | `web/auth.js` |
 | App-Schutz | Firebase App Check (reCAPTCHA v3, Compat SDK) — Pflicht vor Callables | `web/app-check.js`, `web/firebase-config.js` |
 | Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | `hofsync-production` oder `charculogic-whitelabel-test` (`web/firebase-config.js`) |
-| Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel) | `tenants/{tenantId}/…` |
+| Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel, LMIV-Etikettfotos) | `tenants/{tenantId}/…` |
 | Offline | Service Worker + lokale Warteliste für Änderungen | `web/sw.js`, `web/sync.js` |
 | Backend | Cloud Functions (Node 20, `firebase-functions` v2) | `functions/` |
 | KI | Gemini + Google-Search-Grounding für Wochen-Fleischpreise | `functions/meatPrices.js` |
@@ -44,11 +44,13 @@ craft_food_app/
 │   ├── firebase-config.js        # Firebase-Projekt + App-Check-Site-Keys (Prod vs. Whitelabel)
 │   ├── app-check.js              # App Check (reCAPTCHA v3, Compat SDK)
 │   ├── branding.js               # White-Label Farben & Module pro tenantId
+│   ├── tenant-modules.js         # enabledModules → Branding/Tab-Sichtbarkeit
 │   ├── teamboard-storage.js      # Mandanten-prefixierte localStorage-Keys (Shared Terminals)
 │   ├── operator-errors.js        # Deutsche Operator-Toasts (technische Details nur in console.error)
 │   ├── delivery-note.js          # KI-Lieferschein (TorFabrik, Callable)
 │   ├── sync.js                   # Offline-Sync-Queue, writeFirestoreDocOrQueue
 │   ├── mhd.js                    # MHD-Monitor + Wareneingang
+│   ├── traceability.js           # LMIV-Herkunft + Thekenklade (Admin)
 │   ├── production.js             # Wurstküche: Rezepte, Produktion, Chargen
 │   ├── beffe_calc.js             # WRS-Kalkulation (BEFFE/Kosten-Engine)
 │   ├── haccp.js                  # HACCP-Protokolle & Tageskontrollen
@@ -59,6 +61,7 @@ craft_food_app/
 │   ├── team-notify.js            # Push-/Notify-Logik (Client)
 │   ├── scanner.js                # Barcode-/EAN-Scanner (Kamera)
 │   ├── date-input.js             # Deutsche Datumseingaben
+│   ├── dev-dashboard.js          # /dev-dashboard: Module, Mitarbeiter, Thekenklade
 │   └── libs/                     # Gevendorte Libs (Firebase SDK, Scanner)
 ├── functions/                    # Cloud Functions (Backend)
 │   ├── index.js                  # Einstieg, Funktions-Exports
@@ -82,19 +85,20 @@ craft_food_app/
 
 ## 🧩 Module / Tabs
 
-Die untere Navigationsleiste umfasst bis zu sieben Bereiche (pro Mandant konfigurierbar in `web/branding.js` → `modules`):
+Die untere Navigationsleiste umfasst Alltagstabs (pro Mandant konfigurierbar in `web/branding.js` / `enabledModules`):
 
 | Tab (Leiste) | Bereich | Code | Funktion |
 |--------------|---------|------|----------|
 | **Start** | Teamboard | `teamboard.js` | Mitarbeiter-Anmeldung (Name + PIN), Nachricht des Tages, Aufgaben, Historie |
 | **Team** | Team-Hub | `team-tab.js`, `customer-orders.js`, `team-config.js` | Nachrichten, Push, Kundenbestellungen |
 | **MHD** | MHD-Monitor | `mhd.js` | Täglicher Morgencheck, Postenbearbeitung, Suche |
-| **Neu** | Wareneingang | `mhd.js` | Laden-Schnellerfassung, Scanner, **Letzte Eingänge** (alle mit Tab Neu); Metzgerei-Lieferungen; Stammdaten nur Büro |
+| **Neu** | Wareneingang | `mhd.js` | Laden-Schnellerfassung, Scanner, **Letzte Eingänge**; Metzgerei-Lieferungen; Stammdaten nur Büro |
+| **Herkunft** | LMIV | `traceability.js` | Etikettfoto, Charge/LOT, Herkunftsfelder |
 | **Prod.** | Wurstküche | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS-Kalkulation |
-| **HACCP** | HACCP | `haccp.js` | Produktionsprotokoll, Temperatur-/Reinigungskontrollen |
-| **Büro** | Chargen & Leitstand | `production.js`, `teamboard.js`, `team-config.js` | Rückverfolgung, Nachricht veröffentlichen, Team-Konfiguration (Admin) |
 
-**Mandantenprofil StevesHof:** `StevesHof_Hauptbetrieb` nutzt derzeit **MHD**, **Neu** und **Prod.**. Das Laden-iPhone startet direkt im MHD-Monitor, verwendet den neutralen Bearbeiter `StevesHof-Team` und blendet den Alltags-Logout aus.
+**Admin-Menü / Header:** HACCP, Wissen, Büro (Chargen). **Dev-Dashboard** (`/dev-dashboard`): Modul-Toggles, Mitarbeiter, Digitale Thekenklade (**Rückverfolgbarkeit**).
+
+**Mandantenprofil StevesHof:** `StevesHof_Hauptbetrieb` nutzt Alltagstabs **MHD**, **Neu**, **Herkunft** und **Prod.**. Das Laden-iPhone startet direkt im MHD-Monitor, verwendet Profilwahl statt PIN und blendet den Alltags-Logout aus.
 
 ---
 

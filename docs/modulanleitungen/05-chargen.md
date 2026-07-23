@@ -2,6 +2,8 @@
 
 Nachverfolgung und Büro-Kontrolle: gespeicherte Produktionschargen, Abgleich der Rezeptdaten und (für Admins) Leitstand-Funktionen.
 
+> **Abgrenzung:** Diese Seite betrifft **Produktionschargen**. Die gesetzliche **LMIV-Fleischherkunft** (Etikettfoto, LOT, Thekenklade) liegt unter Tab **Herkunft** und `/dev-dashboard → Rückverfolgbarkeit` — siehe [07-herkunft.md](./07-herkunft.md).
+
 ![Büro – Rezeptdaten-Prüfung und Suche](./screenshots/06-chargen.png)
 
 ## Oberfläche

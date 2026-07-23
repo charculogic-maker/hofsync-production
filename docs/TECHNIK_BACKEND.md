@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juni 2026 — nach dem P0-Security- & Multi-Tenancy-Refactor (App Check Pflicht, claim-gesteuerte Mandantenisolation, `system_errors`-Schema, Shared-Terminal-Storage).
+> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -29,7 +29,7 @@ Bekannte Mandanten:
 
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
-| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Laden-Wareneingang + Prod. |
+| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
 | `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
@@ -47,7 +47,7 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Terminal-PINs:** Gehashte Zugangsdaten liegen in `tenants/{tenantId}/terminalCredentials/current` (Client: kein Lesezugriff). Prüfung über Callable `verifyTerminalPin` (Region `europe-west3`).
 
-**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
+**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang + Herkunft). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
 
 **Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
 
@@ -112,6 +112,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
@@ -156,7 +157,7 @@ Claims setzen — siehe **§1.1**.
 
 ### 3.4 Storage-Rules (`storage.rules`)
 
-Storage nutzt **`firestore.get()`** auf `users/{uid}` bzw. `userTenants/{uid}` für Mandantenzugehörigkeit und Rolle – analog zu Firestore. Bulletin-Uploads: Admin; Lieferschein-Fotos: Mitarbeiter (keine Aushilfe).
+Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
 
 **Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 

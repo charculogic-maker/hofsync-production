@@ -17,8 +17,9 @@ Diese Anleitung gilt für den Mandanten **TorFabrik Krefeld** (`tenantId: torfab
 | **Team** | Stephan, Boris, Aushilfe (keine StevesHof-Namen) |
 | **Tab Prod.** | **Nicht aktiv** (keine Wurstküche im Center) |
 | **Wareneingang** | Kategorien: Getränke (Jakob Bayen), TK & Snacks (Metro), Zubehör & Hygiene (Metro) |
+| **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge für die Thekenklade (Modul `traceability`) |
 | **KI-Lieferschein** | Tab **Neu** → **📸 Lieferschein scannen (KI)** (Metro / Jakob Bayen) |
-| **Rolle „helper“** | Nur **Start** + **MHD** (vereinfachte Ansicht für Aushilfen) |
+| **Rolle „helper“** | Eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv |
 
 ---
 
@@ -44,10 +45,11 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 | **Team** | Nachrichten, Kundenbestellungen, 🌡️ Temperatur-Check |
 | **MHD** | MHD-Alarme, Qualitätssicherung |
 | **Neu** | Wareneingang + **KI-Lieferschein** |
+| **Herkunft** | LMIV-Fleischherkunft (Etikettfoto, LOT, Thekenklade) |
 | **HACCP** | Temperatur- & Reinigungsprotokolle |
 | **Büro** | Chargen (falls genutzt), Leitstand (Admin) |
 
-> Der Tab **Prod.** (Wurstküche) ist für TorFabrik **ausgeblendet**.
+> Der Tab **Prod.** (Wurstküche) ist für TorFabrik **ausgeblendet**. Admins verwalten die Thekenklade unter **/dev-dashboard → Rückverfolgbarkeit**. Details: [modulanleitungen/07-herkunft.md](./modulanleitungen/07-herkunft.md).
 
 ---
 

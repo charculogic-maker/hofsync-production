@@ -195,6 +195,34 @@ export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;
 }
 
+export function sampleTraceabilityRecord(tenantId, overrides = {}) {
+  return {
+    id: 'trace-test-1',
+    createdAt: '2026-07-17T10:00:00.000Z',
+    createdBy: 'rules-test-user',
+    status: 'active',
+    lotNumber: 'LOT-TEST-001',
+    healthMark: 'DE-NW-12345-EG',
+    imageUrl: 'https://example.com/label.jpg',
+    animalType: 'schwein',
+    origin: {
+      isSingleOrigin: true,
+      singleOriginCountry: 'Deutschland',
+      bornIn: '',
+      raisedIn: '',
+      slaughteredIn: '',
+      cutIn: '',
+      cuttingPlantNo: '',
+    },
+    tenantId,
+    ...overrides,
+  };
+}
+
+export function traceabilityObjectPath(tenantId, fileName = 'record.jpg') {
+  return `tenants/${tenantId}/traceability/${fileName}`;
+}
+
 export {
   assertFails,
   assertSucceeds,

@@ -18,4 +18,4 @@ Monitors code changes in `web/` and backend logic, ensuring that the user guides
 
 2. **Perspective:** Always write from the collective team perspective ("Wir-Perspektive"). Use terms like "unsere App", "wir scannen", "unser MHD-Monitor". Never address the team as "Ihr" or "Euch".
 
-3. **Feature Tracking:** Keep a close eye on form fields. Ensure that changes like the new "Hersteller / Zusatz" text field or sticky category selections are immediately and accurately described in the Markdown manuals.
+3. **Feature Tracking:** Keep a close eye on form fields. Ensure that changes like the new "Hersteller / Zusatz" text field, sticky category selections, or LMIV Herkunft fields (LOT, Tierart, Ursprung) are immediately and accurately described in the Markdown manuals. Track Tab **Herkunft**, Admin-Menü vs. Bottom-Nav, and `/dev-dashboard → Rückverfolgbarkeit` (Digitale Thekenklade). Never confuse Büro-Chargen with LMIV Thekenklade.

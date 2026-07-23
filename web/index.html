@@ -57,6 +57,7 @@
       const pageMap = {
         mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
         receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
+        traceability: { page: 'page-traceability', title: 'Herkunft', subtitle: betriebsName },
         kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
         knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
       };
@@ -176,6 +177,28 @@
                 <span class="dev-dashboard-role-badge" id="dev-dashboard-role-badge" data-role="tenant">Admin</span>
               </header>
 
+              <nav class="dev-dashboard-tabs" role="tablist" aria-label="Verwaltungsbereiche">
+                <button
+                  type="button"
+                  class="dev-dashboard-tab is-active"
+                  role="tab"
+                  id="dev-dashboard-tab-modules"
+                  data-dev-tab="modules"
+                  aria-selected="true"
+                  aria-controls="dev-dashboard-view-modules"
+                >Module &amp; Mitarbeiter</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
+                  id="dev-dashboard-tab-traceability"
+                  data-dev-tab="traceability"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-traceability"
+                >Rückverfolgbarkeit</button>
+              </nav>
+
+              <div id="dev-dashboard-view-modules" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-modules">
               <div class="dev-dashboard-grid">
                 <section
                   class="dev-dashboard-panel dev-dashboard-panel--global"
@@ -281,6 +304,49 @@
                         </table>
                       </div>
                     </div>
+                  </div>
+                </section>
+              </div>
+              </div>
+
+              <div id="dev-dashboard-view-traceability" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-traceability" hidden>
+                <section class="dev-dashboard-panel" aria-label="Digitale Thekenklade">
+                  <div class="dev-dashboard-employee-header">
+                    <div>
+                      <h2 class="dev-dashboard-section-title">Digitale Thekenklade</h2>
+                      <p class="dev-dashboard-intro">
+                        Alle erfassten LMIV-Herkunftseinträge. Suche nach LOT oder Datum, Status umschalten, Etikett für Kontrollen öffnen.
+                      </p>
+                    </div>
+                    <p class="dev-dashboard-employee-list-status" id="dev-trace-status" aria-live="polite"></p>
+                  </div>
+                  <div class="dev-trace-toolbar">
+                    <label class="dev-dashboard-field" for="dev-trace-search">
+                      <span>Suche (LOT / Kennzeichen)</span>
+                      <input id="dev-trace-search" type="search" placeholder="z. B. LOT-2026-…" autocomplete="off">
+                    </label>
+                    <label class="dev-dashboard-field" for="dev-trace-date">
+                      <span>Erfassungsdatum</span>
+                      <input id="dev-trace-date" type="date">
+                    </label>
+                  </div>
+                  <div class="dev-dashboard-table-wrap">
+                    <table class="dev-dashboard-table" id="dev-trace-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">LOT</th>
+                          <th scope="col">Tierart</th>
+                          <th scope="col">Erfasst</th>
+                          <th scope="col">Kennzeichen</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Aktion</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dev-trace-body"></tbody>
+                    </table>
+                  </div>
+                  <div id="dev-trace-detail" class="dev-trace-detail" aria-live="polite">
+                    <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
                   </div>
                 </section>
               </div>
@@ -696,6 +762,88 @@
                   <div class="open-drafts-empty">Keine offenen Entwürfe – alles nachgetragen.</div>
                 </div>
               </section>
+            </div>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN: RÜCKVERFOLGBARKEIT (LMIV-Erfassung)     -->
+          <!-- ============================================== -->
+          <div class="page" id="page-traceability">
+            <div class="haccp-card receiving-card trace-capture-card">
+              <div class="section-title">Fleisch-Herkunft erfassen</div>
+              <p class="learn-mode-desc">
+                Etikett fotografieren und LMIV-Herkunft für die Theke hinterlegen. Der Eintrag erscheint danach in der digitalen Thekenklade.
+              </p>
+
+              <input type="file" id="trace-photo-input" class="visually-hidden" accept="image/*" capture="environment">
+              <button type="button" class="btn btn-primary btn-receiving-photo" id="trace-photo-btn">
+                📸 Etikett fotografieren
+              </button>
+              <div id="trace-photo-preview" class="trace-photo-preview" hidden></div>
+
+              <div class="receiving-form-stack trace-form-stack">
+                <label class="receiving-field" for="trace-lot-number">
+                  <span>Charge / LOT-Nummer *</span>
+                  <input type="text" id="trace-lot-number" class="gastro-input" placeholder="z. B. LOT-2026-0717-A" autocomplete="off" required>
+                </label>
+                <label class="receiving-field" for="trace-health-mark">
+                  <span>Identitätskennzeichen (oval)</span>
+                  <input type="text" id="trace-health-mark" class="gastro-input" placeholder="z. B. DE-NW-12345-EG" autocomplete="off">
+                </label>
+                <label class="receiving-field" for="trace-animal-type">
+                  <span>Tierart *</span>
+                  <select id="trace-animal-type" class="gastro-input">
+                    <option value="rind" selected>Rind</option>
+                    <option value="schwein">Schwein</option>
+                    <option value="gefluegel">Geflügel</option>
+                    <option value="schaf">Schaf</option>
+                    <option value="ziege">Ziege</option>
+                  </select>
+                </label>
+
+                <label class="trace-checkbox-field" for="trace-single-origin">
+                  <input type="checkbox" id="trace-single-origin" checked>
+                  <span>Ursprung aus einem einzigen Land?</span>
+                </label>
+
+                <div id="trace-single-origin-fields" class="trace-origin-block">
+                  <label class="receiving-field" for="trace-single-country">
+                    <span>Ursprungsland *</span>
+                    <select id="trace-single-country" class="gastro-input"></select>
+                  </label>
+                </div>
+
+                <div id="trace-multi-origin-fields" class="trace-origin-block" hidden>
+                  <div id="trace-rind-only-fields" class="trace-rind-only">
+                    <label class="receiving-field" for="trace-born-in">
+                      <span>Geboren in *</span>
+                      <select id="trace-born-in" class="gastro-input"></select>
+                    </label>
+                    <label class="receiving-field" for="trace-cut-in">
+                      <span>Zerlegt in *</span>
+                      <select id="trace-cut-in" class="gastro-input"></select>
+                    </label>
+                    <label class="receiving-field" for="trace-cutting-plant">
+                      <span>Zulassungsnummer Zerlegebetrieb *</span>
+                      <input type="text" id="trace-cutting-plant" class="gastro-input" placeholder="z. B. DE-NW-12345-EG" autocomplete="off">
+                    </label>
+                  </div>
+                  <label class="receiving-field" for="trace-raised-in">
+                    <span>Aufgezogen / Gemästet in *</span>
+                    <select id="trace-raised-in" class="gastro-input"></select>
+                  </label>
+                  <label class="receiving-field" for="trace-slaughtered-in">
+                    <span>Geschlachtet in *</span>
+                    <select id="trace-slaughtered-in" class="gastro-input"></select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="receiving-action-row">
+                <button type="button" class="gastro-btn" id="trace-save-btn">
+                  💾 Herkunft speichern
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1340,6 +1488,10 @@
             <i>📥</i>
             <span>Neu</span>
           </button>
+          <button class="nav-item" data-tab="traceability" id="tab-traceability" onclick="window.fallbackShowTab && window.fallbackShowTab('traceability')">
+            <i>🏷️</i>
+            <span>Herkunft</span>
+          </button>
           <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
             <i>🥣</i>
             <span>Prod.</span>
@@ -1591,6 +1743,6 @@
     </form>
   </template>
 
-  <script type="module" src="app.js?v=20260611-161"></script>
+  <script type="module" src="app.js?v=20260717-trace"></script>
 </body>
 </html>

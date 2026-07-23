@@ -25,6 +25,7 @@ const DEFAULT_ENABLED_MODULES = {
   haccp: true,
   knowledge: true,
   buero: true,
+  traceability: true,
 };
 
 const TENANT_ENABLED_MODULES = {
@@ -35,6 +36,7 @@ const TENANT_ENABLED_MODULES = {
     haccp: true,
     knowledge: false,
     buero: false,
+    traceability: true,
   },
   steveshof_hauptbetrieb: {
     mhd: true,
@@ -43,6 +45,7 @@ const TENANT_ENABLED_MODULES = {
     haccp: true,
     knowledge: true,
     buero: true,
+    traceability: true,
   },
   whitelabel_test: {
     mhd: true,
@@ -51,6 +54,7 @@ const TENANT_ENABLED_MODULES = {
     haccp: false,
     knowledge: false,
     buero: false,
+    traceability: true,
   },
   ap23: {
     mhd: true,
@@ -59,6 +63,7 @@ const TENANT_ENABLED_MODULES = {
     haccp: false,
     knowledge: false,
     buero: true,
+    traceability: true,
   },
 };
 

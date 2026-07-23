@@ -64,5 +64,11 @@ service firebase.storage {
       allow read: if istTenantMitglied(tenantId);
       allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
+
+    // LMIV-Etikettfotos: tenants/{tenantId}/traceability/{recordId}.jpg
+    match /tenants/{tenantId}/traceability/{allPaths=**} {
+      allow read: if istTenantMitglied(tenantId);
+      allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
+    }
   }
 }

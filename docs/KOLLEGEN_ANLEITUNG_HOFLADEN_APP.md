@@ -4,9 +4,10 @@ Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt 
 
 1. **MHD kontrollieren** (inkl. Retter-Box vormerken)
 2. **Neue Ware erfassen** (Barcode-Scan, Lieferung abschließen)
-3. **Rezepte und Produktion öffnen**
-4. **Temperaturen und Reinigung dokumentieren** (HACCP)
-5. **Wissen nachlesen**
+3. **Fleisch-Herkunft erfassen** (LMIV / Thekenklade)
+4. **Rezepte und Produktion öffnen**
+5. **Temperaturen und Reinigung dokumentieren** (HACCP)
+6. **Wissen nachlesen**
 
 Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
@@ -22,29 +23,28 @@ bestellung@steveshof-hofladen.de
 
 Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone gespeichert. Eine **PIN** brauchen wir im Hofladen nicht.
 
-### 2. Profil wählen (vor MHD und Wareneingang)
+### 2. Profil wählen (vor MHD, Wareneingang und Herkunft)
 
 Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
 
 - Das gewählte Profil erscheint **oben rechts** in der App.
-- Für **MHD** und **Neu** (Wareneingang) ist ein Profil **Pflicht** — so wissen wir später, wer einen Posten erfasst oder eine Lieferung abgeschlossen hat.
-- Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten Wareneingang oder MHD erneut nach dem Profil.
+- Für **MHD**, **Neu** (Wareneingang) und **Herkunft** ist ein Profil **Pflicht**.
+- Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut nach dem Profil.
 
 **Wichtig:** Safari **nicht** im privaten Modus nutzen — sonst vergisst das Laden-iPhone den Geräte-Zugang nach dem Schließen.
 
 ## Navigation
 
-In der unteren Leiste sehen wir im Hofladen diese Tabs:
+In der unteren Leiste sehen wir im Hofladen typischerweise:
 
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
 | **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
+| **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
-| **HACCP** | Temperaturen und Reinigung dokumentieren |
-| **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
 
-Im Tab **Wissen** lesen wir direkt am Laden-iPhone das Fleisch-Lexikon und die kurzen Hofladen-Handbücher zu MHD, Reinigung und HACCP. Weitere Bereiche der Plattform sind am Laden-iPhone absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich Büro/Chargen sehen.
+**HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Admin-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Unter **/dev-dashboard → Rückverfolgbarkeit** verwalten Admins die digitale Thekenklade (Suche, Archivieren, Etikett-Ansicht für Kontrollen).
 
 ---
 
@@ -109,9 +109,29 @@ Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerad
 
 Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
 
+---
+
+## 2b. Fleisch-Herkunft erfassen (LMIV)
+
+Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit für die Theke:
+
+1. Tab **Herkunft** öffnen — bei Bedarf zuerst **unser Profil** wählen.
+2. **Etikett fotografieren** — die Kamera des Laden-iPhones öffnet sich.
+3. **Charge / LOT-Nummer** eintragen (Pflicht).
+4. Optional das **Identitätskennzeichen** (ovales Kennzeichen) ergänzen.
+5. **Tierart** wählen (Rind, Schwein, Geflügel, Schaf, Ziege).
+6. Bei **Ursprung aus einem einzigen Land** nur das Land wählen. Sonst die Mehrländer-Felder ausfüllen (bei Rind zusätzlich Geboren/Zerlegt inkl. Zulassungsnummer).
+7. **Herkunft speichern** tippen — der Eintrag ist danach **aktiv in der Theke**.
+
+Ohne WLAN speichert unsere App den Eintrag lokal und synchronisiert automatisch, sobald WLAN wieder verfügbar ist.
+
+Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Digitale Thekenklade: Suche nach LOT/Datum, Status umschalten, Original-Etikett für Kontrollen öffnen).
+
+---
+
 ### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben unter Wareneingang). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
 
 Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
 
@@ -149,7 +169,7 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ## 4. Wissen nachlesen
 
-Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Admin-Menü** (wenn freigeschaltet). Dort gibt es zwei aufklappbare Bereiche:
 
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
 - **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
@@ -180,7 +200,7 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ## 6. Temperatur-Check (Qualität sichern)
 
-Im Tab **HACCP** tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
+**HACCP** öffnen wir über das **Admin-Menü** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
 
 1. **HACCP** öffnen.
 2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).
@@ -205,7 +225,8 @@ Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** u
 4. Kategorie für die aktuelle Warenart einmal wählen.
 5. Artikel scannen, **Posten hinzufügen**, nächsten Artikel scannen.
 6. **Gesamte Lieferung abschließen**.
-7. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
+7. Bei Fleischware: Tab **Herkunft** — Etikett fotografieren, LOT eintragen, speichern.
+8. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
 
 ## App aktualisieren (nach Büro-Update)
 
@@ -232,6 +253,7 @@ Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
 | KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
+| Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
 | App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |
 
 ## Logout am Laden-iPhone

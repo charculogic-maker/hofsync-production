@@ -1,0 +1,619 @@
+/**
+ * LMIV Fleisch-Rückverfolgbarkeit – Erfassung (PWA) + Digitale Thekenklade (Admin).
+ */
+import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+
+const ANIMAL_TYPES = [
+  { value: 'rind', label: 'Rind' },
+  { value: 'schwein', label: 'Schwein' },
+  { value: 'gefluegel', label: 'Geflügel' },
+  { value: 'schaf', label: 'Schaf' },
+  { value: 'ziege', label: 'Ziege' },
+];
+
+const COUNTRY_OPTIONS = [
+  { value: 'Deutschland', label: 'Deutschland' },
+  { value: 'Österreich', label: 'Österreich' },
+  { value: 'Niederlande', label: 'Niederlande' },
+  { value: 'Belgien', label: 'Belgien' },
+  { value: 'Frankreich', label: 'Frankreich' },
+  { value: 'Polen', label: 'Polen' },
+  { value: 'Dänemark', label: 'Dänemark' },
+  { value: 'Irland', label: 'Irland' },
+  { value: 'Spanien', label: 'Spanien' },
+  { value: 'Italien', label: 'Italien' },
+  { value: 'Tschechien', label: 'Tschechien' },
+  { value: 'Sonstiges EU-Land', label: 'Sonstiges EU-Land' },
+  { value: 'Nicht-EU', label: 'Nicht-EU' },
+];
+
+const ANIMAL_TYPE_SET = new Set(ANIMAL_TYPES.map((item) => item.value));
+
+const traceState = {
+  db: null,
+  writeOrQueueFirestore: null,
+  showHUD: () => {},
+  tenantId: '',
+  getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
+  getCurrentUserId: () => '',
+  initialized: false,
+  pendingPhotoFile: null,
+  pendingPhotoPreviewUrl: '',
+  adminRecords: [],
+  adminUnsubscribe: null,
+  adminSearchQuery: '',
+  adminDateFilter: '',
+  selectedRecordId: '',
+  adminTenantId: '',
+};
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function resolveTenantId(explicit = '') {
+  return canonicalTenantId(explicit || getGlobalTenantId() || traceState.tenantId || '');
+}
+
+function collectionPathFor(tenantId) {
+  const id = resolveTenantId(tenantId);
+  if (!id) return null;
+  try {
+    return getTenantCollectionPath('traceabilityRecords');
+  } catch {
+    return `tenants/${id}/traceabilityRecords`;
+  }
+}
+
+function serverTimestamp() {
+  return traceState.getFirebase()?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString();
+}
+
+function createRecordId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `tr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function animalTypeLabel(value) {
+  return ANIMAL_TYPES.find((item) => item.value === value)?.label || value || '–';
+}
+
+function countrySelectHtml(id, selected = 'Deutschland') {
+  const options = COUNTRY_OPTIONS.map((opt) => (
+    `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
+  )).join('');
+  return `<select id="${id}" class="gastro-input">${options}</select>`;
+}
+
+function isRind(animalType) {
+  return animalType === 'rind';
+}
+
+function emptyOrigin() {
+  return {
+    isSingleOrigin: true,
+    singleOriginCountry: 'Deutschland',
+    bornIn: '',
+    raisedIn: '',
+    slaughteredIn: '',
+    cutIn: '',
+    cuttingPlantNo: '',
+  };
+}
+
+function readFormOrigin(animalType) {
+  const single = Boolean(document.getElementById('trace-single-origin')?.checked);
+  const origin = emptyOrigin();
+  origin.isSingleOrigin = single;
+  if (single) {
+    origin.singleOriginCountry = String(document.getElementById('trace-single-country')?.value || '').trim();
+    return origin;
+  }
+  origin.singleOriginCountry = '';
+  origin.raisedIn = String(document.getElementById('trace-raised-in')?.value || '').trim();
+  origin.slaughteredIn = String(document.getElementById('trace-slaughtered-in')?.value || '').trim();
+  if (isRind(animalType)) {
+    origin.bornIn = String(document.getElementById('trace-born-in')?.value || '').trim();
+    origin.cutIn = String(document.getElementById('trace-cut-in')?.value || '').trim();
+    origin.cuttingPlantNo = String(document.getElementById('trace-cutting-plant')?.value || '').trim();
+  }
+  return origin;
+}
+
+function validateForm(lotNumber, animalType, origin, hasPhoto) {
+  if (!lotNumber) return 'Bitte Charge / LOT-Nummer eintragen.';
+  if (!ANIMAL_TYPE_SET.has(animalType)) return 'Bitte Tierart wählen.';
+  if (!hasPhoto) return 'Bitte zuerst das Etikett fotografieren.';
+  if (origin.isSingleOrigin) {
+    if (!origin.singleOriginCountry) return 'Bitte Ursprungsland wählen.';
+    return '';
+  }
+  if (!origin.raisedIn) return 'Bitte „Aufgezogen / Gemästet in“ wählen.';
+  if (!origin.slaughteredIn) return 'Bitte „Geschlachtet in“ wählen.';
+  if (isRind(animalType)) {
+    if (!origin.bornIn) return 'Bitte „Geboren in“ wählen.';
+    if (!origin.cutIn) return 'Bitte „Zerlegt in“ wählen.';
+    if (!origin.cuttingPlantNo) return 'Bitte Zulassungsnummer des Zerlegebetriebs eintragen.';
+  }
+  return '';
+}
+
+function syncOriginFieldsVisibility() {
+  const animalType = String(document.getElementById('trace-animal-type')?.value || 'rind');
+  const single = Boolean(document.getElementById('trace-single-origin')?.checked);
+  const singleWrap = document.getElementById('trace-single-origin-fields');
+  const multiWrap = document.getElementById('trace-multi-origin-fields');
+  const rindOnly = document.getElementById('trace-rind-only-fields');
+  if (singleWrap) singleWrap.hidden = !single;
+  if (multiWrap) multiWrap.hidden = single;
+  if (rindOnly) rindOnly.hidden = single || !isRind(animalType);
+}
+
+function revokePendingPreview() {
+  if (traceState.pendingPhotoPreviewUrl) {
+    try {
+      URL.revokeObjectURL(traceState.pendingPhotoPreviewUrl);
+    } catch (_) { /* noop */ }
+    traceState.pendingPhotoPreviewUrl = '';
+  }
+}
+
+function clearPendingPhoto() {
+  revokePendingPreview();
+  traceState.pendingPhotoFile = null;
+  const input = document.getElementById('trace-photo-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('trace-photo-preview');
+  if (preview) {
+    preview.hidden = true;
+    preview.innerHTML = '';
+  }
+  const btn = document.getElementById('trace-photo-btn');
+  if (btn) btn.textContent = '📸 Etikett fotografieren';
+}
+
+function setPendingPhoto(file) {
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    traceState.showHUD('Hinweis', 'Bitte ein Foto vom Etikett aufnehmen.', '!');
+    return;
+  }
+  revokePendingPreview();
+  traceState.pendingPhotoFile = file;
+  traceState.pendingPhotoPreviewUrl = URL.createObjectURL(file);
+  const preview = document.getElementById('trace-photo-preview');
+  if (preview) {
+    preview.hidden = false;
+    preview.innerHTML = `
+      <img src="${escapeHtml(traceState.pendingPhotoPreviewUrl)}" alt="Vorschau Etikett-Foto">
+      <button type="button" class="btn btn-secondary btn-trace-photo-clear" id="trace-photo-clear">Foto entfernen</button>
+    `;
+    preview.querySelector('#trace-photo-clear')?.addEventListener('click', () => clearPendingPhoto());
+  }
+  const btn = document.getElementById('trace-photo-btn');
+  if (btn) btn.textContent = '📸 Anderes Foto aufnehmen';
+}
+
+async function uploadTraceabilityPhoto(file, recordId, tenantId) {
+  const firebaseApi = traceState.getFirebase();
+  if (!firebaseApi?.storage) throw new Error('Foto-Speicher ist nicht bereit.');
+  if (!tenantId) throw new Error('Mandant fehlt.');
+  const path = `tenants/${tenantId}/traceability/${recordId}.jpg`;
+  const ref = firebaseApi.storage().ref(path);
+  const snapshot = await ref.put(file, { contentType: file.type || 'image/jpeg' });
+  return snapshot.ref.getDownloadURL();
+}
+
+function resetCaptureForm() {
+  const lot = document.getElementById('trace-lot-number');
+  const mark = document.getElementById('trace-health-mark');
+  const animal = document.getElementById('trace-animal-type');
+  const single = document.getElementById('trace-single-origin');
+  if (lot) lot.value = '';
+  if (mark) mark.value = '';
+  if (animal) animal.value = 'rind';
+  if (single) single.checked = true;
+  ['trace-single-country', 'trace-born-in', 'trace-raised-in', 'trace-slaughtered-in', 'trace-cut-in'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = 'Deutschland';
+  });
+  const plant = document.getElementById('trace-cutting-plant');
+  if (plant) plant.value = '';
+  clearPendingPhoto();
+  syncOriginFieldsVisibility();
+}
+
+async function saveTraceabilityRecord() {
+  const tenantId = resolveTenantId();
+  const path = collectionPathFor(tenantId);
+  if (!path || !traceState.writeOrQueueFirestore) {
+    traceState.showHUD('Hinweis', 'Speichern ist gerade nicht möglich. Bitte kurz warten und erneut versuchen.', '!');
+    return;
+  }
+
+  const lotNumber = String(document.getElementById('trace-lot-number')?.value || '').trim();
+  const healthMark = String(document.getElementById('trace-health-mark')?.value || '').trim();
+  const animalType = String(document.getElementById('trace-animal-type')?.value || '').trim();
+  const origin = readFormOrigin(animalType);
+  const validationError = validateForm(lotNumber, animalType, origin, Boolean(traceState.pendingPhotoFile));
+  if (validationError) {
+    traceState.showHUD('Hinweis', validationError, '!');
+    return;
+  }
+
+  const createdBy = String(traceState.getCurrentUserId() || '').trim();
+  if (!createdBy) {
+    traceState.showHUD('Hinweis', 'Anmeldung fehlt. Bitte erneut anmelden.', '!');
+    return;
+  }
+
+  const saveBtn = document.getElementById('trace-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Wird gespeichert…';
+  }
+
+  const recordId = createRecordId();
+  try {
+    const imageUrl = await uploadTraceabilityPhoto(traceState.pendingPhotoFile, recordId, tenantId);
+    const payload = {
+      id: recordId,
+      createdBy,
+      status: 'active',
+      lotNumber,
+      healthMark,
+      imageUrl,
+      animalType,
+      origin,
+      tenantId,
+    };
+    const nowIso = new Date().toISOString();
+    await traceState.writeOrQueueFirestore({
+      collectionPath: path,
+      docId: recordId,
+      op: 'set',
+      onlineData: { ...payload, createdAt: serverTimestamp() },
+      queueData: { ...payload, createdAt: nowIso },
+      offlineMessage: 'Herkunftseintrag wird automatisch synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    resetCaptureForm();
+    traceState.showHUD('Gespeichert', 'Herkunft ist erfasst und in der Thekenklade aktiv.');
+  } catch (err) {
+    console.error('[CharcuLogic Traceability] Speichern fehlgeschlagen:', err);
+    traceState.showHUD(
+      'Hat nicht geklappt',
+      'Herkunft konnte nicht gespeichert werden. Bitte Foto und Verbindung prüfen und erneut versuchen.',
+      '!',
+    );
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '💾 Herkunft speichern';
+    }
+  }
+}
+
+function bindCaptureControls() {
+  const photoBtn = document.getElementById('trace-photo-btn');
+  const photoInput = document.getElementById('trace-photo-input');
+  photoBtn?.addEventListener('click', () => photoInput?.click());
+  photoInput?.addEventListener('change', () => {
+    const file = photoInput.files?.[0];
+    if (file) setPendingPhoto(file);
+  });
+
+  document.getElementById('trace-animal-type')?.addEventListener('change', syncOriginFieldsVisibility);
+  document.getElementById('trace-single-origin')?.addEventListener('change', syncOriginFieldsVisibility);
+  document.getElementById('trace-save-btn')?.addEventListener('click', () => {
+    void saveTraceabilityRecord();
+  });
+}
+
+function fillCountrySelects() {
+  const map = {
+    'trace-single-country': 'Deutschland',
+    'trace-born-in': 'Deutschland',
+    'trace-raised-in': 'Deutschland',
+    'trace-slaughtered-in': 'Deutschland',
+    'trace-cut-in': 'Deutschland',
+  };
+  Object.entries(map).forEach(([id, selected]) => {
+    const el = document.getElementById(id);
+    if (!el || el.options.length) return;
+    el.innerHTML = COUNTRY_OPTIONS.map((opt) => (
+      `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
+    )).join('');
+  });
+}
+
+export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFunction, showHudCallback, options = {}) {
+  traceState.db = databaseInstance || null;
+  traceState.writeOrQueueFirestore = writeOrQueueFirestoreFunction || null;
+  traceState.showHUD = typeof showHudCallback === 'function' ? showHudCallback : () => {};
+  traceState.tenantId = options.tenantId || traceState.tenantId;
+  traceState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : traceState.getFirebase;
+  traceState.getCurrentUserId = typeof options.getCurrentUserId === 'function'
+    ? options.getCurrentUserId
+    : () => '';
+
+  if (!traceState.initialized) {
+    fillCountrySelects();
+    bindCaptureControls();
+    syncOriginFieldsVisibility();
+    traceState.initialized = true;
+  }
+}
+
+export function activateTraceabilityTab() {
+  syncOriginFieldsVisibility();
+}
+
+function toDateKey(value) {
+  if (!value) return '';
+  try {
+    if (typeof value?.toDate === 'function') {
+      return value.toDate().toISOString().slice(0, 10);
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  } catch (_) {
+    return '';
+  }
+}
+
+function formatDateTimeDe(value) {
+  if (!value) return '–';
+  try {
+    const date = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
+    if (Number.isNaN(date.getTime())) return '–';
+    return date.toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (_) {
+    return '–';
+  }
+}
+
+function statusLabel(status) {
+  return status === 'archived' ? 'Archiviert' : 'Aktiv in Theke';
+}
+
+function filteredAdminRecords() {
+  const query = String(traceState.adminSearchQuery || '').trim().toLowerCase();
+  const dateFilter = String(traceState.adminDateFilter || '').trim();
+  return traceState.adminRecords.filter((record) => {
+    if (dateFilter && toDateKey(record.createdAt) !== dateFilter) return false;
+    if (!query) return true;
+    const haystack = `${record.lotNumber || ''} ${record.healthMark || ''} ${animalTypeLabel(record.animalType)}`.toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function formatOriginForInspectors(origin = {}, animalType = '') {
+  if (!origin || typeof origin !== 'object') return '<p>Keine Herkunftsdaten.</p>';
+  if (origin.isSingleOrigin) {
+    return `
+      <dl class="trace-detail-dl">
+        <div><dt>Ursprung</dt><dd>Ein einziges Land: <strong>${escapeHtml(origin.singleOriginCountry || '–')}</strong></dd></div>
+      </dl>
+    `;
+  }
+  const rows = [];
+  if (isRind(animalType)) {
+    rows.push(`<div><dt>Geboren in</dt><dd>${escapeHtml(origin.bornIn || '–')}</dd></div>`);
+  }
+  rows.push(`<div><dt>${isRind(animalType) ? 'Gemästet in' : 'Aufgezogen in'}</dt><dd>${escapeHtml(origin.raisedIn || '–')}</dd></div>`);
+  rows.push(`<div><dt>Geschlachtet in</dt><dd>${escapeHtml(origin.slaughteredIn || '–')}</dd></div>`);
+  if (isRind(animalType)) {
+    rows.push(`<div><dt>Zerlegt in</dt><dd>${escapeHtml(origin.cutIn || '–')}</dd></div>`);
+    rows.push(`<div><dt>Zulassungsnr. Zerlegebetrieb</dt><dd>${escapeHtml(origin.cuttingPlantNo || '–')}</dd></div>`);
+  }
+  return `<dl class="trace-detail-dl">${rows.join('')}</dl>`;
+}
+
+function renderAdminDetail(record) {
+  const panel = document.getElementById('dev-trace-detail');
+  if (!panel) return;
+  if (!record) {
+    panel.innerHTML = '<p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>';
+    return;
+  }
+  panel.innerHTML = `
+    <div class="trace-detail-header">
+      <h3 class="dev-dashboard-subsection-title">LMIV-Detail · ${escapeHtml(record.lotNumber || '–')}</h3>
+      <button type="button" class="btn btn-secondary" id="dev-trace-detail-close">Schließen</button>
+    </div>
+    <div class="trace-detail-grid">
+      <figure class="trace-detail-photo">
+        ${record.imageUrl
+    ? `<img src="${escapeHtml(record.imageUrl)}" alt="Original-Etikett Charge ${escapeHtml(record.lotNumber || '')}">`
+    : '<p>Kein Foto vorhanden.</p>'}
+        <figcaption>Original-Etikett (Foto)</figcaption>
+      </figure>
+      <div class="trace-detail-meta">
+        <dl class="trace-detail-dl">
+          <div><dt>Charge / LOT</dt><dd>${escapeHtml(record.lotNumber || '–')}</dd></div>
+          <div><dt>Identitätskennzeichen</dt><dd>${escapeHtml(record.healthMark || '–')}</dd></div>
+          <div><dt>Tierart</dt><dd>${escapeHtml(animalTypeLabel(record.animalType))}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(statusLabel(record.status))}</dd></div>
+          <div><dt>Erfasst am</dt><dd>${escapeHtml(formatDateTimeDe(record.createdAt))}</dd></div>
+          <div><dt>Erfasst von (User-ID)</dt><dd><code>${escapeHtml(record.createdBy || '–')}</code></dd></div>
+        </dl>
+        <h4 class="trace-detail-origin-title">Herkunft laut LMIV</h4>
+        ${formatOriginForInspectors(record.origin, record.animalType)}
+      </div>
+    </div>
+  `;
+  panel.querySelector('#dev-trace-detail-close')?.addEventListener('click', () => {
+    traceState.selectedRecordId = '';
+    renderAdminDetail(null);
+    renderAdminTable();
+  });
+}
+
+function renderAdminTable() {
+  const body = document.getElementById('dev-trace-body');
+  if (!body) return;
+  const rows = filteredAdminRecords();
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg">Keine Einträge für diese Suche.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map((record) => {
+    const active = record.status !== 'archived';
+    const selected = record.id === traceState.selectedRecordId;
+    return `
+      <tr class="dev-trace-row${selected ? ' is-selected' : ''}" data-record-id="${escapeHtml(record.id)}">
+        <td><button type="button" class="dev-trace-lot-btn" data-open-detail="${escapeHtml(record.id)}">${escapeHtml(record.lotNumber || '–')}</button></td>
+        <td>${escapeHtml(animalTypeLabel(record.animalType))}</td>
+        <td>${escapeHtml(formatDateTimeDe(record.createdAt))}</td>
+        <td>${escapeHtml(record.healthMark || '–')}</td>
+        <td>
+          <span class="dev-trace-status-pill" data-status="${active ? 'active' : 'archived'}">${escapeHtml(statusLabel(record.status))}</span>
+        </td>
+        <td>
+          <button
+            type="button"
+            class="dev-dashboard-action-btn"
+            data-toggle-status="${escapeHtml(record.id)}"
+            data-next-status="${active ? 'archived' : 'active'}"
+          >${active ? 'Archivieren' : 'In Theke aktivieren'}</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function toggleRecordStatus(recordId, nextStatus) {
+  const tenantId = resolveTenantId(traceState.adminTenantId);
+  if (!tenantId || !traceState.db) return;
+  if (nextStatus !== 'active' && nextStatus !== 'archived') return;
+  try {
+    await traceState.db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('traceabilityRecords')
+      .doc(recordId)
+      .update({ status: nextStatus });
+    window.showToast?.(
+      nextStatus === 'archived' ? 'Eintrag archiviert.' : 'Eintrag ist wieder aktiv in der Theke.',
+      'success',
+    );
+  } catch (err) {
+    console.error('[CharcuLogic Traceability] Status-Update fehlgeschlagen:', err);
+    window.showToast?.('Status konnte nicht geändert werden.', 'error');
+  }
+}
+
+function bindAdminPanelControls() {
+  const search = document.getElementById('dev-trace-search');
+  const date = document.getElementById('dev-trace-date');
+  if (search && search.dataset.bound !== '1') {
+    search.dataset.bound = '1';
+    search.addEventListener('input', () => {
+      traceState.adminSearchQuery = search.value || '';
+      renderAdminTable();
+    });
+  }
+  if (date && date.dataset.bound !== '1') {
+    date.dataset.bound = '1';
+    date.addEventListener('change', () => {
+      traceState.adminDateFilter = date.value || '';
+      renderAdminTable();
+    });
+  }
+
+  const table = document.getElementById('dev-trace-table');
+  if (table && table.dataset.bound !== '1') {
+    table.dataset.bound = '1';
+    table.addEventListener('click', (event) => {
+      const openBtn = event.target.closest('[data-open-detail]');
+      if (openBtn) {
+        const id = openBtn.getAttribute('data-open-detail');
+        const record = traceState.adminRecords.find((item) => item.id === id) || null;
+        traceState.selectedRecordId = id || '';
+        renderAdminDetail(record);
+        renderAdminTable();
+        return;
+      }
+      const toggleBtn = event.target.closest('[data-toggle-status]');
+      if (toggleBtn instanceof HTMLButtonElement) {
+        const id = toggleBtn.getAttribute('data-toggle-status');
+        const next = toggleBtn.getAttribute('data-next-status');
+        void toggleRecordStatus(id, next);
+      }
+    });
+  }
+}
+
+export function startTraceabilityAdminView(tenantId) {
+  const resolved = resolveTenantId(tenantId);
+  traceState.adminTenantId = resolved;
+  bindAdminPanelControls();
+  if (!resolved || !traceState.db) {
+    const body = document.getElementById('dev-trace-body');
+    if (body) {
+      body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg">Mandant fehlt – Thekenklade kann nicht geladen werden.</td></tr>';
+    }
+    return;
+  }
+
+  if (traceState.adminUnsubscribe) {
+    traceState.adminUnsubscribe();
+    traceState.adminUnsubscribe = null;
+  }
+
+  const statusEl = document.getElementById('dev-trace-status');
+  if (statusEl) statusEl.textContent = 'Lade Einträge…';
+
+  traceState.adminUnsubscribe = traceState.db
+    .collection('tenants')
+    .doc(resolved)
+    .collection('traceabilityRecords')
+    .orderBy('createdAt', 'desc')
+    .limit(300)
+    .onSnapshot(
+      (snap) => {
+        traceState.adminRecords = snap.docs.map((docSnap) => {
+          const data = docSnap.data() || {};
+          return { ...data, id: data.id || docSnap.id };
+        });
+        renderAdminTable();
+        if (traceState.selectedRecordId) {
+          const selected = traceState.adminRecords.find((item) => item.id === traceState.selectedRecordId) || null;
+          renderAdminDetail(selected);
+        }
+        if (statusEl) {
+          statusEl.textContent = `${traceState.adminRecords.length} Eintrag${traceState.adminRecords.length === 1 ? '' : 'e'} geladen`;
+        }
+      },
+      (err) => {
+        console.error('[CharcuLogic Traceability] Admin-Listener fehlgeschlagen:', err);
+        if (statusEl) statusEl.textContent = 'Laden fehlgeschlagen';
+        const body = document.getElementById('dev-trace-body');
+        if (body) {
+          body.innerHTML = '<tr><td colspan="6" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">Zugriff oder Verbindung fehlgeschlagen.</td></tr>';
+        }
+      },
+    );
+}
+
+export function stopTraceabilityAdminView() {
+  if (traceState.adminUnsubscribe) {
+    traceState.adminUnsubscribe();
+    traceState.adminUnsubscribe = null;
+  }
+}
+
+export { ANIMAL_TYPES, COUNTRY_OPTIONS, countrySelectHtml };

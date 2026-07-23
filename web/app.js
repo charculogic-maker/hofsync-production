@@ -45,6 +45,10 @@ import {
   startHaccpLiveSync,
 } from './haccp.js';
 import {
+  activateTraceabilityTab,
+  initTraceabilityModule,
+} from './traceability.js';
+import {
   activateMhdTab,
   activateReceivingTab,
   getMhdProducts,
@@ -153,7 +157,7 @@ if (EMERGENCY_LOGOUT_REQUESTED) {
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
-const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'haccp']);
+const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
@@ -171,7 +175,7 @@ const AUTH_LOCAL_STORAGE_MARKERS = [
 ];
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
 const PROFILE_OTHER_LABEL = 'Andere';
-const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving']);
+const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'traceability']);
 const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
 
 function isEmployeePinRequired(branding = window.BRANDING) {
@@ -559,7 +563,7 @@ const PROFILE_TAB_ALIASES = {
   wissen: 'knowledge',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'kitchen']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
 
 function hasActiveFirebaseAuthUser() {
@@ -1622,6 +1626,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
       && (modules.team === true || modules.orders !== false || modules.haccp !== false || modules.teamboard !== false),
     mhd: isTenantModuleEnabled('mhd', branding),
     receiving: isTenantModuleEnabled('receiving', branding),
+    traceability: isTenantModuleEnabled('traceability', branding),
     kitchen: kitchenEnabled,
     haccp: isTenantModuleEnabled('haccp', branding),
     knowledge: isTenantModuleEnabled('knowledge', branding),
@@ -1674,9 +1679,9 @@ function resolveFirebaseEmployeeAllowedTabs(authSession) {
     || authSession?.claims?.allowedModules
     || null;
   if (!allowed || typeof allowed !== 'object') {
-    return new Set(['mhd', 'receiving']);
+    return new Set(['mhd', 'receiving', 'traceability']);
   }
-  const tabs = new Set();
+  const tabs = new Set(['traceability']);
   if (allowed.mhd !== false) tabs.add('mhd');
   if (allowed.kitchen !== false) tabs.add('kitchen');
   if (allowed.buero !== false) tabs.add('batches');
@@ -2864,6 +2869,10 @@ tabs.forEach(tab => {
       showPage('page-receiving');
       headerTitle.textContent = "Wareneingang";
       headerSubtitle.textContent = "Lieferung erfassen";
+    } else if (targetTab === 'traceability') {
+      showPage('page-traceability');
+      headerTitle.textContent = "Herkunft";
+      headerSubtitle.textContent = "LMIV-Erfassung";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
@@ -2896,6 +2905,7 @@ tabs.forEach(tab => {
       if (targetTab === 'team') activateTeamHubTab();
       if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
+      if (targetTab === 'traceability') activateTraceabilityTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
       if (targetTab === 'knowledge') activateCutGlossaryTab();
@@ -3457,6 +3467,12 @@ async function bootstrapAuthenticatedApp() {
     playClickSound,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
+  });
+
+  initTraceabilityModule(db, writeFirestoreDocOrQueue, showHUD, {
+    tenantId,
+    getFirebase: () => firebase,
+    getCurrentUserId: () => firebase.auth?.().currentUser?.uid || getAuthContext()?.uid || '',
   });
 
   initTeamboardModule(db, {

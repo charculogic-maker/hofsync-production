@@ -1,9 +1,9 @@
 /**
  * Tenant module flags from Firestore `tenants/{id}.enabledModules`.
- * Keys: mhd, receiving, kitchen, haccp, knowledge, buero
+ * Keys: mhd, receiving, kitchen, haccp, knowledge, buero, traceability
  */
 
-export const TENANT_MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'haccp', 'knowledge', 'buero'];
+export const TENANT_MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'haccp', 'knowledge', 'buero', 'traceability'];
 
 export const ENABLED_MODULE_TO_BRANDING = {
   mhd: 'mhdMonitor',
@@ -12,6 +12,7 @@ export const ENABLED_MODULE_TO_BRANDING = {
   haccp: 'haccp',
   knowledge: 'knowledge',
   buero: 'batches',
+  traceability: 'traceability',
 };
 
 const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
@@ -48,6 +49,8 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
       return modules.knowledge === true || modules.cutGlossary === true;
     case 'buero':
       return modules.batches !== false;
+    case 'traceability':
+      return modules.traceability !== false;
     default:
       return false;
   }
