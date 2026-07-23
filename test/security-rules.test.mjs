@@ -536,6 +536,60 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 8: Tenant root status & delete (platform admin)', () => {
+    const PLATFORM_DEV_ADMIN_UID = 'VYwMy5IAlAR26pj8ZbFfc5PNdou2';
+    const tenantRootPath = `tenants/${TENANTS.TORFABRIK}`;
+
+    const sampleTenantRoot = (overrides = {}) => ({
+      displayName: 'TorFabrik',
+      status: 'active',
+      enabledModules: {
+        mhd: true,
+        receiving: false,
+        kitchen: false,
+        haccp: false,
+        knowledge: false,
+        buero: false,
+        traceability: true,
+      },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...overrides,
+    });
+
+    it('allows platform admin to create tenant with status active', async () => {
+      const ctx = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
+      await expectFirestoreAllow(ctx, `tenants/new-saas-tenant`, 'create', sampleTenantRoot({
+        displayName: 'New SaaS',
+      }));
+    });
+
+    it('denies tenant admin create on tenant root', async () => {
+      const ctx = authContext(testEnv, 'tf-admin-root', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(ctx, `tenants/other-tenant`, 'create', sampleTenantRoot());
+    });
+
+    it('allows platform admin status toggle and denies tenant admin status update', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
+
+      const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
+      await expectFirestoreAllow(platform, tenantRootPath, 'update', { status: 'inactive' });
+
+      const admin = authContext(testEnv, 'tf-admin-status', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(admin, tenantRootPath, 'update', { status: 'inactive' });
+    });
+
+    it('allows platform admin delete and denies tenant admin delete', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
+
+      const admin = authContext(testEnv, 'tf-admin-del', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(admin, tenantRootPath, 'delete');
+
+      const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
+      await expectFirestoreAllow(platform, tenantRootPath, 'delete');
+    });
+  });
+
   describe('Sanity: environment wiring', () => {
     it('initializes test environment with project id', () => {
       expect(testEnv).to.exist;

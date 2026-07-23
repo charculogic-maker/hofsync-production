@@ -183,6 +183,8 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
     ? data.enabledModules
     : {};
   const displayName = String(data.displayName || tenantId).trim();
+  const isActive = data.status !== 'inactive';
+  const statusValue = isActive ? 'active' : 'inactive';
   const toggles = TENANT_MODULE_KEYS.map((key) => {
     const checked = enabled[key] === true;
     return `
@@ -217,6 +219,27 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
         <span class="dev-dashboard-tenant-sub">${tenantId}</span>
       </td>
       <td class="dev-dashboard-toggles">${toggles}</td>
+      <td>
+        <label class="dev-dashboard-tenant-status" data-status="${statusValue}" title="Aktiv / Inaktiv">
+          <input
+            type="checkbox"
+            data-tenant-id="${tenantId}"
+            data-tenant-status="1"
+            ${isActive ? 'checked' : ''}
+            aria-label="Mandant ${tenantId} aktiv"
+          >
+          <span>${isActive ? 'Aktiv' : 'Inaktiv'}</span>
+        </label>
+      </td>
+      <td class="dev-dashboard-tenant-actions">
+        <button
+          type="button"
+          class="dev-dashboard-action-btn dev-dashboard-action-btn--danger"
+          data-action="delete-tenant"
+          data-tenant-id="${tenantId}"
+          data-display-name="${displayName.replace(/"/g, '&quot;')}"
+        >Löschen</button>
+      </td>
     </tr>
   `;
 }
@@ -227,7 +250,7 @@ function renderTenantTable(tenants, { emptyMessage = '', targetBodyId = 'dev-das
   if (!tenants.length) {
     const message = emptyMessage || EMPTY_TENANTS_MESSAGE;
     const tone = message.startsWith('⚠️') ? 'error' : 'info';
-    tbody.innerHTML = `<tr><td colspan="2" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--${tone}">${message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--${tone}">${message}</td></tr>`;
     return;
   }
   const rows = tenants
@@ -257,6 +280,37 @@ async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
   });
 }
 
+async function updateTenantStatus(db, tenantId, status) {
+  await db.collection('tenants').doc(tenantId).update({
+    status,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function deleteTenantRoot(db, tenantId) {
+  await db.collection('tenants').doc(tenantId).delete();
+}
+
+function confirmTenantDelete(tenantId, displayName) {
+  const label = displayName || tenantId;
+  const firstOk = window.confirm(
+    `Mandant „${label}“ (${tenantId}) wirklich löschen?\n\n`
+    + 'Es wird nur das Root-Dokument gelöscht. Untergeordnete Daten bleiben ggf. bestehen.\n'
+    + 'Dieser Schritt kann nicht rückgängig gemacht werden.',
+  );
+  if (!firstOk) return false;
+
+  const typed = window.prompt(
+    `Bitte tippe die Tenant-ID (${tenantId}) ein, um das Löschen zu bestätigen.`,
+  );
+  if (typed === null) return false;
+  if (String(typed).trim() !== tenantId) {
+    window.showToast?.('Löschen abgebrochen: Tenant-ID stimmt nicht überein.', 'error');
+    return false;
+  }
+  return true;
+}
+
 function bindTenantToggleHandlers(db, statusEl) {
   const page = document.getElementById('page-dev-dashboard');
   if (!page || page.dataset.togglesBound === '1') return;
@@ -266,8 +320,42 @@ function bindTenantToggleHandlers(db, statusEl) {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
     const tenantId = input.getAttribute('data-tenant-id');
+    if (!tenantId) return;
+
+    if (input.getAttribute('data-tenant-status') === '1') {
+      const previous = !input.checked;
+      const nextStatus = input.checked ? 'active' : 'inactive';
+      input.disabled = true;
+      if (statusEl) statusEl.textContent = `Speichere Status ${tenantId}…`;
+
+      try {
+        await updateTenantStatus(db, tenantId, nextStatus);
+        const label = input.closest('.dev-dashboard-tenant-status');
+        if (label) {
+          label.dataset.status = nextStatus;
+          const span = label.querySelector('span');
+          if (span) span.textContent = nextStatus === 'active' ? 'Aktiv' : 'Inaktiv';
+        }
+        if (statusEl) {
+          statusEl.textContent = `Status gespeichert: ${tenantId} · ${nextStatus === 'active' ? 'Aktiv' : 'Inaktiv'}`;
+        }
+        window.showToast?.(
+          nextStatus === 'active' ? `Mandant ${tenantId} aktiviert.` : `Mandant ${tenantId} deaktiviert.`,
+          'success',
+        );
+      } catch (err) {
+        input.checked = previous;
+        console.error('[Dev-Dashboard] Status-Toggle fehlgeschlagen:', err);
+        if (statusEl) statusEl.textContent = `Fehler: ${err?.message || 'Status speichern fehlgeschlagen'}`;
+        window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
+      } finally {
+        input.disabled = false;
+      }
+      return;
+    }
+
     const moduleKey = input.getAttribute('data-module-key');
-    if (!tenantId || !moduleKey) return;
+    if (!moduleKey) return;
 
     const previous = !input.checked;
     input.disabled = true;
@@ -283,6 +371,37 @@ function bindTenantToggleHandlers(db, statusEl) {
       window.showToast?.('Modul konnte nicht gespeichert werden.', 'error');
     } finally {
       input.disabled = false;
+    }
+  });
+
+  page.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-action="delete-tenant"]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+
+    const tenantId = btn.getAttribute('data-tenant-id');
+    if (!tenantId) return;
+    const displayName = btn.getAttribute('data-display-name') || tenantId;
+
+    if (!confirmTenantDelete(tenantId, displayName)) return;
+
+    btn.disabled = true;
+    if (statusEl) statusEl.textContent = `Lösche Mandant ${tenantId}…`;
+
+    try {
+      await deleteTenantRoot(db, tenantId);
+      if (statusEl) statusEl.textContent = `Mandant ${tenantId} gelöscht`;
+      window.showToast?.(`Mandant ${displayName} wurde gelöscht.`, 'success');
+      // Tabelle aktualisiert sich über den onSnapshot-Listener.
+    } catch (err) {
+      console.error('[Dev-Dashboard] Mandanten-Löschen fehlgeschlagen:', err);
+      if (statusEl) statusEl.textContent = `Fehler: ${err?.message || 'Löschen fehlgeschlagen'}`;
+      window.showToast?.(
+        isPermissionDeniedError(err)
+          ? 'Löschen nicht erlaubt (Firestore-Regeln).'
+          : 'Mandant konnte nicht gelöscht werden.',
+        'error',
+      );
+      btn.disabled = false;
     }
   });
 }
@@ -381,6 +500,7 @@ function bindTenantCreateForm(db) {
       const enabledModules = readCreateTenantEnabledModules();
       await ref.set({
         displayName,
+        status: 'active',
         enabledModules,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),

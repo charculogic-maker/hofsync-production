@@ -8377,6 +8377,40 @@ body.dev-dashboard-view .admin-header-dropdown {
   background: #fef2f2;
 }
 
+.dev-dashboard-table--tenants th:nth-child(3),
+.dev-dashboard-table--tenants td:nth-child(3) {
+  white-space: nowrap;
+  width: 7rem;
+}
+
+.dev-dashboard-table--tenants th:nth-child(4),
+.dev-dashboard-table--tenants td:nth-child(4) {
+  white-space: nowrap;
+  width: 6.5rem;
+}
+
+.dev-dashboard-tenant-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dev-dashboard-tenant-status[data-status="inactive"] {
+  color: #94a3b8;
+}
+
+.dev-dashboard-tenant-status[data-status="active"] {
+  color: #15803d;
+}
+
+.dev-dashboard-tenant-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dev-dashboard-toggle--compact {
   font-size: 0.78rem;
   gap: 4px;

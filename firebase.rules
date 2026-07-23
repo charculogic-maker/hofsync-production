@@ -122,15 +122,23 @@ service cloud.firestore {
     match /tenants/{tenantId} {
       allow read: if isTenantMember(tenantId) || isPlatformDevAdmin();
       allow create: if isPlatformDevAdmin()
-        && request.resource.data.keys().hasOnly(['enabledModules', 'displayName', 'createdAt', 'updatedAt'])
-        && request.resource.data.enabledModules is map;
+        && request.resource.data.keys().hasOnly(['enabledModules', 'displayName', 'createdAt', 'updatedAt', 'status'])
+        && request.resource.data.enabledModules is map
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.status in ['active', 'inactive'];
       allow update: if isPlatformDevAdmin()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
-        && request.resource.data.enabledModules is map;
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['enabledModules', 'status', 'updatedAt'])
+        && (!('enabledModules' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.enabledModules is map)
+        && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.status in ['active', 'inactive']);
       allow update: if isAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
         && request.resource.data.enabledModules is map;
-      allow delete: if false;
+      allow delete: if isPlatformDevAdmin();
     }
 
     // =========================================================================

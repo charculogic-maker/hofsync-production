@@ -261,6 +261,7 @@ async function seedTenantRoot(db, tenantId) {
     }
     tx.create(ref, {
       displayName,
+      status: 'active',
       enabledModules: resolveEnabledModules(tenantId),
       seedVersion: SEED_VERSION,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
