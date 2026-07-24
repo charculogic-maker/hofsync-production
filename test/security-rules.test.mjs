@@ -578,7 +578,9 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreAllow(platform, tenantRootPath, 'update', { status: 'inactive' });
 
       const admin = authContext(testEnv, 'tf-admin-status', TENANTS.TORFABRIK, 'admin');
-      await expectFirestoreDeny(admin, tenantRootPath, 'update', { status: 'inactive' });
+      // Muss einen echten Diff erzeugen (status wechseln), sonst ist affectedKeys leer
+      // und die Admin-Modul-Update-Regel greift fälschlich.
+      await expectFirestoreDeny(admin, tenantRootPath, 'update', { status: 'active' });
     });
 
     it('allows platform admin delete and denies tenant admin delete', async () => {
@@ -589,6 +591,36 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(platform, tenantRootPath, 'delete');
+    });
+    it('denies Tenant-Admin of TorFabrik reading/writing StevesHof tenant root & modules', async () => {
+      const stevesRoot = `tenants/${TENANTS.STEVES_HOF}`;
+      await seedFirestoreDoc(testEnv, stevesRoot, sampleTenantRoot({
+        displayName: 'StevesHof',
+      }));
+
+      const foreignAdmin = authContext(testEnv, 'tf-admin-cross-root', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(foreignAdmin, stevesRoot, 'read');
+      await expectFirestoreDeny(foreignAdmin, stevesRoot, 'update', {
+        enabledModules: { mhd: false },
+      });
+    });
+
+    it('allows Tenant-Admin to update enabledModules on own tenant only', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
+      const ownAdmin = authContext(testEnv, 'tf-admin-modules', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreAllow(ownAdmin, tenantRootPath, 'update', {
+        enabledModules: {
+          start: true,
+          team: true,
+          mhd: true,
+          receiving: false,
+          kitchen: false,
+          haccp: false,
+          knowledge: false,
+          buero: false,
+          traceability: true,
+        },
+      });
     });
   });
 

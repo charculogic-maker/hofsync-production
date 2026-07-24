@@ -10,6 +10,7 @@ if (!admin.apps.length) {
 
 exports.notifyTeamEntryCreated = require('./teamPush').notifyTeamEntryCreated;
 exports.parseDeliveryNote = require('./parseDeliveryNoteCallable').parseDeliveryNote;
+exports.parseMeatLabel = require('./parseMeatLabelCallable').parseMeatLabel;
 exports.verifyTerminalPin = require('./verifyTerminalPinCallable').verifyTerminalPin;
 exports.createTenantEmployee = require('./createTenantEmployee').createTenantEmployee;
 exports.manageTenantEmployees = require('./manageTenantEmployees').manageTenantEmployees;

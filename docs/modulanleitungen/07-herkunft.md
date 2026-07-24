@@ -9,7 +9,7 @@ Fleisch-Rückverfolgbarkeit nach LMIV: Etikett fotografieren, Charge und Herkunf
 ## Erfassung am Laden-iPhone
 
 1. Tab **Herkunft** öffnen (Profilpflicht wie bei MHD/Neu).
-2. **📸 Etikett fotografieren** — Kamera des Laden-iPhones.
+2. **📸 Etikett fotografieren / scannen** — Kamera des Laden-iPhones. Die KI liest das Etikett vor und füllt die Felder; wir prüfen kurz und speichern.
 3. **Charge / LOT-Nummer** (Pflicht) und optional **Identitätskennzeichen** (oval).
 4. Optional **Öko-Kontrollstelle** (z. B. DE-ÖKO-006) und **Bio-Verband** (EU-Bio, Bioland, Demeter, Naturland oder Keine / Konventionell).
 5. **Tierart** wählen: Rind · Schwein · Geflügel · Schaf · Ziege.

@@ -9,7 +9,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
-Zusätzlich über das **Admin-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Die digitale Thekenklade liegt unter **/dev-dashboard → Rückverfolgbarkeit**.
+Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer, Einstellungen, Protokoll, Thekenklade.
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 
@@ -137,7 +137,7 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ## 6. Wissen
 
-**Wissen** öffnen wir über das **Admin-Menü**. Dort gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Verwaltungs-Menü**. Dort gibt es zwei aufklappbare Bereiche:
 
 - **🥩 Fleisch-Lexikon (Cuts)**: Suche nach Zuschnitten, regionalen Namen, Lage und Verwendung.
 - **📋 Hofladen-Handbücher**: kurze Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
@@ -162,7 +162,7 @@ Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die ta
 
 ## 8. Temperatur-Check (HACCP)
 
-**HACCP** öffnen wir über das **Admin-Menü**. Dort dokumentieren wir Kühlungs-Temperaturen und Reinigungen. Der Tab **Team** ist für StevesHof deaktiviert — alle Tageskontrollen laufen hier.
+**HACCP** öffnen wir über das **Verwaltungs-Menü**. Dort dokumentieren wir Kühlungs-Temperaturen und Reinigungen. Der Tab **Team** ist für StevesHof deaktiviert — alle Tageskontrollen laufen hier.
 
 1. **HACCP** öffnen.
 2. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **MoPro-Kühlung**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.

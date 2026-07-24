@@ -1,6 +1,9 @@
 /**
  * LMIV Fleisch-Rückverfolgbarkeit – Erfassung (PWA) + Digitale Thekenklade (Admin).
  */
+import { waitForAppCheckReady } from './app-check.js';
+import { createHttpsCallable } from './firebase-functions.js';
+import { logAndMapOperatorError } from './operator-errors.js';
 import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 
 const ANIMAL_TYPES = [
@@ -10,6 +13,14 @@ const ANIMAL_TYPES = [
   { value: 'schaf', label: 'Schaf' },
   { value: 'ziege', label: 'Ziege' },
 ];
+
+const ORGANIC_ASSOCIATION_OPTIONS = new Set([
+  'EU-Bio',
+  'Bioland',
+  'Demeter',
+  'Naturland',
+  'Keine / Konventionell',
+]);
 
 const COUNTRY_OPTIONS = [
   { value: 'Deutschland', label: 'Deutschland' },
@@ -28,6 +39,7 @@ const COUNTRY_OPTIONS = [
 ];
 
 const ANIMAL_TYPE_SET = new Set(ANIMAL_TYPES.map((item) => item.value));
+const COUNTRY_VALUE_SET = new Set(COUNTRY_OPTIONS.map((item) => item.value));
 
 const traceState = {
   db: null,
@@ -39,6 +51,7 @@ const traceState = {
   initialized: false,
   pendingPhotoFile: null,
   pendingPhotoPreviewUrl: '',
+  labelParseToken: 0,
   adminRecords: [],
   adminUnsubscribe: null,
   adminSearchQuery: '',
@@ -176,13 +189,13 @@ function clearPendingPhoto() {
     preview.innerHTML = '';
   }
   const btn = document.getElementById('trace-photo-btn');
-  if (btn) btn.textContent = '📸 Etikett fotografieren';
+  if (btn) btn.textContent = '📸 Etikett fotografieren / scannen';
 }
 
 function setPendingPhoto(file) {
   if (!file || !String(file.type || '').startsWith('image/')) {
     traceState.showHUD('Hinweis', 'Bitte ein Foto vom Etikett aufnehmen.', '!');
-    return;
+    return false;
   }
   revokePendingPreview();
   traceState.pendingPhotoFile = file;
@@ -194,10 +207,192 @@ function setPendingPhoto(file) {
       <img src="${escapeHtml(traceState.pendingPhotoPreviewUrl)}" alt="Vorschau Etikett-Foto">
       <button type="button" class="btn btn-secondary btn-trace-photo-clear" id="trace-photo-clear">Foto entfernen</button>
     `;
-    preview.querySelector('#trace-photo-clear')?.addEventListener('click', () => clearPendingPhoto());
+    preview.querySelector('#trace-photo-clear')?.addEventListener('click', () => {
+      traceState.labelParseToken += 1;
+      hideLabelScanOverlay();
+      clearPendingPhoto();
+    });
   }
   const btn = document.getElementById('trace-photo-btn');
   if (btn) btn.textContent = '📸 Anderes Foto aufnehmen';
+  return true;
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error('Datei konnte nicht gelesen werden.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function showLabelScanOverlay() {
+  hideLabelScanOverlay();
+  const host = document.querySelector('#page-traceability .trace-capture-card')
+    || document.getElementById('page-traceability');
+  if (!host) return;
+  if (getComputedStyle(host).position === 'static') {
+    host.style.position = 'relative';
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'trace-label-scan-overlay';
+  overlay.className = 'trace-label-scan-overlay';
+  overlay.innerHTML = `
+    <div class="trace-label-scan-card" role="status" aria-live="polite">
+      <div class="trace-label-scan-spinner" aria-hidden="true"></div>
+      <p class="trace-label-scan-text">✨ KI analysiert Etikett…</p>
+    </div>
+  `;
+  host.appendChild(overlay);
+}
+
+function hideLabelScanOverlay() {
+  document.getElementById('trace-label-scan-overlay')?.remove();
+}
+
+function flashAutofilledFields(fieldIds) {
+  fieldIds.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('trace-field-autofilled');
+    window.setTimeout(() => el.classList.remove('trace-field-autofilled'), 2200);
+  });
+}
+
+function setSelectOrInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value == null) return false;
+  const next = String(value).trim();
+  if (!next && el.tagName !== 'SELECT') {
+    el.value = '';
+    return false;
+  }
+  if (el.tagName === 'SELECT') {
+    const match = Array.from(el.options).find((opt) => opt.value === next);
+    if (!match) return false;
+    el.value = next;
+    return true;
+  }
+  el.value = next;
+  return true;
+}
+
+function applyParsedLabelToForm(label = {}) {
+  const filledIds = [];
+  const markFilled = (id, ok) => {
+    if (ok) filledIds.push(id);
+  };
+
+  markFilled('trace-lot-number', setSelectOrInputValue('trace-lot-number', label.lotNumber));
+  markFilled('trace-health-mark', setSelectOrInputValue('trace-health-mark', label.healthMark));
+  markFilled(
+    'trace-organic-control-body',
+    setSelectOrInputValue('trace-organic-control-body', label.organicControlBody),
+  );
+
+  const association = ORGANIC_ASSOCIATION_OPTIONS.has(label.organicAssociation)
+    ? label.organicAssociation
+    : '';
+  if (association) {
+    markFilled('trace-organic-association', setSelectOrInputValue('trace-organic-association', association));
+  } else {
+    markFilled('trace-organic-association', setSelectOrInputValue('trace-organic-association', ''));
+  }
+
+  const animalType = ANIMAL_TYPE_SET.has(label.animalType) ? label.animalType : 'rind';
+  markFilled('trace-animal-type', setSelectOrInputValue('trace-animal-type', animalType));
+
+  const isSingleOrigin = label.isSingleOrigin === true;
+  const singleOriginEl = document.getElementById('trace-single-origin');
+  if (singleOriginEl) {
+    singleOriginEl.checked = isSingleOrigin;
+    filledIds.push('trace-single-origin');
+  }
+
+  syncOriginFieldsVisibility();
+
+  if (isSingleOrigin) {
+    const country = COUNTRY_VALUE_SET.has(label.singleOriginCountry)
+      ? label.singleOriginCountry
+      : (label.singleOriginCountry ? 'Sonstiges EU-Land' : '');
+    // Never invent "Deutschland" when the KI left the country empty.
+    if (country) {
+      markFilled('trace-single-country', setSelectOrInputValue('trace-single-country', country));
+    }
+  } else {
+    markFilled('trace-raised-in', setSelectOrInputValue(
+      'trace-raised-in',
+      COUNTRY_VALUE_SET.has(label.raisedIn) ? label.raisedIn : (label.raisedIn ? 'Sonstiges EU-Land' : ''),
+    ));
+    markFilled('trace-slaughtered-in', setSelectOrInputValue(
+      'trace-slaughtered-in',
+      COUNTRY_VALUE_SET.has(label.slaughteredIn) ? label.slaughteredIn : (label.slaughteredIn ? 'Sonstiges EU-Land' : ''),
+    ));
+    if (animalType === 'rind') {
+      markFilled('trace-born-in', setSelectOrInputValue(
+        'trace-born-in',
+        COUNTRY_VALUE_SET.has(label.bornIn) ? label.bornIn : (label.bornIn ? 'Sonstiges EU-Land' : ''),
+      ));
+      markFilled('trace-cut-in', setSelectOrInputValue(
+        'trace-cut-in',
+        COUNTRY_VALUE_SET.has(label.cutIn) ? label.cutIn : (label.cutIn ? 'Sonstiges EU-Land' : ''),
+      ));
+      markFilled('trace-cutting-plant', setSelectOrInputValue('trace-cutting-plant', label.cuttingPlantNo));
+    }
+  }
+
+  flashAutofilledFields([...new Set(filledIds)]);
+  return filledIds.length > 0;
+}
+
+async function callParseMeatLabel(imageBase64, mimeType) {
+  const firebaseApi = traceState.getFirebase();
+  if (!firebaseApi?.app) {
+    throw new Error('Etikett-Scan ist gerade nicht bereit.');
+  }
+  const callable = createHttpsCallable('parseMeatLabel', { timeout: 120000 }, firebaseApi);
+  await waitForAppCheckReady();
+  const result = await callable({ imageBase64, mimeType });
+  return result?.data?.label || null;
+}
+
+function notifyToast(message, type = 'success') {
+  if (typeof window.showToast === 'function') {
+    window.showToast(message, type);
+    return;
+  }
+  traceState.showHUD(type === 'error' || type === 'warning' ? 'Hinweis' : 'Gespeichert', message, '!');
+}
+
+async function analyzePendingLabelPhoto(file) {
+  const token = ++traceState.labelParseToken;
+  showLabelScanOverlay();
+  try {
+    if (!navigator.onLine) {
+      throw new Error('offline');
+    }
+    const mimeType = String(file.type || 'image/jpeg').trim().toLowerCase() || 'image/jpeg';
+    const imageBase64 = await readFileAsBase64(file);
+    const label = await callParseMeatLabel(imageBase64, mimeType);
+    if (token !== traceState.labelParseToken) return;
+    if (!label || typeof label !== 'object') {
+      throw new Error('empty-label');
+    }
+    applyParsedLabelToForm(label);
+    notifyToast('Etikett erkannt. Bitte Daten kurz prüfen & speichern.', 'success');
+  } catch (error) {
+    if (token !== traceState.labelParseToken) return;
+    notifyToast(logAndMapOperatorError(error, 'meat-label'), 'warning');
+  } finally {
+    if (token === traceState.labelParseToken) {
+      hideLabelScanOverlay();
+    }
+  }
 }
 
 async function uploadTraceabilityPhoto(file, recordId, tenantId) {
@@ -220,7 +415,7 @@ function resetCaptureForm() {
   if (lot) lot.value = '';
   if (mark) mark.value = '';
   if (organicControlBody) organicControlBody.value = '';
-  if (organicAssociation) organicAssociation.value = 'EU-Bio';
+  if (organicAssociation) organicAssociation.value = '';
   if (animal) animal.value = 'rind';
   if (single) single.checked = true;
   ['trace-single-country', 'trace-born-in', 'trace-raised-in', 'trace-slaughtered-in', 'trace-cut-in'].forEach((id) => {
@@ -313,7 +508,11 @@ function bindCaptureControls() {
   photoBtn?.addEventListener('click', () => photoInput?.click());
   photoInput?.addEventListener('change', () => {
     const file = photoInput.files?.[0];
-    if (file) setPendingPhoto(file);
+    if (!file) return;
+    const ready = setPendingPhoto(file);
+    if (ready) {
+      void analyzePendingLabelPhoto(file);
+    }
   });
 
   document.getElementById('trace-animal-type')?.addEventListener('change', syncOriginFieldsVisibility);
@@ -334,7 +533,8 @@ function fillCountrySelects() {
   Object.entries(map).forEach(([id, selected]) => {
     const el = document.getElementById(id);
     if (!el || el.options.length) return;
-    el.innerHTML = COUNTRY_OPTIONS.map((opt) => (
+    const blank = '<option value="">Bitte wählen…</option>';
+    el.innerHTML = blank + COUNTRY_OPTIONS.map((opt) => (
       `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
     )).join('');
   });

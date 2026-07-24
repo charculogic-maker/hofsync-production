@@ -56,6 +56,7 @@ Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@A
 | Functions Security (Vitest) | `cd functions && npm run test:security` | Node 20 |
 | Staging App-Check-Smoke | `SECURITY_TEST_CALLABLE_BASE_URL=https://europe-west3-<PROJECT>.cloudfunctions.net npm run test:security` (in `functions/`) | Erreichbare Callables |
 | Firestore Rules (Emulator) | `npm run test:rules` (Repo-Root) | JDK 21+, Firebase CLI |
+| Admin RBAC UI-Matrix | [testing/admin-rbac-matrix.md](./testing/admin-rbac-matrix.md) | Manuell / E2E |
 
 Details: [TECHNIK_BACKEND.md §6](./TECHNIK_BACKEND.md#6-automatisierte-security-tests)
 

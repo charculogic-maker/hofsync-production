@@ -135,7 +135,13 @@ import {
 import {
   initDevDashboard,
   isDevDashboardRoute,
+  isTenantAdmin,
+  useTenantAdminAuth,
 } from './dev-dashboard.js';
+import {
+  consumeTenantAdminRedirectToast,
+  isPlatformSuperAdmin,
+} from './tenant-admin-auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
@@ -722,6 +728,76 @@ function hideAdminHeaderDropdown() {
     console.warn('[CharcuLogic Admin] Admin-Dropdown konnte nicht ausgeblendet werden:', err);
   }
 }
+
+function syncAdminNavZone(authSession = getAuthContext()) {
+  try {
+    const zone = document.getElementById('app-nav-admin-zone');
+    if (!zone) return;
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const isAdmin = isTenantAdmin(user, authSession)
+      || isPlatformSuperAdmin(user);
+    const show = hasAuthenticatedTenantContext(authSession) && isAdmin;
+    zone.hidden = !show;
+    zone.style.display = show ? '' : 'none';
+    document.body.classList.toggle('has-admin-nav', show);
+    document.body.classList.toggle('role-super-admin', isPlatformSuperAdmin(user));
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Verwaltungs-Navigation fehlgeschlagen:', err);
+    const zone = document.getElementById('app-nav-admin-zone');
+    if (zone) {
+      zone.hidden = true;
+      zone.style.display = 'none';
+    }
+    document.body.classList.remove('has-admin-nav');
+    document.body.classList.remove('role-super-admin');
+  }
+}
+
+function bindTenantAdminNavGuard() {
+  const link = document.getElementById('nav-admin-dashboard');
+  if (!link || link.dataset.guardBound === '1') return;
+  link.dataset.guardBound = '1';
+  link.addEventListener('click', (event) => {
+    const session = getAuthContext();
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    if (isTenantAdmin(user, session)) return;
+    event.preventDefault();
+    syncAdminNavZone(session);
+    window.showToast?.('Die Verwaltung ist nur für Betriebs-Admins.', 'warning');
+  });
+}
+
+function enforceTenantAdminRouteOrLeave(authSession = getAuthContext()) {
+  if (!isDevDashboardRoute()) return true;
+  const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+  const gate = useTenantAdminAuth({
+    user,
+    authContext: authSession,
+    redirect: true,
+    redirectTo: '/',
+  });
+  return gate.allowed;
+}
+
+function syncAppShellLayout(pageId) {
+  try {
+    const activeId = pageId || document.querySelector('.page.active')?.id || '';
+    const isDevDashboard = activeId === 'page-dev-dashboard'
+      || document.body.classList.contains('dev-dashboard-view');
+    const wide = window.matchMedia('(min-width: 1024px)').matches;
+    document.body.classList.toggle('app-shell-sidebar', wide && !isDevDashboard);
+
+    const navBrand = document.getElementById('app-nav-brand');
+    if (navBrand) {
+      const sidebar = document.body.classList.contains('app-shell-sidebar');
+      navBrand.setAttribute('aria-hidden', sidebar ? 'false' : 'true');
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic Layout] App-Shell-Layout fehlgeschlagen:', err);
+  }
+}
+
+window.syncAppShellLayout = syncAppShellLayout;
 
 function syncAdminHeaderDropdown(branding = window.BRANDING) {
   try {
@@ -1604,12 +1680,17 @@ function applyBranding() {
   const appName = branding.appName || 'CharcuLogic';
   const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
   const primaryColor = branding.primaryColor || '#28a745';
+  const logoUrl = String(branding.logoUrl || branding.logo || '/icon-192.png').trim() || '/icon-192.png';
 
   applyBrandingCssVars(branding);
 
   document.querySelectorAll('.brand-app-name').forEach((el) => { el.textContent = appName; });
   document.querySelectorAll('.brand-betriebs-name').forEach((el) => { el.textContent = betriebsName; });
   document.querySelectorAll('.auth-lock-brand').forEach((el) => { el.textContent = appName; });
+  document.querySelectorAll('.tenant-header-logo, .app-nav-brand-logo').forEach((el) => {
+    if (el.getAttribute('src') !== logoUrl) el.setAttribute('src', logoUrl);
+    el.setAttribute('alt', betriebsName ? `Logo ${betriebsName}` : '');
+  });
 
   const authTagline = `Betriebs-Login · ${appName} lädt die Mandantendaten für dieses Gerät.`;
   document.querySelectorAll('.auth-lock-tagline').forEach((el) => { el.textContent = authTagline; });
@@ -1776,6 +1857,8 @@ function applyRoleBasedUi(authSession) {
   document.body.classList.toggle('role-employee', !isHelper && !isOffice && authSession?.role === 'employee');
   document.body.classList.toggle('role-firebase-auth', firebaseRoleAuth);
   document.body.classList.toggle('role-admin', authSession?.role === 'admin');
+  syncAdminNavZone(authSession);
+  bindTenantAdminNavGuard();
 
   const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
@@ -2648,6 +2731,7 @@ function syncDesktopWideLayout(pageId) {
     'desktop-wide-layout',
     (DESKTOP_WIDE_PAGES.has(activeId) || isDevDashboard) && window.matchMedia('(min-width: 1024px)').matches,
   );
+  syncAppShellLayout(activeId);
 }
 
 window.syncDesktopWideLayout = syncDesktopWideLayout;
@@ -2663,7 +2747,10 @@ function showPage(pageId) {
   syncDesktopWideLayout(pageId);
 }
 
-window.addEventListener('resize', () => syncDesktopWideLayout());
+window.addEventListener('resize', () => {
+  syncDesktopWideLayout();
+  syncAppShellLayout();
+});
 
 const ADMIN_DROPDOWN_MODULES = {
   haccp: {
@@ -3044,10 +3131,12 @@ function bindTenantModuleConfigListener(tenantId) {
 
 window.addEventListener('popstate', () => {
   if (!isDevDashboardRoute()) return;
-  // initDevDashboard prüft die Admin-Rolle selbst und zeigt ggf. die
-  // Desktop-Fehlermeldung — kein Redirect mehr in die mobile Ansicht.
   const user = firebase?.auth?.()?.currentUser;
-  void initDevDashboard(db, { currentUser: user, authContext: getAuthContext() });
+  const authContext = getAuthContext();
+  if (!useTenantAdminAuth({ user, authContext, redirect: true, redirectTo: '/' }).allowed) {
+    return;
+  }
+  void initDevDashboard(db, { currentUser: user, authContext });
 });
 
 function startTenantLiveDataListeners() {
@@ -3480,8 +3569,10 @@ async function bootstrapAuthenticatedApp() {
   refreshRetterBoxModule();
   bindOfficeAccessLock();
   bindAdminHeaderDropdown();
+  consumeTenantAdminRedirectToast();
   window.addEventListener('charculogic:auth-changed', (event) => {
     const nextSession = event.detail || getAuthContext();
+    if (!enforceTenantAdminRouteOrLeave(nextSession)) return;
     if (nextSession?.tenantId) {
       setGlobalTenantId(nextSession.tenantId);
       void loadTenantEnabledModules(db, nextSession.tenantId).then(() => {

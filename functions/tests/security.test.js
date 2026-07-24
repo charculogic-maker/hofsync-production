@@ -119,6 +119,57 @@ describe('Vector 2 – App Check bypass (staging smoke)', () => {
 
     expect([401, 403]).toContain(response.status);
   });
+
+  runStaging('parseMeatLabel rejects missing X-Firebase-AppCheck', async () => {
+    const response = await postCallable('parseMeatLabel', {
+      body: buildCallableBody({
+        imageBase64: '',
+        mimeType: 'image/jpeg',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+    const payload = stringifyErrorPayload(await response.json().catch(() => ({})));
+    expect(payload.toLowerCase()).not.toMatch(CRYPTO_LEAK_PATTERN);
+  });
+
+  runStaging('parseMeatLabel rejects forged App Check token', async () => {
+    const response = await postCallable('parseMeatLabel', {
+      headers: {
+        'X-Firebase-AppCheck': 'forged-invalid-token-smoke-test',
+      },
+      body: buildCallableBody({
+        imageBytes: 'dGVzdA==',
+        mimeType: 'image/jpeg',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+  });
+
+  runStaging('createTenantEmployee rejects missing X-Firebase-AppCheck', async () => {
+    const response = await postCallable('createTenantEmployee', {
+      body: buildCallableBody({
+        name: 'Smoke',
+        email: 'smoke@example.com',
+        password: 'secret12',
+        tenantId: 'StevesHof_Hauptbetrieb',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+  });
+
+  runStaging('manageTenantEmployees rejects missing X-Firebase-AppCheck', async () => {
+    const response = await postCallable('manageTenantEmployees', {
+      body: buildCallableBody({
+        action: 'list',
+        tenantId: 'StevesHof_Hauptbetrieb',
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status);
+  });
 });
 
 describe('Vector 4 – PIN leak contract', () => {

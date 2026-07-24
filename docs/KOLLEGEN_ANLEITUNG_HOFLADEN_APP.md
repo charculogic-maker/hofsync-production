@@ -35,7 +35,7 @@ Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **
 
 ## Navigation
 
-In der unteren Leiste sehen wir im Hofladen typischerweise:
+Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Leiste sehen wir im Hofladen typischerweise:
 
 | Tab | Zweck |
 |-----|-------|
@@ -44,7 +44,9 @@ In der unteren Leiste sehen wir im Hofladen typischerweise:
 | **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
-**HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Admin-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Unter **/dev-dashboard → Rückverfolgbarkeit** verwalten Admins die digitale Thekenklade (Suche, Archivieren, Etikett-Ansicht für Kontrollen).
+**HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Verwaltungs-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer**, **Einstellungen**, **Protokoll** und **Thekenklade**.
+
+Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit klar getrennten Bereichen **Laden-Alltag** und **Verwaltung**.
 
 ---
 
@@ -116,7 +118,7 @@ Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** 
 Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit für die Theke:
 
 1. Tab **Herkunft** öffnen — bei Bedarf zuerst **unser Profil** wählen.
-2. **Etikett fotografieren** — die Kamera des Laden-iPhones öffnet sich.
+2. **Etikett fotografieren / scannen** — die Kamera des Laden-iPhones öffnet sich. Unsere App liest das Etikett per KI vor; wir prüfen die Felder kurz.
 3. **Charge / LOT-Nummer** eintragen (Pflicht).
 4. Optional das **Identitätskennzeichen** (ovales Kennzeichen) ergänzen.
 5. Optional **Öko-Kontrollstelle** (z. B. DE-ÖKO-006) und **Bio-Verband** wählen.
@@ -170,7 +172,7 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ## 4. Wissen nachlesen
 
-**Wissen** öffnen wir über das **Admin-Menü** (wenn freigeschaltet). Dort gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort gibt es zwei aufklappbare Bereiche:
 
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
 - **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
@@ -201,7 +203,7 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ## 6. Temperatur-Check (Qualität sichern)
 
-**HACCP** öffnen wir über das **Admin-Menü** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
+**HACCP** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
 
 1. **HACCP** öffnen.
 2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).

@@ -30,7 +30,7 @@ Bekannte Mandanten:
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
 | `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
-| `benjamin` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
+| `superbiomarkt` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
 | `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
@@ -295,6 +295,15 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
 
+### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
+
+- **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash` (Override `GEMINI_MEAT_LABEL_MODEL`).
+- **App Check:** `enforceAppCheck: true`.
+- **Client:** `web/traceability.js` → Tab **Herkunft** – nach Foto automatische Felder-Vorbelegung.
+- **Auth:** `resolveAuthContext` + `requireEmployeeAccess` (eigener Mandant, keine Aushilfe).
+- **Payload:** `imageBase64` / `imageBytes` (+ `mimeType`) oder mandantentreuer `storagePath` unter `tenants/{tenantId}/…`.
+- **Antwort:** strukturiertes Label (LOT, Identitätskennzeichen, Öko-Kontrollstelle/Verband, Tierart, Herkunft); Failsafe → manuelle Eingabe in der PWA.
+
 ### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
 
 - **Typ:** Callable HTTPS, Region `europe-west3`.
@@ -307,7 +316,7 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 
 App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
-**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
+**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `parseMeatLabel`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
 
 **Frontend:** `web/app-check.js` nutzt das **Compat SDK** (aligned mit `firebase-app.js` v10.8.x — kein paralleler modularer Import). Initialisierung direkt nach `initFirebase()` in `bootstrapAuthenticatedApp()`, **vor** Auth und dem ersten `httpsCallable`.
 

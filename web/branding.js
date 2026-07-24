@@ -3,6 +3,7 @@ import { isWhitelabelFirebaseHost } from './firebase-config.js';
 
 const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
   betriebsName: 'Ihr Betrieb',
+  logoUrl: '/icon-192.png',
   primaryColor: '#64748b',
   primaryColorHover: '#475569',
   darkHeaderBg: '#334155',
@@ -196,7 +197,7 @@ const TENANT_BRANDING = {
       employeeAuth: 'firebase',
     },
   },
-  benjamin: {
+  superbiomarkt: {
     betriebsName: 'SuperBioMarkt – Bedientheke',
     appName: 'CharcuLogic',
     primaryColor: '#8A1529',

@@ -114,8 +114,8 @@ async function updateTenantEmployee(auth, payload) {
 
   if (payload.role !== undefined) {
     const nextRole = String(payload.role || '').trim();
-    if (nextRole !== 'admin' && nextRole !== 'employee') {
-      throw new HttpsError('invalid-argument', 'Rolle muss admin oder employee sein.');
+    if (nextRole !== 'admin' && nextRole !== 'employee' && nextRole !== 'helper') {
+      throw new HttpsError('invalid-argument', 'Rolle muss admin, employee oder helper sein.');
     }
     if (targetUid === ctx.uid && nextRole !== 'admin') {
       throw new HttpsError('failed-precondition', 'Du kannst deine eigene Admin-Rolle nicht entfernen.');
@@ -182,35 +182,38 @@ function toHttpsError(err, context) {
   );
 }
 
+async function handleManageTenantEmployees(request) {
+  const action = String(request.data?.action || '').trim();
+  const tenantId = String(request.data?.tenantId || '').trim();
+
+  try {
+    const ctx = resolveAuthContext(request.auth);
+
+    if (action === 'list') {
+      const effectiveTenantId = tenantId || ctx.tenantId;
+      assertAdminAccess(request.auth, effectiveTenantId);
+      const employees = await listTenantEmployees(effectiveTenantId);
+      return { ok: true, tenantId: effectiveTenantId, employees };
+    }
+
+    if (action === 'update') {
+      return await updateTenantEmployee(request.auth, request.data);
+    }
+
+    if (action === 'remove') {
+      return await removeTenantEmployee(request.auth, request.data);
+    }
+
+    throw new HttpsError('invalid-argument', 'Unbekannte Aktion.');
+  } catch (err) {
+    throw toHttpsError(err, action || 'unknown');
+  }
+}
+
+exports.handleManageTenantEmployees = handleManageTenantEmployees;
 exports.manageTenantEmployees = onCall(
   CALLABLE_BASE_OPTIONS,
-  async (request) => {
-    const action = String(request.data?.action || '').trim();
-    const tenantId = String(request.data?.tenantId || '').trim();
-
-    try {
-      const ctx = resolveAuthContext(request.auth);
-
-      if (action === 'list') {
-        const effectiveTenantId = tenantId || ctx.tenantId;
-        assertAdminAccess(request.auth, effectiveTenantId);
-        const employees = await listTenantEmployees(effectiveTenantId);
-        return { ok: true, tenantId: effectiveTenantId, employees };
-      }
-
-      if (action === 'update') {
-        return await updateTenantEmployee(request.auth, request.data);
-      }
-
-      if (action === 'remove') {
-        return await removeTenantEmployee(request.auth, request.data);
-      }
-
-      throw new HttpsError('invalid-argument', 'Unbekannte Aktion.');
-    } catch (err) {
-      throw toHttpsError(err, action || 'unknown');
-    }
-  },
+  handleManageTenantEmployees,
 );
 
 exports.isSuperAdminForDashboard = isSuperAdmin;
