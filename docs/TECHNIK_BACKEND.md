@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juni 2026 — nach dem P0-Security- & Multi-Tenancy-Refactor (App Check Pflicht, claim-gesteuerte Mandantenisolation, `system_errors`-Schema, Shared-Terminal-Storage).
+> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -29,7 +29,8 @@ Bekannte Mandanten:
 
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
-| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Laden-Wareneingang + Prod. |
+| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
+| `superbiomarkt` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
 | `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
@@ -47,7 +48,11 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Terminal-PINs:** Gehashte Zugangsdaten liegen in `tenants/{tenantId}/terminalCredentials/current` (Client: kein Lesezugriff). Prüfung über Callable `verifyTerminalPin` (Region `europe-west3`).
 
-**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` ein neutraler Terminalmodus. Die zusätzliche Mitarbeiter-PIN-Abfrage wird übersprungen, als Bearbeiter wird `StevesHof-Team` gesetzt, der Alltags-Logout ausgeblendet und nach dem App-Start direkt `showTab('mhd')` aufgerufen. Das ist bewusst auf genau diese Kombination aus Mandant und E-Mail-Adresse begrenzt.
+**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang + Herkunft). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
+
+**Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
+
+**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine WRS/Fleischpreis-Pipeline für TorFabrik).
 
 **Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`). In Produktion ist Mandantenzuordnung **ausschließlich token-claim-gesteuert** — URL-Parameter oder Payload-Manipulation reichen nicht aus, um fremde `tenants/{tenantId}/…`-Pfade zu erreichen.
 
@@ -108,6 +113,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
@@ -152,7 +158,7 @@ Claims setzen — siehe **§1.1**.
 
 ### 3.4 Storage-Rules (`storage.rules`)
 
-Storage nutzt **`firestore.get()`** auf `users/{uid}` bzw. `userTenants/{uid}` für Mandantenzugehörigkeit und Rolle – analog zu Firestore. Bulletin-Uploads: Admin; Lieferschein-Fotos: Mitarbeiter (keine Aushilfe).
+Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
 
 **Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 
@@ -289,6 +295,15 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
 
+### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
+
+- **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash` (Override `GEMINI_MEAT_LABEL_MODEL`).
+- **App Check:** `enforceAppCheck: true`.
+- **Client:** `web/traceability.js` → Tab **Herkunft** – nach Foto automatische Felder-Vorbelegung.
+- **Auth:** `resolveAuthContext` + `requireEmployeeAccess` (eigener Mandant, keine Aushilfe).
+- **Payload:** `imageBase64` / `imageBytes` (+ `mimeType`) oder mandantentreuer `storagePath` unter `tenants/{tenantId}/…`.
+- **Antwort:** strukturiertes Label (LOT, Identitätskennzeichen, Öko-Kontrollstelle/Verband, Tierart, Herkunft); Failsafe → manuelle Eingabe in der PWA.
+
 ### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
 
 - **Typ:** Callable HTTPS, Region `europe-west3`.
@@ -301,7 +316,7 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 
 App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
-**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
+**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `parseMeatLabel`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
 
 **Frontend:** `web/app-check.js` nutzt das **Compat SDK** (aligned mit `firebase-app.js` v10.8.x — kein paralleler modularer Import). Initialisierung direkt nach `initFirebase()` in `bootstrapAuthenticatedApp()`, **vor** Auth und dem ersten `httpsCallable`.
 

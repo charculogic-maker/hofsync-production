@@ -4,6 +4,19 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [v1.3.0] - 2026-07-23
+
+### Hinzugefügt (LMIV-Rückverfolgbarkeit)
+
+- **Tab Herkunft:** Erfassungsmaske für Fleisch-Herkunft (Etikettfoto, LOT, Identitätskennzeichen, Tierart, Einzelland/Mehrländer-Felder inkl. Rind-Extras) — `web/traceability.js`.
+- **Digitale Thekenklade:** `/dev-dashboard` → Tab **Rückverfolgbarkeit** (Suche, Datumsfilter, Status Aktiv/Archiviert, Etikett-Detail).
+- **Datenmodell:** Firestore `tenants/{tenantId}/traceabilityRecords`; Storage `tenants/{tenantId}/traceability/{recordId}.jpg`.
+- **Modul-Flag:** `enabledModules.traceability` / `modules.traceability` (Seed, Branding, Dev-Dashboard-Checkbox).
+- **Rules & Tests:** Create/Read für Mandanten-Nutzer, Status-Update Admin-only; Security-Rules-Tests Case 6.
+- **Doku:** Kollegen-/User-Manuals, Modulanleitung `07-herkunft.md`, APP_DOKUMENTATION, TECHNIK_BACKEND, README.
+
+---
+
 ## [v1.2.0] - 2026-06-02
 
 ### Sicherheit & Multi-Tenancy (P0-Release)

@@ -3,38 +3,50 @@
 Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt **CharcuLogic** und ist im Laden bewusst auf die wichtigsten Aufgaben reduziert:
 
 1. **MHD kontrollieren** (inkl. Retter-Box vormerken)
-2. **Neue Ware erfassen** (Barcode-Scan)
-3. **Rezepte und Produktion öffnen**
-4. **Temperaturen und Reinigung dokumentieren** (HACCP)
-5. **Wissen nachlesen**
+2. **Neue Ware erfassen** (Barcode-Scan, Lieferung abschließen)
+3. **Fleisch-Herkunft erfassen** (LMIV / Thekenklade)
+4. **Rezepte und Produktion öffnen**
+5. **Temperaturen und Reinigung dokumentieren** (HACCP)
+6. **Wissen nachlesen**
 
 Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
 
 ## Anmeldung am Laden-iPhone
 
-Unser **Laden-iPhone** wird einmal mit dem neutralen Hofladen-Zugang angemeldet:
+Unser **Laden-iPhone** hat zwei Stufen — **Geräte-Zugang** (einmalig) und **Profil** (pro Schicht oder Kollege).
+
+### 1. Geräte-Zugang (einmal am Laden-iPhone)
 
 ```text
 bestellung@steveshof-hofladen.de
 ```
 
-Das Passwort verwalten wir intern. Die Anmeldung bleibt auf dem Laden-iPhone gespeichert.
+Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone gespeichert. Eine **PIN** brauchen wir im Hofladen nicht.
 
-Eine zusätzliche Anmeldung mit Mitarbeitername oder PIN brauchen wir im Hofladen nicht. Alle Vorgänge werden neutral als **StevesHof-Team** gespeichert.
+### 2. Profil wählen (vor MHD, Wareneingang und Herkunft)
+
+Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
+
+- Das gewählte Profil erscheint **oben rechts** in der App.
+- Für **MHD**, **Neu** (Wareneingang) und **Herkunft** ist ein Profil **Pflicht**.
+- Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut nach dem Profil.
+
+**Wichtig:** Safari **nicht** im privaten Modus nutzen — sonst vergisst das Laden-iPhone den Geräte-Zugang nach dem Schließen.
 
 ## Navigation
 
-In der unteren Leiste sehen wir im Hofladen diese Tabs:
+Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Leiste sehen wir im Hofladen typischerweise:
 
 | Tab | Zweck |
 |-----|-------|
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
-| **Neu** | Neue Ware im Laden per Barcode erfassen |
+| **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
+| **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
-| **HACCP** | Temperaturen und Reinigung dokumentieren |
-| **Wissen** | Fleisch-Lexikon und Hofladen-Handbücher lesen |
 
-Im Tab **Wissen** lesen wir direkt am Laden-iPhone das Fleisch-Lexikon und die kurzen Hofladen-Handbücher zu MHD, Reinigung und HACCP. Weitere Bereiche der Plattform sind am Laden-iPhone absichtlich ausgeblendet. Persönliche Admin-Konten können auf einem eigenen iPhone zusätzlich Büro/Chargen sehen.
+**HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Verwaltungs-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer**, **Einstellungen**, **Protokoll** und **Thekenklade**.
+
+Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit klar getrennten Bereichen **Laden-Alltag** und **Verwaltung**.
 
 ---
 
@@ -68,11 +80,11 @@ Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der M
 
 ---
 
-## 2. Neue Ware erfassen
+## 2. Neue Ware erfassen (Wareneingang)
 
-Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnellerfassung).
+Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
 
-1. Tab **Neu** öffnen.
+1. Tab **Neu** öffnen — bei Bedarf zuerst **unser Profil** wählen.
 2. Einmal die passende **Kategorie (Laden)** wählen:
    - Frische
    - MoPro
@@ -86,8 +98,12 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden** (Schnell
 5. Bei unbekannter EAN den **Produktnamen** ergänzen.
 6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
 7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-8. **Posten hinzufügen** wählen.
-9. Den nächsten Artikel scannen.
+8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
+9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
+10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
+11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
+
+Fehlt der Lieferant, speichert unsere App die Lieferung als **Direkterfassung** (mit unserem Profilnamen). Das ist in Ordnung für schnelles Einräumen ohne Lieferschein.
 
 ### Wichtig: Kategorie bleibt erhalten
 
@@ -95,9 +111,30 @@ Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerad
 
 Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
 
+---
+
+## 2b. Fleisch-Herkunft erfassen (LMIV)
+
+Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit für die Theke:
+
+1. Tab **Herkunft** öffnen — bei Bedarf zuerst **unser Profil** wählen.
+2. **Etikett fotografieren / scannen** — die Kamera des Laden-iPhones öffnet sich. Unsere App liest das Etikett per KI vor; wir prüfen die Felder kurz.
+3. **Charge / LOT-Nummer** eintragen (Pflicht).
+4. Optional das **Identitätskennzeichen** (ovales Kennzeichen) ergänzen.
+5. Optional **Öko-Kontrollstelle** (z. B. DE-ÖKO-006) und **Bio-Verband** wählen.
+6. **Tierart** wählen (Rind, Schwein, Geflügel, Schaf, Ziege).
+7. Bei **Ursprung aus einem einzigen Land** nur das Land wählen. Sonst die Mehrländer-Felder ausfüllen (bei Rind zusätzlich Geboren/Zerlegt inkl. Zulassungsnummer).
+8. **Herkunft speichern** tippen — der Eintrag ist danach **aktiv in der Theke**.
+
+Ohne WLAN speichert unsere App den Eintrag lokal und synchronisiert automatisch, sobald WLAN wieder verfügbar ist.
+
+Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Digitale Thekenklade: Suche nach LOT/Datum, Status umschalten, Original-Etikett für Kontrollen öffnen).
+
+---
+
 ### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben unter Wareneingang). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
 
 Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
 
@@ -135,7 +172,7 @@ Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Fi
 
 ## 4. Wissen nachlesen
 
-Im Tab **Wissen** gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort gibt es zwei aufklappbare Bereiche:
 
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
 - **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
@@ -166,7 +203,7 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ## 6. Temperatur-Check (Qualität sichern)
 
-Im Tab **HACCP** tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
+**HACCP** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
 
 1. **HACCP** öffnen.
 2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).
@@ -185,24 +222,42 @@ Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** u
 
 ## Liefertag: Kurzfassung
 
-1. CharcuLogic öffnen: **MHD**-Kontrolle erscheint automatisch.
-2. Offene MHD-Punkte bearbeiten und **Änderungen speichern**.
-3. Zu **Neu** wechseln.
+1. CharcuLogic öffnen — **Profil** wählen, falls gefragt.
+2. **MHD**-Kontrolle erscheint automatisch; offene Punkte bearbeiten und **Änderungen speichern**.
+3. Zu **Neu** wechseln (ggf. erneut Profil bestätigen).
 4. Kategorie für die aktuelle Warenart einmal wählen.
-5. Artikel nacheinander scannen und als Posten hinzufügen.
-6. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
+5. Artikel scannen, **Posten hinzufügen**, nächsten Artikel scannen.
+6. **Gesamte Lieferung abschließen**.
+7. Bei Fleischware: Tab **Herkunft** — Etikett fotografieren, LOT eintragen, speichern.
+8. Vor dem Wechsel zu einer anderen Warenart die Kategorie einmal ändern.
+
+## App aktualisieren (nach Büro-Update)
+
+Wenn uns das Büro bittet, die App zu aktualisieren:
+
+1. Offene Eingaben kurz **speichern** oder abbrechen.
+2. Oben rechts den **runden Pfeil ↻** tippen (**App aktualisieren**).
+3. Warten, bis die App neu lädt.
+4. Ggf. Geräte-Zugang und **Profil** erneut wählen.
+
+Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal  
+`https://hofsync-production.web.app/?reset=true` in Safari öffnen, dann Schritt 4.
 
 ## Hilfe
 
 | Problem | Lösung |
 |---------|-------|
-| Laden-iPhone zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden. |
+| Laden-iPhone zeigt die Anmeldung | Mit `bestellung@steveshof-hofladen.de` anmelden, danach Profil wählen. |
+| „Bitte zuerst dein Profil wählen“ | Namen aus der Profil-Liste oder **Andere** tippen. |
 | Passwort fehlt oder funktioniert nicht | Internen Ansprechpartner um ein neues Passwort für den Hofladen-Zugang bitten. |
 | Falsche Kategorie für nächsten Scan | Kategorie im Formular anpassen, bevor der nächste Posten erfasst wird. |
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
+| Lieferung lässt sich nicht abschließen | Profil prüfen (oben rechts), WLAN prüfen, **↻** App aktualisieren. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
 | KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
+| Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
+| App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |
 
 ## Logout am Laden-iPhone
 

@@ -4,7 +4,7 @@
 > **Zielgruppe:** Menschen, die einzelne App-Bereiche wie MHD, Neu, Prod. oder HACCP nachvollziehen wollen.
 > **Nicht hier:** Mandanten-Komplettanleitungen; diese sind über [docs/README.md](../README.md) verlinkt.
 
-Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Screenshots werden im **iPhone-Geräterahmen** erzeugt und zeigen das aktuelle Hofladen-Profil (**MHD**, **Neu**, **Prod.**, **HACCP**, **Wissen**). Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
+Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Alltagstabs: **MHD**, **Neu**, **Herkunft**, **Prod.**. HACCP/Wissen/Büro über Admin-Menü. Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
 
 | Modul | Tab (Leiste) | Details |
 |-------|----------------|---------|
@@ -12,9 +12,10 @@ Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-S
 | Team | **Team** | [06-team.md](./06-team.md) |
 | MHD-Monitor | **MHD** | [01-mhd-monitor.md](./01-mhd-monitor.md) |
 | Wareneingang | **Neu** | [02-wareneingang.md](./02-wareneingang.md) |
+| Herkunft (LMIV) | **Herkunft** | [07-herkunft.md](./07-herkunft.md) |
 | Wurstküche | **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
-| HACCP | **HACCP** | [04-haccp.md](./04-haccp.md) |
-| Chargen / Büro | **Büro** | [05-chargen.md](./05-chargen.md) |
+| HACCP | **HACCP** (Admin) | [04-haccp.md](./04-haccp.md) |
+| Chargen / Büro | **Büro** (Admin) | [05-chargen.md](./05-chargen.md) |
 
 ## Kollegen-Walkthroughs (Tagesablauf)
 
@@ -72,7 +73,7 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
    # Vollständige Modul-Übersicht (alle Tabs)
    npm run screenshots:modules
 
-   # StevesHof Hofladen (MHD · Neu · Prod. · HACCP · Wissen, ohne PIN-Karte)
+   # StevesHof Hofladen (MHD · Neu · Herkunft · Prod. · ggf. Admin-Module)
    npm run screenshots:steveshof
    ```
 
@@ -80,4 +81,4 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 
 Detail-Screenshots nutzen **Beispieldaten** (Demo-Karten, Mock-Listen), wenn Firebase offline ist – für die Schulung reicht das. Mit Live-Daten sehen die Listen in Produktion genauso aus, nur mit echten Einträgen (z. B. echte Rezeptliste unter **Prod.**).
 
-Die StevesHof-Screenshots simulieren den **Hofladen-Terminalmodus** (braunes Branding, drei Tabs, keine Mitarbeiter-PIN-Karte, kein Logout-Button) und werden in einem **iPhone-14-ähnlichen Geräterahmen** gerendert (`tools/screenshot-iphone-frame.mjs`).
+Die StevesHof-Screenshots simulieren den **Hofladen-Terminalmodus** (braunes Branding, Alltagstabs inkl. Herkunft, keine Mitarbeiter-PIN-Karte, kein Logout-Button) und werden in einem **iPhone-14-ähnlichen Geräterahmen** gerendert (`tools/screenshot-iphone-frame.mjs`).

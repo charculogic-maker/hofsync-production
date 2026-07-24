@@ -4,11 +4,55 @@ import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGerman
 import {
   getGlobalTenantId,
   getTenantCollection,
-  getTenantCollectionPath,
+  canonicalTenantId,
+  setGlobalTenantId,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+  scopedTeamboardStorageKey,
+  writeScopedLocalStorageValue,
+} from './teamboard-storage.js';
+
+function hasActiveFirebaseAuthUserForSelfHealing() {
+  if (typeof window.hasActiveFirebaseAuthUser === 'function') {
+    return window.hasActiveFirebaseAuthUser();
+  }
+  try {
+    const firebaseApi = mhdState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    return Boolean(firebaseApi?.apps?.length && firebaseApi.auth?.().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
+function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (typeof window.isFirestorePermissionDeniedError === 'function'
+    && window.isFirestorePermissionDeniedError(err)) {
+    console.warn('[CharcuLogic MHD] Firestore-Zugriff verweigert — kein Auto-Logout', {
+      context,
+      code: err?.code,
+      message: err?.message,
+    });
+    window.showToast?.('Speichern nicht erlaubt. Bitte im Büro Bescheid geben.', 'error');
+  }
+  return false;
+}
+
+const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
+
+function canStartMhdFirestoreLiveSync() {
+  try {
+    if (sessionStorage.getItem(AUTH_LOOP_BREAKER_KEY) === 'true') return false;
+  } catch (_) { /* noop */ }
+  if (typeof window.canStartFirestoreLiveListeners === 'function') {
+    return window.canStartFirestoreLiveListeners();
+  }
+  const authApi = mhdState.getFirebase?.()?.auth?.();
+  return Boolean(authApi?.currentUser);
+}
 
 const HACCP_TEMP_LIMIT_C = 7.0;
 const MHD_MONITOR_HORIZON_OPTIONS = [3, 7, 14, 21];
@@ -208,20 +252,64 @@ const mhdState = {
   initialized: false,
 };
 
+const MHD_ADMIN_SEARCH_LIMIT = 40;
+const MHD_ADMIN_SEARCH_DEBOUNCE_MS = 280;
+const mhdAdminSearchState = {
+  query: '',
+  requestId: 0,
+  debounceTimer: null,
+  loading: false,
+  results: [],
+};
+
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
-function requireMhdTenantId() {
-  const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
-  if (!tenantId) { console.error('[CharcuLogic Firebase] MHD-Modul ohne Mandanten-ID initialisiert.'); return null; }
+
+function resolveMhdTenantId() {
+  const tenantId = canonicalTenantId(getGlobalTenantId() || mhdState.tenantId);
+  if (!tenantId) return '';
+  if (!getGlobalTenantId()) {
+    setGlobalTenantId(tenantId);
+  }
+  mhdState.tenantId = tenantId;
   return tenantId;
 }
-function mhdCollectionPath() {
-  if (!requireMhdTenantId()) return null;
-  try {
-    return getTenantCollectionPath('mhd_liste');
-  } catch {
+
+function requireMhdTenantId() {
+  const tenantId = resolveMhdTenantId();
+  if (!tenantId) {
+    console.error('[CharcuLogic Firebase] MHD-Modul ohne Mandanten-ID initialisiert.');
     return null;
   }
+  return tenantId;
+}
+
+function buildTenantScopedCollectionPath(collectionName) {
+  const tenantId = requireMhdTenantId();
+  if (!tenantId) return null;
+  const name = String(collectionName || '').replace(/^\/+|\/+$/g, '');
+  if (!name) return null;
+  return `tenants/${tenantId}/${name}`;
+}
+
+function resolveFinalizeDeliveryFirestoreTargets() {
+  const tenantId = requireMhdTenantId();
+  if (!tenantId) return null;
+  return {
+    tenantId,
+    deliveryPath: `tenants/${tenantId}/wareneingang_lieferungen`,
+    mhdPath: `tenants/${tenantId}/mhd_liste`,
+  };
+}
+
+function alertFinalizeDeliveryFirestoreError(err, targetPath = 'unbekannt') {
+  const details = err?.message || String(err || 'Unbekannter Fehler');
+  const code = err?.code ? ` [${err.code}]` : '';
+  window.alert(`FEHLER BEIM ABSCHLIESSEN! Pfad: ${targetPath} - Details: ${details}${code}`);
+}
+
+function mhdCollectionPath() {
+  return buildTenantScopedCollectionPath('mhd_liste');
 }
 function mhdDocRef(docId) {
   try {
@@ -236,6 +324,144 @@ function serverTimestampFallback() {
   return firebaseInstance?.firestore?.FieldValue?.serverTimestamp
     ? firebaseInstance.firestore.FieldValue.serverTimestamp()
     : new Date().toISOString();
+}
+
+const RECEIVING_SAVE_LOCK_MS = 1500;
+
+function resolveTeamSessionDisplayName() {
+  if (typeof window.resolveTeamSessionName === 'function') {
+    return window.resolveTeamSessionName();
+  }
+  const betriebsName = String(window.BRANDING?.betriebsName || 'Betrieb').trim();
+  const shortName = betriebsName.split(/\s+/)[0] || betriebsName;
+  return `Team ${shortName}`;
+}
+
+function getAuditActorName() {
+  const active = getActiveEmployee();
+  if (window.isProfileEmployeeAuth?.()) {
+    return window.isNamedProfileSession?.(active) ? active : active || '';
+  }
+  return active || resolveTeamSessionDisplayName();
+}
+
+function buildHiddenAuditFields() {
+  const actor = getAuditActorName();
+  const fields = {
+    createdAt: serverTimestampFallback(),
+    updatedAt: serverTimestampFallback(),
+  };
+  if (actor) fields.scannedBy = actor;
+  return fields;
+}
+
+const MHD_LISTE_WRITE_FIELDS = new Set([
+  'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+  'produkt', 'name', 'marke', 'brand',
+  'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+  'tage', 'resttage', 'status',
+  'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+  'kategorie', 'warenKategorie', 'soldOut',
+  'lot', 'chargenNummer', 'lieferant', 'temperatur',
+  'erfassungsDatum', 'meisterOverrideReason',
+  'vpeBarcode', 'vpeInhalt',
+  'source', 'postentyp', 'wareneingangAt',
+  'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+  'rabattiert', 'rabattiertAt',
+  'kuecheAngefragt', 'kuecheAngefragtAt',
+  'retterBoxAngefragt', 'retterBoxAngefragtAt',
+  'lieferungId',
+]);
+
+const DELIVERY_WRITE_FIELDS = new Set([
+  'id', 'lieferant', 'warenKategorie', 'temperatur',
+  'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
+  'fotos', 'items', 'itemCount',
+  'source', 'scannedBy', 'tenantId',
+  'createdAt', 'updatedAt',
+]);
+
+function pickFirestoreFields(payload, allowedFields) {
+  const clean = {};
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (!allowedFields.has(key) || value === undefined) return;
+    clean[key] = value;
+  });
+  return clean;
+}
+
+function sanitizeMhdListePayload(payload) {
+  return pickFirestoreFields(payload, MHD_LISTE_WRITE_FIELDS);
+}
+
+function sanitizeDeliveryPayload(payload) {
+  return pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
+}
+
+function buildHiddenQueuedAuditFields() {
+  const actor = getAuditActorName();
+  const nowIso = new Date().toISOString();
+  const fields = {
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+  if (actor) fields.scannedBy = actor;
+  return fields;
+}
+
+function syncInventoryActorBetweenModules() {
+  const fromApp = String(window.readActiveEmployee?.() || '').trim();
+  const fromMhd = getActiveEmployee();
+  if (fromApp && fromApp !== fromMhd) {
+    setActiveEmployee(fromApp);
+    return fromApp;
+  }
+  if (fromMhd && !fromApp) {
+    window.persistActiveEmployeeSession?.(fromMhd);
+    return fromMhd;
+  }
+  return fromMhd || fromApp;
+}
+
+function withHiddenAudit(onlineData, queueData = onlineData) {
+  syncInventoryActorBetweenModules();
+  recordInventoryProfileActivity();
+  return {
+    onlineData: { ...onlineData, ...buildHiddenAuditFields() },
+    queueData: { ...queueData, ...buildHiddenQueuedAuditFields() },
+  };
+}
+
+function withSanitizedDeliveryAudit(onlineData, queueData = onlineData) {
+  const audited = withHiddenAudit(onlineData, queueData);
+  return {
+    onlineData: sanitizeDeliveryPayload(audited.onlineData),
+    queueData: sanitizeDeliveryPayload(audited.queueData),
+  };
+}
+
+function withSanitizedMhdAudit(onlineData, queueData = onlineData) {
+  const audited = withHiddenAudit(onlineData, queueData);
+  return {
+    onlineData: sanitizeMhdListePayload(audited.onlineData),
+    queueData: sanitizeMhdListePayload(audited.queueData),
+  };
+}
+
+function recordInventoryProfileActivity() {
+  window.touchProfileLastActionTime?.();
+}
+
+function beginReceivingSaveButtonLock(button, restoreState) {
+  if (!button || button.dataset.receivingSaveLock === '1') return false;
+  button.dataset.receivingSaveLock = '1';
+  button.disabled = true;
+  setTimeout(() => {
+    delete button.dataset.receivingSaveLock;
+    if (typeof restoreState === 'function') restoreState();
+  }, RECEIVING_SAVE_LOCK_MS);
+  return true;
 }
 
 const MHD_TROCKEN_CATEGORY = '📦 Trockenware';
@@ -338,6 +564,93 @@ const TORFABRIK_RECEIVING_CATEGORIES = [
 ];
 
 const TORFABRIK_FASS_SHELF_DAYS = 14;
+const KAESE_THEKE_CATEGORY_VALUE = 'kaese_theke';
+let kaeseThekeQtyMode = 'stueck';
+
+function isAdvancedKaeseUpgradeEnabled() {
+  return window.BRANDING?.advancedKaeseUpgrade === true;
+}
+
+function isKaeseThekeCategory(category = '') {
+  const normalized = String(category || '').trim().toLowerCase();
+  return normalized === KAESE_THEKE_CATEGORY_VALUE || normalized === 'käse-theke';
+}
+
+function getBrandingReceivingCategoriesExtra() {
+  if (!isAdvancedKaeseUpgradeEnabled()) return [];
+  const extra = window.BRANDING?.receivingCategoriesExtra;
+  return Array.isArray(extra) ? extra : [];
+}
+
+function ensureKaeseThekeQtyToggle() {
+  try {
+    const existing = document.getElementById('we-kaese-qty-mode-wrap');
+    if (!isAdvancedKaeseUpgradeEnabled()) {
+      existing?.remove();
+      return null;
+    }
+    if (existing?.isConnected) return existing;
+    if (existing) existing.remove();
+
+    const categorySelect = document.getElementById('we-category-quick');
+    const categoryField = categorySelect?.closest?.('.receiving-field');
+    if (!categoryField?.parentElement) return null;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'we-kaese-qty-mode-wrap';
+    wrap.className = 'receiving-field hidden';
+    wrap.hidden = true;
+    wrap.innerHTML = `
+    <span class="kaese-qty-field-label">Einheit (Käse-Theke)</span>
+    <div class="kaese-qty-segment" role="group" aria-label="Käse-Theke Einheit">
+      <button type="button" class="kaese-qty-segment-btn active" data-kaese-qty-mode="stueck" aria-pressed="true">Stück</button>
+      <button type="button" class="kaese-qty-segment-btn" data-kaese-qty-mode="gewicht" aria-pressed="false">Gewicht (kg)</button>
+    </div>
+  `;
+    categoryField.insertAdjacentElement('afterend', wrap);
+    if (!wrap.isConnected) return null;
+
+    if (wrap.dataset.kaeseQtyBound !== '1') {
+      wrap.dataset.kaeseQtyBound = '1';
+      wrap.addEventListener('click', (event) => {
+        const modeBtn = event.target?.closest?.('[data-kaese-qty-mode]');
+        if (!modeBtn || !wrap.isConnected) return;
+        kaeseThekeQtyMode = modeBtn.dataset.kaeseQtyMode === 'gewicht' ? 'gewicht' : 'stueck';
+        wrap.querySelectorAll('[data-kaese-qty-mode]').forEach((btn) => {
+          const active = btn.dataset.kaeseQtyMode === kaeseThekeQtyMode;
+          btn.classList.toggle('active', active);
+          btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        updateReceivingQtyFieldUi();
+      });
+    }
+
+    return wrap;
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Käse-Theke Einheit konnte nicht initialisiert werden:', err);
+    return null;
+  }
+}
+
+function updateKaeseThekeQtyModeVisibility(category = '') {
+  try {
+    const wrap = ensureKaeseThekeQtyToggle();
+    if (!wrap?.isConnected) return;
+    const show = isAdvancedKaeseUpgradeEnabled() && isKaeseThekeCategory(category);
+    wrap.classList.toggle('hidden', !show);
+    wrap.hidden = !show;
+    if (!show && kaeseThekeQtyMode !== 'stueck') {
+      kaeseThekeQtyMode = 'stueck';
+      wrap.querySelectorAll('[data-kaese-qty-mode]').forEach((btn) => {
+        const active = btn.dataset.kaeseQtyMode === 'stueck';
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Käse-Theke Sichtbarkeit konnte nicht aktualisiert werden:', err);
+  }
+}
 
 function isTorfabrikTenant() {
   const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
@@ -345,7 +658,10 @@ function isTorfabrikTenant() {
 }
 
 function getReceivingCategoriesForTenant() {
-  return isTorfabrikTenant() ? TORFABRIK_RECEIVING_CATEGORIES : RECEIVING_CATEGORIES;
+  if (isTorfabrikTenant()) return TORFABRIK_RECEIVING_CATEGORIES;
+  const extra = getBrandingReceivingCategoriesExtra();
+  if (!extra.length) return RECEIVING_CATEGORIES;
+  return [...RECEIVING_CATEGORIES, ...extra];
 }
 
 function formatIsoToGermanDate(isoDate) {
@@ -371,24 +687,30 @@ function suggestTorfabrikMhdAfterAnstich(kategorie, produktName = '') {
 }
 
 function applyReceivingCategoryOptions() {
-  const select = document.getElementById('we-category-quick');
-  if (!select) return;
-  const categories = getReceivingCategoriesForTenant();
-  const previous = normalizeMhdCategory(select.value || lastReceivingHeadCategory);
-  const optionsHtml = [
-    '<option value="">-- Kategorie wählen --</option>',
-    ...categories.map((cat) => `<option value="${escapeHtml(cat.value)}">${escapeHtml(cat.label)}</option>`),
-  ].join('');
-  select.innerHTML = optionsHtml;
-  const hasPrevious = categories.some((cat) => normalizeMhdCategory(cat.value) === previous);
-  if (hasPrevious) {
-    select.value = categories.find((cat) => normalizeMhdCategory(cat.value) === previous)?.value || '';
-  } else if (lastReceivingHeadCategory) {
-    const sticky = categories.find((cat) => normalizeMhdCategory(cat.value) === normalizeMhdCategory(lastReceivingHeadCategory));
-    if (sticky) select.value = sticky.value;
+  try {
+    const select = document.getElementById('we-category-quick');
+    if (!select) return;
+    const categories = getReceivingCategoriesForTenant() || RECEIVING_CATEGORIES;
+    const previous = normalizeMhdCategory(select.value || lastReceivingHeadCategory || '');
+    const optionsHtml = [
+      '<option value="">-- Kategorie wählen --</option>',
+      ...categories.map((cat) => `<option value="${escapeHtml(cat?.value || '')}">${escapeHtml(cat?.label || cat?.value || '')}</option>`),
+    ].join('');
+    select.innerHTML = optionsHtml;
+    const hasPrevious = categories.some((cat) => normalizeMhdCategory(cat?.value || '') === previous);
+    if (hasPrevious) {
+      select.value = categories.find((cat) => normalizeMhdCategory(cat?.value || '') === previous)?.value || '';
+    } else if (lastReceivingHeadCategory) {
+      const sticky = categories.find(
+        (cat) => normalizeMhdCategory(cat?.value || '') === normalizeMhdCategory(lastReceivingHeadCategory),
+      );
+      if (sticky?.value) select.value = sticky.value;
+    }
+    updateReceivingQtyFieldUi();
+    updateReceivingTemperatureFieldUi();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Kategorien konnten nicht aktualisiert werden:', err);
   }
-  updateReceivingQtyFieldUi();
-  updateReceivingTemperatureFieldUi();
 }
 
 function applyMhdCategoryFilterOptions() {
@@ -533,13 +855,16 @@ function rememberMhdScanCategory(category) {
 }
 
 function applyLastReceivingHeadCategory() {
-  const categorySelect = document.getElementById('we-category-quick');
-  if (!categorySelect || !lastReceivingHeadCategory) return;
-  const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === lastReceivingHeadCategory);
-  if (hasOption) {
+  try {
+    const categorySelect = document.getElementById('we-category-quick');
+    if (!categorySelect || !lastReceivingHeadCategory) return;
+    const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === lastReceivingHeadCategory);
+    if (!hasOption) return;
     categorySelect.value = lastReceivingHeadCategory;
     updateReceivingQtyFieldUi();
     updateReceivingTemperatureFieldUi();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Letzte Wareneingang-Kategorie konnte nicht wiederhergestellt werden:', err);
   }
 }
 
@@ -621,9 +946,8 @@ function openReceivingManualCreateForm() {
 
 function getActiveEmployee() {
   try {
-    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
     return String(
-      localStorage.getItem(key)
+      readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId())
       || mhdState.terminalEmployeeName
       || '',
     ).trim();
@@ -637,8 +961,7 @@ function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return;
   try {
-    const key = scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, getGlobalTenantId() || mhdState.tenantId);
-    localStorage.setItem(key, cleanName);
+    writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId(), cleanName);
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gespeichert werden:', err);
@@ -648,7 +971,69 @@ function setActiveEmployee(employeeName) {
   }));
 }
 
+async function resolveInventoryActorForScan() {
+  if (window.isFirebaseRoleAuth?.()) {
+    const employeeName = window.syncFirebaseEmployeeSession?.()
+      || window.resolveFirebaseEmployeeName?.()
+      || getActiveEmployee();
+    if (employeeName) setActiveEmployee(employeeName);
+    return employeeName || '';
+  }
+  if (window.isProfileEmployeeAuth?.()) {
+    const firebaseReady = await window.ensureTenantFirebaseAuth?.();
+    if (!firebaseReady) {
+      mhdState.showHUD(
+        'Betriebs-Anmeldung fehlt',
+        'Bitte zuerst den Geräte-Zugang bestätigen, danach Profil wählen.',
+        '!',
+      );
+      return '';
+    }
+    if (!window.isInventoryWriteReady?.()) {
+      const employeeName = await window.requireProfileSessionForInventory?.();
+      if (employeeName) setActiveEmployee(employeeName);
+      return employeeName || '';
+    }
+    const employeeName = getActiveEmployee() || await window.requireProfileSessionForInventory?.();
+    if (employeeName) setActiveEmployee(employeeName);
+    return employeeName || '';
+  }
+  if (window.isEmployeePinRequired?.() === false) {
+    const employeeName = getActiveEmployee()
+      || (typeof window.ensureEmployeeSessionForProtectedArea === 'function'
+        ? window.ensureEmployeeSessionForProtectedArea()
+        : resolveTeamSessionDisplayName());
+    if (employeeName) setActiveEmployee(employeeName);
+    return employeeName || '';
+  }
+  return '';
+}
+
+async function ensureInventoryProfileReadyForDelivery() {
+  if (window.isFirebaseRoleAuth?.()) {
+    resolveMhdTenantId();
+    return window.ensureInventoryProfileReadyForWrite?.();
+  }
+  if (!window.isProfileEmployeeAuth?.()) return true;
+  resolveMhdTenantId();
+  const ready = await window.ensureInventoryProfileReadyForWrite?.();
+  if (!ready) {
+    mhdState.showHUD(
+      'Profil fehlt',
+      'Bitte zuerst dein Profil für den Wareneingang wählen.',
+      '!',
+    );
+    return false;
+  }
+  syncInventoryActorBetweenModules();
+  return true;
+}
+
 function requestEmployeePinForScan(barcode) {
+  if (window.isFirebaseRoleAuth?.() || window.isProfileEmployeeAuth?.() || window.isEmployeePinRequired?.() === false) {
+    return resolveInventoryActorForScan().then((employeeName) => employeeName || null);
+  }
+
   return new Promise((resolve) => {
     document.getElementById('pin-auth-overlay')?.remove();
 
@@ -1133,6 +1518,7 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
     return false;
   }
 
+  recordInventoryProfileActivity();
   const eanEl = document.getElementById('we-ean');
   if (eanEl) eanEl.value = code;
   currentDeliveryItemBarcode = code;
@@ -1190,6 +1576,12 @@ function applyTorfabrikFassMhdSuggestion() {
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
+  const actor = await resolveInventoryActorForScan();
+  if (!actor) {
+    mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
+    return;
+  }
+  recordInventoryProfileActivity();
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
@@ -1220,16 +1612,19 @@ async function processScannedBarcode(decodedText, source = 'camera') {
   currentBarcode = scannedCode;
   mhdState.closeScanner({ preserveScanState: true });
   let employeeName = getActiveEmployee();
-  if (employeeName) {
-    window.showToast?.(`Erfasst durch ${employeeName}`, "success");
-  } else {
+  if (!employeeName || (window.isProfileEmployeeAuth?.() && !window.isNamedProfileSession?.(employeeName))) {
+    employeeName = await resolveInventoryActorForScan();
+  }
+  if (!employeeName && window.isEmployeePinRequired?.() !== false) {
     employeeName = await requestEmployeePinForScan(scannedCode);
   }
   if (!employeeName) {
-    renderReceivingStatus({ lastScan: scannedCode, status: 'Scan abgebrochen' });
+    renderReceivingStatus({ lastScan: scannedCode, status: 'Profil erforderlich' });
     resetScanState({ keepLearnOverlay: false });
     return;
   }
+  recordInventoryProfileActivity();
+  window.showToast?.(`Erfasst durch ${employeeName}`, 'success');
   activeScan = {
     barcode: scannedCode,
     scannedAt: Date.now(),
@@ -1326,20 +1721,22 @@ async function handleScannedEan(ean) {
     selectedProduct = existing;
     const newQty = existing.soldOut ? 1 : (existing.qty ?? 0) + 1;
     const updates = { qty: newQty, soldOut: false, scannedBy: activeScan?.scannedBy || '' };
+    const audited = withHiddenAudit(updates);
 
     try {
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: existing.id,
         op: 'update',
-        onlineData: updates,
-        queueData: updates,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
         offlineMessage: 'Bestandsaenderung wird nachtraeglich synchronisiert.',
       });
       activeScan.handled = true;
       mhdState.playFeedbackSound('success');
       mhdState.showHUD("➕ Bestand erhöht", `${existing.name} – Menge: ${newQty}`);
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'handleScannedEan')) return;
       console.error('[CharcuLogic Firebase] handleScannedEan() Update fehlgeschlagen:', err);
     }
     resetScanState({ keepLearnOverlay: false });
@@ -1386,6 +1783,8 @@ function showLegacyLearnModeDialog(ean) {
   setTimeout(() => inputName?.focus(), 100);
 
   btnLearnSave?.addEventListener('click', async () => {
+    if (!beginReceivingSaveButtonLock(btnLearnSave)) return;
+
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || 'StevesHof';
 
@@ -1409,13 +1808,15 @@ function showLegacyLearnModeDialog(ean) {
       tenantId: mhdState.tenantId,
     };
 
+    const auditedProduct = withHiddenAudit(newProduct);
+
     try {
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: learnDocId,
         op: 'set',
-        onlineData: { ...newProduct, createdAt: serverTimestampFallback() },
-        queueData: { ...newProduct, createdAt: new Date().toISOString() },
+        onlineData: auditedProduct.onlineData,
+        queueData: auditedProduct.queueData,
         offlineMessage: 'Neuer Artikel wird nachträglich synchronisiert.',
       });
       learnModeOverlay?.remove();
@@ -1424,6 +1825,7 @@ function showLegacyLearnModeDialog(ean) {
       mhdState.playClickSound(1300, 0.08, 0.2);
       mhdState.showHUD("✅ Artikel gelernt", `${name} wurde in Firestore verbucht.`);
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'mhd-learn-mode')) return;
       console.error('[CharcuLogic Firebase] Lernmodus speichern fehlgeschlagen:', err);
       mhdState.showHUD("⚠️ Fehler", "Artikel konnte nicht gespeichert werden.", "⚠️");
     }
@@ -1568,6 +1970,8 @@ function showLearnModeDialog(ean) {
   });
 
   btnLearnSave?.addEventListener('click', async () => {
+    if (!beginReceivingSaveButtonLock(btnLearnSave, updateLotGate)) return;
+
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
     const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
@@ -1648,15 +2052,15 @@ function showLearnModeDialog(ean) {
       source: 'wareneingang-app',
       postentyp: 'wareneingang',
       wareneingangAt: new Date().toISOString(),
-      scannedBy: activeScan?.scannedBy || '',
+      scannedBy: activeScan?.scannedBy || getAuditActorName(),
       tenantId: mhdState.tenantId,
       updatedAt: serverTimestampFallback(),
-      createdAt: serverTimestampFallback()
     };
+    const auditedProduct = withHiddenAudit(newProduct);
+    const newProductOnline = { ...auditedProduct.onlineData, updatedAt: serverTimestampFallback() };
     const queuedProduct = {
-      ...newProduct,
+      ...auditedProduct.queueData,
       updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
     };
 
     try {
@@ -1670,7 +2074,7 @@ function showLearnModeDialog(ean) {
           collectionPath: mhdCollectionPath(),
           docId: postenId,
           op: 'set',
-          onlineData: newProduct,
+          onlineData: newProductOnline,
           queueData: queuedProduct,
           offlineMessage: "Wareneingang wird nachträglich synchronisiert.",
         }),
@@ -1678,6 +2082,7 @@ function showLearnModeDialog(ean) {
       const saveResults = await Promise.allSettled(saveJobs);
       const failedSave = saveResults.find((result) => result.status === 'rejected');
       if (failedSave) {
+        if (maybeResetOnFirestorePermissionError(failedSave.reason, 'receiving-learn-save')) return;
         console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
       }
       const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
@@ -1711,6 +2116,7 @@ function showLearnModeDialog(ean) {
       }
       resetScanState({ keepLearnOverlay: false });
     } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'receiving-learn-save')) return;
       console.error('[CharcuLogic Firebase] Lernmodus speichern fehlgeschlagen:', err);
       mhdState.showHUD("Fehler", "Artikel konnte nicht gespeichert werden.", "!");
       resetScanState({ keepLearnOverlay: false });
@@ -1727,6 +2133,7 @@ function showLearnModeDialog(ean) {
 function normalizeMhdCategory(kategorie) {
   const kat = (kategorie || '').trim();
   if (!kat) return MHD_CANONICAL_CATEGORIES.mopro;
+  if (kat === 'kaese_theke' || kat === 'Käse-Theke') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === '❄️Kühlware' || kat === '❄️ Kühlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === 'Gewürze' || kat === '🌿Gewürze' || kat === '🌿 Gewürze') return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke/i.test(kat) || kat.startsWith('🍺')) return MHD_CANONICAL_CATEGORIES.getraenke;
@@ -1835,6 +2242,62 @@ function formatMhdDateForCardMeta(prod = {}) {
   return dotted || '';
 }
 
+function parseMhdRecordTimestamp(value) {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveMhdRecordCreatedAt(prod = {}) {
+  return parseMhdRecordTimestamp(prod.createdAt)
+    || parseMhdRecordTimestamp(prod.wareneingangAt)
+    || parseMhdRecordTimestamp(prod.erfassungsDatum)
+    || parseMhdRecordTimestamp(prod.updatedAt)
+    || null;
+}
+
+function resolveMhdRecordActor(prod = {}) {
+  const scannedBy = String(prod.scannedBy || '').trim();
+  if (scannedBy) return scannedBy;
+  const lieferant = String(prod.lieferant || '').trim();
+  const match = /^Direkterfassung\s*\(([^)]+)\)/i.exec(lieferant);
+  return match ? match[1].trim() : '';
+}
+
+function formatMhdRecordTimestampLabel(prod = {}) {
+  const createdAt = resolveMhdRecordCreatedAt(prod);
+  if (!createdAt) return '';
+
+  const now = new Date();
+  const isToday = createdAt.toDateString() === now.toDateString();
+  const timeStr = createdAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  let label = isToday
+    ? `Erfasst: ${timeStr} Uhr`
+    : `Eingepflegt am ${createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${timeStr} Uhr`;
+
+  const actor = resolveMhdRecordActor(prod);
+  if (actor) label += ` (${actor})`;
+  return label;
+}
+
+function appendMhdRecordActorLabel(label, prod = {}) {
+  const actor = resolveMhdRecordActor(prod);
+  if (!actor) return label;
+  return `${label} (${actor})`;
+}
+
+function resolveMhdProductMetaSecondaryLabel(prod = {}) {
+  const timestampLabel = formatMhdRecordTimestampLabel(prod);
+  if (timestampLabel) return timestampLabel;
+
+  const mhdDate = formatMhdDateForCardMeta(prod);
+  if (mhdDate) return appendMhdRecordActorLabel(`MHD: ${mhdDate}`, prod);
+
+  return appendMhdRecordActorLabel('Zugefügt vor Update', prod);
+}
+
 function getCategoryBadgeLabel(prod = {}) {
   const category = getProductCategory(prod);
   return category || 'Kategorie';
@@ -1843,10 +2306,20 @@ function getCategoryBadgeLabel(prod = {}) {
 function buildMhdProductMetaHtml(prod = {}) {
   const parts = [];
   const brand = String(prod.brand || prod.marke || '').trim();
-  const mhdDate = formatMhdDateForCardMeta(prod);
+  const secondaryLabel = resolveMhdProductMetaSecondaryLabel(prod);
   if (brand) parts.push(brand);
-  if (mhdDate) parts.push(`MHD ${mhdDate}`);
+  if (secondaryLabel) parts.push(secondaryLabel);
+  if (isOfficeUser()) {
+    const barcodeLabel = resolveMhdRecordBarcodeLabel(prod);
+    if (barcodeLabel) parts.push(barcodeLabel);
+  }
   return parts.map((part) => escapeHtml(part)).join(' · ');
+}
+
+function resolveMhdRecordBarcodeLabel(prod = {}) {
+  const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  if (!barcode || !/^\d{4,}$/.test(barcode)) return '';
+  return `EAN: ${barcode}`;
 }
 
 function getProductBarcode(prod = {}) {
@@ -2061,8 +2534,8 @@ function mapMhdDoc(doc) {
 }
 
 function loadMhdFromCloud() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!isFirebaseReady() || !mhdState.db) {
-    console.error('[CharcuLogic Firebase] loadMhdFromCloud(): Firebase ist nicht initialisiert.');
     return;
   }
 
@@ -2075,21 +2548,24 @@ function loadMhdFromCloud() {
     (snapshot) => {
       mhdState.products = snapshot.docs.map(mapMhdDoc);
       renderMhdList();
+      refreshMhdAdminSearchFromCache();
     },
     (err) => {
+      if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
       console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
     }
   );
 }
 
 async function isMhdCollectionEmpty() {
+  if (!canStartMhdFirestoreLiveSync()) return true;
   const snap = await mhdState.db.collection(mhdCollectionPath()).limit(1).get();
   return snap.empty;
 }
 
 async function importMhdBestandToCloud() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!isFirebaseReady() || !mhdState.db) {
-    console.error('[CharcuLogic Firebase] importMhdBestandToCloud(): Firebase nicht initialisiert.');
     return;
   }
   try {
@@ -2105,8 +2581,309 @@ async function importMhdBestandToCloud() {
     );
     console.info(`[CharcuLogic Firebase] ${mhdBestandSeed.length} MHD-Artikel in Firestore geseedet.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'importMhdBestandToCloud')) return;
     console.error('[CharcuLogic Firebase] MHD-Seed fehlgeschlagen:', err);
   }
+}
+
+function normalizeAdminSearchQuery(value = '') {
+  return String(value || '').trim();
+}
+
+function isAdminBarcodeSearchQuery(query = '') {
+  const clean = cleanScannedBarcode(query);
+  return Boolean(clean && /^\d{4,}$/.test(clean));
+}
+
+function matchesAdminSearchLocally(prod = {}, needle = '', rawQuery = '') {
+  const name = String(prod.name || prod.produkt || '').toLowerCase();
+  const brand = String(prod.brand || prod.marke || '').toLowerCase();
+  const barcode = getProductBarcode(prod);
+  if (isAdminBarcodeSearchQuery(rawQuery)) {
+    return barcode === cleanScannedBarcode(rawQuery);
+  }
+  const cleanNeedle = cleanScannedBarcode(rawQuery) || '';
+  return name.includes(needle)
+    || brand.includes(needle)
+    || (cleanNeedle && barcode.includes(cleanNeedle));
+}
+
+function mergeMhdAdminSearchDocs(...snapshots) {
+  const byId = new Map();
+  snapshots.forEach((snapshot) => {
+    snapshot?.docs?.forEach((doc) => {
+      if (!byId.has(doc.id)) byId.set(doc.id, mapMhdDoc(doc));
+    });
+  });
+  return [...byId.values()];
+}
+
+async function fetchMhdAdminSearchSnapshot(queryPromise) {
+  try {
+    return await queryPromise;
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'queryMhdListeAdmin')) return { docs: [] };
+    console.warn('[CharcuLogic MHD Admin] Firestore-Suche fehlgeschlagen:', err);
+    return { docs: [] };
+  }
+}
+
+async function queryMhdListeAdmin(searchText = '') {
+  if (!mhdState.db || !canStartMhdFirestoreLiveSync()) return [];
+  const query = normalizeAdminSearchQuery(searchText);
+  if (query.length < 2) return [];
+
+  const coll = mhdState.db.collection(mhdCollectionPath());
+  const snapshots = [];
+
+  if (isAdminBarcodeSearchQuery(query)) {
+    const barcode = cleanScannedBarcode(query);
+    const [eanSnap, barcodeSnap, scanSnap] = await Promise.all([
+      fetchMhdAdminSearchSnapshot(coll.where('ean', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+      fetchMhdAdminSearchSnapshot(coll.where('barcode', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+      fetchMhdAdminSearchSnapshot(coll.where('scanBarcode', '==', barcode).limit(MHD_ADMIN_SEARCH_LIMIT).get()),
+    ]);
+    snapshots.push(eanSnap, barcodeSnap, scanSnap);
+  } else {
+    const prefixVariants = [...new Set([
+      query,
+      query.charAt(0).toUpperCase() + query.slice(1),
+      query.toLowerCase(),
+    ])].filter(Boolean);
+
+    for (const prefix of prefixVariants) {
+      const end = `${prefix}\uf8ff`;
+      const [nameSnap, produktSnap] = await Promise.all([
+        fetchMhdAdminSearchSnapshot(
+          coll.where('name', '>=', prefix).where('name', '<=', end).limit(MHD_ADMIN_SEARCH_LIMIT).get(),
+        ),
+        fetchMhdAdminSearchSnapshot(
+          coll.where('produkt', '>=', prefix).where('produkt', '<=', end).limit(MHD_ADMIN_SEARCH_LIMIT).get(),
+        ),
+      ]);
+      snapshots.push(nameSnap, produktSnap);
+    }
+  }
+
+  const needle = query.toLowerCase();
+  const byId = new Map(mergeMhdAdminSearchDocs(...snapshots).map((prod) => [prod.id, prod]));
+  mhdState.products.forEach((prod) => {
+    if (matchesAdminSearchLocally(prod, needle, query)) {
+      byId.set(prod.id, prod);
+    }
+  });
+
+  return sortMhdProductsByResttage([...byId.values()])
+    .filter((prod) => matchesAdminSearchLocally(prod, needle, query))
+    .slice(0, MHD_ADMIN_SEARCH_LIMIT);
+}
+
+function syncMhdAdminSearchLayout() {
+  const mainList = document.getElementById('mhd-items-container');
+  const hasQuery = normalizeAdminSearchQuery(mhdAdminSearchState.query).length >= 2;
+  if (!mainList || !isOfficeUser()) return;
+  mainList.hidden = hasQuery;
+  mainList.style.display = hasQuery ? 'none' : '';
+}
+
+function clearMhdAdminSearch() {
+  mhdAdminSearchState.query = '';
+  mhdAdminSearchState.results = [];
+  mhdAdminSearchState.loading = false;
+  mhdAdminSearchState.requestId += 1;
+  if (mhdAdminSearchState.debounceTimer) {
+    clearTimeout(mhdAdminSearchState.debounceTimer);
+    mhdAdminSearchState.debounceTimer = null;
+  }
+  const input = document.getElementById('mhd-admin-search-input');
+  if (input) input.value = '';
+  syncMhdAdminSearchLayout();
+  renderMhdAdminSearchResults();
+}
+
+function renderMhdAdminSearchResults() {
+  const container = document.getElementById('mhd-admin-search-results');
+  const statusEl = document.getElementById('mhd-admin-search-status');
+  if (!container) return;
+
+  const query = normalizeAdminSearchQuery(mhdAdminSearchState.query);
+  syncMhdAdminSearchLayout();
+
+  if (query.length < 2) {
+    container.hidden = true;
+    container.innerHTML = '';
+    if (statusEl) statusEl.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  if (statusEl) statusEl.hidden = false;
+
+  if (mhdAdminSearchState.loading) {
+    container.innerHTML = '<div class="mhd-empty-hint">Suche läuft…</div>';
+    if (statusEl) statusEl.textContent = 'Firestore-Abfrage läuft…';
+    return;
+  }
+
+  const results = mhdAdminSearchState.results;
+  if (statusEl) {
+    statusEl.textContent = results.length
+      ? `${results.length} Treffer für „${query}“`
+      : `Keine Treffer für „${query}“`;
+  }
+
+  if (!results.length) {
+    container.innerHTML = '<div class="mhd-empty-hint">Kein passender Bestandseintrag gefunden.</div>';
+    return;
+  }
+
+  container.innerHTML = results.map((prod) => buildMhdCardHtml(prod)).join('');
+}
+
+function refreshMhdAdminSearchFromCache() {
+  const query = normalizeAdminSearchQuery(mhdAdminSearchState.query);
+  if (query.length < 2 || !isOfficeUser() || mhdAdminSearchState.loading) return;
+  const needle = query.toLowerCase();
+  const byId = new Map(mhdAdminSearchState.results.map((prod) => [prod.id, prod]));
+  mhdState.products.forEach((prod) => {
+    if (matchesAdminSearchLocally(prod, needle, query)) {
+      byId.set(prod.id, prod);
+    }
+  });
+  mhdAdminSearchState.results = sortMhdProductsByResttage([...byId.values()])
+    .filter((prod) => matchesAdminSearchLocally(prod, needle, query))
+    .slice(0, MHD_ADMIN_SEARCH_LIMIT);
+  renderMhdAdminSearchResults();
+}
+
+function scheduleMhdAdminSearch(rawQuery = '') {
+  const query = normalizeAdminSearchQuery(rawQuery);
+  mhdAdminSearchState.query = query;
+  mhdAdminSearchState.requestId += 1;
+  const requestId = mhdAdminSearchState.requestId;
+
+  if (mhdAdminSearchState.debounceTimer) {
+    clearTimeout(mhdAdminSearchState.debounceTimer);
+  }
+
+  if (query.length < 2) {
+    mhdAdminSearchState.loading = false;
+    mhdAdminSearchState.results = [];
+    renderMhdAdminSearchResults();
+    return;
+  }
+
+  mhdAdminSearchState.loading = true;
+  renderMhdAdminSearchResults();
+
+  mhdAdminSearchState.debounceTimer = setTimeout(() => {
+    void (async () => {
+      const results = await queryMhdListeAdmin(query);
+      if (requestId !== mhdAdminSearchState.requestId) return;
+      mhdAdminSearchState.loading = false;
+      mhdAdminSearchState.results = results;
+      renderMhdAdminSearchResults();
+    })();
+  }, MHD_ADMIN_SEARCH_DEBOUNCE_MS);
+}
+
+function initMhdAdminSearch() {
+  const section = document.getElementById('mhd-admin-search');
+  const input = document.getElementById('mhd-admin-search-input');
+  if (!section || !input || section.dataset.mhdAdminBound === '1') return;
+  section.dataset.mhdAdminBound = '1';
+
+  input.addEventListener('input', (event) => {
+    scheduleMhdAdminSearch(event.target.value);
+  });
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      clearMhdAdminSearch();
+      section.open = false;
+    }
+  });
+
+  section.addEventListener('toggle', () => {
+    if (!section.open) clearMhdAdminSearch();
+  });
+}
+
+export function updateMhdAdminSearchVisibility(isAdmin = isOfficeUser()) {
+  const section = document.getElementById('mhd-admin-search');
+  if (!section) return;
+  section.hidden = !isAdmin;
+  if (!isAdmin) {
+    section.open = false;
+    clearMhdAdminSearch();
+  }
+}
+
+function buildMhdCardHtml(prod = {}) {
+  const action = getMhdCardAction(prod);
+  const resttage = getMhdResttage(prod);
+  const isZeroDay = resttage === 0;
+  const isOverdue = resttage < 0;
+  const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
+  const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
+  const badgeDaysLabel = `${badgeLabel} Tage`;
+  const badgeDateLabel = formatMhdDateForCardMeta(prod) || '–';
+  const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
+  const productMetaHtml = buildMhdProductMetaHtml(prod);
+  const mhdDateEditButton = formatMhdDateForCardMeta(prod)
+    ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
+    : '';
+  const categoryBadgeLabel = getCategoryBadgeLabel(prod);
+  const retterBoxAction = window.BRANDING?.modules?.retterBox === true
+    ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
+    : '';
+  return `
+    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
+      <div class="mhd-card-badge-row">
+        <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
+          ${action.label}
+        </div>
+        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
+          ${escapeHtml(categoryBadgeLabel)}
+        </button>
+      </div>
+      <div class="mhd-card-header">
+        <div class="mhd-product-info">
+          <span class="mhd-product-name">${prod.name}</span>
+          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
+        </div>
+        <button
+          type="button"
+          class="mhd-badge mhd-days-badge badge-days"
+          data-mhd-days-badge="1"
+          data-mhd-id="${prod.id}"
+          data-mhd-days-label="${escapeHtml(badgeDaysLabel)}"
+          data-mhd-date-label="${escapeHtml(badgeDateLabel)}"
+          data-mhd-badge-mode="days"
+          aria-label="MHD-Datum anzeigen"
+          title="Tippen für MHD-Datum"${badgeStyle}
+        >${escapeHtml(badgeDaysLabel)}</button>
+      </div>
+      <div class="mhd-controls-row">
+        <div class="qty-stepper">
+          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
+          <div class="qty-value-container">
+            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
+          </div>
+          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
+        </div>
+        <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
+          <span aria-hidden="true">🗑️</span> Ausverkauft
+        </button>
+      </div>
+      <div class="mhd-action-row">
+        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
+        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
+        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
+        ${retterBoxAction}
+      </div>
+    </div>
+  `;
 }
 
 
@@ -2137,60 +2914,7 @@ function renderMhdList() {
     return;
   }
 
-  container.innerHTML = renderedProducts.map((prod) => {
-    const action = getMhdCardAction(prod);
-    const resttage = getMhdResttage(prod);
-    const isZeroDay = resttage === 0;
-    const isOverdue = resttage < 0;
-    const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
-    const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
-    const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
-    const productMetaHtml = buildMhdProductMetaHtml(prod);
-    const mhdDateEditButton = formatMhdDateForCardMeta(prod)
-      ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
-      : '';
-    const categoryBadgeLabel = getCategoryBadgeLabel(prod);
-    const retterBoxAction = window.BRANDING?.modules?.retterBox === true
-      ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
-      : '';
-    return `
-    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
-      <div class="mhd-card-badge-row">
-        <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
-          ${action.label}
-        </div>
-        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
-          ${escapeHtml(categoryBadgeLabel)}
-        </button>
-      </div>
-      <div class="mhd-card-header">
-        <div class="mhd-product-info">
-          <span class="mhd-product-name">${prod.name}</span>
-          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
-        </div>
-        <div class="mhd-badge"${badgeStyle}>${badgeLabel} Tage</div>
-      </div>
-      <div class="mhd-controls-row">
-        <div class="qty-stepper">
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
-          <div class="qty-value-container">
-            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
-          </div>
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
-        </div>
-        <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
-          <span aria-hidden="true">🗑️</span> Ausverkauft
-        </button>
-      </div>
-      <div class="mhd-action-row">
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
-        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
-        ${retterBoxAction}
-      </div>
-    </div>
-  `;
-  }).join('');
+  container.innerHTML = renderedProducts.map((prod) => buildMhdCardHtml(prod)).join('');
 
   initMhdSwipeGestures();
 }
@@ -2300,15 +3024,18 @@ async function saveMhdCardQty(id, newQty) {
   if (!prod || prod.soldOut) return;
   if (newQty === (prod.qty ?? 0)) return;
 
+  const audited = withHiddenAudit({ qty: newQty });
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: { qty: newQty },
-      queueData: { qty: newQty },
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
     });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCardQty')) return;
     console.error('[CharcuLogic Firebase] saveMhdCardQty() Update fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Menge konnte nicht gespeichert werden.', '!');
   }
@@ -2343,15 +3070,18 @@ async function setSoldOut(id) {
   };
   mhdState.playClickSound(400, 0.08, 0.2);
 
+  const audited = withHiddenAudit(updates);
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: updates,
-      queueData: updates,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: "Ausverkauft-Status wird nachträglich synchronisiert.",
     });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'setSoldOut')) return;
     console.error('[CharcuLogic Firebase] setSoldOut() Update fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "Status konnte nicht gespeichert werden.", "!");
   }
@@ -2434,6 +3164,7 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
     category: kategorie,
     updatedAt: updatedAtIso,
   };
+  const audited = withHiddenAudit(onlineData, queueData);
 
   try {
     rememberCategoryForBarcode(prod, barcode, kategorie);
@@ -2441,8 +3172,8 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
       mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: entry.id,
-        onlineData,
-        queueData,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
         offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
       })
     ));
@@ -2456,6 +3187,7 @@ async function saveMhdCategoryForBarcode(id, preparedDraft = null) {
     renderMhdList();
     mhdState.showHUD('Kategorie gespeichert', `Kategorie für ${matchingProducts.length} MHD-Einträge aktualisiert.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryByEan')) return;
     console.error('[CharcuLogic Firebase] EAN-Kategorie speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
   }
@@ -2558,20 +3290,22 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
     ...onlineData,
     updatedAt: updatedAtIso,
   };
+  const audited = withHiddenAudit(onlineData, queueData);
 
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData,
-      queueData,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'MHD-Korrektur wird nachträglich synchronisiert.',
     });
-    Object.assign(draft.prod, queueData);
+    Object.assign(draft.prod, audited.queueData);
     resetScanState({ keepLearnOverlay: false });
     renderMhdList();
     mhdState.showHUD('MHD gespeichert', `Neues MHD: ${draft.newLabel}.`);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdDateCorrection')) return;
     console.error('[CharcuLogic Firebase] MHD-Korrektur speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'MHD konnte nicht gespeichert werden.', '!');
   }
@@ -2614,12 +3348,14 @@ async function markMhdAction(id, actionStatus) {
     queuedUpdates.retterBoxAngefragt = true;
     queuedUpdates.retterBoxAngefragtAt = nowIso;
   }
+  const audited = withHiddenAudit(updates, queuedUpdates);
+
   try {
     const actionResult = await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: updates,
-      queueData: queuedUpdates,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: "MHD-Aktion wird nachträglich synchronisiert.",
     });
     const successMessage = actionResult === 'queued'
@@ -2637,6 +3373,7 @@ async function markMhdAction(id, actionStatus) {
           : 'Posten als geprüft markiert.';
     mhdState.showHUD("Morgencheck erledigt", successMessage);
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'markMhdAction')) return;
     console.error('[CharcuLogic Firebase] MHD-Aktion speichern fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "MHD-Aktion konnte nicht gespeichert werden.", "!");
   }
@@ -2665,6 +3402,7 @@ async function deleteMhdPosten(id) {
     mhdState.showHUD("Gelöscht", "Der Posten wurde entfernt oder zur Löschung vorgemerkt.");
     resetScanState({ keepLearnOverlay: false });
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'deleteMhdPosten')) return;
     console.error('[CharcuLogic Firebase] Posten löschen fehlgeschlagen:', err);
     mhdState.showHUD("Fehler", "Posten konnte nicht gelöscht werden.", "!");
   }
@@ -2723,20 +3461,25 @@ async function updateRecentReceiptCategory(id) {
   }
   const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
   const updatedAtIso = new Date().toISOString();
+  const audited = withHiddenAudit(
+    {
+      warenKategorie,
+      kategorie,
+      updatedAt: serverTimestampFallback(),
+    },
+    {
+      warenKategorie,
+      kategorie,
+      updatedAt: updatedAtIso,
+    },
+  );
+
   try {
     await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
-      onlineData: {
-        warenKategorie,
-        kategorie,
-        updatedAt: serverTimestampFallback(),
-      },
-      queueData: {
-        warenKategorie,
-        kategorie,
-        updatedAt: updatedAtIso,
-      },
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
       offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
     });
     const localEntry = mhdState.products.find((entry) => entry.id === id);
@@ -2748,6 +3491,7 @@ async function updateRecentReceiptCategory(id) {
     mhdState.showHUD('Kategorie gespeichert', `Der Posten wurde ${kategorie} zugeordnet.`);
     showRecentReceipts();
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryCorrection')) return;
     console.error('[CharcuLogic Firebase] Kategorie-Korrektur fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
   }
@@ -2790,11 +3534,39 @@ if (btnSaveMhd) {
 
 
 
+function toggleMhdDaysBadge(badge) {
+  if (!badge) return;
+  const daysLabel = badge.dataset.mhdDaysLabel || '';
+  const dateLabel = badge.dataset.mhdDateLabel || '';
+  const showingDate = badge.dataset.mhdBadgeMode === 'date';
+  if (showingDate) {
+    badge.textContent = daysLabel;
+    badge.dataset.mhdBadgeMode = 'days';
+    badge.setAttribute('aria-label', 'MHD-Datum anzeigen');
+    badge.title = 'Tippen für MHD-Datum';
+    badge.classList.remove('mhd-days-badge--date');
+    return;
+  }
+  badge.textContent = dateLabel;
+  badge.dataset.mhdBadgeMode = 'date';
+  badge.setAttribute('aria-label', 'Resttage anzeigen');
+  badge.title = 'Tippen für Resttage';
+  badge.classList.add('mhd-days-badge--date');
+}
+
 function bindMhdCardActions() {
-  const container = document.getElementById('mhd-items-container');
-  if (!container || container.dataset.mhdActionBound === '1') return;
-  container.dataset.mhdActionBound = '1';
-  container.addEventListener('click', (event) => {
+  const page = document.getElementById('page-mhd');
+  if (!page || page.dataset.mhdActionBound === '1') return;
+  page.dataset.mhdActionBound = '1';
+  page.addEventListener('click', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
+    const daysBadge = event.target.closest('[data-mhd-days-badge]');
+    if (daysBadge) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMhdDaysBadge(daysBadge);
+      return;
+    }
     const button = event.target.closest('[data-mhd-command]');
     if (!button) return;
     const id = button.dataset.mhdId;
@@ -2806,12 +3578,14 @@ function bindMhdCardActions() {
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
   });
-  container.addEventListener('change', (event) => {
+  page.addEventListener('change', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
     commitMhdCardQtyFromInput(input.dataset.mhdQtyId, input.value);
   });
-  container.addEventListener('keydown', (event) => {
+  page.addEventListener('keydown', (event) => {
+    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
     if (event.key !== 'Enter') return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
@@ -2876,6 +3650,7 @@ function submitManualBarcodeFrom(inputEl) {
 
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
   const normalized = String(warenKategorie || '').trim().toLowerCase();
+  if (/kaese_theke|käse-theke|käsetheke/.test(normalized)) return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (/gewürze|gewuerze|🌿/.test(normalized)) return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke|🍺/.test(normalized)) return MHD_CANONICAL_CATEGORIES.getraenke;
   if (/trockenware/.test(normalized)) return MHD_CANONICAL_CATEGORIES.trockenware;
@@ -2918,12 +3693,7 @@ function mapMhdCategoryToHeadCategory(mhdCategory = '') {
 }
 
 function deliveryCollectionPath() {
-  if (!requireMhdTenantId()) return null;
-  try {
-    return getTenantCollectionPath('wareneingang_lieferungen');
-  } catch {
-    return null;
-  }
+  return buildTenantScopedCollectionPath('wareneingang_lieferungen');
 }
 
 function createDeliveryId() {
@@ -2942,6 +3712,9 @@ function readDeliveryHeadValues() {
 }
 
 function getReceivingQtyUnitFromCategory(warenKategorie = '') {
+  if (isAdvancedKaeseUpgradeEnabled() && isKaeseThekeCategory(warenKategorie)) {
+    return kaeseThekeQtyMode === 'gewicht' ? 'kg' : 'Stk';
+  }
   const normalized = String(warenKategorie).trim().toLowerCase();
   if (
     normalized.includes('trocken')
@@ -3049,40 +3822,50 @@ function setReceivingTemperatureValue(value) {
 }
 
 function updateReceivingTemperatureFieldUi() {
-  const categoryQuickSelect = document.getElementById('we-category-quick');
-  const wrap = document.getElementById('we-temperature-quick-wrap');
-  const { quick } = getReceivingTemperatureInputs();
-  const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
-  if (wrap) {
-    wrap.classList.toggle('hidden', !requiresTemperature);
-    wrap.hidden = !requiresTemperature;
-  }
-  if (quick) {
-    quick.required = requiresTemperature;
-    quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
-    if (!requiresTemperature) quick.value = '';
+  try {
+    const categoryQuickSelect = document.getElementById('we-category-quick');
+    const wrap = document.getElementById('we-temperature-quick-wrap');
+    const { quick } = getReceivingTemperatureInputs();
+    const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
+    if (wrap) {
+      wrap.classList.toggle('hidden', !requiresTemperature);
+      wrap.hidden = !requiresTemperature;
+    }
+    if (quick) {
+      quick.required = requiresTemperature;
+      quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
+      if (!requiresTemperature) quick.value = '';
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Temperaturfeld konnte nicht aktualisiert werden:', err);
   }
 }
 
 function updateReceivingQtyFieldUi() {
-  const qtyInput = document.getElementById('we-qty');
-  const qtyLabel = document.getElementById('we-qty-label');
-  const categoryQuickSelect = document.getElementById('we-category-quick');
-  const category = categoryQuickSelect?.value || lastReceivingHeadCategory || '';
-  const unit = getReceivingQtyUnitFromCategory(category);
-  if (!qtyInput) return;
+  try {
+    const qtyInput = document.getElementById('we-qty');
+    const qtyLabel = document.getElementById('we-qty-label');
+    const categoryQuickSelect = document.getElementById('we-category-quick');
+    const category = categoryQuickSelect?.value || lastReceivingHeadCategory || '';
+    updateKaeseThekeQtyModeVisibility(category);
+    const unit = getReceivingQtyUnitFromCategory(category);
+    if (!qtyInput) return;
 
-  if (qtyLabel) qtyLabel.textContent = `Menge (${unit})`;
-  qtyInput.placeholder = '1';
-  qtyInput.inputMode = 'numeric';
-  if (unit === 'Stk') {
-    qtyInput.min = '1';
-    qtyInput.step = '1';
-    return;
+    if (qtyLabel) qtyLabel.textContent = `Menge (${unit})`;
+    qtyInput.placeholder = unit === 'kg' ? '0,00' : '1';
+    if (unit === 'Stk') {
+      qtyInput.min = '1';
+      qtyInput.step = '1';
+      qtyInput.inputMode = 'numeric';
+      return;
+    }
+
+    qtyInput.min = '0.01';
+    qtyInput.step = '0.01';
+    qtyInput.inputMode = 'decimal';
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Mengenfeld konnte nicht aktualisiert werden:', err);
   }
-
-  qtyInput.min = '0.1';
-  qtyInput.step = '0.1';
 }
 
 function normalizeDeliveryHeadForFinalize(head) {
@@ -3297,7 +4080,15 @@ function clearDeliveryItemFields() {
   updateDeliveryItemProductUi();
 }
 
-function addDeliveryItem() {
+async function addDeliveryItem() {
+  if (window.isProfileEmployeeAuth?.()) {
+    const actor = await resolveInventoryActorForScan();
+    if (!actor) {
+      mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
+      return;
+    }
+  }
+  recordInventoryProfileActivity();
   const { product, barcode, qtyValue, qtyUnit, mhdDate, category, herstellerZusatz } = readDeliveryItemDraftValues();
   if (!barcode) {
     mhdState.showHUD('EAN fehlt', 'Bitte Barcode scannen oder EAN eintippen.', '!');
@@ -3326,7 +4117,12 @@ function addDeliveryItem() {
     return;
   }
   if (!mhdDate) {
-    mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
+    const toastMessage = 'Bitte MHD eintragen, bevor der Posten zur Lieferung hinzugefügt wird.';
+    if (isAdvancedKaeseUpgradeEnabled()) {
+      window.showToast?.(toastMessage, 'error');
+    } else {
+      mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
+    }
     document.getElementById('we-mhd')?.focus();
     return;
   }
@@ -3427,7 +4223,6 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     name: item.product,
     marke: manufacturer,
     brand: manufacturer,
-    herstellerZusatz: manufacturer,
     lieferant: head.supplier,
     mhd: item.mhdDate,
     mhdDate: item.mhdDate,
@@ -3450,10 +4245,10 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     postentyp: 'wareneingang',
     wareneingangAt: erfassungsDatum,
     erfassungsDatum,
-    scannedBy: getActiveEmployee() || '',
-    tenantId: mhdState.tenantId,
+    scannedBy: getActiveEmployee() || getAuditActorName(),
+    tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    createdAt: serverTimestampFallback(),
+    ...buildHiddenAuditFields(),
   };
 
   if (head.temperatur != null && !Number.isNaN(head.temperatur)) {
@@ -3461,6 +4256,9 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   }
   if (meisterOverrideReason) {
     record.meisterOverrideReason = meisterOverrideReason;
+  }
+  if (!record.tenantId) {
+    delete record.tenantId;
   }
   return record;
 }
@@ -3556,10 +4354,10 @@ function buildDeliveryBundlePayload(head, {
       : [],
     itemCount: includeItems ? currentDeliveryItems.length : 0,
     source: 'wareneingang-lieferung',
-    scannedBy: getActiveEmployee() || '',
-    tenantId: mhdState.tenantId,
+    scannedBy: getActiveEmployee() || getAuditActorName(),
+    tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    createdAt: serverTimestampFallback(),
+    ...buildHiddenAuditFields(),
   };
 
   if (meisterOverrideReason) {
@@ -3567,6 +4365,9 @@ function buildDeliveryBundlePayload(head, {
   }
   if (head.temperatur === null || Number.isNaN(head.temperatur)) {
     delete bundle.temperatur;
+  }
+  if (!bundle.tenantId) {
+    delete bundle.tenantId;
   }
   return bundle;
 }
@@ -3594,6 +4395,7 @@ function renderOpenDraftsSection() {
 }
 
 function subscribeToPendingDeliveryDrafts() {
+  if (!canStartMhdFirestoreLiveSync()) return;
   if (!mhdState.db || !deliveryCollectionPath()) return;
   if (deliveryDraftsUnsubscribe) {
     deliveryDraftsUnsubscribe();
@@ -3612,6 +4414,7 @@ function subscribeToPendingDeliveryDrafts() {
         updateDraftEditingBanner();
       },
       (err) => {
+        if (maybeResetOnFirestorePermissionError(err, 'subscribeToPendingDeliveryDrafts')) return;
         console.error('[CharcuLogic MHD] Offene Lieferungs-Entwürfe konnten nicht geladen werden:', err);
       }
     );
@@ -3664,34 +4467,38 @@ function isReceivingMetzgereiEnabled() {
 }
 
 export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || {}) {
-  const enabled = branding?.modules?.wareneingangMetzgerei !== false;
-  const switcher = document.querySelector('.receiving-mode-switch');
-  const metzTab = document.getElementById('receiving-mode-metzgerei');
-  const metzPanel = document.getElementById('receiving-panel-metzgerei');
-  const draftBtn = document.getElementById('we-save-draft-btn');
-  const openDrafts = document.getElementById('open-drafts-section');
-  const desc = document.querySelector('#page-receiving .receiving-card > .learn-mode-desc');
+  try {
+    const enabled = branding?.modules?.wareneingangMetzgerei !== false;
+    const switcher = document.querySelector('.receiving-mode-switch');
+    const metzTab = document.getElementById('receiving-mode-metzgerei');
+    const metzPanel = document.getElementById('receiving-panel-metzgerei');
+    const draftBtn = document.getElementById('we-save-draft-btn');
+    const openDrafts = document.getElementById('open-drafts-section');
+    const desc = document.querySelector('#page-receiving .receiving-card > .learn-mode-desc');
 
-  if (switcher) switcher.hidden = !enabled;
-  if (metzTab) {
-    metzTab.hidden = !enabled;
-    metzTab.style.display = enabled ? '' : 'none';
-  }
-  if (metzPanel) {
-    metzPanel.hidden = true;
-    metzPanel.classList.add('hidden');
-  }
-  if (draftBtn) draftBtn.hidden = !enabled;
-  if (openDrafts) openDrafts.hidden = !enabled;
+    if (switcher) switcher.hidden = !enabled;
+    if (metzTab) {
+      metzTab.hidden = !enabled;
+      metzTab.style.display = enabled ? '' : 'none';
+    }
+    if (metzPanel) {
+      metzPanel.hidden = true;
+      metzPanel.classList.add('hidden');
+    }
+    if (draftBtn) draftBtn.hidden = !enabled;
+    if (openDrafts) openDrafts.hidden = !enabled;
 
-  if (desc) {
-    desc.textContent = enabled
-      ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
-      : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
-  }
+    if (desc) {
+      desc.textContent = enabled
+        ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
+        : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
+    }
 
-  setReceivingMode('schnell');
-  updateReceivingSaveButtonState();
+    setReceivingMode('schnell');
+    refreshReceivingTabUiSafe();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Layout konnte nicht aktualisiert werden:', err);
+  }
 }
 
 async function saveDeliveryDraft() {
@@ -3731,11 +4538,10 @@ async function saveDeliveryDraft() {
     includeItems: false,
   });
 
-  const queuedBundle = {
+  const auditedBundle = withHiddenAudit(deliveryBundle, {
     ...deliveryBundle,
-    createdAt: erfassungsDatum,
     updatedAt: erfassungsDatum,
-  };
+  });
 
   try {
     if (draftBtn) {
@@ -3747,8 +4553,8 @@ async function saveDeliveryDraft() {
       collectionPath: deliveryCollectionPath(),
       docId: deliveryId,
       op: 'set',
-      onlineData: deliveryBundle,
-      queueData: queuedBundle,
+      onlineData: auditedBundle.onlineData,
+      queueData: auditedBundle.queueData,
       offlineMessage: 'Lieferungs-Entwurf wird nachträglich synchronisiert.',
     });
 
@@ -3762,6 +4568,7 @@ async function saveDeliveryDraft() {
     renderReceivingStatus({ status: 'Entwurf für Büro gesichert' });
     window.showToast?.('Entwurf erfolgreich für das Büro gesichert!', 'success');
   } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveDeliveryDraft')) return;
     console.error('[CharcuLogic MHD] Lieferungs-Entwurf speichern fehlgeschlagen:', err);
     mhdState.showHUD('Fehler', 'Entwurf konnte nicht gespeichert werden.', '!');
     window.showToast?.('Entwurf konnte nicht gespeichert werden.', 'error');
@@ -3895,6 +4702,8 @@ async function finalizeDelivery() {
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
 
+  if (!beginReceivingSaveButtonLock(saveBtn, updateReceivingSaveButtonState)) return;
+
   if (!currentDeliveryItems.length) {
     setReceivingMode('schnell');
     mhdState.showHUD('Keine Posten', 'Bitte mindestens einen Waren-Posten unter Schnellerfassung hinzufügen.', '!');
@@ -3907,6 +4716,15 @@ async function finalizeDelivery() {
 
   const tempGuard = await applyDeliveryTemperatureGuard(head);
   if (!tempGuard) return;
+
+  const activeTenantId = resolveMhdTenantId();
+  if (!activeTenantId) {
+    mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    return;
+  }
+  if (!(await ensureInventoryProfileReadyForDelivery())) {
+    return;
+  }
 
   const { mhdItemStatus, meisterOverrideReason } = tempGuard;
   const existingDraft = isDraftCompletion
@@ -3924,13 +4742,35 @@ async function finalizeDelivery() {
     includeItems: true,
   });
   deliveryBundle.completedAt = completedAt;
-  deliveryBundle.createdAt = existingDraft?.createdAt || serverTimestampFallback();
-
-  const queuedBundle = {
+  const auditedDelivery = withSanitizedDeliveryAudit(deliveryBundle, {
     ...deliveryBundle,
-    createdAt: existingDraft?.createdAt || erfassungsDatum,
     updatedAt: completedAt,
-  };
+  });
+  if (existingDraft?.createdAt) {
+    auditedDelivery.onlineData.createdAt = existingDraft.createdAt;
+    auditedDelivery.queueData.createdAt = typeof existingDraft.createdAt === 'string'
+      ? existingDraft.createdAt
+      : (existingDraft.erfassungsDatum || new Date().toISOString());
+  }
+  const draftActor = existingDraft?.scannedBy || existingDraft?.createdBy;
+  if (draftActor) {
+    auditedDelivery.onlineData.scannedBy = draftActor;
+    auditedDelivery.queueData.scannedBy = draftActor;
+  }
+
+  const queuedBundle = auditedDelivery.queueData;
+  const deliveryBundleOnline = auditedDelivery.onlineData;
+  const firestoreTargets = resolveFinalizeDeliveryFirestoreTargets();
+  if (!firestoreTargets) {
+    mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    return;
+  }
+
+  const { deliveryPath, mhdPath } = firestoreTargets;
+  if (deliveryBundleOnline) deliveryBundleOnline.tenantId = activeTenantId;
+  if (queuedBundle) queuedBundle.tenantId = activeTenantId;
+
+  let finalizeTargetPath = deliveryPath;
 
   try {
     if (saveBtn) {
@@ -3939,27 +4779,28 @@ async function finalizeDelivery() {
     }
 
     const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryCollectionPath(),
+      collectionPath: deliveryPath,
       docId: deliveryId,
       op: 'set',
-      onlineData: deliveryBundle,
+      onlineData: deliveryBundleOnline,
       queueData: queuedBundle,
       offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
     });
 
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
-      const queuedRecord = {
-        ...record,
-        updatedAt: completedAt,
-        createdAt: completedAt,
-      };
+      record.tenantId = activeTenantId;
+      const auditedRecord = withSanitizedMhdAudit(
+        { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
+        { ...record, updatedAt: completedAt, tenantId: activeTenantId },
+      );
+      finalizeTargetPath = `${mhdPath}/${record.id}`;
       const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdCollectionPath(),
+        collectionPath: mhdPath,
         docId: record.id,
         op: 'set',
-        onlineData: record,
-        queueData: queuedRecord,
+        onlineData: auditedRecord.onlineData,
+        queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
       saveProductMaster(record);
@@ -3967,6 +4808,14 @@ async function finalizeDelivery() {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
+    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
+    if (rejectedMhdWrite) {
+      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
+      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
+      return;
+    }
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
@@ -3981,8 +4830,10 @@ async function finalizeDelivery() {
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
+    const message = String(err?.message || err || 'Unbekannter Fehler');
+    window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');
+    if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
   } finally {
     if (saveBtn) {
       saveBtn.textContent = activeEditingDraftId ? DRAFT_FINALIZE_LABEL : DEFAULT_FINALIZE_LABEL;
@@ -4003,9 +4854,15 @@ function mhdDateToDisplay(mhdDate) {
 }
 
 function ensureReceivingFormDefaults() {
-  const mhdInput = document.getElementById('we-mhd');
-  if (mhdInput && mhdInput.type !== 'text') mhdInput.type = 'text';
-  initGermanDateInputs(document.getElementById('page-receiving') || document);
+  try {
+    const receivingPage = document.getElementById('page-receiving');
+    if (!receivingPage) return;
+    const mhdInput = document.getElementById('we-mhd');
+    if (mhdInput && mhdInput.type !== 'text') mhdInput.type = 'text';
+    initGermanDateInputs(receivingPage);
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Formular konnte nicht initialisiert werden:', err);
+  }
 }
 
 function updateReceivingSaveButtonState() {
@@ -4147,6 +5004,7 @@ function bindReceivingControls() {
       updateReceivingSaveButtonState();
     });
   }
+  ensureKaeseThekeQtyToggle();
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';
     temperatureQuickInput.addEventListener('input', () => {
@@ -4308,13 +5166,27 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.terminalEmployeeName = String(uiCallbacks.terminalEmployeeName || mhdState.terminalEmployeeName || '').trim();
   mhdState.addRetterBoxCandidate = typeof uiCallbacks.addRetterBoxCandidate === 'function' ? uiCallbacks.addRetterBoxCandidate : mhdState.addRetterBoxCandidate;
   if (!mhdState.initialized) {
-    initMhdSubnavAndSearch(); bindMhdCardActions(); bindUtilityDialogActions(); bindReceivingControls(); bindMhdToolbar(); loadVpeMasterFromCsv(); mhdState.initialized = true;
+    initMhdSubnavAndSearch();
+    initMhdAdminSearch();
+    bindMhdCardActions();
+    bindUtilityDialogActions();
+    bindReceivingControls();
+    bindMhdToolbar();
+    loadVpeMasterFromCsv();
+    mhdState.initialized = true;
   }
   applyReceivingCategoryOptions();
   applyMhdCategoryFilterOptions();
-  subscribeToPendingDeliveryDrafts();
-  renderReceivingStatus(); renderMhdList();
+  updateMhdAdminSearchVisibility(isOfficeUser());
+  renderReceivingStatus();
+  renderMhdList();
   restoreMhdDraftFields();
+}
+
+export function startMhdLiveSync() {
+  if (!canStartMhdFirestoreLiveSync()) return;
+  loadMhdFromCloud();
+  subscribeToPendingDeliveryDrafts();
 }
 function restoreMhdDraftFields() {
   const fields = ['manual-barcode-input', ...RECEIVING_FORM_IDS];
@@ -4326,27 +5198,66 @@ function restoreMhdDraftFields() {
   }
   mhdState.restoreDraftFields(fields);
 }
-export function activateMhdTab() {
+export async function activateMhdTab() {
+  window.expireProfileSessionIfIdle?.();
+  await window.ensureInventoryProfileSessionForTab?.('mhd');
   applyMhdCategoryFilterOptions();
   renderMhdList();
   restoreMhdDraftFields();
 }
-export function activateReceivingTab() {
-  applyReceivingMetzgereiVisibility(window.BRANDING || {});
-  ensureReceivingFormDefaults();
-  subscribeToPendingDeliveryDrafts();
-  updateManualBarcodeFallback();
-  updateReceivingSaveButtonState();
-  renderReceivingStatus();
-  if (!activeEditingDraftId) {
-    loadDeliveryDraftFromIndexedDB();
-  }
-  restoreMhdDraftFields();
+export async function activateReceivingTab() {
+  const runStep = async (label, step) => {
+    try {
+      await step();
+    } catch (err) {
+      console.warn(`[CharcuLogic MHD] Receiving-Tab Schritt fehlgeschlagen (${label}):`, err);
+    }
+  };
+
+  await runStep('profile-idle', async () => {
+    window.expireProfileSessionIfIdle?.();
+  });
+  await runStep('profile-gatekeeper', async () => {
+    await window.showReceivingProfileGatekeeperIfNeeded?.();
+  });
+  await runStep('layout', () => {
+    applyReceivingMetzgereiVisibility(window.BRANDING || {});
+    ensureReceivingFormDefaults();
+  });
+  await runStep('draft-sync', () => {
+    subscribeToPendingDeliveryDrafts();
+    updateManualBarcodeFallback();
+  });
+  await runStep('ui-refresh', () => {
+    refreshReceivingTabUiSafe();
+  });
+  await runStep('draft-load', async () => {
+    if (!activeEditingDraftId) {
+      await loadDeliveryDraftFromIndexedDB();
+    }
+  });
+  await runStep('draft-restore', () => {
+    restoreMhdDraftFields();
+  });
 }
 export function handleMhdBarcodeScan(decodedText) { processScannedBarcode(decodedText, 'camera'); }
 export function handleMhdScannerStatus({ status } = {}) { updateManualBarcodeFallback(); if (status) renderReceivingStatus({ status }); }
 export function resetMhdScanState(options) { resetScanState(options); }
 export function getMhdProducts() { return [...mhdState.products]; }
+export function refreshReceivingTabUiSafe() {
+  try {
+    applyReceivingCategoryOptions();
+    ensureKaeseThekeQtyToggle();
+    applyLastReceivingHeadCategory();
+    updateReceivingQtyFieldUi();
+    updateReceivingTemperatureFieldUi();
+    updateReceivingSaveButtonState();
+    renderReceivingStatus();
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Wareneingang-Oberfläche konnte nicht aktualisiert werden:', err);
+  }
+}
+
 export {
   checkMhdAnomaly,
   finalizeDelivery,

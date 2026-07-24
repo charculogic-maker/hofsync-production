@@ -111,6 +111,37 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // TENANT ROOT (enabledModules – platform dev admin writes)
+    // =========================================================================
+
+    function isPlatformDevAdmin() {
+      return isAuthenticated()
+        && request.auth.uid in ['VYwMy5IAlAR26pj8ZbFfc5PNdou2'];
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isTenantMember(tenantId) || isPlatformDevAdmin();
+      allow create: if isPlatformDevAdmin()
+        && request.resource.data.keys().hasOnly(['enabledModules', 'displayName', 'createdAt', 'updatedAt', 'status'])
+        && request.resource.data.enabledModules is map
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.status in ['active', 'inactive'];
+      allow update: if isPlatformDevAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['enabledModules', 'status', 'updatedAt'])
+        && (!('enabledModules' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.enabledModules is map)
+        && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.status in ['active', 'inactive']);
+      allow update: if isAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
+        && request.resource.data.enabledModules is map;
+      allow delete: if isPlatformDevAdmin();
+    }
+
+    // =========================================================================
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
@@ -402,6 +433,21 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
+    match /tenants/{tenantId}/bulletinConfirmations/{confirmationId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && hasOnly([
+          'employeeName', 'confirmedAt', 'bulletinMessage', 'bulletinUpdatedAt',
+          'tenantId', 'deviceId', 'profileEmail'
+        ])
+        && isNonEmptyString(request.resource.data.employeeName)
+        && isNonEmptyString(request.resource.data.confirmedAt);
+
+      allow update, delete: if isAdmin(tenantId);
+    }
+
     // =========================================================================
     // AUFGABEN-TOKENS (tasks)
     // =========================================================================
@@ -464,6 +510,112 @@ service cloud.firestore {
           || isTaskCompletionOnly()
         )
         || isTaskCommentOnly(tenantId);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // RÜCKVERFOLGBARKEIT (traceabilityRecords) – LMIV Fleisch-Herkunft
+    // =========================================================================
+
+    function isValidTraceabilityAnimalType(value) {
+      return value in ['rind', 'schwein', 'gefluegel', 'schaf', 'ziege'];
+    }
+
+    function isValidTraceabilityStatus(value) {
+      return value in ['active', 'archived'];
+    }
+
+    function isValidTraceabilityOrigin(origin, animalType) {
+      return origin is map
+        && origin.keys().hasAll([
+          'isSingleOrigin', 'singleOriginCountry',
+          'bornIn', 'raisedIn', 'slaughteredIn', 'cutIn', 'cuttingPlantNo'
+        ])
+        && origin.isSingleOrigin is bool
+        && origin.singleOriginCountry is string
+        && origin.bornIn is string
+        && origin.raisedIn is string
+        && origin.slaughteredIn is string
+        && origin.cutIn is string
+        && origin.cuttingPlantNo is string
+        && (
+          (
+            origin.isSingleOrigin == true
+            && isNonEmptyString(origin.singleOriginCountry)
+          )
+          || (
+            origin.isSingleOrigin == false
+            && isNonEmptyString(origin.raisedIn)
+            && isNonEmptyString(origin.slaughteredIn)
+            && (
+              animalType != 'rind'
+              || (
+                isNonEmptyString(origin.bornIn)
+                && isNonEmptyString(origin.cutIn)
+                && isNonEmptyString(origin.cuttingPlantNo)
+              )
+            )
+          )
+        );
+    }
+
+    function isValidTraceabilityRecord(tenantId) {
+      return hasOnly([
+          'id', 'createdAt', 'createdBy', 'status',
+          'lotNumber', 'healthMark', 'imageUrl',
+          'animalType', 'origin', 'tenantId',
+          'organicControlBody', 'organicAssociation'
+        ])
+        && isNonEmptyString(request.resource.data.id)
+        && isNonEmptyString(request.resource.data.createdBy)
+        && isValidTraceabilityStatus(request.resource.data.status)
+        && isNonEmptyString(request.resource.data.lotNumber)
+        && request.resource.data.healthMark is string
+        && isNonEmptyString(request.resource.data.imageUrl)
+        && isValidTraceabilityAnimalType(request.resource.data.animalType)
+        && isValidTraceabilityOrigin(
+          request.resource.data.origin,
+          request.resource.data.animalType
+        )
+        && request.resource.data.tenantId == tenantId
+        && (
+          !('organicControlBody' in request.resource.data)
+          || request.resource.data.organicControlBody is string
+        )
+        && (
+          !('organicAssociation' in request.resource.data)
+          || request.resource.data.organicAssociation is string
+        )
+        && (
+          request.resource.data.createdAt == request.time
+          || (
+            request.resource.data.createdAt is timestamp
+            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
+          )
+          || (
+            request.resource.data.createdAt is string
+            && request.resource.data.createdAt.size() >= 20
+          )
+        );
+    }
+
+    function isTraceabilityStatusOnlyUpdate(tenantId) {
+      return resource.data.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && isValidTraceabilityStatus(request.resource.data.status);
+    }
+
+    match /tenants/{tenantId}/traceabilityRecords/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      // Erfassung für alle Mandanten-Rollen (inkl. helper / Aushilfe)
+      allow create: if isTenantUser(tenantId)
+        && isValidTraceabilityRecord(tenantId);
+
+      allow update: if isAdmin(tenantId)
+        && isTraceabilityStatusOnlyUpdate(tenantId);
 
       allow delete: if isAdmin(tenantId);
     }

@@ -1,0 +1,32 @@
+---
+description: UX, Architektur, Mandantenisolation und RBAC für HofSync/CharcuLogic
+alwaysApply: true
+---
+
+# HofSync — UX & Security
+
+Produktiv: Vanilla-JS PWA (`web/`) + Cloud Functions (`functions/`). Kein React/Tailwind/Shadcn.
+
+## Design & UX
+
+- Bestehende Klassen in `web/style.css` / App-Shell in `web/index.html` erweitern.
+- Nutzer-Bereich vs. Mandanten-Admin (`/dev-dashboard`) visuell trennen; Tenant-Header mit Betriebsname/Branding.
+- Formular-Feedback sofort; Ladezustände sichtbar; Feedback via `showToast`.
+- UI-Texte: Laden-iPhone, Wir-Perspektive, kein Dev-Jargon (`shop-wording-cop`).
+
+## Architektur
+
+- UI ≠ Business-Logik ≠ API. Persistenz über `tenant-db.js` / `sync.js` / Callables.
+- Rohfehler nur in `console.error`; UI über `operator-errors.js`.
+
+## Mandanten & RBAC
+
+- Jede Admin-/Datenaktion auf Claim-`tenantId` beschränken; Pfade `tenants/{tenantId}/…`.
+- Rollen: `admin` | `employee` | `helper` (nicht `TENANT_ADMIN`).
+- Admin-Links verbergen + Guard `useTenantAdminAuth()` (`web/tenant-admin-auth.js`); ohne Recht Redirect `/dev-dashboard` → `/`.
+- Sicherheit in Rules/Callables (`authContext.js`).
+- Super-Admin ≠ Mandanten-Admin; Mandanten-Admin nur eigener Tenant.
+
+## Workflow
+
+Typen/Datenmodell → UI mit Dummy-Daten im Dev-Dashboard → Callables/Rules/Tests.

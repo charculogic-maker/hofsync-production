@@ -15,7 +15,7 @@ Oben wählen wir zwischen:
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Derzeit ist bewusst nur der Bereich **Laden** aktiv. Die Metzgerei-Erfassung bleibt ausgeblendet. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
 
 ---
 
@@ -33,8 +33,9 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
 7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
 8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
-9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
-10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
+9. **💾 Gesamte Lieferung abschließen** — alle Posten der aktuellen Lieferung werden gebucht
+10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
+11. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
 ### Kategorie bei Serien-Scans
 

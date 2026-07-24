@@ -1,6 +1,43 @@
-import { isPermissionDeniedError } from './sync.js';
-import { getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
-import { ACTIVE_EMPLOYEE_STORAGE_KEY, scopedTeamboardStorageKey } from './teamboard-storage.js';
+import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+  scopedTeamboardStorageKey,
+  writeScopedLocalStorageValue,
+} from './teamboard-storage.js';
+
+function hasActiveFirebaseAuthUserForSelfHealing() {
+  if (typeof window.hasActiveFirebaseAuthUser === 'function') {
+    return window.hasActiveFirebaseAuthUser();
+  }
+  try {
+    const firebaseApi = haccpState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    return Boolean(firebaseApi?.apps?.length && firebaseApi.auth?.().currentUser);
+  } catch (_) {
+    return false;
+  }
+}
+
+function maybeResetOnFirestorePermissionError(err, context = '') {
+  if (!hasActiveFirebaseAuthUserForSelfHealing()) return false;
+  if (typeof window.isFirestorePermissionDeniedError !== 'function') return false;
+  if (!window.isFirestorePermissionDeniedError(err)) return false;
+  void window.resetAuthStateOnPermissionDenied?.(err, context);
+  return true;
+}
+
+const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
+
+function canStartHaccpFirestoreLiveSync() {
+  try {
+    if (sessionStorage.getItem(AUTH_LOOP_BREAKER_KEY) === 'true') return false;
+  } catch (_) { /* noop */ }
+  if (typeof window.canStartFirestoreLiveListeners === 'function') {
+    return window.canStartFirestoreLiveListeners();
+  }
+  const authApi = haccpState.getFirebase?.()?.auth?.();
+  return Boolean(authApi?.currentUser);
+}
 
 const DEFAULT_HACCP_DEVICES = [
   { name: 'Kühlauslage Hofladen', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
@@ -9,6 +46,16 @@ const DEFAULT_HACCP_DEVICES = [
   { name: 'Schneidemaschine', bereich: 'Produktion', protokollTyp: 'reinigung', geraeteTyp: 'geraet', intervall: 'nach_benutzung', aktiv: true },
   { name: 'Vakuumierer', bereich: 'Produktion', protokollTyp: 'reinigung', geraeteTyp: 'geraet', intervall: 'nach_benutzung', aktiv: true },
 ];
+
+const FLY_PREVENTION_HACCP_DEVICES = [
+  { name: 'Fliegengitter Verkaufsraum', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
+  { name: 'UV-Insektenlampe Käse-Theke', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
+];
+
+const FLY_PREVENTION_CLEANING_TASK = {
+  id: 'fliegengitter-uv-lampen',
+  name: 'Fliegengitter & UV-Insektenlampen geprüft',
+};
 
 const HACCP_DRAFT_KEY = 'charculogic.draft.haccp';
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
@@ -152,7 +199,7 @@ function restoreCleaningPerson() {
   if (haccpState.cleaningDoneBy) return;
   try {
     const stored = localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
-      || localStorage.getItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()))
+      || readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId())
       || '';
     haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(stored) ? stored : '';
   } catch (_) { /* noop */ }
@@ -163,7 +210,7 @@ function rememberCleaningPerson(name) {
   try {
     if (haccpState.cleaningDoneBy) {
       localStorage.setItem(HACCP_CLEANING_PERSON_KEY, haccpState.cleaningDoneBy);
-      localStorage.setItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()), haccpState.cleaningDoneBy);
+      writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId(), haccpState.cleaningDoneBy);
     } else {
       localStorage.removeItem(HACCP_CLEANING_PERSON_KEY);
       localStorage.removeItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()));
@@ -196,11 +243,14 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
   updateHACCPAlerts();
   renderHaccpOperatorSelector();
   renderHaccpDaily();
+}
 
-  if (haccpState.db) {
-    loadHaccpDevicesFromCloud();
-    loadHaccpLogsFromCloud();
-  }
+export function startHaccpLiveSync() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
+  if (!haccpState.db) return;
+  loadHaccpDevicesFromCloud();
+  loadHaccpLogsFromCloud();
+  void seedDefaultHaccpDevicesIfEmpty();
 }
 
 export function activateHaccpTab() {
@@ -210,7 +260,7 @@ export function activateHaccpTab() {
 }
 
 function resolveHaccpTenantId() {
-  return getGlobalTenantId() || haccpState.tenantId || '';
+  return canonicalTenantId(getGlobalTenantId() || haccpState.tenantId);
 }
 
 function haccpCollectionPath() {
@@ -280,9 +330,54 @@ function periodKeyForCleaning(group) {
 }
 
 function allCleaningTasks() {
-  return HACCP_CLEANING_GROUPS.flatMap((group) =>
+  return resolveHaccpCleaningGroups().flatMap((group) =>
     group.tasks.map((task) => ({ ...task, groupId: group.id, groupTitle: group.title, period: group.period }))
   );
+}
+
+function resolveCurrentTenantBranding() {
+  const tenantId = getGlobalTenantId()
+    || String(haccpState.tenantId || '').trim()
+    || (typeof window.resolveEffectiveTenantId === 'function' ? window.resolveEffectiveTenantId() : '');
+  if (typeof window.resolveBranding === 'function') {
+    return window.resolveBranding(tenantId);
+  }
+  return window.BRANDING || {};
+}
+
+function isAdvancedHaccpFlyUpgradeEnabled() {
+  return resolveCurrentTenantBranding()?.advancedKaeseUpgrade === true;
+}
+
+function resolveHaccpCleaningGroups() {
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return HACCP_CLEANING_GROUPS;
+  return HACCP_CLEANING_GROUPS.map((group) => {
+    if (group.id !== 'weekly') return group;
+    const hasFlyTask = group.tasks.some((task) => task.id === FLY_PREVENTION_CLEANING_TASK.id);
+    if (hasFlyTask) return group;
+    return {
+      ...group,
+      tasks: [
+        ...group.tasks,
+        { ...FLY_PREVENTION_CLEANING_TASK },
+      ],
+    };
+  });
+}
+
+function resolveVisibleHaccpDevices() {
+  const cloudDevices = Array.isArray(haccpState.devices) ? haccpState.devices : [];
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return cloudDevices;
+
+  const merged = [...cloudDevices];
+  FLY_PREVENTION_HACCP_DEVICES.forEach((device) => {
+    const docId = haccpDeviceDocId(device.name);
+    const exists = merged.some((entry) => entry.id === docId || entry.name === device.name);
+    if (!exists) {
+      merged.push({ ...device, id: docId, localFlyFallback: true });
+    }
+  });
+  return merged;
 }
 
 function cleaningTaskById(taskId) {
@@ -336,26 +431,38 @@ function haccpDeviceDocId(name) {
 }
 
 function activeHaccpDevices(type) {
-  return haccpState.devices
+  return resolveVisibleHaccpDevices()
     .filter((device) => device.aktiv !== false && device.protokollTyp === type)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
 }
 
+function resolveDefaultHaccpDevicesForSeed() {
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return DEFAULT_HACCP_DEVICES;
+  return [...DEFAULT_HACCP_DEVICES, ...FLY_PREVENTION_HACCP_DEVICES];
+}
+
 async function seedDefaultHaccpDevicesIfEmpty() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpDevicesCollectionPath();
   if (!path) return;
   const snap = await haccpState.db.collection(path).limit(1).get();
   if (!snap.empty) return;
-  const batch = haccpState.db.batch();
-  DEFAULT_HACCP_DEVICES.forEach((device) => {
-    const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
-    batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
-  });
-  await batch.commit();
+  try {
+    const batch = haccpState.db.batch();
+    resolveDefaultHaccpDevicesForSeed().forEach((device) => {
+      const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
+      batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
+    });
+    await batch.commit();
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.warn('[CharcuLogic HACCP] Standard-Geräte konnten nicht geseedet werden:', err);
+  }
 }
 
 function loadHaccpDevicesFromCloud() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpDevicesCollectionPath();
   if (!path) return;
@@ -366,10 +473,14 @@ function loadHaccpDevicesFromCloud() {
   haccpState.devicesUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.devices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
-  }, (err) => console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err));
+  }, (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.error('[CharcuLogic HACCP] Geräte-Sync Fehler:', err);
+  });
 }
 
 function loadHaccpLogsFromCloud() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   const path = haccpCollectionPath();
   if (!path) return;
@@ -380,7 +491,10 @@ function loadHaccpLogsFromCloud() {
   haccpState.logsUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
     haccpState.logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderHaccpDaily();
-  }, (err) => console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err));
+  }, (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.error('[CharcuLogic HACCP] Protokoll-Sync Fehler:', err);
+  });
 }
 
 function temperatureStatus(device, value) {
@@ -464,11 +578,7 @@ async function saveHaccpLog(entry) {
       haccpState.showHUD("Bereits erfasst", "Dieser Protokolleintrag existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      console.warn(`[CharcuLogic HACCP] permission-denied für ${docId}`);
-      haccpState.showHUD("Kein Zugriff", "Speichern nicht erlaubt. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.warn('[CharcuLogic HACCP] Speichern fehlgeschlagen:', err);
     throw err;
   }
@@ -556,10 +666,7 @@ async function saveTemperatureCheck(stationId) {
       haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -600,10 +707,7 @@ async function saveLegacyTemperatureCheck(deviceId) {
       haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Temperatur konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -641,7 +745,7 @@ function upsertLocalCleaningLog(log) {
 
 async function saveCleaningCheck(taskId) {
   const task = cleaningTaskById(taskId);
-  const group = HACCP_CLEANING_GROUPS.find((entry) => entry.id === task?.groupId);
+  const group = resolveHaccpCleaningGroups().find((entry) => entry.id === task?.groupId);
   if (!task || !group) return;
   if (cleaningCompletionForTask(task, group)) {
     haccpState.showHUD("Schon erledigt", "Dieser Punkt ist bereits abgehakt.");
@@ -691,10 +795,7 @@ async function saveCleaningCheck(taskId) {
       haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im BÃ¼ro die Berechtigung prÃ¼fen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -726,10 +827,7 @@ async function saveLegacyCleaningCheck(deviceId) {
       haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
       return;
     }
-    if (isPermissionDeniedError(err)) {
-      haccpState.showHUD("Kein Zugriff", "Reinigung konnte nicht gespeichert werden. Bitte im Büro die Berechtigung prüfen.", "!");
-      return;
-    }
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
     haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
   }
@@ -750,8 +848,9 @@ function deactivateHaccpDevice(deviceId) {
       });
       haccpState.showHUD("Deaktiviert", "Kühlstelle oder Aufgabe wurde deaktiviert.");
     } catch (err) {
-    console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
     }
   });
 }
@@ -784,19 +883,25 @@ function addHaccpDeviceFromForm() {
       aktiv: true,
       tenantId: resolveHaccpTenantId(),
     };
-    await haccpState.writeOrQueueFirestore({
-      collectionPath: path,
-      docId: haccpDeviceDocId(name),
-      op: 'set',
-      onlineData: { ...payload, updatedAt: serverTimestamp() },
-      queueData: { ...payload, updatedAt: new Date().toISOString() },
-      offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
-    });
-    haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
-    ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
+    try {
+      await haccpState.writeOrQueueFirestore({
+        collectionPath: path,
+        docId: haccpDeviceDocId(name),
+        op: 'set',
+        onlineData: { ...payload, updatedAt: serverTimestamp() },
+        queueData: { ...payload, updatedAt: new Date().toISOString() },
+        offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
+      });
+      haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
+      ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Gerät anlegen fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht gespeichert werden.", "!");
+    }
   });
 }
 
@@ -861,7 +966,7 @@ function renderCleaningChecks() {
       <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
     </div>
     <div class="haccp-cleaning-groups">
-      ${HACCP_CLEANING_GROUPS.map((group) => `
+      ${resolveHaccpCleaningGroups().map((group) => `
         <section class="haccp-cleaning-group" aria-label="${escapeHtml(group.title)}">
           <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
           <div class="haccp-cleaning-group-list">
@@ -997,10 +1102,10 @@ function renderHaccpDaily() {
       </div>
       <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Einrichtung speichern</button>
       <div class="utility-list">
-        ${haccpState.devices.map((device) => `
+        ${resolveVisibleHaccpDevices().map((device) => `
           <div class="utility-row">
             <div class="utility-row-title">${escapeHtml(device.name)}</div>
-            <div class="utility-row-meta">${escapeHtml(device.protokollTyp || '')} · ${escapeHtml(device.bereich || '')} · ${device.aktiv === false ? 'inaktiv' : 'aktiv'}</div>
+            <div class="utility-row-meta">${escapeHtml(device.protokollTyp || '')} · ${escapeHtml(device.bereich || '')} · ${device.localFlyFallback ? 'lokal (Upgrade)' : device.aktiv === false ? 'inaktiv' : 'aktiv'}</div>
             ${device.aktiv === false ? '' : `<div class="utility-row-actions"><button class="btn-danger-small" type="button" data-haccp-deactivate="${escapeHtml(device.id)}">Deaktivieren</button></div>`}
           </div>
         `).join('')}
@@ -1118,8 +1223,9 @@ function bindStaticHaccpControls() {
       }
       haccpState.showHUD("📝 HACCP erfasst", `Charge ${chargenNummer} dokumentiert.`);
     } catch (err) {
-    console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
+      haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
     }
   });
 

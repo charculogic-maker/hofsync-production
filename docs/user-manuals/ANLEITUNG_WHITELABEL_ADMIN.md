@@ -98,6 +98,9 @@ const TENANT_BRANDING = {
       wurstkueche: false,        // true → Tab Prod. / WRS
       haccp: true,
       orders: true,
+      traceability: true,        // Tab Herkunft + Thekenklade
+      batches: true,
+      knowledge: false,
     },
   },
 };
@@ -110,6 +113,7 @@ const TENANT_BRANDING = {
 | **DEFAULT_BRANDING** | Neutral (*Betriebs-App*, Slate-Farben) — **keine** fremden Betriebsnamen |
 | **Fehlendes Profil** | `console.warn`: *Kein Mandanten-Profil gefunden* — erzwingt bewusstes Onboarding |
 | **Modul-Flags** | Steuern sichtbare Tabs (z. B. TorFabrik: `wurstkueche: false`) |
+| **Runtime** | Zusätzlich `tenants/{id}.enabledModules` via `/dev-dashboard` (`web/tenant-modules.js`) |
 
 ##### Modul-Flag → sichtbarer Bereich
 
@@ -117,16 +121,20 @@ const TENANT_BRANDING = {
 |------|---------------|
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang); `wareneingangMetzgerei` zusätzlich den Metzgerei-Modus |
+| `traceability` | Tab **Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
 | `wurstkueche` | Tab **Prod.** (Rezepte / WRS) |
-| `haccp` | Admin-Seite **HACCP** **und** den Team-Reiter **🌡️ Temperatur-Check** |
+| `haccp` | Admin-Modul **HACCP** (und ggf. Team-Reiter Temperatur-Check, wenn Team aktiv) |
 | `orders` | Im Tab **Team** die Reiter **💬 Nachrichten** und **🛒 Bestellungen** |
 | `teamboard` | Tab **Start / Schwarzes Brett** und den Team-Reiter **💬 Nachrichten** |
 | `batches` | Tab **Büro / Chargen** |
+| `knowledge` / `cutGlossary` | Admin-Modul **Wissen** |
 | `retterBox` | Retter-Box-Angebot (mandantenspezifisch, rules-gestützt) |
 
-**Tab Team — kombinierte Sichtbarkeit (Stand Juni 2026):**
+**`enabledModules`-Keys (Firestore):** `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`.
 
-- Der Tab **Team** erscheint, sobald **`orders`** *oder* **`haccp`** aktiv ist (`web/app.js` → `applyModuleVisibility`).
+**Tab Team — kombinierte Sichtbarkeit (Stand Juli 2026):**
+
+- Der Tab **Team** erscheint, sobald **`orders`** *oder* **`haccp`** *oder* **`teamboard`** aktiv ist (`web/app.js` → `applyModuleVisibility`).
 - Die Reiter innerhalb von **Team** werden einzeln nach Modul geschaltet (`web/team-tab.js` → `visibleTeamPanels`):
   - **💬 Nachrichten**: `teamboard` *oder* `orders` aktiv
   - **🛒 Bestellungen**: `orders` aktiv
@@ -137,11 +145,11 @@ const TENANT_BRANDING = {
 
 | Mandant | `orders` | `haccp` | `teamboard` | Tab **Team** zeigt |
 |---------|----------|---------|-------------|--------------------|
-| `steveshof_hauptbetrieb` | `false` | `true` | `false` | nur **🌡️ Temperatur-Check** |
+| `steveshof_hauptbetrieb` | `false` | oft via `enabledModules` | `false` | Tab Team ausgeblendet; HACCP über Admin-Menü |
 | `torfabrik` | `true` | `true` | (Standard `true`) | **Nachrichten · Bestellungen · Temperatur-Check** |
 | `DEFAULT_BRANDING` | `true` | `true` | `true` | **Nachrichten · Bestellungen · Temperatur-Check** |
 
-> **Kundenbestellungen für StevesHof:** Im Hofladen-Profil ist `orders: false`, daher erfasst StevesHof aktuell **keine** Kundenbestellungen über den Tab **Team** — dort steht nur der **Temperatur-Check**. Soll der Hofladen Bestellungen aufnehmen, in `TENANT_BRANDING.steveshof_hauptbetrieb.modules` `orders: true` setzen und die Service-Worker-Cache-Version erhöhen. Die Kollegen-Anleitung beschreibt den Bestell-Ablauf bereits für diesen Fall.
+> **Kundenbestellungen für StevesHof:** Im Hofladen-Profil ist `orders: false`, daher erfasst StevesHof aktuell **keine** Kundenbestellungen über den Tab **Team**. Soll der Hofladen Bestellungen aufnehmen, in `TENANT_BRANDING.steveshof_hauptbetrieb.modules` `orders: true` setzen und die Service-Worker-Cache-Version erhöhen.
 
 #### 2.3 Bootstrap-Daten (kein Client-Seeding)
 
@@ -316,6 +324,8 @@ Optional Storage: `firebase deploy --only storage`
 | Bereich | Datei / Pfad |
 |---------|----------------|
 | Branding | `web/branding.js` |
+| Modul-Runtime | `web/tenant-modules.js`, `/dev-dashboard` |
+| LMIV-Herkunft | `web/traceability.js` |
 | Firebase + App Check Keys | `web/firebase-config.js` |
 | App Check Init | `web/app-check.js` |
 | Terminal localStorage | `web/teamboard-storage.js` |

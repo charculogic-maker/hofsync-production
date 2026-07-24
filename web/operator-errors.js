@@ -30,6 +30,9 @@ export function mapOperatorError(error, context = '') {
   if (context === 'delivery-note') {
     return 'KI-Analyse fehlgeschlagen. Bitte Foto erneut aufnehmen oder manuell erfassen.';
   }
+  if (context === 'meat-label') {
+    return 'Etikett konnte nicht gelesen werden. Bitte Daten manuell eintragen.';
+  }
   if (context === 'sync') {
     return 'Synchronisation fehlgeschlagen. Daten bleiben in der Warteschlange.';
   }

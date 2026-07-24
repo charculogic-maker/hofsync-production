@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <script src="/branding.js"></script>
+  <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#28a745">
@@ -10,26 +10,6 @@
   <meta name="apple-mobile-web-app-title" content="">
   <link rel="manifest" id="pwa-manifest" href="/manifest.json">
   <script>
-    if (window.BRANDING) {
-      const manifestData = {
-        name: window.BRANDING.betriebsName || 'Hofladen Leitstand',
-        short_name: window.BRANDING.appName || 'CharcuLogic',
-        start_url: '.',
-        display: 'standalone',
-        background_color: window.BRANDING.lightBg || '#f8f9fa',
-        theme_color: window.BRANDING.primaryColor || '#28a745',
-        icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-        ],
-      };
-      const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
-      const manifestURL = URL.createObjectURL(blob);
-      document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
-      const themeMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeMeta) themeMeta.setAttribute('content', window.BRANDING.primaryColor || '#28a745');
-    }
-
     window.forceAppUpdate = async function forceAppUpdate() {
       if (window.__forceAppUpdateRunning) return;
       window.__forceAppUpdateRunning = true;
@@ -73,21 +53,28 @@
     };
 
     window.fallbackShowTab = function fallbackShowTab(tabId) {
+      const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
       const pageMap = {
-        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: 'StevesHof Hofladen' },
-        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: 'StevesHof Hofladen' },
-        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: 'StevesHof Hofladen' },
-        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: 'StevesHof Hofladen' },
+        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Aufgaben & Tagesinfo' },
+        team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
+        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
+        traceability: { page: 'page-traceability', title: 'Herkunft', subtitle: betriebsName },
+        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
+        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
       };
-      const target = pageMap[tabId] || pageMap.mhd;
+      const preferred = tabId || 'traceability';
+      const target = pageMap[preferred] || pageMap.traceability || pageMap.mhd;
+      const resolvedTabId = pageMap[preferred] ? preferred : 'traceability';
       document.querySelectorAll('.page').forEach((page) => {
         const active = page.id === target.page;
         page.classList.toggle('active', active);
         page.style.display = active ? 'block' : 'none';
       });
       document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
-        tab.classList.toggle('active', tab.getAttribute('data-tab') === tabId);
+        tab.classList.toggle('active', tab.getAttribute('data-tab') === resolvedTabId);
       });
+      window.scrollActiveNavTabIntoView?.({ smooth: true });
       const headerTitle = document.getElementById('header-title');
       const headerSubtitle = document.getElementById('header-subtitle');
       if (headerTitle) headerTitle.textContent = target.title;
@@ -106,7 +93,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260611-162">
+  <link rel="stylesheet" href="/style.css?v=20260618-nav">
 </head>
 <body>
 
@@ -129,13 +116,44 @@
           </div>
         </div>
 
-        <!-- App Header (Header Bar) -->
+        <!-- App Header: Tenant-Header + Aktionen -->
         <header class="app-header">
-          <div class="app-title-group">
-            <span class="app-subtitle brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
-            <h1 id="header-title">MHD-Monitor</h1>
+          <div class="tenant-header" id="tenant-header" aria-label="Aktueller Betrieb">
+            <img
+              class="tenant-header-logo"
+              id="tenant-header-logo"
+              src="/icon-192.png"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <div class="tenant-header-text app-title-group">
+              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">Betriebs-Leitstand</span>
+              <h1 class="tenant-header-page" id="header-title">MHD-Monitor</h1>
+            </div>
           </div>
           <div class="app-header-actions">
+            <div class="admin-header-dropdown" id="admin-header-dropdown" hidden style="display: none;">
+              <button
+                type="button"
+                class="admin-header-dropdown-trigger"
+                id="admin-header-dropdown-btn"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="admin-header-dropdown-menu"
+                aria-label="Verwaltungs-Menü"
+                title="Verwaltung"
+              >
+                <span class="admin-header-dropdown-trigger-icon" aria-hidden="true">⚙️</span>
+                <span class="admin-header-dropdown-trigger-label">Verwaltung</span>
+              </button>
+              <div class="admin-header-dropdown-menu" id="admin-header-dropdown-menu" role="menu" hidden>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Wissen</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro</button>
+              </div>
+            </div>
             <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
             <button type="button" class="app-refresh-btn" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
               <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
@@ -154,6 +172,441 @@
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
+
+          <!-- Hidden Dev Dashboard (route: /dev-dashboard) -->
+          <div class="page" id="page-dev-dashboard" hidden style="display: none;">
+            <div class="dev-dashboard-shell">
+              <header class="dev-dashboard-topbar">
+                <div class="dev-dashboard-topbar-main">
+                  <button
+                    type="button"
+                    class="dev-dashboard-back-btn"
+                    id="dev-dashboard-back-btn"
+                    aria-label="Zurück zur App"
+                  >← Zurück zur App</button>
+                  <div class="tenant-header tenant-header--admin" id="dev-dashboard-tenant-header" aria-label="Aktueller Betrieb">
+                    <img
+                      class="tenant-header-logo"
+                      id="dev-dashboard-tenant-logo"
+                      src="/icon-192.png"
+                      alt=""
+                      width="44"
+                      height="44"
+                      decoding="async"
+                    />
+                    <div class="tenant-header-text dev-dashboard-topbar-titles">
+                      <span class="tenant-header-name brand-betriebs-name">Betriebs-Leitstand</span>
+                      <h1 class="dev-dashboard-page-title">Verwaltung</h1>
+                      <p class="dev-dashboard-status" id="dev-dashboard-status" aria-live="polite">Lade…</p>
+                    </div>
+                  </div>
+                </div>
+                <span class="dev-dashboard-role-badge" id="dev-dashboard-role-badge" data-role="tenant">Betrieb</span>
+              </header>
+
+              <nav class="dev-dashboard-tabs" role="tablist" aria-label="Verwaltungsbereiche">
+                <button
+                  type="button"
+                  class="dev-dashboard-tab is-active"
+                  role="tab"
+                  id="dev-dashboard-tab-overview"
+                  data-dev-tab="overview"
+                  aria-selected="true"
+                  aria-controls="dev-dashboard-view-overview"
+                >Übersicht</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
+                  id="dev-dashboard-tab-users"
+                  data-dev-tab="users"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-users"
+                >Nutzer</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
+                  id="dev-dashboard-tab-settings"
+                  data-dev-tab="settings"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-settings"
+                >Einstellungen</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
+                  id="dev-dashboard-tab-audit"
+                  data-dev-tab="audit"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-audit"
+                >Protokoll</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
+                  id="dev-dashboard-tab-traceability"
+                  data-dev-tab="traceability"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-traceability"
+                >Thekenklade</button>
+              </nav>
+
+              <div id="dev-dashboard-view-overview" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-overview">
+                <section class="dev-dashboard-panel" aria-label="Betriebs-Übersicht">
+                  <h2 class="dev-dashboard-section-title">Übersicht</h2>
+                  <p class="dev-dashboard-intro">
+                    Kennzahlen für den aktuellen Betrieb. Zahlen aktualisieren sich mit Nutzerliste und freigeschalteten Modulen.
+                  </p>
+                  <div class="dev-dashboard-kpi-grid" id="dev-dashboard-kpi-grid">
+                    <article class="dev-dashboard-kpi-card">
+                      <p class="dev-dashboard-kpi-label">Aktive Nutzer</p>
+                      <p class="dev-dashboard-kpi-value" id="dev-kpi-users">—</p>
+                      <p class="dev-dashboard-kpi-hint" id="dev-kpi-users-hint">Lade…</p>
+                    </article>
+                    <article class="dev-dashboard-kpi-card">
+                      <p class="dev-dashboard-kpi-label">Betriebs-Admins</p>
+                      <p class="dev-dashboard-kpi-value" id="dev-kpi-admins">—</p>
+                      <p class="dev-dashboard-kpi-hint">Rolle Admin</p>
+                    </article>
+                    <article class="dev-dashboard-kpi-card">
+                      <p class="dev-dashboard-kpi-label">Module aktiv</p>
+                      <p class="dev-dashboard-kpi-value" id="dev-kpi-modules">—</p>
+                      <p class="dev-dashboard-kpi-hint" id="dev-kpi-modules-hint">Freigeschaltete Bereiche</p>
+                    </article>
+                    <article class="dev-dashboard-kpi-card">
+                      <p class="dev-dashboard-kpi-label">Status</p>
+                      <p class="dev-dashboard-kpi-value" id="dev-kpi-status">—</p>
+                      <p class="dev-dashboard-kpi-hint" id="dev-kpi-status-hint">Betrieb</p>
+                    </article>
+                  </div>
+                  <div class="dev-dashboard-overview-actions">
+                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="users">Zur Nutzerverwaltung</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu den Einstellungen</button>
+                  </div>
+                </section>
+              </div>
+
+              <div id="dev-dashboard-view-users" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-users" hidden>
+                <div class="dev-dashboard-grid">
+                  <section class="dev-dashboard-panel dev-dashboard-panel--employees" aria-label="Nutzerverwaltung">
+                    <div class="dev-dashboard-employee-header">
+                      <div>
+                        <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
+                        <p class="dev-dashboard-intro">
+                          Nutzer suchen, Rollen setzen (Mitarbeiter / Admin) und neue Zugänge anlegen.
+                        </p>
+                      </div>
+                      <label class="dev-dashboard-tenant-select-field" id="dev-dashboard-tenant-select-wrap" hidden>
+                        <span>Betrieb</span>
+                        <select id="dev-dashboard-tenant-select" aria-label="Betrieb für Nutzerverwaltung"></select>
+                      </label>
+                    </div>
+
+                    <div class="dev-dashboard-user-toolbar">
+                      <label class="dev-dashboard-field" for="dev-dashboard-user-search">
+                        <span>Suche</span>
+                        <input id="dev-dashboard-user-search" type="search" placeholder="Name oder E-Mail…" autocomplete="off">
+                      </label>
+                      <label class="dev-dashboard-field" for="dev-dashboard-user-role-filter">
+                        <span>Rolle</span>
+                        <select id="dev-dashboard-user-role-filter" aria-label="Nach Rolle filtern">
+                          <option value="all">Alle</option>
+                          <option value="employee">Mitarbeiter</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </label>
+                      <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-invite-open-btn">
+                        Neuen Nutzer einladen
+                      </button>
+                    </div>
+
+                    <div class="dev-dashboard-employee-grid">
+                      <div class="dev-dashboard-employee-create" id="dev-dashboard-employee-create" hidden>
+                        <h3 class="dev-dashboard-subsection-title">Neuen Nutzer anlegen</h3>
+                        <p class="dev-dashboard-intro">
+                          Legt ein Konto mit Startpasswort an. Der Nutzer meldet sich danach mit E-Mail und Passwort an.
+                        </p>
+                        <form id="dev-dashboard-employee-form" class="dev-dashboard-employee-form">
+                          <label class="dev-dashboard-field" for="dev-dashboard-employee-name">
+                            <span>Name</span>
+                            <input id="dev-dashboard-employee-name" type="text" required autocomplete="name" maxlength="80">
+                          </label>
+                          <label class="dev-dashboard-field" for="dev-dashboard-employee-email">
+                            <span>E-Mail</span>
+                            <input id="dev-dashboard-employee-email" type="email" required autocomplete="username">
+                          </label>
+                          <label class="dev-dashboard-field" for="dev-dashboard-employee-password">
+                            <span>Startpasswort</span>
+                            <input id="dev-dashboard-employee-password" type="password" required autocomplete="new-password" minlength="6">
+                          </label>
+                          <fieldset class="dev-dashboard-permissions-fieldset">
+                            <legend>App-Sichtbarkeit (Start)</legend>
+                            <div class="dev-dashboard-permissions-row">
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                                <input id="dev-dashboard-create-mod-mhd" type="checkbox" checked>
+                                <span>MHD</span>
+                              </label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                                <input id="dev-dashboard-create-mod-kitchen" type="checkbox" checked>
+                                <span>Küche</span>
+                              </label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                                <input id="dev-dashboard-create-mod-buero" type="checkbox" checked>
+                                <span>Büro</span>
+                              </label>
+                            </div>
+                          </fieldset>
+                          <div class="dev-dashboard-form-actions">
+                            <button type="submit" class="dev-dashboard-submit-btn">Nutzer anlegen</button>
+                            <button type="button" class="dev-dashboard-action-btn" id="dev-dashboard-invite-cancel-btn">Abbrechen</button>
+                          </div>
+                        </form>
+                        <p class="dev-dashboard-employee-status" id="dev-dashboard-employee-status" aria-live="polite"></p>
+                      </div>
+
+                      <div class="dev-dashboard-employee-list" id="dev-dashboard-employee-list">
+                        <div class="dev-dashboard-employee-list-header">
+                          <h3 class="dev-dashboard-subsection-title">Bestehende Nutzer</h3>
+                          <p class="dev-dashboard-employee-list-status" id="dev-dashboard-employee-list-status" aria-live="polite"></p>
+                        </div>
+                        <div class="dev-dashboard-table-wrap">
+                          <table class="dev-dashboard-table dev-dashboard-table--employees">
+                            <thead>
+                              <tr>
+                                <th scope="col">Person</th>
+                                <th scope="col">Rolle</th>
+                                <th scope="col">Module</th>
+                                <th scope="col">Aktionen</th>
+                              </tr>
+                            </thead>
+                            <tbody id="dev-dashboard-employee-body"></tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div id="dev-dashboard-view-settings" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-settings" hidden>
+                <div class="dev-dashboard-grid">
+                  <section class="dev-dashboard-panel" aria-label="Betriebseinstellungen">
+                    <h2 class="dev-dashboard-section-title">Betriebseinstellungen</h2>
+                    <p class="dev-dashboard-intro">
+                      Firmenname und Logo für die Anzeige in unserer App. Modul-Freischaltungen gelten sofort auf allen Laden-iPhones.
+                    </p>
+                    <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
+                      <label class="dev-dashboard-field" for="dev-dashboard-settings-name">
+                        <span>Firmenname</span>
+                        <input id="dev-dashboard-settings-name" type="text" maxlength="120" autocomplete="organization" required>
+                      </label>
+                      <label class="dev-dashboard-field" for="dev-dashboard-settings-logo">
+                        <span>Logo-URL</span>
+                        <input id="dev-dashboard-settings-logo" type="text" maxlength="500" placeholder="https://… oder /icon-192.png" autocomplete="off">
+                      </label>
+                      <div class="dev-dashboard-settings-preview" aria-live="polite">
+                        <img id="dev-dashboard-settings-logo-preview" class="tenant-header-logo" src="/icon-192.png" alt="" width="48" height="48">
+                        <div>
+                          <p class="dev-dashboard-settings-preview-name" id="dev-dashboard-settings-preview-name">—</p>
+                          <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
+                        </div>
+                      </div>
+                      <button type="submit" class="dev-dashboard-submit-btn">Einstellungen speichern</button>
+                      <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
+                    </form>
+                  </section>
+
+                  <section
+                    class="dev-dashboard-panel dev-dashboard-panel--global"
+                    id="dev-dashboard-global-panel"
+                    aria-label="Alle Betriebe"
+                  >
+                    <h2 class="dev-dashboard-section-title">Betriebe (Plattform)</h2>
+                    <p class="dev-dashboard-intro">
+                      Module pro Betrieb aktivieren oder deaktivieren. Änderungen gelten sofort für alle Geräte.
+                    </p>
+
+                    <div class="dev-dashboard-tenant-create">
+                      <h3 class="dev-dashboard-subsection-title">Neuen Betrieb anlegen</h3>
+                      <p class="dev-dashboard-intro">
+                        Legt ein neues Dokument unter <code>tenants/{tenantId}</code> an. Die Betriebs-ID wird aus dem Namen vorgeschlagen und kann angepasst werden.
+                      </p>
+                      <form id="dev-dashboard-tenant-form" class="dev-dashboard-tenant-form">
+                        <div class="dev-dashboard-tenant-form-row">
+                          <label class="dev-dashboard-field" for="dev-dashboard-tenant-name">
+                            <span>Anzeigename</span>
+                            <input
+                              id="dev-dashboard-tenant-name"
+                              type="text"
+                              required
+                              maxlength="80"
+                              placeholder="z. B. SuperBioMarkt"
+                              autocomplete="organization"
+                            >
+                          </label>
+                          <label class="dev-dashboard-field" for="dev-dashboard-tenant-id">
+                            <span>Betriebs-ID (Dokumenten-ID)</span>
+                            <input
+                              id="dev-dashboard-tenant-id"
+                              type="text"
+                              required
+                              maxlength="64"
+                              pattern="[a-zA-Z0-9_\-]+"
+                              title="Nur Buchstaben, Zahlen, Unterstrich und Bindestrich"
+                              placeholder="z. B. superbiomarkt"
+                              autocomplete="off"
+                              spellcheck="false"
+                            >
+                          </label>
+                        </div>
+                        <fieldset class="dev-dashboard-permissions-fieldset">
+                          <legend>Module (Start)</legend>
+                          <div class="dev-dashboard-permissions-row">
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-start" type="checkbox" data-module-key="start">
+                              <span>Start</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-team" type="checkbox" data-module-key="team">
+                              <span>Team</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-mhd" type="checkbox" data-module-key="mhd">
+                              <span>MHD</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-receiving" type="checkbox" data-module-key="receiving">
+                              <span>Wareneingang</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-kitchen" type="checkbox" data-module-key="kitchen">
+                              <span>Küche</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-haccp" type="checkbox" data-module-key="haccp">
+                              <span>HACCP</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-knowledge" type="checkbox" data-module-key="knowledge">
+                              <span>Wissen</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-buero" type="checkbox" data-module-key="buero">
+                              <span>Büro</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-traceability" type="checkbox" data-module-key="traceability" checked>
+                              <span>Rückverfolgbarkeit</span>
+                            </label>
+                          </div>
+                        </fieldset>
+                        <button type="submit" class="dev-dashboard-submit-btn">Betrieb anlegen</button>
+                      </form>
+                      <p class="dev-dashboard-employee-status" id="dev-dashboard-tenant-form-status" aria-live="polite"></p>
+                    </div>
+
+                    <div class="dev-dashboard-table-wrap">
+                      <table class="dev-dashboard-table dev-dashboard-table--tenants">
+                        <thead>
+                          <tr>
+                            <th scope="col">Betrieb</th>
+                            <th scope="col">Module</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody id="dev-dashboard-tenant-body"></tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section
+                    class="dev-dashboard-panel dev-dashboard-panel--single"
+                    id="dev-dashboard-single-panel"
+                    hidden
+                    aria-label="Eigener Betrieb"
+                  >
+                    <h2 class="dev-dashboard-section-title">Module für unseren Betrieb</h2>
+                    <p class="dev-dashboard-intro">
+                      Module für unseren Betrieb aktivieren oder deaktivieren.
+                    </p>
+                    <div id="dev-dashboard-single-tenant" class="dev-dashboard-single-tenant-wrap"></div>
+                  </section>
+                </div>
+              </div>
+
+              <div id="dev-dashboard-view-audit" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-audit" hidden>
+                <section class="dev-dashboard-panel" aria-label="Änderungsprotokoll">
+                  <div class="dev-dashboard-section-heading">
+                    <h2 class="dev-dashboard-section-title">Protokoll</h2>
+                    <span class="dev-dashboard-local-badge" title="Ereignisse liegen nur in diesem iPhone / Browser">Lokal auf diesem Gerät</span>
+                  </div>
+                  <p class="dev-dashboard-intro">
+                    Nur Lesen: Sicherheits- und Änderungsereignisse für diesen Betrieb.
+                    Das Protokoll wird lokal auf diesem Gerät gespeichert (noch keine zentrale Ablage).
+                  </p>
+                  <div class="dev-dashboard-table-wrap">
+                    <table class="dev-dashboard-table" id="dev-dashboard-audit-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Zeit</th>
+                          <th scope="col">Art</th>
+                          <th scope="col">Ereignis</th>
+                          <th scope="col">Von</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dev-dashboard-audit-body"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+
+              <div id="dev-dashboard-view-traceability" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-traceability" hidden>
+                <section class="dev-dashboard-panel" aria-label="Digitale Thekenklade">
+                  <div class="dev-dashboard-employee-header">
+                    <div>
+                      <h2 class="dev-dashboard-section-title">Digitale Thekenklade</h2>
+                      <p class="dev-dashboard-intro">
+                        Alle erfassten LMIV-Herkunftseinträge. Suche nach LOT oder Datum, Status umschalten, Etikett für Kontrollen öffnen.
+                      </p>
+                    </div>
+                    <p class="dev-dashboard-employee-list-status" id="dev-trace-status" aria-live="polite"></p>
+                  </div>
+                  <div class="dev-trace-toolbar">
+                    <label class="dev-dashboard-field" for="dev-trace-search">
+                      <span>Suche (LOT / Kennzeichen)</span>
+                      <input id="dev-trace-search" type="search" placeholder="z. B. LOT-2026-…" autocomplete="off">
+                    </label>
+                    <label class="dev-dashboard-field" for="dev-trace-date">
+                      <span>Erfassungsdatum</span>
+                      <input id="dev-trace-date" type="date">
+                    </label>
+                  </div>
+                  <div class="dev-dashboard-table-wrap">
+                    <table class="dev-dashboard-table" id="dev-trace-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">LOT</th>
+                          <th scope="col">Tierart</th>
+                          <th scope="col">Erfasst</th>
+                          <th scope="col">Kennzeichen</th>
+                          <th scope="col">Öko-Kontrollstelle</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Aktion</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dev-trace-body"></tbody>
+                    </table>
+                  </div>
+                  <div id="dev-trace-detail" class="dev-trace-detail" aria-live="polite">
+                    <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
+                  </div>
+                </section>
+              </div>
+
+            </div>
+          </div>
 
           <!-- ============================================== -->
           <!-- SCREEN 1: TEAM-LEITSTAND PAGE                  -->
@@ -383,6 +836,24 @@
               </details>
             </div>
 
+            <details class="mhd-admin-search" id="mhd-admin-search" hidden>
+              <summary class="mhd-admin-search-summary">Erweiterte Suche</summary>
+              <div class="mhd-admin-search-panel">
+                <div class="mhd-admin-search-field">
+                  <input
+                    type="search"
+                    id="mhd-admin-search-input"
+                    class="input-text-touch mhd-admin-search-input"
+                    placeholder="Produktname oder Barcode suchen..."
+                    autocomplete="off"
+                    aria-label="Admin-Suche im MHD-Bestand"
+                  >
+                </div>
+                <p class="mhd-admin-search-status" id="mhd-admin-search-status" hidden></p>
+                <div class="mhd-list mhd-admin-search-results" id="mhd-admin-search-results" hidden></div>
+              </div>
+            </details>
+
             <div class="mhd-list" id="mhd-items-container">
               <!-- Cards are rendered dynamically by app.js -->
             </div>
@@ -550,11 +1021,128 @@
           </div>
 
           <!-- ============================================== -->
+          <!-- SCREEN: RÜCKVERFOLGBARKEIT (LMIV-Erfassung)     -->
+          <!-- ============================================== -->
+          <div class="page" id="page-traceability">
+            <div class="haccp-card receiving-card trace-capture-card">
+              <div class="section-title">Fleisch-Herkunft erfassen</div>
+              <p class="learn-mode-desc">
+                Etikett fotografieren und LMIV-Herkunft für die Theke hinterlegen. Der Eintrag erscheint danach in der digitalen Thekenklade.
+              </p>
+
+              <input type="file" id="trace-photo-input" class="visually-hidden" accept="image/*" capture="environment">
+              <button type="button" class="btn btn-primary btn-receiving-photo" id="trace-photo-btn">
+                📸 Etikett fotografieren / scannen
+              </button>
+              <div id="trace-photo-preview" class="trace-photo-preview" hidden></div>
+
+              <div class="receiving-form-stack trace-form-stack">
+                <label class="receiving-field" for="trace-lot-number">
+                  <span>Charge / LOT-Nummer *</span>
+                  <input type="text" id="trace-lot-number" class="gastro-input" placeholder="z. B. LOT-2026-0717-A" autocomplete="off" required>
+                </label>
+                <label class="receiving-field" for="trace-health-mark">
+                  <span>Identitätskennzeichen (oval)</span>
+                  <input type="text" id="trace-health-mark" class="gastro-input" placeholder="z. B. DE-NW-12345-EG" autocomplete="off">
+                </label>
+                <label class="receiving-field" for="trace-organic-control-body">
+                  <span>Öko-Kontrollstelle (z. B. DE-ÖKO-006)</span>
+                  <input type="text" id="trace-organic-control-body" class="gastro-input" placeholder="z. B. DE-ÖKO-006" autocomplete="off" inputmode="text">
+                </label>
+                <label class="receiving-field" for="trace-organic-association">
+                  <span>Bio-Verband (optional)</span>
+                  <select id="trace-organic-association" class="gastro-input">
+                    <option value="">Bitte prüfen / wählen…</option>
+                    <option value="EU-Bio">EU-Bio</option>
+                    <option value="Bioland">Bioland</option>
+                    <option value="Demeter">Demeter</option>
+                    <option value="Naturland">Naturland</option>
+                    <option value="Keine / Konventionell">Keine / Konventionell</option>
+                  </select>
+                </label>
+                <label class="receiving-field" for="trace-animal-type">
+                  <span>Tierart *</span>
+                  <select id="trace-animal-type" class="gastro-input">
+                    <option value="rind" selected>Rind</option>
+                    <option value="schwein">Schwein</option>
+                    <option value="gefluegel">Geflügel</option>
+                    <option value="schaf">Schaf</option>
+                    <option value="ziege">Ziege</option>
+                  </select>
+                </label>
+
+                <label class="trace-checkbox-field" for="trace-single-origin">
+                  <input type="checkbox" id="trace-single-origin" checked>
+                  <span>Ursprung aus einem einzigen Land?</span>
+                </label>
+
+                <div id="trace-single-origin-fields" class="trace-origin-block">
+                  <label class="receiving-field" for="trace-single-country">
+                    <span>Ursprungsland *</span>
+                    <select id="trace-single-country" class="gastro-input"></select>
+                  </label>
+                </div>
+
+                <div id="trace-multi-origin-fields" class="trace-origin-block" hidden>
+                  <div id="trace-rind-only-fields" class="trace-rind-only">
+                    <label class="receiving-field" for="trace-born-in">
+                      <span>Geboren in *</span>
+                      <select id="trace-born-in" class="gastro-input"></select>
+                    </label>
+                    <label class="receiving-field" for="trace-cut-in">
+                      <span>Zerlegt in *</span>
+                      <select id="trace-cut-in" class="gastro-input"></select>
+                    </label>
+                    <label class="receiving-field" for="trace-cutting-plant">
+                      <span>Zulassungsnummer Zerlegebetrieb *</span>
+                      <input type="text" id="trace-cutting-plant" class="gastro-input" placeholder="z. B. DE-NW-12345-EG" autocomplete="off">
+                    </label>
+                  </div>
+                  <label class="receiving-field" for="trace-raised-in">
+                    <span>Aufgezogen / Gemästet in *</span>
+                    <select id="trace-raised-in" class="gastro-input"></select>
+                  </label>
+                  <label class="receiving-field" for="trace-slaughtered-in">
+                    <span>Geschlachtet in *</span>
+                    <select id="trace-slaughtered-in" class="gastro-input"></select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="receiving-action-row">
+                <button type="button" class="gastro-btn" id="trace-save-btn">
+                  💾 Herkunft speichern
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============================================== -->
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
+              <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
+                <summary>Neues Rezept anlegen</summary>
+                <form class="recipe-create-form" id="recipe-create-form" onsubmit="return false;">
+                  <label class="form-label" for="recipe-create-name">Name</label>
+                  <input type="text" id="recipe-create-name" class="input-text-touch" placeholder="z. B. Linseneintopf" autocomplete="off" required>
+
+                  <label class="form-label" for="recipe-create-category">Kategorie</label>
+                  <input type="text" id="recipe-create-category" class="input-text-touch" placeholder="z. B. Hauptgericht" value="Hauptgericht" autocomplete="off">
+
+                  <label class="form-label" for="recipe-create-haltbar">Haltbarkeit (Text)</label>
+                  <input type="text" id="recipe-create-haltbar" class="input-text-touch" placeholder="z. B. 3 Tage bei &lt; 4°C" autocomplete="off">
+
+                  <label class="form-label" for="recipe-create-mhd-days">Standard-MHD (Tage)</label>
+                  <input type="number" id="recipe-create-mhd-days" class="input-text-touch" inputmode="numeric" min="0" max="365" step="1" value="3" required>
+
+                  <button type="button" class="btn btn-primary btn-recipe-create-save" id="btn-recipe-create-save">
+                    Rezept speichern
+                  </button>
+                </form>
+              </details>
               <div class="recipe-toolbar">
                 <input type="search" class="input-text-touch recipe-search-input" id="recipe-search-input" placeholder="🔍 Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
                 <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
@@ -1151,40 +1739,78 @@
           <div class="recipe-category-filter recipe-category-filter--sheet" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
         </div>
 
-        <!-- Bottom Navigation Bar -->
-        <nav class="bottom-nav">
-          <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
-            <i>📌</i>
-            <span>Start</span>
-          </button>
-          <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
-            <i>💬</i>
-            <span>Team</span>
-          </button>
-          <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
-            <i>📅</i>
-            <span>MHD</span>
-          </button>
-          <button class="nav-item" data-tab="receiving" id="tab-receiving" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
-            <i>📥</i>
-            <span>Neu</span>
-          </button>
-          <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
-            <i>🥣</i>
-            <span>Prod.</span>
-          </button>
-          <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;">
-            <i>🛡️</i>
-            <span>HACCP</span>
-          </button>
-          <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
-            <i>📖</i>
-            <span>Wissen</span>
-          </button>
-          <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
-            <i>📋</i>
-            <span>Büro</span>
-          </button>
+        <!-- Navigation: Alltag (unten / Sidebar) + optional Verwaltung -->
+        <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
+          <div class="app-nav-brand" id="app-nav-brand" aria-hidden="true">
+            <img
+              class="tenant-header-logo app-nav-brand-logo"
+              id="app-nav-brand-logo"
+              src="/icon-192.png"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+            />
+            <div class="app-nav-brand-text">
+              <span class="app-nav-brand-name brand-betriebs-name">Betriebs-Leitstand</span>
+              <span class="app-nav-brand-hint">Laden-Alltag</span>
+            </div>
+          </div>
+
+          <div class="app-nav-zone app-nav-zone--ops" aria-label="Laden-Alltag">
+            <p class="app-nav-zone-label">Laden-Alltag</p>
+            <div class="bottom-nav-scroll" id="bottom-nav-scroll">
+              <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
+                <i>📌</i>
+                <span>Start</span>
+              </button>
+              <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
+                <i>💬</i>
+                <span>Team</span>
+              </button>
+              <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
+                <i>📅</i>
+                <span>MHD</span>
+              </button>
+              <button class="nav-item" data-tab="receiving" id="tab-receiving" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
+                <i>📥</i>
+                <span>Neu</span>
+              </button>
+              <button class="nav-item" data-tab="traceability" id="tab-traceability" onclick="window.fallbackShowTab && window.fallbackShowTab('traceability')">
+                <i>🏷️</i>
+                <span>Herkunft</span>
+              </button>
+              <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
+                <i>🥣</i>
+                <span>Prod.</span>
+              </button>
+              <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;">
+                <i>🛡️</i>
+                <span>HACCP</span>
+              </button>
+              <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
+                <i>📖</i>
+                <span>Wissen</span>
+              </button>
+              <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
+                <i>📋</i>
+                <span>Büro</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Verwaltung">
+            <p class="app-nav-zone-label">Verwaltung</p>
+            <a
+              class="nav-item nav-item--admin"
+              id="nav-admin-dashboard"
+              href="/dev-dashboard"
+              data-nav-admin="dashboard"
+            >
+              <i>🛠️</i>
+              <span>Verwaltung</span>
+            </a>
+          </div>
         </nav>
 
         <!-- Home Indicator Bar -->
@@ -1419,6 +2045,6 @@
     </form>
   </template>
 
-  <script type="module" src="app.js?v=20260611-161"></script>
+  <script type="module" src="app.js?v=20260717-trace"></script>
 </body>
 </html>

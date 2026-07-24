@@ -1,0 +1,81 @@
+# CharcuLogic / HofSync — Cursor Project Rules
+
+Produktivsystem: **Vanilla-JS PWA** unter `web/` + Firebase Cloud Functions unter `functions/`.
+Kein React/Next, kein Tailwind, kein Shadcn. Bestehende Patterns erweitern, nicht neu erfinden.
+
+## Design-System
+
+- UI über bestehende Klassen in `web/style.css` und Markup in `web/index.html`.
+- Touch-first (Laden-iPhone): große Targets, hoher Kontrast, klare Hierarchie.
+- White-Label: Farben/Name/Logo über `web/branding.js` + `tenantId`-Kontext — keine hardcodierten Mandantenfarben in Feature-Modulen.
+- Komponenten wiederverwenden: Nav-Tabs, Admin-Dropdown, Dev-Dashboard-Panels, Form-Fields, Toasts.
+- Keine generischen „AI-Dashboard“-Layouts; bestehende App-Shell und `/dev-dashboard` fortführen.
+
+## Architektur
+
+Strikte Trennung einhalten:
+
+| Schicht | Ort | Verantwortung |
+|---------|-----|----------------|
+| UI / DOM | `web/index.html`, `web/style.css`, View-Rendering in Modulen | Darstellung, Interaktion |
+| Business-Logik | Feature-Module (`web/mhd.js`, `web/haccp.js`, …) | Validierung, Workflows, State |
+| API / Persistenz | `web/tenant-db.js`, `web/sync.js`, `web/firebase-functions.js`, Callables in `functions/` | Firestore/Storage/Callables |
+
+- Keine Firestore-Pfade oder Callable-Payloads direkt in Event-Handlern zusammenbauen — Hilfsfunktionen nutzen.
+- Backend: Auth-Kontext nur über `functions/authContext.js` (`resolveAuthContext`, `requireTenantAccess`).
+- Client-Fehler: Rohfehler in `console.error`; UI nur über `mapOperatorError` / `showToast` (siehe `web/operator-errors.js`).
+
+## Mandantenfähigkeit (Pflicht)
+
+- Jede Admin- und Datenaktion ist auf den aktuellen `tenantId`-Kontext beschränkt (Custom Claim `tenantId`).
+- Alle Betriebsdaten unter `tenants/{tenantId}/…`. Frontend: `getTenantCollection()` / Pfad-Helfer in `web/tenant-db.js` und `web/sync.js`.
+- Client-Input für `tenantId` nie allein vertrauen — immer gegen Auth-Claims prüfen (Backend + Rules).
+- Super-Admin (plattformweit) vs. Mandanten-Admin (`role === 'admin'`) klar trennen; Mandanten-Admin sieht/ändert nur den eigenen Mandanten.
+- localStorage/Sync-Queues mandantenprefixiert halten (Shared Terminals).
+- Bei Tenant-/Rules-/Callable-Änderungen Skill `tenant-isolation-validator` und Security-Tests beachten.
+
+## Rollen & UI-Sicherheit (RBAC)
+
+Bestehende Rollen (nicht `TENANT_ADMIN` erfinden):
+
+- `admin` — Mandanten-Admin (Verwaltung, Module, Nutzer/Mitarbeiter)
+- `employee` — operative Nutzung
+- `helper` — eingeschränkte Ansicht
+
+Regeln:
+
+- Admin-Routen/Views (`/dev-dashboard`, Admin-Dropdown, Thekenklade-Admin) nur bei `role === 'admin'` bzw. `useTenantAdminAuth()` / `isTenantAdmin()` (`web/tenant-admin-auth.js`).
+- Ohne Recht: Guard leitet von `/dev-dashboard` auf `/` (Haupt-App) um.
+- Admin-Links in der Navigation für `employee`/`helper` verbergen (`has-admin-nav` / `syncAdminNavZone`); Guard leitet Unberechtigte zurück in den Nutzer-Bereich.
+- UI-Verstecken ist Komfort — echte Sicherheit liegt in Firestore Rules, Storage Rules und Callable-Guards.
+- Super-Admin (plattformweit) vs. Mandanten-Admin klar trennen; Mandanten-Admin nur eigener Tenant.
+
+## UX-Prinzipien
+
+- **Clear Visual Hierarchy:** Nutzer-Bereich (Tabs: Start, MHD, …) vs. Mandanten-Admin (`/dev-dashboard`) visuell klar trennen (Topbar, Badge, Tab-Nav).
+- **Tenant-Header:** aktueller Betriebsname (+ Logo/Branding) oben in Navigation/Admin-Shell anzeigen.
+- **Formulare:** direkte Validierung und verständliches Feedback (Inline + Toast), keine stillen Fehlschläge.
+- **Ladezeiten:** sichtbare Ladezustände (bestehende Status-Texte / Skeleton-ähnliche Placeholder in Panels), kein leerer Screen.
+- **Feedback:** `window.showToast(message, type)` für Erfolg/Warnung/Fehler; Wording laut Skill `shop-wording-cop` (Laden-iPhone, Wir-Perspektive, kein Dev-Jargon).
+- Offline: Sync-Queue respektieren; Nutzerfreundliche `offlineMessage`-Toasts.
+
+## Empfohlener Workflow für neue Admin-Features
+
+1. **Datenmodell zuerst:** Tenant-, Nutzer-/Mitarbeiter- und Rollenfelder an bestehende Claims und `tenants/{tenantId}`-Dokumente anbinden (JSDoc/Interfaces ok; kein Parallel-Typen-Stack ohne Bedarf).
+2. **UI mit Dummy-Daten** in `/dev-dashboard` (Übersicht, Nutzerverwaltung, Einstellungen, Audit-Log) bauen und UX prüfen.
+3. **Backend schrittweise:** Callables (`manageTenantEmployees`, …), Rules, App Check; Tests unter `functions/tests/`.
+
+## Dokumente & Skills
+
+- Technik: `docs/TECHNIK_BACKEND.md`
+- Admin-Onboarding: `docs/user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md`
+- UI-Texte/Anleitungen: Skills `shop-wording-cop`, `hofladen-doc-generator`
+- Offline: `offline-resilience-checker`
+- Security: `security-test-coverage`, `tenant-isolation-validator`
+
+## Nicht tun
+
+- Kein neues Frontend-Framework oder Design-System ohne explizite Anweisung.
+- Keine cross-tenant Queries, keine globalen Collections für Betriebsdaten.
+- Keine englischen Technik-Fehlertexte in der Laden-UI.
+- Keine Secrets in Commits; Claims nur über Admin-Tools setzen.

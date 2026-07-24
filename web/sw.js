@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260611-165-knowledge-tab';
+const CACHE_NAME = 'charculogic-v20260724-194-pr-review-fixes';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -15,6 +15,9 @@ const CRITICAL_ASSETS = [
   '/app.js',
   '/app-check.js',
   '/firebase-config.js',
+  '/firebase-init.js',
+  '/firebase-functions.js',
+  '/firebase-emulator.js',
   '/teamboard.js',
   '/team-tab.js',
   '/team-config.js',
@@ -32,6 +35,11 @@ const CRITICAL_ASSETS = [
   '/beffe_calc.js',
   '/cuts.js',
   '/sync.js',
+  '/traceability.js',
+  '/tenant-modules.js',
+  '/dev-dashboard.js',
+  '/admin-tenant-models.js',
+  '/tenant-admin-auth.js',
 ];
 
 const SCANNER_LIBS = [

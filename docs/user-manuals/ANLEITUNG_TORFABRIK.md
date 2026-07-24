@@ -20,8 +20,9 @@ CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteu
 
 | Thema | CenterLogic-Verhalten |
 |-------|------------------------|
-| **Tabs aktiv** | Start · Team · MHD · Neu · HACCP · Büro |
+| **Tabs aktiv** | Start · Team · MHD · Neu · Herkunft · HACCP · Büro |
 | **Tab Prod. (Wurstküche)** | Für TorFabrik **deaktiviert** — Rezept-Skalierung läuft nicht über den WRS |
+| **Herkunft / Thekenklade** | Tab **Herkunft** + Admin **/dev-dashboard → Rückverfolgbarkeit** (`enabledModules.traceability`) |
 | **Standard-Ansicht Aufgaben** | **„Alle meine Bereiche“** — Theke, Küche & Events, Halle auf einen Blick |
 | **Betriebsbereiche** | Theke · Küche & Events · Halle · Allgemein |
 | **KI-Lieferschein** | Tab **Neu** → Metro / Jakob Bayen |
@@ -64,6 +65,8 @@ Fehlkategorien nach dem Laden-Scan: Tab **Neu** → **Letzte Eingänge** (für a
 2. **🔍 Charge, Rezept oder Macher suchen…** nutzen.
 3. Liste der gespeicherten Chargen prüfen (HACCP-Protokolle, ggf. historische Produktionseinträge).
 4. **Rezeptdaten-Prüfung:** Status Masterliste vs. Cloud — relevant, wenn Rezept-Module für euren Mandanten später aktiviert werden.
+
+> **Hinweis:** Büro-**Chargen** sind Produktionschargen. Die **LMIV-Fleischherkunft** (Etikett + LOT) läuft separat über Tab **Herkunft** und die digitale Thekenklade unter **/dev-dashboard → Rückverfolgbarkeit** — siehe [07-herkunft.md](../modulanleitungen/07-herkunft.md).
 
 > **Hinweis für CenterLogic-Administratoren:** Mandanten mit aktivem Modul **Wurstküche** dokumentieren Chargen zusätzlich unter **Prod. → Charge dokumentieren** (Rezept, Macher, Verkaufseinheiten). TorFabrik konzentriert sich auf HACCP + Inventar.
 

@@ -23,6 +23,7 @@ Activate this skill when adding or reviewing Firestore reads/writes, security ru
 2. **Enforce tenant-rooted paths:** Every collection, document, or group query must explicitly root from or filter by `/tenants/{tenantId}/`. Prefer existing helpers:
    - Frontend: `getTenantCollection()`, `mhdCollectionPath()`, `normalizeTenantCollectionPath()` in `web/tenant-db.js` and `web/sync.js`.
    - Backend: paths like ``tenants/${tenantId}/...`` with `cleanTenantId()` from `functions/authContext.js`.
+   - Include LMIV paths: `traceabilityRecords` and Storage `tenants/{tenantId}/traceability/`.
 
 3. **Flag loose or global access:** Alert on any read/write that lacks a validated tenant context (e.g. hard-coded collection names, `collection('mhd_liste')` without tenant prefix, or `tenants/{otherId}` when the active session tenant differs). Treat `sync.js` paths that already start with `tenants/` as compliant only if the embedded `tenantId` matches the authenticated tenant.
 

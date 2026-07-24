@@ -1,6 +1,6 @@
 # CharcuLogic / HofSync – App-Dokumentation (aktueller Stand)
 
-> **Stand:** Juni 2026  
+> **Stand:** Juli 2026  
 > **Zielgruppe:** Entwicklung, Betrieb, Admins und Kolleginnen/Kollegen mit technischem Hintergrund  
 > **Produktivsystem:** Progressive Web App im Ordner `web/` (Vanilla JavaScript + Firebase)  
 > **Nicht produktiv:** `lib/main.dart` (früher Flutter-Prototyp)
@@ -37,6 +37,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 |---------|----------|
 | **MHD-Monitor** | Haltbarkeiten prüfen, Ware bearbeiten (OK / Raus / Küche / Ausverkauft) |
 | **Wareneingang** | Schnellerfassung per Barcode, Lieferungen dokumentieren |
+| **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
 | **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
 | **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
@@ -73,7 +74,8 @@ Das System ist als **White-Label-Lösung mit strikter Mandantentrennung** gebaut
                 ▼                                ▼
 ┌───────────────────────────┐    ┌────────────────────────────────┐
 │  Firebase Storage         │    │  Cloud Functions (Node 20)       │
-│  Bulletin, Bestellzettel  │    │  europe-west3                    │
+│  Bulletin, Bestellzettel, │    │  europe-west3                    │
+│  LMIV-Etikettfotos        │    │                                  │
 └───────────────────────────┘    └────────────────────────────────┘
 ```
 
@@ -119,15 +121,18 @@ Pro Mandant konfigurierbar:
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
+| `traceability` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
-| `cutGlossary` | Tab **Cuts** (regionales Cut-Lexikon, optional) |
-| `haccp` | Tab **HACCP** |
+| `cutGlossary` / `knowledge` | Wissen / Cuts (Admin-Header) |
+| `haccp` | **HACCP** (Admin-Header) |
 | `teamboard` | Tab **Start** (Teamboard) |
 | `team` | Tab **Team** (nur wenn explizit `true` oder abhängige Module aktiv) |
 | `orders` | Kundenbestellungen im Team-Tab |
-| `batches` | Tab **Büro** (Chargen & Leitstand) |
+| `batches` | Tab **Büro** (Chargen & Leitstand, Admin-Header) |
 | `rezeptAudit` | Rezept-Audit-Karte in Prod. |
 | `retterBox` | Retter-Box-Funktion im MHD (nur StevesHof) |
+
+**Runtime-Schalter:** `tenants/{tenantId}.enabledModules` (`mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`) — siehe `web/tenant-modules.js`, Toggle unter `/dev-dashboard`.
 
 Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danach filtert `applyRoleBasedUi()` nach Rolle und Mandant.
 
@@ -135,7 +140,7 @@ Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danac
 
 ## 4. Navigation & Module
 
-Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
+Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 
 | Tab-ID | Label | Seite | Hauptmodule | Kurzbeschreibung |
 |--------|-------|-------|-------------|------------------|
@@ -143,10 +148,11 @@ Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
 | `team` | Team | `page-team` | `team-tab.js`, `customer-orders.js` | Nachrichten, Kundenbestellungen |
 | `mhd` | MHD | `page-mhd` | `mhd.js`, `scanner.js`, `retter-box.js` | MHD-Monitor, Barcode, Retter-Box |
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
+| `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS |
-| `haccp` | HACCP | `page-haccp` | `haccp.js` | Tageskontrollen, Geräte-Setup |
-| `cuts` | Cuts | `page-cuts` | `cuts.js` | Cut-Bezeichnungen, Synonyme, Muskelgruppen, Menschen-Vergleich |
-| `batches` | Büro | `page-batches` | `production.js`, `team-config.js` | Chargen, Leitstand, Admin-Panels |
+
+**Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
+**Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
 
 ### MHD-Monitor (`web/mhd.js`)
 
@@ -164,6 +170,14 @@ Untere Navigationsleiste — bis zu sieben Tabs, mandanten- und rollenabhängig:
 - **Stammdaten / KI-Lieferschein (Büro):** `#btn-master-data`, `#btn-delivery-note-ai` — nur `isOfficeUser()`
 - **StevesHof KI-Parser** (`web/delivery-parser.js`): Testweise nur für `patrik@charculogic.de`; schreibt in `mhd_liste` / `stammdaten`
 - **TorFabrik KI-Lieferschein** (`web/delivery-note.js`): Callable `parseDeliveryNote` → `inventory`
+
+### Herkunft / LMIV (`web/traceability.js`)
+
+- Erfassungsmaske Tab **Herkunft**: Foto → Storage `tenants/{tenantId}/traceability/{recordId}.jpg`
+- Firestore `tenants/{tenantId}/traceabilityRecords` — Felder u. a. `lotNumber`, `healthMark`, `animalType`, `origin`, `status` (`active`|`archived`), `createdBy`
+- Create/Read: Mandanten-Nutzer; Status-Update/Delete: Admin
+- Admin-UI: `/dev-dashboard` → **Rückverfolgbarkeit** (Suche, Archiv, Detail inkl. Etikett)
+- Abgrenzung: Büro-**Chargen** = Produktionschargen; Herkunft = LMIV-Thekenklade
 
 ### Wurstküche / Prod. (`web/production.js`, `web/beffe_calc.js`)
 
@@ -229,8 +243,10 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | MHD | ✅ |
 | Wareneingang (Laden) | ✅ |
 | Wareneingang Metzgerei | ❌ |
+| Herkunft / LMIV (`traceability`) | ✅ |
 | Wurstküche / Prod. | ✅ |
-| HACCP | ✅ |
+| HACCP | ✅ (Admin-Header; Seed/`enabledModules`) |
+| Wissen | optional (Admin-Header) |
 | Teamboard (Start) | ❌ |
 | Team (Bestellungen) | ❌ |
 | Kundenbestellungen (`orders`) | ❌ (Backend vorbereitet, UI aus) |
@@ -245,9 +261,9 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 |-----|----------|
 | MHD | ✅ (Start-Tab) |
 | Neu | ✅ |
+| Herkunft | ✅ |
 | Prod. | ✅ |
-| HACCP | ✅ |
-| Büro | ❌ (nur persönliche Admin-Konten) |
+| HACCP / Wissen / Büro | Admin-Menü (persönliche Admin-Konten) |
 | Team / Start | ❌ |
 
 ### Terminal-Modus (`web/app.js`)
@@ -262,7 +278,7 @@ Für die Kombination StevesHof + `bestellung@steveshof-hofladen.de`:
 
 ### Persönliche Admin-Konten
 
-Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **Büro** (Chargen, Leitstand, Team-Konfiguration).
+Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **Büro** (Chargen, Leitstand, Team-Konfiguration) und die digitale Thekenklade unter `/dev-dashboard → Rückverfolgbarkeit`.
 
 ---
 
@@ -281,6 +297,7 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 |-------|--------|
 | MHD | ✅ |
 | Wareneingang | ✅ |
+| Herkunft / LMIV (`traceability`) | ✅ |
 | Wurstküche | ❌ (hardcoded + Branding) |
 | HACCP | ✅ |
 | Teamboard | ✅ |
@@ -289,8 +306,8 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 
 ### Rollen am Laden
 
-- **Helper:** Tabs Start + MHD (Wareneingang, Prod., HACCP, Büro ausgeblendet)
-- **Employee / Admin:** volle Modul-Sichtbarkeit gemäß Branding
+- **Helper:** eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv
+- **Employee / Admin:** volle Modul-Sichtbarkeit gemäß Branding; Thekenklade unter `/dev-dashboard → Rückverfolgbarkeit`
 - Mitarbeiter-PIN über Callable `verifyTerminalPin` + `terminalCredentials/current`
 
 ---
@@ -432,6 +449,7 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `haccp_logs` | HACCP-Protokolle (immutable) |
 | `haccp_stale_archive` | Abgewiesene Offline-Payloads |
 | `retter_boxen` | Retter-Box-Angebote (StevesHof) |
+| `traceabilityRecords` | LMIV-Herkunft / Thekenklade |
 | `tasks` | Team-Aufgaben |
 | `bulletinBoard` | Nachricht des Tages |
 | `customerOrders` | Kundenbestellungen |
@@ -448,7 +466,7 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `system_errors` | Client-Telemetrie (append-only) |
 | `priceRuns` | Fleischpreis-Lauf-Lifecycle |
 
-**Storage:** `tenants/{tenantId}/bulletin/…`, `tenants/{tenantId}/order_slips/…`
+**Storage:** `tenants/{tenantId}/bulletin/…`, `tenants/{tenantId}/order_slips/…`, `tenants/{tenantId}/traceability/…`
 
 Pfad-Helfer im Client: `web/tenant-db.js` → `getTenantCollection(name)`.
 
@@ -560,9 +578,11 @@ Einige Kollegen-Dokumente beschreiben noch den Tab **Team** mit Temperatur-Check
 - Temperatur-Check liegt im Tab **HACCP** (nicht Team)
 - StevesHof: Tabs **Team** und **Start** sind deaktiviert (`team: false`, `teamboard: false`)
 - Kundenbestell-UI: `orders: false` (Backend Kunden-Signal ist vorbereitet)
+- Alltagstabs StevesHof: **MHD · Neu · Herkunft · Prod.**; HACCP/Wissen/Büro über Admin-Menü
+- LMIV-Thekenklade: `/dev-dashboard → Rückverfolgbarkeit` (`traceabilityRecords`)
 
 Bei UI-Änderungen diese Doku und die Kollegen-Anleitungen gemeinsam pflegen.
 
 ---
 
-*CharcuLogic / HofSync · Dokumentation generiert aus Codebase-Stand Juni 2026*
+*CharcuLogic / HofSync · Dokumentation generiert aus Codebase-Stand Juli 2026*

@@ -15,6 +15,6 @@ Ensures maximum test coverage for security, tenant isolation, and App Check inte
 
 1. **App Check Enforcement:** Verify that every new or modified Callable Cloud Function in `functions/` has `enforceAppCheck: true` configured.
 
-2. **Multi-Tenant Isolation:** Automatically generate Vitest test cases ensuring that data belonging to `StevesHof_Hauptbetrieb` is strictly separated from other tenant IDs. Test for cross-tenant data leakage.
+2. **Multi-Tenant Isolation:** Automatically generate Vitest test cases ensuring that data belonging to `StevesHof_Hauptbetrieb` is strictly separated from other tenant IDs. Test for cross-tenant data leakage. For rules suites, cover `traceabilityRecords` and Storage `traceability/` (see `test/security-rules.test.mjs` Case 6).
 
 3. **Secret Scanning:** Scan all configurations, bootstrap tools, and environment code for exposed plain-text API keys or client secrets. Alert immediately if a key is found outside the authorized Firebase config structures.
