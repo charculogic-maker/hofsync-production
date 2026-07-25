@@ -28,7 +28,18 @@ import {
   isTenantAdmin,
   isTenantAdminRoute,
   useTenantAdminAuth,
+  clearAdminFallbackUI,
+  installTenantAdminBootGuards,
+  leaveDevDashboardToPhoneApp,
+  renderFallbackUI,
 } from './tenant-admin-auth.js';
+
+// Sofortige Boot-Guards (Modul-Crash / fehlende Session → kein weißer Screen).
+try {
+  installTenantAdminBootGuards();
+} catch (err) {
+  console.warn('[Dev-Dashboard] Boot-Guards fehlgeschlagen:', err);
+}
 
 // ⚡ Notausgang: auch hier ganz oben prüfen, falls /dev-dashboard direkt mit
 // ?logout=true / ?forceLogout=true geladen wird (vor jedem Auth-/Routing-Check).
@@ -318,34 +329,61 @@ async function signOutFromDashboard() {
   }
 }
 
-function ensureAccessDeniedPanel() {
-  let panel = document.getElementById('dev-dashboard-denied');
-  if (panel) return panel;
-
+/**
+ * @param {'login'|'forbidden'} reason
+ */
+function ensureAccessDeniedPanel(reason = 'forbidden') {
   const page = document.getElementById('page-dev-dashboard');
   if (!page) return null;
 
-  panel = document.createElement('div');
-  panel.id = 'dev-dashboard-denied';
-  panel.className = 'dev-dashboard-denied';
-  panel.hidden = true;
+  let panel = document.getElementById('dev-dashboard-denied');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'dev-dashboard-denied';
+    panel.className = 'dev-dashboard-denied';
+    panel.hidden = true;
+    page.appendChild(panel);
+  }
+
+  const needsLogin = reason === 'login';
+  panel.dataset.reason = reason;
   panel.innerHTML = `
     <div class="dev-dashboard-denied-card" role="alert">
       <div class="dev-dashboard-denied-icon" aria-hidden="true">🔒</div>
-      <h1 class="dev-dashboard-denied-title">Zugriff verweigert</h1>
-      <p class="dev-dashboard-denied-text">Dieser Bereich ist nur für Betriebs-Admins. Wir leiten dich zur App zurück.</p>
-      <button type="button" class="dev-dashboard-denied-logout" id="dev-dashboard-denied-back">
+      <h1 class="dev-dashboard-denied-title">${needsLogin ? 'Anmeldung erforderlich' : 'Zugriff verweigert'}</h1>
+      <p class="dev-dashboard-denied-text">${
+        needsLogin
+          ? 'Bitte erst als Betriebs-Admin anmelden.'
+          : 'Dieser Bereich ist nur für Betriebs-Admins. Wir leiten dich zur App zurück.'
+      }</p>
+      ${needsLogin ? `
+      <button type="button" class="dev-dashboard-denied-logout" id="dev-dashboard-denied-login">
+        Anmelden
+      </button>
+      ` : ''}
+      <button type="button" class="dev-dashboard-denied-logout${needsLogin ? ' dev-dashboard-denied-logout--secondary' : ''}" id="dev-dashboard-denied-back">
         Zurück zur App
       </button>
-      <button type="button" class="dev-dashboard-denied-logout" id="dev-dashboard-denied-logout">
+      ${needsLogin ? '' : `
+      <button type="button" class="dev-dashboard-denied-logout dev-dashboard-denied-logout--secondary" id="dev-dashboard-denied-logout">
         Abmelden / Account wechseln
       </button>
+      `}
     </div>
   `;
-  page.appendChild(panel);
 
   panel.querySelector('#dev-dashboard-denied-back')?.addEventListener('click', () => {
-    navigateBackToMainApp();
+    leaveDevDashboardToPhoneApp();
+  });
+
+  panel.querySelector('#dev-dashboard-denied-login')?.addEventListener('click', async () => {
+    try {
+      const { promptLogin } = await import('./auth.js');
+      promptLogin('Mit Betriebs-Admin- oder Super-Admin-Konto anmelden.');
+    } catch (err) {
+      console.warn('[Dev-Dashboard] Login-Overlay konnte nicht geöffnet werden:', err);
+      leaveDevDashboardToPhoneApp();
+    }
   });
 
   const logoutBtn = panel.querySelector('#dev-dashboard-denied-logout');
@@ -353,7 +391,6 @@ function ensureAccessDeniedPanel() {
     logoutBtn.disabled = true;
     logoutBtn.textContent = 'Wird abgemeldet…';
     await signOutFromDashboard();
-    // Nach dem SignOut sauber neu laden (Notausgang räumt den Rest ab).
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('logout', 'true');
@@ -366,10 +403,14 @@ function ensureAccessDeniedPanel() {
   return panel;
 }
 
-function showDevDashboardAccessDenied() {
+/**
+ * @param {{ reason?: 'login'|'forbidden' }} [options]
+ */
+function showDevDashboardAccessDenied(options = {}) {
+  const reason = options.reason === 'login' ? 'login' : 'forbidden';
   const shell = document.querySelector('#page-dev-dashboard .dev-dashboard-shell');
   if (shell) shell.hidden = true;
-  const panel = ensureAccessDeniedPanel();
+  const panel = ensureAccessDeniedPanel(reason);
   if (panel) panel.hidden = false;
 }
 
@@ -380,12 +421,26 @@ function hideDevDashboardAccessDenied() {
   if (panel) panel.hidden = true;
 }
 
+/**
+ * Sofort sichtbares Login-/Denied-Panel auf /dev-dashboard (kein weißer Screen).
+ */
+export function showDevDashboardLoginRequired() {
+  try {
+    hideMainAppChrome();
+    showDevDashboardPage();
+    showDevDashboardAccessDenied({ reason: 'login' });
+    renderFallbackUI('Bitte erst als Betriebs-Admin anmelden.');
+    const statusEl = document.getElementById('dev-dashboard-status');
+    if (statusEl) statusEl.textContent = 'Anmeldung erforderlich';
+  } catch (err) {
+    console.error('[Dev-Dashboard] Login-Required-Panel fehlgeschlagen:', err);
+    renderFallbackUI('Bitte erst als Betriebs-Admin anmelden.');
+  }
+}
+
 export function navigateBackToMainApp() {
   teardownDevDashboard();
-  document.body?.classList.remove('dev-dashboard-view');
-  window.syncDesktopWideLayout?.();
-  // Starttab wird nach Reload über enabledModules aufgelöst (kein hartes #page-mhd).
-  window.location.replace('/');
+  leaveDevDashboardToPhoneApp();
 }
 
 const EMPTY_TENANTS_MESSAGE = 'ℹ️ Keine Mandanten in der Datenbank. Wurde das Seeding-Skript ausgeführt?';
@@ -409,8 +464,11 @@ function normalizeAllowedModules(value) {
 }
 
 function hideMainAppChrome() {
-  document.body?.classList.add('dev-dashboard-view');
-  document.body?.classList.remove('app-shell-sidebar');
+  // Layout-Flag am body — NICHT dieselbe Klasse wie Tab-Panels (.dev-dashboard-view).
+  document.body?.classList.add('is-dev-dashboard');
+  document.body?.classList.remove('app-shell-sidebar', 'dev-dashboard-view');
+  document.body && (document.body.hidden = false);
+  document.body?.removeAttribute('hidden');
   document.querySelector('.bottom-nav')?.setAttribute('hidden', '');
   document.querySelector('.admin-header-dropdown')?.setAttribute('hidden', '');
   const dropdown = document.getElementById('admin-header-dropdown');
@@ -420,9 +478,12 @@ function hideMainAppChrome() {
 }
 
 function showDevDashboardPage() {
+  document.body && (document.body.hidden = false);
+  document.body?.removeAttribute('hidden');
   document.querySelectorAll('.page').forEach((page) => {
     const active = page.id === 'page-dev-dashboard';
     page.classList.toggle('active', active);
+    page.hidden = !active;
     page.style.display = active ? 'block' : 'none';
   });
   const titleEl = document.getElementById('header-title');
@@ -1189,10 +1250,13 @@ function setDevDashboardTab(tabKey = 'overview') {
     btn.setAttribute('aria-selected', active ? 'true' : 'false');
   });
 
-  document.querySelectorAll('.dev-dashboard-view').forEach((view) => {
-    const viewTab = String(view.id || '').replace('dev-dashboard-view-', '');
+  // Nur Tab-Panels — nie body (früher: body hatte dieselbe Klasse → body.hidden = true → Weißfläche).
+  document.querySelectorAll('#page-dev-dashboard .dev-dashboard-view[role="tabpanel"]').forEach((view) => {
+    const viewTab = String(view.id || '').replace(/^dev-dashboard-view-/, '');
     view.hidden = viewTab !== nextTab;
   });
+  document.body && (document.body.hidden = false);
+  document.body?.removeAttribute('hidden');
 
   if (nextTab === 'overview') {
     renderOverviewCards(dashboardState);
@@ -1283,80 +1347,107 @@ function subscribeSingleTenant(db, tenantId, statusEl) {
 }
 
 export async function initDevDashboard(db, { currentUser, authContext } = {}) {
-  const statusEl = document.getElementById('dev-dashboard-status');
+  try {
+    const statusEl = document.getElementById('dev-dashboard-status');
 
-  // Desktop-Layout immer aktivieren — auch im Fehlerfall, damit weder
-  // Fehlermeldung noch Login-Overlay im Smartphone-Simulator landen.
-  hideMainAppChrome();
-  showDevDashboardPage();
+    // Desktop-Layout immer aktivieren — auch im Fehlerfall, damit weder
+    // Fehlermeldung noch Login-Overlay im Smartphone-Simulator landen.
+    hideMainAppChrome();
+    showDevDashboardPage();
 
-  // RBAC: ohne Betriebs-Admin → Guard leitet zur Haupt-App um (/).
-  const authGate = useTenantAdminAuth({
-    user: currentUser,
-    authContext,
-    redirect: true,
-    redirectTo: '/',
-  });
-  if (!authGate.allowed) {
-    showDevDashboardAccessDenied();
-    if (statusEl) statusEl.textContent = 'Zugriff verweigert';
+    // Unauthentifiziert / Auth noch leer → Login-Panel (kein Redirect, keine weiße Seite).
+    if (!currentUser?.uid) {
+      showDevDashboardAccessDenied({ reason: 'login' });
+      renderFallbackUI('Bitte erst als Betriebs-Admin anmelden.');
+      if (statusEl) statusEl.textContent = 'Anmeldung erforderlich';
+      return false;
+    }
+
+    // RBAC: eingeloggt, aber kein Betriebs-Admin → Denied.
+    const authGate = useTenantAdminAuth({
+      user: currentUser,
+      authContext,
+      redirect: false,
+      renderFallback: true,
+    });
+    if (!authGate.allowed) {
+      showDevDashboardAccessDenied({
+        reason: authGate.needsLogin ? 'login' : 'forbidden',
+      });
+      if (authGate.needsLogin) {
+        renderFallbackUI('Bitte erst als Betriebs-Admin anmelden.');
+      }
+      if (statusEl) {
+        statusEl.textContent = authGate.needsLogin ? 'Anmeldung erforderlich' : 'Zugriff verweigert';
+      }
+      return false;
+    }
+    hideDevDashboardAccessDenied();
+
+    dashboardState.isSuperAdmin = authGate.isSuperAdmin || isSuperAdmin(currentUser);
+    dashboardState.selectedTenantId = authContext?.tenantId || '';
+    dashboardState.currentUserUid = currentUser?.uid || '';
+    dashboardState.actorEmail = String(currentUser?.email || '').trim();
+    dashboardState.db = db;
+
+    applyDashboardVisibility(dashboardState);
+
+    if (typeof window.applyResolvedBranding === 'function') {
+      window.applyResolvedBranding(authContext?.tenantId || window.resolveEffectiveTenantId?.());
+    }
+    const settingsDraft = readTenantSettingsDraft(dashboardState.selectedTenantId);
+    if (settingsDraft.displayName || settingsDraft.logoUrl) {
+      applyBrandingFromSettingsDraft(dashboardState.selectedTenantId, settingsDraft);
+      if (settingsDraft.displayName) dashboardState.tenantDisplayName = settingsDraft.displayName;
+    }
+
+    bindDevDashboardBackButton();
+    bindDevDashboardTabs();
+    bindOverviewJumpLinks();
+    bindSettingsForm(dashboardState);
+    bindUserFilters(dashboardState);
+    bindInvitePanel();
+    bindTenantToggleHandlers(db, statusEl);
+    bindTenantCreateForm(db);
+    bindEmployeeCreateForm(dashboardState);
+    bindEmployeeTableActions(dashboardState);
+
+    initTraceabilityModule(db, null, (title, message) => {
+      window.showToast?.(`${title}: ${message}`, 'info');
+    }, {
+      tenantId: dashboardState.selectedTenantId,
+      getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
+      getCurrentUserId: () => currentUser?.uid || '',
+    });
+
+    if (dashboardState.isSuperAdmin) {
+      subscribeAllTenants(db, statusEl);
+    } else {
+      subscribeSingleTenant(db, dashboardState.selectedTenantId, statusEl);
+      bindTenantSelector(dashboardState, [{ id: dashboardState.selectedTenantId, data: {} }]);
+    }
+
+    recordAudit('login', 'Verwaltung geöffnet', 'security');
+    setDevDashboardTab(dashboardState.activeTab || 'overview');
+    await refreshEmployeeTable(dashboardState);
+    renderOverviewCards(dashboardState);
+
+    if (statusEl && dashboardState.isSuperAdmin) {
+      statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Super-Admin'} · Lade Betriebe…`;
+    } else if (statusEl) {
+      statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Admin'} · ${dashboardState.selectedTenantId}`;
+    }
+    document.body && (document.body.hidden = false);
+    document.body?.removeAttribute('hidden');
+    window.__charculogicDevDashboardReady = true;
+    clearAdminFallbackUI({ force: true });
+    return true;
+  } catch (err) {
+    console.error('[Dev-Dashboard] initDevDashboard fehlgeschlagen:', err);
+    window.__charculogicDevDashboardReady = false;
+    renderFallbackUI('Bitte erst als Betriebs-Admin anmelden.');
     return false;
   }
-  hideDevDashboardAccessDenied();
-
-  dashboardState.isSuperAdmin = authGate.isSuperAdmin || isSuperAdmin(currentUser);
-  dashboardState.selectedTenantId = authContext?.tenantId || '';
-  dashboardState.currentUserUid = currentUser?.uid || '';
-  dashboardState.actorEmail = String(currentUser?.email || '').trim();
-  dashboardState.db = db;
-
-  applyDashboardVisibility(dashboardState);
-
-  if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding(authContext?.tenantId || window.resolveEffectiveTenantId?.());
-  }
-  const settingsDraft = readTenantSettingsDraft(dashboardState.selectedTenantId);
-  if (settingsDraft.displayName || settingsDraft.logoUrl) {
-    applyBrandingFromSettingsDraft(dashboardState.selectedTenantId, settingsDraft);
-    if (settingsDraft.displayName) dashboardState.tenantDisplayName = settingsDraft.displayName;
-  }
-
-  bindDevDashboardBackButton();
-  bindDevDashboardTabs();
-  bindOverviewJumpLinks();
-  bindSettingsForm(dashboardState);
-  bindUserFilters(dashboardState);
-  bindInvitePanel();
-  bindTenantToggleHandlers(db, statusEl);
-  bindTenantCreateForm(db);
-  bindEmployeeCreateForm(dashboardState);
-  bindEmployeeTableActions(dashboardState);
-
-  initTraceabilityModule(db, null, (title, message) => {
-    window.showToast?.(`${title}: ${message}`, 'info');
-  }, {
-    tenantId: dashboardState.selectedTenantId,
-    getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
-    getCurrentUserId: () => currentUser?.uid || '',
-  });
-
-  if (dashboardState.isSuperAdmin) {
-    subscribeAllTenants(db, statusEl);
-  } else {
-    subscribeSingleTenant(db, dashboardState.selectedTenantId, statusEl);
-    bindTenantSelector(dashboardState, [{ id: dashboardState.selectedTenantId, data: {} }]);
-  }
-
-  recordAudit('login', 'Verwaltung geöffnet', 'security');
-  setDevDashboardTab(dashboardState.activeTab || 'overview');
-  await refreshEmployeeTable(dashboardState);
-
-  if (statusEl && dashboardState.isSuperAdmin) {
-    statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Super-Admin'} · Lade Betriebe…`;
-  } else if (statusEl) {
-    statusEl.textContent = `Angemeldet als ${currentUser?.email || 'Admin'} · ${dashboardState.selectedTenantId}`;
-  }
-  return true;
 }
 
 export function teardownDevDashboard() {

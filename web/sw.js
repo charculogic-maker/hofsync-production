@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260724-194-pr-review-fixes';
+const CACHE_NAME = 'charculogic-v20260725-200-devdash-bodyhidden';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -202,6 +202,10 @@ self.addEventListener('fetch', (event) => {
   const pathname = url.pathname;
   const isOwnOrigin = url.origin === self.location.origin;
 
+  const isSpaShellPath = pathname === '/dev-dashboard'
+    || pathname.endsWith('/dev-dashboard')
+    || pathname.endsWith('/dev-dashboard/');
+
   const isStaticAsset = isOwnOrigin && (
     pathname.endsWith('/index.html')
     || pathname.endsWith('.css')
@@ -213,28 +217,34 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/')
   );
 
+  // SPA-Shell: /dev-dashboard muss immer index.html liefern (auch ohne navigate-Mode).
   const isNavigation = request.mode === 'navigate'
     || pathname.endsWith('/')
-    || pathname.endsWith('/index.html');
+    || pathname.endsWith('/index.html')
+    || isSpaShellPath;
 
   if (isNavigation && isOwnOrigin) {
-    const cleanRequest = new Request(url.pathname + url.hash, {
+    // Immer die App-Shell (index.html) laden — nie eine leere /dev-dashboard-Antwort cachen.
+    const shellRequest = new Request('/index.html', {
       headers: request.headers,
-      mode: request.mode,
+      mode: 'same-origin',
       credentials: request.credentials,
-      redirect: request.redirect,
+      redirect: 'follow',
     });
 
     event.respondWith(
-      fetch(cleanRequest)
+      fetch(shellRequest)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
             const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/index.html', clone);
+              cache.put('/', clone.clone());
+            });
           }
           return networkResponse;
         })
-        .catch(() => findCachedIndexHtml(cleanRequest))
+        .catch(() => findCachedIndexHtml(shellRequest))
         .then((response) => {
           if (response) return response;
           return new Response(OFFLINE_FALLBACK_HTML, {
@@ -242,6 +252,35 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
           });
         })
+    );
+    return;
+  }
+
+  // Kern-JS: Network-first, kein stale Cache bei Direct-Nav zu /dev-dashboard.
+  const isCoreModule = isOwnOrigin && (
+    pathname.endsWith('/app.js')
+    || pathname.endsWith('/dev-dashboard.js')
+    || pathname.endsWith('/tenant-admin-auth.js')
+    || pathname.endsWith('/auth.js')
+    || pathname.endsWith('/sw.js')
+  );
+  if (isCoreModule) {
+    const cleanRequest = new Request(url.pathname, {
+      headers: request.headers,
+      mode: request.mode,
+      credentials: request.credentials,
+      redirect: request.redirect,
+    });
+    event.respondWith(
+      fetch(cleanRequest, { cache: 'no-store' })
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.ok) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(cleanRequest))
     );
     return;
   }

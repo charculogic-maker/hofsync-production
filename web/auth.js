@@ -9,6 +9,7 @@ import {
   clearTeamboardTenantStorage,
   scopedTeamboardStorageKey,
 } from './teamboard-storage.js';
+import { isTenantAdminRoute } from './tenant-admin-auth.js';
 
 const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
 
@@ -276,7 +277,7 @@ function ensureLoginOverlay() {
       #auth-lock-screen {
         position: fixed;
         inset: 0;
-        z-index: 99999;
+        z-index: 2147483646;
         display: none;
         align-items: center;
         justify-content: center;
@@ -284,7 +285,11 @@ function ensureLoginOverlay() {
         background: rgba(8, 12, 18, 0.92);
         color: #f8fafc;
       }
-      #auth-lock-screen.active { display: flex; }
+      #auth-lock-screen.active { display: flex !important; }
+      body.auth-lock-open #dev-dashboard-boot-fallback {
+        display: none !important;
+        pointer-events: none !important;
+      }
       body.auth-loop-lockdown #auth-lock-screen {
         display: flex !important;
         z-index: 100000;
@@ -440,15 +445,49 @@ function bindHeaderLogoutButton() {
 
 function showLoginOverlay(message = '') {
   ensureLoginOverlay();
+  // Über dem Dev-Dashboard-Fallback (z-index 2147483000) liegen.
+  authState.overlay.style.zIndex = '2147483646';
   authState.overlay.classList.add('active');
   document.documentElement.dataset.authenticatedTenant = '';
+  document.body?.classList.add('auth-lock-open');
   setAuthError(message);
+  try {
+    document.getElementById('auth-login-email')?.focus();
+  } catch (_) { /* noop */ }
 }
 
 function hideLoginOverlay() {
   ensureLoginOverlay();
   authState.overlay.classList.remove('active');
+  document.body?.classList.remove('auth-lock-open');
+  window.__charculogicLoginPromptOpen = false;
   setAuthError('');
+}
+
+/** Öffnet das Anmelde-Overlay (z. B. Login-Button im Dev-Dashboard-Denied-Panel). */
+export function promptLogin(message = 'Bitte mit E-Mail und Passwort anmelden.') {
+  window.__charculogicLoginPromptOpen = true;
+  // Fallback-Karte ausblenden, damit E-Mail/Passwort bedienbar sind.
+  try {
+    const boot = document.getElementById('dev-dashboard-boot-fallback');
+    if (boot) {
+      boot.hidden = true;
+      boot.style.display = 'none';
+    }
+  } catch (_) { /* noop */ }
+  showLoginOverlay(message || 'Mit Betriebs-Admin- oder Super-Admin-Konto anmelden.');
+}
+
+export function openAuthOverlay(message = 'Bitte mit E-Mail und Passwort anmelden.') {
+  promptLogin(message);
+}
+
+if (typeof window !== 'undefined') {
+  window.promptLogin = promptLogin;
+  window.openAuthOverlay = openAuthOverlay;
+  window.addEventListener('charculogic:prompt-login', () => {
+    promptLogin('Mit Betriebs-Admin- oder Super-Admin-Konto anmelden.');
+  });
 }
 
 async function waitForAuthDb(maxMs = 5000) {
@@ -588,6 +627,16 @@ export async function initAuthModule(firebaseInstance, databaseInstance, { showH
       document.documentElement.dataset.authenticatedTenant = '';
       if (isAuthLoopBreakerActive()) {
         enforceAuthLoopBreakerShell();
+      } else if (isTenantAdminRoute()) {
+        // /dev-dashboard: eigenes Denied-/Login-Panel statt Vollbild-Overlay (keine weiße Seite).
+        setGlobalTenantId(null);
+        // Nicht schließen, wenn der Nutzer gerade bewusst „Anmelden“ gewählt hat.
+        if (!window.__charculogicLoginPromptOpen) {
+          hideLoginOverlay();
+          try {
+            window.dispatchEvent(new CustomEvent('charculogic:auth-required', { detail: { route: 'dev-dashboard' } }));
+          } catch (_) { /* noop */ }
+        }
       } else {
         setGlobalTenantId(null);
         showLoginOverlay();
@@ -614,7 +663,14 @@ export async function initAuthModule(firebaseInstance, databaseInstance, { showH
       authContext = null;
       setGlobalTenantId(null);
       console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
-      showLoginOverlay('Anmeldung ist noch nicht vollständig eingerichtet. Bitte im Büro Bescheid geben.');
+      if (isTenantAdminRoute()) {
+        hideLoginOverlay();
+        try {
+          window.dispatchEvent(new CustomEvent('charculogic:auth-required', { detail: { route: 'dev-dashboard' } }));
+        } catch (_) { /* noop */ }
+      } else {
+        showLoginOverlay('Anmeldung ist noch nicht vollständig eingerichtet. Bitte im Büro Bescheid geben.');
+      }
     }
   });
 
@@ -624,6 +680,17 @@ export async function initAuthModule(firebaseInstance, databaseInstance, { showH
 export function waitForAuthReady() {
   if (!authReadyPromise) throw new Error('Auth-Modul wurde noch nicht initialisiert.');
   return authReadyPromise;
+}
+
+/** Wie waitForAuthReady, bricht aber nach timeoutMs mit null ab (kein Hang auf /dev-dashboard). */
+export function waitForAuthReadyOrNull(timeoutMs = 2500) {
+  if (!authReadyPromise) return Promise.resolve(null);
+  return Promise.race([
+    authReadyPromise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), timeoutMs);
+    }),
+  ]);
 }
 
 export function getAuthContext() {

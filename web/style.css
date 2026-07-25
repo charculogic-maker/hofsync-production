@@ -8238,11 +8238,28 @@ body.role-helper #team-subnav-orders {
   }
 }
 
+/* Sticky Login-/Denied-Fallback für Direktaufruf /dev-dashboard */
+#dev-dashboard-boot-fallback {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: block !important;
+  background: #f8fafc !important;
+}
+
+#dev-dashboard-boot-fallback[hidden],
+body.auth-lock-open #dev-dashboard-boot-fallback {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 /* Dev dashboard (/dev-dashboard) */
+body.is-dev-dashboard,
 body.dev-dashboard-view {
   background: var(--surface-muted, #f1f5f9);
 }
 
+body.is-dev-dashboard .preview-container,
 body.dev-dashboard-view .preview-container {
   width: 100%;
   max-width: none;
@@ -8250,6 +8267,7 @@ body.dev-dashboard-view .preview-container {
   padding: 0;
 }
 
+body.is-dev-dashboard .iphone-frame,
 body.dev-dashboard-view .iphone-frame {
   width: 100%;
   max-width: none;
@@ -8262,33 +8280,47 @@ body.dev-dashboard-view .iphone-frame {
   background: transparent;
 }
 
+body.is-dev-dashboard .iphone-island,
+body.is-dev-dashboard .home-indicator,
+body.is-dev-dashboard .status-bar,
 body.dev-dashboard-view .iphone-island,
 body.dev-dashboard-view .home-indicator,
 body.dev-dashboard-view .status-bar {
   display: none !important;
 }
 
+body.is-dev-dashboard .app-container,
 body.dev-dashboard-view .app-container {
   border-radius: 0;
   min-height: 100dvh;
   height: auto;
 }
 
+body.is-dev-dashboard .app-header,
 body.dev-dashboard-view .app-header {
   display: none;
 }
 
+body.is-dev-dashboard .app-content,
 body.dev-dashboard-view .app-content {
   padding: 0;
   overflow: visible;
 }
 
+body.is-dev-dashboard .bottom-nav,
 body.dev-dashboard-view .bottom-nav {
   display: none !important;
 }
 
+body.is-dev-dashboard .admin-header-dropdown,
 body.dev-dashboard-view .admin-header-dropdown {
   display: none !important;
+}
+
+/* Nie das Dokument-Body über Tab-Panel-[hidden]-Regeln ausblenden. */
+body.is-dev-dashboard[hidden],
+body.dev-dashboard-view[hidden] {
+  display: flex !important;
 }
 
 #page-dev-dashboard.page.active {
@@ -8368,6 +8400,18 @@ body.dev-dashboard-view .admin-header-dropdown {
 .dev-dashboard-denied-logout:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.dev-dashboard-denied-logout--secondary {
+  margin-top: 10px;
+  background: transparent;
+  color: var(--text-primary, #0f172a);
+  border: 1px solid #cbd5e1;
+}
+
+.dev-dashboard-denied-logout--secondary:hover:not(:disabled) {
+  filter: none;
+  background: #f8fafc;
 }
 
 .dev-dashboard-topbar {
@@ -8980,7 +9024,7 @@ body.role-firebase-auth #team-login-card {
   color: #fff;
 }
 
-.dev-dashboard-view[hidden] {
+.dev-dashboard-view[hidden]:not(body) {
   display: none !important;
 }
 

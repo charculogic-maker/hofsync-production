@@ -18,6 +18,8 @@ import {
   shutdownFirestoreClient,
   verifyAdminAction,
   waitForAuthReady,
+  waitForAuthReadyOrNull,
+  waitForFirebaseUser,
 } from './auth.js';
 import {
   addPendingSync,
@@ -136,6 +138,7 @@ import {
   initDevDashboard,
   isDevDashboardRoute,
   isTenantAdmin,
+  showDevDashboardLoginRequired,
   useTenantAdminAuth,
 } from './dev-dashboard.js';
 import {
@@ -770,12 +773,20 @@ function bindTenantAdminNavGuard() {
 function enforceTenantAdminRouteOrLeave(authSession = getAuthContext()) {
   if (!isDevDashboardRoute()) return true;
   const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+  if (!user?.uid) {
+    showDevDashboardLoginRequired();
+    return false;
+  }
   const gate = useTenantAdminAuth({
     user,
     authContext: authSession,
     redirect: true,
     redirectTo: '/',
   });
+  if (!gate.allowed && gate.needsLogin) {
+    showDevDashboardLoginRequired();
+    return false;
+  }
   return gate.allowed;
 }
 
@@ -783,9 +794,15 @@ function syncAppShellLayout(pageId) {
   try {
     const activeId = pageId || document.querySelector('.page.active')?.id || '';
     const isDevDashboard = activeId === 'page-dev-dashboard'
+      || document.body.classList.contains('is-dev-dashboard')
       || document.body.classList.contains('dev-dashboard-view');
     const wide = window.matchMedia('(min-width: 1024px)').matches;
-    document.body.classList.toggle('app-shell-sidebar', wide && !isDevDashboard);
+    let preferPhone = false;
+    try {
+      preferPhone = sessionStorage.getItem('charculogic_prefer_phone_shell') === '1';
+    } catch (_) { /* noop */ }
+    // Nach Rückkehr von /dev-dashboard bewusst die Smartphone-Simulation behalten.
+    document.body.classList.toggle('app-shell-sidebar', wide && !isDevDashboard && !preferPhone);
 
     const navBrand = document.getElementById('app-nav-brand');
     if (navBrand) {
@@ -2726,7 +2743,9 @@ const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buer
 
 function syncDesktopWideLayout(pageId) {
   const activeId = pageId || document.querySelector('.page.active')?.id || '';
-  const isDevDashboard = activeId === 'page-dev-dashboard' || document.body.classList.contains('dev-dashboard-view');
+  const isDevDashboard = activeId === 'page-dev-dashboard'
+    || document.body.classList.contains('is-dev-dashboard')
+    || document.body.classList.contains('dev-dashboard-view');
   document.body.classList.toggle(
     'desktop-wide-layout',
     (DESKTOP_WIDE_PAGES.has(activeId) || isDevDashboard) && window.matchMedia('(min-width: 1024px)').matches,
@@ -3133,6 +3152,10 @@ window.addEventListener('popstate', () => {
   if (!isDevDashboardRoute()) return;
   const user = firebase?.auth?.()?.currentUser;
   const authContext = getAuthContext();
+  if (!user?.uid) {
+    showDevDashboardLoginRequired();
+    return;
+  }
   if (!useTenantAdminAuth({ user, authContext, redirect: true, redirectTo: '/' }).allowed) {
     return;
   }
@@ -3536,13 +3559,70 @@ async function bootstrapAuthenticatedApp() {
   if (isAuthLoopBreakerActive()) {
     hideAppShellForAuthLockdown();
   }
-  // Auf /dev-dashboard schon vor dem Login das Desktop-Layout aktivieren,
-  // damit das (von auth.js gezeigte) Login-Overlay zentriert im Desktop liegt
-  // statt im schmalen Smartphone-Simulator.
+
+  // Expliziter Login-Wunsch von /dev-dashboard (Fallback → /?login=1).
+  try {
+    const loginWanted = new URLSearchParams(window.location.search).get('login') === '1';
+    if (loginWanted && !isDevDashboardRoute()) {
+      window.history.replaceState({}, '', window.location.pathname || '/');
+      window.promptLogin?.('Mit Betriebs-Admin- oder Super-Admin-Konto anmelden.');
+    }
+  } catch (_) { /* noop */ }
+
+  // /dev-dashboard: Login-Gate sticky halten — nie waitForAuthReady ohne Timeout (Weißfläche).
   if (isDevDashboardRoute()) {
-    document.body.classList.add('dev-dashboard-view');
-    window.syncDesktopWideLayout?.('page-dev-dashboard');
+    window.__charculogicDevDashboardReady = false;
+    showDevDashboardLoginRequired();
+
+    const stayOnLoginGate = () => {
+      window.__charculogicDevDashboardReady = false;
+      showDevDashboardLoginRequired();
+    };
+
+    const tryEnterDashboard = async (user, session) => {
+      if (!user?.uid || !session?.tenantId) {
+        stayOnLoginGate();
+        return false;
+      }
+      try {
+        const ok = await initDevDashboard(db, { currentUser: user, authContext: session });
+        if (!ok) stayOnLoginGate();
+        return ok;
+      } catch (err) {
+        console.error('[CharcuLogic] Dev-Dashboard-Start fehlgeschlagen:', err);
+        stayOnLoginGate();
+        return false;
+      }
+    };
+
+    const onAuthChanged = (event) => {
+      const nextSession = event?.detail || getAuthContext();
+      const currentUser = firebase.auth?.()?.currentUser || null;
+      void tryEnterDashboard(currentUser, nextSession);
+    };
+    window.addEventListener('charculogic:auth-changed', onAuthChanged);
+    window.addEventListener('charculogic:auth-required', () => {
+      // Nicht erneut das Fallback über das Login-Formular legen.
+      if (window.__charculogicLoginPromptOpen) return;
+      stayOnLoginGate();
+    });
+
+    const restoredUser = await waitForFirebaseUser(2000);
+    let authSession = getAuthContext();
+    if (restoredUser && !authSession) {
+      authSession = await waitForAuthReadyOrNull(2500);
+    }
+
+    if (restoredUser && authSession?.tenantId) {
+      await tryEnterDashboard(restoredUser, authSession);
+    } else {
+      stayOnLoginGate();
+    }
+
+    updateSyncIndicator();
+    return;
   }
+
   const authSession = await waitForAuthReady();
   if (typeof window.applyResolvedBranding === 'function') {
     window.applyResolvedBranding(authSession.tenantId);
@@ -3552,15 +3632,6 @@ async function bootstrapAuthenticatedApp() {
   setGlobalTenantId(authSession.tenantId);
   await loadTenantEnabledModules(db, authSession.tenantId);
   applyModuleVisibility(window.BRANDING);
-
-  const currentUser = firebase.auth().currentUser;
-  if (isDevDashboardRoute()) {
-    // Kein Simulator-Redirect mehr: initDevDashboard zeigt bei fehlenden
-    // Admin-Rechten eine saubere Desktop-Fehlermeldung inkl. Logout-Button.
-    await initDevDashboard(db, { currentUser, authContext: authSession });
-    updateSyncIndicator();
-    return;
-  }
 
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
