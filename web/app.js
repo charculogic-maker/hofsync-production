@@ -47,8 +47,9 @@ import {
   startHaccpLiveSync,
 } from './haccp.js';
 import {
-  activateTraceabilityTab,
+  activateChargenDokuTab,
   initTraceabilityModule,
+  stopChargenDokuBookView,
 } from './traceability.js';
 import {
   activateMhdTab,
@@ -130,6 +131,7 @@ import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { attachLocalFirebaseEmulators, isLocalFirebaseEmulatorHost } from './firebase-emulator.js';
 import {
   hasAnyAdminModuleEnabled,
+  hasModule,
   isTenantModuleEnabled,
   loadTenantEnabledModules,
   subscribeTenantEnabledModules,
@@ -166,7 +168,7 @@ if (EMERGENCY_LOGOUT_REQUESTED) {
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
-const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'haccp']);
+const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
@@ -184,7 +186,7 @@ const AUTH_LOCAL_STORAGE_MARKERS = [
 ];
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
 const PROFILE_OTHER_LABEL = 'Andere';
-const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'traceability']);
+const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
 const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
 
 function isEmployeePinRequired(branding = window.BRANDING) {
@@ -570,20 +572,22 @@ async function maybeShowBulletinAckInterceptor(employeeName, branding = window.B
 const PROFILE_TAB_ALIASES = {
   neu: 'receiving',
   wissen: 'knowledge',
+  traceability: 'chargenDoku',
+  herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'kitchen']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'traceability', 'kitchen'];
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
   team: 'team',
   mhd: 'mhd',
   receiving: 'receiving',
-  traceability: 'traceability',
+  chargenDoku: 'chargenDoku',
   kitchen: 'kitchen',
   haccp: 'haccp',
   knowledge: 'knowledge',
@@ -1739,7 +1743,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     team: isTenantModuleEnabled('team', branding),
     mhd: isTenantModuleEnabled('mhd', branding),
     receiving: isTenantModuleEnabled('receiving', branding),
-    traceability: isTenantModuleEnabled('traceability', branding),
+    chargenDoku: hasModule('chargenDoku', branding),
     kitchen: kitchenEnabled,
     haccp: isTenantModuleEnabled('haccp', branding),
     knowledge: isTenantModuleEnabled('knowledge', branding),
@@ -1806,7 +1810,7 @@ function resolveDefaultBottomNavTab(branding = window.BRANDING || {}) {
   for (const tabId of BOTTOM_NAV_TAB_PRIORITY) {
     if (isTabAllowedByModules(tabId, branding)) return tabId;
   }
-  return 'traceability';
+  return 'chargenDoku';
 }
 
 function isActiveTabAllowed(tabId, branding = window.BRANDING || {}) {
@@ -1855,9 +1859,9 @@ function resolveFirebaseEmployeeAllowedTabs(authSession) {
     || authSession?.claims?.allowedModules
     || null;
   if (!allowed || typeof allowed !== 'object') {
-    return new Set(['mhd', 'receiving', 'traceability']);
+    return new Set(['mhd', 'receiving', 'chargenDoku']);
   }
-  const tabs = new Set(['traceability']);
+  const tabs = new Set(['chargenDoku']);
   if (allowed.mhd !== false) tabs.add('mhd');
   if (allowed.kitchen !== false) tabs.add('kitchen');
   if (allowed.buero !== false) tabs.add('batches');
@@ -3054,7 +3058,7 @@ tabs.forEach(tab => {
     if (targetTab === 'teamboard') {
       showPage('page-teamboard');
       headerTitle.textContent = "Start";
-      headerSubtitle.textContent = "Aufgaben & Tagesinfo";
+      headerSubtitle.textContent = "Tagesinfo";
     } else if (targetTab === 'team') {
       showPage('page-team');
       headerTitle.textContent = "Team";
@@ -3067,10 +3071,10 @@ tabs.forEach(tab => {
       showPage('page-receiving');
       headerTitle.textContent = "Wareneingang";
       headerSubtitle.textContent = "Lieferung erfassen";
-    } else if (targetTab === 'traceability') {
-      showPage('page-traceability');
-      headerTitle.textContent = "Herkunft";
-      headerSubtitle.textContent = "LMIV-Erfassung";
+    } else if (targetTab === 'chargenDoku') {
+      showPage('page-chargen-doku');
+      headerTitle.textContent = "Thekenbuch";
+      headerSubtitle.textContent = "Chargen-Doku";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
@@ -3099,11 +3103,12 @@ tabs.forEach(tab => {
 
     // Modul-Aktivierung defensiv: bei Fehler nicht auf Start zurückspringen.
     try {
+      if (targetTab !== 'chargenDoku') stopChargenDokuBookView();
       if (targetTab === 'teamboard') activateTeamboardTab();
       if (targetTab === 'team') activateTeamHubTab();
       if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
-      if (targetTab === 'traceability') activateTraceabilityTab();
+      if (targetTab === 'chargenDoku') activateChargenDokuTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
       if (targetTab === 'knowledge') activateCutGlossaryTab();

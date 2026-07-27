@@ -44,7 +44,7 @@ Bestehende Rollen (nicht `TENANT_ADMIN` erfinden):
 
 Regeln:
 
-- Admin-Routen/Views (`/dev-dashboard`, Admin-Dropdown, Thekenklade-Admin) nur bei `role === 'admin'` bzw. `useTenantAdminAuth()` / `isTenantAdmin()` (`web/tenant-admin-auth.js`).
+- Admin-Routen/Views (`/dev-dashboard`, Admin-Dropdown) nur bei `role === 'admin'` bzw. `useTenantAdminAuth()` / `isTenantAdmin()` (`web/tenant-admin-auth.js`). Chargen-Doku/Thekenbuch ist Laden-Alltag-Modul (`chargenDoku`), kein Super-Admin-Rohdaten-Zugriff.
 - Ohne Recht: Guard leitet von `/dev-dashboard` auf `/` (Haupt-App) um.
 - Admin-Links in der Navigation für `employee`/`helper` verbergen (`has-admin-nav` / `syncAdminNavZone`); Guard leitet Unberechtigte zurück in den Nutzer-Bereich.
 - UI-Verstecken ist Komfort — echte Sicherheit liegt in Firestore Rules, Storage Rules und Callable-Guards.

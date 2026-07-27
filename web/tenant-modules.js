@@ -1,6 +1,6 @@
 /**
  * Tenant module flags from Firestore `tenants/{id}.enabledModules`.
- * Keys: start, team, mhd, receiving, kitchen, haccp, knowledge, buero, traceability
+ * Keys: start, team, mhd, receiving, kitchen, haccp, knowledge, buero, chargenDoku
  */
 
 export const TENANT_MODULE_KEYS = [
@@ -12,8 +12,11 @@ export const TENANT_MODULE_KEYS = [
   'haccp',
   'knowledge',
   'buero',
-  'traceability',
+  'chargenDoku',
 ];
+
+/** @deprecated Legacy Firestore key – mapped to chargenDoku */
+const LEGACY_CHARGEN_DOKU_KEY = 'traceability';
 
 export const ENABLED_MODULE_TO_BRANDING = {
   start: 'teamboard',
@@ -24,10 +27,22 @@ export const ENABLED_MODULE_TO_BRANDING = {
   haccp: 'haccp',
   knowledge: 'knowledge',
   buero: 'batches',
-  traceability: 'traceability',
+  chargenDoku: 'chargenDoku',
 };
 
 const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
+
+/**
+ * Resolve chargenDoku flag with legacy `traceability` fallback.
+ * @param {Record<string, boolean>|null|undefined} enabled
+ * @returns {boolean|undefined} undefined if neither key is present
+ */
+function resolveChargenDokuEnabled(enabled) {
+  if (!enabled || typeof enabled !== 'object') return undefined;
+  if ('chargenDoku' in enabled) return enabled.chargenDoku === true;
+  if (LEGACY_CHARGEN_DOKU_KEY in enabled) return enabled[LEGACY_CHARGEN_DOKU_KEY] === true;
+  return undefined;
+}
 
 export function mergeEnabledModulesIntoBranding(enabledModules, branding = window.BRANDING) {
   if (!branding || !enabledModules || typeof enabledModules !== 'object') return branding;
@@ -38,6 +53,13 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
     const brandingKey = ENABLED_MODULE_TO_BRANDING[key];
     if (brandingKey) modules[brandingKey] = enabledModules[key] === true;
   });
+  // Legacy key → branding.chargenDoku
+  const chargenResolved = resolveChargenDokuEnabled(enabledModules);
+  if (typeof chargenResolved === 'boolean') {
+    modules.chargenDoku = chargenResolved;
+    // Keep legacy branding key in sync for older callers
+    modules.traceability = chargenResolved;
+  }
   // Team-Tab-Inhalte (Bestellungen) folgen dem team-Schalter.
   if ('team' in enabledModules) {
     modules.orders = enabledModules.team === true;
@@ -47,12 +69,16 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
 }
 
 export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {}) {
+  const key = moduleKey === LEGACY_CHARGEN_DOKU_KEY ? 'chargenDoku' : moduleKey;
   const enabled = branding.enabledModules;
-  if (enabled && typeof enabled === 'object' && moduleKey in enabled) {
-    return enabled[moduleKey] === true;
+  if (key === 'chargenDoku') {
+    const fromEnabled = resolveChargenDokuEnabled(enabled);
+    if (typeof fromEnabled === 'boolean') return fromEnabled;
+  } else if (enabled && typeof enabled === 'object' && key in enabled) {
+    return enabled[key] === true;
   }
   const modules = branding.modules || {};
-  switch (moduleKey) {
+  switch (key) {
     case 'start':
       return modules.teamboard === true;
     case 'team':
@@ -69,11 +95,21 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
       return modules.knowledge === true || modules.cutGlossary === true;
     case 'buero':
       return modules.batches !== false;
-    case 'traceability':
-      return modules.traceability !== false;
+    case 'chargenDoku':
+      return modules.chargenDoku !== false && modules.traceability !== false;
     default:
       return false;
   }
+}
+
+/**
+ * Convenience alias used by route/module guards.
+ * @param {string} moduleKey
+ * @param {object} [branding]
+ * @returns {boolean}
+ */
+export function hasModule(moduleKey, branding = window.BRANDING || {}) {
+  return isTenantModuleEnabled(moduleKey, branding);
 }
 
 export function hasAnyAdminModuleEnabled(branding = window.BRANDING || {}) {

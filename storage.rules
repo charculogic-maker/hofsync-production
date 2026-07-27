@@ -65,7 +65,13 @@ service firebase.storage {
       allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
-    // LMIV-Etikettfotos: tenants/{tenantId}/traceability/{recordId}.jpg
+    // Chargen-Doku Etikettfotos: tenants/{tenantId}/chargendoku/{recordId}.jpg
+    match /tenants/{tenantId}/chargendoku/{allPaths=**} {
+      allow read: if istTenantMitglied(tenantId);
+      allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
+    }
+
+    // Legacy LMIV-Fotos (Migration)
     match /tenants/{tenantId}/traceability/{allPaths=**} {
       allow read: if istTenantMitglied(tenantId);
       allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();

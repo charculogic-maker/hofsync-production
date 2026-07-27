@@ -27,7 +27,40 @@
  * @property {string} [actorEmail]
  * @property {number} at
  * @property {'security'|'change'|'info'} [category]
+ *
+ * @typedef {Object} TenantModuleDef
+ * @property {string} key
+ * @property {string} label
+ * @property {string} [hint]
+ * @property {boolean} [opsNav] true = Laden-Alltag-Navigation
  */
+
+/**
+ * Katalog der freischaltbaren Mandanten-Module (Einstellung → Modul-Freischaltung).
+ * Quelle der Wahrheit für Keys: auch `web/tenant-modules.js` (TENANT_MODULE_KEYS).
+ * @type {readonly TenantModuleDef[]}
+ */
+export const TENANT_MODULE_CATALOG = Object.freeze([
+  { key: 'start', label: 'Start', hint: 'Team-Leitstand / Schwarzes Brett', opsNav: true },
+  { key: 'team', label: 'Team', hint: 'Nachrichten & Bestellungen', opsNav: true },
+  { key: 'mhd', label: 'MHD', hint: 'Mindesthaltbarkeit prüfen', opsNav: true },
+  { key: 'receiving', label: 'Wareneingang', hint: 'Lieferungen erfassen', opsNav: true },
+  { key: 'kitchen', label: 'Küche', hint: 'Produktion / Wurstküche', opsNav: true },
+  { key: 'haccp', label: 'HACCP', hint: 'Tageskontrollen (Verwaltung)', opsNav: false },
+  { key: 'knowledge', label: 'Wissen', hint: 'Handbücher & Lexikon', opsNav: false },
+  { key: 'buero', label: 'Büro', hint: 'Produktionschargen', opsNav: false },
+  {
+    key: 'chargenDoku',
+    label: 'Chargen-Doku',
+    hint: 'Thekenbuch / LMIV-Herkunft (Laden-Alltag)',
+    opsNav: true,
+  },
+]);
+
+/** @type {Readonly<Record<string, string>>} */
+export const TENANT_MODULE_LABELS = Object.freeze(
+  Object.fromEntries(TENANT_MODULE_CATALOG.map((m) => [m.key, m.label])),
+);
 
 const SETTINGS_STORAGE_PREFIX = 'charculogic_tenant_settings_v1_';
 const AUDIT_STORAGE_PREFIX = 'charculogic_tenant_audit_v1_';

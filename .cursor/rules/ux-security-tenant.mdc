@@ -26,6 +26,7 @@ Produktiv: Vanilla-JS PWA (`web/`) + Cloud Functions (`functions/`). Kein React/
 - Admin-Links verbergen + Guard `useTenantAdminAuth()` (`web/tenant-admin-auth.js`); ohne Recht Redirect `/dev-dashboard` → `/`.
 - Sicherheit in Rules/Callables (`authContext.js`).
 - Super-Admin ≠ Mandanten-Admin; Mandanten-Admin nur eigener Tenant.
+- Chargen-Doku (`chargenDoku` / Thekenbuch) ist Laden-Alltag-Modul; Plattform-Super-Admins sehen keine Rohdaten, nur Modul-Freischaltung in Metriken.
 
 ## Workflow
 

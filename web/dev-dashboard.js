@@ -7,11 +7,6 @@ import { createHttpsCallable } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
 import {
-  initTraceabilityModule,
-  startTraceabilityAdminView,
-  stopTraceabilityAdminView,
-} from './traceability.js';
-import {
   appendTenantAuditEvent,
   AUDIT_STORAGE_SCOPE_HINT,
   AUDIT_STORAGE_SCOPE_LABEL,
@@ -21,6 +16,7 @@ import {
   readTenantSettingsDraft,
   summarizeTenantModules,
   summarizeTenantUsers,
+  TENANT_MODULE_LABELS,
   writeTenantSettingsDraft,
 } from './admin-tenant-models.js';
 import {
@@ -72,7 +68,6 @@ const DEV_DASHBOARD_TABS = new Set([
   'users',
   'settings',
   'audit',
-  'traceability',
 ]);
 
 function escapeHtml(value) {
@@ -299,15 +294,7 @@ function bindOverviewJumpLinks() {
 }
 
 const MODULE_LABELS = {
-  start: 'Start',
-  team: 'Team',
-  mhd: 'MHD',
-  receiving: 'Wareneingang',
-  kitchen: 'Küche',
-  haccp: 'HACCP',
-  knowledge: 'Wissen',
-  buero: 'Büro',
-  traceability: 'Rückverfolgbarkeit',
+  ...TENANT_MODULE_LABELS,
 };
 
 const EMPLOYEE_PERMISSION_KEYS = ['mhd', 'kitchen', 'buero'];
@@ -502,7 +489,11 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
   const isActive = data.status !== 'inactive';
   const statusValue = isActive ? 'active' : 'inactive';
   const toggles = TENANT_MODULE_KEYS.map((key) => {
-    const checked = enabled[key] === true;
+    let checked = enabled[key] === true;
+    // Legacy: enabledModules.traceability → chargenDoku
+    if (key === 'chargenDoku' && !('chargenDoku' in enabled) && enabled.traceability === true) {
+      checked = true;
+    }
     return `
       <label class="dev-dashboard-toggle" title="${MODULE_LABELS[key]}">
         <input
@@ -590,6 +581,10 @@ async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
     ? { ...snap.data().enabledModules }
     : {};
   current[moduleKey] = enabled;
+  if (moduleKey === 'chargenDoku') {
+    // Legacy-Key bereinigen, damit Plattform-Metriken nur chargenDoku zählen
+    delete current.traceability;
+  }
   await ref.update({
     enabledModules: current,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -770,7 +765,7 @@ function resetTenantCreateForm() {
   TENANT_MODULE_KEYS.forEach((key) => {
     const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
     if (input instanceof HTMLInputElement) {
-      input.checked = key === 'traceability';
+      input.checked = key === 'chargenDoku';
     }
   });
   const idInput = document.getElementById('dev-dashboard-tenant-id');
@@ -1195,9 +1190,6 @@ function bindTenantSelector(dashboardState, tenants) {
     renderOverviewCards(dashboardState);
     renderAuditTable(dashboardState.selectedTenantId);
     void refreshEmployeeTable(dashboardState);
-    if (dashboardState.activeTab === 'traceability') {
-      startTraceabilityAdminView(dashboardState.selectedTenantId);
-    }
   });
 }
 
@@ -1269,12 +1261,6 @@ function setDevDashboardTab(tabKey = 'overview') {
   }
   if (nextTab === 'users') {
     renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
-  }
-
-  if (nextTab === 'traceability') {
-    startTraceabilityAdminView(dashboardState.selectedTenantId);
-  } else {
-    stopTraceabilityAdminView();
   }
 }
 
@@ -1412,14 +1398,6 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindEmployeeCreateForm(dashboardState);
     bindEmployeeTableActions(dashboardState);
 
-    initTraceabilityModule(db, null, (title, message) => {
-      window.showToast?.(`${title}: ${message}`, 'info');
-    }, {
-      tenantId: dashboardState.selectedTenantId,
-      getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
-      getCurrentUserId: () => currentUser?.uid || '',
-    });
-
     if (dashboardState.isSuperAdmin) {
       subscribeAllTenants(db, statusEl);
     } else {
@@ -1459,5 +1437,4 @@ export function teardownDevDashboard() {
     singleTenantUnsubscribe();
     singleTenantUnsubscribe = null;
   }
-  stopTraceabilityAdminView();
 }

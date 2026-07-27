@@ -239,9 +239,11 @@ body {
   border-bottom: 2px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  position: relative;
   z-index: 98;
+  overflow: visible;
 }
 
 .tenant-header {
@@ -249,7 +251,9 @@ body {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
 }
 
 .tenant-header-logo {
@@ -281,6 +285,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  line-height: 1.2;
 }
 
 .tenant-header-page,
@@ -292,6 +298,8 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+  line-height: 1.15;
+  margin: 0;
 }
 
 .tenant-header--admin {
@@ -339,8 +347,10 @@ body {
   gap: 4px;
   flex: 0 0 auto;
   min-width: 0;
-  max-width: 42%;
+  max-width: min(48%, 220px);
   flex-wrap: nowrap;
+  position: relative;
+  z-index: 110;
 }
 
 .header-action-btn {
@@ -364,6 +374,7 @@ body {
 .admin-header-dropdown {
   position: relative;
   flex-shrink: 0;
+  z-index: 120;
 }
 
 .admin-header-dropdown-trigger {
@@ -371,7 +382,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 28px;
+  min-height: 32px;
+  min-width: 32px;
   padding: 0 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--border-radius-sm);
@@ -404,15 +416,22 @@ body {
 
 .admin-header-dropdown-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   right: 0;
-  z-index: 1200;
-  min-width: 148px;
-  padding: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  background: var(--light-bg, #fff);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  left: auto;
+  transform: none;
+  z-index: 1300;
+  min-width: 168px;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--light-bg, #fff) 92%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 12px 32px rgba(15, 23, 42, 0.22),
+    0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .admin-header-dropdown-menu[hidden] {
@@ -4863,29 +4882,50 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 
   .app-header {
     padding-top: max(12px, env(safe-area-inset-top));
-    padding-left: 14px;
-    padding-right: 14px;
-    align-items: flex-start;
+    padding-left: 12px;
+    padding-right: 12px;
+    align-items: center;
+    gap: 8px;
   }
 
   .app-header-actions {
-    max-width: 42%;
-    gap: 5px;
+    max-width: none;
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .tenant-header {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .tenant-header-name,
+  .app-subtitle {
+    font-size: 10px;
+    letter-spacing: 0.6px;
+  }
+
+  .tenant-header-page,
+  .app-header h1 {
+    font-size: 17px;
   }
 
   .app-badge {
-    font-size: 10px;
-    padding: 4px 7px;
+    display: none;
   }
 
   .employee-session-badge {
-    max-width: 86px;
+    max-width: 72px;
     padding: 0 6px;
     font-size: 9px;
   }
 
   .sync-indicator {
     padding: 4px 5px;
+  }
+
+  .header-action-btn {
+    display: none;
   }
 
   .app-content {
@@ -4910,8 +4950,15 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   .nav-item--admin {
-    min-width: 64px;
-    max-width: 84px;
+    min-width: 56px;
+    max-width: 64px;
+  }
+
+  .nav-item--admin span {
+    /* Icon-first: vermeidet abgeschnittenes „VERWALTU…“ */
+    font-size: 0;
+    line-height: 0;
+    overflow: hidden;
   }
 
   .nav-item span {
@@ -4924,8 +4971,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     border-radius: 9px;
   }
 
+  .admin-header-dropdown-trigger {
+    padding: 0;
+    width: 34px;
+  }
+
   .admin-header-dropdown-trigger-label {
     display: none;
+  }
+
+  .admin-header-dropdown-menu {
+    min-width: 176px;
+    padding: 10px;
   }
 
   /*
@@ -9167,6 +9224,55 @@ body.role-firebase-auth #team-login-card {
 .dev-dashboard-audit-pill[data-category="info"] {
   background: #e0e7ff;
   color: #3730a3;
+}
+
+.chargen-doku-subnav {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary-color, #5d4037) 8%, transparent);
+}
+
+.chargen-doku-subnav-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary, #1f2937);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chargen-doku-subnav-btn.is-active {
+  background: var(--card-bg, #fff);
+  color: var(--primary-color, #5d4037);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.chargen-doku-panel {
+  min-width: 0;
+}
+
+.chargen-book-panel {
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .chargen-doku-subnav-btn {
+    font-size: 12px;
+    letter-spacing: 0;
+    padding: 0 8px;
+  }
 }
 
 .dev-trace-toolbar {

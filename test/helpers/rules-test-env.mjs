@@ -223,6 +223,10 @@ export function traceabilityObjectPath(tenantId, fileName = 'record.jpg') {
   return `tenants/${tenantId}/traceability/${fileName}`;
 }
 
+export function chargenDokuObjectPath(tenantId, fileName = 'record.jpg') {
+  return `tenants/${tenantId}/chargendoku/${fileName}`;
+}
+
 export {
   assertFails,
   assertSucceeds,

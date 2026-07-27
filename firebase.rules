@@ -515,7 +515,9 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // RÜCKVERFOLGBARKEIT (traceabilityRecords) – LMIV Fleisch-Herkunft
+    // CHARGEN-DOKU / Thekenbuch – LMIV Fleisch-Herkunft
+    // Primär: tenants/{tenantId}/chargendoku/{id}
+    // Legacy: tenants/{tenantId}/traceabilityRecords/{id}
     // =========================================================================
 
     function isValidTraceabilityAnimalType(value) {
@@ -607,10 +609,24 @@ service cloud.firestore {
         && isValidTraceabilityStatus(request.resource.data.status);
     }
 
-    match /tenants/{tenantId}/traceabilityRecords/{document} {
+    // Chargen-Doku / Thekenbuch (neu)
+    match /tenants/{tenantId}/chargendoku/{document} {
       allow read: if isTenantUser(tenantId);
 
       // Erfassung für alle Mandanten-Rollen (inkl. helper / Aushilfe)
+      allow create: if isTenantUser(tenantId)
+        && isValidTraceabilityRecord(tenantId);
+
+      allow update: if isAdmin(tenantId)
+        && isTraceabilityStatusOnlyUpdate(tenantId);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // Legacy LMIV-Collection – Lesen + Status-Update für Migration
+    match /tenants/{tenantId}/traceabilityRecords/{document} {
+      allow read: if isTenantUser(tenantId);
+
       allow create: if isTenantUser(tenantId)
         && isValidTraceabilityRecord(tenantId);
 

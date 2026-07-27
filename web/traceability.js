@@ -1,10 +1,18 @@
 /**
- * LMIV Fleisch-Rückverfolgbarkeit – Erfassung (PWA) + Digitale Thekenklade (Admin).
+ * Chargen-Doku (Thekenbuch) – LMIV-Erfassung + Buch-Ansicht im Laden-Alltag.
+ * Persistenz: tenants/{tenantId}/chargendoku/{id}
  */
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+import { hasModule } from './tenant-modules.js';
+import { isPlatformSuperAdmin } from './tenant-admin-auth.js';
 import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+
+/** Firestore-Collection unter tenants/{tenantId}/ */
+const CHARGEN_DOKU_COLLECTION = 'chargendoku';
+/** Legacy-Collection – nur Lesen für bestehende Einträge */
+const LEGACY_TRACEABILITY_COLLECTION = 'traceabilityRecords';
 
 const ANIMAL_TYPES = [
   { value: 'rind', label: 'Rind' },
@@ -77,10 +85,32 @@ function collectionPathFor(tenantId) {
   const id = resolveTenantId(tenantId);
   if (!id) return null;
   try {
-    return getTenantCollectionPath('traceabilityRecords');
+    return getTenantCollectionPath(CHARGEN_DOKU_COLLECTION);
   } catch {
-    return `tenants/${id}/traceabilityRecords`;
+    return `tenants/${id}/${CHARGEN_DOKU_COLLECTION}`;
   }
+}
+
+/**
+ * Platform-Super-Admins dürfen keine privaten Betriebsdaten (roh) lesen.
+ * Nur Mandanten-Nutzer mit freigeschaltetem Modul chargenDoku.
+ */
+function canAccessChargenDokuRecords(tenantId = '') {
+  const id = resolveTenantId(tenantId);
+  if (!id) return false;
+  if (!hasModule('chargenDoku')) return false;
+  try {
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    if (isPlatformSuperAdmin(user)) return false;
+  } catch (_) {
+    /* ignore */
+  }
+  return true;
+}
+
+function bookEl(id) {
+  return document.getElementById(id)
+    || document.getElementById(id.replace(/^chargen-book-/, 'dev-trace-'));
 }
 
 function serverTimestamp() {
@@ -233,7 +263,9 @@ function readFileAsBase64(file) {
 
 function showLabelScanOverlay() {
   hideLabelScanOverlay();
-  const host = document.querySelector('#page-traceability .trace-capture-card')
+  const host = document.querySelector('#page-chargen-doku .trace-capture-card')
+    || document.getElementById('page-chargen-doku')
+    || document.querySelector('#page-traceability .trace-capture-card')
     || document.getElementById('page-traceability');
   if (!host) return;
   if (getComputedStyle(host).position === 'static') {
@@ -399,7 +431,7 @@ async function uploadTraceabilityPhoto(file, recordId, tenantId) {
   const firebaseApi = traceState.getFirebase();
   if (!firebaseApi?.storage) throw new Error('Foto-Speicher ist nicht bereit.');
   if (!tenantId) throw new Error('Mandant fehlt.');
-  const path = `tenants/${tenantId}/traceability/${recordId}.jpg`;
+  const path = `tenants/${tenantId}/chargendoku/${recordId}.jpg`;
   const ref = firebaseApi.storage().ref(path);
   const snapshot = await ref.put(file, { contentType: file.type || 'image/jpeg' });
   return snapshot.ref.getDownloadURL();
@@ -486,7 +518,7 @@ async function saveTraceabilityRecord() {
       offlineMessage: 'Herkunftseintrag wird automatisch synchronisiert, sobald WLAN verfügbar ist.',
     });
     resetCaptureForm();
-    traceState.showHUD('Gespeichert', 'Herkunft ist erfasst und in der Thekenklade aktiv.');
+    traceState.showHUD('Gespeichert', 'Herkunft ist erfasst und im Thekenbuch aktiv.');
   } catch (err) {
     console.error('[CharcuLogic Traceability] Speichern fehlgeschlagen:', err);
     traceState.showHUD(
@@ -553,13 +585,21 @@ export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFu
   if (!traceState.initialized) {
     fillCountrySelects();
     bindCaptureControls();
+    bindChargenDokuSubnav();
     syncOriginFieldsVisibility();
     traceState.initialized = true;
   }
 }
 
-export function activateTraceabilityTab() {
+export function activateChargenDokuTab() {
+  bindChargenDokuSubnav();
   syncOriginFieldsVisibility();
+  setChargenDokuPanel('capture');
+}
+
+/** @deprecated Use activateChargenDokuTab */
+export function activateTraceabilityTab() {
+  return activateChargenDokuTab();
 }
 
 function toDateKey(value) {
@@ -662,7 +702,7 @@ function formatOrganicControlBodyCell(record = {}) {
 }
 
 function renderAdminDetail(record) {
-  const panel = document.getElementById('dev-trace-detail');
+  const panel = bookEl('chargen-book-detail');
   if (!panel) return;
   if (!record) {
     panel.innerHTML = '<p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>';
@@ -671,7 +711,7 @@ function renderAdminDetail(record) {
   panel.innerHTML = `
     <div class="trace-detail-header">
       <h3 class="dev-dashboard-subsection-title">LMIV-Detail · ${escapeHtml(record.lotNumber || '–')}</h3>
-      <button type="button" class="btn btn-secondary" id="dev-trace-detail-close">Schließen</button>
+      <button type="button" class="btn btn-secondary" id="chargen-book-detail-close">Schließen</button>
     </div>
     <div class="trace-detail-grid">
       <figure class="trace-detail-photo">
@@ -695,7 +735,7 @@ function renderAdminDetail(record) {
       </div>
     </div>
   `;
-  panel.querySelector('#dev-trace-detail-close')?.addEventListener('click', () => {
+  panel.querySelector('#chargen-book-detail-close')?.addEventListener('click', () => {
     traceState.selectedRecordId = '';
     renderAdminDetail(null);
     renderAdminTable();
@@ -703,7 +743,7 @@ function renderAdminDetail(record) {
 }
 
 function renderAdminTable() {
-  const body = document.getElementById('dev-trace-body');
+  const body = bookEl('chargen-book-body');
   if (!body) return;
   const rows = filteredAdminRecords();
   if (!rows.length) {
@@ -739,12 +779,15 @@ function renderAdminTable() {
 async function toggleRecordStatus(recordId, nextStatus) {
   const tenantId = resolveTenantId(traceState.adminTenantId);
   if (!tenantId || !traceState.db) return;
+  if (!canAccessChargenDokuRecords(tenantId)) return;
   if (nextStatus !== 'active' && nextStatus !== 'archived') return;
+  const record = traceState.adminRecords.find((item) => item.id === recordId);
+  const collectionName = record?.__collection || CHARGEN_DOKU_COLLECTION;
   try {
     await traceState.db
       .collection('tenants')
       .doc(tenantId)
-      .collection('traceabilityRecords')
+      .collection(collectionName)
       .doc(recordId)
       .update({ status: nextStatus });
     window.showToast?.(
@@ -752,14 +795,14 @@ async function toggleRecordStatus(recordId, nextStatus) {
       'success',
     );
   } catch (err) {
-    console.error('[CharcuLogic Traceability] Status-Update fehlgeschlagen:', err);
+    console.error('[CharcuLogic Chargen-Doku] Status-Update fehlgeschlagen:', err);
     window.showToast?.('Status konnte nicht geändert werden.', 'error');
   }
 }
 
 function bindAdminPanelControls() {
-  const search = document.getElementById('dev-trace-search');
-  const date = document.getElementById('dev-trace-date');
+  const search = bookEl('chargen-book-search');
+  const date = bookEl('chargen-book-date');
   if (search && search.dataset.bound !== '1') {
     search.dataset.bound = '1';
     search.addEventListener('input', () => {
@@ -775,7 +818,7 @@ function bindAdminPanelControls() {
     });
   }
 
-  const table = document.getElementById('dev-trace-table');
+  const table = bookEl('chargen-book-table');
   if (table && table.dataset.bound !== '1') {
     table.dataset.bound = '1';
     table.addEventListener('click', (event) => {
@@ -798,14 +841,75 @@ function bindAdminPanelControls() {
   }
 }
 
-export function startTraceabilityAdminView(tenantId) {
+function bindChargenDokuSubnav() {
+  const root = document.getElementById('page-chargen-doku')
+    || document.getElementById('page-traceability');
+  if (!root || root.dataset.subnavBound === '1') return;
+  root.dataset.subnavBound = '1';
+  root.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-chargen-panel]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+    const panel = btn.getAttribute('data-chargen-panel') || 'capture';
+    setChargenDokuPanel(panel);
+  });
+}
+
+function setChargenDokuPanel(panelKey = 'capture') {
+  const capture = document.getElementById('chargen-doku-panel-capture');
+  const book = document.getElementById('chargen-doku-panel-book');
+  const showBook = panelKey === 'book';
+  if (capture) capture.hidden = showBook;
+  if (book) book.hidden = !showBook;
+  document.querySelectorAll('[data-chargen-panel]').forEach((btn) => {
+    const active = btn.getAttribute('data-chargen-panel') === panelKey;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  if (showBook) {
+    startChargenDokuBookView(traceState.tenantId || getGlobalTenantId());
+  }
+}
+
+function mergeChargenRecords(primarySnap, legacySnap) {
+  const byId = new Map();
+  (legacySnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const id = data.id || docSnap.id;
+    byId.set(id, { ...data, id, __collection: LEGACY_TRACEABILITY_COLLECTION });
+  });
+  (primarySnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const id = data.id || docSnap.id;
+    byId.set(id, { ...data, id, __collection: CHARGEN_DOKU_COLLECTION });
+  });
+  return Array.from(byId.values()).sort((a, b) => {
+    const aMs = a.createdAt?.toMillis?.() || Date.parse(a.createdAt) || 0;
+    const bMs = b.createdAt?.toMillis?.() || Date.parse(b.createdAt) || 0;
+    return bMs - aMs;
+  });
+}
+
+/** @param {string} [tenantId] */
+export function startChargenDokuBookView(tenantId) {
   const resolved = resolveTenantId(tenantId);
   traceState.adminTenantId = resolved;
   bindAdminPanelControls();
-  if (!resolved || !traceState.db) {
-    const body = document.getElementById('dev-trace-body');
+
+  const body = bookEl('chargen-book-body');
+  const statusEl = bookEl('chargen-book-status');
+
+  if (!canAccessChargenDokuRecords(resolved)) {
     if (body) {
-      body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Mandant fehlt – Thekenklade kann nicht geladen werden.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Thekenbuch ist für diesen Zugang nicht freigeschaltet.</td></tr>';
+    }
+    if (statusEl) statusEl.textContent = 'Kein Zugriff';
+    stopChargenDokuBookView();
+    return;
+  }
+
+  if (!resolved || !traceState.db) {
+    if (body) {
+      body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Betrieb fehlt – Thekenbuch kann nicht geladen werden.</td></tr>';
     }
     return;
   }
@@ -815,46 +919,88 @@ export function startTraceabilityAdminView(tenantId) {
     traceState.adminUnsubscribe = null;
   }
 
-  const statusEl = document.getElementById('dev-trace-status');
   if (statusEl) statusEl.textContent = 'Lade Einträge…';
 
-  traceState.adminUnsubscribe = traceState.db
-    .collection('tenants')
-    .doc(resolved)
-    .collection('traceabilityRecords')
+  const tenantRef = traceState.db.collection('tenants').doc(resolved);
+  let primarySnap = null;
+  let legacySnap = null;
+  let primaryError = null;
+
+  const publish = () => {
+    if (primaryError) {
+      if (statusEl) statusEl.textContent = 'Laden fehlgeschlagen';
+      if (body) {
+        body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">Zugriff oder Verbindung fehlgeschlagen.</td></tr>';
+      }
+      return;
+    }
+    if (!primarySnap) return;
+    traceState.adminRecords = mergeChargenRecords(primarySnap, legacySnap);
+    renderAdminTable();
+    if (traceState.selectedRecordId) {
+      const selected = traceState.adminRecords.find((item) => item.id === traceState.selectedRecordId) || null;
+      renderAdminDetail(selected);
+    }
+    if (statusEl) {
+      statusEl.textContent = `${traceState.adminRecords.length} Eintrag${traceState.adminRecords.length === 1 ? '' : 'e'} geladen`;
+    }
+  };
+
+  const unsubPrimary = tenantRef
+    .collection(CHARGEN_DOKU_COLLECTION)
     .orderBy('createdAt', 'desc')
     .limit(300)
     .onSnapshot(
       (snap) => {
-        traceState.adminRecords = snap.docs.map((docSnap) => {
-          const data = docSnap.data() || {};
-          return { ...data, id: data.id || docSnap.id };
-        });
-        renderAdminTable();
-        if (traceState.selectedRecordId) {
-          const selected = traceState.adminRecords.find((item) => item.id === traceState.selectedRecordId) || null;
-          renderAdminDetail(selected);
-        }
-        if (statusEl) {
-          statusEl.textContent = `${traceState.adminRecords.length} Eintrag${traceState.adminRecords.length === 1 ? '' : 'e'} geladen`;
-        }
+        primaryError = null;
+        primarySnap = snap;
+        publish();
       },
       (err) => {
-        console.error('[CharcuLogic Traceability] Admin-Listener fehlgeschlagen:', err);
-        if (statusEl) statusEl.textContent = 'Laden fehlgeschlagen';
-        const body = document.getElementById('dev-trace-body');
-        if (body) {
-          body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">Zugriff oder Verbindung fehlgeschlagen.</td></tr>';
-        }
+        console.error('[CharcuLogic Chargen-Doku] Listener fehlgeschlagen:', err);
+        primaryError = err;
+        publish();
       },
     );
+
+  const unsubLegacy = tenantRef
+    .collection(LEGACY_TRACEABILITY_COLLECTION)
+    .orderBy('createdAt', 'desc')
+    .limit(300)
+    .onSnapshot(
+      (snap) => {
+        legacySnap = snap;
+        publish();
+      },
+      (err) => {
+        // Legacy optional – fehlende Rechte/Index nicht als Hard-Fail
+        console.warn('[CharcuLogic Chargen-Doku] Legacy-Listener:', err?.message || err);
+        legacySnap = { docs: [] };
+        publish();
+      },
+    );
+
+  traceState.adminUnsubscribe = () => {
+    unsubPrimary();
+    unsubLegacy();
+  };
 }
 
-export function stopTraceabilityAdminView() {
+/** @deprecated Use startChargenDokuBookView */
+export function startTraceabilityAdminView(tenantId) {
+  return startChargenDokuBookView(tenantId);
+}
+
+export function stopChargenDokuBookView() {
   if (traceState.adminUnsubscribe) {
     traceState.adminUnsubscribe();
     traceState.adminUnsubscribe = null;
   }
+}
+
+/** @deprecated Use stopChargenDokuBookView */
+export function stopTraceabilityAdminView() {
+  return stopChargenDokuBookView();
 }
 
 export { ANIMAL_TYPES, COUNTRY_OPTIONS, countrySelectHtml };

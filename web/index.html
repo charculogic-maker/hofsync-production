@@ -107,17 +107,18 @@
     window.fallbackShowTab = function fallbackShowTab(tabId) {
       const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
       const pageMap = {
-        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Aufgaben & Tagesinfo' },
+        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Tagesinfo' },
         team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
         mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
         receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
-        traceability: { page: 'page-traceability', title: 'Herkunft', subtitle: betriebsName },
+        chargenDoku: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
+        traceability: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
         kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
         knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
       };
-      const preferred = tabId || 'traceability';
-      const target = pageMap[preferred] || pageMap.traceability || pageMap.mhd;
-      const resolvedTabId = pageMap[preferred] ? preferred : 'traceability';
+      const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
+      const target = pageMap[preferred] || pageMap.chargenDoku || pageMap.mhd;
+      const resolvedTabId = pageMap[preferred] ? preferred : 'chargenDoku';
       document.querySelectorAll('.page').forEach((page) => {
         const active = page.id === target.page;
         page.classList.toggle('active', active);
@@ -145,7 +146,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260725-devdash-bodyhidden">
+  <link rel="stylesheet" href="/style.css?v=20260725-chargendoku-header">
 </head>
 <body>
 
@@ -293,15 +294,6 @@
                   aria-selected="false"
                   aria-controls="dev-dashboard-view-audit"
                 >Protokoll</button>
-                <button
-                  type="button"
-                  class="dev-dashboard-tab"
-                  role="tab"
-                  id="dev-dashboard-tab-traceability"
-                  data-dev-tab="traceability"
-                  aria-selected="false"
-                  aria-controls="dev-dashboard-view-traceability"
-                >Thekenklade</button>
               </nav>
 
               <div id="dev-dashboard-view-overview" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-overview">
@@ -548,8 +540,8 @@
                               <span>Büro</span>
                             </label>
                             <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                              <input id="dev-dashboard-tenant-mod-traceability" type="checkbox" data-module-key="traceability" checked>
-                              <span>Rückverfolgbarkeit</span>
+                              <input id="dev-dashboard-tenant-mod-chargenDoku" type="checkbox" data-module-key="chargenDoku" checked>
+                              <span>Chargen-Doku</span>
                             </label>
                           </div>
                         </fieldset>
@@ -610,49 +602,6 @@
                       </thead>
                       <tbody id="dev-dashboard-audit-body"></tbody>
                     </table>
-                  </div>
-                </section>
-              </div>
-
-              <div id="dev-dashboard-view-traceability" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-traceability" hidden>
-                <section class="dev-dashboard-panel" aria-label="Digitale Thekenklade">
-                  <div class="dev-dashboard-employee-header">
-                    <div>
-                      <h2 class="dev-dashboard-section-title">Digitale Thekenklade</h2>
-                      <p class="dev-dashboard-intro">
-                        Alle erfassten LMIV-Herkunftseinträge. Suche nach LOT oder Datum, Status umschalten, Etikett für Kontrollen öffnen.
-                      </p>
-                    </div>
-                    <p class="dev-dashboard-employee-list-status" id="dev-trace-status" aria-live="polite"></p>
-                  </div>
-                  <div class="dev-trace-toolbar">
-                    <label class="dev-dashboard-field" for="dev-trace-search">
-                      <span>Suche (LOT / Kennzeichen)</span>
-                      <input id="dev-trace-search" type="search" placeholder="z. B. LOT-2026-…" autocomplete="off">
-                    </label>
-                    <label class="dev-dashboard-field" for="dev-trace-date">
-                      <span>Erfassungsdatum</span>
-                      <input id="dev-trace-date" type="date">
-                    </label>
-                  </div>
-                  <div class="dev-dashboard-table-wrap">
-                    <table class="dev-dashboard-table" id="dev-trace-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">LOT</th>
-                          <th scope="col">Tierart</th>
-                          <th scope="col">Erfasst</th>
-                          <th scope="col">Kennzeichen</th>
-                          <th scope="col">Öko-Kontrollstelle</th>
-                          <th scope="col">Status</th>
-                          <th scope="col">Aktion</th>
-                        </tr>
-                      </thead>
-                      <tbody id="dev-trace-body"></tbody>
-                    </table>
-                  </div>
-                  <div id="dev-trace-detail" class="dev-trace-detail" aria-live="polite">
-                    <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
                   </div>
                 </section>
               </div>
@@ -1073,13 +1022,19 @@
           </div>
 
           <!-- ============================================== -->
-          <!-- SCREEN: RÜCKVERFOLGBARKEIT (LMIV-Erfassung)     -->
+          <!-- SCREEN: CHARGEN-DOKU / THEKENBUCH (LMIV)        -->
           <!-- ============================================== -->
-          <div class="page" id="page-traceability">
+          <div class="page" id="page-chargen-doku">
+            <div class="chargen-doku-subnav" role="tablist" aria-label="Chargen-Doku Bereiche">
+              <button type="button" class="chargen-doku-subnav-btn is-active" role="tab" data-chargen-panel="capture" aria-selected="true">Erfassen</button>
+              <button type="button" class="chargen-doku-subnav-btn" role="tab" data-chargen-panel="book" aria-selected="false">Thekenbuch</button>
+            </div>
+
+            <div id="chargen-doku-panel-capture" class="chargen-doku-panel">
             <div class="haccp-card receiving-card trace-capture-card">
               <div class="section-title">Fleisch-Herkunft erfassen</div>
               <p class="learn-mode-desc">
-                Etikett fotografieren und LMIV-Herkunft für die Theke hinterlegen. Der Eintrag erscheint danach in der digitalen Thekenklade.
+                Etikett fotografieren und LMIV-Herkunft für die Theke hinterlegen. Der Eintrag erscheint danach im Thekenbuch.
               </p>
 
               <input type="file" id="trace-photo-input" class="visually-hidden" accept="image/*" capture="environment">
@@ -1166,6 +1121,50 @@
                   💾 Herkunft speichern
                 </button>
               </div>
+            </div>
+            </div><!-- /chargen-doku-panel-capture -->
+
+            <div id="chargen-doku-panel-book" class="chargen-doku-panel" hidden>
+              <section class="dev-dashboard-panel chargen-book-panel" aria-label="Thekenbuch">
+                <div class="dev-dashboard-employee-header">
+                  <div>
+                    <h2 class="dev-dashboard-section-title">Thekenbuch</h2>
+                    <p class="dev-dashboard-intro">
+                      Alle erfassten LMIV-Herkunftseinträge. Suche nach LOT oder Datum, Status umschalten, Etikett für Kontrollen öffnen.
+                    </p>
+                  </div>
+                  <p class="dev-dashboard-employee-list-status" id="chargen-book-status" aria-live="polite"></p>
+                </div>
+                <div class="dev-trace-toolbar">
+                  <label class="dev-dashboard-field" for="chargen-book-search">
+                    <span>Suche (LOT / Kennzeichen)</span>
+                    <input id="chargen-book-search" type="search" placeholder="z. B. LOT-2026-…" autocomplete="off">
+                  </label>
+                  <label class="dev-dashboard-field" for="chargen-book-date">
+                    <span>Erfassungsdatum</span>
+                    <input id="chargen-book-date" type="date">
+                  </label>
+                </div>
+                <div class="dev-dashboard-table-wrap">
+                  <table class="dev-dashboard-table" id="chargen-book-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">LOT</th>
+                        <th scope="col">Tierart</th>
+                        <th scope="col">Erfasst</th>
+                        <th scope="col">Kennzeichen</th>
+                        <th scope="col">Öko-Kontrollstelle</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Aktion</th>
+                      </tr>
+                    </thead>
+                    <tbody id="chargen-book-body"></tbody>
+                  </table>
+                </div>
+                <div id="chargen-book-detail" class="dev-trace-detail" aria-live="polite">
+                  <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -1828,9 +1827,9 @@
                 <i>📥</i>
                 <span>Neu</span>
               </button>
-              <button class="nav-item" data-tab="traceability" id="tab-traceability" onclick="window.fallbackShowTab && window.fallbackShowTab('traceability')">
+              <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
                 <i>🏷️</i>
-                <span>Herkunft</span>
+                <span>Thekenbuch</span>
               </button>
               <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
                 <i>🥣</i>

@@ -27,7 +27,7 @@ import {
   sampleTraceabilityRecord,
   seedFirestoreDoc,
   tenantDocPath,
-  traceabilityObjectPath,
+  chargenDokuObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -456,18 +456,19 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
-  describe('TEST CASE 6: traceabilityRecords tenant isolation', () => {
-    const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-own');
-    const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'traceabilityRecords', 'trace-foreign');
+  describe('TEST CASE 6: chargendoku tenant isolation', () => {
+    const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-own');
+    const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'chargendoku', 'trace-foreign');
+    const legacyOwnPath = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-legacy');
 
-    it('allows employee create/read on own tenant traceabilityRecords', async () => {
+    it('allows employee create/read on own tenant chargendoku', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace', TENANTS.TORFABRIK, 'employee');
       const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-own' });
       await expectFirestoreAllow(ctx, ownPath, 'create', payload);
       await expectFirestoreAllow(ctx, ownPath, 'read');
     });
 
-    it('denies cross-tenant read/create on StevesHof traceabilityRecords', async () => {
+    it('denies cross-tenant read/create on StevesHof chargendoku', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-x', TENANTS.TORFABRIK, 'employee');
       const payload = sampleTraceabilityRecord(TENANTS.STEVES_HOF, { id: 'trace-foreign' });
       await expectFirestoreDeny(ctx, foreignPath, 'read');
@@ -476,7 +477,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('allows create with optional organicControlBody and organicAssociation', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-bio', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-bio');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-bio');
       const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
         id: 'trace-bio',
         organicControlBody: 'DE-ÖKO-006',
@@ -487,7 +488,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('denies create when organicControlBody is not a string', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-bio-bad', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-bio-bad');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-bio-bad');
       const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
         id: 'trace-bio-bad',
         organicControlBody: 6,
@@ -510,14 +511,24 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(employee, ownPath, 'update', { status: 'active' });
     });
 
-    it('allows employee upload to own tenant traceability storage path', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-storage', TENANTS.TORFABRIK, 'employee');
-      await expectStorageUploadAllow(ctx, traceabilityObjectPath(TENANTS.TORFABRIK, 'trace-own.jpg'));
+    it('allows employee read on legacy traceabilityRecords path', async () => {
+      await seedFirestoreDoc(
+        testEnv,
+        legacyOwnPath,
+        sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-legacy' }),
+      );
+      const ctx = authContext(testEnv, 'tf-employee-trace-legacy', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreAllow(ctx, legacyOwnPath, 'read');
     });
 
-    it('denies cross-tenant traceability storage upload', async () => {
+    it('allows employee upload to own tenant chargendoku storage path', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-trace-storage', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadAllow(ctx, chargenDokuObjectPath(TENANTS.TORFABRIK, 'trace-own.jpg'));
+    });
+
+    it('denies cross-tenant chargendoku storage upload', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TORFABRIK, 'employee');
-      await expectStorageUploadDeny(ctx, traceabilityObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
+      await expectStorageUploadDeny(ctx, chargenDokuObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
     });
   });
 
@@ -552,7 +563,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         haccp: false,
         knowledge: false,
         buero: false,
-        traceability: true,
+        chargenDoku: true,
       },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -618,7 +629,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
           haccp: false,
           knowledge: false,
           buero: false,
-          traceability: true,
+          chargenDoku: true,
         },
       });
     });
