@@ -1974,12 +1974,12 @@ function showLearnModeDialog(ean) {
 
     const name = inputName?.value.trim();
     const brand = inputBrand?.value.trim() || '';
+    const isVpe = Boolean(inputIsVpe?.checked);
     const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
     const mhdDate = readGermanDateField(inputMhd) || today;
     const lot = inputLot?.value.trim() || '';
     const kategorie = normalizeMhdCategory(inputCategory?.value || '');
     const barcodeForSave = currentBarcode || cleanScannedBarcode(ean);
-    const isVpe = Boolean(inputIsVpe?.checked);
     const vpeSize = Math.max(2, parseFloat(String(inputVpeSize?.value || '6').replace(',', '.')) || 6);
     const inventoryBarcode = cleanScannedBarcode(productInfo?.einzelBarcode) || barcodeForSave;
 
