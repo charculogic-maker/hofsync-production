@@ -83,6 +83,10 @@ service cloud.firestore {
       return field == null || field is int || field is float;
     }
 
+    function isNumericFieldOrMissing(fieldName) {
+      return isNumericOrNull(request.resource.data.get(fieldName, null));
+    }
+
     function isIntGteZero(field) {
       return (field is int || field is float) && field >= 0;
     }
@@ -374,19 +378,24 @@ service cloud.firestore {
 
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
-          'logTyp', 'deviceId', 'deviceName', 'bereich',
-          'wert', 'temperatur', 'ph',
-          'einheit', 'sollMin', 'sollMax',
+          'logTyp', 'type',
+          'deviceId', 'stationId', 'deviceName', 'facility',
+          'taskId', 'task', 'periodType', 'periodKey', 'doneBy',
+          'bereich',
+          'wert', 'value', 'temperatur', 'ph',
+          'einheit', 'sollMin', 'sollMax', 'thresholdMax',
           'status', 'massnahme',
           'chargenNummer',
-          'tenantId', 'datum', 'createdAt'
+          'tenantId', 'datum', 'timestamp', 'createdAt'
         ])
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
+        && isNumericFieldOrMissing('wert')
+        && isNumericFieldOrMissing('value')
+        && isNumericFieldOrMissing('temperatur')
+        && isNumericFieldOrMissing('ph')
+        && isNumericFieldOrMissing('thresholdMax')
         && (
           request.resource.data.createdAt == request.time
           || (
