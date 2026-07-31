@@ -230,6 +230,82 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order ready transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-1');
+
+    function customerOrder(overrides = {}) {
+      return {
+        tenantId: TENANTS.STEVES_HOF,
+        status: 'open',
+        customerName: 'Max Mustermann',
+        callbackPhone: '+491701234567',
+        readyAt: '2026-06-25T16:00:00.000Z',
+        acceptedBy: 'Hofladen',
+        acceptedAt: '2026-06-25T08:00:00.000Z',
+        items: [
+          {
+            product: 'Rinderbraten',
+            quantity: '1.5',
+            unit: 'kg',
+            pricePerKg: 24.9,
+          },
+        ],
+        ...overrides,
+      };
+    }
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, customerOrder());
+    });
+
+    it('allows employees to mark orders ready with pickup place and weighed items', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Lena',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            {
+              product: 'Rinderbraten',
+              quantity: '1.5',
+              unit: 'kg',
+              pricePerKg: 24.9,
+              actualQuantity: '1.42',
+              actualQuantityUnit: 'kg',
+              actualQuantityRecordedAt: '2026-06-25T10:00:00.000Z',
+            },
+          ],
+        },
+      );
+    });
+
+    it('denies employee item edits outside the open-to-ready transition', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-item-edit', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          items: [
+            {
+              product: 'Rinderbraten',
+              quantity: '9.0',
+              unit: 'kg',
+              pricePerKg: 24.9,
+            },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
