@@ -451,7 +451,7 @@ export function generateSammelPickliste() {
   const includedOrderIds = new Set();
 
   openOrders.forEach((order) => {
-    (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+    (Array.isArray(order.items) ? order.items : []).forEach((item, lineIndex) => {
       const product = String(item?.product || '').trim();
       if (!product || product === 'Siehe Bestellzettel (Scan)') return;
       const unit = String(item?.unit || '').trim();
@@ -474,7 +474,7 @@ export function generateSammelPickliste() {
       };
       entry.quantity += quantity;
       entry.orders.add(order.id);
-      entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity });
+      entry.refs.push({ orderId: order.id, lineIndex, quantity });
       includedOrderIds.add(order.id);
       [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
       grouped.set(key, entry);
@@ -520,7 +520,7 @@ export function getProductionTasksByStation() {
   orderState.allOrders
     .filter((order) => OPEN_ORDER_STATUSES.has(order.status || 'open') && isTodayReadyOrder(order))
     .forEach((order) => {
-      (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+      (Array.isArray(order.items) ? order.items : []).forEach((item, lineIndex) => {
         const station = getProductionStation(item);
         if (!station) return;
         const product = String(item?.product || '').trim();
@@ -542,7 +542,7 @@ export function getProductionTasksByStation() {
         };
         entry.quantity += parseQuantityValue(item?.quantity);
         entry.orderIds.add(order.id);
-        entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity: parseQuantityValue(item?.quantity) });
+        entry.refs.push({ orderId: order.id, lineIndex, quantity: parseQuantityValue(item?.quantity) });
         [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
         stationItems[station].set(key, entry);
       });
@@ -711,9 +711,10 @@ function collectActualQuantityUpdates(picklist) {
       const actualTotal = parseQuantityValue(actualQuantityValue(item.key, item.quantityLabel));
       if (!Number.isFinite(actualTotal)) return;
       const totalOrdered = Number.isFinite(item.quantity) ? item.quantity : 0;
+      if (totalOrdered <= 0) return;
       item.refs.forEach((ref) => {
         if (!ref?.orderId || !Number.isInteger(ref.lineIndex)) return;
-        const share = totalOrdered > 0 ? (actualTotal * ref.quantity) / totalOrdered : actualTotal;
+        const share = (actualTotal * ref.quantity) / totalOrdered;
         const list = updatesByOrder.get(ref.orderId) || [];
         list.push({
           lineIndex: ref.lineIndex,
