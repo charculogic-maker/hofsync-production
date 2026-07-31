@@ -264,7 +264,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 - **Markup:** `web/index.html` → `#kitchen-wrs-panel` / `#wrs-meat-price-update-btn` (neben `#wrs-status-pill`).
 - **Logik:** `web/app.js` → `bindWrsMeatPriceUpdateButton()`, Callable `triggerManualMeatPriceRun` (Region `europe-west3`, App Check Pflicht via `waitForAppCheckReady()`).
 - **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
-- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
+- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.7**.
 
 #### Frontend – Wareneingang-Hilfen (Tab **Neu**)
 
@@ -312,7 +312,94 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Modi:** `employee` (Name + PIN), `resolve` (PIN → Name), `meister` (Meister-Freigabe).
 - **Schutz:** PBKDF2-Hash, Lockout nach 5 Fehlversuchen (15 min).
 
-### 4.5 Firebase App Check — Pflicht & Gateway-Schutz
+### 4.5 `onOrderReadySendSignal` – Kunden-Signal bei abholbereiter Bestellung
+
+Implementierung: `functions/orderNotifications.js`, Export in `functions/index.js`.
+
+- **Typ:** Gen2 Firestore-Trigger (`onDocumentUpdated`), Region `europe-west3`.
+- **Pfad:** `tenants/{tenantId}/customerOrders/{orderId}`.
+- **Triggerbedingung:** `before.status !== "ready"` und `after.status === "ready"`; spätere Updates an bereits abholbereiten Bestellungen senden keine zweite Nachricht.
+- **Tenant-Safety:** Wenn `after.tenantId` gesetzt ist und nicht zum Pfad-`tenantId` passt, wird der Versand übersprungen.
+- **Kanäle:** E-Mail via nodemailer/SMTP und SMS via Twilio. Beide Kanäle sind optional und werden parallel versendet, wenn Kontaktdaten und Konfiguration vorhanden sind.
+- **Bestellfluss:** Der Client setzt `ready` in `web/customer-orders.js` über Einzelkarte oder Sammel-Pickliste. Offline-Updates lösen den Trigger erst aus, wenn die Sync-Queue erfolgreich nach Firestore schreibt.
+- **Rules-Grenze:** Nicht-Admins dürfen laut `firebase.rules` nur reine Statusübergänge mit Zeit-/Bearbeiterfeldern schreiben. Erweiterte `items`-/`pickupPlace`-Updates aus Fulfillment-Flows benötigen Admin-Rechte oder eine Rules-Anpassung.
+
+#### Parameter / Konfiguration
+
+Die Function nutzt Firebase Params (`defineString`) mit sicheren Defaults, damit Deploys ohne optionale Zugangsdaten nicht scheitern:
+
+| Param | Default | Zweck |
+|-------|---------|-------|
+| `SMTP_HOST` | `mail.agenturserver.de` | SMTP-Server |
+| `SMTP_PORT` | `465` | Port; `587` aktiviert `requireTLS` |
+| `SMTP_USER` | `bestellung@steveshof-hofladen.de` | SMTP-Login |
+| `SMTP_PASS` | leer | SMTP-Passwort; leer = E-Mail-Kanal überspringen |
+| `FROM_EMAIL` | `bestellung@steveshof-hofladen.de` | Absenderadresse |
+| `TWILIO_ACCOUNT_SID` | leer | Twilio-Konto; leer = SMS-Kanal überspringen |
+| `TWILIO_AUTH_TOKEN` | leer | Twilio Auth Token |
+| `FROM_NUMBER` | leer | Twilio-Absendernummer |
+
+Konfiguration lokal über `functions/.env` oder in Firebase/GCP als Function-Param. Geheimwerte gehören nicht ins Repository.
+
+#### Payload-Vertrag (`customerOrders`)
+
+Die Nachricht wird aus dem Firestore-Dokument berechnet:
+
+| Feld | Nutzung |
+|------|---------|
+| `customerName` | persönliche Anrede; Fallback `lieber Hofladen-Gast` |
+| `customerEmail` | E-Mail-Empfänger |
+| `callbackPhone` | SMS-Empfänger; Normalisierung `0171…` → `+49171…`, `0049…` → `+49…` |
+| `readyAt` | Abholzeit im Text (`Fr. um 09:00 Uhr`) |
+| `items[]` | Endpreisberechnung aus Menge und Preisfeldern |
+| `items[].actualQuantity` | bevorzugte Waagen-Menge; Fallback `quantity` |
+| `items[].pricePerKg`, `kgPrice`, `kiloPrice`, `unitPrice`, `pricePerUnit`, `singlePrice`, `lineTotal`, `totalPrice`, `price` | Preisermittlung; `lineTotal`/`totalPrice` werden bei vorhandener Menge auf Einheitspreis umgerechnet |
+
+#### Fehler- und Retry-Verhalten
+
+| Situation | Verhalten |
+|-----------|-----------|
+| Kein `customerEmail` / keine `callbackPhone` | Kanal wird nicht gestartet; Log `[KundenSignal] Kein Kundenkanal hinterlegt` |
+| SMTP- oder Twilio-Param fehlt | Kanal wird mit `skipped: true, reason: "not_configured"` übersprungen |
+| Ungültige Telefonnummer | SMS wird mit `reason: "invalid_phone"` übersprungen |
+| SMTP/Twilio wirft Fehler | Fehler wird geloggt; Function beendet ohne Retry-Throw, Bestellung bleibt `ready` |
+| Unerwarteter Fehler im Dispatch | Wird geloggt; Status wird nicht zurückgerollt |
+
+**Wichtig für manuelle Wiederholung:** Da der Trigger nur auf den ersten Übergang nach `ready` reagiert, erzeugt ein erneutes Speichern einer bereits `ready`-Bestellung kein Kunden-Signal. Für einen gezielten Retry muss der operative Prozess bewusst einen neuen Statusübergang erzeugen oder die Function manuell/adminseitig mit einem geprüften Dokument erneut ausführen; vorher prüfen, ob ein Kanal bereits erfolgreich gesendet hat.
+
+#### Logging / Betrieb
+
+Cloud Logging Filter:
+
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name="onorderreadysendsignal"
+textPayload=~"\[KundenSignal\]"
+```
+
+Bei klassischer Cloud-Functions-Ressource alternativ:
+
+```text
+resource.type="cloud_function"
+resource.labels.function_name="onOrderReadySendSignal"
+textPayload=~"\[KundenSignal\]"
+```
+
+Runbook:
+
+1. Bestellung prüfen: `tenants/{tenantId}/customerOrders/{orderId}` → Status, Kontaktfelder, `items[]`, `actualQuantity`.
+2. Logs nach `orderId` und `[KundenSignal]` filtern.
+3. Bei `not_configured`: Function-Params / `functions/.env` prüfen (`SMTP_PASS`, Twilio-Felder).
+4. Bei `invalid_phone`: `callbackPhone` im Dokument korrigieren; danach bewussten Retry-Prozess nutzen.
+5. Bei Preis `0,00 €`: Preisfelder der Positionen prüfen; die Function erfindet keine Preise.
+
+Einzel-Deploy:
+
+```bash
+firebase deploy --only functions:onOrderReadySendSignal
+```
+
+### 4.6 Firebase App Check — Pflicht & Gateway-Schutz
 
 App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
@@ -357,7 +444,7 @@ Damit ist ein Deploy ohne gültige Keys sofort erkennbar, statt still fehlende B
 
 **Deploy-Reihenfolge:** App-Check-Provider in Console aktivieren → Site Keys pflegen → `npm run build` → Hosting + Rules + Functions deployen → Debug-Tokens für Entwickler/CI registrieren.
 
-### 4.6 GCP Cloud Monitoring & Alerting Setup
+### 4.7 GCP Cloud Monitoring & Alerting Setup
 
 Automatisierte Benachrichtigung, wenn der Fleischpreis-Engine-Lauf fehlschlägt (Gemini, Validierung, Firestore). Einrichtung im Firebase-/GCP-Projekt (z. B. `hofsync-production`).
 
@@ -403,7 +490,7 @@ Nach Erstellung in der Console **Notification Channels** an die Policy binden.
 - Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
 - Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
 
-### 4.7 Lokales Testen
+### 4.8 Lokales Testen
 
 ```bash
 cd functions
@@ -543,5 +630,5 @@ Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `te
 1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback in Storage perspektivisch entfernen).
 2. **App Check Enforcement** in Firebase Console für alle Zielressourcen aktivieren, sobald Site Keys in allen Umgebungen live sind.
 3. **Rules- + Security-Tests in CI** — `npm run test:rules` (JDK 21+) und `npm run test:functions:security` in Pipeline verankern.
-4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.6 in Produktion anlegen (`alert-policy.json` als Vorlage).
+4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.7 in Produktion anlegen (`alert-policy.json` als Vorlage).
 5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.
