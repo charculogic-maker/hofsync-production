@@ -399,7 +399,7 @@ function isValidPendingSync(item) {
   if (item._syncType === 'haccp') return Boolean(item._collectionPath);
   if (item._syncType === 'appsScript') return true;
   if (item._syncType === 'firestore-doc') {
-    return Boolean(item._collectionPath && item._docId && ['create', 'set', 'update', 'delete'].includes(item._op));
+    return Boolean(item._collectionPath && item._docId && ['create', 'set', 'merge', 'update', 'delete'].includes(item._op));
   }
   return false;
 }
@@ -536,6 +536,8 @@ export async function flushOnePendingSync(item) {
           setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         }
         await ref.set(setPayload, { merge: false });
+      } else if (writeOp === 'merge') {
+        await ref.set(payload, { merge: true });
       } else if (writeOp === 'create') {
         const createPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -684,6 +686,8 @@ export async function writeFirestoreDocOrQueue({
         setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       }
       writePromise = ref.set(setPayload, { merge: false });
+    } else if (writeOp === 'merge') {
+      writePromise = ref.set(onlinePayload, { merge: true });
     } else if (writeOp === 'create') {
       const createPayload = { ...onlinePayload };
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {
