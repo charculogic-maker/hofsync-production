@@ -230,6 +230,165 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: HACCP app log payloads', () => {
+    function temperatureLog(tenantId, overrides = {}) {
+      return {
+        tenantId,
+        logTyp: 'temperatur',
+        type: 'temperature',
+        stationId: 'laden-kuehlschrank',
+        deviceId: 'laden-kuehlschrank',
+        facility: 'Laden Kuehlschrank',
+        deviceName: 'Laden Kuehlschrank',
+        doneBy: 'Mia',
+        value: 4.2,
+        wert: 4.2,
+        einheit: 'C',
+        thresholdMax: 7,
+        sollMax: 7,
+        bereich: 'Laden',
+        status: 'ok',
+        massnahme: '',
+        datum: '2026-06-21',
+        createdAt: serverTimestamp(),
+        timestamp: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    function cleaningLog(tenantId, overrides = {}) {
+      return {
+        tenantId,
+        logTyp: 'reinigung',
+        type: 'cleaning',
+        taskId: 'boden-laden',
+        task: 'Boden Laden',
+        doneBy: 'Mia',
+        periodType: 'day',
+        periodKey: '2026-06-21',
+        deviceName: 'Boden Laden',
+        bereich: 'Laden',
+        status: 'erledigt',
+        massnahme: 'Mia',
+        datum: '2026-06-21',
+        createdAt: serverTimestamp(),
+        timestamp: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    it('allows employees to create HACCP temperature and cleaning logs from the app', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-haccp', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'temperature-log'),
+        'create',
+        temperatureLog(TENANTS.STEVES_HOF),
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'cleaning-log'),
+        'create',
+        cleaningLog(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies HACCP app logs across tenants or with foreign fields', async () => {
+      const crossTenantCtx = authContext(testEnv, 'tf-employee-haccp-cross', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        crossTenantCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'cross-tenant-log'),
+        'create',
+        temperatureLog(TENANTS.STEVES_HOF),
+      );
+
+      const ownTenantCtx = authContext(testEnv, 'sh-employee-haccp-inject', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownTenantCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'foreign-field-log'),
+        'create',
+        temperatureLog(TENANTS.STEVES_HOF, { injected: true }),
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: customer order ready updates', () => {
+    function openOrder(tenantId, overrides = {}) {
+      return {
+        tenantId,
+        customerName: 'Testkunde',
+        callbackPhone: '0123456789',
+        readyAt: '2026-06-21',
+        acceptedBy: 'Mia',
+        acceptedAt: '2026-06-21T09:00:00.000Z',
+        status: 'open',
+        createdAt: '2026-06-21T09:00:00.000Z',
+        items: [
+          { product: 'Fleischsalat', quantity: '1 kg' },
+        ],
+        ...overrides,
+      };
+    }
+
+    it('allows employees to mark bulk-picklist orders ready with pickup place and weighed items', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'ready-order');
+      await seedFirestoreDoc(testEnv, path, openOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Mia',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kuehlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '1 kg', actualQuantity: '0.95 kg' },
+          ],
+        },
+      );
+    });
+
+    it('denies customer order ready updates across tenants or with unrelated fields', async () => {
+      const crossTenantPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'cross-ready-order');
+      await seedFirestoreDoc(testEnv, crossTenantPath, openOrder(TENANTS.STEVES_HOF));
+
+      const crossTenantCtx = authContext(testEnv, 'tf-employee-order-ready', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        crossTenantCtx,
+        crossTenantPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Mia',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kuehlschrank',
+        },
+      );
+
+      const ownTenantPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'wide-ready-order');
+      await seedFirestoreDoc(testEnv, ownTenantPath, openOrder(TENANTS.STEVES_HOF));
+      const ownTenantCtx = authContext(testEnv, 'sh-employee-order-wide', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownTenantCtx,
+        ownTenantPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Mia',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kuehlschrank',
+          adminNote: 'not allowed',
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

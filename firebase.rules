@@ -92,6 +92,19 @@ service cloud.firestore {
         || (field is string && field.size() >= 8 && field.size() <= 24);
     }
 
+    function isClientTimestampOrRecent(field) {
+      return field == null
+        || field == request.time
+        || (
+          field is timestamp
+          && field > request.time - duration.value(48, 'h')
+        )
+        || (
+          field is string
+          && field.size() >= 20
+        );
+    }
+
     function hasOnly(allowedFields) {
       return request.resource.data.keys().hasOnly(allowedFields);
     }
@@ -379,25 +392,31 @@ service cloud.firestore {
           'einheit', 'sollMin', 'sollMax',
           'status', 'massnahme',
           'chargenNummer',
+          'type', 'stationId', 'facility', 'doneBy',
+          'value', 'thresholdMax',
+          'taskId', 'task', 'periodType', 'periodKey',
+          'timestamp',
           'tenantId', 'datum', 'createdAt'
         ])
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
-        && (
-          request.resource.data.createdAt == request.time
-          || (
-            request.resource.data.createdAt is timestamp
-            && request.resource.data.createdAt > request.time - duration.value(48, 'h')
-          )
-          || (
-            request.resource.data.createdAt is string
-            && request.resource.data.createdAt.size() >= 20
-          )
-        );
+        && (!('wert' in request.resource.data) || isNumericOrNull(request.resource.data.wert))
+        && (!('temperatur' in request.resource.data) || isNumericOrNull(request.resource.data.temperatur))
+        && (!('ph' in request.resource.data) || isNumericOrNull(request.resource.data.ph))
+        && (!('value' in request.resource.data) || isNumericOrNull(request.resource.data.value))
+        && (!('thresholdMax' in request.resource.data) || isNumericOrNull(request.resource.data.thresholdMax))
+        && (!('type' in request.resource.data) || isOptionalString(request.resource.data.type))
+        && (!('stationId' in request.resource.data) || isOptionalString(request.resource.data.stationId))
+        && (!('facility' in request.resource.data) || isOptionalString(request.resource.data.facility))
+        && (!('doneBy' in request.resource.data) || isOptionalString(request.resource.data.doneBy))
+        && (!('taskId' in request.resource.data) || isOptionalString(request.resource.data.taskId))
+        && (!('task' in request.resource.data) || isOptionalString(request.resource.data.task))
+        && (!('periodType' in request.resource.data) || isOptionalString(request.resource.data.periodType))
+        && (!('periodKey' in request.resource.data) || isOptionalString(request.resource.data.periodKey))
+        && ('createdAt' in request.resource.data)
+        && isClientTimestampOrRecent(request.resource.data.createdAt)
+        && (!('timestamp' in request.resource.data) || isClientTimestampOrRecent(request.resource.data.timestamp));
 
       allow update, delete: if false;
     }
@@ -655,9 +674,19 @@ service cloud.firestore {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt',
+          'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
+        && (
+          !('pickupPlace' in request.resource.data)
+          || isOptionalString(request.resource.data.pickupPlace)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+          || isCustomerOrderItemsList(request.resource.data.items)
+        )
         && (
           (resource.data.status == 'open' && request.resource.data.status == 'ready')
           || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
