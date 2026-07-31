@@ -330,21 +330,54 @@ async function findStockDocForOrderItem(item) {
   return null;
 }
 
-async function prepareStockDeductionsForOrder(order) {
+function stockDeductionKey(ref) {
+  return String(ref?.path || ref?.id || '').trim();
+}
+
+export function aggregateStockDeductions(deductions = []) {
+  const byRef = new Map();
+  deductions.forEach((deduction) => {
+    const key = stockDeductionKey(deduction.ref);
+    if (!key) return;
+    const existing = byRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + deduction.amount) * 1000) / 1000;
+      existing.products.push(deduction.product);
+      return;
+    }
+    byRef.set(key, { ...deduction, products: [deduction.product] });
+  });
+  return Array.from(byRef.values());
+}
+
+function stockResolutionError(products = []) {
+  const uniqueProducts = Array.from(new Set(products.map((product) => String(product || 'Artikel').trim()).filter(Boolean)));
+  const detail = uniqueProducts.slice(0, 3).join(', ');
+  const suffix = uniqueProducts.length > 3 ? ` und ${uniqueProducts.length - 3} weitere` : '';
+  return new Error(`Lagerartikel fehlt für ${detail || 'diese Bestellung'}${suffix}.`);
+}
+
+export async function prepareStockDeductionsForOrder(order, resolveStockRef = findStockDocForOrderItem) {
   const items = Array.isArray(order?.items) ? order.items : [];
   const deductions = [];
+  const missingProducts = [];
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    const ref = await resolveStockRef(item);
+    if (!ref) {
+      missingProducts.push(product);
+      continue;
+    }
     deductions.push({
       ref,
       amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      product,
     });
   }
-  return deductions;
+  if (missingProducts.length) throw stockResolutionError(missingProducts);
+  return aggregateStockDeductions(deductions);
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,7 +408,7 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) throw stockResolutionError(deduction.products || [deduction.product]);
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
       const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
       transaction.update(deduction.ref, {
@@ -442,16 +475,16 @@ function isTodayReadyOrder(order) {
   return readyDay === todayIsoLocal();
 }
 
-export function generateSammelPickliste() {
+export function generateSammelPickliste(orders = orderState.allOrders) {
   const grouped = new Map();
-  const openOrders = orderState.allOrders.filter((order) => {
+  const openOrders = orders.filter((order) => {
     const status = order.status || 'open';
     return OPEN_ORDER_STATUSES.has(status) && isTodayReadyOrder(order);
   });
   const includedOrderIds = new Set();
 
   openOrders.forEach((order) => {
-    (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+    (Array.isArray(order.items) ? order.items : []).forEach((item, lineIndex) => {
       const product = String(item?.product || '').trim();
       if (!product || product === 'Siehe Bestellzettel (Scan)') return;
       const unit = String(item?.unit || '').trim();
@@ -474,7 +507,7 @@ export function generateSammelPickliste() {
       };
       entry.quantity += quantity;
       entry.orders.add(order.id);
-      entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity });
+      entry.refs.push({ orderId: order.id, lineIndex, quantity });
       includedOrderIds.add(order.id);
       [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
       grouped.set(key, entry);
@@ -511,16 +544,16 @@ export function generateSammelPickliste() {
   };
 }
 
-export function getProductionTasksByStation() {
+export function getProductionTasksByStation(orders = orderState.allOrders) {
   const stationItems = {
     kitchen: new Map(),
     butchery: new Map(),
   };
 
-  orderState.allOrders
+  orders
     .filter((order) => OPEN_ORDER_STATUSES.has(order.status || 'open') && isTodayReadyOrder(order))
     .forEach((order) => {
-      (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+      (Array.isArray(order.items) ? order.items : []).forEach((item, lineIndex) => {
         const station = getProductionStation(item);
         if (!station) return;
         const product = String(item?.product || '').trim();
@@ -542,7 +575,7 @@ export function getProductionTasksByStation() {
         };
         entry.quantity += parseQuantityValue(item?.quantity);
         entry.orderIds.add(order.id);
-        entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity: parseQuantityValue(item?.quantity) });
+        entry.refs.push({ orderId: order.id, lineIndex, quantity: parseQuantityValue(item?.quantity) });
         [item?.weight, item?.width, item?.lineNotes].filter(Boolean).forEach((note) => entry.notes.add(String(note)));
         stationItems[station].set(key, entry);
       });
@@ -916,10 +949,14 @@ async function markSammelPicklisteReady() {
       });
     }));
 
-    await postTeamboardBulletin(
-      '🎉 Die Kundenbestellungen für heute wurden frisch zusammengestellt und stehen abholbereit im Laden-Kühlschrank!',
-      { author: employee },
-    );
+    try {
+      await postTeamboardBulletin(
+        '🎉 Die Kundenbestellungen für heute wurden frisch zusammengestellt und stehen abholbereit im Laden-Kühlschrank!',
+        { author: employee },
+      );
+    } catch (err) {
+      console.warn('[CustomerOrders] Teamboard-Hinweis nach Sammel-Pickliste übersprungen:', err);
+    }
 
     orderState.allOrders = orderState.allOrders.map((order) => (
       orderIds.includes(order.id)
