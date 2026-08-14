@@ -187,6 +187,20 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       currentStock: 12,
       tenantId: TENANTS.STEVES_HOF,
     };
+    const receivingStockPayload = (tenantId = TENANTS.STEVES_HOF, overrides = {}) => ({
+      artikel: 'Fleischsalat',
+      produkt: 'Fleischsalat',
+      name: 'Fleischsalat',
+      kategorie: 'Fleisch',
+      currentStock: 14,
+      lastMhd: '2026-08-20',
+      lastDeliveryAt: '2026-08-14T10:00:00.000Z',
+      lastDeliveryBy: 'Team',
+      source: 'wareneingang-lieferschein',
+      tenantId,
+      updatedAt: serverTimestamp(),
+      ...overrides,
+    });
 
     beforeEach(async () => {
       await seedFirestoreDoc(testEnv, stockPath, stockItem);
@@ -200,6 +214,29 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 8, updatedAt: serverTimestamp() },
+      );
+    });
+
+    it('allows employee receiving flow to create and increase own tenant stock', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving-stock', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'neu-vom-lieferschein'),
+        'create',
+        receivingStockPayload(TENANTS.STEVES_HOF, {
+          artikel: 'Neu vom Lieferschein',
+          produkt: 'Neu vom Lieferschein',
+          name: 'Neu vom Lieferschein',
+          currentStock: 3,
+        }),
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        receivingStockPayload(),
       );
     });
 
@@ -226,6 +263,13 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+
+      await expectFirestoreDeny(
+        ownCtx,
+        stockPath,
+        'update',
+        receivingStockPayload(TENANTS.STEVES_HOF, { source: 'manual-stock-edit' }),
       );
     });
   });
