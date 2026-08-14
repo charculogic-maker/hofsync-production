@@ -145,9 +145,42 @@ service cloud.firestore {
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
+    function isReceivingStockCreatePayload(tenantId) {
+      return hasOnly([
+          'artikel', 'produkt', 'name', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'tenantId', 'updatedAt'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.artikel)
+        && isOptionalString(request.resource.data.produkt)
+        && isNonEmptyString(request.resource.data.name)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
+    function isReceivingStockUpdatePayload(tenantId) {
+      return request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isOptionalString(request.resource.data.produkt)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && isReceivingStockCreatePayload(tenantId);
       allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'currentStock', 'updatedAt'
@@ -155,6 +188,16 @@ service cloud.firestore {
         && isIntGteZero(resource.data.currentStock)
         && isIntGteZero(request.resource.data.currentStock)
         && request.resource.data.currentStock <= resource.data.currentStock;
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'produkt', 'name', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'tenantId', 'updatedAt'
+        ])
+        && isReceivingStockUpdatePayload(tenantId)
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock >= resource.data.currentStock;
     }
 
     match /tenants/{tenantId}/settings/{document} {
@@ -652,16 +695,40 @@ service cloud.firestore {
     }
 
     function isCustomerOrderStatusUpdate() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && affected.hasOnly([
+              'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
+            ])
+            && (
+              !affected.hasAny(['pickupPlace'])
+              || request.resource.data.pickupPlace is string
+            )
+            && (
+              !affected.hasAny(['items'])
+              || (
+                resource.data.items is list
+                && isCustomerOrderItemsList(request.resource.data.items)
+                && request.resource.data.items.size() == resource.data.items.size()
+              )
+            )
+          )
+          || (
+            resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+            && affected.hasOnly(['status', 'pickedUpBy', 'pickedUpAt'])
+          )
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && affected.hasOnly(['status'])
+          )
         );
     }
 
