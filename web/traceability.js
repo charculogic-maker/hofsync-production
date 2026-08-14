@@ -30,6 +30,11 @@ const ORGANIC_ASSOCIATION_OPTIONS = new Set([
   'Keine / Konventionell',
 ]);
 
+export function normalizeTraceOrganicAssociation(value) {
+  const clean = String(value || '').trim();
+  return ORGANIC_ASSOCIATION_OPTIONS.has(clean) ? clean : '';
+}
+
 const COUNTRY_OPTIONS = [
   { value: 'Deutschland', label: 'Deutschland' },
   { value: 'Österreich', label: 'Österreich' },
@@ -327,9 +332,7 @@ function applyParsedLabelToForm(label = {}) {
     setSelectOrInputValue('trace-organic-control-body', label.organicControlBody),
   );
 
-  const association = ORGANIC_ASSOCIATION_OPTIONS.has(label.organicAssociation)
-    ? label.organicAssociation
-    : '';
+  const association = normalizeTraceOrganicAssociation(label.organicAssociation);
   if (association) {
     markFilled('trace-organic-association', setSelectOrInputValue('trace-organic-association', association));
   } else {
@@ -502,7 +505,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeTraceOrganicAssociation(organicAssociationVal),
       imageUrl,
       animalType,
       origin,

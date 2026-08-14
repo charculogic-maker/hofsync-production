@@ -274,6 +274,85 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: customer order ready and pickup transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-flow');
+    const orderItem = {
+      product: 'Fleischsalat',
+      quantity: '1',
+      unit: 'kg',
+    };
+    const customerOrder = (status = 'open', overrides = {}) => ({
+      customerName: 'Testkunde',
+      callbackPhone: '01234',
+      customerEmail: '',
+      readyAt: '2026-08-14T12:00:00.000Z',
+      items: [orderItem],
+      additionalWishes: '',
+      inputMode: 'manual',
+      acceptedBy: 'Team',
+      acceptedAt: '2026-08-14T08:00:00.000Z',
+      status,
+      tenantId: TENANTS.STEVES_HOF,
+      createdAt: '2026-08-14T08:00:00.000Z',
+      ...overrides,
+    });
+
+    it('allows employee bulk-ready payload with pickupPlace and same-length items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, customerOrder());
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [{ ...orderItem, actualQuantity: '1,2' }],
+        },
+      );
+    });
+
+    it('denies item rewrites on pickup and item count changes on ready', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, customerOrder());
+      const ctx = authContext(testEnv, 'sh-employee-order-locked', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          items: [
+            { ...orderItem, actualQuantity: '1,2' },
+            { product: 'Extra', quantity: '1', unit: 'Stück' },
+          ],
+        },
+      );
+
+      await seedFirestoreDoc(testEnv, orderPath, customerOrder('ready', {
+        readyMarkedBy: 'Stephan',
+        readyMarkedAt: '2026-08-14T09:00:00.000Z',
+      }));
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Stephan',
+          pickedUpAt: serverTimestamp(),
+          items: [{ ...orderItem, actualQuantity: '1,2' }],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
