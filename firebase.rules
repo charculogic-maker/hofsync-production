@@ -145,9 +145,42 @@ service cloud.firestore {
     // STAMMDATEN (admin-only writes)
     // =========================================================================
 
+    function isReceivingStockCreatePayload(tenantId) {
+      return hasOnly([
+          'artikel', 'produkt', 'name', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'tenantId', 'updatedAt'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.artikel)
+        && isOptionalString(request.resource.data.produkt)
+        && isNonEmptyString(request.resource.data.name)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
+    function isReceivingStockUpdatePayload(tenantId) {
+      return request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isOptionalString(request.resource.data.produkt)
+        && isOptionalString(request.resource.data.kategorie)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy)
+        && isIntGteZero(request.resource.data.currentStock);
+    }
+
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && isReceivingStockCreatePayload(tenantId);
       allow update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'currentStock', 'updatedAt'
@@ -155,6 +188,16 @@ service cloud.firestore {
         && isIntGteZero(resource.data.currentStock)
         && isIntGteZero(request.resource.data.currentStock)
         && request.resource.data.currentStock <= resource.data.currentStock;
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'produkt', 'name', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'tenantId', 'updatedAt'
+        ])
+        && isReceivingStockUpdatePayload(tenantId)
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock >= resource.data.currentStock;
     }
 
     match /tenants/{tenantId}/settings/{document} {
