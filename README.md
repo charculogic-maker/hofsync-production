@@ -171,6 +171,7 @@ Details, App Check, Secrets (z. B. `GEMINI_API_KEY`) und Fallstricke: ➡️ [do
 | Dokument | Inhalt |
 |----------|--------|
 | [docs/README.md](docs/README.md) | Übersicht aller Dokumente |
+| [docs/PRODUKTPORTFOLIO.md](docs/PRODUKTPORTFOLIO.md) | Produktportfolio: Module, Pakete, Add-ons, White-Label |
 | [docs/APP_DOKUMENTATION.md](docs/APP_DOKUMENTATION.md) | Ausführliche App-Doku (Ist-Stand, Module, Mandanten, Backend) |
 | [docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Tagesablauf **StevesHof** (CharcuLogic) |
 | [docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md](docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md) | Tagesablauf **TorFabrik** (CenterLogic) |
