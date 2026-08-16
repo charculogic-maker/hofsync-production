@@ -1,8 +1,18 @@
-import { describe, it, beforeEach, afterEach } from 'mocha';
+import { describe, it, before, beforeEach, afterEach, after } from 'mocha';
 import { expect } from 'chai';
-import { __mhdTest } from '../web/mhd.js';
+
+let __mhdTest;
 
 describe('MHD delivery finalization retry guards', () => {
+  before(async () => {
+    globalThis.window = { showToast: () => {}, BRANDING: {} };
+    globalThis.document = {
+      getElementById: () => null,
+      addEventListener: () => {},
+    };
+    ({ __mhdTest } = await import('../web/mhd.js'));
+  });
+
   beforeEach(() => {
     __mhdTest.clearPendingFinalizeDeliveryId();
   });
@@ -46,5 +56,10 @@ describe('MHD delivery finalization retry guards', () => {
       op: 'delete',
       silentPermissionDenied: true,
     });
+  });
+
+  after(() => {
+    delete globalThis.document;
+    delete globalThis.window;
   });
 });
