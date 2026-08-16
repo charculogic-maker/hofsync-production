@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260816-212-integrity-fixes';
+const CACHE_NAME = 'charculogic-v20260816-213-offline-delivery-integrity';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [

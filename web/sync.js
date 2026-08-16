@@ -1,4 +1,4 @@
-import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
+import { getGlobalTenantId, normalizeTenantId, tenantIdsMatch } from './tenant-db.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
@@ -6,6 +6,7 @@ const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
 const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
 
 let flushInFlight = false;
+const migratedTenantStorageScopes = new Set();
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -87,14 +88,93 @@ function normalizeTenantCollectionPath(collectionPath) {
   if (!path) throw new Error('Firestore-Ziel fehlt');
 
   if (path.startsWith('tenants/')) {
-    const [, pathTenantId] = path.split('/');
+    const segments = path.split('/');
+    const [, pathTenantId] = segments;
     if (!tenantIdsMatch(pathTenantId, tenantId)) {
       throw new Error('Mandantenkonflikt: Firestore-Pfad passt nicht zum angemeldeten Betrieb.');
     }
-    return path;
+    return ['tenants', tenantId, ...segments.slice(2)].join('/');
   }
 
   return `tenants/${tenantId}/${path}`;
+}
+
+function canonicalizeQueuedSyncItem(item, tenantId) {
+  if (!item || typeof item !== 'object') return item;
+  const next = { ...item };
+  if (typeof next._collectionPath === 'string' && next._collectionPath.startsWith('tenants/')) {
+    try {
+      next._collectionPath = normalizeTenantCollectionPath(next._collectionPath);
+    } catch (_) {
+      // Keep invalid/cross-tenant entries untouched; validation/dead-letter handling owns them.
+    }
+  }
+  if (next.tenantId && tenantIdsMatch(next.tenantId, tenantId)) next.tenantId = tenantId;
+  if (next.data && typeof next.data === 'object' && tenantIdsMatch(next.data.tenantId, tenantId)) {
+    next.data = { ...next.data, tenantId };
+  }
+  return next;
+}
+
+function readQueueFromStorage(key) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return { exists: false, queue: [] };
+  try {
+    const parsed = JSON.parse(raw);
+    return { exists: true, queue: Array.isArray(parsed) ? parsed : [] };
+  } catch (err) {
+    console.error('[CharcuLogic Offline] Legacy-Queue konnte nicht gelesen werden:', err);
+    try {
+      localStorage.setItem(`${key}.corrupt.${Date.now()}`, raw);
+      localStorage.removeItem(key);
+    } catch (storageErr) {
+      console.error('[CharcuLogic Offline] Legacy-Queue konnte nicht gesichert werden:', storageErr);
+    }
+    return { exists: false, queue: [] };
+  }
+}
+
+function mergeQueuesByIdentity(primaryQueue, migratedQueue) {
+  const merged = [];
+  const seen = new Set();
+  [...primaryQueue, ...migratedQueue].forEach((item) => {
+    const key = item?._id
+      || `${item?._syncType || ''}|${item?._collectionPath || ''}|${item?._docId || ''}|${item?._op || ''}|${item?._queuedAt || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(item);
+  });
+  return merged;
+}
+
+function migrateTenantQueueStorage(prefix, tenantId) {
+  const legacyTenantId = normalizeTenantId(tenantId);
+  if (!legacyTenantId || legacyTenantId === tenantId) return 0;
+
+  const legacyKey = `${prefix}${legacyTenantId}`;
+  const canonicalKey = `${prefix}${tenantId}`;
+  const legacy = readQueueFromStorage(legacyKey);
+  if (!legacy.exists || !legacy.queue.length) return 0;
+
+  const canonical = readQueueFromStorage(canonicalKey);
+  const migrated = legacy.queue.map((item) => canonicalizeQueuedSyncItem(item, tenantId));
+  const merged = mergeQueuesByIdentity(canonical.queue, migrated);
+  localStorage.setItem(canonicalKey, JSON.stringify(merged));
+  localStorage.removeItem(legacyKey);
+  return migrated.length;
+}
+
+function migrateTenantScopedStorageQueues() {
+  const tenantId = currentTenantId();
+  if (!tenantId || migratedTenantStorageScopes.has(tenantId)) return 0;
+  migratedTenantStorageScopes.add(tenantId);
+  let migrated = 0;
+  migrated += migrateTenantQueueStorage(PENDING_SYNCS_KEY_PREFIX, tenantId);
+  migrated += migrateTenantQueueStorage(DEAD_PENDING_SYNCS_KEY_PREFIX, tenantId);
+  if (migrated > 0) {
+    console.info(`[CharcuLogic Offline] ${migrated} wartende Einträge auf den aktuellen Mandanten-Kontext übertragen.`);
+  }
+  return migrated;
 }
 
 function tenantFirestoreDocRef(db, collectionPath, docId) {
@@ -138,13 +218,16 @@ function isTaskCollectionPath(collectionPath) {
 }
 
 export function getPendingSyncs() {
+  migrateTenantScopedStorageQueues();
   const key = pendingSyncsKey();
   if (!key) return [];
   const raw = localStorage.getItem(key);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => canonicalizeQueuedSyncItem(item, currentTenantId()))
+      : [];
   } catch (err) {
     try {
       localStorage.setItem(`${key}.corrupt.${Date.now()}`, raw);
@@ -159,13 +242,16 @@ export function getPendingSyncs() {
 }
 
 export function getDeadPendingSyncs() {
+  migrateTenantScopedStorageQueues();
   const key = deadPendingSyncsKey();
   if (!key) return [];
   const raw = localStorage.getItem(key);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => canonicalizeQueuedSyncItem(item, currentTenantId()))
+      : [];
   } catch (err) {
     console.warn('[CharcuLogic Offline] Dead-Letter Queue beschadigt:', err);
     return [];
@@ -795,3 +881,8 @@ export function updateSyncIndicator() {
     if (count) count.style.display = 'none';
   }
 }
+
+export const __syncTest = {
+  clearMigratedTenantStorageScopes: () => migratedTenantStorageScopes.clear(),
+  normalizeTenantCollectionPath,
+};
