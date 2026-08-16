@@ -261,6 +261,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
       await expectFirestoreAllow(ctx, stockPath, 'update', receivingPayload(TENANTS.STEVES_HOF, {
         currentStock: 7,
+        lastDeliveryAt: '2026-08-16T10:30:00.000Z',
       }));
     });
 
