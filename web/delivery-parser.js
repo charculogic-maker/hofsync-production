@@ -10,7 +10,7 @@ import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -348,12 +348,16 @@ function showPreview(rows) {
 async function erhoeheBestand(row, author, nowIso) {
   const firebase = parserState.getFirebase();
   const FieldValue = firebase?.firestore?.FieldValue;
+  const tenantId = getGlobalTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt: Wareneingang ist gesperrt.');
   const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
   await docRef.set({
     artikel: row.artikel,
     name: row.artikel,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
     currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
+    tenantId,
+    source: 'wareneingang-lieferschein',
     lastMhd: row.mhdIso || '',
     lastDeliveryAt: nowIso,
     lastDeliveryBy: author,
@@ -369,6 +373,8 @@ async function schreibeMhdPosten(row, author, nowIso) {
   const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
   const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
   const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
+  const tenantId = getGlobalTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt: Wareneingang ist gesperrt.');
 
   const onlineData = {
     id: postenId,
@@ -394,6 +400,7 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };

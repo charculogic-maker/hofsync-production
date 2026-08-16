@@ -314,6 +314,11 @@ function setSelectOrInputValue(id, value) {
   return true;
 }
 
+function normalizeOrganicAssociation(value) {
+  const association = String(value || '').trim();
+  return ORGANIC_ASSOCIATION_OPTIONS.has(association) ? association : '';
+}
+
 function applyParsedLabelToForm(label = {}) {
   const filledIds = [];
   const markFilled = (id, ok) => {
@@ -327,9 +332,7 @@ function applyParsedLabelToForm(label = {}) {
     setSelectOrInputValue('trace-organic-control-body', label.organicControlBody),
   );
 
-  const association = ORGANIC_ASSOCIATION_OPTIONS.has(label.organicAssociation)
-    ? label.organicAssociation
-    : '';
+  const association = normalizeOrganicAssociation(label.organicAssociation);
   if (association) {
     markFilled('trace-organic-association', setSelectOrInputValue('trace-organic-association', association));
   } else {
@@ -502,7 +505,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociation(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
@@ -1002,5 +1005,9 @@ export function stopChargenDokuBookView() {
 export function stopTraceabilityAdminView() {
   return stopChargenDokuBookView();
 }
+
+export const __traceabilityTest = {
+  normalizeOrganicAssociation,
+};
 
 export { ANIMAL_TYPES, COUNTRY_OPTIONS, countrySelectHtml };

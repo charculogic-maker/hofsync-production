@@ -85,6 +85,7 @@ const DELIVERY_DRAFT_KEY = 'active';
 let currentDeliveryItems = [];
 let currentDeliveryPhotos = [];
 let activeEditingDraftId = null;
+let pendingFinalizeDeliveryId = null;
 let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 
@@ -3703,6 +3704,35 @@ function createDeliveryId() {
   return `lieferung_${Date.now().toString(36)}_${randomPart}`;
 }
 
+function getFinalizeDeliveryId(isDraftCompletion, draftId) {
+  if (isDraftCompletion) return draftId;
+  if (!pendingFinalizeDeliveryId) pendingFinalizeDeliveryId = createDeliveryId();
+  return pendingFinalizeDeliveryId;
+}
+
+function clearPendingFinalizeDeliveryId() {
+  pendingFinalizeDeliveryId = null;
+}
+
+async function cleanupPartialDeliveryHeader(deliveryPath, deliveryId) {
+  if (!deliveryPath || !deliveryId || typeof mhdState.writeOrQueueFirestore !== 'function') return false;
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: deliveryPath,
+      docId: deliveryId,
+      op: 'delete',
+      onlineData: {},
+      queueData: {},
+      offlineMessage: 'Unvollständige Lieferung wird bereinigt, sobald WLAN verfügbar ist.',
+      silentPermissionDenied: true,
+    });
+    return true;
+  } catch (cleanupErr) {
+    console.warn('[CharcuLogic MHD] Teilweise Lieferung konnte nicht bereinigt werden:', cleanupErr);
+    return false;
+  }
+}
+
 function readDeliveryHeadValues() {
   const supplier = document.getElementById('we-supplier')?.value.trim() || '';
   const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
@@ -4583,6 +4613,7 @@ async function saveDeliveryDraft() {
 function resetReceivingForm() {
   currentDeliveryItems = [];
   currentDeliveryPhotos = [];
+  clearPendingFinalizeDeliveryId();
   clearActiveDraftEditing();
 
   const defaults = {
@@ -4732,7 +4763,7 @@ async function finalizeDelivery() {
     : null;
   const erfassungsDatum = existingDraft?.erfassungsDatum || new Date().toISOString();
   const completedAt = new Date().toISOString();
-  const deliveryId = isDraftCompletion ? activeEditingDraftId : createDeliveryId();
+  const deliveryId = getFinalizeDeliveryId(isDraftCompletion, activeEditingDraftId);
 
   const deliveryBundle = buildDeliveryBundlePayload(head, {
     deliveryId,
@@ -4811,6 +4842,7 @@ async function finalizeDelivery() {
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
     if (rejectedMhdWrite) {
       console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+      await cleanupPartialDeliveryHeader(deliveryPath, deliveryId);
       window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
       mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
@@ -5268,4 +5300,11 @@ export {
   saveManualReceiving,
   saveProductMaster,
   showMhdAnomalyWarning,
+};
+
+export const __mhdTest = {
+  cleanupPartialDeliveryHeader,
+  clearPendingFinalizeDeliveryId,
+  getFinalizeDeliveryId,
+  setWriteOrQueueFirestoreForTest: (fn) => { mhdState.writeOrQueueFirestore = fn; },
 };
