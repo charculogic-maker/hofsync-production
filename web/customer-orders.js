@@ -308,6 +308,23 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
+function productNameFromOrderItem(item) {
+  return String(item?.product || item?.produkt || item?.name || 'Artikel').trim() || 'Artikel';
+}
+
+function stockRefKey(ref) {
+  return String(ref?.path || `${ref?.parent?.path || ''}/${ref?.id || ''}` || '').trim();
+}
+
+async function uniqueStockRefByField(col, field, product) {
+  const snap = await col.where(field, '==', product).limit(2).get();
+  const size = typeof snap.size === 'number' ? snap.size : (snap.docs || []).length;
+  if (size > 1) {
+    throw new Error(`Bestand für „${product}“ ist nicht eindeutig. Bitte Bestand prüfen.`);
+  }
+  return snap.empty ? null : snap.docs[0].ref;
+}
+
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
   if (!col) return null;
@@ -321,30 +338,59 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const byProdukt = await uniqueStockRefByField(col, 'produkt', product);
+  if (byProdukt) return byProdukt;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const byName = await uniqueStockRefByField(col, 'name', product);
+  if (byName) return byName;
 
   return null;
 }
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByRef = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
+    const product = productNameFromOrderItem(item);
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    if (!ref) {
+      throw new Error(`Für „${product}“ wurde kein Bestand gefunden. Abholung nicht gespeichert.`);
+    }
+    const key = stockRefKey(ref);
+    if (!key) {
+      throw new Error(`Bestand für „${product}“ konnte nicht sicher zugeordnet werden.`);
+    }
+    const existing = deductionsByRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      if (!existing.products.includes(product)) existing.products.push(product);
+    } else {
+      deductionsByRef.set(key, {
+        ref,
+        amount,
+        product,
+        products: [product],
+      });
+    }
   }
-  return deductions;
+  return [...deductionsByRef.values()].map((deduction) => ({
+    ref: deduction.ref,
+    amount: deduction.amount,
+    product: deduction.products.join(', '),
+  }));
+}
+
+function assertStockDeductionAvailable(deduction, snap) {
+  if (!snap.exists) {
+    throw new Error(`Bestand für „${deduction.product}“ wurde nicht gefunden. Abholung nicht gespeichert.`);
+  }
+  const currentStock = parseQuantityValue(snap.data()?.currentStock);
+  if (currentStock < deduction.amount) {
+    throw new Error(`Bestand für „${deduction.product}“ reicht nicht aus. Abholung nicht gespeichert.`);
+  }
+  return currentStock;
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,8 +421,7 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
-      const currentStock = parseQuantityValue(snap.data()?.currentStock);
+      const currentStock = assertStockDeductionAvailable(deduction, snap);
       const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
       transaction.update(deduction.ref, {
         currentStock: nextStock,
@@ -1479,3 +1524,14 @@ export function activateCustomerOrdersTab() {
   renderProductionTasks();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
 }
+
+function setCustomerOrdersTestContext({ db = null, tenantId = '' } = {}) {
+  orderState.db = db;
+  orderState.tenantId = tenantId;
+}
+
+export const __customerOrdersTest = {
+  assertStockDeductionAvailable,
+  prepareStockDeductionsForOrder,
+  setCustomerOrdersTestContext,
+};

@@ -230,6 +230,124 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: employee receiving stock writes', () => {
+    const stockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'liefer-fleischsalat');
+    const receivingPayload = (tenantId, overrides = {}) => ({
+      artikel: 'Fleischsalat',
+      name: 'Fleischsalat',
+      kategorie: 'Fleisch',
+      currentStock: 4,
+      tenantId,
+      source: 'wareneingang-lieferschein',
+      lastMhd: '2026-08-23',
+      lastDeliveryAt: '2026-08-16T10:00:00.000Z',
+      lastDeliveryBy: 'Team',
+      updatedAt: serverTimestamp(),
+      ...overrides,
+    });
+
+    it('allows employee to create own-tenant receipt-shaped stock', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving-create', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, stockPath, 'create', receivingPayload(TENANTS.STEVES_HOF));
+    });
+
+    it('allows employee receipt-shaped stock increase on own tenant', async () => {
+      await seedFirestoreDoc(testEnv, stockPath, receivingPayload(TENANTS.STEVES_HOF, {
+        currentStock: 4,
+        updatedAt: '2026-08-16T09:00:00.000Z',
+      }));
+      const ctx = authContext(testEnv, 'sh-employee-receiving-update', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, stockPath, 'update', receivingPayload(TENANTS.STEVES_HOF, {
+        currentStock: 7,
+      }));
+    });
+
+    it('denies arbitrary stock increases and cross-tenant receiving writes', async () => {
+      await seedFirestoreDoc(testEnv, stockPath, receivingPayload(TENANTS.STEVES_HOF, {
+        currentStock: 4,
+        updatedAt: '2026-08-16T09:00:00.000Z',
+      }));
+
+      const ownCtx = authContext(testEnv, 'sh-employee-receiving-bad', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        stockPath,
+        'update',
+        { currentStock: 8, updatedAt: serverTimestamp() },
+      );
+
+      const foreignCtx = authContext(testEnv, 'tf-employee-receiving-x', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        stockPath,
+        'create',
+        receivingPayload(TENANTS.STEVES_HOF),
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: customer order ready and pickup status updates', () => {
+    const orderPath = (id) => tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', id);
+    const baseItems = [
+      { product: 'Fleischsalat', quantity: '1', unit: 'kg' },
+      { product: 'Käse', quantity: '2', unit: 'Stück' },
+    ];
+    const sampleOrder = (status = 'open', overrides = {}) => ({
+      customerName: 'Testkunde',
+      callbackPhone: '0123456789',
+      readyAt: '2026-08-17T10:00:00.000Z',
+      items: baseItems,
+      acceptedBy: 'Team',
+      acceptedAt: '2026-08-16T09:00:00.000Z',
+      status,
+      tenantId: TENANTS.STEVES_HOF,
+      createdAt: '2026-08-16T09:00:00.000Z',
+      ...overrides,
+    });
+
+    it('allows open to ready with pickupPlace and same-length actual item updates', async () => {
+      const path = orderPath('bulk-ready');
+      await seedFirestoreDoc(testEnv, path, sampleOrder());
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, path, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Team',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [
+          { ...baseItems[0], actualQuantity: '1,2', actualQuantityUnit: 'kg' },
+          baseItems[1],
+        ],
+      });
+    });
+
+    it('denies ready item count changes and pickup item rewrites', async () => {
+      const readyPath = orderPath('bulk-ready-bad');
+      await seedFirestoreDoc(testEnv, readyPath, sampleOrder());
+      const ctx = authContext(testEnv, 'sh-employee-order-ready-bad', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, readyPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Team',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [baseItems[0]],
+      });
+
+      const pickupPath = orderPath('pickup-item-rewrite');
+      await seedFirestoreDoc(testEnv, pickupPath, sampleOrder('ready'));
+      await expectFirestoreDeny(ctx, pickupPath, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Team',
+        pickedUpAt: serverTimestamp(),
+        items: [{ ...baseItems[0], actualQuantity: '9' }, baseItems[1]],
+      });
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
