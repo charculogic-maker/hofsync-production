@@ -134,6 +134,7 @@ service cloud.firestore {
           'tenantId', 'source',
           'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy', 'updatedAt'
         ])
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastDeliveryAt'])
         && isIntGteZero(resource.data.currentStock)
         && request.resource.data.currentStock >= resource.data.currentStock;
     }
