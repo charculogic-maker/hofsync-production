@@ -10,7 +10,7 @@ import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -39,6 +39,7 @@ const parserState = {
   ocrInFlight: false,
   saveInFlight: false,
   featureEnabled: true,
+  tenantId: '',
 };
 
 function isSteveshofTenant(tenantId) {
@@ -48,6 +49,10 @@ function isSteveshofTenant(tenantId) {
 function isDeliveryParserVisible(tenantId, email) {
   if (!isSteveshofTenant(tenantId)) return true;
   return String(email || '').trim().toLowerCase() === FEATURE_TEST_EMAIL;
+}
+
+function activeTenantId() {
+  return getAuthContext()?.tenantId || parserState.tenantId || getGlobalTenantId();
 }
 
 // ---------------------------------------------------------------------------
@@ -345,32 +350,28 @@ function showPreview(rows) {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
+export function buildDeliveryParserStockData(row, author, nowIso, tenantId, stockValue, updatedAtValue = nowIso) {
+  return {
     artikel: row.artikel,
+    produkt: row.artikel,
     name: row.artikel,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
+    currentStock: stockValue,
     lastMhd: row.mhdIso || '',
     lastDeliveryAt: nowIso,
     lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+    source: 'wareneingang-lieferschein',
+    tenantId,
+    updatedAt: updatedAtValue,
+  };
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
-  const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
-
+export function buildDeliveryParserMhdData(row, author, nowIso, tenantId, postenId) {
   const mhdIso = row.mhdIso || '';
   const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
   const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
 
-  const onlineData = {
+  return {
     id: postenId,
     postenId,
     produkt: row.artikel,
@@ -394,18 +395,32 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
+}
 
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+async function bucheLieferungEinAtomar(rows, author, nowIso, tenantId) {
+  const firebase = parserState.getFirebase();
+  const FieldValue = firebase?.firestore?.FieldValue;
+  const stockCol = getTenantCollection('stammdaten');
+  const mhdCol = getTenantCollection('mhd_liste');
+  const db = stockCol.firestore || mhdCol.firestore || firebase?.firestore?.();
+  if (!db?.batch) throw new Error('Firestore ist noch nicht bereit.');
+
+  const batch = db.batch();
+  rows.forEach((row, index) => {
+    const stockValue = FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge;
+    const updatedAtValue = FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso;
+    const stockData = buildDeliveryParserStockData(row, author, nowIso, tenantId, stockValue, updatedAtValue);
+    const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}_${index}`;
+    const mhdData = buildDeliveryParserMhdData(row, author, nowIso, tenantId, postenId);
+    batch.set(stockCol.doc(articleDocId(row.artikel)), stockData, { merge: true });
+    batch.set(mhdCol.doc(postenId), mhdData, { merge: false });
   });
+  await batch.commit();
+  return 'written';
 }
 
 async function bucheLieferungEin(rows) {
@@ -421,6 +436,15 @@ async function bucheLieferungEin(rows) {
   }
 
   const author = getAuthContext()?.email?.split('@')[0] || 'Team';
+  const tenantId = activeTenantId();
+  if (!tenantId) {
+    window.showToast?.('Betrieb fehlt. Bitte neu anmelden und erneut versuchen.', 'error');
+    return;
+  }
+  if (!navigator.onLine) {
+    window.showToast?.('Das iPhone braucht dafür kurz WLAN. Bitte erneut versuchen, sobald Verbindung da ist.', 'warning');
+    return;
+  }
   const nowIso = new Date().toISOString();
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
@@ -430,17 +454,8 @@ async function bucheLieferungEin(rows) {
 
   try {
     parserState.saveInFlight = true;
-    let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
-      if (result === 'queued') hatWartende = true;
-    }
+    await bucheLieferungEinAtomar(rows, author, nowIso, tenantId);
     removePreviewOverlay();
-    if (hatWartende) {
-      window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
-      return;
-    }
     window.showToast?.('Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!', 'success');
   } catch (err) {
     console.error('[DeliveryParser] Einbuchen fehlgeschlagen:', err);
@@ -518,7 +533,8 @@ export function initDeliveryParser(options = {}) {
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;
   parserState.getHistory = typeof options.getHistory === 'function' ? options.getHistory : parserState.getHistory;
-  parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
+  parserState.tenantId = String(options.tenantId || parserState.tenantId || '').trim();
+  parserState.featureEnabled = isDeliveryParserVisible(parserState.tenantId, options.email);
 
   bindUi();
   applyFeatureVisibility();

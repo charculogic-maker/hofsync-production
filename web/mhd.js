@@ -4778,15 +4778,6 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
@@ -4816,6 +4807,14 @@ async function finalizeDelivery() {
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
       return;
     }
+    const deliveryResult = await mhdState.writeOrQueueFirestore({
+      collectionPath: deliveryPath,
+      docId: deliveryId,
+      op: 'set',
+      onlineData: deliveryBundleOnline,
+      queueData: queuedBundle,
+      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+    });
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
