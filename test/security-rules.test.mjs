@@ -228,6 +228,45 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
     });
+
+    it('allows employee receiving stock create/increase only with tenant-scoped receipt payload', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receiving-stock', TENANTS.STEVES_HOF, 'employee');
+      const newStockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'joghurt-neu');
+      const receivingPayload = {
+        artikel: 'Joghurt Natur',
+        produkt: 'Joghurt Natur',
+        name: 'Joghurt Natur',
+        kategorie: '🥛MoPro',
+        currentStock: 6,
+        lastMhd: '2026-08-25',
+        lastDeliveryAt: '2026-08-18T10:00:00.000Z',
+        lastDeliveryBy: 'team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(ctx, newStockPath, 'create', receivingPayload);
+
+      const seededPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'joghurt');
+      await seedFirestoreDoc(testEnv, seededPath, { ...receivingPayload, currentStock: 4 });
+      await expectFirestoreAllow(ctx, seededPath, 'update', { ...receivingPayload, currentStock: 10 });
+
+      await expectFirestoreDeny(
+        ctx,
+        seededPath,
+        'update',
+        { ...receivingPayload, currentStock: 12, source: 'manuell' },
+      );
+
+      const foreignCtx = authContext(testEnv, 'tf-employee-receiving-stock', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        seededPath,
+        'update',
+        { ...receivingPayload, currentStock: 12 },
+      );
+    });
   });
 
   describe('TEST CASE 2b: task comments', () => {

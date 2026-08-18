@@ -49,6 +49,10 @@ const COUNTRY_OPTIONS = [
 const ANIMAL_TYPE_SET = new Set(ANIMAL_TYPES.map((item) => item.value));
 const COUNTRY_VALUE_SET = new Set(COUNTRY_OPTIONS.map((item) => item.value));
 
+export function normalizeOrganicAssociationForSave(value) {
+  return String(value || '').trim();
+}
+
 const traceState = {
   db: null,
   writeOrQueueFirestore: null,
@@ -502,7 +506,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociationForSave(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
