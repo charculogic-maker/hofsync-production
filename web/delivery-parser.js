@@ -350,35 +350,28 @@ function showPreview(rows) {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso, tenantId) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
+export function buildDeliveryParserStockData(row, author, nowIso, tenantId, stockValue, updatedAtValue = nowIso) {
+  return {
     artikel: row.artikel,
     produkt: row.artikel,
     name: row.artikel,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
+    currentStock: stockValue,
     lastMhd: row.mhdIso || '',
     lastDeliveryAt: nowIso,
     lastDeliveryBy: author,
     source: 'wareneingang-lieferschein',
     tenantId,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+    updatedAt: updatedAtValue,
+  };
 }
 
-async function schreibeMhdPosten(row, author, nowIso, tenantId) {
-  const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
-
+export function buildDeliveryParserMhdData(row, author, nowIso, tenantId, postenId) {
   const mhdIso = row.mhdIso || '';
   const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
   const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
 
-  const onlineData = {
+  return {
     id: postenId,
     postenId,
     produkt: row.artikel,
@@ -406,15 +399,28 @@ async function schreibeMhdPosten(row, author, nowIso, tenantId) {
     updatedAt: nowIso,
     createdAt: nowIso,
   };
+}
 
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+async function bucheLieferungEinAtomar(rows, author, nowIso, tenantId) {
+  const firebase = parserState.getFirebase();
+  const FieldValue = firebase?.firestore?.FieldValue;
+  const stockCol = getTenantCollection('stammdaten');
+  const mhdCol = getTenantCollection('mhd_liste');
+  const db = stockCol.firestore || mhdCol.firestore || firebase?.firestore?.();
+  if (!db?.batch) throw new Error('Firestore ist noch nicht bereit.');
+
+  const batch = db.batch();
+  rows.forEach((row, index) => {
+    const stockValue = FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge;
+    const updatedAtValue = FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso;
+    const stockData = buildDeliveryParserStockData(row, author, nowIso, tenantId, stockValue, updatedAtValue);
+    const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}_${index}`;
+    const mhdData = buildDeliveryParserMhdData(row, author, nowIso, tenantId, postenId);
+    batch.set(stockCol.doc(articleDocId(row.artikel)), stockData, { merge: true });
+    batch.set(mhdCol.doc(postenId), mhdData, { merge: false });
   });
+  await batch.commit();
+  return 'written';
 }
 
 async function bucheLieferungEin(rows) {
@@ -435,6 +441,10 @@ async function bucheLieferungEin(rows) {
     window.showToast?.('Betrieb fehlt. Bitte neu anmelden und erneut versuchen.', 'error');
     return;
   }
+  if (!navigator.onLine) {
+    window.showToast?.('Das iPhone braucht dafür kurz WLAN. Bitte erneut versuchen, sobald Verbindung da ist.', 'warning');
+    return;
+  }
   const nowIso = new Date().toISOString();
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
@@ -444,17 +454,8 @@ async function bucheLieferungEin(rows) {
 
   try {
     parserState.saveInFlight = true;
-    let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso, tenantId);
-      const result = await schreibeMhdPosten(row, author, nowIso, tenantId);
-      if (result === 'queued') hatWartende = true;
-    }
+    await bucheLieferungEinAtomar(rows, author, nowIso, tenantId);
     removePreviewOverlay();
-    if (hatWartende) {
-      window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
-      return;
-    }
     window.showToast?.('Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!', 'success');
   } catch (err) {
     console.error('[DeliveryParser] Einbuchen fehlgeschlagen:', err);
