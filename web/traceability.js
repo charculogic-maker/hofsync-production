@@ -502,7 +502,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: organicAssociationVal || '',
       imageUrl,
       animalType,
       origin,

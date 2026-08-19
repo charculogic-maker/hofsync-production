@@ -142,19 +142,72 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // STAMMDATEN (admin-only writes)
+    // STAMMDATEN (admin writes + scoped operative stock movements)
     // =========================================================================
+
+    function hasReceiptStockFields(tenantId) {
+      return request.resource.data.tenantId == tenantId
+        && request.resource.data.source == 'wareneingang-lieferschein'
+        && request.resource.data.postentyp == 'wareneingang'
+        && isNonEmptyString(request.resource.data.artikel)
+        && isNonEmptyString(request.resource.data.name)
+        && isNonEmptyString(request.resource.data.produkt)
+        && isOptionalString(request.resource.data.kategorie)
+        && isIntGteZero(request.resource.data.currentStock)
+        && isOptionalString(request.resource.data.lastMhd)
+        && isNonEmptyString(request.resource.data.lastDeliveryAt)
+        && isNonEmptyString(request.resource.data.lastDeliveryBy);
+    }
+
+    function isReceiptStockCreate(tenantId) {
+      return hasOnly([
+          'artikel', 'name', 'produkt', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'postentyp', 'tenantId', 'updatedAt'
+        ])
+        && hasReceiptStockFields(tenantId);
+    }
+
+    function keepsExistingStockIdentity() {
+      return (!('tenantId' in resource.data) || request.resource.data.tenantId == resource.data.tenantId)
+        && (!('artikel' in resource.data) || request.resource.data.artikel == resource.data.artikel)
+        && (!('name' in resource.data) || request.resource.data.name == resource.data.name)
+        && (!('produkt' in resource.data) || request.resource.data.produkt == resource.data.produkt);
+    }
+
+    function isReceiptStockIncrease(tenantId) {
+      return hasReceiptStockFields(tenantId)
+        && (!('tenantId' in resource.data) || resource.data.tenantId == tenantId)
+        && keepsExistingStockIdentity()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'artikel', 'name', 'produkt', 'kategorie',
+          'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+          'source', 'postentyp', 'tenantId', 'updatedAt'
+        ])
+        && isIntGteZero(resource.data.currentStock)
+        && request.resource.data.currentStock >= resource.data.currentStock;
+    }
+
+    function isPickupStockDecrease(tenantId) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'currentStock', 'updatedAt'
+        ])
+        && (!('tenantId' in resource.data) || resource.data.tenantId == tenantId)
+        && isIntGteZero(resource.data.currentStock)
+        && isIntGteZero(request.resource.data.currentStock)
+        && request.resource.data.currentStock <= resource.data.currentStock;
+    }
 
     match /tenants/{tenantId}/stammdaten/{document} {
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && isReceiptStockCreate(tenantId);
       allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'currentStock', 'updatedAt'
-        ])
-        && isIntGteZero(resource.data.currentStock)
-        && isIntGteZero(request.resource.data.currentStock)
-        && request.resource.data.currentStock <= resource.data.currentStock;
+        && (
+          isPickupStockDecrease(tenantId)
+          || isReceiptStockIncrease(tenantId)
+        );
     }
 
     match /tenants/{tenantId}/settings/{document} {
@@ -651,17 +704,42 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
+    function isCustomerOrderReadyUpdate() {
+      return resource.data.status == 'open'
+        && request.resource.data.status == 'ready'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
+        ])
+        && isNonEmptyString(request.resource.data.readyMarkedBy)
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+          || isNonEmptyString(request.resource.data.pickupPlace)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+          || (
+            request.resource.data.items is list
+            && resource.data.items is list
+            && request.resource.data.items.size() == resource.data.items.size()
+          )
+        );
+    }
+
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          isCustomerOrderReadyUpdate()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+            ])
+            && (
+              (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+              || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+            )
+          )
         );
     }
 

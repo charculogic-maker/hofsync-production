@@ -321,10 +321,16 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
+  const byProdukt = await col.where('produkt', '==', product).limit(2).get();
+  if (byProdukt.docs.length > 1) {
+    throw new Error(`Mehrere Bestandseinträge für ${product} gefunden.`);
+  }
   if (!byProdukt.empty) return byProdukt.docs[0].ref;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
+  const byName = await col.where('name', '==', product).limit(2).get();
+  if (byName.docs.length > 1) {
+    throw new Error(`Mehrere Bestandseinträge für ${product} gefunden.`);
+  }
   if (!byName.empty) return byName.docs[0].ref;
 
   return null;
@@ -332,19 +338,29 @@ async function findStockDocForOrderItem(item) {
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
+    if (!ref) {
+      throw new Error(`Bestandseintrag für ${product} fehlt.`);
+    }
+    const key = ref.path || ref.id;
+    const existing = deductionsByPath.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      existing.product = `${existing.product}, ${product}`;
+      continue;
+    }
+    deductionsByPath.set(key, {
       ref,
       amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      product,
     });
   }
-  return deductions;
+  return Array.from(deductionsByPath.values());
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +391,14 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Bestandseintrag für ${deduction.product} fehlt.`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (currentStock < deduction.amount) {
+        throw new Error(`Nicht genug Bestand für ${deduction.product}.`);
+      }
+      const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),

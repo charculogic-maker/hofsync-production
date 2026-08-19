@@ -10,7 +10,7 @@ import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
@@ -105,6 +105,10 @@ function articleDocId(name) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 120);
   return slug || `artikel-${Date.now()}`;
+}
+
+function activeTenantId() {
+  return String(getAuthContext()?.tenantId || getGlobalTenantId() || '').trim();
 }
 
 function toMhdKategorie(kategorie, artikel) {
@@ -345,23 +349,27 @@ function showPreview(rows) {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
+async function erhoeheBestand(row, author, nowIso, tenantId) {
   const firebase = parserState.getFirebase();
   const FieldValue = firebase?.firestore?.FieldValue;
   const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
   await docRef.set({
     artikel: row.artikel,
     name: row.artikel,
+    produkt: row.artikel,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
     currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
     lastMhd: row.mhdIso || '',
     lastDeliveryAt: nowIso,
     lastDeliveryBy: author,
+    source: 'wareneingang-lieferschein',
+    postentyp: 'wareneingang',
+    tenantId,
     updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
   }, { merge: true });
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
+async function schreibeMhdPosten(row, author, nowIso, tenantId) {
   const writeFn = parserState.writeOrQueueFirestore;
   if (typeof writeFn !== 'function') return 'written';
 
@@ -394,6 +402,7 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
@@ -421,6 +430,11 @@ async function bucheLieferungEin(rows) {
   }
 
   const author = getAuthContext()?.email?.split('@')[0] || 'Team';
+  const tenantId = activeTenantId();
+  if (!tenantId) {
+    window.showToast?.('Betrieb fehlt. Bitte neu anmelden und erneut versuchen.', 'error');
+    return;
+  }
   const nowIso = new Date().toISOString();
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
@@ -432,8 +446,8 @@ async function bucheLieferungEin(rows) {
     parserState.saveInFlight = true;
     let hatWartende = false;
     for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
+      await erhoeheBestand(row, author, nowIso, tenantId);
+      const result = await schreibeMhdPosten(row, author, nowIso, tenantId);
       if (result === 'queued') hatWartende = true;
     }
     removePreviewOverlay();
