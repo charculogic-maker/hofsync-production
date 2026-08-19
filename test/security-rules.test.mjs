@@ -29,7 +29,7 @@ import {
   tenantDocPath,
   chargenDokuObjectPath,
 } from './helpers/rules-test-env.mjs';
-import { arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { arrayUnion, increment, serverTimestamp } from 'firebase/firestore';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -184,6 +184,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     const stockItem = {
       name: 'Fleischsalat',
       produkt: 'Fleischsalat',
+      barcode: '400000000001',
       currentStock: 12,
       tenantId: TENANTS.STEVES_HOF,
     };
@@ -226,6 +227,172 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+
+    function receiptStockPayload(tenantId, overrides = {}) {
+      return {
+        artikel: 'Fleischsalat',
+        name: 'Fleischsalat',
+        produkt: 'Fleischsalat',
+        kategorie: 'Kühlware',
+        currentStock: 4,
+        lastMhd: '2026-08-30',
+        lastDeliveryAt: '2026-08-19T10:00:00.000Z',
+        lastDeliveryBy: 'Stephan',
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        tenantId,
+        updatedAt: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    it('allows employee receipt-shaped stock creates and increases for own tenant', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt-stock', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'neuer-artikel'),
+        'create',
+        receiptStockPayload(TENANTS.STEVES_HOF, {
+          artikel: 'Neuer Artikel',
+          name: 'Neuer Artikel',
+          produkt: 'Neuer Artikel',
+        }),
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        receiptStockPayload(TENANTS.STEVES_HOF, { currentStock: increment(3) }),
+      );
+    });
+
+    it('allows stock movements on legacy own-tenant stock docs without stored tenantId', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'legacy-stock');
+      await seedFirestoreDoc(testEnv, path, {
+        name: 'Legacy Artikel',
+        produkt: 'Legacy Artikel',
+        currentStock: 5,
+        barcode: '400000000099',
+      });
+
+      const ctx = authContext(testEnv, 'sh-employee-legacy-stock', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        { currentStock: 4, updatedAt: serverTimestamp() },
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        receiptStockPayload(TENANTS.STEVES_HOF, {
+          artikel: 'Legacy Artikel',
+          name: 'Legacy Artikel',
+          produkt: 'Legacy Artikel',
+          currentStock: increment(2),
+        }),
+      );
+    });
+
+    it('denies receipt-shaped stock writes across tenants or without receipt source', async () => {
+      const torfabrikCtx = authContext(testEnv, 'tf-employee-receipt-stock', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        torfabrikCtx,
+        stockPath,
+        'update',
+        receiptStockPayload(TENANTS.STEVES_HOF, { currentStock: increment(3) }),
+      );
+
+      const ownCtx = authContext(testEnv, 'sh-employee-receipt-stock-invalid', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'invalid-source'),
+        'create',
+        receiptStockPayload(TENANTS.STEVES_HOF, { source: 'manual-adjustment' }),
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: customer order ready updates', () => {
+    function sampleCustomerOrder(tenantId, status = 'open') {
+      return {
+        customerName: 'Maria Mustermann',
+        callbackPhone: '0123456789',
+        customerEmail: '',
+        readyAt: '2026-08-20T10:00:00.000Z',
+        items: [
+          { product: 'Fleischsalat', quantity: '2', unit: 'kg' },
+          { product: 'Joghurt', quantity: '3', unit: 'Stk' },
+        ],
+        additionalWishes: '',
+        orderSlipAttachments: [],
+        inputMode: 'manual',
+        acceptedBy: 'Stephan',
+        acceptedAt: '2026-08-19T10:00:00.000Z',
+        status,
+        tenantId,
+        createdAt: '2026-08-19T10:00:00.000Z',
+      };
+    }
+
+    it('allows employee open-to-ready update with pickup place and same-length weighed items', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Stephan',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '2', unit: 'kg', actualQuantity: '1,8', actualQuantityUnit: 'kg' },
+            { product: 'Joghurt', quantity: '3', unit: 'Stk', actualQuantity: '3', actualQuantityUnit: 'Stk' },
+          ],
+        },
+      );
+    });
+
+    it('denies pickup item rewrites and cross-tenant ready updates', async () => {
+      const readyPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-pickup-rewrite');
+      await seedFirestoreDoc(testEnv, readyPath, sampleCustomerOrder(TENANTS.STEVES_HOF, 'ready'));
+
+      const ownCtx = authContext(testEnv, 'sh-employee-order-pickup', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ownCtx,
+        readyPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Stephan',
+          pickedUpAt: serverTimestamp(),
+          items: [{ product: 'Fleischsalat', quantity: '999', unit: 'kg' }],
+        },
+      );
+
+      const openPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-cross-ready');
+      await seedFirestoreDoc(testEnv, openPath, sampleCustomerOrder(TENANTS.STEVES_HOF));
+      const foreignCtx = authContext(testEnv, 'tf-employee-order-ready', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        foreignCtx,
+        openPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Torfabrik',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+        },
       );
     });
   });
