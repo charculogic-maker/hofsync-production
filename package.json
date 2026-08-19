@@ -14,7 +14,8 @@
     "screenshots:modules": "node tools/capture-module-screenshots.mjs",
     "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs",
     "screenshots:landing": "node scripts/capture-landing-screenshots.js",
-    "screenshots:mobile": "node scripts/capture-mobile-screenshots.js"
+    "screenshots:mobile": "node scripts/capture-mobile-screenshots.js",
+    "screenshots:all-modules": "node scripts/capture-all-modules.js"
   },
   "dependencies": {
     "firebase": "^12.13.0",
