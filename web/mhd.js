@@ -77,6 +77,7 @@ const RECEIVING_FORM_IDS = [
 
 let currentDeliveryItemBarcode = '';
 let currentDeliveryItemProduct = '';
+let pendingFinalizeDeliveryId = '';
 
 const DELIVERY_DRAFT_DB_NAME = 'charculogic-delivery-draft';
 const DELIVERY_DRAFT_STORE = 'drafts';
@@ -3703,6 +3704,22 @@ function createDeliveryId() {
   return `lieferung_${Date.now().toString(36)}_${randomPart}`;
 }
 
+async function cleanupPartialDeliveryHeader(deliveryPath, deliveryId, deliveryResult) {
+  if (deliveryResult !== 'written' || !deliveryPath || !deliveryId) return;
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: deliveryPath,
+      docId: deliveryId,
+      op: 'delete',
+      onlineData: {},
+      queueData: {},
+      offlineMessage: 'Unvollständige Lieferung wird bereinigt, sobald WLAN verfügbar ist.',
+    });
+  } catch (cleanupErr) {
+    console.error('[CharcuLogic MHD] Teilweise Lieferung konnte nicht bereinigt werden:', cleanupErr);
+  }
+}
+
 function readDeliveryHeadValues() {
   const supplier = document.getElementById('we-supplier')?.value.trim() || '';
   const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
@@ -4732,7 +4749,12 @@ async function finalizeDelivery() {
     : null;
   const erfassungsDatum = existingDraft?.erfassungsDatum || new Date().toISOString();
   const completedAt = new Date().toISOString();
-  const deliveryId = isDraftCompletion ? activeEditingDraftId : createDeliveryId();
+  const deliveryId = isDraftCompletion
+    ? activeEditingDraftId
+    : (pendingFinalizeDeliveryId || createDeliveryId());
+  if (!isDraftCompletion) {
+    pendingFinalizeDeliveryId = deliveryId;
+  }
 
   const deliveryBundle = buildDeliveryBundlePayload(head, {
     deliveryId,
@@ -4811,8 +4833,9 @@ async function finalizeDelivery() {
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
     if (rejectedMhdWrite) {
       console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+      await cleanupPartialDeliveryHeader(deliveryPath, deliveryId, deliveryResult);
       window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
+      mhdState.showHUD('Fehler', 'Lieferung wurde nicht vollständig gespeichert. Bitte erneut versuchen.', '!');
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
       return;
     }
@@ -4820,6 +4843,9 @@ async function finalizeDelivery() {
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
     mhdState.playClickSound(1300, 0.08, 0.2);
+    if (!isDraftCompletion) {
+      pendingFinalizeDeliveryId = '';
+    }
     resetReceivingForm();
     if (hasQueuedWrites) {
       renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten lokal vorgemerkt` });

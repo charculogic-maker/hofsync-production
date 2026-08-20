@@ -228,6 +228,99 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
     });
+
+    it('allows receipt-shaped employee stock creates and increases in own tenant only', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt', TENANTS.STEVES_HOF, 'employee');
+      const receiptCreatePath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'receipt-salami');
+      const receiptPayload = {
+        artikel: 'Salami',
+        name: 'Salami',
+        productId: 'salami',
+        kategorie: 'Kühlware',
+        currentStock: 4,
+        lastMhd: '2026-08-27',
+        lastDeliveryAt: '2026-08-20T10:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(ctx, receiptCreatePath, 'create', receiptPayload);
+      await expectFirestoreAllow(ctx, stockPath, 'update', {
+        currentStock: 16,
+        lastMhd: '2026-08-27',
+        lastDeliveryAt: '2026-08-20T10:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      });
+
+      const foreignCtx = authContext(testEnv, 'tf-employee-receipt-x', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(foreignCtx, stockPath, 'update', {
+        currentStock: 18,
+        lastMhd: '2026-08-27',
+        lastDeliveryAt: '2026-08-20T10:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        source: 'wareneingang-lieferschein',
+        tenantId: TENANTS.STEVES_HOF,
+        updatedAt: serverTimestamp(),
+      });
+    });
+  });
+
+  describe('TEST CASE 2d: customer order status transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-1');
+
+    function sampleCustomerOrder(overrides = {}) {
+      return {
+        customerName: 'Testkunde',
+        callbackPhone: '012345',
+        readyAt: '2026-08-21T10:00',
+        items: [
+          { product: 'Salami', quantity: 1 },
+          { product: 'Fleischsalat', quantity: 2 },
+        ],
+        acceptedBy: 'Team',
+        acceptedAt: '2026-08-20T10:00:00.000Z',
+        status: 'open',
+        tenantId: TENANTS.STEVES_HOF,
+        createdAt: '2026-08-20T10:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('allows employee open-to-ready updates with pickupPlace and same-length weighed items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder());
+      const ctx = authContext(testEnv, 'sh-employee-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Team',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [
+          { product: 'Salami', quantity: 1, actualQuantity: 0.9 },
+          { product: 'Fleischsalat', quantity: 2, actualQuantity: 2.1 },
+        ],
+      });
+    });
+
+    it('denies pickup updates that rewrite order items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder({ status: 'ready' }));
+      const ctx = authContext(testEnv, 'sh-employee-pickup-rewrite', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Team',
+        pickedUpAt: serverTimestamp(),
+        items: [
+          { product: 'Salami', quantity: 1, actualQuantity: 0.9 },
+          { product: 'Fleischsalat', quantity: 2, actualQuantity: 2.1 },
+        ],
+      });
+    });
   });
 
   describe('TEST CASE 2b: task comments', () => {
@@ -381,6 +474,24 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const pluralPath = `tenants/${TENANTS.TORFABRIK}/bulletins/image.jpg`;
       const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TORFABRIK, 'admin');
       await expectStorageUploadDeny(ctx, pluralPath);
+    });
+
+    it('allows employee bulletin confirmation audit with server timestamp', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-bulletin-confirm', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'bulletinConfirmations', 'confirm-1'),
+        'create',
+        {
+          employeeName: 'Stephan',
+          confirmedAt: serverTimestamp(),
+          bulletinMessage: 'Bitte Kühlung prüfen.',
+          bulletinUpdatedAt: '2026-08-20T10:00:00.000Z',
+          tenantId: TENANTS.TORFABRIK,
+          deviceId: 'laden-iphone',
+          profileEmail: 'team@example.invalid',
+        },
+      );
     });
   });
 

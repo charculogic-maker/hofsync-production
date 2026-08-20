@@ -1,4 +1,4 @@
-import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
+import { getGlobalTenantId, normalizeTenantId, tenantIdsMatch } from './tenant-db.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
@@ -6,6 +6,7 @@ const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
 const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
 
 let flushInFlight = false;
+const migratedQueueKeys = new Set();
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -75,6 +76,107 @@ function deadPendingSyncsKey() {
   return tenantId ? `${DEAD_PENDING_SYNCS_KEY_PREFIX}${tenantId}` : '';
 }
 
+function canonicalizeQueuedTenantData(value, tenantId) {
+  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalizeQueuedTenantData(entry, tenantId));
+  }
+  const out = { ...value };
+  if (tenantIdsMatch(out.tenantId, tenantId)) {
+    out.tenantId = tenantId;
+  }
+  return out;
+}
+
+function canonicalizeQueuedTenantPath(collectionPath, tenantId) {
+  const path = String(collectionPath || '').replace(/^\/+|\/+$/g, '');
+  if (!path.startsWith('tenants/')) return path;
+  const segments = path.split('/');
+  if (segments.length < 3 || !tenantIdsMatch(segments[1], tenantId)) return path;
+  return ['tenants', tenantId, ...segments.slice(2)].join('/');
+}
+
+function canonicalizeQueuedSyncItem(item, tenantId) {
+  if (!item || typeof item !== 'object') return item;
+  const out = { ...item };
+  if (out._collectionPath) {
+    out._collectionPath = canonicalizeQueuedTenantPath(out._collectionPath, tenantId);
+  }
+  if (out.data && typeof out.data === 'object') {
+    out.data = canonicalizeQueuedTenantData(out.data, tenantId);
+  }
+  if (tenantIdsMatch(out.tenantId, tenantId)) {
+    out.tenantId = tenantId;
+  }
+  return out;
+}
+
+function readQueueFromStorage(key) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    console.warn('[CharcuLogic Offline] Queue-Migration konnte einen Eintrag nicht lesen:', err);
+    return null;
+  }
+}
+
+function queueKeysForTenant(prefix, tenantId) {
+  const keys = new Set([`${prefix}${tenantId}`]);
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (normalizedTenantId && normalizedTenantId !== tenantId) {
+    keys.add(`${prefix}${normalizedTenantId}`);
+  }
+
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      if (prefix === PENDING_SYNCS_KEY_PREFIX && key.startsWith(DEAD_PENDING_SYNCS_KEY_PREFIX)) continue;
+      const suffix = key.slice(prefix.length);
+      if (tenantIdsMatch(suffix, tenantId)) {
+        keys.add(key);
+      }
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic Offline] Queue-Schlüssel konnten nicht geprüft werden:', err);
+  }
+
+  return [...keys];
+}
+
+function migrateTenantQueue(prefix, canonicalKey) {
+  const tenantId = currentTenantId();
+  if (!tenantId || !canonicalKey || migratedQueueKeys.has(canonicalKey)) return;
+  migratedQueueKeys.add(canonicalKey);
+
+  const legacyKeys = queueKeysForTenant(prefix, tenantId).filter((key) => key !== canonicalKey);
+  if (!legacyKeys.length) return;
+
+  const merged = readQueueFromStorage(canonicalKey) || [];
+  let migratedCount = 0;
+  for (const key of legacyKeys) {
+    const queue = readQueueFromStorage(key);
+    if (!queue) continue;
+    queue.forEach((item) => merged.push(canonicalizeQueuedSyncItem(item, tenantId)));
+    migratedCount += queue.length;
+    localStorage.removeItem(key);
+  }
+
+  if (migratedCount > 0) {
+    localStorage.setItem(canonicalKey, JSON.stringify(merged));
+    console.info(`[CharcuLogic Offline] ${migratedCount} alte Sync-Einträge dem aktuellen Betrieb zugeordnet.`);
+  }
+}
+
+function canonicalizeQueueForCurrentTenant(queue) {
+  const tenantId = currentTenantId();
+  if (!tenantId || !Array.isArray(queue)) return queue;
+  return queue.map((item) => canonicalizeQueuedSyncItem(item, tenantId));
+}
+
 function requireTenantId() {
   const tenantId = currentTenantId();
   if (!tenantId) throw new Error('Mandant fehlt: Sync ist ohne Firebase-Auth gesperrt.');
@@ -140,11 +242,17 @@ function isTaskCollectionPath(collectionPath) {
 export function getPendingSyncs() {
   const key = pendingSyncsKey();
   if (!key) return [];
+  migrateTenantQueue(PENDING_SYNCS_KEY_PREFIX, key);
   const raw = localStorage.getItem(key);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const canonicalized = canonicalizeQueueForCurrentTenant(parsed);
+    if (JSON.stringify(canonicalized) !== raw) {
+      localStorage.setItem(key, JSON.stringify(canonicalized));
+    }
+    return canonicalized;
   } catch (err) {
     try {
       localStorage.setItem(`${key}.corrupt.${Date.now()}`, raw);
@@ -161,11 +269,17 @@ export function getPendingSyncs() {
 export function getDeadPendingSyncs() {
   const key = deadPendingSyncsKey();
   if (!key) return [];
+  migrateTenantQueue(DEAD_PENDING_SYNCS_KEY_PREFIX, key);
   const raw = localStorage.getItem(key);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const canonicalized = canonicalizeQueueForCurrentTenant(parsed);
+    if (JSON.stringify(canonicalized) !== raw) {
+      localStorage.setItem(key, JSON.stringify(canonicalized));
+    }
+    return canonicalized;
   } catch (err) {
     console.warn('[CharcuLogic Offline] Dead-Letter Queue beschadigt:', err);
     return [];
