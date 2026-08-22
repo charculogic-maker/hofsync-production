@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
+> **Stand:** August 2026 — inkl. Chargen-Doku/Thekenbuch (`chargendoku`, Legacy `traceabilityRecords`), Mandanten-Admin-RBAC und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -29,8 +29,8 @@ Bekannte Mandanten:
 
 | `tenantId` | Betrieb | Branding (`web/branding.js`) |
 |------------|---------|------------------------------|
-| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
-| `superbiomarkt` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
+| `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Chargen-Doku + Prod. |
+| `superbiomarkt` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: Chargen-Doku (LMIV + Öko-Kontrollstelle) |
 | `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
@@ -48,7 +48,7 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Terminal-PINs:** Gehashte Zugangsdaten liegen in `tenants/{tenantId}/terminalCredentials/current` (Client: kein Lesezugriff). Prüfung über Callable `verifyTerminalPin` (Region `europe-west3`).
 
-**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang + Herkunft). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
+**StevesHof-Hofladen-Terminal:** Für `bestellung@steveshof-hofladen.de` mit Claim `tenantId: StevesHof_Hauptbetrieb` und Rolle `employee` greift in `web/app.js` der feste Terminalmodus (`dataset.fixedTerminal = steveshof`): Alltags-Logout ausgeblendet, nach dem App-Start `showTab('mhd')`. Statt PIN nutzt StevesHof **`employeeAuth: profile`** (`web/branding.js`): nach dem Geräte-Zugang wählen Kollegen ein Profil aus `team-config.js` (MHD + Wareneingang + Chargen-Doku). Firestore-Pfade behalten die kanonische Schreibweise `StevesHof_Hauptbetrieb`; localStorage-Keys werden lowercase-normalisiert (`web/tenant-db.js`).
 
 **Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
 
@@ -56,7 +56,46 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`). In Produktion ist Mandantenzuordnung **ausschließlich token-claim-gesteuert** — URL-Parameter oder Payload-Manipulation reichen nicht aus, um fremde `tenants/{tenantId}/…`-Pfade zu erreichen.
 
-### 1.1 Mandantenisolation über Custom Claims (Security Wall)
+### 1.1 Modulfreischaltung (`enabledModules`)
+
+Die zentrale Modulquelle ist `tenants/{tenantId}.enabledModules`. Der Client liest sie über `web/tenant-modules.js` (`loadTenantEnabledModules`, `subscribeTenantEnabledModules`) und spiegelt sie in `window.BRANDING.modules`, damit Navigation, Tab-Guards und Admin-Metriken dieselben Schalter nutzen.
+
+| Key in `enabledModules` | Branding-/UI-Modul | Hinweise |
+|-------------------------|--------------------|----------|
+| `start` | `teamboard` | Startseite / Schwarzes Brett |
+| `team` | `team`, `orders` | Team-Nachrichten und Bestellungen |
+| `mhd` | `mhdMonitor` | MHD-Prüfung |
+| `receiving` | `wareneingang` | Wareneingang / Lieferscheine |
+| `kitchen` | `wurstkueche` | Produktion / Wurstküche |
+| `haccp` | `haccp` | Admin-/Kontrollmodul |
+| `knowledge` | `knowledge`, `cutGlossary` | Wissen / Lexikon |
+| `buero` | `batches` | Büro- und Produktionschargen |
+| `chargenDoku` | `chargenDoku` | Chargen-Doku / Thekenbuch / LMIV-Herkunft |
+
+**Migration `traceability` → `chargenDoku`:** `traceability` ist nur noch ein Legacy-Key. `resolveChargenDokuEnabled()` akzeptiert ihn als Fallback, wenn `chargenDoku` fehlt; neue Seeds, Admin-Toggles und Modulprüfungen schreiben bzw. zählen **nur** `chargenDoku`. Beim Umschalten im `/dev-dashboard` entfernt `toggleTenantModule()` den alten `enabledModules.traceability`-Key.
+
+### 1.2 `/dev-dashboard` und Mandanten-Admin-Workflows
+
+`/dev-dashboard` ist eine SPA-Route im bestehenden Vanilla-JS-Frontend, keine separate App:
+
+- `firebase.json` rewritet `/dev-dashboard` auf `web/index.html`.
+- `web/sw.js` liefert für `/dev-dashboard` immer die App-Shell und lädt Kernmodule (`app.js`, `dev-dashboard.js`, `tenant-admin-auth.js`, `auth.js`, `sw.js`) network-first, damit direkte Admin-Navigation nicht an alten Caches hängen bleibt.
+- `web/index.html`, `web/tenant-admin-auth.js` und `web/dev-dashboard.js` teilen sich den Boot-Fallback über `window.__charculogicDevDashboardReady`; bleibt das Flag `false`, sieht der Nutzer eine Login-/Denied-Karte statt eines weißen Screens.
+- Guard-Quelle ist `useTenantAdminAuth()` (`web/tenant-admin-auth.js`): erlaubt sind Tenant-Admins (`role === 'admin'` oder `isAdmin`) sowie Plattform-Super-Admins. Unberechtigte werden zurück auf `/` geführt.
+- Dashboard-Tabs sind `overview`, `users`, `settings`, `audit`. Das Thekenbuch ist **kein** Dev-Dashboard-Tab mehr, sondern liegt im Laden-Alltag unter **Chargen-Doku**; `canAccessChargenDokuRecords()` sperrt Plattform-Super-Admins bewusst für rohe Betriebsdaten.
+
+Admin-Aktionen unterscheiden strikt zwischen zentralem Firestore-State und lokalen UI-Drafts:
+
+| Workflow | Persistenz | Schreibrecht |
+|----------|------------|--------------|
+| Mandant anlegen (`bindTenantCreateForm`) | `tenants/{tenantId}` mit `displayName`, `status`, `enabledModules`, Timestamps | Plattform-Super-Admin (`isPlatformDevAdmin`) |
+| Mandantenstatus `active`/`inactive` | `tenants/{tenantId}.status` | Plattform-Super-Admin |
+| Module umschalten | `tenants/{tenantId}.enabledModules` | Plattform-Super-Admin oder Tenant-Admin für eigenen Mandanten |
+| Mandant löschen | nur Root-Dokument `tenants/{tenantId}` | Plattform-Super-Admin; Subcollections bleiben Firestore-seitig separat zu bereinigen |
+| Einstellungen `displayName`/`logoUrl` im Admin-Formular | `localStorage` (`charculogic_tenant_settings_v1_{tenantId}`) | nur Geräte-Vorschau, kein zentraler Firestore-Write |
+| Audit-Panel | `localStorage` (`charculogic_tenant_audit_v1_{tenantId}`, max. 80 Einträge) | lokales Protokoll, kein Compliance-Audit-Trail |
+
+### 1.3 Mandantenisolation über Custom Claims (Security Wall)
 
 Firestore- und Callable-Zugriffe prüfen in `firebase.rules` und Cloud Functions **nur** `request.auth.token.tenantId` gegen den Pfad-Mandanten:
 
@@ -73,7 +112,7 @@ node tools/set-user-claims.mjs --uid=<UID> --project=charculogic-whitelabel-test
 
 Nach dem Lauf refresht das Frontend Claims automatisch via `getIdToken(true)` in `web/auth.js`.
 
-### 1.2 Shared Terminals & localStorage-Namensraum
+### 1.4 Shared Terminals & localStorage-Namensraum
 
 Auf gemeinsam genutzten iPhones oder Terminals wechseln Betriebs-Logins und Mitarbeiter-Anmeldungen häufig. Globale `localStorage`-Keys würden Auswahl und PIN-Kontext zwischen Mandanten vermischen.
 
@@ -113,7 +152,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
-| `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
+| `chargendoku/{id}` | Chargen-Doku / Thekenbuch / LMIV-Herkunft | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
+| `traceabilityRecords/{id}` | Legacy-LMIV-Herkunft | Migration: gleicher Schema-Check, weiterhin read/create/status-update/delete nach Rolle |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
@@ -150,15 +190,22 @@ Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehe
 
 Payload-Tampering (falsche `tenantId` im Dokument) wird abgewiesen, sobald das Feld vom Schema geprüft wird. Cross-Tenant-Pfadzugriff ist ohne passenden Token-Mandanten unmöglich.
 
-Claims setzen — siehe **§1.1**.
+Claims setzen — siehe **§1.3**.
 
 ### 3.3 Admin-Erkennung (`firebase.rules`)
 
-`isAdmin(tenantId)` akzeptiert Custom Claims **oder** Firestore-Profil (Übergangsphase). **`isHelper(tenantId)`** und **`isEmployeeOrAdmin(tenantId)`** steuern Schreibzugriffe: Aushilfe-Konten (`role: helper`) dürfen lesen, aber nicht in operative Collections schreiben.
+`isAdmin(tenantId)` akzeptiert nur Custom Claims (`tenantId` passend zum Pfad und `role === 'admin'` oder `isAdmin === true`). **`isHelper(tenantId)`** und **`isEmployeeOrAdmin(tenantId)`** steuern Schreibzugriffe: Aushilfe-Konten (`role: helper`) dürfen lesen, aber nicht in operative Collections schreiben.
 
 ### 3.4 Storage-Rules (`storage.rules`)
 
-Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
+Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup.
+
+| Pfad | Inhalt | Schreibrechte |
+|------|--------|---------------|
+| `tenants/{tenantId}/bulletin/…` | Schwarzes Brett / Bulletin-Anhänge | Admin, Bild/PDF, < 12 MB |
+| `tenants/{tenantId}/order_slips/…` | Lieferschein-/Bestellfotos | Mitarbeiter/Admin, Bild/PDF, < 12 MB |
+| `tenants/{tenantId}/chargendoku/{recordId}.jpg` | Chargen-Doku-/LMIV-Etikettfotos | Mandanten-Mitglieder, Bild/PDF, < 12 MB |
+| `tenants/{tenantId}/traceability/…` | Legacy-LMIV-Fotos | Migration: gleiche Rechte wie `chargendoku/` |
 
 **Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 
@@ -264,7 +311,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 - **Markup:** `web/index.html` → `#kitchen-wrs-panel` / `#wrs-meat-price-update-btn` (neben `#wrs-status-pill`).
 - **Logik:** `web/app.js` → `bindWrsMeatPriceUpdateButton()`, Callable `triggerManualMeatPriceRun` (Region `europe-west3`, App Check Pflicht via `waitForAppCheckReady()`).
 - **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
-- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
+- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.7**.
 
 #### Frontend – Wareneingang-Hilfen (Tab **Neu**)
 
@@ -299,7 +346,7 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash` (Override `GEMINI_MEAT_LABEL_MODEL`).
 - **App Check:** `enforceAppCheck: true`.
-- **Client:** `web/traceability.js` → Tab **Herkunft** – nach Foto automatische Felder-Vorbelegung.
+- **Client:** `web/traceability.js` → Tab **Chargen-Doku** – nach Foto automatische Felder-Vorbelegung.
 - **Auth:** `resolveAuthContext` + `requireEmployeeAccess` (eigener Mandant, keine Aushilfe).
 - **Payload:** `imageBase64` / `imageBytes` (+ `mimeType`) oder mandantentreuer `storagePath` unter `tenants/{tenantId}/…`.
 - **Antwort:** strukturiertes Label (LOT, Identitätskennzeichen, Öko-Kontrollstelle/Verband, Tierart, Herkunft); Failsafe → manuelle Eingabe in der PWA.
@@ -312,11 +359,29 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Modi:** `employee` (Name + PIN), `resolve` (PIN → Name), `meister` (Meister-Freigabe).
 - **Schutz:** PBKDF2-Hash, Lockout nach 5 Fehlversuchen (15 min).
 
-### 4.5 Firebase App Check — Pflicht & Gateway-Schutz
+### 4.5 Tenant-Mitarbeiter-IAM (`createTenantEmployee`, `manageTenantEmployees`)
+
+Die Mitarbeiterverwaltung im `/dev-dashboard` läuft über Callables in `functions/createTenantEmployee.js` und `functions/manageTenantEmployees.js`. Firestore-Profile und Auth-Claims werden serverseitig geschrieben; der Client baut keine Admin-SDK-Pfade selbst.
+
+| Callable | Aktion / Payload | Wirkung |
+|----------|------------------|---------|
+| `createTenantEmployee` | `{ tenantId?, email, password, name|displayName, allowedModules? }` | Firebase-Auth-User anlegen, Claims `{ tenantId, role: 'employee', isAdmin: false, allowedModules }` setzen, Profil `users/{uid}` schreiben |
+| `manageTenantEmployees` | `{ action: 'list', tenantId? }` | Mitarbeiter aus `users` nach `tenantId` listen |
+| `manageTenantEmployees` | `{ action: 'update', tenantId?, uid, role?, allowedModules? }` | Rolle/Modulrechte in Claims und `users/{uid}` synchronisieren; eigene Admin-Rolle kann nicht entfernt werden |
+| `manageTenantEmployees` | `{ action: 'remove', tenantId?, uid }` | Auth-User und `users/{uid}` löschen; Selbstlöschung gesperrt |
+
+**Auth & Mandantenisolation:**
+
+- Beide Callables sind Gen2 `onCall`, Region `europe-west3`, `enforceAppCheck: true`.
+- `assertAdminAccessForTenant()` nutzt `resolveAuthContext()`; Tenant-Admins dürfen nur ihren eigenen `tenantId` verwalten.
+- Plattform-Super-Admins werden per E-Mail/UID-Konstante erkannt und dürfen Mandanten übergreifend verwalten. Die UID muss mit `web/tenant-admin-auth.js`, `web/dev-dashboard.js` und `firebase.rules` (`isPlatformDevAdmin`) synchron bleiben.
+- `allowedModules` ist bewusst klein (`mhd`, `kitchen`, `buero`); fehlende Werte defaulten auf `true`, explizit `false` sperrt das Modul für den Mitarbeiter.
+
+### 4.6 Firebase App Check — Pflicht & Gateway-Schutz
 
 App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
-**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `parseMeatLabel`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
+**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `parseMeatLabel`, `verifyTerminalPin`, `createTenantEmployee`, `manageTenantEmployees`, `triggerManualMeatPriceRun`.
 
 **Frontend:** `web/app-check.js` nutzt das **Compat SDK** (aligned mit `firebase-app.js` v10.8.x — kein paralleler modularer Import). Initialisierung direkt nach `initFirebase()` in `bootstrapAuthenticatedApp()`, **vor** Auth und dem ersten `httpsCallable`.
 
@@ -357,7 +422,7 @@ Damit ist ein Deploy ohne gültige Keys sofort erkennbar, statt still fehlende B
 
 **Deploy-Reihenfolge:** App-Check-Provider in Console aktivieren → Site Keys pflegen → `npm run build` → Hosting + Rules + Functions deployen → Debug-Tokens für Entwickler/CI registrieren.
 
-### 4.6 GCP Cloud Monitoring & Alerting Setup
+### 4.7 GCP Cloud Monitoring & Alerting Setup
 
 Automatisierte Benachrichtigung, wenn der Fleischpreis-Engine-Lauf fehlschlägt (Gemini, Validierung, Firestore). Einrichtung im Firebase-/GCP-Projekt (z. B. `hofsync-production`).
 
@@ -403,7 +468,7 @@ Nach Erstellung in der Console **Notification Channels** an die Policy binden.
 - Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
 - Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
 
-### 4.7 Lokales Testen
+### 4.8 Lokales Testen
 
 ```bash
 cd functions
@@ -540,8 +605,8 @@ Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `te
 
 ## 7. Offene technische Punkte (Stand: Juni 2026)
 
-1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback in Storage perspektivisch entfernen).
+1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen; Firestore-/Storage-Rules verlassen sich für Mandantenzugriff auf Token-Claims.
 2. **App Check Enforcement** in Firebase Console für alle Zielressourcen aktivieren, sobald Site Keys in allen Umgebungen live sind.
 3. **Rules- + Security-Tests in CI** — `npm run test:rules` (JDK 21+) und `npm run test:functions:security` in Pipeline verankern.
-4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.6 in Produktion anlegen (`alert-policy.json` als Vorlage).
+4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.7 in Produktion anlegen (`alert-policy.json` als Vorlage).
 5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.
