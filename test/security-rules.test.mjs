@@ -228,6 +228,77 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
     });
+
+    it('allows employee receipt-shaped stock creates and increases on own tenant', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt-stock', TENANTS.STEVES_HOF, 'employee');
+      const receiptPayload = {
+        artikel: 'Frische Bratwurst',
+        name: 'Frische Bratwurst',
+        kategorie: 'Wurst',
+        currentStock: 5,
+        lastMhd: '2026-08-30',
+        lastDeliveryAt: '2026-08-22T10:00:00.000Z',
+        lastDeliveryBy: 'Laden',
+        tenantId: TENANTS.STEVES_HOF,
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        updatedAt: serverTimestamp(),
+      };
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'frische-bratwurst'),
+        'create',
+        receiptPayload,
+      );
+
+      await seedFirestoreDoc(testEnv, tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'legacy-extra'), {
+        name: 'Legacy Extra',
+        produkt: 'Legacy Extra',
+        currentStock: 12,
+        verkaufspreis: 9.99,
+      });
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'legacy-extra'),
+        'update',
+        {
+          artikel: 'Legacy Extra',
+          name: 'Legacy Extra',
+          kategorie: 'Wurst',
+          currentStock: 16,
+          lastMhd: '2026-08-31',
+          lastDeliveryAt: '2026-08-22T11:00:00.000Z',
+          lastDeliveryBy: 'Laden',
+          tenantId: TENANTS.STEVES_HOF,
+          source: 'wareneingang-lieferschein',
+          postentyp: 'wareneingang',
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+
+    it('denies employee stock increases without receipt source metadata', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-wide-stock-increase', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        stockPath,
+        'update',
+        {
+          artikel: 'Fleischsalat',
+          name: 'Fleischsalat',
+          kategorie: 'Wurst',
+          currentStock: 14,
+          lastMhd: '2026-08-31',
+          lastDeliveryAt: '2026-08-22T11:00:00.000Z',
+          lastDeliveryBy: 'Laden',
+          tenantId: TENANTS.STEVES_HOF,
+          source: 'manual',
+          postentyp: 'wareneingang',
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
   });
 
   describe('TEST CASE 2b: task comments', () => {
