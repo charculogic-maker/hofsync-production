@@ -6,6 +6,7 @@ import {
   getTenantCollection,
   canonicalTenantId,
   setGlobalTenantId,
+  tenantIdsMatch,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -85,6 +86,8 @@ const DELIVERY_DRAFT_KEY = 'active';
 let currentDeliveryItems = [];
 let currentDeliveryPhotos = [];
 let activeEditingDraftId = null;
+let activeFinalizeDeliveryId = null;
+let lastDeliveryDraftTenantId = '';
 let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 
@@ -3910,12 +3913,34 @@ function openDeliveryDraftDb() {
   });
 }
 
+function deliveryDraftKeyForTenant(tenantId = resolveMhdTenantId()) {
+  const cleanTenantId = canonicalTenantId(tenantId);
+  return cleanTenantId ? `${DELIVERY_DRAFT_KEY}.${cleanTenantId}` : '';
+}
+
+async function deleteDeliveryDraftKey(db, key) {
+  if (!db || !key) return;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(DELIVERY_DRAFT_STORE, 'readwrite');
+    tx.objectStore(DELIVERY_DRAFT_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 async function persistDeliveryDraftToIndexedDB() {
   try {
     const db = await openDeliveryDraftDb();
     if (!db) return;
+    const tenantId = resolveMhdTenantId();
+    const draftKey = deliveryDraftKeyForTenant(tenantId);
+    if (!tenantId || !draftKey) {
+      db.close();
+      return;
+    }
     const head = readDeliveryHeadValues();
     const payload = {
+      tenantId,
       head,
       items: currentDeliveryItems,
       photos: currentDeliveryPhotos,
@@ -3923,7 +3948,7 @@ async function persistDeliveryDraftToIndexedDB() {
     };
     await new Promise((resolve, reject) => {
       const tx = db.transaction(DELIVERY_DRAFT_STORE, 'readwrite');
-      tx.objectStore(DELIVERY_DRAFT_STORE).put(payload, DELIVERY_DRAFT_KEY);
+      tx.objectStore(DELIVERY_DRAFT_STORE).put(payload, draftKey);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -3937,14 +3962,33 @@ async function loadDeliveryDraftFromIndexedDB() {
   try {
     const db = await openDeliveryDraftDb();
     if (!db) return;
+    const tenantId = resolveMhdTenantId();
+    const draftKey = deliveryDraftKeyForTenant(tenantId);
+    if (!tenantId || !draftKey) {
+      db.close();
+      return;
+    }
     const payload = await new Promise((resolve, reject) => {
+      const tx = db.transaction(DELIVERY_DRAFT_STORE, 'readonly');
+      const req = tx.objectStore(DELIVERY_DRAFT_STORE).get(draftKey);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+    const legacyPayload = await new Promise((resolve, reject) => {
       const tx = db.transaction(DELIVERY_DRAFT_STORE, 'readonly');
       const req = tx.objectStore(DELIVERY_DRAFT_STORE).get(DELIVERY_DRAFT_KEY);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
+    if (legacyPayload && !tenantIdsMatch(legacyPayload.tenantId, tenantId)) {
+      await deleteDeliveryDraftKey(db, DELIVERY_DRAFT_KEY);
+    }
     db.close();
     if (!payload) return;
+    if (!tenantIdsMatch(payload.tenantId, tenantId)) {
+      await clearDeliveryDraftFromIndexedDB();
+      return;
+    }
     if (Array.isArray(payload.items)) currentDeliveryItems = payload.items;
     if (Array.isArray(payload.photos)) currentDeliveryPhotos = payload.photos;
     if (payload.head) {
@@ -3973,16 +4017,30 @@ async function clearDeliveryDraftFromIndexedDB() {
   try {
     const db = await openDeliveryDraftDb();
     if (!db) return;
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(DELIVERY_DRAFT_STORE, 'readwrite');
-      tx.objectStore(DELIVERY_DRAFT_STORE).delete(DELIVERY_DRAFT_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    await deleteDeliveryDraftKey(db, deliveryDraftKeyForTenant());
+    await deleteDeliveryDraftKey(db, DELIVERY_DRAFT_KEY);
     db.close();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Lieferungs-Entwurf konnte nicht aus IndexedDB gelöscht werden:', err);
   }
+}
+
+function bindDeliveryDraftTenantGuard() {
+  if (typeof window === 'undefined' || window.__charculogicDeliveryDraftTenantGuard === '1') return;
+  window.__charculogicDeliveryDraftTenantGuard = '1';
+  lastDeliveryDraftTenantId = resolveMhdTenantId();
+  window.addEventListener('charculogic:auth-changed', (event) => {
+    const nextTenantId = canonicalTenantId(event.detail?.tenantId || resolveMhdTenantId());
+    if (lastDeliveryDraftTenantId && nextTenantId && !tenantIdsMatch(lastDeliveryDraftTenantId, nextTenantId)) {
+      currentDeliveryItems = [];
+      currentDeliveryPhotos = [];
+      activeFinalizeDeliveryId = null;
+      renderDeliveryPhotoPreviews();
+      renderDeliveryItemsTable();
+      updateReceivingSaveButtonState();
+    }
+    lastDeliveryDraftTenantId = nextTenantId || lastDeliveryDraftTenantId;
+  });
 }
 
 async function compressImageFileToDataUrl(file, maxWidth = 1200, quality = 0.72) {
@@ -4583,6 +4641,7 @@ async function saveDeliveryDraft() {
 function resetReceivingForm() {
   currentDeliveryItems = [];
   currentDeliveryPhotos = [];
+  activeFinalizeDeliveryId = null;
   clearActiveDraftEditing();
 
   const defaults = {
@@ -4732,7 +4791,12 @@ async function finalizeDelivery() {
     : null;
   const erfassungsDatum = existingDraft?.erfassungsDatum || new Date().toISOString();
   const completedAt = new Date().toISOString();
-  const deliveryId = isDraftCompletion ? activeEditingDraftId : createDeliveryId();
+  const deliveryId = isDraftCompletion
+    ? activeEditingDraftId
+    : (activeFinalizeDeliveryId || createDeliveryId());
+  if (!isDraftCompletion) {
+    activeFinalizeDeliveryId = deliveryId;
+  }
 
   const deliveryBundle = buildDeliveryBundlePayload(head, {
     deliveryId,
@@ -4778,47 +4842,72 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
+    const mhdRecords = currentDeliveryItems.map((item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
-      finalizeTargetPath = `${mhdPath}/${record.id}`;
-      const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdPath,
-        docId: record.id,
-        op: 'set',
-        onlineData: auditedRecord.onlineData,
-        queueData: auditedRecord.queueData,
-        offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
-      });
-      saveProductMaster(record);
-      return result;
+      return { record, auditedRecord };
     });
 
-    const mhdResults = await Promise.allSettled(mhdWrites);
-    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite) {
-      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
-      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
-      return;
+    let deliveryResult = 'written';
+    let mhdResults = [];
+    const canUseBatch = typeof navigator !== 'undefined'
+      && navigator.onLine
+      && mhdState.db?.batch
+      && typeof mhdState.db.doc === 'function'
+      && isFirebaseReady();
+
+    if (canUseBatch) {
+      const batch = mhdState.db.batch();
+      mhdRecords.forEach(({ record, auditedRecord }) => {
+        finalizeTargetPath = `${mhdPath}/${record.id}`;
+        batch.set(mhdState.db.doc(finalizeTargetPath), auditedRecord.onlineData, { merge: false });
+      });
+      finalizeTargetPath = `${deliveryPath}/${deliveryId}`;
+      batch.set(mhdState.db.doc(finalizeTargetPath), deliveryBundleOnline, { merge: false });
+      await batch.commit();
+      mhdResults = mhdRecords.map(() => ({ status: 'fulfilled', value: 'written' }));
+    } else {
+      const mhdWrites = mhdRecords.map(async ({ record, auditedRecord }) => {
+        finalizeTargetPath = `${mhdPath}/${record.id}`;
+        return mhdState.writeOrQueueFirestore({
+          collectionPath: mhdPath,
+          docId: record.id,
+          op: 'set',
+          onlineData: auditedRecord.onlineData,
+          queueData: auditedRecord.queueData,
+          offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+        });
+      });
+
+      mhdResults = await Promise.allSettled(mhdWrites);
+      const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
+      if (rejectedMhdWrite) {
+        console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+        window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+        mhdState.showHUD('Fehler', 'Lieferung nicht gebucht – bitte erneut versuchen.', '!');
+        maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
+        return;
+      }
+
+      finalizeTargetPath = `${deliveryPath}/${deliveryId}`;
+      deliveryResult = await mhdState.writeOrQueueFirestore({
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+        offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      });
     }
+
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
+    mhdRecords.forEach(({ record }) => saveProductMaster(record));
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
     if (hasQueuedWrites) {
@@ -5171,6 +5260,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
     bindMhdCardActions();
     bindUtilityDialogActions();
     bindReceivingControls();
+    bindDeliveryDraftTenantGuard();
     bindMhdToolbar();
     loadVpeMasterFromCsv();
     mhdState.initialized = true;

@@ -146,15 +146,66 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/stammdaten/{document} {
+      function isPickupStockDecrease() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'currentStock', 'updatedAt'
+          ])
+          && isIntGteZero(resource.data.currentStock)
+          && isIntGteZero(request.resource.data.currentStock)
+          && request.resource.data.currentStock <= resource.data.currentStock;
+      }
+
+      function isReceiptStockFieldsValid() {
+        return isNonEmptyString(request.resource.data.artikel)
+          && isNonEmptyString(request.resource.data.name)
+          && isNonEmptyString(request.resource.data.kategorie)
+          && isIntGteZero(request.resource.data.currentStock)
+          && request.resource.data.tenantId == tenantId
+          && request.resource.data.source == 'wareneingang-lieferschein'
+          && request.resource.data.postentyp == 'wareneingang'
+          && isOptionalString(request.resource.data.lastMhd)
+          && isNonEmptyString(request.resource.data.lastDeliveryAt)
+          && isNonEmptyString(request.resource.data.lastDeliveryBy);
+      }
+
+      function isReceiptStockCreatePayload() {
+        return hasOnly([
+            'artikel', 'name', 'kategorie',
+            'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+            'tenantId', 'source', 'postentyp', 'updatedAt'
+          ])
+          && isReceiptStockFieldsValid();
+      }
+
+      function isReceiptStockIncrease() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'artikel', 'name', 'kategorie',
+            'currentStock', 'lastMhd', 'lastDeliveryAt', 'lastDeliveryBy',
+            'tenantId', 'source', 'postentyp', 'updatedAt'
+          ])
+          && isReceiptStockFieldsValid()
+          && (
+            !('tenantId' in resource.data)
+            || resource.data.tenantId == tenantId
+          )
+          && (
+            !('currentStock' in resource.data)
+            || (
+              isIntGteZero(resource.data.currentStock)
+              && request.resource.data.currentStock >= resource.data.currentStock
+            )
+          );
+      }
+
       allow read: if isTenantUser(tenantId);
       allow write: if isAdmin(tenantId);
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && isReceiptStockCreatePayload();
       allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'currentStock', 'updatedAt'
-        ])
-        && isIntGteZero(resource.data.currentStock)
-        && isIntGteZero(request.resource.data.currentStock)
-        && request.resource.data.currentStock <= resource.data.currentStock;
+        && (
+          isPickupStockDecrease()
+          || isReceiptStockIncrease()
+        );
     }
 
     match /tenants/{tenantId}/settings/{document} {
