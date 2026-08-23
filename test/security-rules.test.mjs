@@ -179,6 +179,53 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2a: employee module restrictions', () => {
+    function employeeWithMhdDisabled() {
+      return testEnv.authenticatedContext('tf-employee-mhd-disabled', {
+        tenantId: TENANTS.TORFABRIK,
+        role: 'employee',
+        allowedModules: { mhd: false, kitchen: true, buero: true },
+      });
+    }
+
+    function sampleDelivery(tenantId) {
+      return {
+        id: 'inactive-module-delivery',
+        lieferant: 'Test Lieferant',
+        warenKategorie: 'Frischfleisch',
+        temperatur: 2,
+        erfassungsDatum: '2026-08-23T22:00:00.000Z',
+        completedAt: '2026-08-23T22:01:00.000Z',
+        status: 'COMPLETED',
+        fotos: [],
+        items: [],
+        itemCount: 0,
+        source: 'wareneingang-lieferung',
+        scannedBy: 'Team',
+        tenantId,
+        createdAt: '2026-08-23T22:00:00.000Z',
+        updatedAt: '2026-08-23T22:01:00.000Z',
+      };
+    }
+
+    it('denies mhd_liste and receiving writes when employee mhd module is disabled', async () => {
+      const ctx = employeeWithMhdDisabled();
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'mhd-disabled-create'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'wareneingang_lieferungen', 'delivery-disabled-create'),
+        'create',
+        sampleDelivery(TENANTS.TORFABRIK),
+      );
+    });
+  });
+
   describe('TEST CASE 2c: stock updates from customer pickup', () => {
     const stockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'fleischsalat');
     const stockItem = {
@@ -757,6 +804,33 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(platform, tenantRootPath, 'delete');
     });
+
+    it('blocks tenant users from subcollections when tenant status is inactive', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot({ status: 'inactive' }));
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+
+      const employee = authContext(testEnv, 'tf-employee-inactive', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-new-mhd'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+      await expectStorageUploadDeny(
+        employee,
+        chargenDokuObjectPath(TENANTS.TORFABRIK, 'inactive-label.jpg'),
+      );
+    });
+
     it('denies Tenant-Admin of TorFabrik reading/writing StevesHof tenant root & modules', async () => {
       const stevesRoot = `tenants/${TENANTS.STEVES_HOF}`;
       await seedFirestoreDoc(testEnv, stevesRoot, sampleTenantRoot({

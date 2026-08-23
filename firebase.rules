@@ -22,15 +22,21 @@ service cloud.firestore {
         : '';
     }
 
+    function isTenantActive(tenantId) {
+      return !exists(/databases/$(database)/documents/tenants/$(tenantId))
+        || get(/databases/$(database)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
     function isTenantMember(tenantId) {
       return isAuthenticated()
-        && tokenTenantId() == tenantId;
+        && tokenTenantId() == tenantId
+        && isTenantActive(tenantId);
     }
 
     function isAdmin(tenantId) {
       return isTenantMember(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          (('isAdmin' in request.auth.token) && request.auth.token.isAdmin == true)
           || tokenRole() == 'admin'
         );
     }
@@ -51,6 +57,30 @@ service cloud.firestore {
         && (
           isAdmin(tenantId)
           || isEmployee(tenantId)
+        );
+    }
+
+    function employeeAllowedModule(moduleKey) {
+      return !('allowedModules' in request.auth.token)
+        || !(request.auth.token.allowedModules is map)
+        || !(moduleKey in request.auth.token.allowedModules)
+        || request.auth.token.allowedModules[moduleKey] != false;
+    }
+
+    function canReadMhdModule(tenantId) {
+      return isAdmin(tenantId)
+        || isHelper(tenantId)
+        || (
+          isEmployee(tenantId)
+          && employeeAllowedModule('mhd')
+        );
+    }
+
+    function canWriteMhdModule(tenantId) {
+      return isAdmin(tenantId)
+        || (
+          isEmployee(tenantId)
+          && employeeAllowedModule('mhd')
         );
     }
 
@@ -241,9 +271,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/mhd_liste/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if canReadMhdModule(tenantId);
 
-      allow create: if isEmployeeOrAdmin(tenantId)
+      allow create: if canWriteMhdModule(tenantId)
         && hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
           'produkt', 'name', 'marke', 'brand',
@@ -269,7 +299,7 @@ service cloud.firestore {
         && isIntGteZero(request.resource.data.qty)
         && request.resource.data.tenantId == tenantId;
 
-      allow update: if isEmployeeOrAdmin(tenantId)
+      allow update: if canWriteMhdModule(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
           'produkt', 'name', 'marke', 'brand',
@@ -293,7 +323,7 @@ service cloud.firestore {
           || request.resource.data.tenantId == tenantId
         );
 
-      allow delete: if isEmployeeOrAdmin(tenantId);
+      allow delete: if canWriteMhdModule(tenantId);
     }
 
     // =========================================================================
@@ -350,9 +380,9 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if canWriteMhdModule(tenantId);
 
-      allow create, update: if isEmployeeOrAdmin(tenantId)
+      allow create, update: if canWriteMhdModule(tenantId)
         && hasOnly([
           'id', 'lieferant', 'warenKategorie', 'temperatur',
           'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
@@ -364,7 +394,7 @@ service cloud.firestore {
         && request.resource.data.tenantId == tenantId
         && isIntGteZero(request.resource.data.itemCount);
 
-      allow delete: if isEmployeeOrAdmin(tenantId);
+      allow delete: if canWriteMhdModule(tenantId);
     }
 
     // =========================================================================

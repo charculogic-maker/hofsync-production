@@ -5,6 +5,8 @@ import { expect } from 'chai';
 import { __customerOrdersTest } from '../web/customer-orders.js';
 import { __traceabilityTest } from '../web/traceability.js';
 
+let mhdTest = null;
+
 function makeRef(path) {
   return {
     path,
@@ -127,5 +129,36 @@ describe('chargendoku Bio association normalization', () => {
   it('preserves explicit supported Bio associations', () => {
     expect(__traceabilityTest.normalizeOrganicAssociationInput('EU-Bio')).to.equal('EU-Bio');
     expect(__traceabilityTest.normalizeOrganicAssociationInput(' Bioland ')).to.equal('Bioland');
+  });
+});
+
+describe('MHD delivery finalize retry identifiers', () => {
+  it('keeps delivery MHD posten ids stable for the same retry target', async () => {
+    if (!mhdTest) {
+      globalThis.document = globalThis.document || {
+        getElementById: () => null,
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      };
+      globalThis.window = globalThis.window || {};
+      ({ __mhdTest: mhdTest } = await import('../web/mhd.js'));
+    }
+
+    const item = {
+      id: 'item-1',
+      product: 'Galloway Hack',
+      mhdDate: '2026-09-01',
+    };
+
+    const first = mhdTest.createDeliveryMhdPostenId('lieferung_abc', item, '123456789');
+    const retry = mhdTest.createDeliveryMhdPostenId('lieferung_abc', item, '123456789');
+    const otherItem = mhdTest.createDeliveryMhdPostenId(
+      'lieferung_abc',
+      { ...item, id: 'item-2' },
+      '123456789',
+    );
+
+    expect(retry).to.equal(first);
+    expect(otherItem).to.not.equal(first);
   });
 });

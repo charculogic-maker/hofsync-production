@@ -20,14 +20,21 @@ service firebase.storage {
         : '';
     }
 
+    function istTenantAktiv(tenantId) {
+      return !firestore.exists(/databases/(default)/documents/tenants/$(tenantId))
+        || firestore.get(/databases/(default)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
     function istTenantMitglied(tenantId) {
-      return istAngemeldet() && tokenTenantId() == tenantId;
+      return istAngemeldet()
+        && tokenTenantId() == tenantId
+        && istTenantAktiv(tenantId);
     }
 
     function istAdmin(tenantId) {
       return istTenantMitglied(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          (('isAdmin' in request.auth.token) && request.auth.token.isAdmin == true)
           || tokenRole() == 'admin'
         );
     }

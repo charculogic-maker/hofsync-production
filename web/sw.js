@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260823-212-critical-integrity';
+const CACHE_NAME = 'charculogic-v20260823-213-mhd-rbac-integrity';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
