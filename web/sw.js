@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260725-211-chargendoku';
+const CACHE_NAME = 'charculogic-v20260823-213-mhd-rbac-integrity';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [

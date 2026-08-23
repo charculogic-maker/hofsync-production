@@ -128,6 +128,11 @@ function animalTypeLabel(value) {
   return ANIMAL_TYPES.find((item) => item.value === value)?.label || value || '–';
 }
 
+function normalizeOrganicAssociationInput(value) {
+  const clean = String(value || '').trim();
+  return ORGANIC_ASSOCIATION_OPTIONS.has(clean) ? clean : '';
+}
+
 function countrySelectHtml(id, selected = 'Deutschland') {
   const options = COUNTRY_OPTIONS.map((opt) => (
     `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
@@ -502,7 +507,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociationInput(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
@@ -1004,3 +1009,7 @@ export function stopTraceabilityAdminView() {
 }
 
 export { ANIMAL_TYPES, COUNTRY_OPTIONS, countrySelectHtml };
+
+export const __traceabilityTest = {
+  normalizeOrganicAssociationInput,
+};

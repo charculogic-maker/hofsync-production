@@ -179,6 +179,53 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2a: employee module restrictions', () => {
+    function employeeWithMhdDisabled() {
+      return testEnv.authenticatedContext('tf-employee-mhd-disabled', {
+        tenantId: TENANTS.TORFABRIK,
+        role: 'employee',
+        allowedModules: { mhd: false, kitchen: true, buero: true },
+      });
+    }
+
+    function sampleDelivery(tenantId) {
+      return {
+        id: 'inactive-module-delivery',
+        lieferant: 'Test Lieferant',
+        warenKategorie: 'Frischfleisch',
+        temperatur: 2,
+        erfassungsDatum: '2026-08-23T22:00:00.000Z',
+        completedAt: '2026-08-23T22:01:00.000Z',
+        status: 'COMPLETED',
+        fotos: [],
+        items: [],
+        itemCount: 0,
+        source: 'wareneingang-lieferung',
+        scannedBy: 'Team',
+        tenantId,
+        createdAt: '2026-08-23T22:00:00.000Z',
+        updatedAt: '2026-08-23T22:01:00.000Z',
+      };
+    }
+
+    it('denies mhd_liste and receiving writes when employee mhd module is disabled', async () => {
+      const ctx = employeeWithMhdDisabled();
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'mhd-disabled-create'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'wareneingang_lieferungen', 'delivery-disabled-create'),
+        'create',
+        sampleDelivery(TENANTS.TORFABRIK),
+      );
+    });
+  });
+
   describe('TEST CASE 2c: stock updates from customer pickup', () => {
     const stockPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'fleischsalat');
     const stockItem = {
@@ -226,6 +273,160 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+
+    function receiptStockPayload(tenantId, overrides = {}) {
+      return {
+        artikel: 'Neue Bratwurst',
+        name: 'Neue Bratwurst',
+        kategorie: 'Fleisch & Wurst',
+        currentStock: 5,
+        lastMhd: '2026-09-01',
+        lastDeliveryAt: '2026-08-23T22:00:00.000Z',
+        lastDeliveryBy: 'Team',
+        source: 'wareneingang-lieferschein',
+        tenantId,
+        updatedAt: serverTimestamp(),
+        ...overrides,
+      };
+    }
+
+    it('allows employee receipt-shaped stock creates and increases in own tenant', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt', TENANTS.STEVES_HOF, 'employee');
+      const receiptPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'neue-bratwurst');
+
+      await expectFirestoreAllow(
+        ctx,
+        receiptPath,
+        'create',
+        receiptStockPayload(TENANTS.STEVES_HOF),
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        stockPath,
+        'update',
+        receiptStockPayload(TENANTS.STEVES_HOF, {
+          artikel: 'Fleischsalat',
+          name: 'Fleischsalat',
+          currentStock: 15,
+        }),
+      );
+    });
+
+    it('denies helper or cross-tenant receipt stock writes', async () => {
+      const helper = authContext(testEnv, 'sh-helper-receipt', TENANTS.STEVES_HOF, 'helper');
+      const employee = authContext(testEnv, 'tf-employee-receipt-cross', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'helper-receipt'),
+        'create',
+        receiptStockPayload(TENANTS.STEVES_HOF),
+      );
+
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'cross-receipt'),
+        'create',
+        receiptStockPayload(TENANTS.STEVES_HOF),
+      );
+    });
+  });
+
+  describe('TEST CASE 2d: customer order status transitions', () => {
+    function sampleCustomerOrder(tenantId, overrides = {}) {
+      return {
+        customerName: 'Hofkunde',
+        callbackPhone: '01234',
+        readyAt: '2026-08-24T09:00:00.000Z',
+        items: [
+          { product: 'Fleischsalat', quantity: '1' },
+          { product: 'Bratwurst', quantity: '2' },
+        ],
+        acceptedBy: 'Team',
+        acceptedAt: '2026-08-23T22:00:00.000Z',
+        status: 'open',
+        tenantId,
+        createdAt: '2026-08-23T22:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('allows employee open-to-ready update with pickupPlace and same-length weighed items', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-items');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF));
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '1', actualQuantity: '0.95' },
+            { product: 'Bratwurst', quantity: '2', actualQuantity: '2.1' },
+          ],
+        },
+      );
+    });
+
+    it('denies employee open-to-ready update that drops order lines', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-truncated');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF));
+      const ctx = authContext(testEnv, 'sh-employee-order-ready-drop', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Team',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '1', actualQuantity: '0.95' },
+          ],
+        },
+      );
+    });
+
+    it('allows picked-up status transition but denies item rewrites during pickup', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-picked-up');
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF, { status: 'ready' }));
+      const ctx = authContext(testEnv, 'sh-employee-order-pickup', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Team',
+          pickedUpAt: serverTimestamp(),
+        },
+      );
+
+      await seedFirestoreDoc(testEnv, path, sampleCustomerOrder(TENANTS.STEVES_HOF, { status: 'ready' }));
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Team',
+          pickedUpAt: serverTimestamp(),
+          items: [
+            { product: 'Fleischsalat', quantity: '0' },
+            { product: 'Bratwurst', quantity: '0' },
+          ],
+        },
       );
     });
   });
@@ -603,6 +804,33 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(platform, tenantRootPath, 'delete');
     });
+
+    it('blocks tenant users from subcollections when tenant status is inactive', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot({ status: 'inactive' }));
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+
+      const employee = authContext(testEnv, 'tf-employee-inactive', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-new-mhd'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+      await expectStorageUploadDeny(
+        employee,
+        chargenDokuObjectPath(TENANTS.TORFABRIK, 'inactive-label.jpg'),
+      );
+    });
+
     it('denies Tenant-Admin of TorFabrik reading/writing StevesHof tenant root & modules', async () => {
       const stevesRoot = `tenants/${TENANTS.STEVES_HOF}`;
       await seedFirestoreDoc(testEnv, stevesRoot, sampleTenantRoot({
