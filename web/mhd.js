@@ -85,6 +85,7 @@ const DELIVERY_DRAFT_KEY = 'active';
 let currentDeliveryItems = [];
 let currentDeliveryPhotos = [];
 let activeEditingDraftId = null;
+let pendingFinalizeDeliveryId = null;
 let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 
@@ -4372,6 +4373,27 @@ function buildDeliveryBundlePayload(head, {
   return bundle;
 }
 
+function canCommitFinalizeDeliveryBatch() {
+  return Boolean(
+    typeof navigator !== 'undefined'
+    && navigator.onLine
+    && mhdState.db?.batch
+    && mhdState.db?.doc,
+  );
+}
+
+async function commitFinalizeDeliveryBatch({ deliveryPath, mhdPath, deliveryId, deliveryData, mhdRecords }) {
+  if (!canCommitFinalizeDeliveryBatch()) {
+    throw new Error('Batch-Speichern ist gerade nicht bereit.');
+  }
+  const batch = mhdState.db.batch();
+  batch.set(mhdState.db.doc(`${deliveryPath}/${deliveryId}`), deliveryData);
+  mhdRecords.forEach(({ id, onlineData }) => {
+    batch.set(mhdState.db.doc(`${mhdPath}/${id}`), onlineData);
+  });
+  await batch.commit();
+}
+
 function renderOpenDraftsSection() {
   const list = document.getElementById('open-drafts-list');
   if (!list) return;
@@ -4732,7 +4754,12 @@ async function finalizeDelivery() {
     : null;
   const erfassungsDatum = existingDraft?.erfassungsDatum || new Date().toISOString();
   const completedAt = new Date().toISOString();
-  const deliveryId = isDraftCompletion ? activeEditingDraftId : createDeliveryId();
+  const deliveryId = isDraftCompletion
+    ? activeEditingDraftId
+    : (pendingFinalizeDeliveryId || createDeliveryId());
+  if (!isDraftCompletion) {
+    pendingFinalizeDeliveryId = deliveryId;
+  }
 
   const deliveryBundle = buildDeliveryBundlePayload(head, {
     deliveryId,
@@ -4771,6 +4798,20 @@ async function finalizeDelivery() {
   if (queuedBundle) queuedBundle.tenantId = activeTenantId;
 
   let finalizeTargetPath = deliveryPath;
+  const mhdRecords = currentDeliveryItems.map((item) => {
+    const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
+    record.tenantId = activeTenantId;
+    const auditedRecord = withSanitizedMhdAudit(
+      { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
+      { ...record, updatedAt: completedAt, tenantId: activeTenantId },
+    );
+    return {
+      id: record.id,
+      record,
+      onlineData: auditedRecord.onlineData,
+      queueData: auditedRecord.queueData,
+    };
+  });
 
   try {
     if (saveBtn) {
@@ -4778,48 +4819,46 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
-      const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
-      record.tenantId = activeTenantId;
-      const auditedRecord = withSanitizedMhdAudit(
-        { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
-        { ...record, updatedAt: completedAt, tenantId: activeTenantId },
-      );
-      finalizeTargetPath = `${mhdPath}/${record.id}`;
-      const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdPath,
-        docId: record.id,
-        op: 'set',
-        onlineData: auditedRecord.onlineData,
-        queueData: auditedRecord.queueData,
-        offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+    let hasQueuedWrites = false;
+    if (canCommitFinalizeDeliveryBatch()) {
+      await commitFinalizeDeliveryBatch({
+        deliveryPath,
+        mhdPath,
+        deliveryId,
+        deliveryData: deliveryBundleOnline,
+        mhdRecords,
       });
-      saveProductMaster(record);
-      return result;
-    });
-
-    const mhdResults = await Promise.allSettled(mhdWrites);
-    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite) {
-      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
-      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
-      return;
+      mhdRecords.forEach(({ record }) => saveProductMaster(record));
+    } else {
+      const mhdResults = [];
+      for (const mhdRecord of mhdRecords) {
+        finalizeTargetPath = `${mhdPath}/${mhdRecord.id}`;
+        // Queue or write all MHD rows before the completed header to avoid orphan deliveries.
+        const result = await mhdState.writeOrQueueFirestore({
+          collectionPath: mhdPath,
+          docId: mhdRecord.id,
+          op: 'set',
+          onlineData: mhdRecord.onlineData,
+          queueData: mhdRecord.queueData,
+          offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+        });
+        mhdResults.push(result);
+        saveProductMaster(mhdRecord.record);
+      }
+      finalizeTargetPath = deliveryPath;
+      const deliveryResult = await mhdState.writeOrQueueFirestore({
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+        offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      });
+      hasQueuedWrites = deliveryResult === 'queued' || mhdResults.some((result) => result === 'queued');
     }
-    const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
     mhdState.playClickSound(1300, 0.08, 0.2);
+    pendingFinalizeDeliveryId = null;
     resetReceivingForm();
     if (hasQueuedWrites) {
       renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten lokal vorgemerkt` });

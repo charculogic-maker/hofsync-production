@@ -308,6 +308,15 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
+async function findSingleStockDocByField(col, field, value, productLabel) {
+  const snap = await col.where(field, '==', value).limit(2).get();
+  const docs = Array.isArray(snap.docs) ? snap.docs : [];
+  if (docs.length > 1) {
+    throw new Error(`Mehrere Lagerbestände für "${productLabel}" gefunden.`);
+  }
+  return docs[0]?.ref || null;
+}
+
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
   if (!col) return null;
@@ -321,30 +330,54 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const byProdukt = await findSingleStockDocByField(col, 'produkt', product, product);
+  if (byProdukt) return byProdukt;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const byName = await findSingleStockDocByField(col, 'name', product, product);
+  if (byName) return byName;
 
   return null;
 }
 
-async function prepareStockDeductionsForOrder(order) {
-  const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+function stockRefKey(ref) {
+  return String(ref?.path || ref?.id || '').trim();
+}
+
+async function buildStockDeductionsForOrderItems(items, resolveStockRef) {
+  const deductionsByRef = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    const ref = await resolveStockRef(item);
+    if (!ref) {
+      throw new Error(`Kein Lagerbestand für "${product}" gefunden.`);
+    }
+    const key = stockRefKey(ref);
+    if (!key) {
+      throw new Error(`Lagerbestand für "${product}" konnte nicht eindeutig zugeordnet werden.`);
+    }
+    const existing = deductionsByRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      continue;
+    }
+    deductionsByRef.set(key, { ref, amount, product });
   }
-  return deductions;
+  return Array.from(deductionsByRef.values());
+}
+
+async function prepareStockDeductionsForOrder(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return buildStockDeductionsForOrderItems(items, findStockDocForOrderItem);
+}
+
+function calculateStockAfterDeduction(currentStockValue, amount, product) {
+  const currentStock = parseQuantityValue(currentStockValue);
+  if (currentStock < amount) {
+    throw new Error(`Nicht genug Lagerbestand für "${product}".`);
+  }
+  return Math.round((currentStock - amount) * 1000) / 1000;
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +408,10 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
-      const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (!snap.exists) {
+        throw new Error(`Lagerbestand für "${deduction.product}" wurde nicht gefunden.`);
+      }
+      const nextStock = calculateStockAfterDeduction(snap.data()?.currentStock, deduction.amount, deduction.product);
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -393,6 +427,12 @@ async function markOrderPickedUpWithStock(order, employee) {
 
   return deductions.length;
 }
+
+export const __customerOrdersTestInternals = {
+  buildStockDeductionsForOrderItems,
+  calculateStockAfterDeduction,
+  findSingleStockDocByField,
+};
 
 function normalizePicklistKey(value) {
   return String(value ?? '')

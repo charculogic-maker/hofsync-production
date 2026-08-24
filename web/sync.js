@@ -40,6 +40,8 @@ let syncContext = {
   showHUD: () => {},
 };
 
+let migratedQueueTenantId = '';
+
 // QA Simulation State — zero overhead in production (localhost gate in app.js)
 export const qaState = {
   active: false,
@@ -73,6 +75,101 @@ function pendingSyncsKey() {
 function deadPendingSyncsKey() {
   const tenantId = currentTenantId();
   return tenantId ? `${DEAD_PENDING_SYNCS_KEY_PREFIX}${tenantId}` : '';
+}
+
+function canonicalizeQueuedTenantPath(path, tenantId) {
+  const normalized = String(path || '').replace(/^\/+|\/+$/g, '');
+  if (!normalized.startsWith('tenants/')) return normalized;
+  const parts = normalized.split('/');
+  if (!tenantIdsMatch(parts[1], tenantId)) return normalized;
+  return ['tenants', tenantId, ...parts.slice(2)].join('/');
+}
+
+function canonicalizeQueuedTenantPayload(value, tenantId) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalizeQueuedTenantPayload(entry, tenantId));
+  }
+  if (!value || typeof value !== 'object') return value;
+  const out = { ...value };
+  if ('tenantId' in out && tenantIdsMatch(out.tenantId, tenantId)) {
+    out.tenantId = tenantId;
+  }
+  Object.keys(out).forEach((key) => {
+    if (out[key] && typeof out[key] === 'object') {
+      out[key] = canonicalizeQueuedTenantPayload(out[key], tenantId);
+    }
+  });
+  return out;
+}
+
+function canonicalizeQueuedEntryTenant(entry, tenantId) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const out = { ...entry };
+  if (out._collectionPath) {
+    out._collectionPath = canonicalizeQueuedTenantPath(out._collectionPath, tenantId);
+  }
+  if (out.data && typeof out.data === 'object') {
+    out.data = canonicalizeQueuedTenantPayload(out.data, tenantId);
+  }
+  return out;
+}
+
+function readStoredQueue(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('[CharcuLogic Offline] Legacy-Queue konnte nicht gelesen werden:', err);
+    return [];
+  }
+}
+
+function mergeQueueEntries(entries) {
+  const merged = [];
+  const seen = new Set();
+  entries.forEach((entry) => {
+    const marker = String(entry?._id || [
+      entry?._syncType,
+      entry?._collectionPath,
+      entry?._docId,
+      entry?._op,
+      entry?._queuedAt,
+    ].join('|'));
+    if (marker && seen.has(marker)) return;
+    if (marker) seen.add(marker);
+    merged.push(entry);
+  });
+  return merged;
+}
+
+function migrateTenantQueuePrefix(prefix, tenantId) {
+  const canonicalKey = `${prefix}${tenantId}`;
+  const legacyKeys = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key || key === canonicalKey || !key.startsWith(prefix)) continue;
+    const suffix = key.slice(prefix.length);
+    if (tenantIdsMatch(suffix, tenantId)) legacyKeys.push(key);
+  }
+  if (!legacyKeys.length) return;
+
+  const canonicalEntries = readStoredQueue(canonicalKey);
+  const legacyEntries = legacyKeys.flatMap((key) => readStoredQueue(key));
+  const migrated = mergeQueueEntries([...canonicalEntries, ...legacyEntries])
+    .map((entry) => canonicalizeQueuedEntryTenant(entry, tenantId));
+  localStorage.setItem(canonicalKey, JSON.stringify(migrated));
+  legacyKeys.forEach((key) => localStorage.removeItem(key));
+  console.info(`[CharcuLogic Offline] Legacy-Sync-Queue für ${tenantId} übernommen.`);
+}
+
+function migrateLegacyTenantQueues() {
+  const tenantId = currentTenantId();
+  if (!tenantId || migratedQueueTenantId === tenantId || typeof localStorage === 'undefined') return;
+  migrateTenantQueuePrefix(PENDING_SYNCS_KEY_PREFIX, tenantId);
+  migrateTenantQueuePrefix(DEAD_PENDING_SYNCS_KEY_PREFIX, tenantId);
+  migratedQueueTenantId = tenantId;
 }
 
 function requireTenantId() {
@@ -138,6 +235,7 @@ function isTaskCollectionPath(collectionPath) {
 }
 
 export function getPendingSyncs() {
+  migrateLegacyTenantQueues();
   const key = pendingSyncsKey();
   if (!key) return [];
   const raw = localStorage.getItem(key);
@@ -159,6 +257,7 @@ export function getPendingSyncs() {
 }
 
 export function getDeadPendingSyncs() {
+  migrateLegacyTenantQueues();
   const key = deadPendingSyncsKey();
   if (!key) return [];
   const raw = localStorage.getItem(key);
@@ -210,6 +309,7 @@ export function requeueDeadPendingSyncs() {
 }
 
 export function savePendingSyncs(queue) {
+  migrateLegacyTenantQueues();
   const key = pendingSyncsKey();
   if (!key) {
     window.showToast?.("Sync wartet auf Mandanten-Anmeldung.", "warning");
@@ -224,6 +324,12 @@ export function savePendingSyncs(queue) {
     return false;
   }
 }
+
+export const __syncTestInternals = {
+  canonicalizeQueuedEntryTenant,
+  migrateLegacyTenantQueues,
+  pendingSyncsKey,
+};
 
 export function addPendingSync(entry) {
   const queue = getPendingSyncs();

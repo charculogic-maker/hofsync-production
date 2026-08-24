@@ -117,6 +117,11 @@ function serverTimestamp() {
   return traceState.getFirebase()?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString();
 }
 
+function normalizeOrganicAssociationForSave(value) {
+  const association = String(value || '').trim();
+  return association || '';
+}
+
 function createRecordId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -502,7 +507,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociationForSave(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
@@ -674,9 +679,15 @@ function hasBioCertification(record = {}) {
   const body = String(record.organicControlBody || '').trim();
   const assoc = String(record.organicAssociation || '').trim();
   if (body) return true;
+  if (assoc === 'EU-Bio') return false;
   if (!assoc || assoc === 'Keine / Konventionell') return false;
   return true;
 }
+
+export const __traceabilityTestInternals = {
+  hasBioCertification,
+  normalizeOrganicAssociationForSave,
+};
 
 function formatBioCertificationSection(record = {}) {
   if (!hasBioCertification(record)) return '';
