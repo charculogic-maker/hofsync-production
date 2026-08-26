@@ -666,7 +666,7 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/customerOrders/{orderId} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isEmployeeOrAdmin(tenantId);
 
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
