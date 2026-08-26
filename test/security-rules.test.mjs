@@ -17,6 +17,8 @@ import {
   createRulesTestEnvironment,
   expectFirestoreAllow,
   expectFirestoreDeny,
+  expectStorageReadAllow,
+  expectStorageReadDeny,
   expectStorageUploadAllow,
   expectStorageUploadDeny,
   resetEmulatorData,
@@ -28,6 +30,7 @@ import {
   seedFirestoreDoc,
   tenantDocPath,
   chargenDokuObjectPath,
+  orderSlipObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -107,6 +110,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       TENANTS.TORFABRIK,
       'helper',
     );
+    const sampleCustomerOrder = (tenantId) => ({
+      customerName: 'Max Mustermann',
+      callbackPhone: '+49 123 456789',
+      readyAt: '2026-08-27',
+      items: [{ name: 'Bratwurst', quantity: 2, unit: 'Stk' }],
+      acceptedBy: 'Rules Test',
+      acceptedAt: '2026-08-26T10:00:00.000Z',
+      status: 'open',
+      tenantId,
+      createdAt: '2026-08-26T10:00:00.000Z',
+    });
 
     beforeEach(async () => {
       await seedFirestoreDoc(
@@ -124,6 +138,11 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
         sampleSettings(TENANTS.TORFABRIK),
       );
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'seed-order'),
+        sampleCustomerOrder(TENANTS.TORFABRIK),
+      );
     });
 
     it('allows helper to read tasks (teamboard) and mhd_liste (alarms)', async () => {
@@ -139,6 +158,26 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
         'read',
       );
+    });
+
+    it('denies helper read access to customer orders with contact data', async () => {
+      const helper = torfabrikHelper();
+      const employee = authContext(testEnv, 'tf-employee-order-read', TENANTS.TORFABRIK, 'employee');
+      const orderPath = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'seed-order');
+
+      await expectFirestoreAllow(employee, orderPath, 'read');
+      await expectFirestoreDeny(helper, orderPath, 'read');
+      await expectFirestoreDeny(helper, orderPath, 'list');
+    });
+
+    it('denies helper read access to uploaded order slips', async () => {
+      const helper = torfabrikHelper();
+      const employee = authContext(testEnv, 'tf-employee-slip', TENANTS.TORFABRIK, 'employee');
+      const objectPath = orderSlipObjectPath(TENANTS.TORFABRIK, 'seed-order.jpg');
+
+      await expectStorageUploadAllow(employee, objectPath);
+      await expectStorageReadAllow(employee, objectPath);
+      await expectStorageReadDeny(helper, objectPath);
     });
 
     it('denies helper writes to inventory', async () => {

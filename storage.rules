@@ -61,7 +61,7 @@ service firebase.storage {
     }
 
     match /tenants/{tenantId}/order_slips/{allPaths=**} {
-      allow read: if istTenantMitglied(tenantId);
+      allow read: if istMitarbeiter(tenantId);
       allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 

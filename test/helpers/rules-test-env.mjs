@@ -16,7 +16,7 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { ref, uploadBytes } from 'firebase/storage';
+import { getBytes, ref, uploadBytes } from 'firebase/storage';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..', '..');
@@ -153,6 +153,18 @@ export async function expectStorageUploadDeny(ctx, objectPath, contentType = 'im
   await assertFails(uploadBytes(objectRef, JPEG_BYTES, { contentType }));
 }
 
+export async function expectStorageReadAllow(ctx, objectPath) {
+  const storage = ctx.storage();
+  const objectRef = ref(storage, objectPath);
+  await assertSucceeds(getBytes(objectRef));
+}
+
+export async function expectStorageReadDeny(ctx, objectPath) {
+  const storage = ctx.storage();
+  const objectRef = ref(storage, objectPath);
+  await assertFails(getBytes(objectRef));
+}
+
 export function sampleMhdItem(tenantId) {
   return {
     name: 'Emulator Test Artikel',
@@ -193,6 +205,10 @@ export function sampleSettings(tenantId) {
 /** Production path is bulletin/ (singular) – see web/teamboard.js */
 export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;
+}
+
+export function orderSlipObjectPath(tenantId, fileName = 'order-slip.jpg') {
+  return `tenants/${tenantId}/order_slips/${fileName}`;
 }
 
 export function sampleTraceabilityRecord(tenantId, overrides = {}) {
