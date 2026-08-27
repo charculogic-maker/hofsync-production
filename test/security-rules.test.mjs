@@ -17,6 +17,8 @@ import {
   createRulesTestEnvironment,
   expectFirestoreAllow,
   expectFirestoreDeny,
+  expectStorageReadAllow,
+  expectStorageReadDeny,
   expectStorageUploadAllow,
   expectStorageUploadDeny,
   resetEmulatorData,
@@ -28,6 +30,7 @@ import {
   seedFirestoreDoc,
   tenantDocPath,
   chargenDokuObjectPath,
+  orderSlipObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -107,6 +110,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       TENANTS.TORFABRIK,
       'helper',
     );
+    const sampleCustomerOrder = (tenantId) => ({
+      customerName: 'Max Mustermann',
+      callbackPhone: '+49 123 456789',
+      readyAt: '2026-08-27',
+      items: [{ name: 'Bratwurst', quantity: 2, unit: 'Stk' }],
+      acceptedBy: 'Rules Test',
+      acceptedAt: '2026-08-26T10:00:00.000Z',
+      status: 'open',
+      tenantId,
+      createdAt: '2026-08-26T10:00:00.000Z',
+    });
 
     beforeEach(async () => {
       await seedFirestoreDoc(
@@ -124,6 +138,11 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
         sampleSettings(TENANTS.TORFABRIK),
       );
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'seed-order'),
+        sampleCustomerOrder(TENANTS.TORFABRIK),
+      );
     });
 
     it('allows helper to read tasks (teamboard) and mhd_liste (alarms)', async () => {
@@ -139,6 +158,26 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
         'read',
       );
+    });
+
+    it('denies helper read access to customer orders with contact data', async () => {
+      const helper = torfabrikHelper();
+      const employee = authContext(testEnv, 'tf-employee-order-read', TENANTS.TORFABRIK, 'employee');
+      const orderPath = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'seed-order');
+
+      await expectFirestoreAllow(employee, orderPath, 'read');
+      await expectFirestoreDeny(helper, orderPath, 'read');
+      await expectFirestoreDeny(helper, orderPath, 'list');
+    });
+
+    it('denies helper read access to uploaded order slips', async () => {
+      const helper = torfabrikHelper();
+      const employee = authContext(testEnv, 'tf-employee-slip', TENANTS.TORFABRIK, 'employee');
+      const objectPath = orderSlipObjectPath(TENANTS.TORFABRIK, 'seed-order.jpg');
+
+      await expectStorageUploadAllow(employee, objectPath);
+      await expectStorageReadAllow(employee, objectPath);
+      await expectStorageReadDeny(helper, objectPath);
     });
 
     it('denies helper writes to inventory', async () => {
@@ -227,6 +266,59 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
       );
+    });
+  });
+
+  describe('TEST CASE 2d: customer order status transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-1');
+
+    function sampleCustomerOrder(overrides = {}) {
+      return {
+        customerName: 'Testkunde',
+        callbackPhone: '012345',
+        readyAt: '2026-08-21T10:00',
+        items: [
+          { product: 'Salami', quantity: 1 },
+          { product: 'Fleischsalat', quantity: 2 },
+        ],
+        acceptedBy: 'Team',
+        acceptedAt: '2026-08-20T10:00:00.000Z',
+        status: 'open',
+        tenantId: TENANTS.STEVES_HOF,
+        createdAt: '2026-08-20T10:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('allows employee open-to-ready updates with pickupPlace and same-length weighed items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder());
+      const ctx = authContext(testEnv, 'sh-employee-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Team',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kühlschrank',
+        items: [
+          { product: 'Salami', quantity: 1, actualQuantity: 0.9 },
+          { product: 'Fleischsalat', quantity: 2, actualQuantity: 2.1 },
+        ],
+      });
+    });
+
+    it('denies pickup updates that rewrite order items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder({ status: 'ready' }));
+      const ctx = authContext(testEnv, 'sh-employee-pickup-rewrite', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Team',
+        pickedUpAt: serverTimestamp(),
+        items: [
+          { product: 'Salami', quantity: 1, actualQuantity: 0.9 },
+          { product: 'Fleischsalat', quantity: 2, actualQuantity: 2.1 },
+        ],
+      });
     });
   });
 

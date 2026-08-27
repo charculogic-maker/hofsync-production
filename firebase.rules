@@ -651,22 +651,52 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
-    function isCustomerOrderStatusUpdate() {
+    function hasSameCustomerOrderItemCount() {
+      return request.resource.data.items is list
+        && resource.data.items is list
+        && request.resource.data.items.size() == resource.data.items.size()
+        && isCustomerOrderItemsList(request.resource.data.items);
+    }
+
+    function isCustomerOrderOpenReadyUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
+        && resource.data.status == 'open'
+        && request.resource.data.status == 'ready'
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          !('pickupPlace' in request.resource.data.diff(resource.data).affectedKeys())
+          || isOptionalString(request.resource.data.pickupPlace)
+        )
+        && (
+          !('items' in request.resource.data.diff(resource.data).affectedKeys())
+          || hasSameCustomerOrderItemCount()
+        );
+    }
+
+    function isCustomerOrderStatusUpdate() {
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && isNonEmptyString(request.resource.data.status)
+        && (
+          isCustomerOrderOpenReadyUpdate()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+            ])
+            && (
+              (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+              || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+            )
+          )
         );
     }
 
     match /tenants/{tenantId}/customerOrders/{orderId} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isEmployeeOrAdmin(tenantId);
 
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([

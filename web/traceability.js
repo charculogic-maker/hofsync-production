@@ -502,7 +502,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: organicAssociationVal || '',
       imageUrl,
       animalType,
       origin,
@@ -675,6 +675,7 @@ function hasBioCertification(record = {}) {
   const assoc = String(record.organicAssociation || '').trim();
   if (body) return true;
   if (!assoc || assoc === 'Keine / Konventionell') return false;
+  if (assoc === 'EU-Bio') return false;
   return true;
 }
 
@@ -1003,4 +1004,9 @@ export function stopTraceabilityAdminView() {
   return stopChargenDokuBookView();
 }
 
-export { ANIMAL_TYPES, COUNTRY_OPTIONS, countrySelectHtml };
+export {
+  ANIMAL_TYPES,
+  COUNTRY_OPTIONS,
+  countrySelectHtml,
+  hasBioCertification,
+};
