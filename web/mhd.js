@@ -308,6 +308,29 @@ function alertFinalizeDeliveryFirestoreError(err, targetPath = 'unbekannt') {
   window.alert(`FEHLER BEIM ABSCHLIESSEN! Pfad: ${targetPath} - Details: ${details}${code}`);
 }
 
+function canCommitDeliveryFinalizeBatch() {
+  return Boolean(
+    typeof navigator !== 'undefined'
+    && navigator.onLine
+    && isFirebaseReady()
+    && mhdState.db?.batch
+  );
+}
+
+function isPermissionDeniedCode(err) {
+  return String(err?.code || '').toLowerCase().includes('permission-denied');
+}
+
+function withReceivingBatchTimeout(promise, ms = RECEIVING_BATCH_WRITE_TIMEOUT_MS) {
+  let timer;
+  const guarded = Promise.resolve(promise);
+  guarded.catch(() => {});
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Batch-Schreiben hat zu lange gedauert.')), ms);
+  });
+  return Promise.race([guarded, timeout]).finally(() => clearTimeout(timer));
+}
+
 function mhdCollectionPath() {
   return buildTenantScopedCollectionPath('mhd_liste');
 }
@@ -327,6 +350,7 @@ function serverTimestampFallback() {
 }
 
 const RECEIVING_SAVE_LOCK_MS = 1500;
+const RECEIVING_BATCH_WRITE_TIMEOUT_MS = 3500;
 
 function resolveTeamSessionDisplayName() {
   if (typeof window.resolveTeamSessionName === 'function') {
@@ -4778,44 +4802,74 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
+    const mhdRecords = currentDeliveryItems.map((item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
-      finalizeTargetPath = `${mhdPath}/${record.id}`;
-      const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdPath,
-        docId: record.id,
-        op: 'set',
-        onlineData: auditedRecord.onlineData,
-        queueData: auditedRecord.queueData,
-        offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
-      });
-      saveProductMaster(record);
-      return result;
+      return { record, auditedRecord };
     });
 
-    const mhdResults = await Promise.allSettled(mhdWrites);
-    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite) {
-      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
-      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
-      return;
+    let deliveryResult = 'written';
+    let mhdResults = [];
+    let batchCommitted = false;
+
+    if (canCommitDeliveryFinalizeBatch()) {
+      try {
+        const batch = mhdState.db.batch();
+        batch.set(mhdState.db.doc(`${deliveryPath}/${deliveryId}`), deliveryBundleOnline);
+        mhdRecords.forEach(({ record, auditedRecord }) => {
+          finalizeTargetPath = `${mhdPath}/${record.id}`;
+          batch.set(mhdState.db.doc(`${mhdPath}/${record.id}`), auditedRecord.onlineData);
+        });
+        await withReceivingBatchTimeout(batch.commit());
+        mhdRecords.forEach(({ record }) => {
+          saveProductMaster(record);
+        });
+        batchCommitted = true;
+      } catch (err) {
+        if (isPermissionDeniedCode(err)) throw err;
+        console.warn('[CharcuLogic MHD] Batch-Schreiben nicht bestätigt, Queue-Fallback:', err);
+      }
     }
+
+    if (!batchCommitted) {
+      const mhdWrites = mhdRecords.map(async ({ record, auditedRecord }) => {
+        finalizeTargetPath = `${mhdPath}/${record.id}`;
+        const result = await mhdState.writeOrQueueFirestore({
+          collectionPath: mhdPath,
+          docId: record.id,
+          op: 'set',
+          onlineData: auditedRecord.onlineData,
+          queueData: auditedRecord.queueData,
+          offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+        });
+        saveProductMaster(record);
+        return result;
+      });
+
+      mhdResults = await Promise.allSettled(mhdWrites);
+      const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
+      if (rejectedMhdWrite) {
+        console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
+        window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+        mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
+        maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
+        return;
+      }
+
+      deliveryResult = await mhdState.writeOrQueueFirestore({
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+        offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      });
+    }
+
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
