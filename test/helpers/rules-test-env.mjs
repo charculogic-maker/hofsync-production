@@ -190,6 +190,27 @@ export function sampleSettings(tenantId) {
   };
 }
 
+export function sampleTenantRoot(overrides = {}) {
+  return {
+    displayName: 'Emulator Test Betrieb',
+    status: 'active',
+    enabledModules: {
+      start: true,
+      team: true,
+      mhd: true,
+      receiving: true,
+      kitchen: true,
+      haccp: true,
+      knowledge: true,
+      buero: true,
+      chargenDoku: true,
+    },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 /** Production path is bulletin/ (singular) – see web/teamboard.js */
 export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;
