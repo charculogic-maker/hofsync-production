@@ -8636,6 +8636,15 @@ body.dev-dashboard-view[hidden] {
   word-break: break-all;
 }
 
+.dev-dashboard-tenant-action-note {
+  display: inline-flex;
+  max-width: 160px;
+  color: var(--text-muted, #64748b);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .dev-dashboard-toggles {
   display: flex;
   flex-wrap: wrap;

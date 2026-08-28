@@ -22,35 +22,50 @@ service cloud.firestore {
         : '';
     }
 
+    function tokenIsAdmin() {
+      return ('isAdmin' in request.auth.token)
+        && request.auth.token.isAdmin == true;
+    }
+
     function isTenantMember(tenantId) {
       return isAuthenticated()
         && tokenTenantId() == tenantId;
     }
 
-    function isAdmin(tenantId) {
+    function isActiveTenant(tenantId) {
+      return exists(/databases/$(database)/documents/tenants/$(tenantId))
+        && get(/databases/$(database)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
+    function isActiveTenantMember(tenantId) {
       return isTenantMember(tenantId)
+        && isActiveTenant(tenantId);
+    }
+
+    function isAdmin(tenantId) {
+      return isActiveTenantMember(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          tokenIsAdmin()
           || tokenRole() == 'admin'
         );
     }
 
     function isHelper(tenantId) {
-      return isTenantMember(tenantId)
+      return isActiveTenantMember(tenantId)
         && tokenRole() == 'helper';
     }
 
     function isEmployee(tenantId) {
-      return isTenantMember(tenantId)
+      return isActiveTenantMember(tenantId)
         && tokenRole() == 'employee';
     }
 
     function isEmployeeOrAdmin(tenantId) {
-      return isTenantMember(tenantId)
-        && !isHelper(tenantId)
+      return isActiveTenantMember(tenantId)
         && (
-          isAdmin(tenantId)
-          || isEmployee(tenantId)
+          tokenIsAdmin()
+          || tokenRole() == 'admin'
+          || tokenRole() == 'employee'
         );
     }
 
@@ -64,7 +79,7 @@ service cloud.firestore {
 
     // Legacy alias – tenant access requires matching Custom Claim tenantId
     function isTenantUser(tenantId) {
-      return isTenantMember(tenantId);
+      return isActiveTenantMember(tenantId);
     }
 
     // =========================================================================
@@ -138,7 +153,7 @@ service cloud.firestore {
       allow update: if isAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
         && request.resource.data.enabledModules is map;
-      allow delete: if isPlatformDevAdmin();
+      allow delete: if false;
     }
 
     // =========================================================================

@@ -23,6 +23,7 @@ import {
   sampleInventoryItem,
   sampleMhdItem,
   sampleSettings,
+  sampleTenantRoot,
   sampleTask,
   sampleTraceabilityRecord,
   seedFirestoreDoc,
@@ -43,6 +44,14 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
   beforeEach(async () => {
     await resetEmulatorData(testEnv);
+    await Promise.all([
+      seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, sampleTenantRoot({
+        displayName: 'TorFabrik',
+      })),
+      seedFirestoreDoc(testEnv, `tenants/${TENANTS.STEVES_HOF}`, sampleTenantRoot({
+        displayName: 'StevesHof',
+      })),
+    ]);
   });
 
   after(async () => {
@@ -377,6 +386,26 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectStorageUploadDeny(ctx, objectPath);
     });
 
+    it('denies storage upload when tenant is inactive or missing', async () => {
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, sampleTenantRoot({
+        displayName: 'TorFabrik',
+        status: 'inactive',
+      }));
+
+      const inactiveCtx = authContext(testEnv, 'tf-employee-storage-inactive', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadDeny(
+        inactiveCtx,
+        chargenDokuObjectPath(TENANTS.TORFABRIK, 'inactive.jpg'),
+      );
+
+      const missingTenantId = 'deleted-tenant';
+      const missingCtx = authContext(testEnv, 'deleted-tenant-storage', missingTenantId, 'employee');
+      await expectStorageUploadDeny(
+        missingCtx,
+        chargenDokuObjectPath(missingTenantId, 'orphaned.jpg'),
+      );
+    });
+
     it('documents that bulletins/ (plural) is not a configured storage rule path', async () => {
       const pluralPath = `tenants/${TENANTS.TORFABRIK}/bulletins/image.jpg`;
       const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TORFABRIK, 'admin');
@@ -551,29 +580,12 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     const PLATFORM_DEV_ADMIN_UID = 'VYwMy5IAlAR26pj8ZbFfc5PNdou2';
     const tenantRootPath = `tenants/${TENANTS.TORFABRIK}`;
 
-    const sampleTenantRoot = (overrides = {}) => ({
-      displayName: 'TorFabrik',
-      status: 'active',
-      enabledModules: {
-        start: true,
-        team: true,
-        mhd: true,
-        receiving: false,
-        kitchen: false,
-        haccp: false,
-        knowledge: false,
-        buero: false,
-        chargenDoku: true,
-      },
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      ...overrides,
-    });
-
     it('allows platform admin to create tenant with status active', async () => {
       const ctx = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(ctx, `tenants/new-saas-tenant`, 'create', sampleTenantRoot({
         displayName: 'New SaaS',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       }));
     });
 
@@ -594,15 +606,60 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(admin, tenantRootPath, 'update', { status: 'active' });
     });
 
-    it('allows platform admin delete and denies tenant admin delete', async () => {
+    it('denies root-only tenant delete for tenant and platform admins', async () => {
       await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
 
       const admin = authContext(testEnv, 'tf-admin-del', TENANTS.TORFABRIK, 'admin');
       await expectFirestoreDeny(admin, tenantRootPath, 'delete');
 
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
-      await expectFirestoreAllow(platform, tenantRootPath, 'delete');
+      await expectFirestoreDeny(platform, tenantRootPath, 'delete');
     });
+
+    it('denies operative access when tenant is inactive or root is missing', async () => {
+      await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot({
+        displayName: 'TorFabrik',
+        status: 'inactive',
+      }));
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+
+      const inactiveEmployee = authContext(testEnv, 'tf-employee-inactive', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        inactiveEmployee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-mhd'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        inactiveEmployee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'inactive-new'),
+        'create',
+        sampleMhdItem(TENANTS.TORFABRIK),
+      );
+
+      const missingTenantId = 'deleted-tenant';
+      await seedFirestoreDoc(
+        testEnv,
+        tenantDocPath(missingTenantId, 'mhd_liste', 'orphaned-mhd'),
+        sampleMhdItem(missingTenantId),
+      );
+      const missingRootEmployee = authContext(testEnv, 'deleted-employee', missingTenantId, 'employee');
+      await expectFirestoreDeny(
+        missingRootEmployee,
+        tenantDocPath(missingTenantId, 'mhd_liste', 'orphaned-mhd'),
+        'read',
+      );
+      await expectFirestoreDeny(
+        missingRootEmployee,
+        tenantDocPath(missingTenantId, 'mhd_liste', 'orphaned-new'),
+        'create',
+        sampleMhdItem(missingTenantId),
+      );
+    });
+
     it('denies Tenant-Admin of TorFabrik reading/writing StevesHof tenant root & modules', async () => {
       const stevesRoot = `tenants/${TENANTS.STEVES_HOF}`;
       await seedFirestoreDoc(testEnv, stevesRoot, sampleTenantRoot({

@@ -17,6 +17,7 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 | Tenant-Admin (A) | Modul-Toggle eigener Betrieb | Sofort sichtbar auf Geräten des Betriebs | Rules: Update nur `enabledModules`/`updatedAt` unter `tenants/A` |
 | Tenant-Admin (A) | Nutzer anlegen / Rolle ändern | Tabelle aktualisiert, Protokoll-Eintrag lokal | `createTenantEmployee` / `manageTenantEmployees` + App Check |
 | Super-Admin | `/dev-dashboard` | Plattform-Panel „Betriebe“, Tenant-Selector sichtbar | Platform-UID/E-Mail; Rules `isPlatformDevAdmin` |
+| Super-Admin | Betrieb auf **Inaktiv** stellen | Betrieb bleibt sichtbar, operative App-Zugriffe sind gesperrt | Firestore/Storage: Root existiert und `status != inactive` |
 | Ohne App-Check-Token | Callable `createTenantEmployee` / `manageTenantEmployees` | UI: generischer Fehler / Operator-Toast | HTTP 401/403 (Staging-Smoke) |
 | Tenant A User | Lesen/Schreiben `tenants/B/...` | Kein UI-Pfad | Rules Emulator: `PERMISSION_DENIED` |
 
@@ -25,7 +26,7 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 | Suite | Befehl | Deckt |
 |-------|--------|------|
 | Callable RBAC + PIN/Fleischpreis | `npm run test:functions:security` | `permission-denied` ohne Admin; Cross-Tenant-Admin; App-Check-Contract |
-| Firestore/Storage Rules | `npm run test:rules` | Cross-Tenant Isolation inkl. Tenant-Root Module |
+| Firestore/Storage Rules | `npm run test:rules` | Cross-Tenant Isolation inkl. Tenant-Root Module, Inaktiv-/Root-fehlt-Sperre |
 | Staging App-Check Smoke | `SECURITY_TEST_CALLABLE_BASE_URL=… npm run test:functions:security` | fehlendes/gefälschtes App-Check-Header |
 
 ## Kurz-Checkliste vor Merge
@@ -35,3 +36,4 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 - [ ] Manuell: Mitarbeiter sieht keinen Verwaltungs-Link
 - [ ] Manuell: Mitarbeiter `/dev-dashboard` → Redirect + Toast
 - [ ] Manuell: Tenant-Admin nur eigener Betrieb in Nutzerliste
+- [ ] Emulator: Inaktiver oder gelöschter Mandanten-Root sperrt operative Firestore-/Storage-Pfade

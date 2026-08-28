@@ -20,14 +20,28 @@ service firebase.storage {
         : '';
     }
 
+    function tokenIsAdmin() {
+      return ('isAdmin' in request.auth.token)
+        && request.auth.token.isAdmin == true;
+    }
+
     function istTenantMitglied(tenantId) {
       return istAngemeldet() && tokenTenantId() == tenantId;
     }
 
+    function istAktiverTenant(tenantId) {
+      return firestore.exists(/databases/(default)/documents/tenants/$(tenantId))
+        && firestore.get(/databases/(default)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
+    function istAktivesTenantMitglied(tenantId) {
+      return istTenantMitglied(tenantId) && istAktiverTenant(tenantId);
+    }
+
     function istAdmin(tenantId) {
-      return istTenantMitglied(tenantId)
+      return istAktivesTenantMitglied(tenantId)
         && (
-          request.auth.token.isAdmin == true
+          tokenIsAdmin()
           || tokenRole() == 'admin'
         );
     }
@@ -37,11 +51,12 @@ service firebase.storage {
     }
 
     function istMitarbeiter(tenantId) {
-      return istTenantMitglied(tenantId)
+      return istAktivesTenantMitglied(tenantId)
         && !istHelper()
         && (
           tokenRole() == 'employee'
-          || istAdmin(tenantId)
+          || tokenIsAdmin()
+          || tokenRole() == 'admin'
         );
     }
 
@@ -56,25 +71,25 @@ service firebase.storage {
 
     // App-Pfad: tenants/{tenantId}/bulletin/… (Singular, siehe teamboard.js)
     match /tenants/{tenantId}/bulletin/{allPaths=**} {
-      allow read: if istTenantMitglied(tenantId);
+      allow read: if istAktivesTenantMitglied(tenantId);
       allow write: if istAdmin(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
     match /tenants/{tenantId}/order_slips/{allPaths=**} {
-      allow read: if istTenantMitglied(tenantId);
+      allow read: if istAktivesTenantMitglied(tenantId);
       allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
     // Chargen-Doku Etikettfotos: tenants/{tenantId}/chargendoku/{recordId}.jpg
     match /tenants/{tenantId}/chargendoku/{allPaths=**} {
-      allow read: if istTenantMitglied(tenantId);
-      allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
+      allow read: if istAktivesTenantMitglied(tenantId);
+      allow write: if istAktivesTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
     // Legacy LMIV-Fotos (Migration)
     match /tenants/{tenantId}/traceability/{allPaths=**} {
-      allow read: if istTenantMitglied(tenantId);
-      allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
+      allow read: if istAktivesTenantMitglied(tenantId);
+      allow write: if istAktivesTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
   }
 }

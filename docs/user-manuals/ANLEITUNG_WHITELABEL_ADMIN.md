@@ -228,6 +228,8 @@ request.auth.token.role in ['admin','employee','helper']
 
 Payload-Felder `tenantId` in Dokumenten müssen dem Token entsprechen, sofern im Schema geprüft.
 
+Der Mandanten-Root `tenants/{tenantId}` muss existieren und darf keinen Status `inactive` haben. Erst dann geben Firestore- und Storage-Rules operative Unterpfade frei; ein reines Löschen des Root-Dokuments ist gesperrt, bis ein Backend-Prozess Daten und Zugänge vollständig bereinigt.
+
 ### 3.2 `system_errors` — Write-Only Client-Telemetrie
 
 Clients dürfen **nur anlegen**, nie lesen/ändern/löschen.
