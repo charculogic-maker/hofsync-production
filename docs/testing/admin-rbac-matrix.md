@@ -7,6 +7,8 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 
 | Rolle / Kontext | Ziel-Route / Aktion | Erwartetes UI-Verhalten | Backend-Grenze |
 |-----------------|---------------------|-------------------------|----------------|
+| Nicht angemeldet / Session lädt | Direktaufruf `/dev-dashboard` | Sofortige Fallback-Karte statt Weißfläche; Login-Button öffnet Betriebs-Login | Keine Auth → keine Rules-/Callable-Rechte |
+| Service Worker aktiv | Reload / Direktaufruf `/dev-dashboard` | `/index.html` wird als SPA-Shell geladen; kein 404 und kein leer gecachter Dashboard-Pfad | `web/sw.js` cached `/index.html`; Datenzugriff bleibt auth- und rules-geschützt |
 | Mitarbeiter / Helper | Sidebar / Bottom-Nav | Link **Verwaltung** ausgeblendet (`has-admin-nav` fehlt) | – |
 | Mitarbeiter / Helper | Klick auf `#nav-admin-dashboard` (falls manipulierbar) | Toast „Die Verwaltung ist nur für Betriebs-Admins.“, kein Wechsel | Callables/Rules blocken |
 | Mitarbeiter / Helper | Direktaufruf `/dev-dashboard` | Redirect auf `/` + Toast nach Reload | `useTenantAdminAuth()`; Callables `permission-denied` |
@@ -19,6 +21,14 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 | Super-Admin | `/dev-dashboard` | Plattform-Panel „Betriebe“, Tenant-Selector sichtbar | Platform-UID/E-Mail; Rules `isPlatformDevAdmin` |
 | Ohne App-Check-Token | Callable `createTenantEmployee` / `manageTenantEmployees` | UI: generischer Fehler / Operator-Toast | HTTP 401/403 (Staging-Smoke) |
 | Tenant A User | Lesen/Schreiben `tenants/B/...` | Kein UI-Pfad | Rules Emulator: `PERMISSION_DENIED` |
+
+## Direct-Route / PWA-Checks
+
+| Check | Erwartung | Codepfad |
+|-------|-----------|----------|
+| `/dev-dashboard` offline/mit kaltem Auth-State laden | Fallback-Karte bleibt sichtbar, bis Auth + Admin-Kontext bereit sind; kein endloser Auth-Wait | `tenant-admin-auth.js` → `renderFallbackUI`; `app.js` → `waitForFirebaseUser(2000)` / `waitForAuthReadyOrNull(2500)` |
+| Nach verbotenem Direktaufruf als Mitarbeiter | Browser landet auf `/`; Warn-Toast erscheint einmal nach Redirect | `useTenantAdminAuth()` setzt `charculogic_post_redirect_toast`; `consumeTenantAdminRedirectToast()` liest ihn |
+| Nach Rückkehr aus `/dev-dashboard` | App-Shell bleibt in Smartphone-/Laden-Ansicht, bis bewusst anders gewählt | `leaveDevDashboardToPhoneApp()` setzt `charculogic_prefer_phone_shell` |
 
 ## Automatisierte Suites
 
