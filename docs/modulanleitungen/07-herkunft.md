@@ -24,7 +24,7 @@ Offline: Unsere App speichert lokal und synchronisiert bei WLAN (*„Herkunftsei
 
 Unter **/dev-dashboard → Rückverfolgbarkeit**:
 
-- Tabelle aller `traceabilityRecords`
+- Tabelle aller `chargendoku`-Einträge (Legacy: `traceabilityRecords`)
 - Suche nach LOT / Kennzeichen, Filter nach Erfassungsdatum
 - Status umschalten: **Aktiv in Theke** ↔ **Archiviert**
 - Detail: Original-Etikettfoto + formatierte LMIV-Daten für Kontrollen
@@ -34,9 +34,9 @@ Unter **/dev-dashboard → Rückverfolgbarkeit**:
 
 | Thema | Wert |
 |-------|------|
-| Modul-Key | `enabledModules.traceability` / `modules.traceability` |
-| Firestore | `tenants/{tenantId}/traceabilityRecords/{id}` |
-| Storage | `tenants/{tenantId}/traceability/{recordId}.jpg` |
+| Modul-Key | `enabledModules.chargenDoku` / `modules.chargenDoku` (Legacy: `traceability`) |
+| Firestore | `tenants/{tenantId}/chargendoku/{id}` (Legacy: `traceabilityRecords`) |
+| Storage | `tenants/{tenantId}/chargendoku/{recordId}.jpg` |
 | Create/Read | Mandanten-Nutzer |
 | Status-Update | Admin |
 

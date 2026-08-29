@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
+> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`chargendoku`, Legacy: `traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -143,7 +143,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
-| `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
+| `chargendoku/{id}` | LMIV-Herkunft / Thekenklade (primär) | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
+| `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade (Legacy/Migration) | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
@@ -188,7 +189,7 @@ Claims setzen — siehe **§1.1**.
 
 ### 3.4 Storage-Rules (`storage.rules`)
 
-Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
+Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos primär unter `chargendoku/` (Legacy: `traceability/`): Mandanten-Mitglieder.
 
 **Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 

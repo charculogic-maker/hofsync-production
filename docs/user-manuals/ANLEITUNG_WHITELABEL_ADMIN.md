@@ -98,7 +98,7 @@ const TENANT_BRANDING = {
       wurstkueche: false,        // true → Tab Prod. / WRS
       haccp: true,
       orders: true,
-      traceability: true,        // Tab Herkunft + Thekenklade
+      chargenDoku: true,         // Tab Thekenbuch/Herkunft + Thekenklade
       batches: true,
       knowledge: false,
     },
@@ -121,7 +121,8 @@ const TENANT_BRANDING = {
 |------|---------------|
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang); `wareneingangMetzgerei` zusätzlich den Metzgerei-Modus |
-| `traceability` | Tab **Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
+| `chargenDoku` | Tab **Thekenbuch/Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
+| `traceability` | Legacy-Alias für bestehende Mandanten; neue Seeds/Dashboard-Speicherungen nutzen `chargenDoku` |
 | `wurstkueche` | Tab **Prod.** (Rezepte / WRS) |
 | `haccp` | Admin-Modul **HACCP** (und ggf. Team-Reiter Temperatur-Check, wenn Team aktiv) |
 | `orders` | Im Tab **Team** die Reiter **💬 Nachrichten** und **🛒 Bestellungen** |
@@ -130,7 +131,7 @@ const TENANT_BRANDING = {
 | `knowledge` / `cutGlossary` | Admin-Modul **Wissen** |
 | `retterBox` | Retter-Box-Angebot (mandantenspezifisch, rules-gestützt) |
 
-**`enabledModules`-Keys (Firestore):** `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`.
+**`enabledModules`-Keys (Firestore):** `start`, `team`, `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `chargenDoku`.
 
 **Tab Team — kombinierte Sichtbarkeit (Stand Juli 2026):**
 
