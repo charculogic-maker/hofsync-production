@@ -308,43 +308,86 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
-async function findStockDocForOrderItem(item) {
-  const col = stockCollectionRef();
+function stockRefKey(ref) {
+  return String(ref?.path || ref?.id || '');
+}
+
+async function querySingleStockRef(col, field, value, productLabel) {
+  const query = await col.where(field, '==', value).limit(2).get();
+  if (query.empty) return null;
+  if (query.docs.length > 1) {
+    throw new Error(`Mehrere Bestände für ${productLabel} gefunden. Bitte Stammdaten prüfen.`);
+  }
+  return query.docs[0].ref;
+}
+
+async function findStockDocForOrderItem(item, col = stockCollectionRef()) {
   if (!col) return null;
 
   const directId = stockItemIdFromOrderItem(item);
+  let directRef = null;
   if (directId) {
     const snap = await col.doc(directId).get();
-    if (snap.exists) return snap.ref;
+    if (snap.exists) directRef = snap.ref;
   }
 
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
-  if (!product) return null;
+  if (!product) return directRef;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const byProdukt = await querySingleStockRef(col, 'produkt', product, product);
+  const byName = await querySingleStockRef(col, 'name', product, product);
+  const candidates = [directRef, byProdukt, byName].filter(Boolean);
+  if (!candidates.length) return null;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const uniqueRefs = new Map();
+  candidates.forEach((ref) => {
+    uniqueRefs.set(stockRefKey(ref), ref);
+  });
+  if (uniqueRefs.size > 1) {
+    throw new Error(`Mehrere Bestände für ${product} gefunden. Bitte Stammdaten prüfen.`);
+  }
 
-  return null;
+  return candidates[0];
 }
 
-async function prepareStockDeductionsForOrder(order) {
+export async function prepareStockDeductionsForOrder(order, stockCol = stockCollectionRef()) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByRef = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    const ref = await findStockDocForOrderItem(item, stockCol);
+    if (!ref) {
+      throw new Error(`Kein Bestand für ${product} gefunden. Abholung nicht gespeichert.`);
+    }
+    const key = stockRefKey(ref);
+    const existing = deductionsByRef.get(key);
+    deductionsByRef.set(key, {
       ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      amount: (existing?.amount || 0) + amount,
+      product,
     });
   }
-  return deductions;
+  return Array.from(deductionsByRef.values());
+}
+
+export async function applyStockDeductionsInTransaction(transaction, deductions, firebaseApi) {
+  for (const deduction of deductions) {
+    const snap = await transaction.get(deduction.ref);
+    if (!snap.exists) {
+      throw new Error(`Bestand für ${deduction.product} wurde nicht gefunden. Abholung nicht gespeichert.`);
+    }
+    const currentStock = parseQuantityValue(snap.data()?.currentStock);
+    if (currentStock < deduction.amount) {
+      throw new Error(`Nicht genug Bestand für ${deduction.product}. Abholung nicht gespeichert.`);
+    }
+    const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
+    transaction.update(deduction.ref, {
+      currentStock: nextStock,
+      updatedAt: firebaseApi.firestore.FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -369,20 +412,7 @@ async function markOrderPickedUpWithStock(order, employee) {
       throw new Error('Bestellung ist noch nicht abholbereit.');
     }
 
-    const stockSnaps = [];
-    for (const deduction of deductions) {
-      stockSnaps.push({ deduction, snap: await transaction.get(deduction.ref) });
-    }
-
-    stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
-      const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
-      transaction.update(deduction.ref, {
-        currentStock: nextStock,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-    });
+    await applyStockDeductionsInTransaction(transaction, deductions, firebase);
 
     transaction.update(orderRef, {
       status: 'picked_up',

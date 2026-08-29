@@ -79,6 +79,39 @@ export async function seedFirestoreDoc(testEnv, docPath, data) {
   });
 }
 
+export async function deleteFirestoreDoc(testEnv, docPath) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await deleteDoc(doc(context.firestore(), docPath));
+  });
+}
+
+export function sampleTenantRoot(tenantId, overrides = {}) {
+  return {
+    displayName: tenantId === TENANTS.STEVES_HOF ? 'StevesHof' : 'TorFabrik',
+    status: 'active',
+    enabledModules: {
+      start: true,
+      team: true,
+      mhd: true,
+      receiving: false,
+      kitchen: false,
+      haccp: false,
+      knowledge: false,
+      buero: false,
+      chargenDoku: true,
+    },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+export async function seedStandardTenantRoots(testEnv) {
+  for (const tenantId of Object.values(TENANTS)) {
+    await seedFirestoreDoc(testEnv, `tenants/${tenantId}`, sampleTenantRoot(tenantId));
+  }
+}
+
 export async function expectFirestoreAllow(ctx, docPath, operation, payload = {}) {
   const db = ctx.firestore();
   const ref = doc(db, docPath);

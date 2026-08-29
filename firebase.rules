@@ -22,9 +22,15 @@ service cloud.firestore {
         : '';
     }
 
+    function isActiveTenantRoot(tenantId) {
+      return exists(/databases/$(database)/documents/tenants/$(tenantId))
+        && get(/databases/$(database)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
     function isTenantMember(tenantId) {
       return isAuthenticated()
-        && tokenTenantId() == tenantId;
+        && tokenTenantId() == tenantId
+        && isActiveTenantRoot(tenantId);
     }
 
     function isAdmin(tenantId) {
@@ -138,7 +144,7 @@ service cloud.firestore {
       allow update: if isAdmin(tenantId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
         && request.resource.data.enabledModules is map;
-      allow delete: if isPlatformDevAdmin();
+      allow delete: if false;
     }
 
     // =========================================================================
