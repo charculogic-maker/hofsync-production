@@ -210,7 +210,7 @@ Unsere Betriebsdaten (MHD, Lieferungen, HACCP, Herkunft/Thekenklade) liegen in *
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Digitale Thekenklade | `/dev-dashboard` → Tab **Rückverfolgbarkeit** |
-| Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `traceability`) oder Abstimmung in `web/branding.js` |
+| Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `chargenDoku`) oder Abstimmung in `web/branding.js` |
 
 ---
 
