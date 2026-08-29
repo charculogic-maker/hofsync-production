@@ -460,6 +460,10 @@ function resetCaptureForm() {
   syncOriginFieldsVisibility();
 }
 
+export function normalizeOrganicAssociationInput(value) {
+  return String(value || '').trim();
+}
+
 async function saveTraceabilityRecord() {
   const tenantId = resolveTenantId();
   const path = collectionPathFor(tenantId);
@@ -502,7 +506,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociationInput(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
@@ -670,11 +674,11 @@ function formatOriginForInspectors(origin = {}, animalType = '') {
   return `<dl class="trace-detail-dl">${rows.join('')}</dl>`;
 }
 
-function hasBioCertification(record = {}) {
+export function hasBioCertification(record = {}) {
   const body = String(record.organicControlBody || '').trim();
   const assoc = String(record.organicAssociation || '').trim();
   if (body) return true;
-  if (!assoc || assoc === 'Keine / Konventionell') return false;
+  if (!assoc || assoc === 'Keine / Konventionell' || assoc === 'EU-Bio') return false;
   return true;
 }
 

@@ -20,8 +20,15 @@ service firebase.storage {
         : '';
     }
 
+    function istAktiverMandant(tenantId) {
+      return firestore.exists(/databases/(default)/documents/tenants/$(tenantId))
+        && firestore.get(/databases/(default)/documents/tenants/$(tenantId)).data.status != 'inactive';
+    }
+
     function istTenantMitglied(tenantId) {
-      return istAngemeldet() && tokenTenantId() == tenantId;
+      return istAngemeldet()
+        && tokenTenantId() == tenantId
+        && istAktiverMandant(tenantId);
     }
 
     function istAdmin(tenantId) {
