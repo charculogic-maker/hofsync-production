@@ -651,17 +651,46 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
+    function isCustomerOrderOpenToReadyUpdate() {
+      return resource.data.status == 'open'
+        && request.resource.data.status == 'ready'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickupPlace', 'items'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickupPlace'])
+          || request.resource.data.pickupPlace is string
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+          || (
+            resource.data.items is list
+            && request.resource.data.items is list
+            && request.resource.data.items.size() == resource.data.items.size()
+          )
+        );
+    }
+
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          isCustomerOrderOpenToReadyUpdate()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'pickedUpBy', 'pickedUpAt'
+            ])
+            && resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status'
+            ])
+            && resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+          )
         );
     }
 
