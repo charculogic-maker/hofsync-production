@@ -30,6 +30,11 @@ const ORGANIC_ASSOCIATION_OPTIONS = new Set([
   'Keine / Konventionell',
 ]);
 
+function normalizeOrganicAssociationForSave(value) {
+  const normalized = String(value || '').trim();
+  return ORGANIC_ASSOCIATION_OPTIONS.has(normalized) ? normalized : '';
+}
+
 const COUNTRY_OPTIONS = [
   { value: 'Deutschland', label: 'Deutschland' },
   { value: 'Österreich', label: 'Österreich' },
@@ -502,7 +507,7 @@ async function saveTraceabilityRecord() {
       lotNumber,
       healthMark,
       organicControlBody: organicControlBodyVal || '',
-      organicAssociation: organicAssociationVal || 'EU-Bio',
+      organicAssociation: normalizeOrganicAssociationForSave(organicAssociationVal),
       imageUrl,
       animalType,
       origin,
@@ -675,6 +680,7 @@ function hasBioCertification(record = {}) {
   const assoc = String(record.organicAssociation || '').trim();
   if (body) return true;
   if (!assoc || assoc === 'Keine / Konventionell') return false;
+  if (assoc === 'EU-Bio') return false;
   return true;
 }
 
@@ -997,6 +1003,11 @@ export function stopChargenDokuBookView() {
     traceState.adminUnsubscribe = null;
   }
 }
+
+export const __traceabilityTest = {
+  hasBioCertification,
+  normalizeOrganicAssociationForSave,
+};
 
 /** @deprecated Use stopChargenDokuBookView */
 export function stopTraceabilityAdminView() {

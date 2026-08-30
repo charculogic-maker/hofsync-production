@@ -294,57 +294,81 @@ function quantityForStock(item) {
   return parseQuantityValue(item?.quantity);
 }
 
-function stockItemIdFromOrderItem(item) {
+function directStockDocIdFromOrderItem(item) {
   return String(
     item?.stockItemId
     || item?.stammdatenId
     || item?.artikelId
     || item?.articleId
     || item?.productId
-    || item?.ean
-    || item?.barcode
-    || item?.sku
     || ''
   ).trim();
 }
 
-async function findStockDocForOrderItem(item) {
-  const col = stockCollectionRef();
-  if (!col) return null;
+function stockLookupLabel(item) {
+  return String(item?.product || item?.produkt || item?.name || 'Artikel').trim() || 'Artikel';
+}
 
-  const directId = stockItemIdFromOrderItem(item);
+async function queryStockRefsByField(col, field, value) {
+  const needle = String(value || '').trim();
+  if (!needle) return [];
+  const snap = await col.where(field, '==', needle).limit(2).get();
+  return snap.docs.map((doc) => doc.ref);
+}
+
+async function findStockDocRefsForOrderItem(item) {
+  const col = stockCollectionRef();
+  if (!col) return [];
+
+  const directId = directStockDocIdFromOrderItem(item);
   if (directId) {
     const snap = await col.doc(directId).get();
-    if (snap.exists) return snap.ref;
+    if (snap.exists) return [snap.ref];
   }
 
-  const product = String(item?.product || item?.produkt || item?.name || '').trim();
-  if (!product) return null;
+  const barcodeRefs = [
+    ...(await queryStockRefsByField(col, 'ean', item?.ean)),
+    ...(await queryStockRefsByField(col, 'barcode', item?.barcode)),
+    ...(await queryStockRefsByField(col, 'sku', item?.sku)),
+  ];
+  if (barcodeRefs.length) return barcodeRefs;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const product = stockLookupLabel(item);
+  if (product === 'Artikel') return [];
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const byProdukt = await queryStockRefsByField(col, 'produkt', product);
+  if (byProdukt.length) return byProdukt;
 
-  return null;
+  const byName = await queryStockRefsByField(col, 'name', product);
+  if (byName.length) return byName;
+
+  return [];
 }
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByPath = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
-    if (!amount) continue;
-    const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
-      ref,
-      amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
-    });
+    if (!(amount > 0)) continue;
+    const product = stockLookupLabel(item);
+    const refs = await findStockDocRefsForOrderItem(item);
+    if (!refs.length) {
+      throw new Error(`Kein Lagerbestand für ${product} gefunden.`);
+    }
+    const uniqueRefs = new Map(refs.map((ref) => [ref.path || ref.id, ref]));
+    if (uniqueRefs.size !== 1) {
+      throw new Error(`Lagerbestand für ${product} ist nicht eindeutig.`);
+    }
+    const [path, ref] = uniqueRefs.entries().next().value;
+    const existing = deductionsByPath.get(path);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+    } else {
+      deductionsByPath.set(path, { ref, amount, product });
+    }
   }
-  return deductions;
+  return Array.from(deductionsByPath.values());
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,8 +399,13 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Kein Lagerbestand für ${deduction.product} gefunden.`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
+      if (currentStock + 0.0001 < deduction.amount) {
+        throw new Error(`Nicht genug Lagerbestand für ${deduction.product}.`);
+      }
       const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
       transaction.update(deduction.ref, {
         currentStock: nextStock,
@@ -1479,3 +1508,11 @@ export function activateCustomerOrdersTab() {
   renderProductionTasks();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
 }
+
+export const __customerOrdersTest = {
+  markOrderPickedUpWithStock,
+  prepareStockDeductionsForOrder,
+  setState(overrides = {}) {
+    Object.assign(orderState, overrides);
+  },
+};

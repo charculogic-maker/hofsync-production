@@ -532,6 +532,87 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 6b: customer order employee transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.TORFABRIK, 'customerOrders', 'order-transition');
+    const foreignOrderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-foreign');
+
+    const sampleCustomerOrder = (tenantId, overrides = {}) => ({
+      tenantId,
+      customerName: 'Testkunde',
+      callbackPhone: '012345678',
+      customerEmail: '',
+      readyAt: '31.08.2026 11:00',
+      items: [
+        { product: 'Rinderhack', quantity: '1', unit: 'kg' },
+      ],
+      additionalWishes: '',
+      orderSlipAttachments: [],
+      inputMode: 'manual',
+      acceptedBy: 'Mia',
+      acceptedAt: serverTimestamp(),
+      status: 'open',
+      createdAt: serverTimestamp(),
+      ...overrides,
+    });
+
+    it('allows own-tenant employee open to ready update with pickup place and weighed items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder(TENANTS.TORFABRIK));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-ready', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreAllow(ctx, orderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Mia',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kuehlschrank',
+        items: [
+          {
+            product: 'Rinderhack',
+            quantity: '1',
+            unit: 'kg',
+            actualQuantity: '0,85',
+            actualQuantityUnit: 'kg',
+          },
+        ],
+      });
+    });
+
+    it('denies employee open to ready update across tenants', async () => {
+      await seedFirestoreDoc(testEnv, foreignOrderPath, sampleCustomerOrder(TENANTS.STEVES_HOF));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-cross', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(ctx, foreignOrderPath, 'update', {
+        status: 'ready',
+        readyMarkedBy: 'Mia',
+        readyMarkedAt: serverTimestamp(),
+        pickupPlace: 'Laden-Kuehlschrank',
+      });
+    });
+
+    it('denies pickup status updates that rewrite order items', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, sampleCustomerOrder(TENANTS.TORFABRIK, {
+        status: 'ready',
+        readyMarkedBy: 'Mia',
+        readyMarkedAt: serverTimestamp(),
+      }));
+
+      const ctx = authContext(testEnv, 'tf-employee-order-pickup', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(ctx, orderPath, 'update', {
+        status: 'picked_up',
+        pickedUpBy: 'Mia',
+        pickedUpAt: serverTimestamp(),
+        items: [
+          {
+            product: 'Rinderhack',
+            quantity: '1',
+            unit: 'kg',
+            actualQuantity: '0,25',
+            actualQuantityUnit: 'kg',
+          },
+        ],
+      });
+    });
+  });
+
   describe('TEST CASE 7: pushTokens read lockout', () => {
     it('denies employee read on pushTokens', async () => {
       const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TORFABRIK, 'employee');
