@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260725-211-chargendoku';
+const CACHE_NAME = 'charculogic-v20260831-212-vercel-pwa';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -51,6 +51,7 @@ const SCANNER_LIBS = [
 
 const OPTIONAL_ASSETS = [
   '/manifest.json',
+  '/datenschutz.html',
   '/vpe-master.csv',
   '/data/beffe_data.json',
 ];
@@ -210,6 +211,7 @@ self.addEventListener('fetch', (event) => {
     pathname.endsWith('/index.html')
     || pathname.endsWith('.css')
     || pathname.endsWith('.js')
+    || pathname.endsWith('.html')
     || pathname.endsWith('/manifest.json')
     || pathname.endsWith('/vpe-master.csv')
     || pathname.endsWith('/data/beffe_data.json')
@@ -217,13 +219,12 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/')
   );
 
-  // SPA-Shell: /dev-dashboard muss immer index.html liefern (auch ohne navigate-Mode).
-  const isNavigation = request.mode === 'navigate'
-    || pathname.endsWith('/')
+  // App-Shell nur fuer echte SPA-Pfade — nicht fuer /datenschutz.html, /sw.js oder andere Dateien.
+  const isAppShellPath = pathname === '/'
     || pathname.endsWith('/index.html')
     || isSpaShellPath;
 
-  if (isNavigation && isOwnOrigin) {
+  if (isAppShellPath && isOwnOrigin) {
     // Immer die App-Shell (index.html) laden — nie eine leere /dev-dashboard-Antwort cachen.
     const shellRequest = new Request('/index.html', {
       headers: request.headers,
