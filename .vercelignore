@@ -1,0 +1,28 @@
+# Flutter-Legacy darf Vercel nicht als Dart-Projekt behandeln.
+lib/
+
+# Cloud Functions und Tests gehören nicht ins statische PWA-Hosting.
+functions/
+test/
+
+# Interne Doku und Agent-Artefakte
+docs/
+.agents/
+.cursor/
+.firebase/
+.firebase-cli/
+.tmp
+.tmp-*
+
+# Schwere Import-CSVs (BEFFE-Quellen bleiben über data/ im Build)
+/MHD-Daten_KW22-2026.csv
+/mhd-import.csv
+google-sync.gs
+force-claims.js
+
+# Lokale Installationen — der PWA-Build nutzt nur Node-Builtins.
+node_modules/
+playwright-report/
+coverage/
+dist/
+.vercel/
