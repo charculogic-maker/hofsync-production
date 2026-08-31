@@ -53,6 +53,10 @@ node_modules/
 # Optional eslint cache
 .eslintcache
 
+# Vercel PWA output
+dist/
+.vercel/
+
 # Optional REPL history
 .node_repl_history
 
