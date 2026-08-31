@@ -1,0 +1,31 @@
+# Flutter-Prototyp und Backend dürfen die statische PWA-Erkennung nicht stören
+lib/
+functions/
+.firebase/
+.firebase-cli/
+.agents/
+.cursor/
+.tmp/
+.tmp-config/
+.tmp-firebase-config/
+.tmp-home/
+.tmp-npm-cache/
+.tools/
+test/
+docs/
+public/
+scripts/
+
+# Schwere / ungenutzte Artefakte, die den Upload aufblasen oder den Build stören
+node_modules/
+/MHD-Daten_KW22-2026.csv
+/mhd-import.csv
+google-sync.gs
+alert-policy.json
+force-claims.js
+firestore-debug.log
+**/*.log
+server-err.log
+server-out.log
+**/.DS_Store
+**/Thumbs.db
