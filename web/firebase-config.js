@@ -38,6 +38,13 @@ export const FIREBASE_PROJECTS = {
   },
 };
 
+/**
+ * Firebase Auth authorizedDomains enthält bereits hofsync.vercel.app.
+ * Der Browser-API-Key braucht zusätzlich HTTP-Referrer:
+ * https://hofsync.vercel.app/* und https://*.vercel.app/*
+ * Sonst: 403 API_KEY_HTTP_REFERRER_BLOCKED (Login von Vercel schlägt fehl).
+ */
+
 const SDK_CONFIG_KEYS = [
   'apiKey',
   'authDomain',

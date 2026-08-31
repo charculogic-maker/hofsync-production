@@ -10,6 +10,8 @@ import {
   scopedTeamboardStorageKey,
 } from './teamboard-storage.js';
 import { isTenantAdminRoute } from './tenant-admin-auth.js';
+import { isLocalDevHost, resolveFirebaseConfig } from './firebase-config.js';
+import { describeAuthError, logAuthFailure } from './auth-errors.js';
 
 const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
 
@@ -245,6 +247,13 @@ function ensureLoginOverlay() {
         <div class="auth-lock-brand brand-app-name"></div>
         <h1 id="auth-lock-title"><span class="brand-betriebs-name"></span></h1>
         <p class="auth-lock-tagline"></p>
+        <p class="auth-lock-help" id="auth-lock-help">
+          <strong>E-Mail und Passwort</strong> sind das Firebase-Konto des Betriebs
+          (Sichtprüfung: Laden-Terminal <code>bestellung@steveshof-hofladen.de</code>, Mandant StevesHof_Hauptbetrieb)
+          oder ein persönliches Admin-Konto. Das Passwort bleibt intern und steht nicht in der App.
+          <strong>Geräte-Zugang</strong> ist ein Custom Token, kein Passwort und keine PIN.
+          Mitarbeiter-PINs gelten erst nach diesem Betriebs-Login im Tab Start/Team.
+        </p>
         <form id="auth-login-form" class="auth-lock-form">
           <label>
             <span>E-Mail</span>
@@ -257,7 +266,7 @@ function ensureLoginOverlay() {
           <button type="submit">Anmelden</button>
         </form>
         <details class="auth-token-panel">
-          <summary>Geräte-Zugang verwenden</summary>
+          <summary>Geräte-Zugang verwenden (Custom Token)</summary>
           <form id="auth-token-form" class="auth-lock-form">
             <label>
               <span>Zugangscode</span>
@@ -266,6 +275,7 @@ function ensureLoginOverlay() {
             <button type="submit">Mit Zugangscode anmelden</button>
           </form>
         </details>
+        <p class="auth-lock-meta" id="auth-lock-meta"></p>
         <div id="auth-login-error" class="auth-lock-error" role="alert"></div>
       </div>
     `;
@@ -323,6 +333,20 @@ function ensureLoginOverlay() {
         color: #cbd5e1;
         line-height: 1.45;
         margin: 0 0 20px;
+      }
+      .auth-lock-help {
+        font-size: 13px;
+        color: #94a3b8 !important;
+        margin: 0 0 18px !important;
+      }
+      .auth-lock-help code {
+        font-size: 12px;
+        color: #e2e8f0;
+      }
+      .auth-lock-meta {
+        margin: 14px 0 0 !important;
+        font-size: 12px;
+        color: #64748b !important;
       }
       .auth-lock-form {
         display: grid;
@@ -386,23 +410,26 @@ function ensureLoginOverlay() {
     window.applyBranding();
   }
 
+  if (overlay.dataset.authFormsBound === '1') return;
+  overlay.dataset.authFormsBound = '1';
+
   document.getElementById('auth-login-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     setAuthError('');
     const email = document.getElementById('auth-login-email')?.value.trim();
     const password = document.getElementById('auth-login-password')?.value || '';
+    const config = resolveFirebaseConfig();
     try {
+      console.info('[CharcuLogic Auth] Login wird gesendet', {
+        email,
+        host: window.location?.hostname,
+        projectId: config.projectId,
+        authDomain: config.authDomain,
+      });
       await loginTenant(email, password);
     } catch (err) {
-      console.warn('[CharcuLogic Auth] Anmeldung fehlgeschlagen:', err);
-      const message = String(err?.message || '');
-      if (message.includes('Mandant')) {
-        setAuthError(message);
-      } else if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found') {
-        setAuthError('Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.');
-      } else {
-        setAuthError('Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.');
-      }
+      logAuthFailure('E-Mail/Passwort-Anmeldung fehlgeschlagen', err, config);
+      setAuthError(describeAuthError(err, window.location?.hostname));
     }
   });
 
@@ -410,11 +437,17 @@ function ensureLoginOverlay() {
     event.preventDefault();
     setAuthError('');
     const token = document.getElementById('auth-login-token')?.value.trim();
+    const config = resolveFirebaseConfig();
     try {
+      console.info('[CharcuLogic Auth] Geräte-Zugang wird geprüft', {
+        host: window.location?.hostname,
+        projectId: config.projectId,
+        tokenLength: token.length,
+      });
       await loginWithToken(token);
     } catch (err) {
-      console.warn('[CharcuLogic Auth] Token-Anmeldung fehlgeschlagen:', err);
-      setAuthError('Geräte-Zugang fehlgeschlagen. Bitte Zugangscode prüfen.');
+      logAuthFailure('Token-Anmeldung fehlgeschlagen', err, config);
+      setAuthError(describeAuthError(err, window.location?.hostname));
     }
   });
 }
@@ -443,6 +476,34 @@ function bindHeaderLogoutButton() {
   });
 }
 
+function updateAuthLockMeta() {
+  const meta = document.getElementById('auth-lock-meta');
+  if (!meta) return;
+  const config = resolveFirebaseConfig();
+  const host = window.location?.hostname || 'unbekannt';
+  const localHint = isLocalDevHost(host)
+    ? ' Lokaler Dev: Emulator-PINs stehen in der Ausgabe von npm run dev:local.'
+    : '';
+  meta.textContent = `Firebase: ${config.projectId} · Auth-Domain: ${config.authDomain} · Host: ${host}.${localHint}`;
+}
+
+async function probeAuthBackendReachable() {
+  const config = resolveFirebaseConfig();
+  if (!config?.apiKey) return;
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getProjectConfig?key=${encodeURIComponent(config.apiKey)}`,
+    );
+    if (response.status === 403) {
+      const err = { code: 'auth/unauthorized-domain', message: 'API_KEY_HTTP_REFERRER_BLOCKED' };
+      logAuthFailure('Identity Toolkit Referrer blockiert', err, config);
+      setAuthError(describeAuthError(err, window.location?.hostname));
+    }
+  } catch (err) {
+    logAuthFailure('Identity Toolkit Probe fehlgeschlagen', err, config);
+  }
+}
+
 function showLoginOverlay(message = '') {
   ensureLoginOverlay();
   // Über dem Dev-Dashboard-Fallback (z-index 2147483000) liegen.
@@ -450,7 +511,9 @@ function showLoginOverlay(message = '') {
   authState.overlay.classList.add('active');
   document.documentElement.dataset.authenticatedTenant = '';
   document.body?.classList.add('auth-lock-open');
+  updateAuthLockMeta();
   setAuthError(message);
+  void probeAuthBackendReachable();
   try {
     document.getElementById('auth-login-email')?.focus();
   } catch (_) { /* noop */ }
@@ -662,14 +725,14 @@ export async function initAuthModule(firebaseInstance, databaseInstance, { showH
       document.body.classList.remove('auth-pending');
       authContext = null;
       setGlobalTenantId(null);
-      console.warn('[CharcuLogic Auth] Mandant konnte nicht ermittelt werden:', err);
+      logAuthFailure('Mandant konnte nach Login nicht ermittelt werden', err, resolveFirebaseConfig());
       if (isTenantAdminRoute()) {
         hideLoginOverlay();
         try {
           window.dispatchEvent(new CustomEvent('charculogic:auth-required', { detail: { route: 'dev-dashboard' } }));
         } catch (_) { /* noop */ }
       } else {
-        showLoginOverlay('Anmeldung ist noch nicht vollständig eingerichtet. Bitte im Büro Bescheid geben.');
+        showLoginOverlay(describeAuthError(err, window.location?.hostname));
       }
     }
   });

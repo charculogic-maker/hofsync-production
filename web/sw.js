@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260725-211-chargendoku';
+const CACHE_NAME = 'charculogic-v20260831-auth-errors';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -24,6 +24,7 @@ const CRITICAL_ASSETS = [
   '/team-notify.js',
   '/customer-orders.js',
   '/auth.js',
+  '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
   '/retter-box.js',
@@ -262,6 +263,7 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/dev-dashboard.js')
     || pathname.endsWith('/tenant-admin-auth.js')
     || pathname.endsWith('/auth.js')
+    || pathname.endsWith('/auth-errors.js')
     || pathname.endsWith('/sw.js')
   );
   if (isCoreModule) {
