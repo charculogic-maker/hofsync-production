@@ -118,7 +118,18 @@ export function logProjectIsolation(firebaseApi = typeof firebase !== 'undefined
   const expectedProjectId = resolveFirebaseConfig().projectId;
   const activeProjectId = String(firebaseApi?.app?.()?.options?.projectId || expectedProjectId).trim();
 
+  const host = typeof window !== 'undefined' ? String(window.location?.hostname || '') : '';
+  const sdk = firebaseApi?.app?.()?.options || {};
+
   console.info(`[System] Initialisiert für: ${displayName}`);
+  console.info('[System] Auth-Ziel', {
+    host: host || '(kein Browser-Host)',
+    projectKey,
+    projectId: activeProjectId,
+    authDomain: sdk.authDomain || resolveFirebaseConfig().authDomain,
+    apiKeyPrefix: String(sdk.apiKey || resolveFirebaseConfig().apiKey || '').slice(0, 8),
+    localhostHardwired: false,
+  });
 
   if (activeProjectId && activeProjectId !== expectedProjectId) {
     console.error(
