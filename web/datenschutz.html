@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Datenschutzerklärung · HofSync</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      line-height: 1.6;
+      padding: 24px 16px 48px;
+    }
+    main { max-width: 44rem; margin: 0 auto; }
+    h1 { font-size: 1.75rem; margin: 0 0 8px; }
+    h2 { font-size: 1.05rem; margin: 28px 0 8px; }
+    p, li { color: #334155; }
+    a { color: #1d4ed8; }
+    .meta { color: #64748b; font-size: 0.9rem; margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Datenschutzerklärung</h1>
+    <p class="meta">HofSync / CharcuLogic · Stand: 31. August 2026</p>
+
+    <h2>1. Verantwortlicher</h2>
+    <p>
+      Verantwortlich im Sinne der DSGVO ist die <strong>Charculogic UG (haftungsbeschränkt) i.Gr.</strong>,
+      vertreten durch Patrik Rehm, Albrechtplatz 23, 47799 Krefeld.
+      Kontakt: <a href="mailto:patrik@charculogic.de">patrik@charculogic.de</a>
+    </p>
+
+    <h2>2. Hosting und Betriebsdaten (Firebase)</h2>
+    <p>
+      Die Betriebs-App wird über Firebase (Google Ireland Limited) bereitgestellt
+      (Hosting, Authentifizierung, Firestore, Storage). Mandantendaten (Bestände, MHD,
+      Produktions- und Wareneingangsdaten) werden zur Vertragserfüllung gespeichert.
+      Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+    </p>
+
+    <h2>3. Gemini-OCR für Lieferschein-Scan</h2>
+    <p>
+      Wenn im Wareneingang die Funktion <strong>„Lieferschein scannen (KI)“</strong> bzw.
+      <strong>„Lieferschein fotografieren / hochladen“</strong> genutzt wird, übermittelt
+      die App das Foto oder PDF des Lieferscheins an eine Cloud Function und von dort an die
+      <strong>Google Gemini API</strong> (Google Ireland Limited / Google LLC) zur optischen
+      Zeichenerkennung (OCR).
+    </p>
+    <p>
+      <strong>Verarbeitungszweck:</strong> automatische Extraktion von Artikelzeilen
+      (Bezeichnung, Menge, Kategorie) aus dem Lieferschein, damit der Wareneingang
+      dokumentiert und der Bestand fortgeschrieben werden kann. Es handelt sich um eine
+      betriebliche Hilfsfunktion, nicht um Profiling oder Werbung.
+    </p>
+    <p>
+      <strong>Datenarten:</strong> Bild- bzw. PDF-Inhalt des Lieferscheins. Darauf können
+      Lieferantenname, Anschrift, Bestell- und Lieferscheinnummern sowie Warenpositionen
+      stehen. Personenbezogene Daten Dritter (z.&nbsp;B. Unterschriften, Fahrerangaben)
+      werden nur mitverarbeitet, soweit sie auf dem Beleg sichtbar sind.
+    </p>
+    <p>
+      <strong>Empfänger:</strong> Google als Auftragsverarbeiter der Gemini-API.
+      Die strukturierten OCR-Ergebnisse werden anschließend im Mandantenpfad in Firebase
+      Firestore gespeichert. Soweit Google LLC (USA) eingebunden ist, erfolgt die
+      Übermittlung auf Grundlage der EU-Standardvertragsklauseln (Art. 46 DSGVO).
+      Rechtsgrundlage der Verarbeitung: Art. 6 Abs. 1 lit. b DSGVO (Erfüllung des
+      Nutzungsvertrags über die Betriebssoftware) sowie Art. 6 Abs. 1 lit. f DSGVO
+      (berechtigtes Interesse an einer effizienten, nachvollziehbaren Wareneingangserfassung).
+      Die Nutzung der Scan-Funktion ist freiwillig; der Wareneingang kann weiterhin manuell
+      erfasst werden.
+    </p>
+
+    <h2>4. Weitere KI-Verarbeitungen</h2>
+    <p>
+      Optional können Etikettfotos (Herkunft / LMIV) und öffentlich verfügbare
+      Marktpreisinformationen ebenfalls über Gemini ausgewertet werden. Zweck ist die
+      Rückverfolgbarkeit bzw. die Aktualisierung betrieblicher Einkaufspreise, nicht die
+      Erstellung von Persönlichkeitsprofilen. Rechtsgrundlage: Art. 6 Abs. 1 lit. b und lit. f DSGVO.
+    </p>
+
+    <h2>5. Speicherdauer</h2>
+    <p>
+      Betriebsdaten bleiben gespeichert, solange das Mandantenkonto aktiv ist und gesetzliche
+      Aufbewahrungspflichten (z.&nbsp;B. lebensmittelrechtliche Dokumentation) dies erfordern.
+      OCR-Zwischenergebnisse werden nicht länger vorgehalten als für die Einbuchung und
+      Nachvollziehbarkeit des Wareneingangs nötig.
+    </p>
+
+    <h2>6. Rechte der betroffenen Personen</h2>
+    <p>
+      Es bestehen die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der
+      Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie das
+      Beschwerderecht bei der zuständigen Aufsichtsbehörde (LDI NRW).
+      Anfragen an: <a href="mailto:patrik@charculogic.de">patrik@charculogic.de</a>
+    </p>
+  </main>
+</body>
+</html>
