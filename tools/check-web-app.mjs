@@ -10,7 +10,7 @@ const webDir = path.join(projectRoot, 'web');
 const indexPath = path.join(webDir, 'index.html');
 const manifestPath = path.join(webDir, 'manifest.json');
 const swPath = path.join(webDir, 'sw.js');
-const totalChecks = 6;
+const totalChecks = 7;
 
 function fail(message, details = '') {
   console.error(`\n[CharcuLogic] ${message}`);
@@ -242,6 +242,35 @@ async function checkAntiRegressionMarkers() {
   console.log('  OK keine alten Logout- oder Debug-Marker gefunden');
 }
 
+async function checkRequiredDeployAssets() {
+  logStep(`Check 7/${totalChecks}: Pflicht-Assets fuer PWA-Deploy werden geprueft...`);
+  const requiredFiles = [
+    'beffe_calc.js',
+    'datenschutz.html',
+    'manifest.json',
+    'icon-192.png',
+    'icon-512.png',
+    'sw.js',
+    'index.html',
+    path.join('data', 'beffe_data.json'),
+  ];
+
+  const missingFiles = requiredFiles
+    .map((relPath) => ({ relPath, diskPath: path.join(webDir, relPath) }))
+    .filter(({ diskPath }) => !existsSync(diskPath));
+
+  if (missingFiles.length > 0) {
+    fail(
+      'Pflicht-Assets fehlen in web/:',
+      missingFiles
+        .map(({ relPath, diskPath }) => `  ${relPath} -> ${path.relative(projectRoot, diskPath)}`)
+        .join('\n'),
+    );
+  }
+
+  console.log(`  OK ${requiredFiles.length} Pflicht-Assets vorhanden`);
+}
+
 try {
   await checkJavaScriptSyntax();
   await checkCacheAssetIntegrity();
@@ -249,7 +278,8 @@ try {
   await checkManifestAndIcons();
   checkServiceWorkerVersionGuard();
   await checkAntiRegressionMarkers();
-  console.log('\n🚀 [CharcuLogic] Validierung erfolgreich! Bereit für Firebase Deploy.');
+  await checkRequiredDeployAssets();
+  console.log('\n🚀 [CharcuLogic] Validierung erfolgreich! Bereit für Firebase- und Vercel-Deploy.');
 } catch (err) {
   fail('Validierung unerwartet abgebrochen.', err?.stack || err?.message || String(err));
 }

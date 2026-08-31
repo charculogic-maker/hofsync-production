@@ -68,6 +68,14 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 
+# Vercel local link + static PWA build output
+.vercel/
+dist/
+
+# Hosting-Debug-Logs duerfen nicht mit ausgeliefert werden
+web/*.log
+firestore-debug.log
+
 # Cursor / AI Agent Referenzen ignorieren (nur projekteigene Skills versionieren)
 .agents/*
 !.agents/skills/

@@ -2,7 +2,7 @@
   "scripts": {
     "build-data": "node build-data.js",
     "prebuild": "npm run build-data",
-    "build": "node tools/check-web-app.mjs",
+    "build": "node tools/check-web-app.mjs && node tools/prepare-pwa-output.mjs",
     "deploy": "npm run build && firebase deploy",
     "dev:local": "node tools/local-dev-orchestrator.mjs",
     "seed:tenant": "node tools/seed-tenant-bootstrap.mjs",
