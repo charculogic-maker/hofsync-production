@@ -2354,10 +2354,16 @@ function setWrsWarning(warnings) {
 
 function renderWrsMetrics(result) {
   const totals = result?.totals || {};
+  const beffeImFe = totals.beffeImFeProzent;
+  const vk = totals.vkProKg;
   const values = {
     'wrs-total-cost': `${formatNumber(totals.totalCost)} EUR`,
-    'wrs-cost-per-kg': `${formatNumber(totals.costPerKg)} EUR`,
+    'wrs-cost-per-kg': totals.costPerKgFinished == null
+      ? '–'
+      : `${formatNumber(totals.costPerKgFinished)} EUR`,
     'wrs-beffe-percent': `${formatNumber(totals.beffeProzent)} %`,
+    'wrs-beffe-im-fe-percent': beffeImFe == null ? '–' : `${formatNumber(beffeImFe)} %`,
+    'wrs-vk-per-kg': vk == null ? '–' : `${formatNumber(vk)} EUR`,
     'wrs-fat-percent': `${formatNumber(totals.fettProzent)} %`,
     'wrs-water-percent': `${formatNumber(totals.wasserProzent)} %`,
   };
@@ -2390,6 +2396,17 @@ function renderWrsPacklist(result) {
   });
 }
 
+function readWrsCalcOptions() {
+  const maschinenverlustKg = Number(document.getElementById('wrs-machine-loss')?.value);
+  const garverlustPct = Number(document.getElementById('wrs-cook-loss')?.value);
+  const marginPct = Number(document.getElementById('wrs-margin-pct')?.value);
+  return {
+    maschinenverlustKg: Number.isFinite(maschinenverlustKg) ? maschinenverlustKg : 0,
+    garverlustPct: Number.isFinite(garverlustPct) ? garverlustPct : 0,
+    marginFrac: Number.isFinite(marginPct) ? marginPct / 100 : 0,
+  };
+}
+
 function calculateAndRenderWrs() {
   if (!wrsState.engine) return;
   const select = document.getElementById('recipe-select');
@@ -2399,7 +2416,7 @@ function calculateAndRenderWrs() {
   if (!recipeName) return;
 
   try {
-    const result = wrsState.engine.calculateCharge(recipeName, targetKg);
+    const result = wrsState.engine.calculateCharge(recipeName, targetKg, {}, readWrsCalcOptions());
     renderWrsMetrics(result);
     renderWrsPacklist(result);
     setWrsWarning(result.warnings);
@@ -2445,6 +2462,9 @@ async function initWrsModule() {
 
     document.getElementById('recipe-select')?.addEventListener('change', calculateAndRenderWrs);
     document.getElementById('target-weight')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-machine-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-cook-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-margin-pct')?.addEventListener('input', calculateAndRenderWrs);
     document.getElementById('btn-calculate-wrs')?.addEventListener('click', () => {
       playClickSound(900, 0.04, 0.12);
       calculateAndRenderWrs();

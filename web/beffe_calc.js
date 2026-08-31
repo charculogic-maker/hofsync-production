@@ -45,7 +45,7 @@ export function beffeImFleischEiweissRelativPct(beFFEProzentMM, fleischEiweissPc
 
 /**
  * Verkaufspreis aus Selbstkosten und Ziel-Marge auf den VK.
- * Enforce: `VK = SK / (1 - Marge)`. Marge als Bruch (0.45 = 45 %).
+ * Campus-SSOT: `VK = SK / (1 - Marge)` mit Marge als Bruch (0.35 = 35 %).
  * Unzulässige Marge (≥ 100 %) → `null`, damit nie `Infinity`/`NaN` entsteht.
  */
 export function verkaufspreisFromSelbstkosten(selbstkosten, marginFrac) {
@@ -55,6 +55,18 @@ export function verkaufspreisFromSelbstkosten(selbstkosten, marginFrac) {
   if (!Number.isFinite(m) || m >= 1) return null;
   if (m <= 0) return sk;
   return sk / (1 - m);
+}
+
+function resolveMarginFrac(options = {}) {
+  if (options.marginFrac != null && options.marginFrac !== '') {
+    const frac = Number(options.marginFrac);
+    if (Number.isFinite(frac)) return frac;
+  }
+  if (options.marginPct != null && options.marginPct !== '') {
+    const pct = Number(options.marginPct);
+    if (Number.isFinite(pct)) return pct / 100;
+  }
+  return 0;
 }
 
 /**
@@ -188,10 +200,10 @@ export class BeffeCalcEngine {
     const finishedKg = finishedMassAfterLosses(targetKg, { maschinenverlustKg, garverlustPct });
     const costPerKg = totalCost / targetKg;
     const costPerKgFinished = finishedKg > FE_ZERO_EPSILON ? totalCost / finishedKg : null;
-    const marginFrac = options.marginFrac == null ? options.marginPct / 100 : options.marginFrac;
+    const marginFrac = resolveMarginFrac(options);
     const vkProKg = costPerKgFinished == null
       ? null
-      : verkaufspreisFromSelbstkosten(costPerKgFinished, Number.isFinite(Number(marginFrac)) ? Number(marginFrac) : 0);
+      : verkaufspreisFromSelbstkosten(costPerKgFinished, marginFrac);
 
     const totals = {
       totalKg: targetKg,

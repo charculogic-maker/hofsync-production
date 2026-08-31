@@ -1240,6 +1240,18 @@
                     <span>Zielgewicht kg</span>
                     <input id="target-weight" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0.5" max="500" step="0.5" value="10">
                   </label>
+                  <label class="wrs-field" for="wrs-machine-loss">
+                    <span>Maschinenverlust kg</span>
+                    <input id="wrs-machine-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="50" step="0.05" value="0">
+                  </label>
+                  <label class="wrs-field" for="wrs-cook-loss">
+                    <span>Garverlust %</span>
+                    <input id="wrs-cook-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="80" step="0.5" value="0">
+                  </label>
+                  <label class="wrs-field" for="wrs-margin-pct">
+                    <span>Ziel-Marge % (auf VK)</span>
+                    <input id="wrs-margin-pct" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="75" step="1" value="35">
+                  </label>
                   <button type="button" class="btn btn-primary wrs-calc-btn" id="btn-calculate-wrs">Berechnen</button>
                 </div>
 
@@ -1257,6 +1269,14 @@
                   <div class="wrs-metric">
                     <span>BEFFE</span>
                     <strong id="wrs-beffe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>BEFFE im FE</span>
+                    <strong id="wrs-beffe-im-fe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>VK/kg</span>
+                    <strong id="wrs-vk-per-kg">-</strong>
                   </div>
                   <div class="wrs-metric">
                     <span>Fett</span>

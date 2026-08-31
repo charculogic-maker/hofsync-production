@@ -66,4 +66,9 @@ const priced = meatEngine.calculateCharge('S1', 10, {}, { maschinenverlustKg: 0.
 assert.equal(priced.totals.finishedKg, 9.8 * 0.9);
 assert.equal(priced.totals.vkProKg, priced.totals.costPerKgFinished / (1 - 0.4));
 
+const viaPct = meatEngine.calculateCharge('S1', 10, {}, { marginPct: 35 });
+assert.equal(viaPct.totals.vkProKg, viaPct.totals.costPerKgFinished / (1 - 0.35));
+const defaultVk = meatEngine.calculateCharge('S1', 10);
+assert.equal(defaultVk.totals.vkProKg, defaultVk.totals.costPerKgFinished);
+
 console.log('beffe-calc campus SSOT tests ok');
