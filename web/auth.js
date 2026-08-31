@@ -267,6 +267,9 @@ function ensureLoginOverlay() {
           </form>
         </details>
         <div id="auth-login-error" class="auth-lock-error" role="alert"></div>
+        <p class="auth-lock-legal">
+          <a href="/datenschutz.html" target="_blank" rel="noopener noreferrer">Datenschutz</a>
+        </p>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -369,6 +372,14 @@ function ensureLoginOverlay() {
         border-radius: 6px;
         background: rgba(220, 38, 38, 0.16);
         color: #fecaca;
+      }
+      .auth-lock-legal {
+        margin: 18px 0 0;
+        font-size: 12px;
+      }
+      .auth-lock-legal a {
+        color: #93c5fd;
+        text-decoration: underline;
       }
     `;
     document.head.appendChild(style);

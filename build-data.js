@@ -76,10 +76,14 @@ function parseRohstoffe(csvData) {
     if (!material) return;
 
     const kategorie = cleanText(row.Kategorie);
+    const beffe = parseNumber(row.BEFFE_Prozent);
+    const be = parseNumber(row.BE_Prozent);
     const item = {
       preis: parseNumber(row.Preis_kg),
       wasser: parseNumber(row.Wasser_Prozent),
-      beffe: parseNumber(row.BEFFE_Prozent),
+      beffe,
+      be,
+      fe: Math.round((beffe + be) * 10000) / 10000,
       fett: parseNumber(row.Fett_Prozent),
     };
 
