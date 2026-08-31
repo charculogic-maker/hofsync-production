@@ -1324,6 +1324,36 @@ button:active, .btn:active {
   margin: 0;
 }
 
+.mhd-loading-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  color: #666;
+}
+
+.mhd-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.12);
+  border-top-color: var(--primary-color, #28a745);
+  animation: mhd-loading-spin 0.9s linear infinite;
+}
+
+@keyframes mhd-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+.mhd-loading-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
 .mhd-filter-row.mhd-filter-row--monitor {
   display: flex;
   flex-direction: column;

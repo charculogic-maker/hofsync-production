@@ -250,8 +250,12 @@ const mhdState = {
   terminalEmployeeName: '',
   addRetterBoxCandidate: null,
   initialized: false,
+  cloudSyncStatus: 'idle',
+  pendingCloudSync: false,
+  cloudSyncTimeoutId: null,
 };
 
+const MHD_CLOUD_SYNC_TIMEOUT_MS = 20000;
 const MHD_ADMIN_SEARCH_LIMIT = 40;
 const MHD_ADMIN_SEARCH_DEBOUNCE_MS = 280;
 const mhdAdminSearchState = {
@@ -2533,11 +2537,64 @@ function mapMhdDoc(doc) {
   };
 }
 
+function setMhdCloudSyncStatus(nextStatus) {
+  mhdState.cloudSyncStatus = nextStatus;
+}
+
+function clearMhdCloudSyncTimeout() {
+  if (!mhdState.cloudSyncTimeoutId) return;
+  clearTimeout(mhdState.cloudSyncTimeoutId);
+  mhdState.cloudSyncTimeoutId = null;
+}
+
+function markMhdCloudSyncLoading() {
+  setMhdCloudSyncStatus('loading');
+  clearMhdCloudSyncTimeout();
+  if (!isFirebaseReady() || !canStartMhdFirestoreLiveSync()) return;
+  mhdState.cloudSyncTimeoutId = setTimeout(() => {
+    if (mhdState.cloudSyncStatus !== 'loading') return;
+    setMhdCloudSyncStatus('ready');
+    renderMhdList();
+  }, MHD_CLOUD_SYNC_TIMEOUT_MS);
+}
+
+function markMhdCloudSyncReady() {
+  clearMhdCloudSyncTimeout();
+  setMhdCloudSyncStatus('ready');
+}
+
+function shouldShowMhdCloudLoadingState() {
+  return mhdState.cloudSyncStatus === 'loading'
+    && isFirebaseReady()
+    && canStartMhdFirestoreLiveSync();
+}
+
+function buildMhdLoadingHtml() {
+  return `
+    <div class="mhd-loading-hint" role="status" aria-live="polite">
+      <div class="mhd-loading-spinner" aria-hidden="true"></div>
+      <p class="mhd-loading-text">MHD-Bestände werden geladen…</p>
+    </div>`;
+}
+
 function loadMhdFromCloud() {
   if (!canStartMhdFirestoreLiveSync()) return;
-  if (!isFirebaseReady() || !mhdState.db) {
+  if (!resolveMhdTenantId()) {
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
     return;
   }
+  if (!isFirebaseReady() || !mhdState.db) {
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
+    return;
+  }
+
+  mhdState.pendingCloudSync = false;
+  markMhdCloudSyncLoading();
+  renderMhdList();
 
   if (mhdState.unsubscribe) {
     mhdState.unsubscribe();
@@ -2546,13 +2603,20 @@ function loadMhdFromCloud() {
 
   mhdState.unsubscribe = mhdState.db.collection(mhdCollectionPath()).onSnapshot(
     (snapshot) => {
+      const waitingForServer = Boolean(snapshot.metadata?.fromCache) && snapshot.empty;
       mhdState.products = snapshot.docs.map(mapMhdDoc);
+      if (!waitingForServer) {
+        markMhdCloudSyncReady();
+      }
       renderMhdList();
       refreshMhdAdminSearchFromCache();
     },
     (err) => {
       if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
       console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
+      clearMhdCloudSyncTimeout();
+      setMhdCloudSyncStatus('error');
+      renderMhdList();
     }
   );
 }
@@ -2890,6 +2954,12 @@ function buildMhdCardHtml(prod = {}) {
 function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
+
+  if (shouldShowMhdCloudLoadingState()) {
+    updateMhdToolbarLimitHint(0);
+    container.innerHTML = buildMhdLoadingHtml();
+    return;
+  }
 
   if (!mhdState.products.length) {
     updateMhdToolbarLimitHint(0);
@@ -5179,7 +5249,11 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   applyMhdCategoryFilterOptions();
   updateMhdAdminSearchVisibility(isOfficeUser());
   renderReceivingStatus();
-  renderMhdList();
+  if (canStartMhdFirestoreLiveSync() && isFirebaseReady()) {
+    startMhdLiveSync();
+  } else {
+    renderMhdList();
+  }
   restoreMhdDraftFields();
 }
 
@@ -5202,7 +5276,11 @@ export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
   await window.ensureInventoryProfileSessionForTab?.('mhd');
   applyMhdCategoryFilterOptions();
-  renderMhdList();
+  if (mhdState.pendingCloudSync || mhdState.cloudSyncStatus === 'loading') {
+    startMhdLiveSync();
+  } else {
+    renderMhdList();
+  }
   restoreMhdDraftFields();
 }
 export async function activateReceivingTab() {

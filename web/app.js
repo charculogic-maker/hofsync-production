@@ -3700,6 +3700,7 @@ async function bootstrapAuthenticatedApp() {
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
   });
+  startMhdLiveSync();
   initRetterBoxModule(db, {
     tenantId,
     getFirebase: () => firebase,
