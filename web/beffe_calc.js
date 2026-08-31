@@ -9,6 +9,101 @@ const MATERIAL_KEYS = [
 const SCHWEIN_CLASS_MATERIALS = ['S I', 'S II', 'S III', 'S IV Bauch'];
 const RIND_CLASS_MATERIALS = ['R I', 'R II', 'R III'];
 
+/**
+ * Campus SSOT: BEFFE im FE % = ((FE - BEP) / FE) * 100
+ * @param {number} feG Fleisch-Eiweiß in Gramm
+ * @param {number} bepG Bindegewebseiweiß (BEP) in Gramm
+ * @returns {number|null} Prozentwert oder null bei 0 g Fleisch-Eiweiß
+ */
+export function calculateBeffeImFePercent(feG, bepG) {
+  const fe = Number(feG);
+  const bep = Number(bepG);
+  if (!Number.isFinite(fe) || fe <= 0) return null;
+  const safeBep = Number.isFinite(bep) ? bep : 0;
+  const value = ((fe - safeBep) / fe) * 100;
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Campus SSOT: Verkaufspreis aus Selbstkosten und Zielmarge.
+ * VK = SK / (1 - Marge)
+ * @param {number} sk Selbstkosten
+ * @param {number} margin Zielmarge als Dezimalzahl (z. B. 0.3 für 30 %)
+ * @returns {number|null}
+ */
+export function calcVkFromSk(sk, margin) {
+  const cost = Number(sk);
+  const m = Number(margin);
+  if (!Number.isFinite(cost) || cost < 0) return null;
+  if (!Number.isFinite(m) || m < 0 || m >= 1) return null;
+  const vk = cost / (1 - m);
+  return Number.isFinite(vk) ? vk : null;
+}
+
+/**
+ * Trennt absoluten Maschinenverlust (Gramm) von prozentualem Garverlust.
+ * @param {{ inputKg: number, maschinenverlustG?: number, garverlustProzent?: number }} params
+ */
+export function applyYieldLosses({
+  inputKg,
+  maschinenverlustG = 0,
+  garverlustProzent = 0,
+}) {
+  const input = Number(inputKg);
+  const machineLossG = Math.max(0, Number(maschinenverlustG) || 0);
+  const cookLossPct = Math.max(0, Math.min(100, Number(garverlustProzent) || 0));
+
+  if (!Number.isFinite(input) || input < 0) {
+    return {
+      inputKg: 0,
+      maschinenverlustG: machineLossG,
+      garverlustProzent: cookLossPct,
+      afterMaschinenverlustKg: 0,
+      outputKg: 0,
+      effectiveYieldFactor: 0,
+    };
+  }
+
+  const afterMaschinenverlustKg = Math.max(0, input - machineLossG / 1000);
+  const outputKg = afterMaschinenverlustKg * (1 - cookLossPct / 100);
+
+  return {
+    inputKg: input,
+    maschinenverlustG: machineLossG,
+    garverlustProzent: cookLossPct,
+    afterMaschinenverlustKg,
+    outputKg,
+    effectiveYieldFactor: input > 0 ? outputKg / input : 0,
+  };
+}
+
+/**
+ * Campus SSOT Margen-Kette: Verluste anwenden, SK auf Ausbringung hochrechnen, VK berechnen.
+ * @param {{ sk: number, margin: number, inputKg: number, maschinenverlustG?: number, garverlustProzent?: number }} params
+ */
+export function calculateMarginPricing({
+  sk,
+  margin,
+  inputKg,
+  maschinenverlustG = 0,
+  garverlustProzent = 0,
+}) {
+  const baseSk = Number(sk);
+  const yieldResult = applyYieldLosses({ inputKg, maschinenverlustG, garverlustProzent });
+  const adjustedSk = yieldResult.outputKg > 0 && Number.isFinite(baseSk)
+    ? baseSk * (yieldResult.inputKg / yieldResult.outputKg)
+    : null;
+  const vk = adjustedSk != null ? calcVkFromSk(adjustedSk, margin) : null;
+
+  return {
+    ...yieldResult,
+    sk: Number.isFinite(baseSk) ? baseSk : null,
+    adjustedSk,
+    margin: Number(margin),
+    vk,
+  };
+}
+
 export class BeffeCalcEngine {
   constructor(preParsedJson = {}) {
     this.rohstoffe = preParsedJson.rohstoffe || {};
@@ -47,7 +142,7 @@ export class BeffeCalcEngine {
     return this.rezepte[recipeName] || null;
   }
 
-  calculateCharge(recipeName, targetTotalKg, tagesPreise = {}) {
+  calculateCharge(recipeName, targetTotalKg, tagesPreise = {}, options = {}) {
     const recipe = this.getRecipe(recipeName);
     if (!recipe) {
       throw new Error(`Rezept nicht gefunden: ${recipeName}`);
@@ -68,6 +163,8 @@ export class BeffeCalcEngine {
     let totalBeffeKg = 0;
     let totalFatKg = 0;
     let totalWaterKg = 0;
+    let totalFeKg = 0;
+    let totalBepKg = 0;
 
     const ingredients = recipe.ingredients.map((ingredient) => {
       const categoryKey = `${ingredient.category || recipe.category}::${ingredient.material}`;
@@ -77,14 +174,20 @@ export class BeffeCalcEngine {
       const priceKg = resolvePrice(ingredient.material, livePrices, materialData.preis, ingredient.basePriceKg);
       const wasserProzent = materialData.wasser ?? 0;
       const beffeProzent = materialData.beffe ?? 0;
+      const bepProzent = materialData.be ?? 0;
       const fettProzent = materialData.fett ?? 0;
+      const feProzent = beffeProzent + bepProzent;
       const cost = amountKg * priceKg;
       const beffeKg = amountKg * beffeProzent / 100;
+      const bepKg = amountKg * bepProzent / 100;
+      const feKg = amountKg * feProzent / 100;
       const fatKg = amountKg * fettProzent / 100;
       const waterKg = amountKg * wasserProzent / 100;
 
       totalCost += cost;
       totalBeffeKg += beffeKg;
+      totalBepKg += bepKg;
+      totalFeKg += feKg;
       totalFatKg += fatKg;
       totalWaterKg += waterKg;
 
@@ -97,9 +200,15 @@ export class BeffeCalcEngine {
         cost,
         wasserProzent,
         beffeProzent,
+        bepProzent,
+        feProzent,
         fettProzent,
       };
     });
+
+    const totalFeG = totalFeKg * 1000;
+    const totalBepG = totalBepKg * 1000;
+    const beffeImFePercent = calculateBeffeImFePercent(totalFeG, totalBepG);
 
     const totals = {
       totalKg: targetKg,
@@ -107,9 +216,22 @@ export class BeffeCalcEngine {
       totalCost,
       costPerKg: totalCost / targetKg,
       beffeProzent: totalBeffeKg / targetKg * 100,
+      beffeImFePercent,
+      feG: totalFeG,
+      bepG: totalBepG,
       fettProzent: totalFatKg / targetKg * 100,
       wasserProzent: totalWaterKg / targetKg * 100,
     };
+
+    if (options.margin != null) {
+      totals.marginPricing = calculateMarginPricing({
+        sk: totals.costPerKg,
+        margin: options.margin,
+        inputKg: targetKg,
+        maschinenverlustG: options.maschinenverlustG ?? 0,
+        garverlustProzent: options.garverlustProzent ?? 0,
+      });
+    }
 
     const warnings = createWarnings(recipe, totals);
     return { recipeName, category: recipe.category, ingredients, totals, warnings };
@@ -144,6 +266,9 @@ function createWarnings(recipe, totals) {
 
   if (isBruehwurst && totals.beffeProzent < 12) {
     warnings.push(`BEFFE ${formatNumber(totals.beffeProzent)} % liegt unter 12 % fuer Bruehwurst.`);
+  }
+  if (totals.beffeImFePercent != null && totals.beffeImFePercent < 80) {
+    warnings.push(`BEFFE im FE ${formatNumber(totals.beffeImFePercent)} % liegt unter der Campus-Warnmarke von 80 %.`);
   }
   if (totals.fettProzent > 40) {
     warnings.push(`Fett ${formatNumber(totals.fettProzent)} % ist kritisch hoch.`);
@@ -288,8 +413,9 @@ export function pickLatestFleischpreiseDoc(docs = []) {
 }
 
 export function formatNumber(value, digits = 2) {
+  if (value === null || value === undefined) return '-';
   const number = Number(value);
-  if (!Number.isFinite(number)) return '0';
+  if (!Number.isFinite(number)) return '-';
   return new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

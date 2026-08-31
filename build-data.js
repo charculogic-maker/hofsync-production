@@ -80,6 +80,7 @@ function parseRohstoffe(csvData) {
       preis: parseNumber(row.Preis_kg),
       wasser: parseNumber(row.Wasser_Prozent),
       beffe: parseNumber(row.BEFFE_Prozent),
+      be: parseNumber(row.BE_Prozent),
       fett: parseNumber(row.Fett_Prozent),
     };
 
