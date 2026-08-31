@@ -2358,6 +2358,9 @@ function renderWrsMetrics(result) {
     'wrs-total-cost': `${formatNumber(totals.totalCost)} EUR`,
     'wrs-cost-per-kg': `${formatNumber(totals.costPerKg)} EUR`,
     'wrs-beffe-percent': `${formatNumber(totals.beffeProzent)} %`,
+    'wrs-beffe-im-fe-percent': totals.beffeImFePercent == null
+      ? '-'
+      : `${formatNumber(totals.beffeImFePercent)} %`,
     'wrs-fat-percent': `${formatNumber(totals.fettProzent)} %`,
     'wrs-water-percent': `${formatNumber(totals.wasserProzent)} %`,
   };

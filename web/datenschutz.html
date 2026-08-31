@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Datenschutzerklärung – HofSync / CharcuLogic</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --text: #0f172a;
+      --muted: #475569;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --link: #2563eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #f8fafc;
+        --muted: #cbd5e1;
+        --bg: #0f172a;
+        --card: #111827;
+        --border: #334155;
+        --link: #93c5fd;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.6rem; }
+    h2 { margin: 28px 0 10px; font-size: 1.15rem; }
+    p, li { color: var(--muted); }
+    a { color: var(--link); }
+    .back { display: inline-block; margin-bottom: 16px; }
+    ul { padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">← Zurück zur App</a>
+    <article class="card">
+      <h1>Datenschutzerklärung</h1>
+      <p>Stand: 31. August 2026</p>
+
+      <h2>1. Verantwortlicher</h2>
+      <p>
+        Verantwortlich für die Datenverarbeitung in der HofSync-/CharcuLogic-Betriebs-App ist der jeweilige
+        Mandantenbetrieb (Hofladen, Metzgerei oder Produktionsstätte), für den Sie die App nutzen.
+        Technischer Plattformbetreiber ist CharcuLogic.
+      </p>
+
+      <h2>2. Verarbeitungszwecke</h2>
+      <p>Wir verarbeiten personenbezogene und betriebsbezogene Daten zu folgenden Zwecken:</p>
+      <ul>
+        <li>Betriebssteuerung (MHD-Monitor, Wareneingang, Produktion, HACCP, Teamboard)</li>
+        <li>Authentifizierung und rollenbasierte Zugriffskontrolle</li>
+        <li>Synchronisation mandantengebundener Betriebsdaten</li>
+        <li>
+          <strong>KI-gestütztes Auslesen von Lieferscheinen (Gemini OCR):</strong>
+          Fotos von Lieferscheinen werden ausschließlich verarbeitet, um Artikelpositionen
+          (Bezeichnung, Menge, Einheit) automatisch zu erkennen und in den Wareneingang zu übernehmen.
+          Zweck ist die beschleunigte, fehlerarme Inventurerfassung im täglichen Betrieb.
+        </li>
+        <li>
+          <strong>KI-gestützte Fleischpreis- und Etikett-Auswertung:</strong>
+          optional für Marktpreisläufe und strukturierte Herkunftsdaten aus Etiketten.
+        </li>
+      </ul>
+
+      <h2>3. Rechtsgrundlagen (DSGVO)</h2>
+      <ul>
+        <li>Art. 6 Abs. 1 lit. b DSGVO – Vertragserfüllung / vorvertragliche Maßnahmen (Betriebsnutzung der App)</li>
+        <li>Art. 6 Abs. 1 lit. f DSGVO – berechtigtes Interesse an effizienter Warenerfassung und Qualitätssicherung</li>
+        <li>Art. 6 Abs. 1 lit. a DSGVO – Einwilligung, soweit für optionale KI-Funktionen ausdrücklich eingeholt</li>
+      </ul>
+
+      <h2>4. Gemini OCR (Lieferschein-Scan) im Detail</h2>
+      <p>Für den Lieferschein-Scan gelten insbesondere diese Grundsätze:</p>
+      <ul>
+        <li>
+          <strong>Verarbeitungszweck:</strong> OCR und strukturierte Extraktion von Lieferscheinpositionen
+          zur Buchung in den mandantengebundenen Bestand.
+        </li>
+        <li>
+          <strong>Datenkategorien:</strong> Lieferschein-Fotos, erkannte Artikeltexte, Mengen, Einheiten;
+          ggf. sichtbare Lieferanten- oder Adressdaten auf dem Papier-Lieferschein.
+        </li>
+        <li>
+          <strong>Empfänger / Auftragsverarbeiter:</strong> Google Cloud (Gemini API) als technischer
+          KI-Dienstleister. Die Übermittlung erfolgt verschlüsselt; API-Schlüssel werden serverseitig
+          in Cloud Functions gehalten, nicht in der Client-App.
+        </li>
+        <li>
+          <strong>Speicherdauer:</strong> erkannte Positionen werden im Mandanten-Bestand gespeichert;
+          Rohbilder werden nur verarbeitet, soweit der Betrieb sie im Wareneingang dokumentiert.
+          KI-Rohtexte werden nicht dauerhaft zu Trainingszwecken weitergegeben.
+        </li>
+        <li>
+          <strong>Keine Zweckänderung:</strong> Lieferschein-Fotos werden nicht für Werbung,
+          Profilbildung oder Mandanten-übergreifende Auswertungen genutzt.
+        </li>
+      </ul>
+
+      <h2>5. Mandantentrennung</h2>
+      <p>
+        Alle Betriebsdaten liegen isoliert unter <code>tenants/{tenantId}/…</code>.
+        Mandanten können Daten anderer Betriebe nicht einsehen.
+      </p>
+
+      <h2>6. Ihre Rechte</h2>
+      <p>
+        Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
+        Datenübertragbarkeit und Widerspruch. Beschwerden können Sie bei der zuständigen
+        Aufsichtsbehörde einreichen.
+      </p>
+
+      <h2>7. Kontakt</h2>
+      <p>
+        Wenden Sie sich für datenschutzrechtliche Anfragen an den Administrator Ihres Betriebs
+        oder an <a href="mailto:support@charculogic.de">support@charculogic.de</a>.
+      </p>
+    </article>
+  </main>
+</body>
+</html>
