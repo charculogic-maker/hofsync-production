@@ -205,6 +205,10 @@ async function checkManifestAndIcons() {
 
 function checkServiceWorkerVersionGuard() {
   logStep(`Check 5/${totalChecks}: Service-Worker-Version-Guard wird geprueft...`);
+  if (process.env.VERCEL || process.env.CI) {
+    console.log('  SKIP mtime-Guard auf CI/Vercel (Checkout-Zeitstempel sind nicht aussagekraeftig)');
+    return;
+  }
   const swMtime = statSync(swPath).mtimeMs;
   const guardedFiles = ['app.js', 'mhd.js', 'index.html'].map((fileName) => path.join(webDir, fileName));
   const newerFiles = guardedFiles.filter((file) => statSync(file).mtimeMs > swMtime);
