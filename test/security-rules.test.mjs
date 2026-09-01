@@ -230,6 +230,52 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2d: MHD shopfloor updates', () => {
+    const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'shopfloor-mhd-1');
+    const mhdItem = {
+      name: 'Test Milch',
+      produkt: 'Test Milch',
+      qty: 4,
+      tenantId: TENANTS.STEVES_HOF,
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, mhdPath, mhdItem);
+    });
+
+    it('allows employee to quittieren MHD with lastCheckedDate and qty', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-mhd', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        mhdPath,
+        'update',
+        {
+          qty: 3,
+          mhdActionStatus: 'geprueft',
+          lastCheckedDate: '2026-09-01',
+          lastMhdCheckDate: '2026-09-01',
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+
+    it('denies helper writes to mhd_liste', async () => {
+      const ctx = authContext(testEnv, 'sh-helper-mhd', TENANTS.STEVES_HOF, 'helper');
+
+      await expectFirestoreDeny(
+        ctx,
+        mhdPath,
+        'update',
+        {
+          qty: 2,
+          lastCheckedDate: '2026-09-01',
+          updatedAt: serverTimestamp(),
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {

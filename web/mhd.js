@@ -8,6 +8,7 @@ import {
   setGlobalTenantId,
 } from './tenant-db.js';
 import { isOfficeUser } from './auth.js';
+import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
@@ -28,17 +29,24 @@ function hasActiveFirebaseAuthUserForSelfHealing() {
   }
 }
 
+const mhdPermissionToastState = { lastAt: 0 };
+
 function maybeResetOnFirestorePermissionError(err, context = '') {
-  if (typeof window.isFirestorePermissionDeniedError === 'function'
-    && window.isFirestorePermissionDeniedError(err)) {
-    console.warn('[CharcuLogic MHD] Firestore-Zugriff verweigert — kein Auto-Logout', {
-      context,
-      code: err?.code,
-      message: err?.message,
-    });
-    window.showToast?.('Speichern nicht erlaubt. Bitte im Büro Bescheid geben.', 'error');
+  if (typeof window.isFirestorePermissionDeniedError !== 'function'
+    || !window.isFirestorePermissionDeniedError(err)) {
+    return false;
   }
-  return false;
+  console.warn('[CharcuLogic MHD] Firestore-Zugriff verweigert — kein Auto-Logout', {
+    context,
+    code: err?.code,
+    message: err?.message,
+  });
+  const now = Date.now();
+  if (now - mhdPermissionToastState.lastAt >= 3500) {
+    mhdPermissionToastState.lastAt = now;
+    window.showToast?.(logAndMapOperatorError(err, 'mhd'), 'error');
+  }
+  return true;
 }
 
 const AUTH_LOOP_BREAKER_KEY = 'charculogic_auth_loop_breaker';
@@ -709,6 +717,9 @@ async function saveAllPendingMhdChanges() {
   const entries = Object.entries(mhdState.pendingChanges);
   if (!entries.length) return;
 
+  const profileReady = await window.ensureInventoryProfileReadyForWrite?.();
+  if (profileReady === false) return;
+
   const saveBtn = document.getElementById('btn-save-mhd');
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -716,26 +727,29 @@ async function saveAllPendingMhdChanges() {
   }
 
   try {
-    await Promise.all(entries.map(async ([id, updates]) => {
-      const audited = withHiddenAudit(updates);
+    for (const [id, updates] of entries) {
+      const audited = withSanitizedMhdAudit(updates);
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: id,
         onlineData: audited.onlineData,
         queueData: audited.queueData,
         offlineMessage: 'MHD-Änderungen werden nachträglich synchronisiert.',
+        silentPermissionDenied: true,
       });
-    }));
+    }
     clearMhdPendingChanges();
     mhdState.playClickSound(900, 0.1, 0.2);
     window.showToast?.('Änderungen gespeichert', 'success');
-    mhdState.showHUD('Gespeichert', 'MHD-Änderungen wurden in der Cloud gespeichert.');
     updateMhdCompletionToggle();
   } catch (err) {
     if (maybeResetOnFirestorePermissionError(err, 'saveAllPendingMhdChanges')) return;
     console.error('[CharcuLogic Firebase] saveAllPendingMhdChanges() fehlgeschlagen:', err);
-    mhdState.showHUD('Fehler', 'Änderungen konnten nicht gespeichert werden.', '!');
-    window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');
+    const now = Date.now();
+    if (now - mhdPermissionToastState.lastAt >= 3500) {
+      mhdPermissionToastState.lastAt = now;
+      window.showToast?.(logAndMapOperatorError(err, 'mhd'), 'error');
+    }
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;

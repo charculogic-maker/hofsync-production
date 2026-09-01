@@ -36,6 +36,9 @@ export function mapOperatorError(error, context = '') {
   if (context === 'sync') {
     return 'Synchronisation fehlgeschlagen. Daten bleiben in der Warteschlange.';
   }
+  if (context === 'mhd') {
+    return 'MHD-Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.';
+  }
   return 'Ein technischer Fehler ist aufgetreten. Der Administrator wurde benachrichtigt.';
 }
 
