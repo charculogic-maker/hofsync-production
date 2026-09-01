@@ -16,6 +16,11 @@ import {
   scopedTeamboardStorageKey,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
+import {
+  clearMhdPendingChangesDraft,
+  loadMhdPendingChangesDraft,
+  saveMhdPendingChangesDraft,
+} from './mhd-pending-changes.mjs';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -647,6 +652,42 @@ function applyPendingChangesToProducts() {
   });
 }
 
+function persistMhdPendingChanges() {
+  const tenantId = resolveMhdTenantId();
+  if (!tenantId) return;
+  try {
+    saveMhdPendingChangesDraft({
+      tenantId,
+      changes: mhdState.pendingChanges,
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Ausstehende MHD-Änderungen konnten lokal nicht gesichert werden:', err);
+    window.showToast?.('Änderungen bitte jetzt speichern. Der lokale Zwischenspeicher ist voll.', 'warning');
+  }
+}
+
+function restoreMhdPendingChanges() {
+  const tenantId = resolveMhdTenantId();
+  if (!tenantId) return 0;
+  try {
+    const draft = loadMhdPendingChangesDraft({ tenantId });
+    const entries = Object.entries(draft.changes || {});
+    if (!entries.length) return 0;
+    mhdState.pendingChanges = {
+      ...draft.changes,
+      ...mhdState.pendingChanges,
+    };
+    mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
+    applyPendingChangesToProducts();
+    updateMhdStickySaveBar();
+    updateMhdCompletionToggle();
+    return entries.length;
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Ausstehende MHD-Änderungen konnten nicht wiederhergestellt werden:', err);
+    return 0;
+  }
+}
+
 function stageMhdChange(id, updates = {}) {
   if (!id || !updates || typeof updates !== 'object') return;
   mhdState.pendingChanges[id] = {
@@ -658,6 +699,7 @@ function stageMhdChange(id, updates = {}) {
     mhdState.products[idx] = { ...mhdState.products[idx], ...updates };
   }
   mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
+  persistMhdPendingChanges();
   updateMhdStickySaveBar();
   updateMhdCompletionToggle();
   if (shouldAnimateMhdCompletionExit(id, updates)) {
@@ -670,6 +712,14 @@ function stageMhdChange(id, updates = {}) {
 function clearMhdPendingChanges() {
   mhdState.pendingChanges = {};
   mhdState.hasUnsavedChanges = false;
+  const tenantId = resolveMhdTenantId();
+  if (tenantId) {
+    try {
+      clearMhdPendingChangesDraft({ tenantId });
+    } catch (err) {
+      console.warn('[CharcuLogic MHD] Lokale MHD-Zwischenspeicherung konnte nicht geleert werden:', err);
+    }
+  }
   updateMhdStickySaveBar();
 }
 
@@ -2904,6 +2954,7 @@ function buildMhdLoadingHtml() {
 
 function loadMhdFromCloud() {
   if (!canStartMhdFirestoreLiveSync()) return;
+  restoreMhdPendingChanges();
   if (!resolveMhdTenantId()) {
     mhdState.pendingCloudSync = true;
     markMhdCloudSyncLoading();
@@ -5477,6 +5528,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   applyReceivingCategoryOptions();
   applyMhdCategoryFilterOptions();
   updateMhdAdminSearchVisibility(isOfficeUser());
+  restoreMhdPendingChanges();
   renderReceivingStatus();
   if (canStartMhdFirestoreLiveSync() && isFirebaseReady()) {
     startMhdLiveSync();
@@ -5505,6 +5557,7 @@ export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
   await window.ensureInventoryProfileSessionForTab?.('mhd');
   applyMhdCategoryFilterOptions();
+  restoreMhdPendingChanges();
   if (mhdState.pendingCloudSync || mhdState.cloudSyncStatus === 'loading') {
     startMhdLiveSync();
   } else {

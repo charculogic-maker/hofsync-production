@@ -42,7 +42,7 @@ async function checkJavaScriptSyntax() {
   logStep(`Check 1/${totalChecks}: JavaScript-Syntax wird geprueft...`);
   const webFiles = await readdir(webDir, { withFileTypes: true });
   const jsFiles = webFiles
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+    .filter((entry) => entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')))
     .map((entry) => path.join(webDir, entry.name))
     .sort();
 
