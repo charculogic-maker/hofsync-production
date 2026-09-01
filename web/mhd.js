@@ -231,9 +231,11 @@ const mhdState = {
   tenantId: '',
   appsScriptWebAppUrl: '',
   products: [],
-  categoryFilter: 'all',
+  categoryFilter: 'mopro',
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
+  pendingChanges: {},
+  hasUnsavedChanges: false,
   unsubscribe: null,
   writeOrQueueFirestore: async () => { throw new Error('MHD Sync-Engine ist nicht initialisiert.'); },
   addPendingSync: () => {},
@@ -480,29 +482,192 @@ const MHD_CANONICAL_CATEGORIES = {
   getraenke: '🍺 Getränke',
 };
 
-const MHD_CATEGORY_FILTERS = {
-  all: null,
-  frische: MHD_CANONICAL_CATEGORIES.frische,
-  mopro: MHD_CANONICAL_CATEGORIES.mopro,
-  kuehlware: MHD_CANONICAL_CATEGORIES.kuehlware,
-  tk: MHD_CANONICAL_CATEGORIES.tk,
-  getraenke: MHD_CANONICAL_CATEGORIES.getraenke,
-  trockenware: MHD_CANONICAL_CATEGORIES.trockenware,
-  gewuerze: MHD_CANONICAL_CATEGORIES.gewuerze,
+const MHD_MONITOR_GROUP_LABELS = {
+  mopro: '🥛 MoPro & Kühlware',
+  trockenware: '📦 Trockenware',
 };
 
 const MHD_CATEGORY_FILTER_OPTIONS = [
-  { value: 'all', label: 'Alle Kategorien' },
-  { value: 'frische', label: '🍎 Frische' },
-  { value: 'mopro', label: '🥛 MoPro' },
-  { value: 'kuehlware', label: '❄️ Kühlware' },
-  { value: 'tk', label: '🧊 TK' },
-  { value: 'getraenke', label: '🍺 Getränke' },
-  { value: 'trockenware', label: '📦 Trockenware' },
-  { value: 'gewuerze', label: '🌿 Gewürze' },
+  { value: 'mopro', label: MHD_MONITOR_GROUP_LABELS.mopro, horizonDays: MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro },
+  { value: 'trockenware', label: MHD_MONITOR_GROUP_LABELS.trockenware, horizonDays: MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware },
 ];
 
-// Rabatt-Matrix: Schwellwerte in Resttagen (Prüfen | 30% | 50% | Tonne)
+const MHD_TROCKEN_MONITOR_CATEGORIES = new Set([
+  MHD_CANONICAL_CATEGORIES.frische,
+  MHD_CANONICAL_CATEGORIES.tk,
+  MHD_CANONICAL_CATEGORIES.trockenware,
+  MHD_CANONICAL_CATEGORIES.gewuerze,
+  MHD_CANONICAL_CATEGORIES.getraenke,
+]);
+
+function getMhdMonitorGroup(prod = {}) {
+  const category = getProductCategory(prod);
+  if (category === MHD_CANONICAL_CATEGORIES.mopro || category === MHD_CANONICAL_CATEGORIES.kuehlware) {
+    return 'mopro';
+  }
+  if (MHD_TROCKEN_MONITOR_CATEGORIES.has(category)) {
+    return 'trockenware';
+  }
+  return 'trockenware';
+}
+
+function getMhdPendingChangeCount() {
+  return Object.keys(mhdState.pendingChanges).length;
+}
+
+function applyPendingChangesToProducts() {
+  const pendingIds = Object.keys(mhdState.pendingChanges);
+  if (!pendingIds.length) return;
+  mhdState.products = mhdState.products.map((prod) => {
+    const pending = mhdState.pendingChanges[prod.id];
+    if (!pending) return prod;
+    return { ...prod, ...pending };
+  });
+}
+
+function stageMhdChange(id, updates = {}) {
+  if (!id || !updates || typeof updates !== 'object') return;
+  mhdState.pendingChanges[id] = {
+    ...(mhdState.pendingChanges[id] || {}),
+    ...updates,
+  };
+  const idx = mhdState.products.findIndex((prod) => prod.id === id);
+  if (idx >= 0) {
+    mhdState.products[idx] = { ...mhdState.products[idx], ...updates };
+  }
+  mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
+  updateMhdStickySaveBar();
+  renderMhdList();
+}
+
+function clearMhdPendingChanges() {
+  mhdState.pendingChanges = {};
+  mhdState.hasUnsavedChanges = false;
+  updateMhdStickySaveBar();
+}
+
+function updateMhdStickySaveBar() {
+  const bar = document.getElementById('mhd-sticky-save-bar');
+  const countEl = document.getElementById('mhd-pending-count');
+  const saveBtn = document.getElementById('btn-save-mhd');
+  if (!bar) return;
+
+  const count = getMhdPendingChangeCount();
+  mhdState.hasUnsavedChanges = count > 0;
+
+  if (countEl) {
+    countEl.textContent = count === 1
+      ? '1 Änderung ausstehend'
+      : `${count} Änderungen ausstehend`;
+  }
+  if (saveBtn && !saveBtn.disabled) {
+    saveBtn.textContent = 'JETZT SPEICHERN';
+  }
+
+  if (!mhdState.hasUnsavedChanges) {
+    if (bar.classList.contains('is-visible') && !bar.classList.contains('is-hiding')) {
+      bar.classList.add('is-hiding');
+      bar.classList.remove('is-visible');
+      const onFadeEnd = (event) => {
+        if (event.propertyName !== 'opacity') return;
+        bar.removeEventListener('transitionend', onFadeEnd);
+        bar.hidden = true;
+        bar.classList.remove('is-hiding');
+      };
+      bar.addEventListener('transitionend', onFadeEnd);
+      return;
+    }
+    bar.hidden = true;
+    bar.classList.remove('is-visible', 'is-hiding');
+    return;
+  }
+
+  bar.hidden = false;
+  bar.classList.remove('is-hiding');
+  requestAnimationFrame(() => {
+    bar.classList.add('is-visible');
+  });
+}
+
+async function saveAllPendingMhdChanges() {
+  const entries = Object.entries(mhdState.pendingChanges);
+  if (!entries.length) return;
+
+  const saveBtn = document.getElementById('btn-save-mhd');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Speichern…';
+  }
+
+  try {
+    await Promise.all(entries.map(async ([id, updates]) => {
+      const audited = withHiddenAudit(updates);
+      await mhdState.writeOrQueueFirestore({
+        collectionPath: mhdCollectionPath(),
+        docId: id,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
+        offlineMessage: 'MHD-Änderungen werden nachträglich synchronisiert.',
+      });
+    }));
+    clearMhdPendingChanges();
+    mhdState.playClickSound(900, 0.1, 0.2);
+    window.showToast?.('Änderungen gespeichert', 'success');
+    mhdState.showHUD('Gespeichert', 'MHD-Änderungen wurden in der Cloud gespeichert.');
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveAllPendingMhdChanges')) return;
+    console.error('[CharcuLogic Firebase] saveAllPendingMhdChanges() fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Änderungen konnten nicht gespeichert werden.', '!');
+    window.showToast?.('Speichern fehlgeschlagen. Bitte erneut versuchen.', 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'JETZT SPEICHERN';
+    }
+    updateMhdStickySaveBar();
+  }
+}
+
+function buildMhdActionUpdates(actionStatus) {
+  const today = new Date().toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString();
+  const updates = {
+    mhdActionStatus: actionStatus,
+    lastMhdCheckDate: today,
+    lastMhdCheckAt: serverTimestampFallback(),
+  };
+  const queuedUpdates = {
+    mhdActionStatus: actionStatus,
+    lastMhdCheckDate: today,
+    lastMhdCheckAt: nowIso,
+  };
+  if (actionStatus === 'rausgenommen') {
+    updates.soldOut = true;
+    updates.qty = 0;
+    queuedUpdates.soldOut = true;
+    queuedUpdates.qty = 0;
+  }
+  if (actionStatus === 'reduziert') {
+    updates.rabattiert = true;
+    updates.rabattiertAt = serverTimestampFallback();
+    queuedUpdates.rabattiert = true;
+    queuedUpdates.rabattiertAt = nowIso;
+  }
+  if (actionStatus === 'kueche') {
+    updates.kuecheAngefragt = true;
+    updates.kuecheAngefragtAt = serverTimestampFallback();
+    queuedUpdates.kuecheAngefragt = true;
+    queuedUpdates.kuecheAngefragtAt = nowIso;
+  }
+  if (actionStatus === 'retterbox') {
+    updates.retterBoxAngefragt = true;
+    updates.retterBoxAngefragtAt = serverTimestampFallback();
+    queuedUpdates.retterBoxAngefragt = true;
+    queuedUpdates.retterBoxAngefragtAt = nowIso;
+  }
+  return withHiddenAudit(updates, queuedUpdates);
+}
+
 const MHD_RABATT_MATRIX = {
   '🍎 Frische': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
   '🥛MoPro': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
@@ -718,15 +883,19 @@ function applyReceivingCategoryOptions() {
 }
 
 function applyMhdCategoryFilterOptions() {
-  const select = document.getElementById('mhd-category-select');
-  if (!select) return;
-  const previous = mhdState.categoryFilter || 'all';
-  select.innerHTML = MHD_CATEGORY_FILTER_OPTIONS
-    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
-    .join('');
-  const hasPrevious = MHD_CATEGORY_FILTER_OPTIONS.some((option) => option.value === previous);
-  select.value = hasPrevious ? previous : 'all';
-  mhdState.categoryFilter = select.value;
+  const buttons = document.querySelectorAll('[data-mhd-category-filter]');
+  const previous = mhdState.categoryFilter || 'mopro';
+  const activeValue = MHD_CATEGORY_FILTER_OPTIONS.some((option) => option.value === previous)
+    ? previous
+    : 'mopro';
+  mhdState.categoryFilter = activeValue;
+  buttons.forEach((button) => {
+    const isActive = button.dataset.mhdCategoryFilter === activeValue;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+  const legacySelect = document.getElementById('mhd-category-select');
+  if (legacySelect) legacySelect.value = activeValue;
 }
 
 function applyMhdHorizonOptions() {
@@ -747,15 +916,12 @@ function formatMhdHorizonLabel(days) {
 }
 
 function updateMhdMonitorHintText(monitorHint) {
-  if (monitorHint) {
-    if (mhdState.categoryFilter === 'mopro') {
-      monitorHint.textContent = 'MoPro: MHD 0-3 Tage';
-    } else if (mhdState.categoryFilter === 'trockenware') {
-      monitorHint.textContent = 'Trockenware: MHD 0-21 Tage';
-    } else {
-      monitorHint.textContent = `MoPro 0-3 Tage · Trockenware 0-21 Tage · sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)}`;
-    }
+  if (!monitorHint) return;
+  if (mhdState.categoryFilter === 'mopro') {
+    monitorHint.textContent = 'MoPro & Kühlware: MHD 0-3 Tage';
+    return;
   }
+  monitorHint.textContent = 'Trockenware: MHD 0-21 Tage (TK, Gewürze, Frische, Getränke)';
 }
 
 function updateMhdToolbarAccordionLabel() {
@@ -781,12 +947,12 @@ function updateMhdToolbarAccordionMeta() {
   if (query) parts.push(query.length > 16 ? `${query.slice(0, 16)}…` : query);
   const horizonSelect = document.getElementById('mhd-horizon-select');
   const categorySelect = document.getElementById('mhd-category-select');
-  const horizon = mhdState.categoryFilter === 'all'
-    ? `MoPro 0-3 · Trockenware 0-21 · sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)}`
-    : horizonSelect?.selectedOptions[0]?.textContent?.trim() || formatMhdHorizonLabel(mhdState.monitorHorizonDays);
-  const category = categorySelect?.selectedOptions[0]?.textContent?.trim() || 'Alle Kategorien';
-  if (mhdState.categoryFilter !== 'all') parts.push(category);
-  else parts.push(horizon);
+  const horizon = mhdState.categoryFilter === 'mopro'
+    ? '0-3 Tage'
+    : '0-21 Tage';
+  const category = getMhdCategoryFilterLabel(mhdState.categoryFilter);
+  parts.push(category);
+  parts.push(horizon);
   meta.textContent = parts.join(' · ');
   meta.hidden = !parts.length;
 }
@@ -2206,33 +2372,29 @@ function matchesMhdMonitorHorizon(prod) {
   if (prod.soldOut) return false;
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
-  const category = getProductCategory(prod);
-  const upperLimit = category === MHD_CANONICAL_CATEGORIES.mopro
+  const group = getMhdMonitorGroup(prod);
+  const upperLimit = group === 'mopro'
     ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro
-    : category === MHD_CANONICAL_CATEGORIES.trockenware
-      ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware
-      : mhdState.monitorHorizonDays;
+    : MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware;
   return days <= upperLimit;
 }
 
 function getMhdMonitorEmptyHorizonText() {
   if (mhdState.categoryFilter === 'mopro') return 'im Zeitraum 0-3 Tage';
-  if (mhdState.categoryFilter === 'trockenware') return 'im Zeitraum 0-21 Tage';
-  return `im passenden Zeitraum (MoPro 0-3 Tage, Trockenware 0-21 Tage, sonst ${formatMhdHorizonLabel(mhdState.monitorHorizonDays)})`;
+  return 'im Zeitraum 0-21 Tage';
 }
 
-function getMhdCategoryFilterLabel(filterKey = 'all') {
+function getMhdCategoryFilterLabel(filterKey = 'mopro') {
   const option = MHD_CATEGORY_FILTER_OPTIONS.find((entry) => entry.value === filterKey);
-  return option?.label || 'Alle Kategorien';
+  return option?.label || MHD_MONITOR_GROUP_LABELS.mopro;
 }
 
 function filterMhdProducts(products) {
   const query = mhdState.searchQuery.trim();
-  const categoryFilter = MHD_CATEGORY_FILTERS[mhdState.categoryFilter];
+  const groupFilter = mhdState.categoryFilter || 'mopro';
   return products.filter((prod) => {
     if (!matchesMhdMonitorHorizon(prod)) return false;
-    const category = getProductCategory(prod);
-    if (categoryFilter && category !== categoryFilter) return false;
+    if (getMhdMonitorGroup(prod) !== groupFilter) return false;
     if (!query) return true;
     const name = (prod.name || prod.produkt || '').toLowerCase();
     const brand = (prod.brand || prod.marke || '').toLowerCase();
@@ -2419,7 +2581,7 @@ function getMhdCardAction(prod) {
 }
 
 function initMhdSubnavAndSearch() {
-  const categorySelect = document.getElementById('mhd-category-select');
+  const categoryButtons = document.querySelectorAll('[data-mhd-category-filter]');
   const horizonSelect = document.getElementById('mhd-horizon-select');
   const monitorHint = document.getElementById('mhd-monitor-hint');
   const toolbarAccordion = document.getElementById('mhd-toolbar-accordion');
@@ -2461,10 +2623,29 @@ function initMhdSubnavAndSearch() {
     });
   }
 
+  if (categoryButtons.length && !document.getElementById('mhd-category-toggle')?.dataset.mhdBound) {
+    const toggle = document.getElementById('mhd-category-toggle');
+    if (toggle) toggle.dataset.mhdBound = '1';
+    categoryButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextFilter = button.dataset.mhdCategoryFilter || 'mopro';
+        if (mhdState.categoryFilter === nextFilter) return;
+        mhdState.categoryFilter = nextFilter;
+        applyMhdCategoryFilterOptions();
+        updateMonitorHint();
+        refreshMhdToolbarSummary();
+        mhdState.playClickSound(940, 0.04, 0.12);
+        renderMhdList();
+      });
+    });
+  }
+
+  const categorySelect = document.getElementById('mhd-category-select');
   if (categorySelect && categorySelect.dataset.mhdBound !== '1') {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
-      mhdState.categoryFilter = categorySelect.value || 'all';
+      mhdState.categoryFilter = categorySelect.value || 'mopro';
+      applyMhdCategoryFilterOptions();
       updateMonitorHint();
       refreshMhdToolbarSummary();
       mhdState.playClickSound(940, 0.04, 0.12);
@@ -2605,6 +2786,7 @@ function loadMhdFromCloud() {
     (snapshot) => {
       const waitingForServer = Boolean(snapshot.metadata?.fromCache) && snapshot.empty;
       mhdState.products = snapshot.docs.map(mapMhdDoc);
+      applyPendingChangesToProducts();
       if (!waitingForServer) {
         markMhdCloudSyncReady();
       }
@@ -2979,7 +3161,7 @@ function renderMhdList() {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()}${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
+        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()} in ${escapeHtml(categoryLabel)}${mhdState.searchQuery ? ' für deine Suche' : ''}.
       </div>`;
     return;
   }
@@ -2987,6 +3169,7 @@ function renderMhdList() {
   container.innerHTML = renderedProducts.map((prod) => buildMhdCardHtml(prod)).join('');
 
   initMhdSwipeGestures();
+  updateMhdStickySaveBar();
 }
 
 // --- MHD-KARTEN SWIPE-GESTEN ---
@@ -3089,35 +3272,14 @@ function initMhdSwipeGestures() {
   }, { passive: true });
 }
 
-async function saveMhdCardQty(id, newQty) {
-  const prod = mhdState.products.find((p) => p.id === id);
-  if (!prod || prod.soldOut) return;
-  if (newQty === (prod.qty ?? 0)) return;
-
-  const audited = withHiddenAudit({ qty: newQty });
-
-  try {
-    await mhdState.writeOrQueueFirestore({
-      collectionPath: mhdCollectionPath(),
-      docId: id,
-      onlineData: audited.onlineData,
-      queueData: audited.queueData,
-      offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
-    });
-  } catch (err) {
-    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCardQty')) return;
-    console.error('[CharcuLogic Firebase] saveMhdCardQty() Update fehlgeschlagen:', err);
-    mhdState.showHUD('Fehler', 'Menge konnte nicht gespeichert werden.', '!');
-  }
-}
-
 async function adjustQty(id, change) {
   const prod = mhdState.products.find(p => p.id === id);
   if (!prod || prod.soldOut) return;
 
   const newQty = Math.max(0, (prod.qty ?? 0) + change);
+  if (newQty === (prod.qty ?? 0)) return;
   mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
-  await saveMhdCardQty(id, newQty);
+  stageMhdChange(id, { qty: newQty });
 }
 
 async function commitMhdCardQtyFromInput(id, rawValue) {
@@ -3126,7 +3288,9 @@ async function commitMhdCardQtyFromInput(id, rawValue) {
     mhdState.showHUD('Ungültige Menge', 'Bitte eine gültige Stückzahl eingeben.', '!');
     return;
   }
-  await saveMhdCardQty(id, newQty);
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod || prod.soldOut || newQty === (prod.qty ?? 0)) return;
+  stageMhdChange(id, { qty: newQty });
 }
 
 async function setSoldOut(id) {
@@ -3139,22 +3303,7 @@ async function setSoldOut(id) {
     qty: newSoldOut ? 0 : (prod.qty ?? 0),
   };
   mhdState.playClickSound(400, 0.08, 0.2);
-
-  const audited = withHiddenAudit(updates);
-
-  try {
-    await mhdState.writeOrQueueFirestore({
-      collectionPath: mhdCollectionPath(),
-      docId: id,
-      onlineData: audited.onlineData,
-      queueData: audited.queueData,
-      offlineMessage: "Ausverkauft-Status wird nachträglich synchronisiert.",
-    });
-  } catch (err) {
-    if (maybeResetOnFirestorePermissionError(err, 'setSoldOut')) return;
-    console.error('[CharcuLogic Firebase] setSoldOut() Update fehlgeschlagen:', err);
-    mhdState.showHUD("Fehler", "Status konnte nicht gespeichert werden.", "!");
-  }
+  stageMhdChange(id, updates);
 };
 
 function openMhdCategoryEditor(id) {
@@ -3382,71 +3531,10 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
 }
 
 async function markMhdAction(id, actionStatus) {
-  const today = new Date().toISOString().slice(0, 10);
-  const nowIso = new Date().toISOString();
-  const updates = {
-    mhdActionStatus: actionStatus,
-    lastMhdCheckDate: today,
-    lastMhdCheckAt: serverTimestampFallback(),
-  };
-  const queuedUpdates = {
-    mhdActionStatus: actionStatus,
-    lastMhdCheckDate: today,
-    lastMhdCheckAt: nowIso,
-  };
-  if (actionStatus === 'rausgenommen') {
-    updates.soldOut = true;
-    updates.qty = 0;
-    queuedUpdates.soldOut = true;
-    queuedUpdates.qty = 0;
-  }
-  if (actionStatus === 'reduziert') {
-    updates.rabattiert = true;
-    updates.rabattiertAt = serverTimestampFallback();
-    queuedUpdates.rabattiert = true;
-    queuedUpdates.rabattiertAt = nowIso;
-  }
-  if (actionStatus === 'kueche') {
-    updates.kuecheAngefragt = true;
-    updates.kuecheAngefragtAt = serverTimestampFallback();
-    queuedUpdates.kuecheAngefragt = true;
-    queuedUpdates.kuecheAngefragtAt = nowIso;
-  }
-  if (actionStatus === 'retterbox') {
-    updates.retterBoxAngefragt = true;
-    updates.retterBoxAngefragtAt = serverTimestampFallback();
-    queuedUpdates.retterBoxAngefragt = true;
-    queuedUpdates.retterBoxAngefragtAt = nowIso;
-  }
-  const audited = withHiddenAudit(updates, queuedUpdates);
-
-  try {
-    const actionResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: mhdCollectionPath(),
-      docId: id,
-      onlineData: audited.onlineData,
-      queueData: audited.queueData,
-      offlineMessage: "MHD-Aktion wird nachträglich synchronisiert.",
-    });
-    const successMessage = actionResult === 'queued'
-      ? 'Lokal vorgemerkt. Wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
-      : actionStatus === 'reduziert'
-      ? 'Posten als reduziert markiert.'
-      : actionStatus === 'rausgenommen'
-        ? 'Posten als rausgenommen markiert.'
-        : actionStatus === 'kueche'
-          ? (navigator.onLine
-            ? 'Erfolgreich an die Küche übergeben! (Live-Sync)'
-            : 'Offline gespeichert (Warte auf Netz)')
-          : actionStatus === 'retterbox'
-            ? 'Posten fuer die Retter-Box vorgemerkt.'
-          : 'Posten als geprüft markiert.';
-    mhdState.showHUD("Morgencheck erledigt", successMessage);
-  } catch (err) {
-    if (maybeResetOnFirestorePermissionError(err, 'markMhdAction')) return;
-    console.error('[CharcuLogic Firebase] MHD-Aktion speichern fehlgeschlagen:', err);
-    mhdState.showHUD("Fehler", "MHD-Aktion konnte nicht gespeichert werden.", "!");
-  }
+  const audited = buildMhdActionUpdates(actionStatus);
+  const localUpdates = { ...audited.queueData };
+  mhdState.playClickSound(700, 0.04, 0.12);
+  stageMhdChange(id, localUpdates);
 };
 
 async function addMhdItemToRetterBox(id) {
@@ -3589,20 +3677,7 @@ function showMasterData() {
   `);
 }
 
-// "Änderungen speichern" Button
-const btnSaveMhd = document.getElementById('btn-save-mhd');
-if (btnSaveMhd) {
-  btnSaveMhd.addEventListener('click', () => {
-    mhdState.playClickSound(900, 0.1, 0.2);
-    if (isFirebaseReady()) {
-      mhdState.showHUD("☁️ Cloud-Sync aktiv", "MHD-Bestände werden live in Firestore gespeichert.");
-    } else {
-      mhdState.showHUD("⚠️ Offline", "Firebase nicht konfiguriert – keine Cloud-Synchronisation.", "⚠️");
-    }
-  });
-}
-
-
+// "Änderungen speichern" Button — gebunden in bindMhdToolbar()
 
 function toggleMhdDaysBadge(badge) {
   if (!badge) return;
@@ -5211,11 +5286,11 @@ function bindMhdToolbar() {
   if (btnSaveMhd && btnSaveMhd.dataset.mhdBound !== '1') {
     btnSaveMhd.dataset.mhdBound = '1';
     btnSaveMhd.addEventListener('click', () => {
-      mhdState.playClickSound(900, 0.1, 0.2);
-      if (isFirebaseReady()) mhdState.showHUD('Cloud-Sync aktiv', 'MHD-Best?nde werden live in Firestore gespeichert.');
-      else mhdState.showHUD('Offline', 'Firebase nicht konfiguriert - keine Cloud-Synchronisation.', '!');
+      if (!mhdState.hasUnsavedChanges) return;
+      saveAllPendingMhdChanges();
     });
   }
+  updateMhdStickySaveBar();
 }
 export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {}, uiCallbacks = {}) {
   mhdState.db = databaseInstance || mhdState.db;

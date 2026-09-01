@@ -23,6 +23,8 @@
   --primary-alpha-35: color-mix(in srgb, var(--primary-color) 35%, transparent);
   --primary-alpha-45: color-mix(in srgb, var(--primary-color) 45%, transparent);
   --primary-tint-bg: color-mix(in srgb, var(--primary-color) 12%, var(--light-bg));
+  --mhd-save-bar-height: 108px;
+  --mhd-bottom-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
   --primary-tint-bg-strong: color-mix(in srgb, var(--primary-color) 18%, var(--light-bg));
   --header-text: #ffffff;
   --header-text-muted: rgba(255, 255, 255, 0.72);
@@ -948,19 +950,62 @@ button:active, .btn:active {
   cursor: not-allowed;
 }
 
-/* Sticky Save Bar (MHD) – im Dokumentfluss, nicht über Karten legen */
+/* Sticky Save Bar (MHD) — fixiert am unteren Rand bei ausstehenden Änderungen */
 .sticky-action-bar {
-  position: absolute;
-  bottom: 80px; /* über Bottom-Nav kleben beim Scrollen */
-  left: 14px;
-  right: 14px;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--mhd-bottom-nav-height, 64px);
   flex-shrink: 0;
   margin: 0;
   width: auto;
-  padding: 10px 0 8px;
-  background: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.95) 35%, var(--bg-color) 100%);
-  z-index: 90;
+  padding: 12px max(14px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-right));
+  background: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.95) 25%, var(--bg-color) 100%);
+  z-index: 97;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: translateY(12px);
   pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.sticky-action-bar.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.sticky-action-bar.is-hiding {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
+.sticky-action-bar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.sticky-action-bar-count {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted, #666);
+  line-height: 1.3;
+}
+
+.sticky-action-bar .btn-sticky-save {
+  width: 100%;
+  min-height: 52px;
+  height: auto;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px var(--primary-alpha-25);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* Kurze MHD-Listen: Karten oben, Speichern-Leiste unten im sichtbaren Bereich */
@@ -984,14 +1029,37 @@ button:active, .btn:active {
   margin-bottom: 0;
 }
 
-.sticky-action-bar button {
-  pointer-events: auto; /* Re-enable clicks */
+.mhd-category-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
   width: 100%;
-  min-height: 56px;
-  height: auto;
+}
+
+.mhd-category-btn {
+  min-height: 52px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 2px solid var(--surface-secondary, #E5E5EA);
+  background: var(--surface-color, #fff);
+  color: var(--text-dark, #1C1C1E);
   font-size: 14px;
-  box-shadow: 0 8px 24px var(--primary-alpha-25);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mhd-category-btn.is-active {
+  border-color: var(--primary-color);
+  background: var(--primary-alpha-10, rgba(0, 122, 255, 0.1));
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-alpha-25, rgba(0, 122, 255, 0.25));
+}
+
+.mhd-category-btn:active {
+  transform: scale(0.98);
 }
 
 /* --- SCREEN 1: MHD-MONITOR --- */
@@ -4820,6 +4888,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   background: linear-gradient(180deg, rgba(28, 28, 30, 0) 0%, rgba(28, 28, 30, 0.95) 25%, #1C1C1E 100%);
 }
 
+[data-theme="dark"] .mhd-category-btn {
+  background: var(--surface-color);
+  border-color: var(--surface-secondary);
+  color: var(--text-dark);
+}
+
+[data-theme="dark"] .mhd-category-btn.is-active {
+  background: rgba(10, 132, 255, 0.18);
+  border-color: var(--primary-color);
+  color: #64B5FF;
+}
+
 [data-theme="dark"] .scanner-manual-btn {
   background: var(--surface-color);
   color: var(--text-dark);
@@ -5020,7 +5100,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
    * Feste Speichern-Leiste + Padding in der Liste – Karten bleiben frei.
    */
   :root {
-    --mhd-save-bar-height: 80px;
+    --mhd-save-bar-height: 108px;
     --mhd-bottom-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -5042,13 +5122,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     width: auto;
     margin-top: 0;
     margin-bottom: 0;
-    padding: 12px max(14px, env(safe-area-inset-left)) 8px max(14px, env(safe-area-inset-right));
+    padding: 12px max(14px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-right));
     z-index: 97;
     box-sizing: border-box;
   }
 
-  .sticky-action-bar {
-    bottom: var(--mhd-bottom-nav-height);
+  .mhd-category-toggle {
+    grid-template-columns: 1fr;
+  }
+
+  .mhd-category-btn {
+    min-height: 52px;
+    font-size: 15px;
   }
 
   /* MHD-Toolbar: nicht sticky – scrollt mit, überdeckt keine Karten */

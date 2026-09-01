@@ -818,17 +818,26 @@
                     <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
                   </div>
                   <div class="mhd-filter-row mhd-filter-row--monitor">
-                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">MHD in den kommenden 21 Tagen</p>
-                    <label class="mhd-filter-field mhd-filter-field--horizon" for="mhd-horizon-select">
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">MoPro & Kühlware: MHD 0-3 Tage</p>
+                    <div class="mhd-category-toggle" id="mhd-category-toggle" role="group" aria-label="MHD-Prüfgruppe">
+                      <button type="button" class="mhd-category-btn is-active" data-mhd-category-filter="mopro" aria-pressed="true">
+                        🥛 MoPro & Kühlware
+                      </button>
+                      <button type="button" class="mhd-category-btn" data-mhd-category-filter="trockenware" aria-pressed="false">
+                        📦 Trockenware
+                      </button>
+                    </div>
+                    <label class="mhd-filter-field mhd-filter-field--horizon hidden" for="mhd-horizon-select" hidden>
                       <span class="mhd-filter-label">Zeitraum</span>
                       <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
                         <option value="21" selected>0-21 Tage</option>
                       </select>
                     </label>
-                    <label class="mhd-filter-field mhd-filter-field--category" for="mhd-category-select">
+                    <label class="mhd-filter-field mhd-filter-field--category hidden" for="mhd-category-select" hidden>
                       <span class="mhd-filter-label">Kategorie</span>
                       <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
-                        <option value="all" selected>Alle Kategorien</option>
+                        <option value="mopro" selected>🥛 MoPro & Kühlware</option>
+                        <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>
                   </div>
@@ -859,11 +868,14 @@
               <!-- Cards are rendered dynamically by app.js -->
             </div>
             
-            <!-- Sticky bottom save bar for this screen -->
-            <div class="sticky-action-bar">
-              <button class="btn btn-primary" id="btn-save-mhd">
-                💾 Änderungen speichern
-              </button>
+            <!-- Sticky bottom save bar — erscheint bei ausstehenden Änderungen -->
+            <div class="sticky-action-bar" id="mhd-sticky-save-bar" hidden>
+              <div class="sticky-action-bar-inner">
+                <span class="sticky-action-bar-count" id="mhd-pending-count" aria-live="polite">0 Änderungen ausstehend</span>
+                <button type="button" class="btn btn-primary btn-sticky-save" id="btn-save-mhd">
+                  JETZT SPEICHERN
+                </button>
+              </div>
             </div>
           </div>
 
