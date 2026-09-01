@@ -1143,9 +1143,44 @@ button:active, .btn:active {
 
 .mhd-search-panel {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+}
+
+.mhd-completion-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+  flex: 1 1 100%;
+}
+
+.mhd-completion-btn {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 2px solid var(--surface-secondary, #E5E5EA);
+  background: var(--surface-color, #fff);
+  color: var(--text-dark, #1C1C1E);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mhd-completion-btn.is-active {
+  border-color: var(--primary-color);
+  background: var(--primary-alpha-10, rgba(0, 122, 255, 0.1));
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-alpha-25, rgba(0, 122, 255, 0.25));
+}
+
+.mhd-completion-btn:active {
+  transform: scale(0.98);
 }
 
 .mhd-search-input {
@@ -1690,8 +1725,20 @@ button:active, .btn:active {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  transition: all 0.2s ease;
+  transition: opacity 0.28s ease, transform 0.28s ease, max-height 0.32s ease, margin 0.28s ease, padding 0.28s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.mhd-card.mhd-card--leaving {
+  opacity: 0;
+  transform: translateX(-24px) scale(0.98);
+  max-height: 0;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 /* High Contrast Colored Status Bars */
@@ -4895,6 +4942,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 [data-theme="dark"] .mhd-category-btn.is-active {
+  background: rgba(10, 132, 255, 0.18);
+  border-color: var(--primary-color);
+  color: #64B5FF;
+}
+
+[data-theme="dark"] .mhd-completion-btn {
+  background: var(--surface-color);
+  border-color: var(--surface-secondary);
+  color: var(--text-dark);
+}
+
+[data-theme="dark"] .mhd-completion-btn.is-active {
   background: rgba(10, 132, 255, 0.18);
   border-color: var(--primary-color);
   color: #64B5FF;

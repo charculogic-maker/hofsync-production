@@ -232,6 +232,7 @@ const mhdState = {
   appsScriptWebAppUrl: '',
   products: [],
   categoryFilter: 'mopro',
+  completionFilter: 'offen',
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
   pendingChanges: {},
@@ -373,7 +374,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'vpeBarcode', 'vpeInhalt',
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
-  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
+  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
   'retterBoxAngefragt', 'retterBoxAngefragtAt',
@@ -511,6 +512,116 @@ function getMhdMonitorGroup(prod = {}) {
   return 'trockenware';
 }
 
+function getMhdTodayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getEffectiveMhdProduct(prod = {}) {
+  const pending = mhdState.pendingChanges[prod.id];
+  return pending ? { ...prod, ...pending } : prod;
+}
+
+function resolveLastCheckedDate(prod = {}) {
+  const effective = getEffectiveMhdProduct(prod);
+  return String(effective.lastCheckedDate || effective.lastMhdCheckDate || '').trim();
+}
+
+function isMhdCheckedToday(prod = {}) {
+  const checkedDate = resolveLastCheckedDate(prod);
+  return Boolean(checkedDate) && checkedDate === getMhdTodayIso();
+}
+
+function buildMhdDailyCheckStamp() {
+  const today = getMhdTodayIso();
+  const nowIso = new Date().toISOString();
+  return {
+    lastCheckedDate: today,
+    lastMhdCheckDate: today,
+    lastMhdCheckAt: nowIso,
+  };
+}
+
+function matchesMhdCompletionFilter(prod = {}) {
+  const checkedToday = isMhdCheckedToday(prod);
+  if (mhdState.completionFilter === 'erledigt') return checkedToday;
+  return !checkedToday;
+}
+
+function filterMhdProductsByMonitorScope(products, { includeSearch = true } = {}) {
+  const query = includeSearch ? mhdState.searchQuery.trim() : '';
+  const groupFilter = mhdState.categoryFilter || 'mopro';
+  return products.filter((prod) => {
+    if (!matchesMhdMonitorHorizon(prod)) return false;
+    if (getMhdMonitorGroup(prod) !== groupFilter) return false;
+    if (!query) return true;
+    const name = (prod.name || prod.produkt || '').toLowerCase();
+    const brand = (prod.brand || prod.marke || '').toLowerCase();
+    return name.includes(query) || brand.includes(query);
+  });
+}
+
+function countMhdOpenProducts(products = mhdState.products) {
+  return filterMhdProductsByMonitorScope(products, { includeSearch: false })
+    .filter((prod) => !isMhdCheckedToday(prod)).length;
+}
+
+function countMhdCompletedTodayProducts(products = mhdState.products) {
+  return filterMhdProductsByMonitorScope(products, { includeSearch: false })
+    .filter((prod) => isMhdCheckedToday(prod)).length;
+}
+
+function updateMhdCompletionToggle() {
+  const buttons = document.querySelectorAll('[data-mhd-completion-filter]');
+  if (!buttons.length) return;
+  const openCount = countMhdOpenProducts();
+  const doneCount = countMhdCompletedTodayProducts();
+  buttons.forEach((button) => {
+    const filter = button.dataset.mhdCompletionFilter || 'offen';
+    const isActive = filter === (mhdState.completionFilter || 'offen');
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    if (filter === 'offen') {
+      button.textContent = `Offen (${openCount})`;
+    } else if (filter === 'erledigt') {
+      button.textContent = `Erledigt (${doneCount})`;
+    }
+  });
+}
+
+function applyMhdCompletionFilterOptions() {
+  mhdState.completionFilter = mhdState.completionFilter || 'offen';
+  updateMhdCompletionToggle();
+}
+
+function animateMhdCardExit(id) {
+  return new Promise((resolve) => {
+    const card = document.getElementById(`mhd-card-${id}`);
+    if (!card) {
+      resolve();
+      return;
+    }
+    card.classList.add('mhd-card--leaving');
+    const finish = () => resolve();
+    card.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 320);
+  });
+}
+
+function shouldAnimateMhdCompletionExit(id, updates = {}) {
+  if (mhdState.completionFilter !== 'offen') return false;
+  const today = getMhdTodayIso();
+  if (updates.lastCheckedDate === today) return true;
+  const pending = {
+    ...(mhdState.pendingChanges[id] || {}),
+    ...updates,
+  };
+  return pending.lastCheckedDate === today || pending.lastMhdCheckDate === today;
+}
+
 function getMhdPendingChangeCount() {
   return Object.keys(mhdState.pendingChanges).length;
 }
@@ -537,6 +648,11 @@ function stageMhdChange(id, updates = {}) {
   }
   mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
   updateMhdStickySaveBar();
+  updateMhdCompletionToggle();
+  if (shouldAnimateMhdCompletionExit(id, updates)) {
+    animateMhdCardExit(id).then(() => renderMhdList());
+    return;
+  }
   renderMhdList();
 }
 
@@ -614,6 +730,7 @@ async function saveAllPendingMhdChanges() {
     mhdState.playClickSound(900, 0.1, 0.2);
     window.showToast?.('Änderungen gespeichert', 'success');
     mhdState.showHUD('Gespeichert', 'MHD-Änderungen wurden in der Cloud gespeichert.');
+    updateMhdCompletionToggle();
   } catch (err) {
     if (maybeResetOnFirestorePermissionError(err, 'saveAllPendingMhdChanges')) return;
     console.error('[CharcuLogic Firebase] saveAllPendingMhdChanges() fehlgeschlagen:', err);
@@ -629,16 +746,16 @@ async function saveAllPendingMhdChanges() {
 }
 
 function buildMhdActionUpdates(actionStatus) {
-  const today = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
+  const dailyStamp = buildMhdDailyCheckStamp();
   const updates = {
     mhdActionStatus: actionStatus,
-    lastMhdCheckDate: today,
+    ...dailyStamp,
     lastMhdCheckAt: serverTimestampFallback(),
   };
   const queuedUpdates = {
     mhdActionStatus: actionStatus,
-    lastMhdCheckDate: today,
+    ...dailyStamp,
     lastMhdCheckAt: nowIso,
   };
   if (actionStatus === 'rausgenommen') {
@@ -2390,16 +2507,7 @@ function getMhdCategoryFilterLabel(filterKey = 'mopro') {
 }
 
 function filterMhdProducts(products) {
-  const query = mhdState.searchQuery.trim();
-  const groupFilter = mhdState.categoryFilter || 'mopro';
-  return products.filter((prod) => {
-    if (!matchesMhdMonitorHorizon(prod)) return false;
-    if (getMhdMonitorGroup(prod) !== groupFilter) return false;
-    if (!query) return true;
-    const name = (prod.name || prod.produkt || '').toLowerCase();
-    const brand = (prod.brand || prod.marke || '').toLowerCase();
-    return name.includes(query) || brand.includes(query);
-  });
+  return filterMhdProductsByMonitorScope(products).filter((prod) => matchesMhdCompletionFilter(prod));
 }
 
 function formatMhdDateForCardMeta(prod = {}) {
@@ -2606,6 +2714,7 @@ function initMhdSubnavAndSearch() {
 
   applyMhdCategoryFilterOptions();
   applyMhdHorizonOptions();
+  applyMhdCompletionFilterOptions();
 
   const updateMonitorHint = () => {
     updateMhdMonitorHintText(monitorHint);
@@ -2634,7 +2743,25 @@ function initMhdSubnavAndSearch() {
         applyMhdCategoryFilterOptions();
         updateMonitorHint();
         refreshMhdToolbarSummary();
+        updateMhdCompletionToggle();
         mhdState.playClickSound(940, 0.04, 0.12);
+        renderMhdList();
+      });
+    });
+  }
+
+  const completionButtons = document.querySelectorAll('[data-mhd-completion-filter]');
+  if (completionButtons.length && !document.getElementById('mhd-completion-toggle')?.dataset.mhdBound) {
+    const completionToggle = document.getElementById('mhd-completion-toggle');
+    if (completionToggle) completionToggle.dataset.mhdBound = '1';
+    completionButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextFilter = button.dataset.mhdCompletionFilter || 'offen';
+        if (mhdState.completionFilter === nextFilter) return;
+        mhdState.completionFilter = nextFilter;
+        applyMhdCompletionFilterOptions();
+        refreshMhdToolbarSummary();
+        mhdState.playClickSound(880, 0.04, 0.12);
         renderMhdList();
       });
     });
@@ -3159,10 +3286,14 @@ function renderMhdList() {
 
   if (!visibleProducts.length) {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
+    const completionHint = mhdState.completionFilter === 'erledigt'
+      ? 'Heute erledigte Artikel'
+      : 'Offene Prüfungen';
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()} in ${escapeHtml(categoryLabel)}${mhdState.searchQuery ? ' für deine Suche' : ''}.
+        Keine ${escapeHtml(completionHint)} mit MHD ${getMhdMonitorEmptyHorizonText()} in ${escapeHtml(categoryLabel)}${mhdState.searchQuery ? ' für deine Suche' : ''}.
       </div>`;
+    updateMhdCompletionToggle();
     return;
   }
 
@@ -3170,6 +3301,7 @@ function renderMhdList() {
 
   initMhdSwipeGestures();
   updateMhdStickySaveBar();
+  updateMhdCompletionToggle();
 }
 
 // --- MHD-KARTEN SWIPE-GESTEN ---
@@ -3495,6 +3627,7 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
         ? 'warning'
         : 'ok';
   const updatedAtIso = new Date().toISOString();
+  const dailyStamp = buildMhdDailyCheckStamp();
   const onlineData = {
     mhd: draft.newIso,
     mhdDate: draft.newIso,
@@ -3503,6 +3636,7 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
     resttage: tage,
     mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'MHD korrigiert',
     status,
+    ...dailyStamp,
     updatedAt: serverTimestampFallback(),
   };
   const queueData = {
@@ -3521,6 +3655,9 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
     });
     Object.assign(draft.prod, audited.queueData);
     resetScanState({ keepLearnOverlay: false });
+    if (mhdState.completionFilter === 'offen') {
+      await animateMhdCardExit(id);
+    }
     renderMhdList();
     mhdState.showHUD('MHD gespeichert', `Neues MHD: ${draft.newLabel}.`);
   } catch (err) {
