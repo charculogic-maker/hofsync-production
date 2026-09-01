@@ -32,6 +32,8 @@ import {
   qaState,
   requeueDeadPendingSyncs,
   reportCriticalError,
+  resetPendingSyncRetries,
+  clearAllPendingSyncQueues,
   savePendingSyncs,
   updateSyncIndicator,
   writeFirestoreDocOrQueue,
@@ -3338,21 +3340,21 @@ function showSyncQueueDialog() {
   });
   document.getElementById('sync-queue-retry')?.addEventListener('click', async () => {
     const requeued = requeueDeadPendingSyncs();
+    const reset = resetPendingSyncRetries();
     await flushPendingSyncs();
     updateSyncIndicator();
     close();
     showToast(
-      requeued > 0
-        ? `${requeued} Einträge erneut eingeplant, Übertragung läuft.`
+      requeued > 0 || reset > 0
+        ? `${requeued + reset} Einträge erneut eingeplant, Übertragung läuft.`
         : 'Übertragung erneut angestoßen.',
       'success',
     );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
-    savePendingSyncs([]);
-    updateSyncIndicator();
+    clearAllPendingSyncQueues();
     close();
-    showToast('Liste lokal geleert.', 'warning');
+    showToast('Wartende und fehlerhafte Einträge lokal verworfen.', 'warning');
   });
 }
 

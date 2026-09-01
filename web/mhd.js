@@ -382,7 +382,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'vpeBarcode', 'vpeInhalt',
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
-  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate',
+  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
   'retterBoxAngefragt', 'retterBoxAngefragtAt',
@@ -546,11 +546,14 @@ function isMhdCheckedToday(prod = {}) {
 function buildMhdDailyCheckStamp() {
   const today = getMhdTodayIso();
   const nowIso = new Date().toISOString();
-  return {
+  const actor = getAuditActorName();
+  const stamp = {
     lastCheckedDate: today,
     lastMhdCheckDate: today,
     lastMhdCheckAt: nowIso,
   };
+  if (actor) stamp.lastCheckedBy = actor;
+  return stamp;
 }
 
 function matchesMhdCompletionFilter(prod = {}) {

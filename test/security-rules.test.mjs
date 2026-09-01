@@ -252,9 +252,12 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'update',
         {
           qty: 3,
+          menge: 3,
+          status: 'geprueft',
           mhdActionStatus: 'geprueft',
           lastCheckedDate: '2026-09-01',
           lastMhdCheckDate: '2026-09-01',
+          lastCheckedBy: 'Anna',
           updatedAt: serverTimestamp(),
         },
       );

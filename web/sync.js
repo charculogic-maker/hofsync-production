@@ -137,6 +137,39 @@ function isTaskCollectionPath(collectionPath) {
   return String(collectionPath || '').includes('/tasks');
 }
 
+const MHD_LISTE_SYNC_FIELDS = new Set([
+  'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
+  'produkt', 'name', 'marke', 'brand',
+  'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
+  'tage', 'resttage', 'status',
+  'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+  'kategorie', 'warenKategorie', 'soldOut',
+  'lot', 'chargenNummer', 'lieferant', 'temperatur',
+  'erfassungsDatum', 'meisterOverrideReason',
+  'vpeBarcode', 'vpeInhalt',
+  'source', 'postentyp', 'wareneingangAt',
+  'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
+  'rabattiert', 'rabattiertAt',
+  'kuecheAngefragt', 'kuecheAngefragtAt',
+  'retterBoxAngefragt', 'retterBoxAngefragtAt',
+  'lieferungId',
+]);
+
+function isMhdListeCollectionPath(collectionPath) {
+  return String(collectionPath || '').includes('/mhd_liste');
+}
+
+function sanitizeMhdListeSyncPayload(data = {}) {
+  if (!data || typeof data !== 'object') return {};
+  const out = {};
+  Object.entries(data).forEach(([key, value]) => {
+    if (!MHD_LISTE_SYNC_FIELDS.has(key) || value === undefined) return;
+    out[key] = value;
+  });
+  return out;
+}
+
 export function getPendingSyncs() {
   const key = pendingSyncsKey();
   if (!key) return [];
@@ -207,6 +240,25 @@ export function requeueDeadPendingSyncs() {
 
   saveDeadPendingSyncs(stillDead);
   return requeued;
+}
+
+/** Setzt Versuchszähler für alle wartenden Einträge zurück (z. B. nach Regel-Fix). */
+export function resetPendingSyncRetries() {
+  const queue = getPendingSyncs();
+  if (!queue.length) return 0;
+  const reset = queue.map((item) => {
+    const { _lastError, _errorCode, _attempts, ...rest } = item;
+    return { ...rest, _attempts: 0 };
+  });
+  savePendingSyncs(reset);
+  return reset.length;
+}
+
+/** Leert Warteschlange und Dead-Letter-Puffer für den aktuellen Mandanten. */
+export function clearAllPendingSyncQueues() {
+  savePendingSyncs([]);
+  saveDeadPendingSyncs([]);
+  updateSyncIndicator();
 }
 
 export function savePendingSyncs(queue) {
@@ -523,9 +575,12 @@ export async function flushOnePendingSync(item) {
   if (_syncType === 'firestore-doc') {
     const collectionPath = normalizeTenantCollectionPath(_collectionPath);
     const ref = tenantFirestoreDocRef(db, _collectionPath, _docId);
+    const rawPayload = data || {};
     const payload = isTaskCollectionPath(collectionPath)
-      ? sanitizeTaskSyncPayload(data || {})
-      : (data || {});
+      ? sanitizeTaskSyncPayload(rawPayload)
+      : (isMhdListeCollectionPath(collectionPath)
+        ? sanitizeMhdListeSyncPayload(rawPayload)
+        : rawPayload);
     const writeOp = (_op === 'create' && isTaskCollectionPath(collectionPath)) ? 'set' : _op;
     try {
       if (writeOp === 'delete') {
@@ -646,7 +701,9 @@ export async function writeFirestoreDocOrQueue({
   const normalizedCollectionPath = normalizeTenantCollectionPath(collectionPath);
   const syncData = isTaskCollectionPath(normalizedCollectionPath)
     ? sanitizeTaskSyncPayload(queueData)
-    : queueData;
+    : (isMhdListeCollectionPath(normalizedCollectionPath)
+      ? sanitizeMhdListeSyncPayload(queueData)
+      : queueData);
   const syncOp = (op === 'create' && isTaskCollectionPath(normalizedCollectionPath)) ? 'set' : op;
 
   if (!navigator.onLine || !syncContext.isFirebaseReady() || !db) {
@@ -673,7 +730,9 @@ export async function writeFirestoreDocOrQueue({
     const firebase = syncContext.getFirebase();
     const onlinePayload = isTaskCollectionPath(normalizedCollectionPath)
       ? sanitizeTaskSyncPayload(onlineData)
-      : onlineData;
+      : (isMhdListeCollectionPath(normalizedCollectionPath)
+        ? sanitizeMhdListeSyncPayload(onlineData)
+        : onlineData);
     const writeOp = syncOp;
     let writePromise;
     if (writeOp === 'delete') {

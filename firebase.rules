@@ -204,7 +204,7 @@ service cloud.firestore {
           'vpeBarcode', 'vpeInhalt',
           'source', 'postentyp', 'wareneingangAt',
           'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
-          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate',
+          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
           'rabattiert', 'rabattiertAt',
           'kuecheAngefragt', 'kuecheAngefragtAt',
           'retterBoxAngefragt', 'retterBoxAngefragtAt',
@@ -217,25 +217,9 @@ service cloud.firestore {
         && isIntGteZero(request.resource.data.qty)
         && request.resource.data.tenantId == tenantId;
 
+      // Shopfloor-Updates: Mitarbeiter/Admins dürfen alle MHD-Felder ändern
+      // (Quittierung, Menge, Status, Prüfdatum). tenantId darf nicht fremd gesetzt werden.
       allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'id', 'postenId', 'ean', 'barcode', 'scanBarcode',
-          'produkt', 'name', 'marke', 'brand',
-          'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
-          'tage', 'resttage', 'status',
-          'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
-          'kategorie', 'warenKategorie', 'soldOut',
-          'lot', 'chargenNummer', 'lieferant', 'temperatur',
-          'erfassungsDatum', 'meisterOverrideReason',
-          'vpeBarcode', 'vpeInhalt',
-          'source', 'postentyp', 'wareneingangAt',
-          'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
-          'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate',
-          'rabattiert', 'rabattiertAt',
-          'kuecheAngefragt', 'kuecheAngefragtAt',
-          'retterBoxAngefragt', 'retterBoxAngefragtAt',
-          'lieferungId'
-        ])
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tenantId'])
           || request.resource.data.tenantId == tenantId
