@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260831-auth-errors';
+const CACHE_NAME = 'charculogic-v20260901-mhd-pending-draft';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -27,6 +27,7 @@ const CRITICAL_ASSETS = [
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/mhd-pending-changes.mjs',
   '/retter-box.js',
   '/date-input.js',
   '/delivery-note.js',
