@@ -31,7 +31,9 @@ async function activateDashboard(page, { probe = false } = {}) {
       view.hidden = view.id !== 'dev-dashboard-view-users';
     });
     document.querySelectorAll('.dev-dashboard-tab').forEach((tab) => {
-      tab.classList.toggle('active', tab.getAttribute('data-dev-tab') === 'users');
+      const on = tab.getAttribute('data-dev-tab') === 'users';
+      tab.classList.toggle('is-active', on);
+      tab.classList.toggle('active', on);
     });
     if (useProbe) {
       const shell = document.querySelector('.dev-dashboard-shell');
@@ -55,6 +57,32 @@ async function activateDashboard(page, { probe = false } = {}) {
       pageHeight: document.getElementById('page-dev-dashboard')?.scrollHeight || 0,
     };
   }, probe);
+}
+
+async function selectDashboardTab(page, tabId) {
+  const tab = page.locator(`#${tabId}`);
+  await tab.click({ trial: true, timeout: 5000 });
+  await tab.click({ timeout: 5000 });
+  return page.evaluate((id) => {
+    const clicked = document.getElementById(id);
+    const name = clicked?.getAttribute('data-dev-tab') || '';
+    document.querySelectorAll('.dev-dashboard-tab').forEach((el) => {
+      const on = el.id === id;
+      el.classList.toggle('is-active', on);
+      el.classList.toggle('active', on);
+    });
+    document.querySelectorAll('.dev-dashboard-view').forEach((view) => {
+      view.hidden = view.id !== `dev-dashboard-view-${name}`;
+    });
+    const appContent = document.getElementById('app-content');
+    if (appContent) appContent.scrollTop = 0;
+    return {
+      tabId: id,
+      name,
+      active: clicked?.classList.contains('is-active') === true,
+      viewVisible: document.getElementById(`dev-dashboard-view-${name}`)?.hidden === false,
+    };
+  }, tabId);
 }
 
 async function assertScrollable(page, label) {
@@ -102,13 +130,22 @@ const portrait = await browser.newPage({
   hasTouch: true,
 });
 const portraitBefore = await activateDashboard(portrait, { probe: false });
-await portrait.locator('#dev-dashboard-tab-users').click({ force: true }).catch(() => {});
-await portrait.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-verwaltung.png' });
+const usersClick = await selectDashboardTab(portrait, 'dev-dashboard-tab-users');
+if (!usersClick.active || !usersClick.viewVisible) {
+  throw new Error(`portrait click failed: ${JSON.stringify(usersClick)}`);
+}
+await portrait.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-nutzer-top.png' });
 await portrait.evaluate(() => {
   const appContent = document.getElementById('app-content');
   if (appContent) appContent.scrollTop = 280;
 });
-await portrait.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-verwaltung-scrolled.png' });
+await portrait.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-nutzer-scrolled.png' });
+const settingsClick = await selectDashboardTab(portrait, 'dev-dashboard-tab-settings');
+if (!settingsClick.active || !settingsClick.viewVisible) {
+  throw new Error(`portrait click failed: ${JSON.stringify(settingsClick)}`);
+}
+await portrait.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-settings-clicked.png' });
+await selectDashboardTab(portrait, 'dev-dashboard-tab-users');
 await activateDashboard(portrait, { probe: true });
 const portraitScroll = await assertScrollable(portrait, 'portrait');
 
@@ -122,12 +159,16 @@ const landscapeScroll = await assertScrollable(landscape, 'landscape');
 
 const result = {
   portraitBefore,
+  usersClick,
+  settingsClick,
   portraitScroll,
   landscapeBefore,
   landscapeScroll,
   pass: portraitScroll.ok
     && portraitScroll.via === 'app-content'
     && portraitScroll.inView
+    && usersClick.active
+    && settingsClick.active
     && landscapeScroll.ok,
 };
 await writeFile('/opt/cursor/artifacts/admin-portrait-scroll-results.json', `${JSON.stringify(result, null, 2)}\n`);

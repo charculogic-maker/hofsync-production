@@ -15,6 +15,7 @@
       var path = String(location.pathname || '');
       if (path !== '/dev-dashboard' && !/\/dev-dashboard\/?$/.test(path)) return;
       window.__charculogicDevDashboardBoot = true;
+      try { document.documentElement.classList.add('is-dev-dashboard-html'); } catch (e) {}
       function openLogin() {
         window.__charculogicLoginPromptOpen = true;
         var boot = document.getElementById('dev-dashboard-boot-fallback');
