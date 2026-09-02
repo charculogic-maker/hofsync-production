@@ -659,16 +659,21 @@ const fallbackResult = await fallbackPage.evaluate(async () => {
     .map((row) => row.textContent)
     .join(' | ');
   const required = ['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko'];
+  const paddyRow = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .find((row) => (row.querySelector('.dev-dashboard-employee-name')?.textContent || '').includes('Paddy'));
   return {
     functionsRegion,
     rowText,
     missing: required.filter((name) => !rowText.includes(name)),
     listStatus: document.getElementById('dev-dashboard-employee-list-status')?.textContent || '',
+    paddyIsAdmin: Boolean(paddyRow?.querySelector('.dev-dashboard-role-badge--admin')),
+    paddyRoleText: paddyRow?.querySelector('.dev-dashboard-role-badge')?.textContent || '',
   };
 });
 
 const fallbackPass = fallbackResult.functionsRegion === 'europe-west3'
-  && fallbackResult.missing.length === 0;
+  && fallbackResult.missing.length === 0
+  && fallbackResult.paddyIsAdmin === true;
 console.log(JSON.stringify({ fallbackResult, fallbackPass }, null, 2));
 if (!fallbackPass) {
   console.error('Profile fallback failures:', fallbackResult);

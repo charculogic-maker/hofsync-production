@@ -879,6 +879,15 @@ let manageEmployeesCallable = null;
 const STEVESHOF_PROFILE_FALLBACK_NAMES = [
   'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
 ];
+const STEVESHOF_PROFILE_ADMIN_NAMES = ['Paddy'];
+
+function roleForProfileName(tenantId, displayName) {
+  if (tenantId !== 'StevesHof_Hauptbetrieb') return 'employee';
+  const needle = String(displayName || '').trim().toLowerCase();
+  return STEVESHOF_PROFILE_ADMIN_NAMES.some((name) => name.toLowerCase() === needle)
+    ? 'admin'
+    : 'employee';
+}
 
 function getCreateEmployeeCallable() {
   if (createEmployeeCallable) return createEmployeeCallable;
@@ -911,7 +920,7 @@ function namesToProfileEmployees(names, tenantId) {
       uid: `profile:${tenantId}:${displayName.toLowerCase()}`,
       email: '',
       displayName,
-      role: 'employee',
+      role: roleForProfileName(tenantId, displayName),
       tenantId,
       allowedModules: { mhd: true, kitchen: true, buero: true },
       status: 'active',
@@ -957,10 +966,14 @@ async function loadEmployeeProfileFallback(tenantId, db) {
   }
   const byName = new Map();
   collected.forEach((entry) => {
-    const key = String(entry.uid || '').startsWith('profile:')
-      ? `name:${String(entry.displayName || '').toLowerCase()}`
-      : `uid:${entry.uid}`;
-    if (!byName.has(key)) byName.set(key, entry);
+    const isProfile = String(entry.uid || '').startsWith('profile:') || entry.source === 'profile';
+    const normalized = isProfile
+      ? { ...entry, role: roleForProfileName(tenantId, entry.displayName) }
+      : entry;
+    const key = isProfile
+      ? `name:${String(normalized.displayName || '').toLowerCase()}`
+      : `uid:${normalized.uid}`;
+    if (!byName.has(key)) byName.set(key, normalized);
   });
   return [...byName.values()];
 }

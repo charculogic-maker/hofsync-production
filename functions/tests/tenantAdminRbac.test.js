@@ -217,6 +217,9 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
     expect(merged.every((entry) => entry.source === 'profile')).toBe(true);
     expect(merged.every((entry) => String(entry.uid).startsWith('profile:'))).toBe(true);
+    const paddy = merged.find((entry) => entry.displayName === 'Paddy');
+    expect(paddy.role).toBe('admin');
+    expect(merged.filter((entry) => entry.displayName !== 'Paddy').every((entry) => entry.role === 'employee')).toBe(true);
   });
 
   test('mergeEmployeeSources prefers nested employees over profile names', async () => {
@@ -254,6 +257,9 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(result.ok).toBe(true);
     expect(result.tenantId).toBe(TENANT_A);
     expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
+    const paddy = result.employees.find((entry) => entry.displayName === 'Paddy');
+    expect(paddy.role).toBe('admin');
+    expect(result.employees.filter((entry) => entry.displayName !== 'Paddy').every((entry) => entry.role === 'employee')).toBe(true);
   });
 
   test('generateStartPassword returns Hof- prefix', async () => {

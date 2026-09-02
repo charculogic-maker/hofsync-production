@@ -22,6 +22,11 @@ const TENANT_PROFILE_DEFAULTS = Object.freeze({
   ]),
 });
 
+/** Betriebs-Admins, die im Team-Profil-Store nur als Name stehen (kein Auth-Claim). */
+const TENANT_PROFILE_ADMIN_NAMES = Object.freeze({
+  StevesHof_Hauptbetrieb: Object.freeze(['Paddy']),
+});
+
 function profileUidFromName(name, tenantId) {
   const slug = String(name || '')
     .trim()
@@ -39,6 +44,17 @@ function isProfileUid(uid) {
 
 function defaultProfileNamesForTenant(tenantId) {
   return TENANT_PROFILE_DEFAULTS[String(tenantId || '').trim()] || [];
+}
+
+function isTenantProfileAdminName(tenantId, name) {
+  const list = TENANT_PROFILE_ADMIN_NAMES[String(tenantId || '').trim()] || [];
+  const needle = String(name || '').trim().toLowerCase();
+  if (!needle) return false;
+  return list.some((entry) => String(entry).trim().toLowerCase() === needle);
+}
+
+function defaultRoleForProfileName(tenantId, name) {
+  return isTenantProfileAdminName(tenantId, name) ? 'admin' : 'employee';
 }
 
 function normalizeEmail(value) {
@@ -213,13 +229,19 @@ function mergeEmployeeSources({
     upsert({
       uid: profileUidFromName(displayName, tenantId),
       displayName,
-      role: 'employee',
+      role: defaultRoleForProfileName(tenantId, displayName),
       tenantId,
       source: 'profile',
     });
   });
 
   return [...byKey.values()]
+    .map((entry) => {
+      if (isProfileUid(entry.uid) || entry.source === 'profile') {
+        return { ...entry, role: defaultRoleForProfileName(tenantId, entry.displayName) };
+      }
+      return entry;
+    })
     .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de') || a.email.localeCompare(b.email, 'de'));
 }
 
@@ -511,5 +533,7 @@ exports.generateStartPassword = generateStartPassword;
 exports.mergeEmployeeSources = mergeEmployeeSources;
 exports.profileUidFromName = profileUidFromName;
 exports.defaultProfileNamesForTenant = defaultProfileNamesForTenant;
+exports.defaultRoleForProfileName = defaultRoleForProfileName;
+exports.isTenantProfileAdminName = isTenantProfileAdminName;
 exports.isProfileUid = isProfileUid;
 exports.listTenantEmployees = listTenantEmployees;
