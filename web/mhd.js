@@ -16,7 +16,7 @@ import {
   scopedTeamboardStorageKey,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
-import { sanitizeProductName } from './utils.js';
+import { sanitizeProductName, composeProductDisplayTitle } from './utils.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -244,6 +244,7 @@ const mhdState = {
   completionFilter: 'offen',
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
+  searchScanActive: false,
   pendingChanges: {},
   hasUnsavedChanges: false,
   unsubscribe: null,
@@ -565,14 +566,23 @@ function matchesMhdCompletionFilter(prod = {}) {
 
 function filterMhdProductsByMonitorScope(products, { includeSearch = true } = {}) {
   const query = includeSearch ? mhdState.searchQuery.trim() : '';
+  if (query && isEanSearchQuery(query)) {
+    const ean = cleanScannedBarcode(query);
+    return products.filter((prod) => !prod.soldOut && getProductBarcode(prod) === ean);
+  }
   const groupFilter = mhdState.categoryFilter || 'mopro';
   return products.filter((prod) => {
     if (!matchesMhdMonitorHorizon(prod)) return false;
     if (getMhdMonitorGroup(prod) !== groupFilter) return false;
     if (!query) return true;
+    const display = resolveMhdProductDisplayName(prod).toLowerCase();
     const name = (prod.name || prod.produkt || '').toLowerCase();
     const brand = (prod.brand || prod.marke || '').toLowerCase();
-    return name.includes(query) || brand.includes(query);
+    const barcode = getProductBarcode(prod);
+    return display.includes(query)
+      || name.includes(query)
+      || brand.includes(query)
+      || barcode.includes(cleanScannedBarcode(query));
   });
 }
 
@@ -1755,8 +1765,73 @@ function sanitizeMhdProductRecord(record = {}) {
   return next;
 }
 
+function isEanSearchQuery(query = '') {
+  const clean = cleanScannedBarcode(query);
+  return Boolean(clean && /^\d{8,}$/.test(clean));
+}
+
+function resolveMhdProductDisplayParts(prod = {}) {
+  return composeProductDisplayTitle({
+    name: prod.name || prod.produkt,
+    produkt: prod.produkt,
+    brand: prod.brand || prod.marke,
+    marke: prod.marke,
+    kategorie: prod.kategorie || prod.category || prod.warenKategorie,
+    vpeInhalt: prod.vpeInhalt,
+    einheit: prod.einheit || prod.mengeEinheit,
+  });
+}
+
 function resolveMhdProductDisplayName(prod = {}) {
-  return sanitizeProductName(prod.name || prod.produkt || 'Unbekannt');
+  return resolveMhdProductDisplayParts(prod).title;
+}
+
+function resolveMhdProductGrammageBadge(prod = {}) {
+  return resolveMhdProductDisplayParts(prod).grammageBadge;
+}
+
+function applyMhdSearchQuery(rawValue = '') {
+  const raw = String(rawValue || '').trim();
+  mhdState.searchQuery = isEanSearchQuery(raw) ? cleanScannedBarcode(raw) : raw.toLowerCase();
+  const searchInput = document.getElementById('mhd-search-input');
+  if (searchInput && searchInput.value.trim() !== raw) {
+    searchInput.value = raw;
+  }
+  refreshMhdToolbarSummary();
+  renderMhdList();
+}
+
+function applyMhdEanSearch(scannedCode) {
+  const ean = cleanScannedBarcode(scannedCode);
+  if (!ean) return;
+  applyMhdSearchQuery(ean);
+  document.getElementById('mhd-toolbar-accordion')?.setAttribute('open', '');
+  refreshMhdToolbarSummary();
+  mhdState.playClickSound?.(1200, 0.05, 0.15);
+  window.showToast?.(`Suche: EAN ${ean}`, 'success');
+}
+
+async function openMhdSearchBarcodeScanner() {
+  mhdState.searchScanActive = true;
+  if (isCameraBlockedForPwa()) {
+    mhdState.searchScanActive = false;
+    window.showToast?.('Kamera nicht verfügbar. EAN bitte eintippen.', 'warning');
+    document.getElementById('mhd-search-input')?.focus();
+    return;
+  }
+  try {
+    await mhdState.openScanner();
+  } catch (err) {
+    mhdState.searchScanActive = false;
+    window.isCameraAvailable = false;
+    console.warn('[CharcuLogic Scanner] MHD-Suche Kamera-Start fehlgeschlagen:', err);
+    window.showToast?.('Kamera nicht verfügbar. EAN bitte eintippen.', 'warning');
+    document.getElementById('mhd-search-input')?.focus();
+  }
+}
+
+function isMhdMonitorPageActive() {
+  return document.getElementById('page-mhd')?.classList.contains('active');
 }
 
 function groupMhdDuplicateBatches(products = []) {
@@ -1970,6 +2045,18 @@ async function processScannedBarcode(decodedText, source = 'camera') {
 
   if (isReceivingPageActive()) {
     await processDeliveryItemBarcode(scannedCode, source);
+    return;
+  }
+
+  if (mhdState.searchScanActive) {
+    mhdState.searchScanActive = false;
+    mhdState.closeScanner?.({ preserveScanState: true });
+    applyMhdEanSearch(scannedCode);
+    mhdState.playFeedbackSound?.('success');
+    return;
+  }
+
+  if (!isMhdMonitorPageActive()) {
     return;
   }
 
@@ -2589,6 +2676,10 @@ function getMhdCategoryFilterLabel(filterKey = 'mopro') {
 }
 
 function filterMhdProducts(products) {
+  const query = mhdState.searchQuery.trim();
+  if (query && isEanSearchQuery(query)) {
+    return filterMhdProductsByMonitorScope(products, { includeSearch: true });
+  }
   return filterMhdProductsByMonitorScope(products).filter((prod) => matchesMhdCompletionFilter(prod));
 }
 
@@ -2777,6 +2868,7 @@ function initMhdSubnavAndSearch() {
   const toolbarAccordion = document.getElementById('mhd-toolbar-accordion');
   const searchInput = document.getElementById('mhd-search-input');
   const searchClear = document.getElementById('mhd-search-clear');
+  const searchScan = document.getElementById('mhd-search-scan');
 
   const setMhdToolbarExpanded = (expanded) => {
     if (!toolbarAccordion) return;
@@ -2881,10 +2973,14 @@ function initMhdSubnavAndSearch() {
   });
 
   searchInput?.addEventListener('input', (event) => {
-    mhdState.searchQuery = event.target.value.toLowerCase();
-    refreshMhdToolbarSummary();
-    renderMhdList();
+    applyMhdSearchQuery(event.target.value);
   });
+
+  searchScan?.addEventListener('click', () => {
+    setMhdToolbarExpanded(true);
+    openMhdSearchBarcodeScanner();
+  });
+  if (searchScan) searchScan.dataset.mhdBound = '1';
 
   searchInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setMhdToolbarExpanded(false);
@@ -3290,7 +3386,11 @@ function buildMhdCardHtml(prod = {}) {
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
-  const displayName = escapeHtml(resolveMhdProductDisplayName(prod));
+  const displayParts = resolveMhdProductDisplayParts(prod);
+  const displayName = escapeHtml(displayParts.title);
+  const grammageBadge = displayParts.grammageBadge
+    ? `<span class="mhd-product-grammage-badge">${escapeHtml(displayParts.grammageBadge)}</span>`
+    : '';
   const duplicateCount = Number(prod._duplicateCount || 1);
   const duplicateBadge = duplicateCount > 1
     ? `<div class="mhd-duplicate-row">
@@ -3313,7 +3413,7 @@ function buildMhdCardHtml(prod = {}) {
       </div>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
-          <span class="mhd-product-name">${displayName}</span>
+          <span class="mhd-product-name">${displayName}${grammageBadge}</span>
           ${duplicateBadge}
           ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
         </div>

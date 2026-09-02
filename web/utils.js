@@ -81,3 +81,108 @@ export function sanitizeProductName(str) {
 
   return text.replace(/\s+/g, ' ').trim();
 }
+
+const GRAMMAGE_PATTERN = /\b(\d+(?:[.,]\d+)?\s?(?:g|kg|ml|l|ltr|cl))\b/i;
+const PRODUCT_FAMILY_HINTS = [
+  { family: 'Schokolade', pattern: /\b(schokolade|schoko|karamell|krachnuss|nougat|zartbitter|vollmilch|nirwana|caramel|himbeere|studentenfutter|rum\s*traube|mond|tiger|rumba|faire|bionella|samba)\b/i },
+  { family: 'Müsli', pattern: /\b(m[üu]sli|krachnuss)\b/i },
+  { family: 'Creme', pattern: /\b(creme|mus|butter|aufstrich|samba)\b/i },
+];
+
+const SINGLE_SORT_CHOCOLATE_NAMES = new Set([
+  'karamell', 'krachnuss', 'mond', 'tiger', 'rumba', 'faire', 'bionella', 'nirwana', 'samba',
+]);
+
+function normalizeCompareText(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+/**
+ * Extrahiert Grammatur/Einheit aus Produkttext.
+ * @param {unknown} value
+ * @returns {{ label: string, remainder: string }}
+ */
+export function extractProductGrammageLabel(value = '') {
+  const text = sanitizeProductName(value);
+  if (!text) return { label: '', remainder: '' };
+  const match = text.match(GRAMMAGE_PATTERN);
+  if (!match) return { label: '', remainder: text };
+  const label = match[1].replace(/\s+/g, '').replace(',', '.');
+  const remainder = text.replace(match[0], ' ').replace(/\s+/g, ' ').trim();
+  return { label, remainder };
+}
+
+function nameIncludesBrand(name = '', brand = '') {
+  const normalizedName = normalizeCompareText(name);
+  const normalizedBrand = normalizeCompareText(brand);
+  return Boolean(normalizedBrand && normalizedName.includes(normalizedBrand));
+}
+
+function countMeaningfulNameTokens(name = '') {
+  return String(name || '')
+    .split(/[\s,–\-\/+&]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .length;
+}
+
+function inferProductFamily(name = '', category = '') {
+  const lower = normalizeCompareText(name);
+  const categoryLower = normalizeCompareText(category);
+  if (/\b(schokolade|schoko)\b/i.test(lower)) return '';
+  for (const hint of PRODUCT_FAMILY_HINTS) {
+    if (hint.pattern.test(lower)) return hint.family;
+  }
+  if (categoryLower.includes('trocken') && SINGLE_SORT_CHOCOLATE_NAMES.has(lower)) {
+    return 'Schokolade';
+  }
+  return '';
+}
+
+function isAmbiguousSortName(name = '', brand = '') {
+  const clean = sanitizeProductName(name);
+  if (!clean || normalizeCompareText(clean) === 'unbekannt') return false;
+  if (nameIncludesBrand(clean, brand)) return false;
+
+  const { remainder } = extractProductGrammageLabel(clean);
+  const baseName = remainder || clean;
+  const tokens = countMeaningfulNameTokens(baseName);
+  if (tokens <= 1) return true;
+
+  const lower = normalizeCompareText(baseName);
+  if (tokens === 2 && SINGLE_SORT_CHOCOLATE_NAMES.has(lower.split(/\s+/)[0])) {
+    return !/\b(schokolade|schoko|m[üu]sli|creme|mus|butter)\b/i.test(lower);
+  }
+  return false;
+}
+
+/**
+ * Baut einen eindeutigen Anzeigen-Titel inkl. optionaler Grammatur.
+ * @param {object} item
+ * @returns {{ title: string, grammageBadge: string }}
+ */
+export function composeProductDisplayTitle(item = {}) {
+  const brand = sanitizeProductName(item.brand || item.marke || '');
+  const rawName = sanitizeProductName(item.name || item.produkt || item.product || '');
+  const { label: grammageFromName, remainder: nameWithoutGrammage } = extractProductGrammageLabel(rawName);
+  const baseName = nameWithoutGrammage || rawName;
+  let title = baseName || 'Unbekannt';
+
+  if (brand && !nameIncludesBrand(title, brand)) {
+    if (isAmbiguousSortName(baseName, brand)) {
+      const family = inferProductFamily(baseName, item.kategorie || item.category || item.warenKategorie || '');
+      title = family ? `${brand} ${family} ${baseName}` : `${brand} - ${baseName}`;
+    } else if (countMeaningfulNameTokens(baseName) <= 2) {
+      title = `${brand} ${baseName}`;
+    }
+  }
+
+  const grammageBadge = grammageFromName
+    || extractProductGrammageLabel(item.vpeInhalt || item.einheit || '').label
+    || '';
+
+  return {
+    title: sanitizeProductName(title),
+    grammageBadge,
+  };
+}
