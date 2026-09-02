@@ -54,7 +54,7 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
 
-Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte das Kategorie-Badge an und bestätigen die Änderung. Unsere App speichert sie für alle vorhandenen Einträge mit gleicher EAN und nutzt sie beim nächsten Scan wieder.
+Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 
 Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 

@@ -378,7 +378,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
   'tage', 'resttage', 'status',
   'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
-  'kategorie', 'warenKategorie', 'soldOut',
+  'kategorie', 'warenKategorie', 'category', 'soldOut',
   'lot', 'chargenNummer', 'lieferant', 'temperatur',
   'erfassungsDatum', 'meisterOverrideReason',
   'vpeBarcode', 'vpeInhalt',
@@ -1070,7 +1070,7 @@ function applyReceivingCategoryOptions() {
 }
 
 function applyMhdCategoryFilterOptions() {
-  const buttons = document.querySelectorAll('[data-mhd-category-filter]');
+  const buttons = document.querySelectorAll('#mhd-category-toggle [data-mhd-category-filter]');
   const previous = mhdState.categoryFilter || 'mopro';
   const activeValue = MHD_CATEGORY_FILTER_OPTIONS.some((option) => option.value === previous)
     ? previous
@@ -1083,6 +1083,15 @@ function applyMhdCategoryFilterOptions() {
   });
   const legacySelect = document.getElementById('mhd-category-select');
   if (legacySelect) legacySelect.value = activeValue;
+}
+
+function setMhdCategoryFilter(nextFilter) {
+  const resolved = nextFilter === 'trockenware' ? 'trockenware' : 'mopro';
+  mhdState.categoryFilter = resolved;
+  applyMhdCategoryFilterOptions();
+  updateMhdMonitorHintText(document.getElementById('mhd-monitor-hint'));
+  refreshMhdToolbarSummary();
+  updateMhdCompletionToggle();
 }
 
 function applyMhdHorizonOptions() {
@@ -1171,6 +1180,7 @@ const VPE_MASTER_CSV_URL = 'vpe-master.csv';
 let lastReceivingHeadCategory = '';
 let lastMhdScanCategory = '';
 let learnModeOverlay = null;
+let mhdStammdatenEditId = null;
 let currentBarcode = '';
 let activeScan = null;
 let selectedProduct = null;
@@ -1804,6 +1814,8 @@ function sanitizeMhdProductRecord(record = {}) {
   const next = { ...record };
   if (next.name) next.name = sanitizeProductName(next.name);
   if (next.produkt) next.produkt = sanitizeProductName(next.produkt);
+  if (next.brand) next.brand = sanitizeProductName(next.brand);
+  if (next.marke) next.marke = sanitizeProductName(next.marke);
   return next;
 }
 
@@ -3056,7 +3068,8 @@ function mapMhdDoc(doc) {
     ean: data.ean,
     name: sanitizeProductName(data.produkt || data.name || 'Unbekannt'),
     produkt: sanitizeProductName(data.produkt || data.name || 'Unbekannt'),
-    brand: data.marke || data.brand || '',
+    brand: sanitizeProductName(data.marke || data.brand || ''),
+    marke: sanitizeProductName(data.marke || data.brand || ''),
     qty: data.qty ?? data.menge ?? 0,
     tage,
     status: status || 'ok',
@@ -3427,6 +3440,7 @@ function buildMhdCardHtml(prod = {}) {
   const mhdDateEditButton = formatMhdDateForCardMeta(prod)
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
+  const stammdatenEditButton = `<button type="button" class="mhd-date-edit-button mhd-stammdaten-edit-button" data-mhd-command="stammdaten" data-mhd-id="${prod.id}" aria-label="Artikel bearbeiten">✏️ Bearbeiten</button>`;
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
   const displayParts = resolveMhdProductDisplayParts(prod);
   const displayName = escapeHtml(displayParts.title);
@@ -3457,7 +3471,7 @@ function buildMhdCardHtml(prod = {}) {
         <div class="mhd-product-info">
           <span class="mhd-product-name">${displayName}${grammageBadge}</span>
           ${duplicateBadge}
-          ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
+          <span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}${stammdatenEditButton}</span>
         </div>
         <button
           type="button"
@@ -3845,6 +3859,205 @@ function confirmMhdDateChange(id) {
   document.getElementById('mhd-card-date-cancel')?.addEventListener('click', () => resetScanState({ keepLearnOverlay: false }));
 }
 
+function resolveStammdatenKategorie(prod, monitorGroup) {
+  const currentGroup = getMhdMonitorGroup(prod);
+  if (monitorGroup === currentGroup) {
+    return getProductCategory(prod) || (monitorGroup === 'mopro'
+      ? MHD_CANONICAL_CATEGORIES.mopro
+      : MHD_CANONICAL_CATEGORIES.trockenware);
+  }
+  return monitorGroup === 'mopro'
+    ? MHD_CANONICAL_CATEGORIES.mopro
+    : MHD_CANONICAL_CATEGORIES.trockenware;
+}
+
+function getMhdStammdatenModal() {
+  return document.getElementById('mhd-stammdaten-modal');
+}
+
+function closeMhdStammdatenEditor() {
+  const modal = getMhdStammdatenModal();
+  if (modal) {
+    modal.hidden = true;
+    modal.classList.remove('is-open');
+  }
+  mhdStammdatenEditId = null;
+}
+
+function setMhdStammdatenGroupSelection(group) {
+  const resolved = group === 'trockenware' ? 'trockenware' : 'mopro';
+  document.querySelectorAll('[data-mhd-stammdaten-group]').forEach((button) => {
+    const isActive = button.dataset.mhdStammdatenGroup === resolved;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function getSelectedMhdStammdatenGroup() {
+  const active = document.querySelector('[data-mhd-stammdaten-group].is-active');
+  return active?.dataset.mhdStammdatenGroup === 'trockenware' ? 'trockenware' : 'mopro';
+}
+
+function openMhdStammdatenEditor(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  const modal = getMhdStammdatenModal();
+  if (!prod || !modal) return;
+
+  mhdStammdatenEditId = id;
+  const nameInput = document.getElementById('mhd-stammdaten-name');
+  const brandInput = document.getElementById('mhd-stammdaten-brand');
+  const eanInput = document.getElementById('mhd-stammdaten-ean');
+  if (nameInput) nameInput.value = sanitizeProductName(prod.name || prod.produkt || '');
+  if (brandInput) brandInput.value = sanitizeProductName(prod.brand || prod.marke || '');
+  if (eanInput) eanInput.value = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode || '');
+  setMhdStammdatenGroupSelection(getMhdMonitorGroup(prod));
+
+  modal.hidden = false;
+  modal.classList.add('is-open');
+  requestAnimationFrame(() => nameInput?.focus());
+}
+
+function bindMhdStammdatenModal() {
+  const modal = getMhdStammdatenModal();
+  if (!modal || modal.dataset.mhdBound === '1') return;
+  modal.dataset.mhdBound = '1';
+
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeMhdStammdatenEditor();
+  });
+  document.getElementById('mhd-stammdaten-cancel')?.addEventListener('click', () => {
+    closeMhdStammdatenEditor();
+  });
+  document.getElementById('mhd-stammdaten-save')?.addEventListener('click', () => {
+    saveMhdStammdatenCorrection(mhdStammdatenEditId);
+  });
+  modal.querySelectorAll('[data-mhd-stammdaten-group]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setMhdStammdatenGroupSelection(button.dataset.mhdStammdatenGroup);
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (modal.hidden) return;
+    closeMhdStammdatenEditor();
+  });
+}
+
+async function saveMhdStammdatenCorrection(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) {
+    closeMhdStammdatenEditor();
+    return;
+  }
+
+  const name = sanitizeProductName(document.getElementById('mhd-stammdaten-name')?.value || '');
+  const brand = sanitizeProductName(document.getElementById('mhd-stammdaten-brand')?.value || '');
+  const ean = cleanScannedBarcode(document.getElementById('mhd-stammdaten-ean')?.value || '');
+  const monitorGroup = getSelectedMhdStammdatenGroup();
+  const kategorie = resolveStammdatenKategorie(prod, monitorGroup);
+  const previousGroup = getMhdMonitorGroup(prod);
+
+  if (!name) {
+    mhdState.showHUD('Name fehlt', 'Bitte eine Produktbezeichnung eintragen.', '!');
+    window.showToast?.('Bitte eine Produktbezeichnung eintragen.', 'warning');
+    document.getElementById('mhd-stammdaten-name')?.focus();
+    return;
+  }
+
+  const saveBtn = document.getElementById('mhd-stammdaten-save');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Speichern…';
+  }
+
+  const updatedAtIso = new Date().toISOString();
+  const onlineData = {
+    name,
+    produkt: name,
+    brand,
+    marke: brand,
+    kategorie,
+    warenKategorie: kategorie,
+    category: kategorie,
+    ean,
+    barcode: ean,
+    updatedAt: serverTimestampFallback(),
+  };
+  const queueData = {
+    ...onlineData,
+    updatedAt: updatedAtIso,
+  };
+  const audited = withSanitizedMhdAudit(onlineData, queueData);
+  const previousBarcode = getProductBarcode(prod);
+  const matchingProducts = (ean && ean === previousBarcode)
+    ? findProductsByBarcode(ean)
+    : [prod];
+  const uniqueTargets = matchingProducts.filter((entry, index, list) => (
+    entry?.id && list.findIndex((item) => item.id === entry.id) === index
+  ));
+  if (!uniqueTargets.some((entry) => entry.id === id)) uniqueTargets.unshift(prod);
+
+  try {
+    await Promise.all(uniqueTargets.map((entry) =>
+      mhdState.writeOrQueueFirestore({
+        collectionPath: mhdCollectionPath(),
+        docId: entry.id,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
+        offlineMessage: 'Artikel-Korrektur wird nachträglich synchronisiert.',
+      })
+    ));
+
+    uniqueTargets.forEach((entry) => {
+      Object.assign(entry, {
+        name,
+        produkt: name,
+        brand,
+        marke: brand,
+        kategorie,
+        warenKategorie: kategorie,
+        category: kategorie,
+        updatedAt: updatedAtIso,
+      });
+      if (entry.id === id) {
+        entry.ean = ean;
+        entry.barcode = ean;
+      }
+    });
+
+    saveProductMaster({
+      barcode: ean || previousBarcode,
+      ean: ean || previousBarcode,
+      name,
+      brand,
+      kategorie,
+      category: kategorie,
+    });
+    if (ean || previousBarcode) {
+      rememberCategoryForBarcode({ name, brand, produkt: name }, ean || previousBarcode, kategorie);
+    }
+
+    closeMhdStammdatenEditor();
+    if (monitorGroup !== previousGroup) {
+      setMhdCategoryFilter(monitorGroup);
+    }
+    renderMhdList();
+    const groupLabel = monitorGroup === 'mopro' ? 'MoPro & Kühlware' : 'Trockenware';
+    mhdState.showHUD('Artikel gespeichert', `Wir zeigen den Artikel jetzt unter ${groupLabel}.`);
+    window.showToast?.('Artikel gespeichert.', 'success');
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdStammdatenCorrection')) return;
+    console.error('[CharcuLogic Firebase] Stammdaten-Korrektur fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Artikel konnte nicht gespeichert werden.', '!');
+    window.showToast?.(logAndMapOperatorError(err, 'mhd'), 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Speichern';
+    }
+  }
+}
+
 async function saveMhdDateForPosten(id, preparedDraft = null) {
   const draft = preparedDraft || getMhdDateChangeDraft(id);
   if (!draft) {
@@ -4135,6 +4348,7 @@ function bindMhdCardActions() {
     if (command === 'retterbox') addMhdItemToRetterBox(id);
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
+    if (command === 'stammdaten') openMhdStammdatenEditor(id);
     if (command === 'merge-duplicates') mergeMhdDuplicateBatch(id);
   });
   page.addEventListener('change', (event) => {
@@ -5737,6 +5951,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
     bindUtilityDialogActions();
     bindReceivingControls();
     bindMhdToolbar();
+    bindMhdStammdatenModal();
     loadVpeMasterFromCsv();
     mhdState.initialized = true;
   }

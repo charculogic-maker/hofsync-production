@@ -1908,6 +1908,74 @@ button:active, .btn:active {
   text-transform: none;
 }
 
+.mhd-stammdaten-edit-button {
+  font-weight: 800;
+}
+
+.mhd-stammdaten-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.mhd-stammdaten-modal.is-open,
+.mhd-stammdaten-modal:not([hidden]) {
+  display: flex;
+}
+
+.mhd-stammdaten-modal[hidden] {
+  display: none !important;
+}
+
+.mhd-stammdaten-card {
+  width: 100%;
+  max-width: 340px;
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  background: var(--surface-color);
+  border-radius: 16px;
+  padding: 18px 16px 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.mhd-stammdaten-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-dark);
+}
+
+.mhd-stammdaten-card .form-label {
+  display: block;
+  margin: 12px 0 6px;
+}
+
+.mhd-stammdaten-card .input-text-touch {
+  width: 100%;
+}
+
+.mhd-stammdaten-group {
+  margin: 0 0 4px;
+}
+
+.mhd-stammdaten-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.mhd-stammdaten-actions .btn {
+  width: 100%;
+  min-height: 52px;
+}
+
 .status-expired .mhd-product-meta { color: var(--secondary-color); }
 .status-critical .mhd-product-meta { color: var(--warning-color); }
 .status-ok .mhd-product-meta { color: var(--ok-color); }
@@ -4931,6 +4999,10 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 [data-theme="dark"] .learn-mode-card {
+  background: var(--surface-color);
+}
+
+[data-theme="dark"] .mhd-stammdaten-card {
   background: var(--surface-color);
 }
 

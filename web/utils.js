@@ -53,7 +53,8 @@ export function sanitizeProductName(str) {
     .replace(/Ã–/g, 'Ö')
     .replace(/Ãœ/g, 'Ü')
     .replace(/ÃŸ/g, 'ß')
-    .replace(/Ã©/g, 'é');
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã¡/g, 'á');
 
   text = text
     .replace(/([A-Za-zÄÖÜäöüß])"l\b/g, '$1öl')
@@ -78,6 +79,9 @@ export function sanitizeProductName(str) {
     .replace(/Affin\u201a/gi, 'Affiné')
     .replace(/\u0084/g, 'ä')
     .replace(/\u201a/g, '');
+
+  // OCR/Import: áe / á stehen für ß (Weiáenhorner -> Weißenhorner)
+  text = text.replace(/[áÁ]/g, 'ß');
 
   return text.replace(/\s+/g, ' ').trim();
 }

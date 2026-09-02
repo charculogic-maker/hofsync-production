@@ -1660,6 +1660,32 @@
           </div>
         </div>
 
+        <div class="mhd-stammdaten-modal" id="mhd-stammdaten-modal" hidden>
+          <div class="mhd-stammdaten-card" role="dialog" aria-modal="true" aria-labelledby="mhd-stammdaten-title">
+            <h2 class="mhd-stammdaten-title" id="mhd-stammdaten-title">Artikel-Stammdaten bearbeiten</h2>
+            <p class="learn-mode-desc">Wir korrigieren Bezeichnung, Marke, Kategorie und EAN für diesen Artikel.</p>
+            <label class="form-label" for="mhd-stammdaten-name">Produktbezeichnung</label>
+            <input type="text" id="mhd-stammdaten-name" class="input-text-touch" autocomplete="off" placeholder="z. B. Weißenhorner Paprika Creme">
+            <label class="form-label" for="mhd-stammdaten-brand">Hersteller / Marke</label>
+            <input type="text" id="mhd-stammdaten-brand" class="input-text-touch" autocomplete="off" placeholder="z. B. Weißenhorner">
+            <p class="form-label">Kategorie</p>
+            <div class="mhd-category-toggle mhd-stammdaten-group" id="mhd-stammdaten-group" role="radiogroup" aria-label="Kategorie">
+              <button type="button" class="mhd-category-btn is-active" data-mhd-stammdaten-group="mopro" aria-pressed="true">
+                🥛 MoPro &amp; Kühlware
+              </button>
+              <button type="button" class="mhd-category-btn" data-mhd-stammdaten-group="trockenware" aria-pressed="false">
+                📦 Trockenware
+              </button>
+            </div>
+            <label class="form-label" for="mhd-stammdaten-ean">EAN / Artikelnummer</label>
+            <input type="text" id="mhd-stammdaten-ean" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="z. B. 4028332320111">
+            <div class="mhd-stammdaten-actions">
+              <button type="button" class="btn btn-primary" id="mhd-stammdaten-save">Speichern</button>
+              <button type="button" class="btn btn-secondary" id="mhd-stammdaten-cancel">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Detail overlay slide-in panel (within app frame, outside scrollable main content) -->
         <div class="recipe-detail-panel" id="recipe-detail-panel">
           <div class="detail-header">

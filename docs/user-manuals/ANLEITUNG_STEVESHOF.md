@@ -56,7 +56,7 @@ Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **Mo
 
 Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 
-Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir das Kategorie-Badge oben an. Vor dem Speichern bestätigen wir die Änderung. Unsere App übernimmt die neue Kategorie für alle vorhandenen MHD-Einträge mit gleicher EAN und merkt sie für den nächsten Scan.
+Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir **✏️ Bearbeiten**. Unter **Artikel-Stammdaten bearbeiten** stellen wir Bezeichnung, Marke, EAN und die Kategorie auf **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern wechselt unsere App in den passenden Filter.
 
 Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen MHD-Eintrag und fragt vor dem Speichern noch einmal nach.
 
