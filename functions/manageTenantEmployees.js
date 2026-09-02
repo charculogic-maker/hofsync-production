@@ -2,7 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 const adminDb = require('./adminDb');
-const { resolveAuthContext } = require('./authContext');
+const { resolveAuthContext, roleFromToken } = require('./authContext');
 
 const REGION = 'europe-west3';
 
@@ -25,6 +25,14 @@ const TENANT_PROFILE_DEFAULTS = Object.freeze({
 /** Betriebs-Admins, die im Team-Profil-Store nur als Name stehen (kein Auth-Claim). */
 const TENANT_PROFILE_ADMIN_NAMES = Object.freeze({
   StevesHof_Hauptbetrieb: Object.freeze(['Paddy']),
+});
+
+const TENANT_ADMIN_EMAILS = Object.freeze({
+  StevesHof_Hauptbetrieb: Object.freeze(['paddy@steveshof-hofladen.de']),
+});
+
+const TENANT_EMAIL_DOMAINS = Object.freeze({
+  StevesHof_Hauptbetrieb: Object.freeze(['steveshof-hofladen.de', 'steveshof.de']),
 });
 
 function profileUidFromName(name, tenantId) {
@@ -55,6 +63,53 @@ function isTenantProfileAdminName(tenantId, name) {
 
 function defaultRoleForProfileName(tenantId, name) {
   return isTenantProfileAdminName(tenantId, name) ? 'admin' : 'employee';
+}
+
+function isKnownTenantAdminEmail(tenantId, email) {
+  const list = TENANT_ADMIN_EMAILS[String(tenantId || '').trim()] || [];
+  const needle = normalizeEmail(email);
+  if (!needle) return false;
+  return list.some((entry) => normalizeEmail(entry) === needle);
+}
+
+function emailBelongsToTenant(tenantId, email) {
+  if (isKnownTenantAdminEmail(tenantId, email)) return true;
+  const domains = TENANT_EMAIL_DOMAINS[String(tenantId || '').trim()] || [];
+  const needle = normalizeEmail(email);
+  const at = needle.lastIndexOf('@');
+  if (at < 0) return false;
+  return domains.includes(needle.slice(at + 1));
+}
+
+function isKnownTenantAdmin(tenantId, employee = {}) {
+  return isKnownTenantAdminEmail(tenantId, employee.email)
+    || isTenantProfileAdminName(tenantId, employee.displayName);
+}
+
+function displayNameFromEmail(email, tenantId) {
+  const local = String(email || '').split('@')[0].trim();
+  if (!local) return '';
+  const match = defaultProfileNamesForTenant(tenantId)
+    .find((name) => name.toLowerCase() === local.toLowerCase());
+  return match || local;
+}
+
+function resolveListedRole(tenantId, employee = {}, claims = null) {
+  if (isKnownTenantAdmin(tenantId, employee)) return 'admin';
+  if (claims && roleFromToken(claims) === 'admin') return 'admin';
+  if (employee.isAdmin === true || employee.role === 'admin') return 'admin';
+  if (isProfileUid(employee.uid) || employee.source === 'profile') {
+    return defaultRoleForProfileName(tenantId, employee.displayName);
+  }
+  return String(employee.role || 'employee').trim() || 'employee';
+}
+
+function authUserBelongsToTenant(user, tenantId) {
+  const claims = user?.customClaims || {};
+  const claimed = String(claims.tenantId || '').trim();
+  if (claimed && claimed !== tenantId) return false;
+  if (claimed === tenantId) return true;
+  return emailBelongsToTenant(tenantId, user?.email);
 }
 
 function normalizeEmail(value) {
@@ -236,12 +291,7 @@ function mergeEmployeeSources({
   });
 
   return [...byKey.values()]
-    .map((entry) => {
-      if (isProfileUid(entry.uid) || entry.source === 'profile') {
-        return { ...entry, role: defaultRoleForProfileName(tenantId, entry.displayName) };
-      }
-      return entry;
-    })
+    .map((entry) => ({ ...entry, role: resolveListedRole(tenantId, entry) }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de') || a.email.localeCompare(b.email, 'de'));
 }
 
@@ -291,13 +341,15 @@ async function listAuthUsersForTenant(tenantId) {
     do {
       const page = await admin.auth().listUsers(1000, pageToken);
       (page.users || []).forEach((user) => {
+        if (!authUserBelongsToTenant(user, tenantId)) return;
         const claims = user.customClaims || {};
-        if (String(claims.tenantId || '').trim() !== tenantId) return;
+        const email = user.email || '';
+        const displayName = user.displayName || displayNameFromEmail(email, tenantId);
         matches.push({
           uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || '',
-          role: claims.role || (claims.isAdmin ? 'admin' : 'employee'),
+          email,
+          displayName,
+          role: resolveListedRole(tenantId, { email, displayName }, claims),
           tenantId,
           allowedModules: normalizeAllowedModules(claims.allowedModules),
           disabled: user.disabled === true,
@@ -315,6 +367,39 @@ async function listAuthUsersForTenant(tenantId) {
   }
 }
 
+async function reconcileKnownTenantAdmins(tenantId, employees) {
+  const targets = (employees || []).filter((entry) => (
+    entry?.uid && !isProfileUid(entry.uid) && isKnownTenantAdmin(tenantId, entry)
+  ));
+  await Promise.all(targets.map(async (emp) => {
+    try {
+      const authUser = await admin.auth().getUser(emp.uid);
+      const existing = authUser.customClaims || {};
+      const nextClaims = {
+        ...existing,
+        tenantId,
+        role: 'admin',
+        isAdmin: true,
+      };
+      const claimsMismatch = existing.role !== 'admin'
+        || existing.isAdmin !== true
+        || String(existing.tenantId || '').trim() !== tenantId;
+      if (claimsMismatch) {
+        await admin.auth().setCustomUserClaims(emp.uid, nextClaims);
+      }
+      await adminDb.firestore().doc(`users/${emp.uid}`).set({
+        email: emp.email || authUser.email || '',
+        displayName: emp.displayName || authUser.displayName || '',
+        tenantId,
+        role: 'admin',
+        updatedAt: adminDb.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('[manageTenantEmployees] Admin-Konto konnte nicht abgeglichen werden:', err?.message || err);
+    }
+  }));
+}
+
 async function listTenantEmployees(tenantId) {
   const [users, nestedEmployees, authUsers, storedProfiles] = await Promise.all([
     listUsersCollection(tenantId),
@@ -323,32 +408,19 @@ async function listTenantEmployees(tenantId) {
     listTeamDashboardProfileNames(tenantId),
   ]);
   const profileNames = storedProfiles.length ? storedProfiles : defaultProfileNamesForTenant(tenantId);
-  return mergeEmployeeSources({
+  const employees = mergeEmployeeSources({
     users,
     nestedEmployees,
     authUsers,
     profileNames,
     tenantId,
   });
+  await reconcileKnownTenantAdmins(tenantId, employees);
+  return employees;
 }
 
 async function updateTenantEmployee(auth, payload) {
-  const targetUid = String(payload?.uid || '').trim();
-  const tenantId = String(payload?.tenantId || resolveAuthContext(auth).tenantId || '').trim();
-  if (!targetUid) {
-    throw new HttpsError('invalid-argument', 'Mitarbeiter-UID fehlt.');
-  }
-  const ctx = assertAdminAccess(auth, tenantId);
-
-  const userRef = adminDb.firestore().doc(`users/${targetUid}`);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) {
-    throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.');
-  }
-  const userData = userSnap.data() || {};
-  if (String(userData.tenantId || '').trim() !== tenantId) {
-    throw new HttpsError('permission-denied', 'Mitarbeiter gehört nicht zu diesem Mandanten.');
-  }
+  const { ctx, tenantId, targetUid, userRef } = await loadTenantEmployeeOrThrow(auth, payload);
 
   const patch = { updatedAt: adminDb.FieldValue.serverTimestamp(), updatedBy: ctx.uid };
   const claimsPatch = {
@@ -431,15 +503,45 @@ async function loadTenantEmployeeOrThrow(auth, payload) {
     throw new HttpsError('invalid-argument', 'Mitarbeiter-UID fehlt.');
   }
   const ctx = assertAdminAccess(auth, tenantId);
+  if (isProfileUid(targetUid)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Für dieses Team-Profil gibt es noch kein Konto. Bitte zuerst ein Nutzerkonto anlegen.',
+    );
+  }
   const userRef = adminDb.firestore().doc(`users/${targetUid}`);
   const userSnap = await userRef.get();
-  if (!userSnap.exists) {
-    throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.');
-  }
-  const userData = userSnap.data() || {};
-  if (String(userData.tenantId || '').trim() !== tenantId) {
+  let userData = userSnap.exists ? (userSnap.data() || {}) : null;
+
+  if (!userData) {
+    let authUser;
+    try {
+      authUser = await admin.auth().getUser(targetUid);
+    } catch (_) {
+      throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.');
+    }
+    if (!authUserBelongsToTenant(authUser, tenantId)) {
+      throw new HttpsError('permission-denied', 'Mitarbeiter gehört nicht zu diesem Mandanten.');
+    }
+    const email = authUser.email || '';
+    const displayName = authUser.displayName || displayNameFromEmail(email, tenantId);
+    userData = {
+      email,
+      displayName,
+      tenantId,
+      role: resolveListedRole(tenantId, { email, displayName }, authUser.customClaims || {}),
+      allowedModules: normalizeAllowedModules(authUser.customClaims?.allowedModules),
+    };
+    await userRef.set({
+      ...userData,
+      createdAt: adminDb.FieldValue.serverTimestamp(),
+      updatedAt: adminDb.FieldValue.serverTimestamp(),
+      updatedBy: ctx.uid,
+    }, { merge: true });
+  } else if (String(userData.tenantId || '').trim() !== tenantId) {
     throw new HttpsError('permission-denied', 'Mitarbeiter gehört nicht zu diesem Mandanten.');
   }
+
   return { ctx, tenantId, targetUid, userRef, userData };
 }
 
@@ -535,5 +637,8 @@ exports.profileUidFromName = profileUidFromName;
 exports.defaultProfileNamesForTenant = defaultProfileNamesForTenant;
 exports.defaultRoleForProfileName = defaultRoleForProfileName;
 exports.isTenantProfileAdminName = isTenantProfileAdminName;
+exports.isKnownTenantAdminEmail = isKnownTenantAdminEmail;
+exports.authUserBelongsToTenant = authUserBelongsToTenant;
+exports.resolveListedRole = resolveListedRole;
 exports.isProfileUid = isProfileUid;
 exports.listTenantEmployees = listTenantEmployees;

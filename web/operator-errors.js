@@ -27,6 +27,9 @@ export function mapOperatorError(error, context = '') {
     if (code.includes('unauthenticated') || raw.includes('UNAUTHENTICATED')) {
       return 'Anmeldung abgelaufen. Bitte erneut anmelden.';
     }
+    if (raw.includes('Team-Profil') || raw.includes('kein Konto')) {
+      return 'Für dieses Team-Profil gibt es noch kein Konto. Bitte zuerst ein Nutzerkonto anlegen.';
+    }
     if (code.includes('failed-precondition')) {
       return 'Diese Änderung ist für das eigene Konto nicht möglich.';
     }

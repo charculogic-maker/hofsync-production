@@ -136,6 +136,14 @@ const uiResult = await page.evaluate(async () => {
       tenantId,
       allowedModules: { mhd: true, kitchen: true, buero: false },
     },
+    {
+      uid: 'paddy-auth',
+      email: 'paddy@steveshof-hofladen.de',
+      displayName: 'Paddy',
+      role: 'employee',
+      tenantId,
+      allowedModules: { mhd: true, kitchen: true, buero: true },
+    },
   ];
 
   document.getElementById('auth-lock-screen')?.remove();
@@ -336,6 +344,16 @@ const uiResult = await page.evaluate(async () => {
     pass: usersView && !usersView.hidden && employeeRows.length >= 2
       && employeeRows.some((row) => row.textContent.includes('Finn')),
     rowCount: employeeRows.length,
+  });
+  const paddyAuthRow = employeeRows.find((row) => row.textContent.includes('Paddy'));
+  const paddyRoleBtn = paddyAuthRow?.querySelector('[data-action="toggle-role"]');
+  steps.push({
+    name: 'paddy-auth-account-shows-admin-and-is-editable',
+    pass: Boolean(paddyAuthRow?.querySelector('.dev-dashboard-role-badge--admin'))
+      && Boolean(paddyRoleBtn)
+      && paddyRoleBtn?.disabled !== true,
+    roleText: paddyAuthRow?.querySelector('.dev-dashboard-role-badge')?.textContent || '',
+    roleDisabled: paddyRoleBtn?.disabled ?? null,
   });
   steps.push({
     name: 'manageTenantEmployees-uses-europe-west3',
