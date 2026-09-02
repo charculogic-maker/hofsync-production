@@ -75,6 +75,7 @@ async function selectDashboardTab(page, tabId) {
       const on = el.id === id;
       el.classList.toggle('is-active', on);
       el.classList.toggle('active', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     document.querySelectorAll('.dev-dashboard-view').forEach((view) => {
       view.hidden = view.id !== `dev-dashboard-view-${name}`;
