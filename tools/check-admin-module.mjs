@@ -598,6 +598,20 @@ if (!uiResult.allPass) {
   process.exit(1);
 }
 
+await page.evaluate(() => {
+  document.getElementById('auth-lock-screen')?.remove();
+  document.querySelectorAll('.page').forEach((el) => el.classList.remove('active'));
+  document.getElementById('page-dev-dashboard')?.classList.add('active');
+  document.getElementById('dev-dashboard-tab-users')?.click();
+  const paddyRow = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .find((row) => row.textContent.includes('Paddy'));
+  paddyRow?.scrollIntoView({ block: 'center' });
+});
+await new Promise((resolve) => setTimeout(resolve, 150));
+await page.locator('#dev-dashboard-view-users').screenshot({
+  path: '/opt/cursor/artifacts/admin-users-paddy-auth-admin.png',
+});
+
 const fallbackPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 await fallbackPage.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 await fallbackPage.addStyleTag({ content: '#auth-lock-screen,#auth-lock-screen.active{display:none!important;pointer-events:none!important;}' });
