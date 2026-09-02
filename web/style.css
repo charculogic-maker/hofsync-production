@@ -8679,6 +8679,65 @@ body.dev-dashboard-view[hidden] {
   display: block;
   padding: 0;
   min-height: calc(100dvh - 0px);
+  animation: none;
+  transform: none;
+}
+
+/*
+ * Laden-iPhone Hochformat: html/body sind overflow:hidden (PWA-Shell).
+ * Ohne inneren Scroller friert /dev-dashboard ein — Querformat (>768px) nicht.
+ */
+@media (max-width: 768px) {
+  html.is-dev-dashboard-html,
+  html:has(body.is-dev-dashboard),
+  html:has(body.dev-dashboard-view) {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body.is-dev-dashboard,
+  body.dev-dashboard-view {
+    height: 100%;
+    max-height: 100dvh;
+    overflow: hidden;
+    display: block;
+    padding: 0;
+  }
+
+  body.is-dev-dashboard .preview-container,
+  body.is-dev-dashboard .iphone-frame,
+  body.is-dev-dashboard .app-container,
+  body.dev-dashboard-view .preview-container,
+  body.dev-dashboard-view .iphone-frame,
+  body.dev-dashboard-view .app-container {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.is-dev-dashboard .app-content,
+  body.dev-dashboard-view .app-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 0;
+    touch-action: pan-y;
+  }
+
+  #page-dev-dashboard.page.active {
+    min-height: 0;
+  }
+
+  .dev-dashboard-shell {
+    padding-bottom: max(32px, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .dev-dashboard-shell {
