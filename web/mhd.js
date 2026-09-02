@@ -16,6 +16,7 @@ import {
   scopedTeamboardStorageKey,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
+import { sanitizeProductName } from './utils.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -1717,15 +1718,76 @@ function showMhdAnomalyWarning(anomaly) {
 }
 
 function createReceivingPostenId(barcode, mhdDate) {
-  const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(36).slice(2, 10);
-  return [
-    cleanScannedBarcode(barcode) || 'posten',
-    String(mhdDate || 'ohne-mhd').replace(/[^0-9]/g, ''),
-    Date.now().toString(36),
-    randomPart,
-  ].filter(Boolean).join('_');
+  return buildMhdBatchDocId(barcode, mhdDate);
+}
+
+function buildMhdBatchDocId(barcode, mhdDate, tenantId = resolveMhdTenantId() || mhdState.tenantId) {
+  const tenant = canonicalTenantId(tenantId) || 'tenant';
+  const ean = cleanScannedBarcode(barcode) || 'unknown';
+  const mhdIso = normalizeDateInputToIso(mhdDate) || String(mhdDate || 'ohne-mhd').replace(/[^0-9-]/g, '') || 'ohne-mhd';
+  return `${tenant}_${ean}_${mhdIso}`.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 1500);
+}
+
+function resolveMhdBatchKey(prod = {}) {
+  const ean = getProductBarcode(prod);
+  const mhdIso = normalizeDateInputToIso(getExplicitMhdDateValue(prod));
+  if (!ean || !mhdIso) return `id:${prod.id || ''}`;
+  return `${ean}__${mhdIso}`;
+}
+
+function findExistingMhdBatch(barcode, mhdDate) {
+  const docId = buildMhdBatchDocId(barcode, mhdDate);
+  const byId = mhdState.products.find((entry) => entry.id === docId);
+  if (byId) return byId;
+  const ean = cleanScannedBarcode(barcode);
+  const mhdIso = normalizeDateInputToIso(mhdDate);
+  if (!ean || !mhdIso) return null;
+  return mhdState.products.find((entry) => (
+    getProductBarcode(entry) === ean
+    && normalizeDateInputToIso(getExplicitMhdDateValue(entry)) === mhdIso
+  )) || null;
+}
+
+function sanitizeMhdProductRecord(record = {}) {
+  const next = { ...record };
+  if (next.name) next.name = sanitizeProductName(next.name);
+  if (next.produkt) next.produkt = sanitizeProductName(next.produkt);
+  return next;
+}
+
+function resolveMhdProductDisplayName(prod = {}) {
+  return sanitizeProductName(prod.name || prod.produkt || 'Unbekannt');
+}
+
+function groupMhdDuplicateBatches(products = []) {
+  const groups = new Map();
+  products.forEach((prod) => {
+    const key = resolveMhdBatchKey(prod);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(prod);
+  });
+
+  return [...groups.values()].map((items) => {
+    if (items.length === 1) {
+      return { ...items[0], _duplicateCount: 1, _duplicateIds: [] };
+    }
+    const sorted = [...items].sort((a, b) => {
+      const aTime = resolveMhdRecordCreatedAt(a)?.getTime() || 0;
+      const bTime = resolveMhdRecordCreatedAt(b)?.getTime() || 0;
+      return aTime - bTime;
+    });
+    const primary = sorted[0];
+    const duplicateIds = sorted.slice(1).map((entry) => entry.id).filter(Boolean);
+    const totalQty = sorted.reduce((sum, entry) => sum + Number(entry.qty ?? entry.menge ?? 0), 0);
+    return {
+      ...primary,
+      qty: totalQty,
+      menge: totalQty,
+      _duplicateCount: sorted.length,
+      _duplicateIds: duplicateIds,
+      _duplicateSourceItems: sorted,
+    };
+  });
 }
 
 function lookupScannedProduct(scannedCode) {
@@ -2089,8 +2151,8 @@ function showLegacyLearnModeDialog(ean) {
   btnLearnSave?.addEventListener('click', async () => {
     if (!beginReceivingSaveButtonLock(btnLearnSave)) return;
 
-    const name = inputName?.value.trim();
-    const brand = inputBrand?.value.trim() || 'StevesHof';
+    const name = sanitizeProductName(inputName?.value.trim());
+    const brand = sanitizeProductName(inputBrand?.value.trim() || 'StevesHof');
 
     if (!name) {
       inputName?.focus();
@@ -2276,8 +2338,8 @@ function showLearnModeDialog(ean) {
   btnLearnSave?.addEventListener('click', async () => {
     if (!beginReceivingSaveButtonLock(btnLearnSave, updateLotGate)) return;
 
-    const name = inputName?.value.trim();
-    const brand = inputBrand?.value.trim() || '';
+    const name = sanitizeProductName(inputName?.value.trim());
+    const brand = sanitizeProductName(inputBrand?.value.trim() || '');
     const qty = parseReceivingQty(inputQty?.value, isVpe ? 'Stk' : 'kg');
     const mhdDate = readGermanDateField(inputMhd) || today;
     const lot = inputLot?.value.trim() || '';
@@ -2325,8 +2387,10 @@ function showLearnModeDialog(ean) {
       if (decision === 'correct') return;
     }
 
-    const postenId = createReceivingPostenId(inventoryBarcode, mhdDate);
-    const newProduct = {
+    const postenId = buildMhdBatchDocId(inventoryBarcode, mhdDate);
+    const existingBatch = findExistingMhdBatch(inventoryBarcode, mhdDate);
+    const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qty;
+    const newProduct = sanitizeMhdProductRecord({
       id: postenId,
       postenId,
       ean: inventoryBarcode,
@@ -2344,9 +2408,9 @@ function showLearnModeDialog(ean) {
       tage,
       resttage: tage,
       status: 'aktiv',
-      qty,
-      menge: qty,
-      eingangMenge: qty,
+      qty: mergedQty,
+      menge: mergedQty,
+      eingangMenge: mergedQty,
       lot,
       chargenNummer: lot,
       kategorie,
@@ -2359,8 +2423,9 @@ function showLearnModeDialog(ean) {
       scannedBy: activeScan?.scannedBy || getAuditActorName(),
       tenantId: mhdState.tenantId,
       updatedAt: serverTimestampFallback(),
-    };
+    });
     const auditedProduct = withHiddenAudit(newProduct);
+    const writeOp = existingBatch ? 'update' : 'set';
     const newProductOnline = { ...auditedProduct.onlineData, updatedAt: serverTimestampFallback() };
     const queuedProduct = {
       ...auditedProduct.queueData,
@@ -2377,7 +2442,7 @@ function showLearnModeDialog(ean) {
         mhdState.writeOrQueueFirestore({
           collectionPath: mhdCollectionPath(),
           docId: postenId,
-          op: 'set',
+          op: writeOp,
           onlineData: newProductOnline,
           queueData: queuedProduct,
           offlineMessage: "Wareneingang wird nachträglich synchronisiert.",
@@ -2662,11 +2727,11 @@ function openPostenHistory(prodId) {
     .sort((a, b) => getMhdResttage(a) - getMhdResttage(b));
 
   showUtilityDialog('Posten-Historie', `
-    <p class="learn-mode-desc">${escapeHtml(prod.name || prod.produkt || 'Produkt')} · Barcode ${escapeHtml(barcode)}</p>
+    <p class="learn-mode-desc">${escapeHtml(resolveMhdProductDisplayName(prod))} · Barcode ${escapeHtml(barcode)}</p>
     <div class="utility-list">
       ${posten.map((entry) => `
         <div class="utility-row recent-receipt-row">
-          <div class="utility-row-title">${escapeHtml(entry.name || entry.produkt || 'Posten')}</div>
+          <div class="utility-row-title">${escapeHtml(resolveMhdProductDisplayName(entry))}</div>
           <div class="utility-row-meta">
             MHD: ${escapeHtml(formatMhdDateForCardMeta(entry) || '-')} · Resttage: ${escapeHtml(getMhdResttage(entry))} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}
           </div>
@@ -2851,7 +2916,8 @@ function mapMhdDoc(doc) {
     ...data,
     id: doc.id,
     ean: data.ean,
-    name: data.produkt || data.name || 'Unbekannt',
+    name: sanitizeProductName(data.produkt || data.name || 'Unbekannt'),
+    produkt: sanitizeProductName(data.produkt || data.name || 'Unbekannt'),
     brand: data.marke || data.brand || '',
     qty: data.qty ?? data.menge ?? 0,
     tage,
@@ -3224,6 +3290,14 @@ function buildMhdCardHtml(prod = {}) {
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
+  const displayName = escapeHtml(resolveMhdProductDisplayName(prod));
+  const duplicateCount = Number(prod._duplicateCount || 1);
+  const duplicateBadge = duplicateCount > 1
+    ? `<div class="mhd-duplicate-row">
+        <span class="mhd-duplicate-badge">⚠️ Duplikat (${duplicateCount}x)</span>
+        <button type="button" class="btn btn-secondary mhd-duplicate-merge-btn" data-mhd-command="merge-duplicates" data-mhd-id="${prod.id}">Zusammenführen</button>
+      </div>`
+    : '';
   const retterBoxAction = window.BRANDING?.modules?.retterBox === true
     ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
     : '';
@@ -3239,7 +3313,8 @@ function buildMhdCardHtml(prod = {}) {
       </div>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
-          <span class="mhd-product-name">${prod.name}</span>
+          <span class="mhd-product-name">${displayName}</span>
+          ${duplicateBadge}
           ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
         </div>
         <button
@@ -3298,7 +3373,8 @@ function renderMhdList() {
 
   const sortedProducts = sortMhdProductsByResttage(mhdState.products);
   const visibleProducts = filterMhdProducts(sortedProducts);
-  const renderedProducts = visibleProducts.slice(0, MHD_RENDER_LIMIT);
+  const groupedProducts = groupMhdDuplicateBatches(visibleProducts);
+  const renderedProducts = groupedProducts.slice(0, MHD_RENDER_LIMIT);
   updateMhdToolbarLimitHint(visibleProducts.length);
 
   if (!visibleProducts.length) {
@@ -3853,6 +3929,47 @@ function toggleMhdDaysBadge(badge) {
   badge.classList.add('mhd-days-badge--date');
 }
 
+async function mergeMhdDuplicateBatch(primaryId) {
+  const primary = mhdState.products.find((entry) => entry.id === primaryId);
+  if (!primary) return;
+
+  const batchKey = resolveMhdBatchKey(primary);
+  const items = mhdState.products.filter((entry) => (
+    !entry.soldOut && resolveMhdBatchKey(entry) === batchKey
+  ));
+  if (items.length < 2) return;
+
+  const others = items.filter((entry) => entry.id !== primary.id);
+  const totalQty = items.reduce((sum, entry) => sum + Number(entry.qty ?? entry.menge ?? 0), 0);
+  const audited = withSanitizedMhdAudit({ qty: totalQty, menge: totalQty });
+
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: primary.id,
+      op: 'update',
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
+      offlineMessage: 'Zusammenführung wird nachträglich synchronisiert.',
+    });
+
+    await Promise.all(others.map((entry) => mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: entry.id,
+      op: 'delete',
+      onlineData: {},
+      queueData: {},
+      offlineMessage: 'Duplikat wird nachträglich entfernt.',
+    })));
+
+    window.showToast?.('Duplikate zusammengeführt.', 'success');
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'mergeMhdDuplicateBatch')) return;
+    console.error('[CharcuLogic MHD] Duplikat-Zusammenführung fehlgeschlagen:', err);
+    window.showToast?.('Zusammenführen hat nicht geklappt. Bitte erneut versuchen.', 'error');
+  }
+}
+
 function bindMhdCardActions() {
   const page = document.getElementById('page-mhd');
   if (!page || page.dataset.mhdActionBound === '1') return;
@@ -3876,6 +3993,7 @@ function bindMhdCardActions() {
     if (command === 'retterbox') addMhdItemToRetterBox(id);
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
+    if (command === 'merge-duplicates') mergeMhdDuplicateBatch(id);
   });
   page.addEventListener('change', (event) => {
     if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
@@ -4509,10 +4627,13 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     ? Math.max(1, Math.round(qtyValueRaw))
     : Math.round(qtyValueRaw * 100) / 100;
   const qtyInt = qtyUnit === 'Stk' ? qtyValue : Math.max(1, Math.round(qtyValue));
-  const postenId = createReceivingPostenId(barcode, item.mhdDate);
+  const postenId = buildMhdBatchDocId(barcode, item.mhdDate);
+  const existingBatch = findExistingMhdBatch(barcode, item.mhdDate);
   const manufacturer = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
+  const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qtyInt;
+  const mergedMenge = (existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0) + qtyValue;
 
-  const record = {
+  const record = sanitizeMhdProductRecord({
     id: postenId,
     postenId,
     ean: barcode,
@@ -4531,9 +4652,9 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     tage,
     resttage: tage,
     status: recordStatus,
-    qty: qtyInt,
-    menge: qtyValue,
-    eingangMenge: qtyValue,
+    qty: mergedQty,
+    menge: mergedMenge,
+    eingangMenge: mergedMenge,
     mengeEinheit: qtyUnit,
     einheit: qtyUnit,
     warenKategorie: head.warenKategorie,
@@ -4548,7 +4669,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
     ...buildHiddenAuditFields(),
-  };
+  });
 
   if (head.temperatur != null && !Number.isNaN(head.temperatur)) {
     record.temperatur = head.temperatur;
@@ -4559,6 +4680,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   if (!record.tenantId) {
     delete record.tenantId;
   }
+  record._mhdWriteOp = existingBatch ? 'update' : 'set';
   return record;
 }
 
@@ -5089,6 +5211,8 @@ async function finalizeDelivery() {
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
+      const writeOp = record._mhdWriteOp || 'set';
+      delete record._mhdWriteOp;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
@@ -5097,7 +5221,7 @@ async function finalizeDelivery() {
       const result = await mhdState.writeOrQueueFirestore({
         collectionPath: mhdPath,
         docId: record.id,
-        op: 'set',
+        op: writeOp,
         onlineData: auditedRecord.onlineData,
         queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',

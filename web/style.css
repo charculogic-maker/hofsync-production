@@ -1765,6 +1765,32 @@ button:active, .btn:active {
   align-items: center;
 }
 
+.mhd-duplicate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mhd-duplicate-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(245, 127, 23, 0.16);
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mhd-duplicate-merge-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .mhd-action-badge {
   align-items: center;
   border-radius: 8px;
