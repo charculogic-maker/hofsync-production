@@ -98,11 +98,22 @@ if (rbacSteps.some((entry) => !entry.pass)) {
   process.exit(1);
 }
 
+const hideAuthLockCss = '#auth-lock-screen,#auth-lock-screen.active{display:none!important;pointer-events:none!important;visibility:hidden!important;}';
+
+async function hideAuthLock(targetPage) {
+  await targetPage.addStyleTag({ content: hideAuthLockCss });
+  await targetPage.evaluate(() => {
+    document.getElementById('auth-lock-screen')?.remove();
+    document.getElementById('dev-dashboard-tab-users')?.click();
+  });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+}
+
 const BASE_URL = 'http://127.0.0.1:5173/index.html?v=admin-module-audit';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-await page.addStyleTag({ content: '#auth-lock-screen,#auth-lock-screen.active{display:none!important;pointer-events:none!important;}' });
+await page.addStyleTag({ content: hideAuthLockCss });
 
 const uiResult = await page.evaluate(async () => {
   const steps = [];
@@ -665,8 +676,10 @@ if (!fallbackPass) {
   process.exit(1);
 }
 
+await hideAuthLock(page);
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-dashboard-audit.png' });
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-users-tenant-select.png' });
-await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png' });
+await hideAuthLock(fallbackPage);
+await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png', fullPage: true });
 await browser.close();
 console.log('Admin module audit passed.');
