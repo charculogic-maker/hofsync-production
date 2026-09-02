@@ -159,4 +159,55 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(caught).toBeTruthy();
     expect(['unauthenticated', 'permission-denied']).toContain(caught.code);
   });
+
+  test('assertAdminAccessForTenant allows platform super-admin without tenant claim', async () => {
+    const { assertAdminAccessForTenant } = await import('../manageTenantEmployees.js');
+    const ctx = assertAdminAccessForTenant(
+      authAs({
+        uid: 'VYwMy5IAlAR26pj8ZbFfc5PNdou2',
+        email: 'patrik@charculogic.de',
+      }),
+      TENANT_A,
+    );
+    expect(ctx.isSuperAdmin).toBe(true);
+    expect(ctx.tenantId).toBe(TENANT_A);
+    expect(ctx.isAdmin).toBe(true);
+  });
+
+  test('resetPassword rejects employee on own tenant', async () => {
+    const { handleManageTenantEmployees } = await import('../manageTenantEmployees.js');
+    let caught = null;
+    try {
+      await handleManageTenantEmployees({
+        auth: authAs({ uid: 'emp-2', tenantId: TENANT_A, role: 'employee' }),
+        data: { action: 'resetPassword', tenantId: TENANT_A, uid: 'emp-2' },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught.code).toBe('permission-denied');
+  });
+
+  test('disable rejects Tenant-Admin A targeting tenant B', async () => {
+    const { handleManageTenantEmployees } = await import('../manageTenantEmployees.js');
+    let caught = null;
+    try {
+      await handleManageTenantEmployees({
+        auth: authAs({ uid: 'admin-a', tenantId: TENANT_A, role: 'admin' }),
+        data: { action: 'disable', tenantId: TENANT_B, uid: 'emp-b' },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught.code).toBe('permission-denied');
+  });
+
+  test('generateStartPassword returns Hof- prefix', async () => {
+    const { generateStartPassword } = await import('../manageTenantEmployees.js');
+    const password = generateStartPassword();
+    expect(password.startsWith('Hof-')).toBe(true);
+    expect(password.length).toBeGreaterThanOrEqual(10);
+  });
 });

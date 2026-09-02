@@ -8879,6 +8879,28 @@ body.dev-dashboard-view[hidden] {
   color: var(--text-muted, #64748b);
 }
 
+.dev-dashboard-empty-msg--loading {
+  color: var(--text-muted, #64748b);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dev-dashboard-table-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--primary-color, #166534);
+  border-radius: 50%;
+  animation: dev-dashboard-spin 0.7s linear infinite;
+  flex: 0 0 16px;
+}
+
+@keyframes dev-dashboard-spin {
+  to { transform: rotate(360deg); }
+}
+
 .dev-dashboard-intro {
   margin: 0;
   font-size: 0.9rem;
@@ -8989,6 +9011,10 @@ body.dev-dashboard-view[hidden] {
   color: var(--text-muted, #64748b);
 }
 
+.dev-dashboard-tenant-select-field[hidden] {
+  display: none !important;
+}
+
 .dev-dashboard-tenant-select-field select {
   min-width: 220px;
   padding: 8px 12px;
@@ -9089,6 +9115,15 @@ body.dev-dashboard-view[hidden] {
 .dev-dashboard-table .dev-dashboard-role-badge--employee {
   background: #f1f5f9;
   color: #475569;
+}
+
+.dev-dashboard-table .dev-dashboard-role-badge--inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+tr[data-employee-inactive="1"] {
+  opacity: 0.72;
 }
 
 .dev-dashboard-employee-perms {

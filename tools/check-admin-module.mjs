@@ -172,6 +172,17 @@ const uiResult = await page.evaluate(async () => {
           ));
           return { data: { ok: true } };
         }
+        if (name === 'manageTenantEmployees' && payload?.action === 'resetPassword') {
+          return { data: { ok: true, uid: payload.uid, tenantId: payload.tenantId, temporaryPassword: 'Hof-test12' } };
+        }
+        if (name === 'manageTenantEmployees' && (payload?.action === 'disable' || payload?.action === 'enable')) {
+          employees = employees.map((entry) => (
+            entry.uid === payload.uid
+              ? { ...entry, disabled: payload.action === 'disable', status: payload.action === 'disable' ? 'inactive' : 'active' }
+              : entry
+          ));
+          return { data: { ok: true, uid: payload.uid, disabled: payload.action === 'disable' } };
+        }
         return { data: { ok: true } };
       },
     }),
@@ -200,7 +211,7 @@ const uiResult = await page.evaluate(async () => {
     }),
   };
   const db = {
-    collection: (name) => ({
+    collection: () => ({
       doc: () => ({
         onSnapshot: (onNext) => {
           onNext(tenantSnap);
@@ -209,17 +220,22 @@ const uiResult = await page.evaluate(async () => {
         update: async () => {},
         set: async () => {},
       }),
-      onSnapshot: (onNext) => {
-        onNext({ docs: [{ id: tenantId, data: tenantSnap.data }] });
+      onSnapshot: (_onNext, onError) => {
+        if (typeof onError === 'function') {
+          onError({ code: 'permission-denied', message: 'Missing or insufficient permissions.' });
+        }
         return () => {};
       },
     }),
   };
 
+  window.confirm = () => true;
+  window.alert = () => {};
+
   const { initAppCheckModule } = await import('./app-check.js');
   await initAppCheckModule();
 
-  const { initDevDashboard } = await import('./dev-dashboard.js');
+  const { initDevDashboard, resolveDashboardTenantId } = await import('./dev-dashboard.js');
   const { isTenantAdmin, useTenantAdminAuth } = await import('./tenant-admin-auth.js');
   const { isOfficeUser } = await import('./auth.js');
   const { saveProductMaster } = await import('./mhd.js');
@@ -268,6 +284,15 @@ const uiResult = await page.evaluate(async () => {
     status: document.getElementById('dev-dashboard-status')?.textContent || null,
     roleBadge: document.getElementById('dev-dashboard-role-badge')?.textContent || null,
   });
+  steps.push({
+    name: 'header-has-no-firestore-denied',
+    pass: !/Firestore-Zugriff verweigert/i.test(document.getElementById('dev-dashboard-status')?.textContent || ''),
+    status: document.getElementById('dev-dashboard-status')?.textContent || null,
+  });
+  steps.push({
+    name: 'resolveDashboardTenantId-uses-claim',
+    pass: resolveDashboardTenantId({ tenantId }, { tenantId: 'TorFabrik' }) === tenantId,
+  });
 
   const globalPanel = document.getElementById('dev-dashboard-global-panel');
   steps.push({
@@ -279,11 +304,37 @@ const uiResult = await page.evaluate(async () => {
   await new Promise((resolve) => setTimeout(resolve, 80));
   const usersView = document.getElementById('dev-dashboard-view-users');
   const employeeRows = [...document.querySelectorAll('#dev-dashboard-employee-body tr')];
+  const tenantSelect = document.getElementById('dev-dashboard-tenant-select');
+  const tenantWrap = document.getElementById('dev-dashboard-tenant-select-wrap');
+  const listStatus = document.getElementById('dev-dashboard-employee-list-status')?.textContent || '';
   steps.push({
     name: 'users-tab-lists-employees',
     pass: usersView && !usersView.hidden && employeeRows.length >= 2
       && employeeRows.some((row) => row.textContent.includes('Finn')),
     rowCount: employeeRows.length,
+  });
+  steps.push({
+    name: 'betrieb-dropdown-auto-selects-active-tenant',
+    pass: Boolean(tenantWrap) && !tenantWrap.hidden
+      && tenantSelect?.value === tenantId
+      && /StevesHof/i.test(tenantSelect?.selectedOptions?.[0]?.textContent || tenantSelect?.value || ''),
+    value: tenantSelect?.value || null,
+    label: tenantSelect?.selectedOptions?.[0]?.textContent || null,
+    hidden: tenantWrap?.hidden ?? null,
+  });
+  steps.push({
+    name: 'employee-list-not-permission-error',
+    pass: !/Firestore-Zugriff|Liste konnte nicht geladen werden/i.test(listStatus)
+      && !/Firestore-Zugriff/i.test(document.getElementById('dev-dashboard-status')?.textContent || ''),
+    listStatus,
+  });
+  const finnRow = employeeRows.find((row) => row.textContent.includes('Finn'));
+  steps.push({
+    name: 'employee-row-has-admin-actions',
+    pass: Boolean(finnRow?.querySelector('[data-action="toggle-role"]'))
+      && finnRow?.querySelector('[data-action="toggle-role"]')?.textContent.includes('Rolle ändern')
+      && Boolean(finnRow?.querySelector('[data-action="reset-password"]'))
+      && Boolean(finnRow?.querySelector('[data-action="disable"]')),
   });
 
   document.getElementById('dev-dashboard-invite-open-btn')?.click();
@@ -325,6 +376,31 @@ const uiResult = await page.evaluate(async () => {
     name: 'role-toggle-saves-via-callable',
     pass: roleCall?.payload?.tenantId === tenantId && roleCall?.payload?.role === 'admin',
     roleCall: roleCall?.payload || null,
+  });
+
+  document.querySelector('#dev-dashboard-employee-body [data-action="reset-password"][data-uid="emp-a"]')?.click();
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const resetCall = callableCalls.find((entry) => (
+    entry.name === 'manageTenantEmployees' && entry.payload?.action === 'resetPassword' && entry.payload?.uid === 'emp-a'
+  ));
+  steps.push({
+    name: 'reset-password-callable-scoped-to-tenant',
+    pass: resetCall?.payload?.tenantId === tenantId && resetCall?.payload?.uid === 'emp-a',
+    resetCall: resetCall?.payload || null,
+  });
+
+  document.querySelector('#dev-dashboard-employee-body [data-action="disable"][data-uid="emp-a"]')?.click();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const disableCall = callableCalls.find((entry) => (
+    entry.name === 'manageTenantEmployees' && entry.payload?.action === 'disable' && entry.payload?.uid === 'emp-a'
+  ));
+  const finnAfterDisable = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .find((row) => row.textContent.includes('Finn'));
+  steps.push({
+    name: 'disable-employee-via-callable',
+    pass: disableCall?.payload?.tenantId === tenantId
+      && Boolean(finnAfterDisable?.querySelector('[data-action="enable"]')),
+    disableCall: disableCall?.payload || null,
   });
 
   document.getElementById('dev-dashboard-tab-settings')?.click();
@@ -427,6 +503,30 @@ const uiResult = await page.evaluate(async () => {
     pass: crossTenant.tenantId === tenantId && crossTenant.allowed === true,
   });
 
+  const superUser = { uid: 'VYwMy5IAlAR26pj8ZbFfc5PNdou2', email: 'patrik@charculogic.de' };
+  window.firebase.auth = () => ({ currentUser: superUser, signOut: async () => {} });
+  const superAllowed = await initDevDashboard(db, {
+    currentUser: superUser,
+    authContext: { role: 'admin', isAdmin: true, tenantId },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  document.getElementById('dev-dashboard-tab-users')?.click();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  const superStatus = document.getElementById('dev-dashboard-status')?.textContent || '';
+  const superSelect = document.getElementById('dev-dashboard-tenant-select');
+  const superRows = [...document.querySelectorAll('#dev-dashboard-employee-body tr')];
+  steps.push({
+    name: 'super-admin-keeps-active-tenant-when-global-list-denied',
+    pass: superAllowed === true
+      && superSelect?.value === tenantId
+      && !/Firestore-Zugriff verweigert/i.test(superStatus)
+      && superRows.some((row) => row.textContent.includes('Finn')),
+    superAllowed,
+    superStatus,
+    superSelect: superSelect?.value || null,
+    superRowCount: superRows.length,
+  });
+
   return {
     steps,
     allPass: steps.every((entry) => entry.pass),
@@ -444,5 +544,6 @@ if (!uiResult.allPass) {
 }
 
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-dashboard-audit.png' });
+await page.screenshot({ path: '/opt/cursor/artifacts/admin-users-tenant-select.png' });
 await browser.close();
 console.log('Admin module audit passed.');

@@ -6,6 +6,21 @@ export function mapOperatorError(error, context = '') {
   const code = String(error?.code || error?.message || '').toLowerCase();
   const raw = error?.message || String(error || '');
 
+  if (context === 'admin-users') {
+    if (code.includes('unauthenticated') || raw.includes('UNAUTHENTICATED')) {
+      return 'Anmeldung abgelaufen. Bitte erneut anmelden.';
+    }
+    return 'Die Nutzerliste konnte gerade nicht geladen werden. Bitte die Seite neu laden.';
+  }
+  if (context === 'admin-user-action') {
+    if (code.includes('unauthenticated') || raw.includes('UNAUTHENTICATED')) {
+      return 'Anmeldung abgelaufen. Bitte erneut anmelden.';
+    }
+    if (code.includes('failed-precondition')) {
+      return 'Diese Änderung ist für das eigene Konto nicht möglich.';
+    }
+    return 'Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.';
+  }
   if (code.includes('permission-denied') || raw.includes('PERMISSION_DENIED')) {
     return 'Aktion nicht erlaubt. Fehlende Berechtigung.';
   }

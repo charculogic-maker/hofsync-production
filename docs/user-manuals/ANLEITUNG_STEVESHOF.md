@@ -9,7 +9,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
-Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer, Einstellungen, Protokoll, Thekenklade.
+Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer (unser Betrieb ist vorausgewählt; Rolle ändern, Passwort zurücksetzen, Deaktivieren), Einstellungen, Protokoll, Thekenklade.
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 
