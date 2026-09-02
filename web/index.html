@@ -872,16 +872,6 @@
             <div class="mhd-list" id="mhd-items-container">
               <!-- Cards are rendered dynamically by app.js -->
             </div>
-            
-            <!-- Sticky bottom save bar — erscheint bei ausstehenden Änderungen -->
-            <div class="sticky-action-bar" id="mhd-sticky-save-bar" hidden>
-              <div class="sticky-action-bar-inner">
-                <span class="sticky-action-bar-count" id="mhd-pending-count" aria-live="polite">0 Änderungen ausstehend</span>
-                <button type="button" class="btn btn-primary btn-sticky-save" id="btn-save-mhd">
-                  JETZT SPEICHERN
-                </button>
-              </div>
-            </div>
           </div>
 
           <div class="page" id="page-receiving">
@@ -1659,6 +1649,16 @@
           </div>
 
         </main>
+
+        <!-- MHD Sticky Save Bar — außerhalb von .app-content, fixiert über Bottom-Nav -->
+        <div class="sticky-action-bar mhd-sticky-save-bar" id="mhd-sticky-save-bar" hidden>
+          <div class="sticky-action-bar-inner">
+            <span class="sticky-action-bar-count" id="mhd-pending-count" aria-live="polite">0 Änderungen ausstehend</span>
+            <button type="button" class="btn btn-primary btn-sticky-save" id="btn-save-mhd">
+              JETZT SPEICHERN
+            </button>
+          </div>
+        </div>
 
         <!-- Detail overlay slide-in panel (within app frame, outside scrollable main content) -->
         <div class="recipe-detail-panel" id="recipe-detail-panel">

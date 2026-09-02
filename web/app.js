@@ -1911,7 +1911,7 @@ function applyRoleBasedUi(authSession) {
     if (el) el.hidden = !isOffice;
   });
 
-  const saveMhdBar = document.querySelector('#page-mhd .sticky-action-bar');
+  const saveMhdBar = document.getElementById('mhd-sticky-save-bar');
   if (saveMhdBar) saveMhdBar.hidden = isHelper;
 
   const teamHub = document.getElementById('page-team');

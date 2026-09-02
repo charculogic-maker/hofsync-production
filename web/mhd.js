@@ -649,13 +649,53 @@ function getMhdPendingChangeCount() {
 }
 
 function applyPendingChangesToProducts() {
-  const pendingIds = Object.keys(mhdState.pendingChanges);
-  if (!pendingIds.length) return;
-  mhdState.products = mhdState.products.map((prod) => {
-    const pending = mhdState.pendingChanges[prod.id];
-    if (!pending) return prod;
-    return { ...prod, ...pending };
+  mhdState.products = mergeCloudProductsWithPendingChanges(mhdState.products);
+}
+
+/**
+ * Cloud-Snapshot mit lokalen Entwürfen zusammenführen.
+ * pendingChanges wird nie gelöscht — lokale Edits haben Vorrang vor eingehenden Updates.
+ */
+function mergeCloudProductsWithPendingChanges(cloudProducts = []) {
+  const pending = mhdState.pendingChanges || {};
+  const pendingIds = Object.keys(pending);
+  if (!pendingIds.length) return cloudProducts;
+
+  const mergedById = new Map();
+  cloudProducts.forEach((prod) => {
+    const id = prod?.id;
+    if (!id) return;
+    mergedById.set(id, pending[id] ? { ...prod, ...pending[id] } : prod);
   });
+
+  const previousProducts = Array.isArray(mhdState.products) ? mhdState.products : [];
+  pendingIds.forEach((id) => {
+    if (mergedById.has(id)) return;
+    const previous = previousProducts.find((prod) => prod.id === id);
+    if (previous) {
+      mergedById.set(id, { ...previous, ...pending[id] });
+    }
+  });
+
+  return [...mergedById.values()];
+}
+
+function ensureMhdStickySaveBarFixed() {
+  const bar = document.getElementById('mhd-sticky-save-bar');
+  const host = document.querySelector('.app-container');
+  if (!bar || !host) return;
+
+  bar.classList.add('mhd-sticky-save-bar');
+
+  const scrollHost = document.getElementById('app-content');
+  if (scrollHost?.contains(bar)) {
+    const bottomNav = host.querySelector('#bottom-nav');
+    if (bottomNav) {
+      host.insertBefore(bar, bottomNav);
+    } else {
+      host.appendChild(bar);
+    }
+  }
 }
 
 function stageMhdChange(id, updates = {}) {
@@ -685,6 +725,7 @@ function clearMhdPendingChanges() {
 }
 
 function updateMhdStickySaveBar() {
+  ensureMhdStickySaveBarFixed();
   const bar = document.getElementById('mhd-sticky-save-bar');
   const countEl = document.getElementById('mhd-pending-count');
   const saveBtn = document.getElementById('btn-save-mhd');
@@ -692,6 +733,7 @@ function updateMhdStickySaveBar() {
 
   const count = getMhdPendingChangeCount();
   mhdState.hasUnsavedChanges = count > 0;
+  const onMhdTab = isMhdMonitorPageActive();
 
   if (countEl) {
     countEl.textContent = count === 1
@@ -702,7 +744,7 @@ function updateMhdStickySaveBar() {
     saveBtn.textContent = 'JETZT SPEICHERN';
   }
 
-  if (!mhdState.hasUnsavedChanges) {
+  if (!onMhdTab || !mhdState.hasUnsavedChanges) {
     if (bar.classList.contains('is-visible') && !bar.classList.contains('is-hiding')) {
       bar.classList.add('is-hiding');
       bar.classList.remove('is-visible');
@@ -3091,8 +3133,8 @@ function loadMhdFromCloud() {
   mhdState.unsubscribe = mhdState.db.collection(mhdCollectionPath()).onSnapshot(
     (snapshot) => {
       const waitingForServer = Boolean(snapshot.metadata?.fromCache) && snapshot.empty;
-      mhdState.products = snapshot.docs.map(mapMhdDoc);
-      applyPendingChangesToProducts();
+      const cloudProducts = snapshot.docs.map(mapMhdDoc);
+      mhdState.products = mergeCloudProductsWithPendingChanges(cloudProducts);
       if (!waitingForServer) {
         markMhdCloudSyncReady();
       }

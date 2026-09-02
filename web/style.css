@@ -950,18 +950,20 @@ button:active, .btn:active {
   cursor: not-allowed;
 }
 
-/* Sticky Save Bar (MHD) — fixiert am unteren Rand bei ausstehenden Änderungen */
-.sticky-action-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: var(--mhd-bottom-nav-height, 64px);
-  flex-shrink: 0;
-  margin: 0;
-  width: auto;
-  padding: 12px max(14px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-right));
-  background: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.95) 25%, var(--bg-color) 100%);
-  z-index: 97;
+/* Sticky Save Bar (MHD) — fixiert über der PWA-Bottom-Nav, viewport-unabhängig */
+.sticky-action-bar,
+.mhd-sticky-save-bar {
+  position: fixed !important;
+  left: 12px !important;
+  right: 12px !important;
+  bottom: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 12px 14px;
+  background: #c0392b;
+  border-radius: 16px;
+  z-index: 99999 !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
   box-sizing: border-box;
   opacity: 0;
   transform: translateY(12px);
@@ -969,13 +971,15 @@ button:active, .btn:active {
   transition: opacity 0.28s ease, transform 0.28s ease;
 }
 
-.sticky-action-bar.is-visible {
+.sticky-action-bar.is-visible,
+.mhd-sticky-save-bar.is-visible {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
 }
 
-.sticky-action-bar.is-hiding {
+.sticky-action-bar.is-hiding,
+.mhd-sticky-save-bar.is-hiding {
   opacity: 0;
   transform: translateY(12px);
   pointer-events: none;
@@ -992,20 +996,23 @@ button:active, .btn:active {
 .sticky-action-bar-count {
   text-align: center;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted, #666);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
   line-height: 1.3;
 }
 
-.sticky-action-bar .btn-sticky-save {
+.sticky-action-bar .btn-sticky-save,
+.mhd-sticky-save-bar .btn-sticky-save {
   width: 100%;
   min-height: 52px;
   height: auto;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.02em;
-  box-shadow: 0 8px 24px var(--primary-alpha-25);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #c0392b;
+  background: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 /* Kurze MHD-Listen: Karten oben, Speichern-Leiste unten im sichtbaren Bereich */
@@ -1022,11 +1029,7 @@ button:active, .btn:active {
 #page-mhd .mhd-list {
   flex: 1 1 auto;
   min-height: 0;
-  padding-bottom: 112px;
-}
-
-#page-mhd .sticky-action-bar {
-  margin-bottom: 0;
+  padding-bottom: calc(var(--mhd-save-bar-height, 108px) + var(--mhd-bottom-nav-height, 65px) + 16px);
 }
 
 .mhd-category-toggle {
@@ -4988,8 +4991,10 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border-color: var(--surface-secondary);
 }
 
-[data-theme="dark"] .sticky-action-bar {
-  background: linear-gradient(180deg, rgba(28, 28, 30, 0) 0%, rgba(28, 28, 30, 0.95) 25%, #1C1C1E 100%);
+[data-theme="dark"] .sticky-action-bar,
+[data-theme="dark"] .mhd-sticky-save-bar {
+  background: #c0392b;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.45);
 }
 
 [data-theme="dark"] .mhd-category-btn {
@@ -5228,19 +5233,6 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   #page-mhd .mhd-list {
     flex: none;
     padding-bottom: calc(var(--mhd-save-bar-height) + var(--mhd-bottom-nav-height) + 16px);
-  }
-
-  #page-mhd .sticky-action-bar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: var(--mhd-bottom-nav-height);
-    width: auto;
-    margin-top: 0;
-    margin-bottom: 0;
-    padding: 12px max(14px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-right));
-    z-index: 97;
-    box-sizing: border-box;
   }
 
   .mhd-category-toggle {
