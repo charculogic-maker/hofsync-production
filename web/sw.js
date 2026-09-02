@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260831-auth-errors';
+const CACHE_NAME = 'charculogic-v20260902-customer-order-stock';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [

@@ -646,13 +646,38 @@ service cloud.firestore {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
+          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+          'pickupPlace', 'items'
         ])
         && isNonEmptyString(request.resource.data.status)
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'ready'
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pickedUpBy', 'pickedUpAt'])
+            && (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items'])
+              || (
+                request.resource.data.items is list
+                && resource.data.items is list
+                && request.resource.data.items.size() == resource.data.items.size()
+              )
+            )
+          )
+          || (
+            resource.data.status == 'ready'
+            && request.resource.data.status == 'picked_up'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'pickedUpBy', 'pickedUpAt'
+            ])
+          )
+          || (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status'
+            ])
+          )
         );
     }
 

@@ -230,6 +230,93 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2c.1: customer order ready/pickup transitions', () => {
+    const orderPath = tenantDocPath(TENANTS.STEVES_HOF, 'customerOrders', 'order-ready-flow');
+    const baseOrder = {
+      customerName: 'Testkunde',
+      callbackPhone: '01234',
+      readyAt: '2026-09-03T10:00:00.000Z',
+      items: [
+        { product: 'Fleischsalat', quantity: '2', unit: 'kg' },
+        { product: 'Milch', quantity: '1', unit: 'Stk' },
+      ],
+      acceptedBy: 'Paddy',
+      acceptedAt: '2026-09-02T10:00:00.000Z',
+      status: 'open',
+      tenantId: TENANTS.STEVES_HOF,
+      createdAt: '2026-09-02T10:00:00.000Z',
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, orderPath, baseOrder);
+    });
+
+    it('allows employee open-to-ready update with pickupPlace and same-length weighed items', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-ready', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Paddy',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '2', unit: 'kg', actualQuantity: '1,8', actualQuantityUnit: 'kg' },
+            { product: 'Milch', quantity: '1', unit: 'Stk' },
+          ],
+        },
+      );
+    });
+
+    it('denies employee open-to-ready item replacement with a different line count', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-order-ready-wide', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'ready',
+          readyMarkedBy: 'Paddy',
+          readyMarkedAt: serverTimestamp(),
+          pickupPlace: 'Laden-Kühlschrank',
+          items: [
+            { product: 'Fleischsalat', quantity: '2', unit: 'kg' },
+          ],
+        },
+      );
+    });
+
+    it('denies employee item rewrites when marking a ready order picked up', async () => {
+      await seedFirestoreDoc(testEnv, orderPath, {
+        ...baseOrder,
+        status: 'ready',
+        readyMarkedBy: 'Paddy',
+        readyMarkedAt: '2026-09-02T11:00:00.000Z',
+        pickupPlace: 'Laden-Kühlschrank',
+      });
+      const ctx = authContext(testEnv, 'sh-employee-order-pickup', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        orderPath,
+        'update',
+        {
+          status: 'picked_up',
+          pickedUpBy: 'Paddy',
+          pickedUpAt: serverTimestamp(),
+          items: [
+            { product: 'Fleischsalat', quantity: '99', unit: 'kg' },
+            { product: 'Milch', quantity: '1', unit: 'Stk' },
+          ],
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2d: MHD shopfloor updates', () => {
     const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'shopfloor-mhd-1');
     const mhdItem = {
@@ -763,9 +850,9 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const admin = authContext(testEnv, 'sh-admin-employees', TENANTS.STEVES_HOF, 'admin');
       const employee = authContext(testEnv, 'sh-employee-employees', TENANTS.STEVES_HOF, 'employee');
       const foreignAdmin = authContext(testEnv, 'tf-admin-employees', TENANTS.TORFABRIK, 'admin');
-      await expectFirestoreAllow(admin, employeePath, 'get');
-      await expectFirestoreDeny(employee, employeePath, 'get');
-      await expectFirestoreDeny(foreignAdmin, employeePath, 'get');
+      await expectFirestoreAllow(admin, employeePath, 'read');
+      await expectFirestoreDeny(employee, employeePath, 'read');
+      await expectFirestoreDeny(foreignAdmin, employeePath, 'read');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'update', { displayName: 'Inject' });
     });
   });
