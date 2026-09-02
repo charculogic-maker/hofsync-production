@@ -291,7 +291,8 @@ function actualQuantityChanged(key, fallback) {
 function quantityForStock(item) {
   const actual = parseQuantityValue(item?.actualQuantity);
   if (actual > 0) return actual;
-  return parseQuantityValue(item?.quantity);
+  const ordered = parseQuantityValue(item?.quantity);
+  return ordered > 0 ? ordered : 0;
 }
 
 function stockItemIdFromOrderItem(item) {
@@ -308,9 +309,27 @@ function stockItemIdFromOrderItem(item) {
   ).trim();
 }
 
+function orderItemProductLabel(item) {
+  return String(item?.product || item?.produkt || item?.name || item?.artikel || 'Artikel').trim() || 'Artikel';
+}
+
+function stockRefKey(ref) {
+  return String(ref?.path || ref?.id || '').trim();
+}
+
+async function findUniqueStockRefByField(col, field, value, productLabel) {
+  const snap = await col.where(field, '==', value).limit(2).get();
+  if (snap.empty) return null;
+  if (snap.docs.length > 1) {
+    throw new Error(`Bestand nicht eindeutig: ${productLabel}. Bitte Stammdaten prüfen.`);
+  }
+  return snap.docs[0].ref;
+}
+
 async function findStockDocForOrderItem(item) {
   const col = stockCollectionRef();
-  if (!col) return null;
+  const product = orderItemProductLabel(item);
+  if (!col) throw new Error('Bestand ist nicht bereit. Bitte bei WLAN erneut versuchen.');
 
   const directId = stockItemIdFromOrderItem(item);
   if (directId) {
@@ -318,33 +337,43 @@ async function findStockDocForOrderItem(item) {
     if (snap.exists) return snap.ref;
   }
 
-  const product = String(item?.product || item?.produkt || item?.name || '').trim();
-  if (!product) return null;
+  if (product === 'Artikel') {
+    throw new Error(`Bestand nicht gefunden: ${directId || product}. Bitte Stammdaten prüfen.`);
+  }
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
-  if (!byProdukt.empty) return byProdukt.docs[0].ref;
+  const byProdukt = await findUniqueStockRefByField(col, 'produkt', product, product);
+  if (byProdukt) return byProdukt;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
-  if (!byName.empty) return byName.docs[0].ref;
+  const byName = await findUniqueStockRefByField(col, 'name', product, product);
+  if (byName) return byName;
 
-  return null;
+  const byArtikel = await findUniqueStockRefByField(col, 'artikel', product, product);
+  if (byArtikel) return byArtikel;
+
+  throw new Error(`Bestand nicht gefunden: ${product}. Bitte Stammdaten prüfen.`);
 }
 
 async function prepareStockDeductionsForOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const deductions = [];
+  const deductionsByRef = new Map();
   for (const item of items) {
     const amount = quantityForStock(item);
     if (!amount) continue;
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
-    deductions.push({
+    const key = stockRefKey(ref);
+    if (!key) throw new Error(`Bestand nicht gefunden: ${orderItemProductLabel(item)}. Bitte Stammdaten prüfen.`);
+    const existing = deductionsByRef.get(key);
+    if (existing) {
+      existing.amount = Math.round((existing.amount + amount) * 1000) / 1000;
+      continue;
+    }
+    deductionsByRef.set(key, {
       ref,
       amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      product: orderItemProductLabel(item),
     });
   }
-  return deductions;
+  return [...deductionsByRef.values()];
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -375,9 +404,14 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) {
+        throw new Error(`Bestand nicht gefunden: ${deduction.product}. Bitte Stammdaten prüfen.`);
+      }
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      if (currentStock < deduction.amount) {
+        throw new Error(`Nicht genug Bestand: ${deduction.product}. Verfügbar ${formatQuantityValue(currentStock)}, benötigt ${formatQuantityValue(deduction.amount)}.`);
+      }
+      const nextStock = Math.round((currentStock - deduction.amount) * 1000) / 1000;
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
