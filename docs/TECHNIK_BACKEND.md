@@ -214,7 +214,7 @@ Roh-Fehlerdetails bleiben in `console.error`; Operatoren sehen über `web/operat
 
 ## 4. Cloud Functions (`functions/`)
 
-Laufzeit: **Node 20**, `firebase-functions` v2, `firebase-admin`. Exporte in `functions/index.js`.
+Laufzeit: **Node 22**, `firebase-functions` v2, `firebase-admin`. Exporte in `functions/index.js`.
 
 ### 4.1 Fleischpreis-Automation (`fetchWeeklyMeatPrices` + `triggerManualMeatPriceRun`)
 
@@ -415,7 +415,7 @@ npm run serve        # firebase emulators:start --only functions
 
 ## 5. Build, Deployment & Release-Pipeline
 
-Voraussetzung: Firebase CLI installiert (`firebase login`), **Node 20**. Projekt wählen:
+Voraussetzung: Firebase CLI installiert (`firebase login`), **Node 22**. Projekt wählen:
 
 ```bash
 firebase use default      # hofsync-production
@@ -525,7 +525,7 @@ Ersetze `<PROJECT_ID>` durch die Firebase-Projekt-ID (z. B. `charculogic-whitela
 
 ### 6.2 Firestore Rules Tests (Emulator)
 
-Voraussetzungen: **Node 20**, **JDK 21+**, Firebase CLI.
+Voraussetzungen: **Node 22**, **JDK 21+**, Firebase CLI.
 
 ```bash
 npm install

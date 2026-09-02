@@ -73,7 +73,7 @@ Das System ist als **White-Label-Lösung mit strikter Mandantentrennung** gebaut
                 │                                │ Triggers
                 ▼                                ▼
 ┌───────────────────────────┐    ┌────────────────────────────────┐
-│  Firebase Storage         │    │  Cloud Functions (Node 20)       │
+│  Firebase Storage         │    │  Cloud Functions (Node 22)       │
 │  Bulletin, Bestellzettel, │    │  europe-west3                    │
 │  LMIV-Etikettfotos        │    │                                  │
 └───────────────────────────┘    └────────────────────────────────┘
@@ -395,7 +395,7 @@ Alle Functions: Region **`europe-west3`**, Node **20**. Einstieg: `functions/ind
 | `FROM_EMAIL` | Absender (Default: `bestellung@steveshof-hofladen.de`) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `FROM_NUMBER` | SMS Kunden-Signal (optional) |
 
-Konfiguration über `functions/.env` (lokal/Deploy) oder Firebase Params (`defineString` in `orderNotifications.js`).
+Konfiguration über `functions/.env.hofsync-production` (Deploy, Werte `unset` = aus) oder `functions/.env.local` (echte Secrets, gitignored). Params: `defineString` in `functions/runtimeParams.js` mit Default `unset`, damit `firebase deploy --non-interactive` nicht nach `TWILIO_ACCOUNT_SID` fragt.
 
 ---
 
@@ -548,7 +548,7 @@ craft_food_app/
 │   ├── customer-orders.js  # Kundenbestellungen
 │   ├── teamboard.js        # Start-Tab
 │   └── …
-├── functions/              # Cloud Functions (Node 20)
+├── functions/              # Cloud Functions (Node 22)
 ├── firebase.rules          # Firestore Security Rules (deployt)
 ├── storage.rules           # Storage Rules
 ├── firebase.json

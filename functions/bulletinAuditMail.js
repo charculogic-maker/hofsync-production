@@ -1,22 +1,11 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { defineString } = require('firebase-functions/params');
 const nodemailer = require('nodemailer');
+const { isConfiguredParam, readSmtpConfig, DEFAULT_FROM_EMAIL } = require('./runtimeParams');
 
-const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' });
-const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
-const OFFICE_EMAIL = 'bestellung@steveshof-hofladen.de';
-const SMTP_USER = defineString('SMTP_USER', { default: OFFICE_EMAIL });
-const SMTP_PASS = defineString('SMTP_PASS', { default: '' });
-const FROM_EMAIL = defineString('FROM_EMAIL', { default: OFFICE_EMAIL });
+const OFFICE_EMAIL = DEFAULT_FROM_EMAIL;
 
 function getSmtpConfig() {
-  return {
-    smtpHost: SMTP_HOST.value(),
-    smtpPort: SMTP_PORT.value(),
-    smtpUser: SMTP_USER.value(),
-    smtpPass: SMTP_PASS.value(),
-    fromEmail: FROM_EMAIL.value(),
-  };
+  return readSmtpConfig();
 }
 
 function createSmtpTransport(config) {
@@ -115,7 +104,7 @@ exports.onBulletinConfirmationAuditMail = onDocumentCreated(
     const smtpUser = String(config.smtpUser || '').trim();
     const smtpPass = String(config.smtpPass || '');
     const from = resolveFromAddress(config);
-    if (!smtpUser || !smtpPass || !from) {
+    if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
       console.warn('[BulletinAudit] SMTP nicht konfiguriert — Audit-Mail übersprungen', { tenantId });
       return null;
     }

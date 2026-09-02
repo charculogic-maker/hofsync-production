@@ -1,18 +1,8 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { defineString } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
-
-const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' });
-const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
-const ORDER_SIGNAL_EMAIL = 'bestellung@steveshof-hofladen.de';
-const SMTP_USER = defineString('SMTP_USER', { default: ORDER_SIGNAL_EMAIL });
-const SMTP_PASS = defineString('SMTP_PASS', { default: '' });
-const FROM_EMAIL = defineString('FROM_EMAIL', { default: ORDER_SIGNAL_EMAIL });
-const TWILIO_ACCOUNT_SID = defineString('TWILIO_ACCOUNT_SID', { default: '' });
-const TWILIO_AUTH_TOKEN = defineString('TWILIO_AUTH_TOKEN', { default: '' });
-const FROM_NUMBER = defineString('FROM_NUMBER', { default: '' });
+const { isConfiguredParam, readSmtpConfig, readTwilioConfig } = require('./runtimeParams');
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -20,14 +10,8 @@ if (!admin.apps.length) {
 
 function getNotificationConfig() {
   return {
-    smtpHost: SMTP_HOST.value(),
-    smtpPort: SMTP_PORT.value(),
-    smtpUser: SMTP_USER.value(),
-    smtpPass: SMTP_PASS.value(),
-    fromEmail: FROM_EMAIL.value(),
-    twilioAccountSid: TWILIO_ACCOUNT_SID.value(),
-    twilioAuthToken: TWILIO_AUTH_TOKEN.value(),
-    fromNumber: FROM_NUMBER.value(),
+    ...readSmtpConfig(),
+    ...readTwilioConfig(),
   };
 }
 
@@ -197,7 +181,7 @@ async function sendCustomerEmail(signal, config, meta) {
   const smtpUser = String(config.smtpUser || '').trim();
   const smtpPass = String(config.smtpPass || '');
   const from = resolveFromAddress(config);
-  if (!smtpUser || !smtpPass || !from) {
+  if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
     console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', meta);
     return { channel: 'email', skipped: true, reason: 'not_configured' };
   }
@@ -235,7 +219,7 @@ async function sendCustomerSms(signal, config, meta) {
   const fromNumber = String(config.fromNumber || '').trim();
   const toNumber = normalizePhoneForTwilio(signal.to.phone);
 
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!isConfiguredParam(accountSid) || !isConfiguredParam(authToken) || !isConfiguredParam(fromNumber)) {
     console.warn('[KundenSignal] Twilio nicht konfiguriert, SMS uebersprungen', meta);
     return { channel: 'sms', skipped: true, reason: 'not_configured' };
   }

@@ -22,7 +22,7 @@ Das System ist als **White-Label-Lösung mit Mandantentrennung** ausgelegt: Alle
 | Datenbank | Cloud Firestore (Live-Sync via `onSnapshot`) | `hofsync-production` oder `charculogic-whitelabel-test` (`web/firebase-config.js`) |
 | Datei-Uploads | Firebase Storage (Bulletin-Anhänge, Bestellzettel, LMIV-Etikettfotos) | `tenants/{tenantId}/…` |
 | Offline | Service Worker + lokale Warteliste für Änderungen | `web/sw.js`, `web/sync.js` |
-| Backend | Cloud Functions (Node 20, `firebase-functions` v2) | `functions/` |
+| Backend | Cloud Functions (Node 22, `firebase-functions` v2) | `functions/` |
 | KI | Gemini + Google-Search-Grounding für Wochen-Fleischpreise | `functions/meatPrices.js` |
 | Sicherheit | Firestore- & Storage-Security-Rules (mandanten- und rollenbasiert) | `firebase.rules`, `storage.rules` |
 
@@ -69,7 +69,7 @@ craft_food_app/
 │   ├── deliveryNote.js           # KI-Lieferschein-Parsing (Gemini)
 │   ├── parseDeliveryNoteCallable.js  # Callable parseDeliveryNote
 │   ├── teamPush.js               # Push bei neuer Team-Aufgabe (Trigger)
-│   └── package.json              # Node 20, Abhängigkeiten
+│   └── package.json              # Node 22, Abhängigkeiten
 ├── firebase.rules                # Firestore-Security-Rules (DEPLOYT)
 ├── storage.rules                 # Storage-Security-Rules
 ├── firebase.json                 # Hosting/Functions/Rules-Konfiguration
