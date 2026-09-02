@@ -683,8 +683,19 @@ if (!fallbackPass) {
 
 await hideAuthLock(page);
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-dashboard-audit.png' });
-await page.screenshot({ path: '/opt/cursor/artifacts/admin-users-tenant-select.png' });
-await hideAuthLock(fallbackPage);
-await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png', fullPage: true });
+await fallbackPage.evaluate(() => {
+  document.getElementById('auth-lock-screen')?.remove();
+  document.querySelectorAll('.page').forEach((el) => el.classList.remove('active'));
+  document.getElementById('page-dev-dashboard')?.classList.add('active');
+  document.getElementById('dev-dashboard-tab-users')?.click();
+});
+await new Promise((resolve) => setTimeout(resolve, 150));
+const usersView = fallbackPage.locator('#dev-dashboard-view-users');
+if (await usersView.count()) {
+  await usersView.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png' });
+  await usersView.screenshot({ path: '/opt/cursor/artifacts/admin-users-paddy-admin.png' });
+} else {
+  await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png', fullPage: true });
+}
 await browser.close();
 console.log('Admin module audit passed.');
