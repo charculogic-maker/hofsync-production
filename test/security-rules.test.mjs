@@ -684,6 +684,76 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 9: Verwaltung RBAC (Stammdaten & Settings)', () => {
+    const stammdatenPath = tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'paprika-creme');
+    const settingsPath = tenantDocPath(TENANTS.STEVES_HOF, 'settings', 'teamDashboard');
+    const article = {
+      name: 'Weißenhorner Paprika Creme',
+      ean: '4028332320111',
+      lieferant: 'Weißenhorner',
+      tenantId: TENANTS.STEVES_HOF,
+      currentStock: 6,
+    };
+    const settings = {
+      ...sampleSettings(TENANTS.STEVES_HOF),
+      employees: ['Stephie', 'Finn'],
+      updatedAt: serverTimestamp(),
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, stammdatenPath, article);
+      await seedFirestoreDoc(testEnv, settingsPath, {
+        ...sampleSettings(TENANTS.STEVES_HOF),
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+    });
+
+    it('allows tenant admin to create, update and delete stammdaten on own tenant', async () => {
+      const admin = authContext(testEnv, 'sh-admin-stammdaten', TENANTS.STEVES_HOF, 'admin');
+      await expectFirestoreAllow(
+        admin,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'new-ean-article'),
+        'create',
+        { ...article, ean: '4000000000000', name: 'Neuer Stammartikel' },
+      );
+      await expectFirestoreAllow(admin, stammdatenPath, 'update', {
+        name: 'Weißenhorner Paprika Creme Bio',
+        lieferant: 'Weißenhorner Molkerei',
+      });
+      await expectFirestoreAllow(admin, stammdatenPath, 'delete');
+    });
+
+    it('denies employee and helper create/delete on stammdaten', async () => {
+      const employee = authContext(testEnv, 'sh-employee-stammdaten', TENANTS.STEVES_HOF, 'employee');
+      const helper = authContext(testEnv, 'sh-helper-stammdaten', TENANTS.STEVES_HOF, 'helper');
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'employee-inject'),
+        'create',
+        article,
+      );
+      await expectFirestoreDeny(employee, stammdatenPath, 'delete');
+      await expectFirestoreDeny(helper, stammdatenPath, 'update', { name: 'Inject' });
+      await expectFirestoreDeny(helper, stammdatenPath, 'delete');
+    });
+
+    it('denies cross-tenant admin writes on StevesHof stammdaten and settings', async () => {
+      const foreignAdmin = authContext(testEnv, 'tf-admin-stammdaten', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(foreignAdmin, stammdatenPath, 'update', { name: 'Cross Tenant' });
+      await expectFirestoreDeny(foreignAdmin, settingsPath, 'update', settings);
+    });
+
+    it('allows tenant admin to save team settings and denies employee/helper', async () => {
+      const admin = authContext(testEnv, 'sh-admin-settings', TENANTS.STEVES_HOF, 'admin');
+      const employee = authContext(testEnv, 'sh-employee-settings', TENANTS.STEVES_HOF, 'employee');
+      const helper = authContext(testEnv, 'sh-helper-settings', TENANTS.STEVES_HOF, 'helper');
+      await expectFirestoreAllow(admin, settingsPath, 'update', settings);
+      await expectFirestoreDeny(employee, settingsPath, 'update', settings);
+      await expectFirestoreDeny(helper, settingsPath, 'update', settings);
+      await expectFirestoreDeny(employee, settingsPath, 'delete');
+    });
+  });
+
   describe('Sanity: environment wiring', () => {
     it('initializes test environment with project id', () => {
       expect(testEnv).to.exist;

@@ -24,8 +24,9 @@ Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:ru
 
 | Suite | Befehl | Deckt |
 |-------|--------|------|
-| Callable RBAC + PIN/Fleischpreis | `npm run test:functions:security` | `permission-denied` ohne Admin; Cross-Tenant-Admin; App-Check-Contract |
-| Firestore/Storage Rules | `npm run test:rules` | Cross-Tenant Isolation inkl. Tenant-Root Module |
+| Callable RBAC + PIN/Fleischpreis | `npm run test:functions:security` | `permission-denied` ohne Admin; Cross-Tenant-Admin; App Check |
+| Firestore/Storage Rules | `npm run test:rules` | Cross-Tenant Isolation inkl. Tenant-Root, Stammdaten, Settings |
+| Admin-Modul E2E (simuliertes Admin-Profil) | `npm run test:admin` | `/dev-dashboard` Tabs, Nutzerformular, Einstellungen, RBAC-Denied |
 | Staging App-Check Smoke | `SECURITY_TEST_CALLABLE_BASE_URL=… npm run test:functions:security` | fehlendes/gefälschtes App-Check-Header |
 
 ## Kurz-Checkliste vor Merge
