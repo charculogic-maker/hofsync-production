@@ -60,7 +60,12 @@ async function activateDashboard(page, { probe = false } = {}) {
 }
 
 async function selectDashboardTab(page, tabId) {
+  await page.evaluate(() => {
+    const appContent = document.getElementById('app-content');
+    if (appContent) appContent.scrollTop = 0;
+  });
   const tab = page.locator(`#${tabId}`);
+  await tab.scrollIntoViewIfNeeded();
   await tab.click({ trial: true, timeout: 5000 });
   await tab.click({ timeout: 5000 });
   return page.evaluate((id) => {
