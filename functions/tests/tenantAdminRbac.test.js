@@ -204,6 +204,58 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(caught.code).toBe('permission-denied');
   });
 
+  test('mergeEmployeeSources keeps shop names when Auth users have no claims', async () => {
+    const { mergeEmployeeSources, defaultProfileNamesForTenant } = await import('../manageTenantEmployees.js');
+    const merged = mergeEmployeeSources({
+      users: [],
+      nestedEmployees: [],
+      authUsers: [],
+      profileNames: defaultProfileNamesForTenant(TENANT_A),
+      tenantId: TENANT_A,
+    });
+    const names = merged.map((entry) => entry.displayName);
+    expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
+    expect(merged.every((entry) => entry.source === 'profile')).toBe(true);
+    expect(merged.every((entry) => String(entry.uid).startsWith('profile:'))).toBe(true);
+  });
+
+  test('mergeEmployeeSources prefers nested employees over profile names', async () => {
+    const { mergeEmployeeSources } = await import('../manageTenantEmployees.js');
+    const merged = mergeEmployeeSources({
+      users: [],
+      nestedEmployees: [{
+        uid: 'paddy-uid',
+        displayName: 'Paddy',
+        email: 'paddy@steveshof.de',
+        tenantId: TENANT_A,
+        role: 'employee',
+        source: 'employees',
+      }],
+      authUsers: [],
+      profileNames: ['Paddy', 'Stephie'],
+      tenantId: TENANT_A,
+    });
+    const paddy = merged.find((entry) => entry.displayName === 'Paddy');
+    const stephie = merged.find((entry) => entry.displayName === 'Stephie');
+    expect(paddy.uid).toBe('paddy-uid');
+    expect(paddy.email).toBe('paddy@steveshof.de');
+    expect(paddy.source).toBe('employees');
+    expect(stephie.source).toBe('profile');
+    expect(String(stephie.uid).startsWith('profile:')).toBe(true);
+  });
+
+  test('manageTenantEmployees list returns StevesHof profiles when users collection is empty', async () => {
+    const { handleManageTenantEmployees } = await import('../manageTenantEmployees.js');
+    const result = await handleManageTenantEmployees({
+      auth: authAs({ uid: 'admin-a', tenantId: TENANT_A, role: 'admin' }),
+      data: { action: 'list', tenantId: TENANT_A },
+    });
+    const names = (result.employees || []).map((entry) => entry.displayName);
+    expect(result.ok).toBe(true);
+    expect(result.tenantId).toBe(TENANT_A);
+    expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
+  });
+
   test('generateStartPassword returns Hof- prefix', async () => {
     const { generateStartPassword } = await import('../manageTenantEmployees.js');
     const password = generateStartPassword();

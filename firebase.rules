@@ -167,6 +167,13 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
+    match /tenants/{tenantId}/employees/{employeeId} {
+      allow read: if isAdmin(tenantId);
+      allow create, update: if isAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId;
+      allow delete: if isAdmin(tenantId);
+    }
+
     match /tenants/{tenantId}/terminalCredentials/{document} {
       allow read, write: if false;
     }

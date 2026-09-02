@@ -16,6 +16,31 @@ const SUPER_ADMIN_UIDS = new Set(['VYwMy5IAlAR26pj8ZbFfc5PNdou2']);
 
 const EMPLOYEE_MODULE_KEYS = ['mhd', 'kitchen', 'buero'];
 
+const TENANT_PROFILE_DEFAULTS = Object.freeze({
+  StevesHof_Hauptbetrieb: Object.freeze([
+    'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
+  ]),
+});
+
+function profileUidFromName(name, tenantId) {
+  const slug = String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `profile:${String(tenantId || '').trim()}:${slug || 'unbekannt'}`;
+}
+
+function isProfileUid(uid) {
+  return String(uid || '').startsWith('profile:');
+}
+
+function defaultProfileNamesForTenant(tenantId) {
+  return TENANT_PROFILE_DEFAULTS[String(tenantId || '').trim()] || [];
+}
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -93,49 +118,196 @@ function serializeTimestamp(value) {
 }
 
 function serializeUserDoc(doc, fallbackTenantId = '') {
-  const data = doc.data() || {};
+  const data = typeof doc?.data === 'function' ? (doc.data() || {}) : (doc || {});
+  const id = doc?.id || data.uid || '';
   const status = String(data.status || (data.disabled === true ? 'inactive' : 'active')).trim();
   return {
-    uid: doc.id,
+    uid: String(id || '').trim(),
     email: String(data.email || '').trim(),
-    displayName: String(data.displayName || '').trim(),
+    displayName: String(data.displayName || data.name || '').trim(),
     role: String(data.role || 'employee').trim(),
     tenantId: String(data.tenantId || fallbackTenantId).trim(),
     allowedModules: normalizeAllowedModules(data.allowedModules),
     status: status === 'inactive' ? 'inactive' : 'active',
     disabled: data.disabled === true || status === 'inactive',
-    // Firestore-Timestamps sind nicht callable-serialisierbar → in Millis wandeln.
+    source: String(data.source || 'auth').trim() || 'auth',
     createdAt: serializeTimestamp(data.createdAt),
   };
 }
 
-async function listTenantEmployees(tenantId) {
-  const byUid = new Map();
-  const usersSnap = await adminDb.firestore()
-    .collection('users')
-    .where('tenantId', '==', tenantId)
-    .get();
-  usersSnap.docs.forEach((doc) => {
-    byUid.set(doc.id, serializeUserDoc(doc, tenantId));
+function employeeDedupeKey(employee) {
+  const uid = String(employee?.uid || '').trim();
+  if (uid && !isProfileUid(uid)) return `uid:${uid}`;
+  const email = String(employee?.email || '').trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const name = String(employee?.displayName || '').trim().toLowerCase();
+  if (name) return `name:${name}`;
+  return `uid:${uid || 'unknown'}`;
+}
+
+function mergeEmployeeRecord(existing, incoming) {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+  const preferIncoming = isProfileUid(existing.uid) && incoming.uid && !isProfileUid(incoming.uid);
+  const primary = preferIncoming ? incoming : existing;
+  const secondary = preferIncoming ? existing : incoming;
+  return {
+    ...secondary,
+    ...primary,
+    email: primary.email || secondary.email || '',
+    displayName: primary.displayName || secondary.displayName || '',
+    role: primary.role && primary.role !== 'employee' ? primary.role : (secondary.role || primary.role || 'employee'),
+    allowedModules: normalizeAllowedModules(primary.allowedModules || secondary.allowedModules),
+    source: isProfileUid(primary.uid) ? (secondary.source || primary.source) : (primary.source || secondary.source),
+  };
+}
+
+/**
+ * Führt Auth-/users-Dokumente, tenants/{id}/employees und Team-Profilnamen zusammen.
+ * Auth-User ohne Custom Claims bleiben über die nested employees-Collection
+ * bzw. den Profil-Store sichtbar.
+ */
+function mergeEmployeeSources({
+  users = [],
+  nestedEmployees = [],
+  authUsers = [],
+  profileNames = [],
+  tenantId = '',
+} = {}) {
+  const byKey = new Map();
+  const upsert = (raw) => {
+    if (!raw) return;
+    const employee = {
+      uid: String(raw.uid || '').trim(),
+      email: String(raw.email || '').trim(),
+      displayName: String(raw.displayName || raw.name || '').trim(),
+      role: String(raw.role || 'employee').trim() || 'employee',
+      tenantId: String(raw.tenantId || tenantId).trim(),
+      allowedModules: normalizeAllowedModules(raw.allowedModules),
+      status: raw.disabled === true || raw.status === 'inactive' ? 'inactive' : 'active',
+      disabled: raw.disabled === true || raw.status === 'inactive',
+      source: String(raw.source || 'auth').trim() || 'auth',
+      createdAt: raw.createdAt ?? null,
+    };
+    if (!employee.uid && !employee.email && !employee.displayName) return;
+    if (!employee.uid) {
+      employee.uid = profileUidFromName(employee.displayName || employee.email, tenantId);
+      employee.source = employee.source === 'auth' ? 'profile' : employee.source;
+    }
+    const key = employeeDedupeKey(employee);
+    byKey.set(key, mergeEmployeeRecord(byKey.get(key), employee));
+  };
+
+  users.forEach(upsert);
+  nestedEmployees.forEach(upsert);
+  authUsers.forEach(upsert);
+
+  const knownNames = new Set(
+    [...byKey.values()].map((entry) => String(entry.displayName || '').trim().toLowerCase()).filter(Boolean),
+  );
+  profileNames.forEach((name) => {
+    const displayName = String(name || '').trim();
+    if (!displayName) return;
+    if (knownNames.has(displayName.toLowerCase())) return;
+    knownNames.add(displayName.toLowerCase());
+    upsert({
+      uid: profileUidFromName(displayName, tenantId),
+      displayName,
+      role: 'employee',
+      tenantId,
+      source: 'profile',
+    });
   });
 
+  return [...byKey.values()]
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de') || a.email.localeCompare(b.email, 'de'));
+}
+
+async function listUsersCollection(tenantId) {
+  try {
+    const snap = await adminDb.firestore()
+      .collection('users')
+      .where('tenantId', '==', tenantId)
+      .get();
+    return snap.docs.map((doc) => serializeUserDoc(doc, tenantId));
+  } catch (err) {
+    console.warn('[manageTenantEmployees] users-Query fehlgeschlagen:', err?.message || err);
+    return [];
+  }
+}
+
+async function listNestedEmployees(tenantId) {
   try {
     const nestedSnap = await adminDb.firestore()
       .collection('tenants')
       .doc(tenantId)
       .collection('employees')
       .get();
-    nestedSnap.docs.forEach((doc) => {
-      if (!byUid.has(doc.id)) {
-        byUid.set(doc.id, serializeUserDoc(doc, tenantId));
-      }
-    });
+    return nestedSnap.docs.map((doc) => serializeUserDoc(doc, tenantId));
   } catch (err) {
-    console.warn('[manageTenantEmployees] Optionale employees-Subcollection nicht lesbar:', err?.message || err);
+    console.warn('[manageTenantEmployees] tenants/.../employees nicht lesbar:', err?.message || err);
+    return [];
   }
+}
 
-  return [...byUid.values()]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'de') || a.email.localeCompare(b.email, 'de'));
+async function listTeamDashboardProfileNames(tenantId) {
+  try {
+    const snap = await adminDb.firestore().doc(`tenants/${tenantId}/settings/teamDashboard`).get();
+    const names = Array.isArray(snap.data()?.employees) ? snap.data().employees : [];
+    return names.map((name) => String(name || '').trim()).filter(Boolean);
+  } catch (err) {
+    console.warn('[manageTenantEmployees] Team-Profil-Store nicht lesbar:', err?.message || err);
+    return [];
+  }
+}
+
+async function listAuthUsersForTenant(tenantId) {
+  if (typeof admin.auth !== 'function') return [];
+  try {
+    const matches = [];
+    let pageToken;
+    do {
+      const page = await admin.auth().listUsers(1000, pageToken);
+      (page.users || []).forEach((user) => {
+        const claims = user.customClaims || {};
+        if (String(claims.tenantId || '').trim() !== tenantId) return;
+        matches.push({
+          uid: user.uid,
+          email: user.email || '',
+          displayName: user.displayName || '',
+          role: claims.role || (claims.isAdmin ? 'admin' : 'employee'),
+          tenantId,
+          allowedModules: normalizeAllowedModules(claims.allowedModules),
+          disabled: user.disabled === true,
+          status: user.disabled ? 'inactive' : 'active',
+          source: 'auth',
+          createdAt: user.metadata?.creationTime ? Date.parse(user.metadata.creationTime) : null,
+        });
+      });
+      pageToken = page.pageToken;
+    } while (pageToken);
+    return matches;
+  } catch (err) {
+    console.warn('[manageTenantEmployees] Auth-User-Liste nicht lesbar:', err?.message || err);
+    return [];
+  }
+}
+
+async function listTenantEmployees(tenantId) {
+  const [users, nestedEmployees, authUsers, storedProfiles] = await Promise.all([
+    listUsersCollection(tenantId),
+    listNestedEmployees(tenantId),
+    listAuthUsersForTenant(tenantId),
+    listTeamDashboardProfileNames(tenantId),
+  ]);
+  const profileNames = storedProfiles.length ? storedProfiles : defaultProfileNamesForTenant(tenantId);
+  return mergeEmployeeSources({
+    users,
+    nestedEmployees,
+    authUsers,
+    profileNames,
+    tenantId,
+  });
 }
 
 async function updateTenantEmployee(auth, payload) {
@@ -336,3 +508,8 @@ exports.assertAdminAccessForTenant = assertAdminAccess;
 exports.EMPLOYEE_MODULE_KEYS = EMPLOYEE_MODULE_KEYS;
 exports.normalizeAllowedModules = normalizeAllowedModules;
 exports.generateStartPassword = generateStartPassword;
+exports.mergeEmployeeSources = mergeEmployeeSources;
+exports.profileUidFromName = profileUidFromName;
+exports.defaultProfileNamesForTenant = defaultProfileNamesForTenant;
+exports.isProfileUid = isProfileUid;
+exports.listTenantEmployees = listTenantEmployees;

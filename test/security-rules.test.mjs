@@ -752,6 +752,22 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(helper, settingsPath, 'update', settings);
       await expectFirestoreDeny(employee, settingsPath, 'delete');
     });
+
+    it('allows tenant admin to read own employees profiles and denies cross-tenant', async () => {
+      const employeePath = tenantDocPath(TENANTS.STEVES_HOF, 'employees', 'paddy');
+      await seedFirestoreDoc(testEnv, employeePath, {
+        displayName: 'Paddy',
+        tenantId: TENANTS.STEVES_HOF,
+        role: 'employee',
+      });
+      const admin = authContext(testEnv, 'sh-admin-employees', TENANTS.STEVES_HOF, 'admin');
+      const employee = authContext(testEnv, 'sh-employee-employees', TENANTS.STEVES_HOF, 'employee');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-employees', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreAllow(admin, employeePath, 'get');
+      await expectFirestoreDeny(employee, employeePath, 'get');
+      await expectFirestoreDeny(foreignAdmin, employeePath, 'get');
+      await expectFirestoreDeny(foreignAdmin, employeePath, 'update', { displayName: 'Inject' });
+    });
   });
 
   describe('Sanity: environment wiring', () => {

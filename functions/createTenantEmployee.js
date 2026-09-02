@@ -87,6 +87,18 @@ async function handleCreateTenantEmployee(request) {
       createdAt: adminDb.FieldValue.serverTimestamp(),
       createdBy: ctx.uid,
     });
+    await adminDb.firestore().doc(`tenants/${targetTenantId}/employees/${userRecord.uid}`).set({
+      email,
+      displayName,
+      tenantId: targetTenantId,
+      role: 'employee',
+      allowedModules,
+      source: 'auth',
+      createdAt: adminDb.FieldValue.serverTimestamp(),
+      createdBy: ctx.uid,
+    }).catch((mirrorErr) => {
+      console.warn('[createTenantEmployee] employees-Spiegel nicht geschrieben:', mirrorErr?.message || mirrorErr);
+    });
   } catch (err) {
     console.error('[createTenantEmployee] Claims/Profil fehlgeschlagen — Auth-Nutzer wird entfernt:', err);
     await admin.auth().deleteUser(userRecord.uid).catch(() => null);

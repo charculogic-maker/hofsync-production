@@ -134,19 +134,23 @@ const uiResult = await page.evaluate(async () => {
   const employeeUser = { uid: 'emp-a', email: 'finn@steveshof.de' };
   const helperUser = { uid: 'help-a', email: 'helper@steveshof.de' };
 
+  let functionsRegion = null;
+  let namespaceFunctionsUsed = false;
   const appObj = {
     options: { projectId: 'hofsync-production' },
-    functions: () => ({
-      httpsCallable: (name) => async (payload) => {
-        callableCalls.push({ name, payload });
-        if (name === 'manageTenantEmployees' && payload?.action === 'list') {
-          if (payload.tenantId !== tenantId) {
-            const err = new Error('Kein Zugriff auf diesen Mandanten.');
-            err.code = 'permission-denied';
-            throw err;
+    functions: (region) => {
+      functionsRegion = region || null;
+      return {
+        httpsCallable: (name) => async (payload) => {
+          callableCalls.push({ name, payload, region: functionsRegion });
+          if (name === 'manageTenantEmployees' && payload?.action === 'list') {
+            if (payload.tenantId !== tenantId) {
+              const err = new Error('Kein Zugriff auf diesen Mandanten.');
+              err.code = 'permission-denied';
+              throw err;
+            }
+            return { data: { employees: [...employees] } };
           }
-          return { data: { employees: [...employees] } };
-        }
         if (name === 'createTenantEmployee') {
           if (payload.tenantId !== tenantId) {
             const err = new Error('Kein Zugriff auf diesen Mandanten.');
@@ -184,8 +188,9 @@ const uiResult = await page.evaluate(async () => {
           return { data: { ok: true, uid: payload.uid, disabled: payload.action === 'disable' } };
         }
         return { data: { ok: true } };
-      },
-    }),
+        },
+      };
+    },
   };
 
   const ReCaptchaV3Provider = class { constructor() {} };
@@ -195,6 +200,14 @@ const uiResult = await page.evaluate(async () => {
   window.firebase = {
     apps: [appObj],
     app: () => appObj,
+    functions: () => {
+      namespaceFunctionsUsed = true;
+      return {
+        httpsCallable: () => {
+          throw new Error('us-central1 fallback must not be used');
+        },
+      };
+    },
     auth: () => ({ currentUser: adminUser, signOut: async () => {} }),
     appCheck: appCheckFn,
   };
@@ -312,6 +325,18 @@ const uiResult = await page.evaluate(async () => {
     pass: usersView && !usersView.hidden && employeeRows.length >= 2
       && employeeRows.some((row) => row.textContent.includes('Finn')),
     rowCount: employeeRows.length,
+  });
+  steps.push({
+    name: 'manageTenantEmployees-uses-europe-west3',
+    pass: functionsRegion === 'europe-west3'
+      && namespaceFunctionsUsed === false
+      && callableCalls.some((entry) => (
+        entry.name === 'manageTenantEmployees'
+        && entry.payload?.action === 'list'
+        && entry.region === 'europe-west3'
+      )),
+    functionsRegion,
+    namespaceFunctionsUsed,
   });
   steps.push({
     name: 'betrieb-dropdown-auto-selects-active-tenant',
@@ -531,6 +556,7 @@ const uiResult = await page.evaluate(async () => {
     steps,
     allPass: steps.every((entry) => entry.pass),
     callableNames: [...new Set(callableCalls.map((entry) => entry.name))],
+    functionsRegion,
   };
 });
 
@@ -543,7 +569,104 @@ if (!uiResult.allPass) {
   process.exit(1);
 }
 
+const fallbackPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+await fallbackPage.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await fallbackPage.addStyleTag({ content: '#auth-lock-screen,#auth-lock-screen.active{display:none!important;pointer-events:none!important;}' });
+const fallbackResult = await fallbackPage.evaluate(async () => {
+  const tenantId = 'StevesHof_Hauptbetrieb';
+  let functionsRegion = null;
+  document.getElementById('auth-lock-screen')?.remove();
+  history.replaceState({}, '', '/dev-dashboard');
+
+  const adminUser = { uid: 'admin-a', email: 'admin@steveshof.de' };
+  const appObj = {
+    options: { projectId: 'hofsync-production' },
+    functions: (region) => {
+      functionsRegion = region || null;
+      return {
+        httpsCallable: (name) => async (payload) => {
+          if (name === 'manageTenantEmployees' && payload?.action === 'list') {
+            return { data: { employees: [] } };
+          }
+          return { data: { ok: true } };
+        },
+      };
+    },
+  };
+  const ReCaptchaV3Provider = class { constructor() {} };
+  const appCheckFn = () => ({ activate() { return undefined; } });
+  appCheckFn.ReCaptchaV3Provider = ReCaptchaV3Provider;
+  window.firebase = {
+    apps: [appObj],
+    app: () => appObj,
+    auth: () => ({ currentUser: adminUser, signOut: async () => {} }),
+    appCheck: appCheckFn,
+  };
+
+  const tenantSnap = {
+    exists: true,
+    data: () => ({
+      displayName: 'StevesHof Hofladen',
+      status: 'active',
+      enabledModules: {
+        start: true, team: true, mhd: true, receiving: true, kitchen: true,
+        haccp: true, knowledge: true, buero: true, chargenDoku: true,
+      },
+    }),
+  };
+  const db = {
+    collection: () => ({
+      doc: () => ({
+        onSnapshot: (onNext) => {
+          onNext(tenantSnap);
+          return () => {};
+        },
+        update: async () => {},
+        set: async () => {},
+      }),
+      onSnapshot: (_onNext, onError) => {
+        if (typeof onError === 'function') {
+          onError({ code: 'permission-denied', message: 'Missing or insufficient permissions.' });
+        }
+        return () => {};
+      },
+    }),
+  };
+
+  const { initAppCheckModule } = await import('./app-check.js');
+  await initAppCheckModule();
+  const { initDevDashboard } = await import('./dev-dashboard.js');
+  await initDevDashboard(db, {
+    currentUser: adminUser,
+    authContext: { role: 'admin', isAdmin: true, tenantId },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  document.getElementById('dev-dashboard-tab-users')?.click();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  const rowText = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .map((row) => row.textContent)
+    .join(' | ');
+  const required = ['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko'];
+  return {
+    functionsRegion,
+    rowText,
+    missing: required.filter((name) => !rowText.includes(name)),
+    listStatus: document.getElementById('dev-dashboard-employee-list-status')?.textContent || '',
+  };
+});
+
+const fallbackPass = fallbackResult.functionsRegion === 'europe-west3'
+  && fallbackResult.missing.length === 0;
+console.log(JSON.stringify({ fallbackResult, fallbackPass }, null, 2));
+if (!fallbackPass) {
+  console.error('Profile fallback failures:', fallbackResult);
+  await browser.close();
+  process.exit(1);
+}
+
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-dashboard-audit.png' });
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-users-tenant-select.png' });
+await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png' });
 await browser.close();
 console.log('Admin module audit passed.');

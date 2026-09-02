@@ -3,7 +3,7 @@
  * Super-Admin: alle Mandanten | Mandanten-Admin: nur eigener Mandant
  */
 import { TENANT_MODULE_KEYS } from './tenant-modules.js';
-import { createHttpsCallable } from './firebase-functions.js';
+import { createHttpsCallable, getRegionalFunctions, FUNCTIONS_REGION } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
 import {
@@ -876,12 +876,15 @@ function bindDevDashboardBackButton() {
 
 let createEmployeeCallable = null;
 let manageEmployeesCallable = null;
+const STEVESHOF_PROFILE_FALLBACK_NAMES = [
+  'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
+];
 
 function getCreateEmployeeCallable() {
   if (createEmployeeCallable) return createEmployeeCallable;
   const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
   if (!firebaseApi?.apps?.length) return null;
-  createEmployeeCallable = createHttpsCallable('createTenantEmployee', undefined, firebaseApi);
+  createEmployeeCallable = createHttpsCallable('createTenantEmployee', undefined, firebaseApi, FUNCTIONS_REGION);
   return createEmployeeCallable;
 }
 
@@ -889,8 +892,77 @@ function getManageEmployeesCallable() {
   if (manageEmployeesCallable) return manageEmployeesCallable;
   const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
   if (!firebaseApi?.apps?.length) return null;
-  manageEmployeesCallable = createHttpsCallable('manageTenantEmployees', undefined, firebaseApi);
+  // getFunctions(getApp(), 'europe-west3') — Compat: app.functions('europe-west3')
+  const functions = getRegionalFunctions(firebaseApi, 'europe-west3');
+  manageEmployeesCallable = functions.httpsCallable('manageTenantEmployees');
+  console.info('[Dev-Dashboard] Callable manageTenantEmployees', { region: 'europe-west3' });
   return manageEmployeesCallable;
+}
+
+function isProfileEmployeeUid(uid) {
+  return String(uid || '').startsWith('profile:');
+}
+
+function namesToProfileEmployees(names, tenantId) {
+  return (Array.isArray(names) ? names : [])
+    .map((name) => String(name || '').trim())
+    .filter(Boolean)
+    .map((displayName) => ({
+      uid: `profile:${tenantId}:${displayName.toLowerCase()}`,
+      email: '',
+      displayName,
+      role: 'employee',
+      tenantId,
+      allowedModules: { mhd: true, kitchen: true, buero: true },
+      status: 'active',
+      disabled: false,
+      source: 'profile',
+    }));
+}
+
+async function loadEmployeeProfileFallback(tenantId, db) {
+  const collected = [];
+  if (db && tenantId) {
+    try {
+      const nestedSnap = await db.collection('tenants').doc(tenantId).collection('employees').get();
+      nestedSnap.docs.forEach((doc) => {
+        const data = doc.data() || {};
+        collected.push({
+          uid: doc.id,
+          email: String(data.email || '').trim(),
+          displayName: String(data.displayName || data.name || '').trim(),
+          role: String(data.role || 'employee').trim() || 'employee',
+          tenantId,
+          allowedModules: data.allowedModules,
+          status: data.disabled === true ? 'inactive' : 'active',
+          disabled: data.disabled === true,
+          source: 'employees',
+        });
+      });
+    } catch (err) {
+      console.warn('[Dev-Dashboard] Fallback tenants/.../employees:', err);
+    }
+    try {
+      const settingsSnap = await db.collection('tenants').doc(tenantId).collection('settings').doc('teamDashboard').get();
+      const names = settingsSnap.exists ? settingsSnap.data()?.employees : null;
+      if (Array.isArray(names) && names.length) {
+        collected.push(...namesToProfileEmployees(names, tenantId));
+      }
+    } catch (err) {
+      console.warn('[Dev-Dashboard] Fallback Team-Profil-Store:', err);
+    }
+  }
+  if (!collected.length && tenantId === 'StevesHof_Hauptbetrieb') {
+    collected.push(...namesToProfileEmployees(STEVESHOF_PROFILE_FALLBACK_NAMES, tenantId));
+  }
+  const byName = new Map();
+  collected.forEach((entry) => {
+    const key = String(entry.uid || '').startsWith('profile:')
+      ? `name:${String(entry.displayName || '').toLowerCase()}`
+      : `uid:${entry.uid}`;
+    if (!byName.has(key)) byName.set(key, entry);
+  });
+  return [...byName.values()];
 }
 
 function setEmployeeFormStatus(message = '', tone = 'info') {
@@ -998,6 +1070,7 @@ function renderEmployeeRow(employee, currentUserUid) {
   const roleLabel = role === 'admin' ? 'Admin' : role === 'helper' ? 'Aushilfe' : 'Mitarbeiter';
   const isSelf = employee.uid === currentUserUid;
   const isDisabled = employee.disabled === true || employee.status === 'inactive';
+  const isProfile = isProfileEmployeeUid(employee.uid) || employee.source === 'profile';
   const nextRole = role === 'admin' ? 'employee' : 'admin';
   const safeUid = escapeHtml(employee.uid);
   const safeTenantId = escapeHtml(employee.tenantId);
@@ -1029,7 +1102,7 @@ function renderEmployeeRow(employee, currentUserUid) {
           data-tenant-id="${safeTenantId}"
           data-next-role="${escapeHtml(nextRole)}"
           data-display-name="${safeDisplayAttr}"
-          ${isSelf || isDisabled ? 'disabled title="Rolle kann jetzt nicht geändert werden"' : ''}
+          ${isSelf || isDisabled || isProfile ? 'disabled title="Rolle kann jetzt nicht geändert werden"' : ''}
         >Rolle ändern</button>
         <button
           type="button"
@@ -1038,7 +1111,7 @@ function renderEmployeeRow(employee, currentUserUid) {
           data-uid="${safeUid}"
           data-tenant-id="${safeTenantId}"
           data-display-name="${safeDisplayAttr}"
-          ${isDisabled ? 'disabled title="Konto ist deaktiviert"' : ''}
+          ${isDisabled || isProfile ? 'disabled title="Konto ist deaktiviert"' : ''}
         >Passwort zurücksetzen</button>
         <button
           type="button"
@@ -1047,7 +1120,10 @@ function renderEmployeeRow(employee, currentUserUid) {
           data-uid="${safeUid}"
           data-tenant-id="${safeTenantId}"
           data-display-name="${safeDisplayAttr}"
-          ${isSelf ? 'disabled title="Eigenes Konto bleibt aktiv"' : ''}
+          ${isSelf || isProfile ? 'disabled' : ''}
+          title="${isProfile
+            ? 'Team-Profil — Konto in der Anmeldung anlegen, um zu sperren'
+            : (isSelf ? 'Eigenes Konto bleibt aktiv' : 'Konto vorübergehend sperren')}"
         >${escapeHtml(disableLabel)}</button>
       </td>
     </tr>
@@ -1085,6 +1161,12 @@ function renderEmployeeTable(employees, currentUserUid) {
   tbody.innerHTML = filtered.map((emp) => renderEmployeeRow(emp, currentUserUid)).join('');
 }
 
+function renderEmployeeTableError(message) {
+  const tbody = document.getElementById('dev-dashboard-employee-body');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
+}
+
 async function refreshEmployeeTable(dashboardStateRef) {
   const statusEl = document.getElementById('dev-dashboard-employee-list-status');
   const tenantId = dashboardStateRef.selectedTenantId;
@@ -1097,8 +1179,22 @@ async function refreshEmployeeTable(dashboardStateRef) {
 
   const callable = getManageEmployeesCallable();
   if (!callable) {
-    renderEmployeeTable(dashboardStateRef.employees || [], dashboardStateRef.currentUserUid);
-    if (statusEl) statusEl.textContent = 'Nutzerliste ist gerade nicht erreichbar.';
+    console.error('[Dev-Dashboard] manageTenantEmployees Callable fehlt', {
+      region: FUNCTIONS_REGION,
+      tenantId,
+    });
+    const fallback = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
+    dashboardStateRef.employees = fallback;
+    renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
+    renderOverviewCards(dashboardStateRef);
+    if (statusEl) {
+      statusEl.textContent = fallback.length
+        ? `Team-Profile (${fallback.length}) — Kontenliste nicht erreichbar`
+        : 'Nutzerliste ist gerade nicht erreichbar.';
+    }
+    if (!fallback.length) {
+      renderEmployeeTableError('Die Nutzerliste ist gerade nicht erreichbar. Bitte die Seite neu laden.');
+    }
     return;
   }
 
@@ -1107,17 +1203,41 @@ async function refreshEmployeeTable(dashboardStateRef) {
   try {
     await waitForAppCheckReady();
     const result = await callable({ action: 'list', tenantId });
-    const employees = Array.isArray(result?.data?.employees) ? result.data.employees : [];
+    let employees = Array.isArray(result?.data?.employees) ? result.data.employees : [];
+    if (!employees.length) {
+      console.warn('[Dev-Dashboard] Callable list leer — Profil-Fallback', { tenantId, region: FUNCTIONS_REGION });
+      employees = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
+    }
     dashboardStateRef.employees = employees;
     renderEmployeeTable(employees, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
     if (statusEl) statusEl.textContent = `${employees.length} Nutzer`;
   } catch (err) {
-    console.error('[Dev-Dashboard] Mitarbeiter-Liste fehlgeschlagen:', err);
+    console.error('[Dev-Dashboard] Mitarbeiter-Liste fehlgeschlagen', {
+      code: err?.code || '',
+      message: err?.message || String(err),
+      details: err?.details || null,
+      region: FUNCTIONS_REGION,
+      tenantId,
+      error: err,
+    });
     const message = logAndMapOperatorError(err, 'admin-users');
-    renderEmployeeTable(dashboardStateRef.employees || [], dashboardStateRef.currentUserUid);
+    let fallback = [];
+    try {
+      fallback = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
+    } catch (fallbackErr) {
+      console.error('[Dev-Dashboard] Profil-Fallback fehlgeschlagen', fallbackErr);
+    }
+    dashboardStateRef.employees = fallback;
+    if (fallback.length) {
+      renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
+      if (statusEl) statusEl.textContent = `${fallback.length} Team-Profile — ${message}`;
+    } else {
+      renderEmployeeTableError(message);
+      if (statusEl) statusEl.textContent = message;
+    }
     renderOverviewCards(dashboardStateRef);
-    if (statusEl) statusEl.textContent = message;
+    window.showToast?.(message, 'error');
   }
 }
 

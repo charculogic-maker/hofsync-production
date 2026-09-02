@@ -10,6 +10,17 @@ export function mapOperatorError(error, context = '') {
     if (code.includes('unauthenticated') || raw.includes('UNAUTHENTICATED')) {
       return 'Anmeldung abgelaufen. Bitte erneut anmelden.';
     }
+    if (code.includes('app-check') || code.includes('failed-precondition')) {
+      return 'Die Nutzerliste ist gerade nicht erreichbar. Bitte die Seite neu laden.';
+    }
+    if (
+      code.includes('not-found')
+      || code.includes('internal')
+      || raw.includes('NOT_FOUND')
+      || raw.includes('CORS')
+    ) {
+      return 'Die Nutzerliste ist gerade nicht erreichbar. Bitte die Seite neu laden.';
+    }
     return 'Die Nutzerliste konnte gerade nicht geladen werden. Bitte die Seite neu laden.';
   }
   if (context === 'admin-user-action') {

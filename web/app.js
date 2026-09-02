@@ -126,6 +126,7 @@ import {
 } from './firebase-init.js';
 import {
   createHttpsCallable,
+  FUNCTIONS_REGION,
   getRegionalFunctions,
   resolveFunctionsBaseUrl,
 } from './firebase-functions.js';
@@ -2118,8 +2119,8 @@ function initFirebase() {
       firebase.auth();
     }
     if (typeof firebase.functions === 'function') {
-      getRegionalFunctions(firebase);
-      console.log(`[CharcuLogic Functions] Base-URL: ${resolveFunctionsBaseUrl()}`);
+      getRegionalFunctions(firebase, FUNCTIONS_REGION);
+      console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
     }
     db.enablePersistence().catch((err) => {
       console.warn('Firestore Persistence Error:', err.code);
@@ -2220,7 +2221,7 @@ async function callTriggerManualMeatPriceRun() {
   }
 
   await waitForAppCheckReady();
-  const callable = createHttpsCallable('triggerManualMeatPriceRun', { timeout: 120000 }, firebase);
+  const callable = createHttpsCallable('triggerManualMeatPriceRun', { timeout: 120000 }, firebase, FUNCTIONS_REGION);
   const result = await callable({});
   return result?.data;
 }
