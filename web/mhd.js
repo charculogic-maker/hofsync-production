@@ -698,7 +698,7 @@ function ensureMhdStickySaveBarFixed() {
   }
 }
 
-function stageMhdChange(id, updates = {}) {
+function applyPendingMhdChange(id, updates = {}) {
   if (!id || !updates || typeof updates !== 'object') return;
   mhdState.pendingChanges[id] = {
     ...(mhdState.pendingChanges[id] || {}),
@@ -708,6 +708,9 @@ function stageMhdChange(id, updates = {}) {
   if (idx >= 0) {
     mhdState.products[idx] = { ...mhdState.products[idx], ...updates };
   }
+}
+
+function finishStagedMhdChanges(id, updates = {}) {
   mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
   updateMhdStickySaveBar();
   updateMhdCompletionToggle();
@@ -718,10 +721,38 @@ function stageMhdChange(id, updates = {}) {
   renderMhdList();
 }
 
+function stageMhdChange(id, updates = {}) {
+  if (!id || !updates || typeof updates !== 'object') return;
+  applyPendingMhdChange(id, updates);
+  finishStagedMhdChanges(id, updates);
+}
+
+function stageMhdBatchChanges(primaryId, changesById, animationUpdates = null) {
+  if (!changesById || typeof changesById !== 'object') return;
+  Object.entries(changesById).forEach(([id, updates]) => {
+    applyPendingMhdChange(id, updates);
+  });
+  finishStagedMhdChanges(primaryId, animationUpdates || changesById[primaryId] || {});
+}
+
 function clearMhdPendingChanges() {
   mhdState.pendingChanges = {};
   mhdState.hasUnsavedChanges = false;
   updateMhdStickySaveBar();
+}
+
+function clearPendingMhdChangeFields(id, fields = []) {
+  const pending = mhdState.pendingChanges[id];
+  if (!pending) return;
+  fields.forEach((field) => {
+    delete pending[field];
+  });
+  if (!Object.keys(pending).length) {
+    delete mhdState.pendingChanges[id];
+  }
+  mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
+  updateMhdStickySaveBar();
+  updateMhdCompletionToggle();
 }
 
 function updateMhdStickySaveBar() {
@@ -1810,6 +1841,15 @@ function findExistingMhdBatch(barcode, mhdDate) {
   )) || null;
 }
 
+function resolveMhdBatchWriteTarget(barcode, mhdDate) {
+  const existingBatch = findExistingMhdBatch(barcode, mhdDate);
+  return {
+    existingBatch,
+    docId: existingBatch?.id || buildMhdBatchDocId(barcode, mhdDate),
+    op: existingBatch ? 'update' : 'set',
+  };
+}
+
 function sanitizeMhdProductRecord(record = {}) {
   const next = { ...record };
   if (next.name) next.name = sanitizeProductName(next.name);
@@ -2528,8 +2568,9 @@ function showLearnModeDialog(ean) {
       if (decision === 'correct') return;
     }
 
-    const postenId = buildMhdBatchDocId(inventoryBarcode, mhdDate);
-    const existingBatch = findExistingMhdBatch(inventoryBarcode, mhdDate);
+    const batchTarget = resolveMhdBatchWriteTarget(inventoryBarcode, mhdDate);
+    const { existingBatch } = batchTarget;
+    const postenId = batchTarget.docId;
     const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qty;
     const newProduct = sanitizeMhdProductRecord({
       id: postenId,
@@ -2566,7 +2607,7 @@ function showLearnModeDialog(ean) {
       updatedAt: serverTimestampFallback(),
     });
     const auditedProduct = withHiddenAudit(newProduct);
-    const writeOp = existingBatch ? 'update' : 'set';
+    const writeOp = batchTarget.op;
     const newProductOnline = { ...auditedProduct.onlineData, updatedAt: serverTimestampFallback() };
     const queuedProduct = {
       ...auditedProduct.queueData,
@@ -3653,14 +3694,48 @@ function initMhdSwipeGestures() {
   }, { passive: true });
 }
 
+function findMhdBatchItemsForId(id, { includeSoldOut = false } = {}) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return [];
+  const batchKey = resolveMhdBatchKey(prod);
+  return mhdState.products.filter((entry) => (
+    (includeSoldOut || !entry.soldOut)
+    && resolveMhdBatchKey(entry) === batchKey
+  ));
+}
+
+function totalMhdBatchQty(items = []) {
+  return items.reduce((sum, entry) => sum + Number(entry.qty ?? entry.menge ?? 0), 0);
+}
+
+function mhdQtyUpdate(qty) {
+  return { qty, menge: qty };
+}
+
+function stageMhdBatchQuantityChange(id, totalQty) {
+  const items = findMhdBatchItemsForId(id);
+  if (items.length < 2) {
+    stageMhdChange(id, mhdQtyUpdate(totalQty));
+    return;
+  }
+
+  const changes = {};
+  items.forEach((entry) => {
+    changes[entry.id] = mhdQtyUpdate(entry.id === id ? totalQty : 0);
+  });
+  stageMhdBatchChanges(id, changes, changes[id]);
+}
+
 async function adjustQty(id, change) {
-  const prod = mhdState.products.find(p => p.id === id);
+  const items = findMhdBatchItemsForId(id);
+  const prod = items.find((entry) => entry.id === id) || mhdState.products.find(p => p.id === id);
   if (!prod || prod.soldOut) return;
 
-  const newQty = Math.max(0, (prod.qty ?? 0) + change);
-  if (newQty === (prod.qty ?? 0)) return;
+  const currentQty = items.length > 1 ? totalMhdBatchQty(items) : (prod.qty ?? 0);
+  const newQty = Math.max(0, currentQty + change);
+  if (newQty === currentQty) return;
   mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
-  stageMhdChange(id, { qty: newQty });
+  stageMhdBatchQuantityChange(id, newQty);
 }
 
 async function commitMhdCardQtyFromInput(id, rawValue) {
@@ -3669,9 +3744,11 @@ async function commitMhdCardQtyFromInput(id, rawValue) {
     mhdState.showHUD('Ungültige Menge', 'Bitte eine gültige Stückzahl eingeben.', '!');
     return;
   }
-  const prod = mhdState.products.find((entry) => entry.id === id);
-  if (!prod || prod.soldOut || newQty === (prod.qty ?? 0)) return;
-  stageMhdChange(id, { qty: newQty });
+  const items = findMhdBatchItemsForId(id);
+  const prod = items.find((entry) => entry.id === id) || mhdState.products.find((entry) => entry.id === id);
+  const currentQty = items.length > 1 ? totalMhdBatchQty(items) : (prod?.qty ?? 0);
+  if (!prod || prod.soldOut || newQty === currentQty) return;
+  stageMhdBatchQuantityChange(id, newQty);
 }
 
 async function setSoldOut(id) {
@@ -3684,6 +3761,15 @@ async function setSoldOut(id) {
     qty: newSoldOut ? 0 : (prod.qty ?? 0),
   };
   mhdState.playClickSound(400, 0.08, 0.2);
+  const items = newSoldOut ? findMhdBatchItemsForId(id) : [];
+  if (items.length > 1) {
+    const changes = {};
+    items.forEach((entry) => {
+      changes[entry.id] = { soldOut: true, ...mhdQtyUpdate(0) };
+    });
+    stageMhdBatchChanges(id, changes, changes[id]);
+    return;
+  }
   stageMhdChange(id, updates);
 };
 
@@ -4119,7 +4205,35 @@ async function markMhdAction(id, actionStatus) {
   const audited = buildMhdActionUpdates(actionStatus);
   const localUpdates = { ...audited.queueData };
   mhdState.playClickSound(700, 0.04, 0.12);
-  stageMhdChange(id, localUpdates);
+  const items = findMhdBatchItemsForId(id);
+  const targetIds = items.length > 1 ? items.map((entry) => entry.id) : [id];
+  if (items.length > 1) {
+    const changes = {};
+    items.forEach((entry) => {
+      changes[entry.id] = { ...localUpdates };
+    });
+    stageMhdBatchChanges(id, changes, localUpdates);
+  } else {
+    stageMhdChange(id, localUpdates);
+  }
+
+  try {
+    await Promise.all(targetIds.map((targetId) => mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: targetId,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
+      offlineMessage: 'MHD-Aktion wird nachträglich synchronisiert.',
+      silentPermissionDenied: true,
+    })));
+    targetIds.forEach((targetId) => {
+      clearPendingMhdChangeFields(targetId, Object.keys(localUpdates));
+    });
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'markMhdAction')) return;
+    console.error('[CharcuLogic Firebase] MHD-Aktion speichern fehlgeschlagen:', err);
+    window.showToast?.(logAndMapOperatorError(err, 'mhd'), 'error');
+  }
 };
 
 async function addMhdItemToRetterBox(id) {
@@ -4983,8 +5097,9 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     ? Math.max(1, Math.round(qtyValueRaw))
     : Math.round(qtyValueRaw * 100) / 100;
   const qtyInt = qtyUnit === 'Stk' ? qtyValue : Math.max(1, Math.round(qtyValue));
-  const postenId = buildMhdBatchDocId(barcode, item.mhdDate);
-  const existingBatch = findExistingMhdBatch(barcode, item.mhdDate);
+  const batchTarget = resolveMhdBatchWriteTarget(barcode, item.mhdDate);
+  const { existingBatch } = batchTarget;
+  const postenId = batchTarget.docId;
   const manufacturer = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
   const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qtyInt;
   const mergedMenge = (existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0) + qtyValue;
@@ -5036,7 +5151,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   if (!record.tenantId) {
     delete record.tenantId;
   }
-  record._mhdWriteOp = existingBatch ? 'update' : 'set';
+  record._mhdWriteOp = batchTarget.op;
   return record;
 }
 
