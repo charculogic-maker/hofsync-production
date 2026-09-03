@@ -2,6 +2,7 @@
  * Warenbewegungs- und MHD-Report (Verwaltung → Protokoll).
  * Reine Aufbereitung — keine Firestore-Pfade hier.
  */
+import { sanitizeProductName } from './utils.js';
 
 export const MHD_AUDIT_COLLECTION = 'mhd_audit';
 export const AUDIT_LOGS_COLLECTION = 'audit_logs';
@@ -121,6 +122,115 @@ export function formatMovementTime(ms) {
   return `${day}, ${time} Uhr`;
 }
 
+export function normalizeIsoDate(value = '') {
+  const raw = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const german = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (german) {
+    return `${german[3]}-${german[2].padStart(2, '0')}-${german[1].padStart(2, '0')}`;
+  }
+  return '';
+}
+
+export function resttageFromIso(isoDate, now = new Date()) {
+  const mhdStart = berlinDayStartMs(isoDate);
+  const todayStart = berlinDayStartMs(berlinTodayIso(now));
+  if (!Number.isFinite(mhdStart) || !Number.isFinite(todayStart)) return null;
+  return Math.round((mhdStart - todayStart) / 86400000);
+}
+
+export function parseProtokollQty(value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return Number.NaN;
+  const parsed = Number.parseInt(trimmed.replace(',', '.'), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return Number.NaN;
+  return parsed;
+}
+
+export function resolveMovementListeId(row = {}) {
+  const fromField = String(row.mhdListeId || '').replace(/^liste:/, '').trim();
+  if (fromField) return fromField;
+  const id = String(row.id || '');
+  if (id.startsWith('liste:')) return id.slice(6);
+  return '';
+}
+
+export function resolveMovementAuditId(row = {}) {
+  const fromField = String(row.auditId || '').trim();
+  if (fromField) return fromField;
+  const id = String(row.id || '');
+  if (id && !id.startsWith('liste:')) return id;
+  return '';
+}
+
+export function buildProtokollCorrectionPlan({
+  row = {},
+  articleName,
+  qty,
+  mhdDate,
+  editorLabel = 'Verwaltung',
+  nowIso = new Date().toISOString(),
+} = {}) {
+  const name = sanitizeProductName(articleName ?? row.articleName);
+  if (!name) {
+    return { error: 'name-missing' };
+  }
+  const qtyRaw = qty === undefined || qty === null ? row.qtyTo : qty;
+  const qtyNumber = parseProtokollQty(qtyRaw);
+  if (!Number.isFinite(qtyNumber)) {
+    return { error: 'qty-invalid' };
+  }
+  const mhdIso = normalizeIsoDate(mhdDate ?? row.mhdDate);
+  const ean = String(row.ean || '').replace(/\D/g, '');
+  const resttage = mhdIso ? resttageFromIso(mhdIso) : null;
+  const dateLabel = mhdIso ? formatBerlinDay(mhdIso) : '';
+  const meta = {
+    updatedAt: nowIso,
+    lastEditSource: 'protokoll',
+    lastEditedBy: String(editorLabel || 'Verwaltung').trim() || 'Verwaltung',
+  };
+  return {
+    ean,
+    articleName: name,
+    mhdListeId: resolveMovementListeId(row),
+    auditId: resolveMovementAuditId(row),
+    nameAppliesToAllWithEan: Boolean(ean),
+    qtyMhdAppliesToThisPostenOnly: true,
+    listeNamePatch: {
+      name,
+      produkt: name,
+      ...meta,
+    },
+    auditNamePatch: {
+      articleName: name,
+      name,
+      ...meta,
+    },
+    listeQtyMhdPatch: {
+      qty: qtyNumber,
+      menge: qtyNumber,
+      ...(mhdIso ? {
+        mhd: mhdIso,
+        mhdDate: mhdIso,
+        date: dateLabel,
+        ...(Number.isFinite(resttage) ? {
+          tage: resttage,
+          resttage,
+          mhdText: `${resttage} Resttage`,
+        } : {}),
+      } : {}),
+      ...meta,
+    },
+    auditQtyMhdPatch: {
+      qtyTo: qtyNumber,
+      ...(mhdIso ? { mhdDate: mhdIso, mhd: mhdIso } : {}),
+      ...meta,
+    },
+    mhdIso,
+    qty: qtyNumber,
+  };
+}
+
 export function formatQtyDelta(qtyFrom, qtyTo) {
   const from = Number(qtyFrom);
   const to = Number(qtyTo);
@@ -203,21 +313,24 @@ export function movementsToCsv(rows) {
     'Menge von',
     'Menge nach',
     'Delta',
+    'MHD',
   ];
   const lines = [header.map(csvEscape).join(';')];
   (rows || []).forEach((row) => {
     const from = Number(row.qtyFrom);
     const to = Number(row.qtyTo);
     const delta = (Number.isFinite(to) ? to : 0) - (Number.isFinite(from) ? from : 0);
+    const mhdIso = normalizeIsoDate(row.mhdDate);
     lines.push([
       formatMovementTime(row.atMs),
       row.actorName || '',
-      row.articleName || '',
+      sanitizeProductName(row.articleName) || '',
       row.ean || '',
       movementActionLabel(row.actionType),
       Number.isFinite(from) ? from : '',
       Number.isFinite(to) ? to : '',
       delta,
+      mhdIso ? formatBerlinDay(mhdIso) : '',
     ].map(csvEscape).join(';'));
   });
   return `\uFEFF${lines.join('\r\n')}`;
@@ -234,15 +347,19 @@ export function movementFromAuditDoc(id, data = {}) {
   const actionType = MOVEMENT_ACTION_LABELS[data.actionType]
     ? data.actionType
     : inferMovementAction(data);
+  const listeId = String(data.mhdListeId || data.listeId || '').replace(/^liste:/, '').trim();
   return {
     id: String(id || ''),
+    auditId: String(id || ''),
+    mhdListeId: listeId,
     atMs,
     actorName: normalizeActorName(data.actorName || data.scannedBy || data.actor || ''),
-    articleName: String(data.articleName || data.name || data.produkt || '').trim() || 'Artikel',
-    ean: String(data.ean || data.barcode || '').trim(),
+    articleName: sanitizeProductName(data.articleName || data.name || data.produkt || '') || 'Artikel',
+    ean: String(data.ean || data.barcode || '').replace(/\D/g, ''),
     actionType,
     qtyFrom: data.qtyFrom,
     qtyTo: data.qtyTo ?? data.qty,
+    mhdDate: normalizeIsoDate(data.mhdDate || data.mhd || ''),
     source: String(data.source || 'mhd_audit'),
   };
 }
@@ -268,13 +385,16 @@ export function movementFromMhdListeDoc(id, data = {}) {
   });
   return {
     id: `liste:${id}`,
+    auditId: '',
+    mhdListeId: String(id || ''),
     atMs,
     actorName: normalizeActorName(data.scannedBy || data.lastCheckedBy || ''),
-    articleName: String(data.name || data.produkt || '').trim() || 'Artikel',
-    ean: String(data.ean || data.barcode || '').trim(),
+    articleName: sanitizeProductName(data.name || data.produkt || '') || 'Artikel',
+    ean: String(data.ean || data.barcode || '').replace(/\D/g, ''),
     actionType,
     qtyFrom: isCreate ? 0 : qty,
     qtyTo: qty,
+    mhdDate: normalizeIsoDate(data.mhd || data.mhdDate || ''),
     source: 'mhd_liste',
   };
 }
@@ -333,11 +453,13 @@ export function buildMovementRecord({
     atMs,
     createdAt: new Date(atMs).toISOString(),
     actorName: normalizeActorName(actorName || product.scannedBy || ''),
-    articleName: String(product.name || product.produkt || '').trim() || 'Artikel',
-    ean: String(product.ean || product.barcode || '').trim(),
+    articleName: sanitizeProductName(product.name || product.produkt || '') || 'Artikel',
+    ean: String(product.ean || product.barcode || '').replace(/\D/g, ''),
     actionType: type,
     qtyFrom: from,
     qtyTo: to,
+    mhdListeId: String(product.id || product.mhdListeId || '').replace(/^liste:/, ''),
+    mhdDate: normalizeIsoDate(product.mhd || product.mhdDate || ''),
     source: 'mhd',
   };
 }

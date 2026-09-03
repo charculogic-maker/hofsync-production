@@ -23,6 +23,7 @@ import {
   sampleInventoryItem,
   sampleMhdAudit,
   sampleMhdItem,
+  sampleProductMaster,
   sampleSettings,
   sampleTask,
   sampleTraceabilityRecord,
@@ -855,6 +856,61 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.STEVES_HOF, 'mhd_audit', 'audit-invalid-name'),
         'create',
         sampleMhdAudit(TENANTS.STEVES_HOF, { articleName: '' }),
+      );
+    });
+  });
+
+  describe('TEST CASE 11: product_master tenant isolation', () => {
+    it('denies torfabrik employee read/write on StevesHof product_master', async () => {
+      const ctx = authContext(testEnv, 'tf-master-emp', TENANTS.TORFABRIK, 'employee');
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200507');
+      const payload = sampleProductMaster(TENANTS.STEVES_HOF);
+
+      await seedFirestoreDoc(testEnv, foreignPath, payload);
+      await expectFirestoreDeny(ctx, foreignPath, 'read');
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200508'),
+        'create',
+        sampleProductMaster(TENANTS.STEVES_HOF, { ean: '4012346200508' }),
+      );
+    });
+
+    it('allows employee create/read/update on own tenant product_master', async () => {
+      const ctx = authContext(testEnv, 'sh-master-emp', TENANTS.STEVES_HOF, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200507');
+      const payload = sampleProductMaster(TENANTS.STEVES_HOF);
+
+      await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+      await expectFirestoreAllow(ctx, ownPath, 'read');
+      await expectFirestoreAllow(ctx, ownPath, 'update', {
+        ...payload,
+        articleName: 'Cold Brew Süße Kräuter Bio',
+        name: 'Cold Brew Süße Kräuter Bio',
+      });
+    });
+
+    it('denies helper writes to product_master', async () => {
+      const helper = authContext(testEnv, 'sh-master-helper', TENANTS.STEVES_HOF, 'helper');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', 'helper-master');
+      await seedFirestoreDoc(testEnv, ownPath, sampleProductMaster(TENANTS.STEVES_HOF, { ean: 'helper-master' }));
+
+      await expectFirestoreAllow(helper, ownPath, 'read');
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'product_master', 'helper-master-write'),
+        'create',
+        sampleProductMaster(TENANTS.STEVES_HOF, { ean: 'helper-master-write' }),
+      );
+    });
+
+    it('denies create without articleName', async () => {
+      const ctx = authContext(testEnv, 'sh-master-invalid', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200599'),
+        'create',
+        sampleProductMaster(TENANTS.STEVES_HOF, { ean: '4012346200599', articleName: '' }),
       );
     });
   });

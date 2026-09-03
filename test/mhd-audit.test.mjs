@@ -22,6 +22,7 @@ import {
   movementsToCsv,
   normalizeActorName,
   timestampToMs,
+  buildProtokollCorrectionPlan,
 } from '../web/mhd-audit.js';
 
 describe('mhd-audit report helpers', () => {
@@ -76,12 +77,14 @@ describe('mhd-audit report helpers', () => {
       actionType: 'menge',
       qtyFrom: 12,
       qtyTo: 8,
+      mhdDate: '2026-09-20',
     }]);
     expect(csv.startsWith('\uFEFF')).to.equal(true);
-    expect(csv).to.include('Zeitstempel;Mitarbeiter;Artikel;EAN;Aktion;Menge von;Menge nach;Delta');
+    expect(csv).to.include('Zeitstempel;Mitarbeiter;Artikel;EAN;Aktion;Menge von;Menge nach;Delta;MHD');
     expect(csv).to.include('"Rapunzel Schokolade; Karamell"');
     expect(csv).to.include('MENGE GEÄNDERT');
     expect(csv).to.include(';-4');
+    expect(csv).to.include('20.09.2026');
     expect(csvFilename('2026-09-03')).to.equal('HofSync_Warenbericht_2026-09-03.csv');
   });
 
@@ -128,5 +131,61 @@ describe('mhd-audit report helpers', () => {
     expect(merged).to.have.length(2);
     expect(merged.some((row) => row.articleName === 'Hofmilch 1l')).to.equal(true);
     expect(merged.filter((row) => row.articleName.includes('Rapunzel'))).to.have.length(1);
+    expect(listeSame.mhdListeId).to.equal('m1');
+    expect(audit.auditId).to.equal('a1');
+  });
+
+  it('sanitizes umlaut artifacts on movement names', () => {
+    const atMs = Date.parse('2026-09-03T09:15:00.000Z');
+    const row = movementFromAuditDoc('umlaut-1', {
+      atMs,
+      actorName: 'Bettina',
+      articleName: 'Cold Brew Süáe Kräuter',
+      ean: '4012346200507',
+      actionType: 'neu',
+      qtyFrom: 0,
+      qtyTo: 6,
+      mhdDate: '2026-09-20',
+      mhdListeId: 'cold-brew-1',
+    });
+    expect(row.articleName).to.equal('Cold Brew Süße Kräuter');
+    expect(row.mhdListeId).to.equal('cold-brew-1');
+    expect(row.mhdDate).to.equal('2026-09-20');
+    const herbs = movementFromAuditDoc('umlaut-2', {
+      atMs,
+      articleName: 'Kr\u2261uterremoulade mit Gew\u2261rzgurken',
+      ean: '4018462158708',
+      actionType: 'neu',
+      qtyTo: 1,
+    });
+    expect(herbs.articleName).to.equal('Kräuterremoulade mit Gewürzgurken');
+  });
+
+  it('plans name updates for all EAN posten and qty/MHD only for this posten', () => {
+    const plan = buildProtokollCorrectionPlan({
+      row: {
+        id: 'mv-1',
+        auditId: 'mv-1',
+        mhdListeId: 'cold-brew-1',
+        ean: '4012346200507',
+        articleName: 'Cold Brew Süáe Kräuter',
+        qtyTo: 6,
+        mhdDate: '2026-09-20',
+      },
+      articleName: 'Cold Brew Süße Kräuter',
+      qty: '5',
+      mhdDate: '2026-09-22',
+      editorLabel: 'Paddy',
+      nowIso: '2026-09-03T12:00:00.000Z',
+    });
+    expect(plan.nameAppliesToAllWithEan).to.equal(true);
+    expect(plan.qtyMhdAppliesToThisPostenOnly).to.equal(true);
+    expect(plan.articleName).to.equal('Cold Brew Süße Kräuter');
+    expect(plan.listeNamePatch.name).to.equal('Cold Brew Süße Kräuter');
+    expect(plan.listeQtyMhdPatch.qty).to.equal(5);
+    expect(plan.listeQtyMhdPatch.mhdDate).to.equal('2026-09-22');
+    expect(plan.auditQtyMhdPatch.qtyTo).to.equal(5);
+    expect(plan.mhdListeId).to.equal('cold-brew-1');
+    expect(plan.auditId).to.equal('mv-1');
   });
 });

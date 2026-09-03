@@ -80,6 +80,12 @@ export function sanitizeProductName(str) {
     .replace(/\u0084/g, 'ä')
     .replace(/\u201a/g, '');
 
+  // Import/Scanner: ≡ oder ähnliche Ersatzzeichen statt Umlaute
+  text = text
+    .replace(/Kr[\u2261\u01a4\u2263]uter/gi, 'Kräuter')
+    .replace(/Gew[\u2261\u01a4\u2263]rz/gi, 'Gewürz')
+    .replace(/S[uü][\u00e1]e/gi, 'Süße');
+
   // OCR/Import: áe / á stehen für ß (Weiáenhorner -> Weißenhorner)
   text = text.replace(/[áÁ]/g, 'ß');
 

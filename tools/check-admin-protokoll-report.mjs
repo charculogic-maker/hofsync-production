@@ -10,6 +10,80 @@ import { berlinDayStartMs, berlinTodayIso, defaultReportFromIso } from '../web/m
 const BASE_URL = 'http://127.0.0.1:5173/index.html?v=admin-protokoll-report';
 const ARTIFACT_DIR = '/opt/cursor/artifacts';
 
+function createMockTenantDb({ auditDocs = [], listeDocs = [], masterDocs = [] } = {}) {
+  const store = {
+    mhd_audit: Object.fromEntries(auditDocs.map((entry) => [entry.id, { ...entry.data }])),
+    audit_logs: {},
+    mhd_liste: Object.fromEntries(listeDocs.map((entry) => [entry.id, { ...entry.data }])),
+    product_master: Object.fromEntries(masterDocs.map((entry) => [entry.id, { ...entry.data }])),
+  };
+
+  const makeDoc = (colName, id) => ({
+    id,
+    data: () => ({ ...(store[colName][id] || {}) }),
+    async get() {
+      const data = store[colName][id];
+      return { exists: Boolean(data), id, data: () => ({ ...data }) };
+    },
+    async update(patch) {
+      if (!store[colName][id]) {
+        const err = new Error('missing');
+        err.code = 'not-found';
+        throw err;
+      }
+      store[colName][id] = { ...store[colName][id], ...patch };
+    },
+    async set(patch) {
+      store[colName][id] = { ...(store[colName][id] || {}), ...patch };
+    },
+  });
+
+  const makeCol = (name, filters = []) => {
+    if (!store[name]) store[name] = {};
+    const api = {
+      _filters: filters,
+      _after: false,
+      where(field, op, value) {
+        return makeCol(name, [...api._filters, { field, op, value }]);
+      },
+      orderBy() { return api; },
+      limit() { return api; },
+      startAfter() {
+        api._after = true;
+        return api;
+      },
+      doc(id) { return makeDoc(name, id); },
+      async get() {
+        if (api._after) return { docs: [] };
+        let docs = Object.entries(store[name] || {}).map(([id, data]) => ({
+          id,
+          data: () => ({ ...data }),
+        }));
+        api._filters.forEach(({ field, op, value }) => {
+          docs = docs.filter((doc) => {
+            const current = doc.data()[field];
+            if (op === '==') return current === value;
+            if (op === '>=') return current >= value;
+            if (op === '<=') return current <= value;
+            return true;
+          });
+        });
+        return { docs };
+      },
+    };
+    return api;
+  };
+
+  return {
+    store,
+    collection: () => ({
+      doc: () => ({
+        collection: (name) => makeCol(name),
+      }),
+    }),
+  };
+}
+
 function fail(message, extra) {
   console.error(message, extra || '');
   process.exit(1);
@@ -54,6 +128,9 @@ async function activateProtokoll(page) {
     });
   });
   await page.waitForFunction(() => Boolean(window.__hofsyncMovementReport), { timeout: 20000 });
+  await page.evaluate((factorySource) => {
+    window.__createProtokollMockDb = new Function(`return (${factorySource});`)();
+  }, createMockTenantDb.toString());
   await page.evaluate(() => window.__hofsyncMovementReport.bind());
 }
 
@@ -166,7 +243,7 @@ const actionValues = shell.actionOptions.map((entry) => entry.value);
 if (!['', 'neu', 'menge', 'abschreiben', 'raus'].every((value) => actionValues.includes(value))) {
   fail('Action dropdown missing types', shell.actionOptions);
 }
-if (!['Zeitstempel', 'Mitarbeiter', 'Artikel & EAN', 'Aktion', 'Mengen-Delta'].every((h) => shell.headers.includes(h))) {
+if (!['Zeitstempel', 'Mitarbeiter', 'Artikel & EAN', 'Aktion', 'Mengen-Delta', 'Korrigieren'].every((h) => shell.headers.includes(h))) {
   fail('Report table headers mismatch', shell.headers);
 }
 if (!String(shell.exportLabel || '').includes('Report als CSV exportieren')) {
@@ -185,6 +262,7 @@ await page.evaluate(({ todayMorning, todayNoon, yesterdayMs, today }) => {
         actionType: 'menge',
         qtyFrom: 12,
         qtyTo: 8,
+        mhdDate: '2026-09-20',
         tenantId: 'StevesHof_Hauptbetrieb',
       },
     },
@@ -215,35 +293,7 @@ await page.evaluate(({ todayMorning, todayNoon, yesterdayMs, today }) => {
       },
     },
   ];
-  const colFor = (name) => {
-    const docs = name === 'mhd_audit' ? auditDocs : [];
-    const api = {
-      where() { return api; },
-      orderBy() { return api; },
-      limit() { return api; },
-      startAfter() {
-        api._after = true;
-        return api;
-      },
-      async get() {
-        if (api._after) return { docs: [] };
-        return {
-          docs: docs.map((entry) => ({
-            id: entry.id,
-            data: () => entry.data,
-          })),
-        };
-      },
-    };
-    return api;
-  };
-  const db = {
-    collection: () => ({
-      doc: () => ({
-        collection: (name) => colFor(name),
-      }),
-    }),
-  };
+  const db = window.__createProtokollMockDb({ auditDocs });
   window.__hofsyncMovementReport.injectDb(db);
   window.__hofsyncMovementReport.setTenant('StevesHof_Hauptbetrieb');
   window.__hofsyncMovementReport.bind();
@@ -334,7 +384,7 @@ const csvText = csv.toString('utf8');
 if (csv[0] !== 0xEF || csv[1] !== 0xBB || csv[2] !== 0xBF) {
   fail('CSV is missing UTF-8 BOM', csv.slice(0, 8));
 }
-if (!csvText.includes('Zeitstempel;Mitarbeiter;Artikel') || !csvText.includes('Rapunzel Schokolade Karamell') || !csvText.includes('MENGE GEÄNDERT')) {
+if (!csvText.includes('Zeitstempel;Mitarbeiter;Artikel') || !csvText.includes('Rapunzel Schokolade Karamell') || !csvText.includes('MENGE GEÄNDERT') || !csvText.includes(';MHD')) {
   fail('CSV content missing expected columns/rows', csvText.slice(0, 400));
 }
 
@@ -342,6 +392,170 @@ await page.screenshot({
   path: `${ARTIFACT_DIR}/admin-protokoll-csv-export-ready.png`,
   fullPage: false,
 });
+
+await page.evaluate(({ todayMorning }) => {
+  const auditDocs = [
+    {
+      id: 'mv-umlaut-bettina',
+      data: {
+        atMs: todayMorning,
+        actorName: 'Bettina',
+        articleName: 'Cold Brew Süáe Kräuter',
+        ean: '4012346200507',
+        actionType: 'neu',
+        qtyFrom: 0,
+        qtyTo: 6,
+        mhdDate: '2026-09-20',
+        mhdListeId: 'cold-brew-1',
+        tenantId: 'StevesHof_Hauptbetrieb',
+      },
+    },
+    {
+      id: 'mv-umlaut-herbs',
+      data: {
+        atMs: todayMorning + 60 * 1000,
+        actorName: 'Paddy',
+        articleName: 'Kr\u2261uterremoulade mit Gew\u2261rzgurken',
+        ean: '4018462158708',
+        actionType: 'raus',
+        qtyFrom: 2,
+        qtyTo: 0,
+        tenantId: 'StevesHof_Hauptbetrieb',
+      },
+    },
+  ];
+  const listeDocs = [
+    {
+      id: 'cold-brew-1',
+      data: {
+        name: 'Cold Brew Süáe Kräuter',
+        ean: '4012346200507',
+        barcode: '4012346200507',
+        qty: 6,
+        mhd: '2026-09-20',
+        mhdDate: '2026-09-20',
+        scannedBy: 'Bettina',
+      },
+    },
+    {
+      id: 'cold-brew-old',
+      data: {
+        name: 'Cold Brew Süáe Kräuter',
+        ean: '4012346200507',
+        barcode: '4012346200507',
+        qty: 2,
+        mhd: '2026-08-01',
+        mhdDate: '2026-08-01',
+        scannedBy: 'Paddy',
+      },
+    },
+  ];
+  window.__protokollMock = window.__createProtokollMockDb({ auditDocs, listeDocs });
+  window.__hofsyncMovementReport.injectDb(window.__protokollMock);
+  window.__hofsyncMovementReport.setTenant('StevesHof_Hauptbetrieb');
+  window.__hofsyncMovementReport.bind();
+  document.getElementById('dev-dashboard-report-actor').value = '';
+  document.getElementById('dev-dashboard-report-action').value = '';
+}, { todayMorning });
+
+await setReportDates(page, today, today);
+await page.waitForFunction(() => (window.__hofsyncMovementReport.getRows() || []).length === 2, { timeout: 10000 });
+await showProtokoll(page);
+
+const umlautView = await page.evaluate(() => {
+  const names = [...document.querySelectorAll('#dev-dashboard-report-body .dev-dashboard-report-article strong')].map((el) => el.textContent.trim());
+  const badges = [...document.querySelectorAll('#dev-dashboard-report-body .dev-dashboard-action-badge')].map((el) => el.textContent.trim());
+  const editButtons = [...document.querySelectorAll('#dev-dashboard-report-body [data-report-edit]')].map((el) => el.textContent.trim());
+  return { names, badges, editButtons };
+});
+if (!umlautView.names.includes('Cold Brew Süße Kräuter')) {
+  fail('Umlaut name was not sanitized in the table', umlautView.names);
+}
+if (!umlautView.names.includes('Kräuterremoulade mit Gewürzgurken')) {
+  fail('Herb umlaut name was not sanitized in the table', umlautView.names);
+}
+if (!umlautView.badges.includes('NEU') || !umlautView.badges.includes('RAUS')) {
+  fail('Action badges should stay untruncated', umlautView.badges);
+}
+if (umlautView.editButtons.length !== 2 || umlautView.editButtons.some((label) => label !== 'Korrigieren')) {
+  fail('Missing Korrigieren buttons', umlautView.editButtons);
+}
+
+await page.setViewportSize({ width: 390, height: 844 });
+await showProtokoll(page);
+await page.screenshot({
+  path: `${ARTIFACT_DIR}/admin-protokoll-row-edit-portrait.png`,
+  fullPage: false,
+});
+
+await page.locator('#dev-dashboard-report-body [data-report-edit="mv-umlaut-bettina"]').click();
+await page.waitForFunction(() => {
+  const modal = document.getElementById('dev-dashboard-report-edit-modal');
+  return Boolean(modal) && !modal.hidden;
+}, { timeout: 5000 });
+
+const modalOpen = await page.evaluate(() => ({
+  name: document.getElementById('dev-dashboard-report-edit-name')?.value || '',
+  qty: document.getElementById('dev-dashboard-report-edit-qty')?.value || '',
+  mhd: document.getElementById('dev-dashboard-report-edit-mhd')?.value || '',
+  hint: document.querySelector('#dev-dashboard-report-edit-modal .dev-dashboard-intro')?.textContent || '',
+}));
+if (modalOpen.name !== 'Cold Brew Süße Kräuter') fail('Edit modal did not prefill sanitized name', modalOpen);
+if (modalOpen.qty !== '6') fail('Edit modal did not prefill quantity', modalOpen);
+if (modalOpen.mhd !== '2026-09-20') fail('Edit modal did not prefill MHD', modalOpen);
+if (!modalOpen.hint.includes('nächsten Wareneingang') || !modalOpen.hint.includes('nur für diesen Posten')) {
+  fail('Edit modal missing scope copy', modalOpen.hint);
+}
+
+await page.fill('#dev-dashboard-report-edit-name', 'Cold Brew Süße Kräuter');
+await page.fill('#dev-dashboard-report-edit-qty', '5');
+await page.fill('#dev-dashboard-report-edit-mhd', '2026-09-22');
+await page.click('#dev-dashboard-report-edit-save');
+await page.waitForFunction(() => Boolean(window.__hofsyncMovementReport.getLastCorrection?.()), { timeout: 10000 });
+
+const correction = await page.evaluate(() => {
+  const writes = window.__hofsyncMovementReport.getWrites() || [];
+  const store = window.__protokollMock?.store || {};
+  return {
+    plan: window.__hofsyncMovementReport.getLastCorrection(),
+    writes: writes.map((entry) => ({
+      collection: entry.collection,
+      docId: entry.docId,
+      qty: entry.patch?.qty,
+      qtyTo: entry.patch?.qtyTo,
+      name: entry.patch?.name || entry.patch?.articleName,
+      mhdDate: entry.patch?.mhdDate,
+    })),
+    listeCurrent: store.mhd_liste?.['cold-brew-1'] || null,
+    listeOld: store.mhd_liste?.['cold-brew-old'] || null,
+    audit: store.mhd_audit?.['mv-umlaut-bettina'] || null,
+    master: store.product_master?.['4012346200507'] || null,
+    modalHidden: Boolean(document.getElementById('dev-dashboard-report-edit-modal')?.hidden),
+  };
+});
+if (!correction.plan?.nameAppliesToAllWithEan || !correction.plan?.qtyMhdAppliesToThisPostenOnly) {
+  fail('Correction plan scope mismatch', correction.plan);
+}
+if (correction.listeCurrent?.name !== 'Cold Brew Süße Kräuter' || correction.listeCurrent?.qty !== 5 || correction.listeCurrent?.mhdDate !== '2026-09-22') {
+  fail('Current posten was not updated with name/qty/MHD', correction.listeCurrent);
+}
+if (correction.listeOld?.name !== 'Cold Brew Süße Kräuter' || correction.listeOld?.qty !== 2 || correction.listeOld?.mhdDate !== '2026-08-01') {
+  fail('Older posten should only receive the name, not qty/MHD', correction.listeOld);
+}
+if (correction.audit?.articleName !== 'Cold Brew Süße Kräuter' || correction.audit?.qtyTo !== 5) {
+  fail('Audit row was not updated', correction.audit);
+}
+if (correction.master?.articleName !== 'Cold Brew Süße Kräuter') {
+  fail('Shared product master was not written', correction.master);
+}
+if (!correction.modalHidden) fail('Edit modal should close after save', correction);
+
+await showProtokoll(page);
+await page.screenshot({
+  path: `${ARTIFACT_DIR}/admin-protokoll-row-edit-saved.png`,
+  fullPage: false,
+});
+await page.setViewportSize({ width: 1280, height: 900 });
 
 if (recordVideo) await page.waitForTimeout(600);
 const videoHandle = page.video();

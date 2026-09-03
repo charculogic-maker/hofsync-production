@@ -11,6 +11,9 @@ const sanitizeCases = [
   { input: 'b*Butter S\u00fc\u00e1rahm', expected: 'Bio Butter Süßrahm' },
   { input: 'Weiáenhorner Paprika Creme', expected: 'Weißenhorner Paprika Creme' },
   { input: 'Weiáhorner Joghurt', expected: 'Weißhorner Joghurt' },
+  { input: 'Cold Brew Süáe Kräuter', expected: 'Cold Brew Süße Kräuter' },
+  { input: 'Haferflocken Groáblatt', expected: 'Haferflocken Großblatt' },
+  { input: 'Kr\u2261uterremoulade mit Gew\u2261rzgurken', expected: 'Kräuterremoulade mit Gewürzgurken' },
 ];
 
 const sanitizeSteps = sanitizeCases.map(({ input, expected }) => ({

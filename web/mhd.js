@@ -7,6 +7,11 @@ import {
   canonicalTenantId,
   setGlobalTenantId,
 } from './tenant-db.js';
+import {
+  hydrateProductMasterFromFirestore,
+  persistProductMasterToFirestore,
+  writeLocalProductMasterEntry,
+} from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -1734,22 +1739,33 @@ async function loadVpeMasterFromCsv() {
 
 function saveProductMaster(product) {
   const barcode = cleanScannedBarcode(product.barcode || product.ean);
-  if (!barcode || !product.name) return;
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
-  productMaster[barcode] = {
+  const name = sanitizeProductName(product.name);
+  if (!barcode || !name) return;
+  writeLocalProductMasterEntry({
     barcode,
-    name: product.name,
+    ean: barcode,
+    name,
     brand: product.brand || '',
     category: product.kategorie || product.category || '📦 Trockenware',
-  };
-  if (product.scanBarcode && cleanScannedBarcode(product.scanBarcode) !== barcode) {
-    productMaster[cleanScannedBarcode(product.scanBarcode)] = {
-      ...productMaster[barcode],
-      barcode: cleanScannedBarcode(product.scanBarcode),
-      einzelBarcode: barcode,
-    };
-  }
-  writeLocalMaster(PRODUCT_MASTER_STORAGE_KEY, productMaster);
+    kategorie: product.kategorie || product.category,
+    scanBarcode: product.scanBarcode,
+  });
+  const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+  if (!tenantId) return;
+  void persistProductMasterToFirestore(tenantId, {
+    ean: barcode,
+    name,
+    brand: product.brand || '',
+    category: product.kategorie || product.category,
+  }, getAuditActorName()).catch((err) => {
+    console.warn('[CharcuLogic] Gemeinsame Artikeldaten konnten nicht gespeichert werden:', err);
+  });
+}
+
+async function refreshSharedProductMaster() {
+  const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+  if (!tenantId) return 0;
+  return hydrateProductMasterFromFirestore(tenantId);
 }
 
 function saveVpeMaster(vpe) {
@@ -1993,7 +2009,14 @@ function lookupScannedProduct(scannedCode) {
 
   const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
   if (productMaster[scannedCode]) {
-    return { ...productMaster[scannedCode], barcode: scannedCode, source: 'lokale-stammdaten' };
+    const entry = productMaster[scannedCode];
+    return {
+      ...entry,
+      name: sanitizeProductName(entry.name),
+      brand: sanitizeProductName(entry.brand || ''),
+      barcode: scannedCode,
+      source: 'lokale-stammdaten',
+    };
   }
 
   if (csvVpeMaster[scannedCode]) {
@@ -6043,6 +6066,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
     loadVpeMasterFromCsv();
     mhdState.initialized = true;
   }
+  void refreshSharedProductMaster();
   applyReceivingCategoryOptions();
   applyMhdCategoryFilterOptions();
   updateMhdAdminSearchVisibility(isOfficeUser());
@@ -6057,6 +6081,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
 
 export function startMhdLiveSync() {
   if (!canStartMhdFirestoreLiveSync()) return;
+  void refreshSharedProductMaster();
   loadMhdFromCloud();
   subscribeToPendingDeliveryDrafts();
 }
@@ -6107,6 +6132,7 @@ export async function activateReceivingTab() {
   await runStep('ui-refresh', () => {
     refreshReceivingTabUiSafe();
   });
+  await runStep('shared-master', () => refreshSharedProductMaster());
   await runStep('draft-load', async () => {
     if (!activeEditingDraftId) {
       await loadDeliveryDraftFromIndexedDB();

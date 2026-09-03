@@ -590,6 +590,9 @@
                   <p class="dev-dashboard-intro">
                     Warenbewegungen und MHD-Änderungen unseres Betriebs. Standard ist
                     <strong>seit vorgestern</strong> — so sehen wir die komplette Schichtfolge, nicht nur heute.
+                    Über <strong>Korrigieren</strong> ändern wir Umlautfehler, Menge oder MHD.
+                    Den Artikelnamen merken wir uns für alle Posten mit derselben EAN und für den nächsten Wareneingang.
+                    Menge und MHD gelten nur für diesen Posten.
                   </p>
                   <div class="dev-dashboard-report-presets" id="dev-dashboard-report-presets" role="group" aria-label="Zeitraum schnell wählen">
                     <button type="button" class="dev-dashboard-action-btn" data-report-days="0">Heute</button>
@@ -637,10 +640,47 @@
                           <th scope="col">Artikel &amp; EAN</th>
                           <th scope="col">Aktion</th>
                           <th scope="col">Mengen-Delta</th>
+                          <th scope="col">Korrigieren</th>
                         </tr>
                       </thead>
                       <tbody id="dev-dashboard-report-body"></tbody>
                     </table>
+                  </div>
+                  <div
+                    class="dev-dashboard-report-modal"
+                    id="dev-dashboard-report-edit-modal"
+                    hidden
+                  >
+                    <div
+                      class="dev-dashboard-report-modal-card"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="dev-dashboard-report-edit-title"
+                    >
+                      <h2 class="dev-dashboard-section-title" id="dev-dashboard-report-edit-title">Eintrag korrigieren</h2>
+                      <p class="dev-dashboard-intro">
+                        Den Artikelnamen merken wir uns für alle Posten mit derselben EAN und für den nächsten Wareneingang.
+                        Menge und MHD gelten nur für diesen Posten.
+                      </p>
+                      <p class="dev-dashboard-report-edit-meta" id="dev-dashboard-report-edit-meta"></p>
+                      <label class="dev-dashboard-field" for="dev-dashboard-report-edit-name">
+                        <span>Artikelname</span>
+                        <input id="dev-dashboard-report-edit-name" type="text" autocomplete="off">
+                      </label>
+                      <label class="dev-dashboard-field" for="dev-dashboard-report-edit-mhd">
+                        <span>MHD</span>
+                        <input id="dev-dashboard-report-edit-mhd" type="date">
+                      </label>
+                      <label class="dev-dashboard-field" for="dev-dashboard-report-edit-qty">
+                        <span>Menge</span>
+                        <input id="dev-dashboard-report-edit-qty" type="number" min="0" step="1" inputmode="numeric">
+                      </label>
+                      <p class="dev-dashboard-employee-list-status" id="dev-dashboard-report-edit-status" aria-live="polite"></p>
+                      <div class="dev-dashboard-form-actions">
+                        <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-report-edit-save">Speichern</button>
+                        <button type="button" class="dev-dashboard-action-btn" id="dev-dashboard-report-edit-cancel">Abbrechen</button>
+                      </div>
+                    </div>
                   </div>
                 </section>
 

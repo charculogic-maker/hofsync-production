@@ -177,6 +177,20 @@ export function sampleMhdAudit(tenantId, extra = {}) {
   };
 }
 
+export function sampleProductMaster(tenantId, extra = {}) {
+  return {
+    tenantId,
+    ean: '4012346200507',
+    articleName: 'Cold Brew Süße Kräuter',
+    name: 'Cold Brew Süße Kräuter',
+    brand: '',
+    category: '',
+    updatedAt: '2026-09-03T12:00:00.000Z',
+    updatedBy: 'Paddy',
+    ...extra,
+  };
+}
+
 export function sampleInventoryItem(tenantId) {
   return {
     artikel: 'Emulator Test Ware',

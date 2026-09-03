@@ -157,6 +157,20 @@ service cloud.firestore {
         && request.resource.data.currentStock <= resource.data.currentStock;
     }
 
+    // Artikelname je EAN für künftige Wareneingänge (Protokoll-Korrektur + MHD-Bearbeiten)
+    match /tenants/{tenantId}/product_master/{ean} {
+      allow read: if isTenantUser(tenantId);
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.ean)
+        && isNonEmptyString(request.resource.data.articleName)
+        && request.resource.data.keys().hasOnly([
+          'tenantId', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
+          'updatedAt', 'updatedBy'
+        ]);
+      allow delete: if isAdmin(tenantId);
+    }
+
     match /tenants/{tenantId}/settings/{document} {
       allow read: if isTenantUser(tenantId);
       allow create, update: if isAdmin(tenantId)
