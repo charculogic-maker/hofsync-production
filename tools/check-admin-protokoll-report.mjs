@@ -57,9 +57,63 @@ async function activateProtokoll(page) {
   await page.evaluate(() => window.__hofsyncMovementReport.bind());
 }
 
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+async function showProtokoll(page) {
+  await page.evaluate(() => {
+    ['auth-lock-screen', 'dev-dashboard-boot-fallback', 'pin-auth-overlay'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('active');
+      el.style.setProperty('display', 'none', 'important');
+      el.setAttribute('hidden', '');
+    });
+    const pageEl = document.getElementById('page-dev-dashboard');
+    if (pageEl) {
+      pageEl.hidden = false;
+      pageEl.classList.add('active');
+      pageEl.style.display = 'block';
+    }
+    document.querySelectorAll('.page').forEach((el) => {
+      const on = el.id === 'page-dev-dashboard';
+      el.classList.toggle('active', on);
+      el.hidden = !on;
+      el.style.display = on ? 'block' : 'none';
+    });
+    document.querySelectorAll('.dev-dashboard-tab').forEach((tabEl) => {
+      const on = tabEl.getAttribute('data-dev-tab') === 'audit';
+      tabEl.classList.toggle('is-active', on);
+      tabEl.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.dev-dashboard-view').forEach((view) => {
+      view.hidden = view.id !== 'dev-dashboard-view-audit';
+    });
+  });
+}
+
+async function setReportDates(page, from, to) {
+  await showProtokoll(page);
+  await page.evaluate(({ from, to }) => {
+    const fromEl = document.getElementById('dev-dashboard-report-from');
+    const toEl = document.getElementById('dev-dashboard-report-to');
+    if (fromEl) fromEl.value = from;
+    if (toEl) toEl.value = to;
+    document.getElementById('dev-dashboard-report-filters')?.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { from, to });
+}
+
 await mkdir(ARTIFACT_DIR, { recursive: true });
+const headed = process.env.HEADED === '1';
+const recordVideo = process.env.RECORD_VIDEO === '1' || headed;
+const browser = await chromium.launch({
+  headless: !headed,
+  slowMo: recordVideo ? 350 : 0,
+  args: headed ? ['--window-size=1280,900'] : [],
+});
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 900 },
+  acceptDownloads: true,
+  recordVideo: recordVideo ? { dir: ARTIFACT_DIR, size: { width: 1280, height: 900 } } : undefined,
+});
+const page = await context.newPage();
 await activateProtokoll(page);
 
 const today = berlinTodayIso();
@@ -231,22 +285,16 @@ await page.waitForFunction(() => {
 
 await page.selectOption('#dev-dashboard-report-action', '');
 await page.waitForFunction(() => (window.__hofsyncMovementReport.getRows() || []).length === 2, { timeout: 10000 });
-await page.fill('#dev-dashboard-report-from', yesterday);
-await page.fill('#dev-dashboard-report-to', yesterday);
-await page.evaluate(() => {
-  document.getElementById('dev-dashboard-report-filters')?.dispatchEvent(new Event('change', { bubbles: true }));
-});
+await setReportDates(page, yesterday, yesterday);
 await page.waitForFunction(() => {
   const rows = window.__hofsyncMovementReport.getRows() || [];
   return rows.length === 1 && rows[0].actorName === 'Paddy';
 }, { timeout: 10000 });
 
-await page.fill('#dev-dashboard-report-from', today);
-await page.fill('#dev-dashboard-report-to', today);
-await page.evaluate(() => {
-  document.getElementById('dev-dashboard-report-filters')?.dispatchEvent(new Event('change', { bubbles: true }));
-});
+await setReportDates(page, today, today);
 await page.waitForFunction(() => (window.__hofsyncMovementReport.getRows() || []).length === 2, { timeout: 10000 });
+await showProtokoll(page);
+if (headed) await page.waitForTimeout(800);
 
 await page.screenshot({
   path: `${ARTIFACT_DIR}/admin-protokoll-warenbericht-table.png`,
@@ -255,7 +303,7 @@ await page.screenshot({
 
 const [download] = await Promise.all([
   page.waitForEvent('download', { timeout: 10000 }),
-  page.click('#dev-dashboard-report-export-btn'),
+  page.evaluate(() => document.getElementById('dev-dashboard-report-export-btn')?.click()),
 ]);
 const suggested = download.suggestedFilename();
 if (suggested !== `HofSync_Warenbericht_${today}.csv`) {
@@ -276,7 +324,15 @@ await page.screenshot({
   fullPage: false,
 });
 
+if (recordVideo) await page.waitForTimeout(600);
+const videoHandle = page.video();
+await context.close();
 await browser.close();
+if (videoHandle) {
+  const rawPath = await videoHandle.path();
+  const { copyFile } = await import('node:fs/promises');
+  await copyFile(rawPath, `${ARTIFACT_DIR}/admin_protokoll_date_filter_and_csv.webm`);
+}
 console.log(JSON.stringify({
   ok: true,
   today,
