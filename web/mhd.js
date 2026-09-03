@@ -5115,6 +5115,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     delete record.tenantId;
   }
   record._mhdWriteOp = existingBatch ? 'update' : 'set';
+  record._qtyFrom = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
   return record;
 }
 
@@ -5646,7 +5647,10 @@ async function finalizeDelivery() {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
       const writeOp = record._mhdWriteOp || 'set';
+      const qtyFrom = Number(record._qtyFrom);
+      const qtyTo = Number(record.qty ?? record.menge ?? 0);
       delete record._mhdWriteOp;
+      delete record._qtyFrom;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
@@ -5661,6 +5665,12 @@ async function finalizeDelivery() {
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
       saveProductMaster(record);
+      void recordMhdMovement({
+        product: record,
+        qtyFrom: Number.isFinite(qtyFrom) ? qtyFrom : 0,
+        qtyTo: Number.isFinite(qtyTo) ? qtyTo : 0,
+        actionType: writeOp === 'update' ? 'menge' : 'neu',
+      });
       return result;
     });
 

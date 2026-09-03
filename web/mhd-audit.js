@@ -41,6 +41,16 @@ export function berlinTodayIso(now = new Date()) {
   }).format(now);
 }
 
+export function berlinAddDaysIso(isoDate, days = 0) {
+  const start = berlinDayStartMs(isoDate || berlinTodayIso());
+  if (!Number.isFinite(start)) return berlinTodayIso();
+  return berlinTodayIso(new Date(start + Number(days) * 24 * 60 * 60 * 1000));
+}
+
+export function defaultReportFromIso(now = new Date()) {
+  return berlinAddDaysIso(berlinTodayIso(now), -2);
+}
+
 export function berlinDayStartMs(isoDate) {
   const iso = String(isoDate || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return NaN;
@@ -77,7 +87,19 @@ export function timestampToMs(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value?.toMillis === 'function') return value.toMillis();
   if (typeof value?.seconds === 'number') return value.seconds * 1000;
-  const parsed = Date.parse(String(value));
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return berlinDayStartMs(raw);
+  const german = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:[,\s]+(\d{1,2}):(\d{2}))?/);
+  if (german) {
+    const iso = `${german[3]}-${german[2].padStart(2, '0')}-${german[1].padStart(2, '0')}`;
+    const dayStart = berlinDayStartMs(iso);
+    if (!Number.isFinite(dayStart)) return NaN;
+    if (german[4] != null) {
+      return dayStart + (Number(german[4]) * 60 + Number(german[5] || 0)) * 60 * 1000;
+    }
+    return dayStart;
+  }
+  const parsed = Date.parse(raw);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
@@ -227,7 +249,12 @@ export function movementFromAuditDoc(id, data = {}) {
 
 export function movementFromMhdListeDoc(id, data = {}) {
   const atMs = timestampToMs(
-    data.lastMhdCheckAt || data.wareneingangAt || data.updatedAt || data.createdAt,
+    data.lastMhdCheckAt
+    || data.wareneingangAt
+    || data.updatedAt
+    || data.lastCheckedDate
+    || data.lastMhdCheckDate
+    || data.createdAt,
   );
   if (!Number.isFinite(atMs)) return null;
   const qty = data.qty ?? data.menge;
@@ -252,16 +279,36 @@ export function movementFromMhdListeDoc(id, data = {}) {
   };
 }
 
+function sameMovement(left, right) {
+  if (!left || !right) return false;
+  if (left.actionType !== right.actionType) return false;
+  if (Math.abs(left.atMs - right.atMs) > 2 * 60 * 1000) return false;
+  const leftEan = String(left.ean || '').trim();
+  const rightEan = String(right.ean || '').trim();
+  if (leftEan && rightEan) return leftEan === rightEan;
+  return String(left.articleName || '').trim().toLowerCase()
+    === String(right.articleName || '').trim().toLowerCase();
+}
+
 export function mergeMovementRows(groups) {
-  const byKey = new Map();
-  groups.flat().forEach((row) => {
-    if (!row || !Number.isFinite(row.atMs)) return;
-    const key = row.source === 'mhd_liste'
-      ? `liste:${row.ean}|${row.atMs}|${row.actionType}`
-      : (row.id || `${row.ean}|${row.atMs}|${row.actionType}`);
-    if (!byKey.has(key)) byKey.set(key, row);
+  const rows = (groups || []).flat().filter((row) => row && Number.isFinite(row.atMs));
+  const auditRows = [];
+  const listeRows = [];
+  rows.forEach((row) => {
+    if (row.source === 'mhd_liste') listeRows.push(row);
+    else auditRows.push(row);
   });
-  return [...byKey.values()].sort((left, right) => right.atMs - left.atMs);
+  const byId = new Map();
+  auditRows.forEach((row) => {
+    byId.set(row.id || `audit:${row.ean}|${row.atMs}|${row.actionType}`, row);
+  });
+  listeRows.forEach((row) => {
+    const covered = [...byId.values()].some((existing) => (
+      existing.source !== 'mhd_liste' && sameMovement(existing, row)
+    ));
+    if (!covered) byId.set(row.id || `liste:${row.ean}|${row.atMs}|${row.actionType}`, row);
+  });
+  return [...byId.values()].sort((left, right) => right.atMs - left.atMs);
 }
 
 export function buildMovementRecord({

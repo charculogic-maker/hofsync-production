@@ -34,10 +34,12 @@ import { getNamedTenantCollection, initTenantDb } from './tenant-db.js';
 import {
   AUDIT_LOGS_COLLECTION,
   MHD_AUDIT_COLLECTION,
+  berlinAddDaysIso,
   berlinDayEndMs,
   berlinDayStartMs,
   berlinTodayIso,
   buildShopNameOptions,
+  defaultReportFromIso,
   formatBerlinDay,
   csvFilename,
   filterMovements,
@@ -257,25 +259,101 @@ function renderMovementReport(rows) {
   `).join('');
 }
 
-async function fetchAuditCollectionDocs(tenantId, collectionName, startMs, endMs) {
-  const col = getNamedTenantCollection(tenantId, collectionName);
-  let snap;
-  try {
-    snap = await col.where('atMs', '>=', startMs).where('atMs', '<=', endMs).orderBy('atMs', 'desc').get();
-  } catch (err) {
-    console.warn(`[Dev-Dashboard] ${collectionName} Bereichsabfrage nicht möglich, lade Fallback:`, err);
-    snap = await col.limit(400).get();
-  }
-  return snap.docs
-    .map((doc) => movementFromAuditDoc(doc.id, doc.data() || {}))
-    .filter((row) => row && row.atMs >= startMs && row.atMs <= endMs);
+function docsToMovements(docs, mapper) {
+  return (docs || [])
+    .map((doc) => mapper(doc.id, doc.data() || {}))
+    .filter(Boolean);
 }
 
-async function fetchMhdListeFallback(tenantId, startMs, endMs) {
+async function getQuerySnapshot(query) {
+  return query.get();
+}
+
+async function fetchPagedQuery(buildPage, { pageSize = 500, maxPages = 20 } = {}) {
+  const docs = [];
+  const seen = new Set();
+  let cursor = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const snap = await getQuerySnapshot(buildPage(cursor, pageSize));
+    if (!snap?.docs?.length) break;
+    const fresh = snap.docs.filter((doc) => doc?.id && !seen.has(doc.id));
+    if (!fresh.length) break;
+    fresh.forEach((doc) => seen.add(doc.id));
+    docs.push(...fresh);
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.docs.length < pageSize) break;
+  }
+  return docs;
+}
+
+function documentIdOrder(col) {
+  const fieldPath = window.firebase?.firestore?.FieldPath?.documentId?.();
+  return fieldPath ? col.orderBy(fieldPath) : col;
+}
+
+async function fetchAuditCollectionDocs(tenantId, collectionName, startMs, endMs) {
+  const col = getNamedTenantCollection(tenantId, collectionName);
+  try {
+    const docs = await fetchPagedQuery((cursor, pageSize) => {
+      let query = col.where('atMs', '>=', startMs).where('atMs', '<=', endMs).orderBy('atMs', 'desc').limit(pageSize);
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    });
+    return docsToMovements(docs, movementFromAuditDoc)
+      .filter((row) => row.atMs >= startMs && row.atMs <= endMs);
+  } catch (err) {
+    console.warn(`[Dev-Dashboard] ${collectionName} Bereichsabfrage nicht möglich, lade Fallback:`, err);
+    const docs = await fetchPagedQuery((cursor, pageSize) => {
+      let query = documentIdOrder(col).limit(pageSize);
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    }, { pageSize: 500, maxPages: 30 });
+    return docsToMovements(docs, movementFromAuditDoc)
+      .filter((row) => row && row.atMs >= startMs && row.atMs <= endMs);
+  }
+}
+
+async function fetchMhdListeByField(col, field, fromValue, toValue) {
+  try {
+    const docs = await fetchPagedQuery((cursor, pageSize) => {
+      let query = col.where(field, '>=', fromValue).where(field, '<=', toValue).orderBy(field, 'desc').limit(pageSize);
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    }, { pageSize: 500, maxPages: 10 });
+    return docs;
+  } catch (err) {
+    console.warn(`[Dev-Dashboard] mhd_liste ${field}-Abfrage nicht möglich:`, err);
+    return [];
+  }
+}
+
+async function fetchMhdListeFallback(tenantId, startMs, endMs, fromIso, toIso) {
   const col = getNamedTenantCollection(tenantId, 'mhd_liste');
-  const snap = await col.limit(400).get();
-  return snap.docs
-    .map((doc) => movementFromMhdListeDoc(doc.id, doc.data() || {}))
+  const startDate = new Date(startMs);
+  const endDate = new Date(endMs);
+  const groups = await Promise.all([
+    fetchMhdListeByField(col, 'lastCheckedDate', fromIso, toIso),
+    fetchMhdListeByField(col, 'lastMhdCheckDate', fromIso, toIso),
+    fetchMhdListeByField(col, 'updatedAt', startDate, endDate),
+    fetchMhdListeByField(col, 'lastMhdCheckAt', startMs, endMs),
+    fetchMhdListeByField(col, 'lastMhdCheckAt', startDate.toISOString(), endDate.toISOString()),
+    fetchMhdListeByField(col, 'wareneingangAt', startDate.toISOString(), endDate.toISOString()),
+  ]);
+  const byId = new Map();
+  groups.flat().forEach((doc) => {
+    if (doc?.id && !byId.has(doc.id)) byId.set(doc.id, doc);
+  });
+  if (!byId.size) {
+    const fallbackDocs = await fetchPagedQuery((cursor, pageSize) => {
+      let query = documentIdOrder(col).limit(pageSize);
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    }, { pageSize: 500, maxPages: 20 });
+    fallbackDocs.forEach((doc) => {
+      if (doc?.id && !byId.has(doc.id)) byId.set(doc.id, doc);
+    });
+  }
+  return docsToMovements([...byId.values()], movementFromMhdListeDoc)
     .filter((row) => row && row.atMs >= startMs && row.atMs <= endMs);
 }
 
@@ -298,7 +376,7 @@ async function loadMovementReport() {
         console.error('[Dev-Dashboard] audit_logs lesen fehlgeschlagen:', err);
         return [];
       }),
-      fetchMhdListeFallback(tenantId, startMs, endMs).catch((err) => {
+      fetchMhdListeFallback(tenantId, startMs, endMs, filters.from, filters.to).catch((err) => {
         console.error('[Dev-Dashboard] mhd_liste-Fallback fehlgeschlagen:', err);
         return [];
       }),
@@ -342,19 +420,38 @@ function downloadMovementCsv() {
   window.showToast?.('Warenbericht gespeichert. Datei liegt in den Downloads.', 'success');
 }
 
-function bindMovementReportControls() {
-  const form = document.getElementById('dev-dashboard-report-filters');
-  const exportBtn = document.getElementById('dev-dashboard-report-export-btn');
+function applyReportRangeDays(daysBack) {
   const today = berlinTodayIso();
   const fromEl = document.getElementById('dev-dashboard-report-from');
   const toEl = document.getElementById('dev-dashboard-report-to');
-  if (fromEl && !fromEl.value) fromEl.value = today;
+  const from = berlinAddDaysIso(today, -Math.max(0, Number(daysBack) || 0));
+  if (fromEl) fromEl.value = from;
+  if (toEl) toEl.value = today;
+  void loadMovementReport();
+}
+
+function bindMovementReportControls() {
+  const form = document.getElementById('dev-dashboard-report-filters');
+  const exportBtn = document.getElementById('dev-dashboard-report-export-btn');
+  const presets = document.getElementById('dev-dashboard-report-presets');
+  const today = berlinTodayIso();
+  const fromEl = document.getElementById('dev-dashboard-report-from');
+  const toEl = document.getElementById('dev-dashboard-report-to');
+  if (fromEl && !fromEl.value) fromEl.value = defaultReportFromIso();
   if (toEl && !toEl.value) toEl.value = today;
   fillReportActorOptions();
   if (form && form.dataset.bound !== '1') {
     form.dataset.bound = '1';
     form.addEventListener('change', () => {
       void loadMovementReport();
+    });
+  }
+  if (presets && presets.dataset.bound !== '1') {
+    presets.dataset.bound = '1';
+    presets.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-report-days]');
+      if (!(btn instanceof HTMLButtonElement)) return;
+      applyReportRangeDays(btn.getAttribute('data-report-days'));
     });
   }
   if (exportBtn && exportBtn.dataset.bound !== '1') {

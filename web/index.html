@@ -588,9 +588,14 @@
                     </button>
                   </div>
                   <p class="dev-dashboard-intro">
-                    Warenbewegungen und MHD-Änderungen unseres Betriebs nach Datum.
-                    Wir können den Bericht direkt in Excel oder LibreOffice öffnen.
+                    Warenbewegungen und MHD-Änderungen unseres Betriebs. Standard ist
+                    <strong>seit vorgestern</strong> — so sehen wir die komplette Schichtfolge, nicht nur heute.
                   </p>
+                  <div class="dev-dashboard-report-presets" id="dev-dashboard-report-presets" role="group" aria-label="Zeitraum schnell wählen">
+                    <button type="button" class="dev-dashboard-action-btn" data-report-days="0">Heute</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-report-days="2">Seit vorgestern</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-report-days="6">7 Tage</button>
+                  </div>
                   <form class="dev-dashboard-report-filters" id="dev-dashboard-report-filters">
                     <label class="dev-dashboard-field" for="dev-dashboard-report-from">
                       <span>Datum von</span>

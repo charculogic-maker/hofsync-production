@@ -4,10 +4,13 @@
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import {
+  berlinAddDaysIso,
   berlinDayEndMs,
   berlinDayStartMs,
+  berlinTodayIso,
   buildShopNameOptions,
   csvFilename,
+  defaultReportFromIso,
   filterMovements,
   formatBerlinDay,
   formatMovementTime,
@@ -18,6 +21,7 @@ import {
   movementFromMhdListeDoc,
   movementsToCsv,
   normalizeActorName,
+  timestampToMs,
 } from '../web/mhd-audit.js';
 
 describe('mhd-audit report helpers', () => {
@@ -81,7 +85,18 @@ describe('mhd-audit report helpers', () => {
     expect(csvFilename('2026-09-03')).to.equal('HofSync_Warenbericht_2026-09-03.csv');
   });
 
-  it('maps audit docs and MHD-list fallbacks, then merges without duplicates', () => {
+  it('defaults the report window to vorgestern', () => {
+    const today = berlinTodayIso();
+    expect(defaultReportFromIso()).to.equal(berlinAddDaysIso(today, -2));
+    expect(berlinAddDaysIso('2026-09-03', -2)).to.equal('2026-09-01');
+  });
+
+  it('parses German and ISO day stamps', () => {
+    expect(timestampToMs('2026-09-01')).to.equal(berlinDayStartMs('2026-09-01'));
+    expect(timestampToMs('01.09.2026')).to.equal(berlinDayStartMs('2026-09-01'));
+  });
+
+  it('maps audit docs and keeps distinct MHD-list rows without EAN', () => {
     const atMs = Date.parse('2026-09-03T09:15:00.000Z');
     const audit = movementFromAuditDoc('a1', {
       atMs,
@@ -92,7 +107,7 @@ describe('mhd-audit report helpers', () => {
       qtyFrom: 12,
       qtyTo: 8,
     });
-    const liste = movementFromMhdListeDoc('m1', {
+    const listeSame = movementFromMhdListeDoc('m1', {
       lastMhdCheckAt: atMs,
       scannedBy: 'Stephie',
       name: 'Rapunzel Schokolade Karamell',
@@ -100,9 +115,18 @@ describe('mhd-audit report helpers', () => {
       qty: 8,
       mhdActionStatus: '',
     });
-    const merged = mergeMovementRows([[audit], [liste]]);
+    const listeOther = movementFromMhdListeDoc('m2', {
+      lastCheckedDate: '2026-09-01',
+      lastCheckedBy: 'Paddy',
+      name: 'Hofmilch 1l',
+      qty: 3,
+      mhdActionStatus: 'geprueft',
+    });
+    const merged = mergeMovementRows([[audit], [listeSame, listeOther]]);
     expect(audit.actionType).to.equal('menge');
-    expect(liste.source).to.equal('mhd_liste');
+    expect(listeSame.source).to.equal('mhd_liste');
     expect(merged).to.have.length(2);
+    expect(merged.some((row) => row.articleName === 'Hofmilch 1l')).to.equal(true);
+    expect(merged.filter((row) => row.articleName.includes('Rapunzel'))).to.have.length(1);
   });
 });

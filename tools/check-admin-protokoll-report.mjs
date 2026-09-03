@@ -5,7 +5,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { berlinDayStartMs, berlinTodayIso } from '../web/mhd-audit.js';
+import { berlinDayStartMs, berlinTodayIso, defaultReportFromIso } from '../web/mhd-audit.js';
 
 const BASE_URL = 'http://127.0.0.1:5173/index.html?v=admin-protokoll-report';
 const ARTIFACT_DIR = '/opt/cursor/artifacts';
@@ -143,12 +143,20 @@ const shell = await page.evaluate(() => {
     actorOptions,
     actionOptions,
     headers,
-    exportLabel: exportBtn?.textContent.replace(/\s+/g, ' ').trim() || '',
+    presets: [...document.querySelectorAll('#dev-dashboard-report-presets [data-report-days]')].map((el) => ({
+      days: el.getAttribute('data-report-days'),
+      label: el.textContent.trim(),
+    })),
+    exportLabel: String(exportBtn && exportBtn.textContent ? exportBtn.textContent : '').replace(/\s+/g, ' ').trim(),
   };
 });
 
-if (shell.from !== today || shell.to !== today) {
-  fail('Default date filter is not today', shell);
+const defaultFrom = defaultReportFromIso();
+if (shell.from !== defaultFrom || shell.to !== today) {
+  fail('Default date filter is not seit vorgestern', shell);
+}
+if (!shell.presets.some((entry) => entry.label === 'Seit vorgestern' && entry.days === '2')) {
+  fail('Missing Seit vorgestern preset', shell.presets);
 }
 const expectedActors = ['Alle', 'Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko'];
 if (!expectedActors.every((name) => shell.actorOptions.includes(name))) {
@@ -161,8 +169,8 @@ if (!['', 'neu', 'menge', 'abschreiben', 'raus'].every((value) => actionValues.i
 if (!['Zeitstempel', 'Mitarbeiter', 'Artikel & EAN', 'Aktion', 'Mengen-Delta'].every((h) => shell.headers.includes(h))) {
   fail('Report table headers mismatch', shell.headers);
 }
-if (!shell.exportLabel.includes('Report als CSV exportieren')) {
-  fail('CSV export button label mismatch', shell.exportLabel);
+if (!String(shell.exportLabel || '').includes('Report als CSV exportieren')) {
+  fail('CSV export button label mismatch', shell);
 }
 
 await page.evaluate(({ todayMorning, todayNoon, yesterdayMs, today }) => {
@@ -213,7 +221,12 @@ await page.evaluate(({ todayMorning, todayNoon, yesterdayMs, today }) => {
       where() { return api; },
       orderBy() { return api; },
       limit() { return api; },
+      startAfter() {
+        api._after = true;
+        return api;
+      },
       async get() {
+        if (api._after) return { docs: [] };
         return {
           docs: docs.map((entry) => ({
             id: entry.id,
@@ -234,13 +247,19 @@ await page.evaluate(({ todayMorning, todayNoon, yesterdayMs, today }) => {
   window.__hofsyncMovementReport.injectDb(db);
   window.__hofsyncMovementReport.setTenant('StevesHof_Hauptbetrieb');
   window.__hofsyncMovementReport.bind();
-  document.getElementById('dev-dashboard-report-from').value = today;
-  document.getElementById('dev-dashboard-report-to').value = today;
   document.getElementById('dev-dashboard-report-actor').value = '';
   document.getElementById('dev-dashboard-report-action').value = '';
 }, { todayMorning, todayNoon, yesterdayMs, today });
 
 await page.evaluate(() => window.__hofsyncMovementReport.load());
+await page.waitForFunction(() => (window.__hofsyncMovementReport.getRows() || []).length === 3, { timeout: 10000 });
+await showProtokoll(page);
+await page.screenshot({
+  path: `${ARTIFACT_DIR}/admin-protokoll-seit-vorgestern.png`,
+  fullPage: false,
+});
+
+await page.evaluate(() => document.querySelector('[data-report-days="0"]')?.click());
 await page.waitForFunction(() => (window.__hofsyncMovementReport.getRows() || []).length === 2, { timeout: 10000 });
 
 const todayView = await page.evaluate(() => {

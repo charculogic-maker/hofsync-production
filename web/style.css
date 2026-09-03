@@ -9750,11 +9750,16 @@ body.role-firebase-auth #team-login-card {
   color: #334155;
 }
 
-.dev-dashboard-report-filters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
-  margin: 4px 0 12px;
+.dev-dashboard-report-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.dev-dashboard-report-presets .dev-dashboard-action-btn {
+  min-height: 42px;
+  padding: 8px 12px;
 }
 
 @media (min-width: 800px) {
