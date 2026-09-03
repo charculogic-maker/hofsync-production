@@ -18,6 +18,13 @@ import {
 } from './teamboard-storage.js';
 import { sanitizeProductName, composeProductDisplayTitle } from './utils.js';
 import {
+  getMhdActionShortLabel,
+  getMhdActionStyle,
+  getMhdActionWindowUpperLimit,
+  mapMhdActionKeyToStatus,
+  resolveMhdActionKey,
+} from './mhd-rabatt.js';
+import {
   MHD_AUDIT_COLLECTION,
   buildMovementRecord,
   inferMovementAction,
@@ -920,23 +927,6 @@ function buildMhdActionUpdates(actionStatus) {
   return withHiddenAudit(updates, queuedUpdates);
 }
 
-const MHD_RABATT_MATRIX = {
-  '🍎 Frische': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
-  '🥛MoPro': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
-  '🥗 Kühlware': { pruefen: 7, rabatt30: 3, rabatt50: 0, tonne: -1 },
-  '🧊 TK': { pruefen: 14, rabatt30: 7, rabatt50: 3, tonne: -1 },
-  '📦 Trockenware': { pruefen: 30, rabatt30: 2, rabatt50: 1, tonne: -1 },
-  '🌿 Gewürze': { pruefen: 60, rabatt30: 30, rabatt50: 14, tonne: -1 },
-  '🍺 Getränke': { pruefen: 14, rabatt30: 7, rabatt50: 3, tonne: -1 },
-};
-
-const MHD_ACTION_STYLES = {
-  tonne: { label: '🗑️ ABSCHREIBEN / TONNE', color: '#F44336', bg: 'rgba(244, 67, 54, 0.14)' },
-  rabatt50: { label: '🔥 50% RABATT', color: '#EF6C00', bg: 'rgba(239, 108, 0, 0.14)' },
-  rabatt30: { label: '🏷️ 30% RABATT', color: '#F57F17', bg: 'rgba(245, 127, 23, 0.14)' },
-  pruefen: { label: '👀 PRÜFEN', color: '#1565C0', bg: 'rgba(21, 101, 192, 0.14)' },
-  ok: { label: '✅ OK (Regal)', color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.14)' },
-};
 
 
 function escapeHtml(value) {
@@ -2742,14 +2732,6 @@ function getProductCategory(prod) {
   return storedCategory;
 }
 
-function resolveMhdActionKey(category, tage) {
-  const rules = MHD_RABATT_MATRIX[category] || MHD_RABATT_MATRIX['🥛MoPro'];
-  if (tage <= rules.tonne) return 'tonne';
-  if (tage <= rules.rabatt50) return 'rabatt50';
-  if (tage <= rules.rabatt30) return 'rabatt30';
-  if (tage <= rules.pruefen) return 'pruefen';
-  return 'ok';
-}
 
 function computeResttageFromMhd(mhdDateStr) {
   const iso = normalizeDateInputToIso(mhdDateStr);
@@ -2782,7 +2764,7 @@ function isMhdActionWindow(prod) {
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
   const category = getProductCategory(prod);
-  const upperLimit = category === MHD_TROCKEN_CATEGORY ? 15 : (MHD_RABATT_MATRIX[category]?.pruefen ?? 3);
+  const upperLimit = category === MHD_TROCKEN_CATEGORY ? 15 : getMhdActionWindowUpperLimit(category, prod);
   return days >= 1 && days <= upperLimit;
 }
 
@@ -2968,28 +2950,18 @@ function openPostenHistory(prodId) {
 function computeMhdAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
-  const key = resolveMhdActionKey(category, tage);
-  if (key === 'pruefen' && category === MHD_TROCKEN_CATEGORY) {
-    return { label: '📦 SONDERFLÄCHE / 20%', color: '#F57F17', bg: 'rgba(245, 127, 23, 0.14)' };
-  }
-  return MHD_ACTION_STYLES[key];
+  const key = resolveMhdActionKey(category, tage, prod);
+  return getMhdActionStyle(key, category);
 }
 
 function getMhdCardAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
-  const key = resolveMhdActionKey(category, tage);
+  const key = resolveMhdActionKey(category, tage, prod);
   const action = computeMhdAction(prod);
-  const shortLabels = {
-    tonne: 'Abschreiben',
-    rabatt50: '50%',
-    rabatt30: '30%',
-    pruefen: category === MHD_TROCKEN_CATEGORY ? '20%' : 'Prüfen',
-    ok: 'OK',
-  };
   return {
     ...action,
-    label: shortLabels[key] || action.label,
+    label: getMhdActionShortLabel(key, category),
   };
 }
 
@@ -3137,8 +3109,13 @@ function mapMhdDoc(doc) {
   });
   let status = data.status;
   if (!data.soldOut && Number.isFinite(Number(tage))) {
-    const actionKey = resolveMhdActionKey(category, tage);
-    status = actionKey === 'tonne' ? 'expired' : actionKey === 'rabatt50' || actionKey === 'rabatt30' ? 'critical' : actionKey === 'pruefen' ? 'warning' : 'ok';
+    const actionKey = resolveMhdActionKey(category, tage, {
+      ...data,
+      kategorie: category,
+      name: data.name,
+      produkt: data.produkt,
+    });
+    status = mapMhdActionKeyToStatus(actionKey);
   }
   return {
     ...data,
@@ -4144,14 +4121,8 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
   }
   const tage = computeResttageFromMhd(draft.newIso);
   const category = getProductCategory(draft.prod);
-  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(category, tage) : 'ok';
-  const status = actionKey === 'tonne'
-    ? 'expired'
-    : actionKey === 'rabatt50' || actionKey === 'rabatt30'
-      ? 'critical'
-      : actionKey === 'pruefen'
-        ? 'warning'
-        : 'ok';
+  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(category, tage, draft.prod) : 'ok';
+  const status = mapMhdActionKeyToStatus(actionKey);
   const updatedAtIso = new Date().toISOString();
   const dailyStamp = buildMhdDailyCheckStamp();
   const onlineData = {
