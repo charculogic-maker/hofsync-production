@@ -471,6 +471,7 @@ function normalizeAllowedModules(value) {
 
 function hideMainAppChrome() {
   // Layout-Flag am body — NICHT dieselbe Klasse wie Tab-Panels (.dev-dashboard-view).
+  document.documentElement?.classList.add('is-dev-dashboard-html');
   document.body?.classList.add('is-dev-dashboard');
   document.body?.classList.remove('app-shell-sidebar', 'dev-dashboard-view');
   document.body && (document.body.hidden = false);

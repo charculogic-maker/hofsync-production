@@ -94,6 +94,7 @@ function openLoginFromFallback() {
  */
 export function renderFallbackUI(message, showLoginBtn = true) {
   try {
+    document.documentElement?.classList.add('is-dev-dashboard-html');
     document.body?.classList.add('is-dev-dashboard');
     document.body?.classList.remove('dev-dashboard-view');
     document.body && (document.body.hidden = false);
@@ -154,6 +155,7 @@ export function leaveDevDashboardToPhoneApp() {
     sessionStorage.setItem('charculogic_prefer_phone_shell', '1');
   } catch (_) { /* noop */ }
   try {
+    document.documentElement?.classList.remove('is-dev-dashboard-html');
     document.body?.classList.remove(
       'is-dev-dashboard',
       'dev-dashboard-view',
