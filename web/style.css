@@ -8831,24 +8831,30 @@ body.dev-dashboard-view[hidden] {
 }
 
 .dev-dashboard-topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "back brand badge";
+  align-items: start;
+  gap: 16px 20px;
   margin-bottom: 24px;
 }
 
-.dev-dashboard-topbar-main {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
+.dev-dashboard-back-btn {
+  grid-area: back;
+}
+
+#dev-dashboard-tenant-header {
+  grid-area: brand;
+  max-width: none;
+  width: auto;
+  min-width: 0;
 }
 
 .dev-dashboard-topbar-titles {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .dev-dashboard-page-title {
@@ -8856,17 +8862,22 @@ body.dev-dashboard-view[hidden] {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary, #0f172a);
+  line-height: 1.2;
 }
 
 .dev-dashboard-role-badge {
+  grid-area: badge;
   display: inline-flex;
   align-items: center;
+  height: fit-content;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
   background: #e0e7ff;
   color: #3730a3;
 }
@@ -8909,6 +8920,7 @@ body.dev-dashboard-view[hidden] {
 }
 
 .dev-dashboard-back-btn {
+  grid-area: back;
   appearance: none;
   border: 1px solid var(--border-color, #cbd5e1);
   border-radius: 10px;
@@ -9520,6 +9532,145 @@ body.role-firebase-auth #team-login-card {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/*
+ * Laden-iPhone Hochformat: Verwaltung muss unter der Statusleiste
+ * lesbar bleiben — Header nicht quetschen, Tabs als 2×2-Raster.
+ */
+@media (max-width: 768px) {
+  .dev-dashboard-shell {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .dev-dashboard-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "back badge"
+      "brand brand";
+    align-items: center;
+    gap: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .dev-dashboard-back-btn {
+    justify-self: start;
+    min-height: 44px;
+    padding: 10px 14px;
+    white-space: nowrap;
+    font-size: 0.92rem;
+  }
+
+  .dev-dashboard-role-badge {
+    justify-self: end;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+  }
+
+  #dev-dashboard-tenant-header {
+    width: 100%;
+    max-width: 100%;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dev-dashboard-page-title {
+    font-size: 1.35rem;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .dev-dashboard-status {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .dev-dashboard-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 14px;
+  }
+
+  .dev-dashboard-tab {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    font-size: 0.92rem;
+    touch-action: manipulation;
+  }
+
+  .dev-dashboard-panel {
+    padding: 14px 14px 16px;
+    border-radius: 12px;
+  }
+
+  .dev-dashboard-intro {
+    font-size: 0.88rem;
+  }
+
+  .dev-dashboard-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 4px 0 12px;
+  }
+
+  .dev-dashboard-kpi-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .dev-dashboard-kpi-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+  }
+
+  .dev-dashboard-kpi-value {
+    font-size: 1.45rem;
+    margin: 4px 0 2px;
+  }
+
+  .dev-dashboard-kpi-hint {
+    font-size: 0.78rem;
+    line-height: 1.3;
+  }
+
+  .dev-dashboard-overview-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .dev-dashboard-overview-actions .dev-dashboard-action-btn,
+  .dev-dashboard-form-actions .dev-dashboard-action-btn {
+    min-height: 48px;
+    width: 100%;
+    font-size: 0.95rem;
+    padding: 12px 14px;
+  }
+
+  .dev-dashboard-user-toolbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .dev-dashboard-table-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dev-dashboard-settings-form {
+    max-width: none;
+  }
 }
 
 .dev-dashboard-user-toolbar {
