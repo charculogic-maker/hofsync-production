@@ -30,6 +30,25 @@ import {
   renderFallbackUI,
 } from './tenant-admin-auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+import { getNamedTenantCollection, initTenantDb } from './tenant-db.js';
+import {
+  AUDIT_LOGS_COLLECTION,
+  MHD_AUDIT_COLLECTION,
+  berlinDayEndMs,
+  berlinDayStartMs,
+  berlinTodayIso,
+  buildShopNameOptions,
+  formatBerlinDay,
+  csvFilename,
+  filterMovements,
+  formatMovementTime,
+  formatQtyDelta,
+  mergeMovementRows,
+  movementActionLabel,
+  movementFromAuditDoc,
+  movementFromMhdListeDoc,
+  movementsToCsv,
+} from './mhd-audit.js';
 
 // Sofortige Boot-Guards (Modul-Crash / fehlende Session → kein weißer Screen).
 try {
@@ -148,7 +167,9 @@ function renderAuditTable(tenantId = dashboardState.selectedTenantId) {
     badge.textContent = AUDIT_STORAGE_SCOPE_LABEL;
     badge.title = AUDIT_STORAGE_SCOPE_HINT;
   }
-  const intro = document.querySelector('#dev-dashboard-view-audit .dev-dashboard-intro');
+  const intro = document.getElementById('dev-dashboard-audit-table')
+    ?.closest('section')
+    ?.querySelector('.dev-dashboard-intro');
   if (intro && !intro.dataset.scopeBound) {
     intro.dataset.scopeBound = '1';
     intro.textContent = `Nur Lesen: Sicherheits- und Änderungsereignisse für diesen Betrieb. ${AUDIT_STORAGE_SCOPE_HINT}`;
@@ -178,6 +199,183 @@ function renderAuditTable(tenantId = dashboardState.selectedTenantId) {
     </tr>
   `;
   }).join('');
+}
+
+function reportFilterState() {
+  const today = berlinTodayIso();
+  const fromEl = document.getElementById('dev-dashboard-report-from');
+  const toEl = document.getElementById('dev-dashboard-report-to');
+  const from = String(fromEl?.value || today).slice(0, 10);
+  const to = String(toEl?.value || today).slice(0, 10);
+  return {
+    from: from <= to ? from : to,
+    to: from <= to ? to : from,
+    actorName: String(document.getElementById('dev-dashboard-report-actor')?.value || '').trim(),
+    actionType: String(document.getElementById('dev-dashboard-report-action')?.value || '').trim(),
+  };
+}
+
+function setReportStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('dev-dashboard-report-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+}
+
+function fillReportActorOptions(extraNames = []) {
+  const select = document.getElementById('dev-dashboard-report-actor');
+  if (!select) return;
+  const current = select.value;
+  const names = buildShopNameOptions(extraNames);
+  select.innerHTML = ['<option value="">Alle</option>', ...names.map((name) => (
+    `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+  ))].join('');
+  if (current && names.some((name) => name === current)) select.value = current;
+}
+
+function renderMovementReport(rows) {
+  const tbody = document.getElementById('dev-dashboard-report-body');
+  if (!tbody) return;
+  dashboardState.movementRows = rows;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Warenbewegungen in diesem Zeitraum.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((row) => `
+    <tr>
+      <td>${escapeHtml(formatMovementTime(row.atMs))}</td>
+      <td>${escapeHtml(row.actorName || '—')}</td>
+      <td>
+        <div class="dev-dashboard-report-article">
+          <strong>${escapeHtml(row.articleName || 'Artikel')}</strong>
+          <span>${escapeHtml(row.ean || 'ohne EAN')}</span>
+        </div>
+      </td>
+      <td><span class="dev-dashboard-action-badge" data-action="${escapeHtml(row.actionType)}">${escapeHtml(movementActionLabel(row.actionType))}</span></td>
+      <td>${escapeHtml(formatQtyDelta(row.qtyFrom, row.qtyTo))}</td>
+    </tr>
+  `).join('');
+}
+
+async function fetchAuditCollectionDocs(tenantId, collectionName, startMs, endMs) {
+  const col = getNamedTenantCollection(tenantId, collectionName);
+  let snap;
+  try {
+    snap = await col.where('atMs', '>=', startMs).where('atMs', '<=', endMs).orderBy('atMs', 'desc').get();
+  } catch (err) {
+    console.warn(`[Dev-Dashboard] ${collectionName} Bereichsabfrage nicht möglich, lade Fallback:`, err);
+    snap = await col.limit(400).get();
+  }
+  return snap.docs
+    .map((doc) => movementFromAuditDoc(doc.id, doc.data() || {}))
+    .filter((row) => row && row.atMs >= startMs && row.atMs <= endMs);
+}
+
+async function fetchMhdListeFallback(tenantId, startMs, endMs) {
+  const col = getNamedTenantCollection(tenantId, 'mhd_liste');
+  const snap = await col.limit(400).get();
+  return snap.docs
+    .map((doc) => movementFromMhdListeDoc(doc.id, doc.data() || {}))
+    .filter((row) => row && row.atMs >= startMs && row.atMs <= endMs);
+}
+
+async function loadMovementReport() {
+  const tenantId = dashboardState.selectedTenantId;
+  const tbody = document.getElementById('dev-dashboard-report-body');
+  if (!tenantId || !dashboardState.db || !tbody) return;
+  const filters = reportFilterState();
+  const startMs = berlinDayStartMs(filters.from);
+  const endMs = berlinDayEndMs(filters.to);
+  setReportStatus('Bericht wird geladen…', 'info');
+  tbody.innerHTML = '<tr><td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">Bericht wird geladen…</td></tr>';
+  try {
+    const [auditRows, logRows, listeRows] = await Promise.all([
+      fetchAuditCollectionDocs(tenantId, MHD_AUDIT_COLLECTION, startMs, endMs).catch((err) => {
+        console.error('[Dev-Dashboard] mhd_audit lesen fehlgeschlagen:', err);
+        return [];
+      }),
+      fetchAuditCollectionDocs(tenantId, AUDIT_LOGS_COLLECTION, startMs, endMs).catch((err) => {
+        console.error('[Dev-Dashboard] audit_logs lesen fehlgeschlagen:', err);
+        return [];
+      }),
+      fetchMhdListeFallback(tenantId, startMs, endMs).catch((err) => {
+        console.error('[Dev-Dashboard] mhd_liste-Fallback fehlgeschlagen:', err);
+        return [];
+      }),
+    ]);
+    const merged = mergeMovementRows([auditRows, logRows, listeRows]);
+    const visible = filterMovements(merged, filters);
+    fillReportActorOptions(merged.map((row) => row.actorName).filter((name) => name && name !== '—'));
+    const actorSelect = document.getElementById('dev-dashboard-report-actor');
+    if (actorSelect && filters.actorName) actorSelect.value = filters.actorName;
+    renderMovementReport(visible);
+    setReportStatus(
+      visible.length
+        ? `${visible.length} Bewegung${visible.length === 1 ? '' : 'en'} vom ${formatBerlinDay(filters.from)} bis ${formatBerlinDay(filters.to)}`
+        : 'Keine Warenbewegungen in diesem Zeitraum.',
+      'info',
+    );
+  } catch (err) {
+    console.error('[Dev-Dashboard] Warenbericht fehlgeschlagen:', err);
+    renderMovementReport([]);
+    setReportStatus(logAndMapOperatorError(err, 'admin'), 'error');
+  }
+}
+
+function downloadMovementCsv() {
+  const rows = Array.isArray(dashboardState.movementRows) ? dashboardState.movementRows : [];
+  if (!rows.length) {
+    window.showToast?.('Kein Bericht zum Exportieren. Bitte zuerst einen Zeitraum mit Einträgen wählen.', 'warning');
+    return;
+  }
+  const filters = reportFilterState();
+  const csv = movementsToCsv(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = csvFilename(filters.to || berlinTodayIso());
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  window.showToast?.('Warenbericht gespeichert. Datei liegt in den Downloads.', 'success');
+}
+
+function bindMovementReportControls() {
+  const form = document.getElementById('dev-dashboard-report-filters');
+  const exportBtn = document.getElementById('dev-dashboard-report-export-btn');
+  const today = berlinTodayIso();
+  const fromEl = document.getElementById('dev-dashboard-report-from');
+  const toEl = document.getElementById('dev-dashboard-report-to');
+  if (fromEl && !fromEl.value) fromEl.value = today;
+  if (toEl && !toEl.value) toEl.value = today;
+  fillReportActorOptions();
+  if (form && form.dataset.bound !== '1') {
+    form.dataset.bound = '1';
+    form.addEventListener('change', () => {
+      void loadMovementReport();
+    });
+  }
+  if (exportBtn && exportBtn.dataset.bound !== '1') {
+    exportBtn.dataset.bound = '1';
+    exportBtn.addEventListener('click', () => downloadMovementCsv());
+  }
+  if (typeof window !== 'undefined') {
+    window.__hofsyncMovementReport = {
+      injectDb(db) {
+        initTenantDb(db);
+        dashboardState.db = db;
+      },
+      setTenant(tenantId) {
+        dashboardState.selectedTenantId = String(tenantId || '').trim();
+      },
+      bind: bindMovementReportControls,
+      load: loadMovementReport,
+      download: downloadMovementCsv,
+      getRows: () => dashboardState.movementRows,
+    };
+  }
 }
 
 function applySettingsPreview() {
@@ -1506,7 +1704,24 @@ const dashboardState = {
   userRoleFilter: 'all',
   activeTab: 'overview',
   db: null,
+  movementRows: [],
 };
+
+if (typeof window !== 'undefined') {
+  window.__hofsyncMovementReport = {
+    injectDb(db) {
+      initTenantDb(db);
+      dashboardState.db = db;
+    },
+    setTenant(tenantId) {
+      dashboardState.selectedTenantId = String(tenantId || '').trim();
+    },
+    bind: bindMovementReportControls,
+    load: loadMovementReport,
+    download: downloadMovementCsv,
+    getRows: () => dashboardState.movementRows,
+  };
+}
 
 function setDevDashboardTab(tabKey = 'overview') {
   const nextTab = DEV_DASHBOARD_TABS.has(tabKey) ? tabKey : 'overview';
@@ -1533,7 +1748,9 @@ function setDevDashboardTab(tabKey = 'overview') {
     fillSettingsForm(dashboardState);
   }
   if (nextTab === 'audit') {
+    bindMovementReportControls();
     renderAuditTable(dashboardState.selectedTenantId);
+    void loadMovementReport();
   }
   if (nextTab === 'users') {
     renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
@@ -1660,6 +1877,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     dashboardState.currentUserUid = currentUser?.uid || '';
     dashboardState.actorEmail = String(currentUser?.email || '').trim();
     dashboardState.db = db;
+    initTenantDb(db);
     dashboardState.tenantDisplayName = String(
       window.BRANDING?.betriebsName || dashboardState.selectedTenantId || '',
     ).trim();
@@ -1680,6 +1898,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindOverviewJumpLinks();
     bindSettingsForm(dashboardState);
     bindUserFilters(dashboardState);
+    bindMovementReportControls();
     bindInvitePanel();
     bindTenantToggleHandlers(db, statusEl);
     bindTenantCreateForm(db);

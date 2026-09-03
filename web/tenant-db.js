@@ -65,3 +65,18 @@ export function getTenantCollectionPath(collectionName) {
 export function getTenantDocRef(collectionName, docId) {
   return getTenantCollection(collectionName).doc(docId);
 }
+
+export function getNamedTenantCollection(tenantId, collectionName) {
+  const id = canonicalTenantId(tenantId);
+  if (!id) {
+    throw new Error('Kritischer Fehler: Keine Tenant-ID gesetzt! Zugriff blockiert.');
+  }
+  if (!firestoreDb) {
+    throw new Error('Kritischer Fehler: Firestore ist nicht initialisiert.');
+  }
+  const name = String(collectionName || '').replace(/^\/+|\/+$/g, '');
+  if (!name || name.includes('/')) {
+    throw new Error('Kritischer Fehler: Collection-Name fehlt.');
+  }
+  return firestoreDb.collection('tenants').doc(id).collection(name);
+}

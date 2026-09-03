@@ -21,6 +21,7 @@ import {
   expectStorageUploadDeny,
   resetEmulatorData,
   sampleInventoryItem,
+  sampleMhdAudit,
   sampleMhdItem,
   sampleSettings,
   sampleTask,
@@ -175,6 +176,13 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
         'update',
         { employees: ['Injected'], tenantId: TENANTS.TORFABRIK },
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_audit', 'helper-audit'),
+        'create',
+        sampleMhdAudit(TENANTS.TORFABRIK),
       );
     });
   });
@@ -767,6 +775,87 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(employee, employeePath, 'get');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'get');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'update', { displayName: 'Inject' });
+    });
+  });
+
+  describe('TEST CASE 10: mhd_audit / audit_logs tenant isolation', () => {
+    const collections = ['mhd_audit', 'audit_logs'];
+
+    collections.forEach((name) => {
+      it(`denies torfabrik employee read/write on StevesHof ${name}`, async () => {
+        const ctx = authContext(testEnv, 'tf-audit-emp', TENANTS.TORFABRIK, 'employee');
+        const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-cross-1');
+        const payload = sampleMhdAudit(TENANTS.STEVES_HOF);
+
+        await seedFirestoreDoc(testEnv, foreignPath, payload);
+        await expectFirestoreDeny(ctx, foreignPath, 'read');
+        await expectFirestoreDeny(
+          ctx,
+          tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-cross-create'),
+          'create',
+          payload,
+        );
+      });
+
+      it(`allows employee create/read on own tenant ${name}`, async () => {
+        const ctx = authContext(testEnv, 'sh-audit-emp', TENANTS.STEVES_HOF, 'employee');
+        const ownPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-own-1');
+        const payload = sampleMhdAudit(TENANTS.STEVES_HOF);
+
+        await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+        await expectFirestoreAllow(ctx, ownPath, 'read');
+      });
+
+      it(`denies employee update/delete on own tenant ${name}`, async () => {
+        const ctx = authContext(testEnv, 'sh-audit-emp-upd', TENANTS.STEVES_HOF, 'employee');
+        const ownPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-locked');
+        const payload = sampleMhdAudit(TENANTS.STEVES_HOF);
+        await seedFirestoreDoc(testEnv, ownPath, payload);
+
+        await expectFirestoreDeny(ctx, ownPath, 'update', { qtyTo: 1, tenantId: TENANTS.STEVES_HOF });
+        await expectFirestoreDeny(ctx, ownPath, 'delete');
+      });
+
+      it(`allows admin update on own tenant ${name}`, async () => {
+        const ctx = authContext(testEnv, 'sh-audit-admin', TENANTS.STEVES_HOF, 'admin');
+        const ownPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-admin');
+        await seedFirestoreDoc(testEnv, ownPath, sampleMhdAudit(TENANTS.STEVES_HOF));
+
+        await expectFirestoreAllow(ctx, ownPath, 'update', {
+          qtyTo: 4,
+          tenantId: TENANTS.STEVES_HOF,
+        });
+      });
+
+      it(`allows helper to read but not create ${name}`, async () => {
+        const helper = authContext(testEnv, 'sh-audit-helper', TENANTS.STEVES_HOF, 'helper');
+        const ownPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-helper-read');
+        await seedFirestoreDoc(testEnv, ownPath, sampleMhdAudit(TENANTS.STEVES_HOF));
+
+        await expectFirestoreAllow(helper, ownPath, 'read');
+        await expectFirestoreDeny(
+          helper,
+          tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-helper-write'),
+          'create',
+          sampleMhdAudit(TENANTS.STEVES_HOF),
+        );
+      });
+    });
+
+    it('denies create without actionType or articleName', async () => {
+      const ctx = authContext(testEnv, 'sh-audit-invalid', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_audit', 'audit-invalid'),
+        'create',
+        sampleMhdAudit(TENANTS.STEVES_HOF, { actionType: '', articleName: 'X' }),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_audit', 'audit-invalid-name'),
+        'create',
+        sampleMhdAudit(TENANTS.STEVES_HOF, { articleName: '' }),
+      );
     });
   });
 
