@@ -60,6 +60,8 @@ Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir **✏️ Bearbeite
 
 Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen MHD-Eintrag und fragt vor dem Speichern noch einmal nach.
 
+Oben auf der MHD-Karte steht der vorgeschlagene Rabatt: **Frischmilch** einen Tag vorher **10 %** und am MHD-Tag **20 %**; **pasteurisierte Milch und übrige Kühlware** zwei Tage vorher **10 %**, einen Tag vorher **20 %** und am MHD-Tag **50 %**.
+
 Änderungen an Mengen und Status bündeln wir mit **Änderungen speichern**.
 
 ### Retter-Box vormerken

@@ -58,6 +58,11 @@ Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten*
 
 Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 
+Oben auf der MHD-Karte steht der vorgeschlagene Rabatt:
+
+- **Frischmilch:** einen Tag vor dem MHD **10 %**, am MHD-Tag **20 %**. Früher reduzieren wir Frischmilch nicht.
+- **Pasteurisierte Milch** (H-Milch, ESL, länger haltbar) **und übrige Kühlware:** zwei Tage vorher **10 %**, einen Tag vorher **20 %**, am MHD-Tag **50 %**.
+
 1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
 2. Bei Bedarf den **Zeitraum** oder die **Kategorie** wählen (z. B. MoPro, Frische, TK).
 3. Kritische Artikel nacheinander bearbeiten:

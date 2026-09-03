@@ -28,7 +28,7 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ![MHD-Karte mit Aktionen](./screenshots/01b-mhd-karte.png)
 
-- **Badge oben**: empfohlene Aktion (z. B. Rabatt, Prüfen, Tonne)
+- **Badge oben**: empfohlene Aktion (z. B. 10 % / 20 % / 50 % Rabatt, Prüfen, Tonne)
 - **Kategorie-Badge oben**: antippen, wenn die Kategorie falsch ist; vor dem Speichern bestätigen wir die Änderung
 - **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
 - **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Trockenware); nach dem Speichern zeigt unsere App den Artikel im passenden Filter
@@ -36,6 +36,15 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 - **🗑️ Ausverkauft** oder Wischen nach **links**
 - **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken)*
 - **Reduziert**: Karte nach **rechts wischen**
+
+### Rabattvorschlag (MoPro & Kühlware)
+
+Unsere App schlägt den Rabatt nach Resttagen vor:
+
+- **Frischmilch:** einen Tag vor dem MHD **10 %**, am MHD-Tag **20 %**. Früher reduzieren wir Frischmilch nicht.
+- **Pasteurisierte Milch** (z. B. H-Milch, ESL, „länger haltbar“) **und übrige Kühlware:** zwei Tage vorher **10 %**, einen Tag vorher **20 %**, am MHD-Tag **50 %**.
+
+Abgelaufene Ware schlagen wir zum Abschreiben vor. Frische, TK, Trockenware, Gewürze und Getränke behalten ihre bisherigen Vorschläge.
 
 ### 3. Artikel suchen (optional)
 
