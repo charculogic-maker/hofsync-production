@@ -136,6 +136,14 @@ const uiResult = await page.evaluate(async () => {
       tenantId,
       allowedModules: { mhd: true, kitchen: true, buero: false },
     },
+    {
+      uid: 'paddy-auth',
+      email: 'paddy@steveshof-hofladen.de',
+      displayName: 'Paddy',
+      role: 'employee',
+      tenantId,
+      allowedModules: { mhd: true, kitchen: true, buero: true },
+    },
   ];
 
   document.getElementById('auth-lock-screen')?.remove();
@@ -336,6 +344,16 @@ const uiResult = await page.evaluate(async () => {
     pass: usersView && !usersView.hidden && employeeRows.length >= 2
       && employeeRows.some((row) => row.textContent.includes('Finn')),
     rowCount: employeeRows.length,
+  });
+  const paddyAuthRow = employeeRows.find((row) => row.textContent.includes('Paddy'));
+  const paddyRoleBtn = paddyAuthRow?.querySelector('[data-action="toggle-role"]');
+  steps.push({
+    name: 'paddy-auth-account-shows-admin-and-is-editable',
+    pass: Boolean(paddyAuthRow?.querySelector('.dev-dashboard-role-badge--admin'))
+      && Boolean(paddyRoleBtn)
+      && paddyRoleBtn?.disabled !== true,
+    roleText: paddyAuthRow?.querySelector('.dev-dashboard-role-badge')?.textContent || '',
+    roleDisabled: paddyRoleBtn?.disabled ?? null,
   });
   steps.push({
     name: 'manageTenantEmployees-uses-europe-west3',
@@ -580,6 +598,20 @@ if (!uiResult.allPass) {
   process.exit(1);
 }
 
+await page.evaluate(() => {
+  document.getElementById('auth-lock-screen')?.remove();
+  document.querySelectorAll('.page').forEach((el) => el.classList.remove('active'));
+  document.getElementById('page-dev-dashboard')?.classList.add('active');
+  document.getElementById('dev-dashboard-tab-users')?.click();
+  const paddyRow = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .find((row) => row.textContent.includes('Paddy'));
+  paddyRow?.scrollIntoView({ block: 'center' });
+});
+await new Promise((resolve) => setTimeout(resolve, 150));
+await page.locator('#dev-dashboard-view-users').screenshot({
+  path: '/opt/cursor/artifacts/admin-users-paddy-auth-admin.png',
+});
+
 const fallbackPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 await fallbackPage.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 await fallbackPage.addStyleTag({ content: '#auth-lock-screen,#auth-lock-screen.active{display:none!important;pointer-events:none!important;}' });
@@ -659,16 +691,21 @@ const fallbackResult = await fallbackPage.evaluate(async () => {
     .map((row) => row.textContent)
     .join(' | ');
   const required = ['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko'];
+  const paddyRow = [...document.querySelectorAll('#dev-dashboard-employee-body tr')]
+    .find((row) => (row.querySelector('.dev-dashboard-employee-name')?.textContent || '').includes('Paddy'));
   return {
     functionsRegion,
     rowText,
     missing: required.filter((name) => !rowText.includes(name)),
     listStatus: document.getElementById('dev-dashboard-employee-list-status')?.textContent || '',
+    paddyIsAdmin: Boolean(paddyRow?.querySelector('.dev-dashboard-role-badge--admin')),
+    paddyRoleText: paddyRow?.querySelector('.dev-dashboard-role-badge')?.textContent || '',
   };
 });
 
 const fallbackPass = fallbackResult.functionsRegion === 'europe-west3'
-  && fallbackResult.missing.length === 0;
+  && fallbackResult.missing.length === 0
+  && fallbackResult.paddyIsAdmin === true;
 console.log(JSON.stringify({ fallbackResult, fallbackPass }, null, 2));
 if (!fallbackPass) {
   console.error('Profile fallback failures:', fallbackResult);
@@ -678,8 +715,19 @@ if (!fallbackPass) {
 
 await hideAuthLock(page);
 await page.screenshot({ path: '/opt/cursor/artifacts/admin-dashboard-audit.png' });
-await page.screenshot({ path: '/opt/cursor/artifacts/admin-users-tenant-select.png' });
-await hideAuthLock(fallbackPage);
-await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png', fullPage: true });
+await fallbackPage.evaluate(() => {
+  document.getElementById('auth-lock-screen')?.remove();
+  document.querySelectorAll('.page').forEach((el) => el.classList.remove('active'));
+  document.getElementById('page-dev-dashboard')?.classList.add('active');
+  document.getElementById('dev-dashboard-tab-users')?.click();
+});
+await new Promise((resolve) => setTimeout(resolve, 150));
+const usersView = fallbackPage.locator('#dev-dashboard-view-users');
+if (await usersView.count()) {
+  await usersView.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png' });
+  await usersView.screenshot({ path: '/opt/cursor/artifacts/admin-users-paddy-admin.png' });
+} else {
+  await fallbackPage.screenshot({ path: '/opt/cursor/artifacts/admin-users-profile-fallback.png', fullPage: true });
+}
 await browser.close();
 console.log('Admin module audit passed.');

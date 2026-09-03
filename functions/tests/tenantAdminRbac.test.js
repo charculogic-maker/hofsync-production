@@ -217,6 +217,9 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
     expect(merged.every((entry) => entry.source === 'profile')).toBe(true);
     expect(merged.every((entry) => String(entry.uid).startsWith('profile:'))).toBe(true);
+    const paddy = merged.find((entry) => entry.displayName === 'Paddy');
+    expect(paddy.role).toBe('admin');
+    expect(merged.filter((entry) => entry.displayName !== 'Paddy').every((entry) => entry.role === 'employee')).toBe(true);
   });
 
   test('mergeEmployeeSources prefers nested employees over profile names', async () => {
@@ -240,6 +243,7 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(paddy.uid).toBe('paddy-uid');
     expect(paddy.email).toBe('paddy@steveshof.de');
     expect(paddy.source).toBe('employees');
+    expect(paddy.role).toBe('admin');
     expect(stephie.source).toBe('profile');
     expect(String(stephie.uid).startsWith('profile:')).toBe(true);
   });
@@ -254,6 +258,63 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(result.ok).toBe(true);
     expect(result.tenantId).toBe(TENANT_A);
     expect(names).toEqual(expect.arrayContaining(['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko']));
+    const paddy = result.employees.find((entry) => entry.displayName === 'Paddy');
+    expect(paddy.role).toBe('admin');
+    expect(result.employees.filter((entry) => entry.displayName !== 'Paddy').every((entry) => entry.role === 'employee')).toBe(true);
+  });
+
+  test('Paddy Auth account with role=employee is listed as admin', async () => {
+    const { mergeEmployeeSources } = await import('../manageTenantEmployees.js');
+    const merged = mergeEmployeeSources({
+      users: [{
+        uid: 'paddy-auth',
+        email: 'paddy@steveshof-hofladen.de',
+        displayName: 'Paddy',
+        role: 'employee',
+        tenantId: TENANT_A,
+        source: 'auth',
+      }],
+      nestedEmployees: [],
+      authUsers: [],
+      profileNames: ['Paddy', 'Stephie'],
+      tenantId: TENANT_A,
+    });
+    const paddy = merged.find((entry) => entry.uid === 'paddy-auth');
+    const stephie = merged.find((entry) => entry.displayName === 'Stephie');
+    expect(paddy.role).toBe('admin');
+    expect(paddy.email).toBe('paddy@steveshof-hofladen.de');
+    expect(String(paddy.uid).startsWith('profile:')).toBe(false);
+    expect(stephie.source).toBe('profile');
+  });
+
+  test('authUserBelongsToTenant matches StevesHof emails without claims and blocks other tenants', async () => {
+    const { authUserBelongsToTenant } = await import('../manageTenantEmployees.js');
+    expect(authUserBelongsToTenant({
+      email: 'paddy@steveshof-hofladen.de',
+      customClaims: {},
+    }, TENANT_A)).toBe(true);
+    expect(authUserBelongsToTenant({
+      email: 'finn@steveshof.de',
+      customClaims: {},
+    }, TENANT_A)).toBe(true);
+    expect(authUserBelongsToTenant({
+      email: 'paddy@steveshof-hofladen.de',
+      customClaims: { tenantId: TENANT_B },
+    }, TENANT_A)).toBe(false);
+    expect(authUserBelongsToTenant({
+      email: 'stephan@torfabrik.example',
+      customClaims: {},
+    }, TENANT_A)).toBe(false);
+  });
+
+  test('resolveListedRole prefers isAdmin claim over stale employee role', async () => {
+    const { resolveListedRole } = await import('../manageTenantEmployees.js');
+    expect(resolveListedRole(TENANT_A, { role: 'employee' }, { role: 'employee', isAdmin: true })).toBe('admin');
+    expect(resolveListedRole(TENANT_A, {
+      email: 'paddy@steveshof-hofladen.de',
+      displayName: 'Paddy',
+      role: 'employee',
+    })).toBe('admin');
   });
 
   test('generateStartPassword returns Hof- prefix', async () => {
