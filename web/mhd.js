@@ -17,6 +17,11 @@ import {
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
 import { sanitizeProductName, composeProductDisplayTitle } from './utils.js';
+import {
+  MHD_AUDIT_COLLECTION,
+  buildMovementRecord,
+  inferMovementAction,
+} from './mhd-audit.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -334,6 +339,45 @@ function mhdDocRef(docId) {
   } catch {
     return null;
   }
+}
+
+function mhdAuditCollectionPath() {
+  return buildTenantScopedCollectionPath(MHD_AUDIT_COLLECTION);
+}
+
+function newMhdMovementDocId() {
+  return `mv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function recordMhdMovement(partial = {}) {
+  try {
+    const collectionPath = mhdAuditCollectionPath();
+    const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+    if (!collectionPath || !tenantId || typeof mhdState.writeOrQueueFirestore !== 'function') return;
+    const record = buildMovementRecord({
+      tenantId,
+      actorName: getAuditActorName(),
+      ...partial,
+    });
+    if (!record.articleName) return;
+    await mhdState.writeOrQueueFirestore({
+      collectionPath,
+      docId: newMhdMovementDocId(),
+      op: 'set',
+      onlineData: record,
+      queueData: record,
+      offlineMessage: 'Warenbewegung wird nachträglich synchronisiert.',
+      silentPermissionDenied: true,
+    });
+  } catch (err) {
+    console.error('[CharcuLogic] Warenbewegung konnte nicht protokolliert werden:', err);
+  }
+}
+
+function pendingLooksLikeMovement(updates = {}) {
+  return updates.qty != null
+    || updates.soldOut != null
+    || Boolean(updates.mhdActionStatus);
 }
 
 function serverTimestampFallback() {
@@ -700,10 +744,15 @@ function ensureMhdStickySaveBarFixed() {
 
 function stageMhdChange(id, updates = {}) {
   if (!id || !updates || typeof updates !== 'object') return;
-  mhdState.pendingChanges[id] = {
+  const prev = mhdState.products.find((prod) => prod.id === id);
+  const pending = {
     ...(mhdState.pendingChanges[id] || {}),
     ...updates,
   };
+  if (pending._qtyFrom == null) {
+    pending._qtyFrom = Number(prev?.qty ?? 0);
+  }
+  mhdState.pendingChanges[id] = pending;
   const idx = mhdState.products.findIndex((prod) => prod.id === id);
   if (idx >= 0) {
     mhdState.products[idx] = { ...mhdState.products[idx], ...updates };
@@ -793,6 +842,22 @@ async function saveAllPendingMhdChanges() {
         offlineMessage: 'MHD-Änderungen werden nachträglich synchronisiert.',
         silentPermissionDenied: true,
       });
+      if (pendingLooksLikeMovement(updates)) {
+        const prod = mhdState.products.find((entry) => entry.id === id) || {};
+        const qtyFrom = updates._qtyFrom;
+        const qtyTo = updates.qty ?? prod.qty;
+        void recordMhdMovement({
+          product: prod,
+          qtyFrom,
+          qtyTo,
+          actionType: inferMovementAction({
+            mhdActionStatus: updates.mhdActionStatus,
+            soldOut: updates.soldOut,
+            qtyFrom,
+            qtyTo,
+          }),
+        });
+      }
     }
     clearMhdPendingChanges();
     mhdState.playClickSound(900, 0.1, 0.2);
@@ -2331,6 +2396,12 @@ function showLegacyLearnModeDialog(ean) {
       mhdState.onFormSaved(['manual-barcode-input']);
       mhdState.playClickSound(1300, 0.08, 0.2);
       mhdState.showHUD("✅ Artikel gelernt", `${name} wurde in Firestore verbucht.`);
+      void recordMhdMovement({
+        product: { ...newProduct, id: learnDocId },
+        qtyFrom: 0,
+        qtyTo: 1,
+        actionType: 'neu',
+      });
     } catch (err) {
       if (maybeResetOnFirestorePermissionError(err, 'mhd-learn-mode')) return;
       console.error('[CharcuLogic Firebase] Lernmodus speichern fehlgeschlagen:', err);
@@ -2611,6 +2682,13 @@ function showLearnModeDialog(ean) {
       mhdState.onFormSaved(['manual-barcode-input']);
       mhdState.playClickSound(1300, 0.08, 0.2);
       const wasQueued = firestoreResult === 'queued';
+      const qtyFrom = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
+      void recordMhdMovement({
+        product: { ...newProduct, id: postenId },
+        qtyFrom,
+        qtyTo: mergedQty,
+        actionType: existingBatch ? 'menge' : 'neu',
+      });
       if (lastScanInputSource === 'manual') {
         mhdState.showHUD(
           wasQueued ? "Lokal vorgemerkt" : "Lokal gesichert (Manuelle Eingabe)",

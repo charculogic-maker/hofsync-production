@@ -580,14 +580,72 @@
               </div>
 
               <div id="dev-dashboard-view-audit" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-audit" hidden>
-                <section class="dev-dashboard-panel" aria-label="Änderungsprotokoll">
+                <section class="dev-dashboard-panel" aria-label="Warenbewegungsbericht">
                   <div class="dev-dashboard-section-heading">
                     <h2 class="dev-dashboard-section-title">Protokoll</h2>
+                    <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-report-export-btn">
+                      📥 Report als CSV exportieren
+                    </button>
+                  </div>
+                  <p class="dev-dashboard-intro">
+                    Warenbewegungen und MHD-Änderungen unseres Betriebs nach Datum.
+                    Wir können den Bericht direkt in Excel oder LibreOffice öffnen.
+                  </p>
+                  <form class="dev-dashboard-report-filters" id="dev-dashboard-report-filters">
+                    <label class="dev-dashboard-field" for="dev-dashboard-report-from">
+                      <span>Datum von</span>
+                      <input id="dev-dashboard-report-from" type="date" required>
+                    </label>
+                    <label class="dev-dashboard-field" for="dev-dashboard-report-to">
+                      <span>Datum bis</span>
+                      <input id="dev-dashboard-report-to" type="date" required>
+                    </label>
+                    <label class="dev-dashboard-field" for="dev-dashboard-report-actor">
+                      <span>Mitarbeiter</span>
+                      <select id="dev-dashboard-report-actor" aria-label="Nach Mitarbeiter filtern">
+                        <option value="">Alle</option>
+                        <option value="Paddy">Paddy</option>
+                        <option value="Stephie">Stephie</option>
+                        <option value="Bettina">Bettina</option>
+                        <option value="Nicole">Nicole</option>
+                        <option value="Heiko">Heiko</option>
+                      </select>
+                    </label>
+                    <label class="dev-dashboard-field" for="dev-dashboard-report-action">
+                      <span>Aktions-Typ</span>
+                      <select id="dev-dashboard-report-action" aria-label="Nach Aktion filtern">
+                        <option value="">Alle</option>
+                        <option value="neu">Neuaufnahme</option>
+                        <option value="menge">Mengenänderung</option>
+                        <option value="abschreiben">Abschreibung</option>
+                        <option value="raus">Ausverkauft</option>
+                      </select>
+                    </label>
+                  </form>
+                  <p class="dev-dashboard-employee-list-status" id="dev-dashboard-report-status" aria-live="polite"></p>
+                  <div class="dev-dashboard-table-wrap">
+                    <table class="dev-dashboard-table dev-dashboard-table--report" id="dev-dashboard-report-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Zeitstempel</th>
+                          <th scope="col">Mitarbeiter</th>
+                          <th scope="col">Artikel &amp; EAN</th>
+                          <th scope="col">Aktion</th>
+                          <th scope="col">Mengen-Delta</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dev-dashboard-report-body"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="dev-dashboard-panel" aria-label="Änderungsprotokoll dieses Geräts">
+                  <div class="dev-dashboard-section-heading">
+                    <h2 class="dev-dashboard-section-title">Sicherheitsereignisse</h2>
                     <span class="dev-dashboard-local-badge" title="Ereignisse liegen nur in diesem iPhone / Browser">Lokal auf diesem Gerät</span>
                   </div>
                   <p class="dev-dashboard-intro">
-                    Nur Lesen: Sicherheits- und Änderungsereignisse für diesen Betrieb.
-                    Das Protokoll wird lokal auf diesem Gerät gespeichert (noch keine zentrale Ablage).
+                    Nur Lesen: Anmelden und Nutzeränderungen für diesen Betrieb auf diesem Laden-iPhone.
                   </p>
                   <div class="dev-dashboard-table-wrap">
                     <table class="dev-dashboard-table" id="dev-dashboard-audit-table">

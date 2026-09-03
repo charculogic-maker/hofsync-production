@@ -9,7 +9,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
-Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer (unser Betrieb ist vorausgewählt; Rolle ändern, Passwort zurücksetzen, Deaktivieren), Einstellungen, Protokoll, Thekenklade.
+Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer (unser Betrieb ist vorausgewählt; Rolle ändern, Passwort zurücksetzen, Deaktivieren), Einstellungen, Protokoll (Warenbewegungen nach Datum inkl. CSV), Thekenklade.
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 
@@ -210,6 +210,7 @@ Unsere Betriebsdaten (MHD, Lieferungen, HACCP, Herkunft/Thekenklade) liegen in *
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Digitale Thekenklade | `/dev-dashboard` → Tab **Rückverfolgbarkeit** |
+| Warenbewegungsbericht | `/dev-dashboard` → Tab **Protokoll**: Datum von/bis (Standard heute), Mitarbeiter und Aktion filtern; **Report als CSV exportieren** öffnet die Datei in Excel oder LibreOffice |
 | Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `traceability`) oder Abstimmung in `web/branding.js` |
 
 ---

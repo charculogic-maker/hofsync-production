@@ -12,6 +12,7 @@
     "test:rules:watch": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --watch --timeout 15000\"",
     "test:functions:security": "npm --prefix functions run test:security",
     "test:admin": "node tools/check-admin-module.mjs",
+    "test:mhd-audit": "mocha test/mhd-audit.test.mjs",
     "screenshots:modules": "node tools/capture-module-screenshots.mjs",
     "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs"
   },

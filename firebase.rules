@@ -235,6 +235,25 @@ service cloud.firestore {
       allow delete: if isEmployeeOrAdmin(tenantId);
     }
 
+    // Warenbewegungs-Report (MHD / Bestand) — Schreiben vom Laden-iPhone, Lesen im Büro
+    match /tenants/{tenantId}/mhd_audit/{document} {
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.actionType)
+        && isNonEmptyString(request.resource.data.articleName);
+      allow update, delete: if isAdmin(tenantId) || isPlatformDevAdmin();
+    }
+
+    match /tenants/{tenantId}/audit_logs/{document} {
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.actionType)
+        && isNonEmptyString(request.resource.data.articleName);
+      allow update, delete: if isAdmin(tenantId) || isPlatformDevAdmin();
+    }
+
     // =========================================================================
     // WARENEINGANG-LIEFERUNGEN (Kopf + Posten + Lieferschein-Fotos)
     // =========================================================================

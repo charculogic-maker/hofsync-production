@@ -161,6 +161,22 @@ export function sampleMhdItem(tenantId) {
   };
 }
 
+export function sampleMhdAudit(tenantId, extra = {}) {
+  return {
+    tenantId,
+    atMs: 1756898100000,
+    createdAt: '2026-09-03T09:15:00.000Z',
+    actorName: 'Stephie',
+    articleName: 'Rapunzel Schokolade Karamell',
+    ean: '4006040000000',
+    actionType: 'menge',
+    qtyFrom: 12,
+    qtyTo: 8,
+    source: 'mhd',
+    ...extra,
+  };
+}
+
 export function sampleInventoryItem(tenantId) {
   return {
     artikel: 'Emulator Test Ware',

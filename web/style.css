@@ -9744,8 +9744,115 @@ body.role-firebase-auth #team-login-card {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   background: #e2e8f0;
   color: #334155;
+}
+
+.dev-dashboard-report-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 4px 0 12px;
+}
+
+@media (min-width: 800px) {
+  .dev-dashboard-report-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+  }
+}
+
+.dev-dashboard-report-filters .dev-dashboard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+}
+
+.dev-dashboard-report-filters input,
+.dev-dashboard-report-filters select {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  font-size: 0.95rem;
+  color: var(--text-primary, #0f172a);
+}
+
+.dev-dashboard-table--report td {
+  white-space: normal;
+}
+
+.dev-dashboard-report-article {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dev-dashboard-report-article strong {
+  font-size: 0.92rem;
+}
+
+.dev-dashboard-report-article span {
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+}
+
+.dev-dashboard-action-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.dev-dashboard-action-badge[data-action="neu"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.dev-dashboard-action-badge[data-action="menge"] {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.dev-dashboard-action-badge[data-action="abschreiben"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.dev-dashboard-action-badge[data-action="raus"] {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.dev-dashboard-action-badge[data-action="ok"] {
+  background: #ecfccb;
+  color: #3f6212;
+}
+
+@media (max-width: 768px) {
+  .dev-dashboard-section-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #dev-dashboard-report-export-btn {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  .dev-dashboard-report-filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dev-dashboard-audit-pill[data-category="security"] {

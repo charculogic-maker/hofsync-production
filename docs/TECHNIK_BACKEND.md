@@ -100,6 +100,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | Collection | Inhalt | Schreibrechte (Kurz) |
 |------------|--------|----------------------|
 | `mhd_liste/{itemId}` | MHD-Posten (Verkauf & Kühlung) | Mandanten-Nutzer (schema-validiert) |
+| `mhd_audit/{id}` | Warenbewegungs- und MHD-Protokoll (Datum, Mitarbeiter, Delta) | create: Employee/Admin; read: Mandanten-Nutzer; update/delete: Admin |
+| `audit_logs/{id}` | optionales Alias-Protokoll derselben Bewegungen | analog `mhd_audit` |
 | `wareneingang_lieferungen/{id}` | Lieferungen (Kopf, Posten, Fotos) | Mandanten-Nutzer (schema-validiert) |
 | `rezepte/{id}` | Rezepturen (Betriebswissen) | nur Admin |
 | `produktion_chargen/{id}` | Produktions-/Chargen-Doku | create: Nutzer; update/delete: Admin |
