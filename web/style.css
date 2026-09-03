@@ -8839,10 +8839,6 @@ body.dev-dashboard-view[hidden] {
   margin-bottom: 24px;
 }
 
-.dev-dashboard-back-btn {
-  grid-area: back;
-}
-
 #dev-dashboard-tenant-header {
   grid-area: brand;
   max-width: none;
@@ -9603,10 +9599,10 @@ body.role-firebase-auth #team-login-card {
 
   .dev-dashboard-tab {
     width: 100%;
-    min-height: 48px;
-    padding: 10px 8px;
+    min-height: 44px;
+    padding: 8px 8px;
     border-radius: 12px;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     touch-action: manipulation;
   }
 
@@ -9646,22 +9642,18 @@ body.role-firebase-auth #team-login-card {
   }
 
   .dev-dashboard-overview-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .dev-dashboard-overview-actions .dev-dashboard-action-btn,
-  .dev-dashboard-form-actions .dev-dashboard-action-btn {
-    min-height: 48px;
-    width: 100%;
-    font-size: 0.95rem;
-    padding: 12px 14px;
+    display: none;
   }
 
   .dev-dashboard-user-toolbar {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .dev-dashboard-form-actions .dev-dashboard-action-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
   }
 
   .dev-dashboard-table-wrap {

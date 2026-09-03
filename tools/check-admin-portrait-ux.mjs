@@ -14,8 +14,22 @@ async function activateDashboard(page, tab = 'overview') {
     content: '#auth-lock-screen,#auth-lock-screen.active,#dev-dashboard-boot-fallback{display:none!important;pointer-events:none!important;}',
   });
   return page.evaluate((nextTab) => {
-    document.getElementById('auth-lock-screen')?.remove();
-    document.getElementById('dev-dashboard-boot-fallback')?.remove();
+    const hideAuth = () => {
+      ['auth-lock-screen', 'dev-dashboard-boot-fallback', 'pin-auth-overlay'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('active');
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('pointer-events', 'none', 'important');
+        el.setAttribute('hidden', '');
+      });
+      document.body?.classList.remove('auth-lock-open', 'auth-loop-lockdown');
+    };
+    hideAuth();
+    if (!window.__portraitUxHideAuth) {
+      window.__portraitUxHideAuth = true;
+      new MutationObserver(hideAuth).observe(document.documentElement, { childList: true, subtree: true });
+    }
     history.replaceState({}, '', '/dev-dashboard');
     document.documentElement.classList.add('is-dev-dashboard-html');
     document.body.classList.add('is-dev-dashboard');
@@ -94,10 +108,10 @@ const page = await browser.newPage({
 });
 
 await activateDashboard(page, 'overview');
+await page.waitForTimeout(400);
 const overview = await layoutMetrics(page);
-await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-overview.png', fullPage: false });
+await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-overview-readable.png', fullPage: false });
 
-await page.locator('#dev-dashboard-tab-users').click();
 await page.evaluate(() => {
   document.querySelectorAll('.dev-dashboard-tab').forEach((el) => {
     const on = el.id === 'dev-dashboard-tab-users';
@@ -108,9 +122,8 @@ await page.evaluate(() => {
     view.hidden = view.id !== 'dev-dashboard-view-users';
   });
 });
-await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-users.png', fullPage: false });
+await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-users-readable.png', fullPage: false });
 
-await page.locator('#dev-dashboard-tab-settings').click();
 await page.evaluate(() => {
   document.querySelectorAll('.dev-dashboard-tab').forEach((el) => {
     const on = el.id === 'dev-dashboard-tab-settings';
@@ -121,7 +134,7 @@ await page.evaluate(() => {
     view.hidden = view.id !== 'dev-dashboard-view-settings';
   });
 });
-await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-settings.png', fullPage: false });
+await page.screenshot({ path: '/opt/cursor/artifacts/admin-portrait-ux-settings-readable.png', fullPage: false });
 
 const pass = overview.overflowX
   && overview.titleText === 'Verwaltung'
