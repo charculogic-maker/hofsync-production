@@ -248,11 +248,7 @@ function ensureLoginOverlay() {
         <h1 id="auth-lock-title"><span class="brand-betriebs-name"></span></h1>
         <p class="auth-lock-tagline"></p>
         <p class="auth-lock-help" id="auth-lock-help">
-          <strong>E-Mail und Passwort</strong> sind das Firebase-Konto des Betriebs
-          (Sichtprüfung: Laden-Terminal <code>bestellung@steveshof-hofladen.de</code>, Mandant StevesHof_Hauptbetrieb)
-          oder ein persönliches Admin-Konto. Das Passwort bleibt intern und steht nicht in der App.
-          <strong>Geräte-Zugang</strong> ist ein Custom Token, kein Passwort und keine PIN.
-          Mitarbeiter-PINs gelten erst nach diesem Betriebs-Login im Tab Start/Team.
+          Bitte melden Sie sich mit Ihren autorisierten Zugangsdaten an.
         </p>
         <form id="auth-login-form" class="auth-lock-form">
           <label>
