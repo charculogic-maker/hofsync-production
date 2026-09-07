@@ -27,6 +27,7 @@ import {
   buildMovementRecord,
   inferMovementAction,
 } from './mhd-audit.js';
+import { readMhdCardUiSettings } from './admin-tenant-models.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -2905,6 +2906,10 @@ function getCategoryBadgeLabel(prod = {}) {
   return category || 'Kategorie';
 }
 
+function resolveMhdCardUiSettings() {
+  return readMhdCardUiSettings(getGlobalTenantId());
+}
+
 function buildMhdProductMetaHtml(prod = {}) {
   const parts = [];
   const brand = String(prod.brand || prod.marke || '').trim();
@@ -3548,6 +3553,7 @@ function buildMhdCardHtml(prod = {}) {
   const grammageBadge = displayParts.grammageBadge
     ? `<span class="mhd-product-grammage-badge">${escapeHtml(displayParts.grammageBadge)}</span>`
     : '';
+  const categoryBadge = `<button type="button" class="mhd-category-badge mhd-category-badge--inline" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">${escapeHtml(categoryBadgeLabel)}</button>`;
   const duplicateCount = Number(prod._duplicateCount || 1);
   const duplicateBadge = duplicateCount > 1
     ? `<div class="mhd-duplicate-row">
@@ -3555,22 +3561,27 @@ function buildMhdCardHtml(prod = {}) {
         <button type="button" class="btn btn-secondary mhd-duplicate-merge-btn" data-mhd-command="merge-duplicates" data-mhd-id="${prod.id}">Zusammenführen</button>
       </div>`
     : '';
-  const retterBoxAction = window.BRANDING?.modules?.retterBox === true
+  const cardUi = resolveMhdCardUiSettings();
+  const kitchenAction = cardUi.mhd_show_kitchen
+    ? `<button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>`
+    : '';
+  const retterBoxAction = cardUi.mhd_show_box
     ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
     : '';
+  const actionCount = 2 + (kitchenAction ? 1 : 0) + (retterBoxAction ? 1 : 0);
+  const actionRowClass = actionCount <= 2
+    ? 'mhd-action-row mhd-action-row--pair'
+    : 'mhd-action-row';
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
       <div class="mhd-card-badge-row">
         <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
           ${action.label}
         </div>
-        <button type="button" class="mhd-category-badge" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">
-          ${escapeHtml(categoryBadgeLabel)}
-        </button>
       </div>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
-          <span class="mhd-product-name">${displayName}${grammageBadge}</span>
+          <span class="mhd-product-name">${displayName}${grammageBadge}${categoryBadge}</span>
           ${duplicateBadge}
           <span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}${stammdatenEditButton}</span>
         </div>
@@ -3598,10 +3609,10 @@ function buildMhdCardHtml(prod = {}) {
           <span aria-hidden="true">🗑️</span> Ausverkauft
         </button>
       </div>
-      <div class="mhd-action-row">
+      <div class="${actionRowClass}">
         <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
         <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
+        ${kitchenAction}
         ${retterBoxAction}
       </div>
     </div>
@@ -6077,6 +6088,11 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
     renderMhdList();
   }
   restoreMhdDraftFields();
+  window.refreshMhdMonitorCards = renderMhdList;
+}
+
+export function refreshMhdMonitorCards() {
+  renderMhdList();
 }
 
 export function startMhdLiveSync() {

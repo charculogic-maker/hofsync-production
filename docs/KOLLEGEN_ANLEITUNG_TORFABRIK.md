@@ -76,7 +76,7 @@ Details: [modulanleitungen/06-team.md](./modulanleitungen/06-team.md)
 ## 3. MHD (Morgencheck)
 
 1. Tab **MHD** → Filter **ALARM** (oder **AKTION**).
-2. Karten bearbeiten: **✓ OK**, **↩️ Raus**, **🥣 Küche**, **🗑️ Ausverkauft**.
+2. Karten bearbeiten: **✓ OK**, **↩️ Raus**, **🗑️ Ausverkauft** (sowie **🥣 Küche** / **Box**, wenn in der Verwaltung freigeschaltet).
 3. **💾 Änderungen speichern**.
 
 Kategorien im Wareneingang sind an Metro/Jakob Bayen angepasst; die MHD-Liste selbst kommt aus `tenants/torfabrik/mhd_liste`.

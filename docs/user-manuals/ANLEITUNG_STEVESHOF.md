@@ -40,7 +40,7 @@ In der unteren Navigation sehen wir typischerweise:
 
 | Tab | Zweck |
 |-----|-------|
-| **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus, Küche oder Ausverkauft markieren |
+| **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus oder Ausverkauft markieren (Küche/Box nur wenn in der Verwaltung freigeschaltet) |
 | **Neu** | Ware scannen, Posten sammeln, **Gesamte Lieferung abschließen** |
 | **Herkunft** | Etikett fotografieren, LOT und LMIV-Herkunft für die Theke speichern |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
@@ -64,7 +64,7 @@ Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in 
 
 ### Retter-Box vormerken
 
-Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Karte **Box**. Kurz erscheint **Zur Retter-Box gelegt** — der Posten landet im heutigen Vorschlag.
+Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Karte **Box** (Button in der Verwaltung unter **MHD-Karten-Aktionen** freischalten). Kurz erscheint **Zur Retter-Box gelegt** — der Posten landet im heutigen Vorschlag.
 
 **Drucken**, Rezeptidee und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** mit Admin-Zugang unter **Retter-Boxen**. Am neutralen Laden-iPhone steht nur die **Box**-Aktion in der MHD-Karte zur Verfügung.
 
