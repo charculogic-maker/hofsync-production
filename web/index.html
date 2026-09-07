@@ -455,6 +455,30 @@
                           <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
                         </div>
                       </div>
+                      <fieldset class="dev-dashboard-permissions-fieldset">
+                        <legend>MHD-Karten-Aktionen</legend>
+                        <p class="dev-dashboard-intro">
+                          Zusätzliche Buttons in der MHD-Karte auf diesem Laden-iPhone ein- oder ausblenden. Standard: aus.
+                        </p>
+                        <div class="dev-dashboard-toggles" id="dev-dashboard-mhd-card-toggles">
+                          <label class="dev-dashboard-toggle" title="Küche-Button in der MHD-Karte">
+                            <input
+                              id="dev-dashboard-mhd-show-kitchen"
+                              type="checkbox"
+                              data-mhd-ui-key="mhd_show_kitchen"
+                            >
+                            <span>Küche-Button</span>
+                          </label>
+                          <label class="dev-dashboard-toggle" title="Box-Button in der MHD-Karte">
+                            <input
+                              id="dev-dashboard-mhd-show-box"
+                              type="checkbox"
+                              data-mhd-ui-key="mhd_show_box"
+                            >
+                            <span>Box-Button</span>
+                          </label>
+                        </div>
+                      </fieldset>
                       <button type="submit" class="dev-dashboard-submit-btn">Einstellungen speichern</button>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
@@ -572,9 +596,33 @@
                   >
                     <h2 class="dev-dashboard-section-title">Module für unseren Betrieb</h2>
                     <p class="dev-dashboard-intro">
-                      Module für unseren Betrieb aktivieren oder deaktivieren.
+                      Module für unseren Betrieb aktivieren oder deaktivieren. Darunter steuern wir die MHD-Karten-Buttons Küche und Box.
                     </p>
                     <div id="dev-dashboard-single-tenant" class="dev-dashboard-single-tenant-wrap"></div>
+                    <fieldset class="dev-dashboard-permissions-fieldset dev-dashboard-mhd-ui-fieldset">
+                      <legend>MHD-Karten-Aktionen</legend>
+                      <p class="dev-dashboard-intro">
+                        Buttons <strong>Küche</strong> und <strong>Box</strong> in der MHD-Karte (lokal auf diesem Gerät, Standard: aus).
+                      </p>
+                      <div class="dev-dashboard-toggles" id="dev-dashboard-mhd-card-toggles-modules">
+                        <label class="dev-dashboard-toggle" title="Küche-Button in der MHD-Karte">
+                          <input
+                            id="dev-dashboard-mhd-show-kitchen-modules"
+                            type="checkbox"
+                            data-mhd-ui-key="mhd_show_kitchen"
+                          >
+                          <span>Küche-Button</span>
+                        </label>
+                        <label class="dev-dashboard-toggle" title="Box-Button in der MHD-Karte">
+                          <input
+                            id="dev-dashboard-mhd-show-box-modules"
+                            type="checkbox"
+                            data-mhd-ui-key="mhd_show_box"
+                          >
+                          <span>Box-Button</span>
+                        </label>
+                      </div>
+                    </fieldset>
                   </section>
                 </div>
               </div>
@@ -1552,7 +1600,7 @@
                     <ol>
                       <li>Zeitraum und Kategorie wählen, wenn wir die Liste eingrenzen möchten.</li>
                       <li>Kritische Ware nacheinander prüfen.</li>
-                      <li>Status setzen: <strong>OK</strong>, <strong>Raus</strong>, <strong>Küche</strong> oder <strong>Ausverkauft</strong>.</li>
+                      <li>Status setzen: <strong>OK</strong>, <strong>Raus</strong> oder <strong>Ausverkauft</strong>. <strong>Küche</strong> und <strong>Box</strong> erscheinen nur, wenn wir sie in der Verwaltung freigeschaltet haben.</li>
                       <li>Menge bei Bedarf korrigieren.</li>
                       <li><strong>Änderungen speichern</strong> tippen.</li>
                     </ol>

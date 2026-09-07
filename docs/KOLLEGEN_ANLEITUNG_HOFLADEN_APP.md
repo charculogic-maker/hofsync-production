@@ -63,7 +63,7 @@ Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unse
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.
-   - **Küche**: Ware geht zur weiteren Verwendung.
+   - **Küche**: Ware geht zur weiteren Verwendung (nur sichtbar, wenn in der Verwaltung unter **MHD-Karten-Aktionen** freigeschaltet).
    - **Ausverkauft**: Posten ist nicht mehr vorhanden.
 4. Die Menge bei Bedarf mit **− / +** oder direkt im Zahlenfeld korrigieren.
 5. **Änderungen speichern** tippen.
@@ -72,7 +72,7 @@ Optional nutzen wir **Artikel suchen**, um gezielt nach einem Produkt zu filtern
 
 ### Retter-Box vormerken
 
-Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der MHD-Karte mit **Box**. Kurz erscheint **Zur Retter-Box gelegt** — der Posten ist im heutigen Vorschlag gespeichert.
+Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der MHD-Karte mit **Box** — sofern der Button in der Verwaltung unter **MHD-Karten-Aktionen** eingeblendet ist. Kurz erscheint **Zur Retter-Box gelegt** — der Posten ist im heutigen Vorschlag gespeichert.
 
 **Drucken**, Rezeptvorschlag und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** mit Admin-Zugang unter **Retter-Boxen**. Am neutralen Laden-iPhone nutzen wir nur die **Box**-Aktion in der MHD-Karte.
 

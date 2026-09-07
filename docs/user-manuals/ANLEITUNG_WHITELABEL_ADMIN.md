@@ -130,6 +130,15 @@ const TENANT_BRANDING = {
 | `knowledge` / `cutGlossary` | Admin-Modul **Wissen** |
 | `retterBox` | Retter-Box-Angebot (mandantenspezifisch, rules-gestützt) |
 
+**MHD-Karten-Aktionen (localStorage / Betriebseinstellungen):**
+
+| Flag | Standard | Wirkung |
+|------|----------|---------|
+| `mhd_show_kitchen` | `false` | Button **Küche** in der MHD-Karte |
+| `mhd_show_box` | `false` | Button **Box** in der MHD-Karte |
+
+Steuerung im Dev-Dashboard unter **Einstellungen → MHD-Karten-Aktionen** bzw. im Modul-Panel. Speicherung lokal pro Betrieb auf dem Laden-iPhone.
+
 **`enabledModules`-Keys (Firestore):** `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`.
 
 **Tab Team — kombinierte Sichtbarkeit (Stand Juli 2026):**

@@ -13,10 +13,14 @@ import {
   ensureTenantAuditSeed,
   filterTenantUsers,
   formatAuditTime,
+  MHD_CARD_UI_SETTING_KEYS,
+  MHD_CARD_UI_SETTING_LABELS,
+  readMhdCardUiSettings,
   readTenantSettingsDraft,
   summarizeTenantModules,
   summarizeTenantUsers,
   TENANT_MODULE_LABELS,
+  writeMhdCardUiSettings,
   writeTenantSettingsDraft,
 } from './admin-tenant-models.js';
 import {
@@ -762,6 +766,16 @@ function applySettingsPreview() {
   }
 }
 
+function syncMhdCardUiToggleInputs(tenantId) {
+  const settings = readMhdCardUiSettings(tenantId);
+  document.querySelectorAll('[data-mhd-ui-key]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    const key = input.getAttribute('data-mhd-ui-key');
+    if (!MHD_CARD_UI_SETTING_KEYS.includes(key)) return;
+    input.checked = settings[key] === true;
+  });
+}
+
 function fillSettingsForm(dashboardStateRef = dashboardState) {
   const nameInput = document.getElementById('dev-dashboard-settings-name');
   const logoInput = document.getElementById('dev-dashboard-settings-logo');
@@ -777,6 +791,7 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
     || branding.logoUrl
     || branding.logo
     || '/icon-192.png';
+  syncMhdCardUiToggleInputs(dashboardStateRef.selectedTenantId);
   applySettingsPreview();
 }
 
@@ -796,12 +811,55 @@ function setSettingsFormStatus(message = '', tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
+function persistMhdCardUiSetting(tenantId, key, enabled, { notify = true } = {}) {
+  if (!tenantId || !MHD_CARD_UI_SETTING_KEYS.includes(key)) return;
+  const current = readMhdCardUiSettings(tenantId);
+  const next = { ...current, [key]: enabled === true };
+  writeMhdCardUiSettings(tenantId, next);
+  syncMhdCardUiToggleInputs(tenantId);
+  if (typeof window.refreshMhdMonitorCards === 'function') {
+    window.refreshMhdMonitorCards();
+  }
+  if (notify) {
+    const label = MHD_CARD_UI_SETTING_LABELS[key] || key;
+    recordAudit(
+      'settings',
+      `MHD-Karten: ${label} ${enabled ? 'eingeblendet' : 'ausgeblendet'}`,
+      'change',
+    );
+    window.showToast?.(
+      `${label} ${enabled ? 'eingeblendet' : 'ausgeblendet'}.`,
+      'success',
+    );
+  }
+}
+
 function bindSettingsForm(dashboardStateRef = dashboardState) {
   const form = document.getElementById('dev-dashboard-settings-form');
   if (!form || form.dataset.bound === '1') return;
   form.dataset.bound = '1';
 
-  form.addEventListener('input', () => applySettingsPreview());
+  form.addEventListener('input', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.getAttribute('data-mhd-ui-key')) {
+      return;
+    }
+    applySettingsPreview();
+  });
+
+  form.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
+    const key = input.getAttribute('data-mhd-ui-key');
+    if (!key) return;
+    const tenantId = dashboardStateRef.selectedTenantId;
+    if (!tenantId) {
+      input.checked = false;
+      setSettingsFormStatus('Kein Betrieb ausgewählt.', 'error');
+      return;
+    }
+    persistMhdCardUiSetting(tenantId, key, input.checked);
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -817,15 +875,53 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
       return;
     }
 
-    const draft = { displayName, logoUrl };
+    const mhdUi = readMhdCardUiSettings(tenantId);
+    const kitchenInput = document.getElementById('dev-dashboard-mhd-show-kitchen');
+    const boxInput = document.getElementById('dev-dashboard-mhd-show-box');
+    if (kitchenInput instanceof HTMLInputElement) {
+      mhdUi.mhd_show_kitchen = kitchenInput.checked;
+    }
+    if (boxInput instanceof HTMLInputElement) {
+      mhdUi.mhd_show_box = boxInput.checked;
+    }
+
+    const draft = {
+      displayName,
+      logoUrl,
+      mhd_show_kitchen: mhdUi.mhd_show_kitchen,
+      mhd_show_box: mhdUi.mhd_show_box,
+    };
     writeTenantSettingsDraft(tenantId, draft);
     dashboardStateRef.tenantDisplayName = displayName;
     applyBrandingFromSettingsDraft(tenantId, draft);
+    syncMhdCardUiToggleInputs(tenantId);
     applySettingsPreview();
     renderOverviewCards(dashboardStateRef);
+    if (typeof window.refreshMhdMonitorCards === 'function') {
+      window.refreshMhdMonitorCards();
+    }
     recordAudit('settings', `Betriebseinstellungen gespeichert (${displayName})`, 'change');
     setSettingsFormStatus('Einstellungen gespeichert (Anzeige auf diesem Gerät).', 'success');
     window.showToast?.('Betriebseinstellungen gespeichert.', 'success');
+  });
+}
+
+function bindMhdCardUiModuleToggles(dashboardStateRef = dashboardState) {
+  const root = document.getElementById('dev-dashboard-mhd-card-toggles-modules');
+  if (!root || root.dataset.bound === '1') return;
+  root.dataset.bound = '1';
+  root.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
+    const key = input.getAttribute('data-mhd-ui-key');
+    if (!key) return;
+    const tenantId = dashboardStateRef.selectedTenantId;
+    if (!tenantId) {
+      input.checked = false;
+      window.showToast?.('Kein Betrieb ausgewählt.', 'error');
+      return;
+    }
+    persistMhdCardUiSetting(tenantId, key, input.checked);
   });
 }
 
@@ -1160,6 +1256,7 @@ function renderSingleTenantPanel(tenantId, data = {}) {
   const container = document.getElementById('dev-dashboard-single-tenant');
   if (!container) return;
   container.innerHTML = renderTenantRow(tenantId, data, { compact: true });
+  syncMhdCardUiToggleInputs(tenantId);
 }
 
 async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
@@ -2258,6 +2355,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindDevDashboardTabs();
     bindOverviewJumpLinks();
     bindSettingsForm(dashboardState);
+    bindMhdCardUiModuleToggles(dashboardState);
     bindUserFilters(dashboardState);
     bindMovementReportControls();
     bindInvitePanel();

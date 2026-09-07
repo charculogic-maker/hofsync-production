@@ -66,6 +66,15 @@ const SETTINGS_STORAGE_PREFIX = 'charculogic_tenant_settings_v1_';
 const AUDIT_STORAGE_PREFIX = 'charculogic_tenant_audit_v1_';
 const AUDIT_MAX_EVENTS = 80;
 
+/** MHD-Karten-Aktionsflags (Tenant-Settings / localStorage, Standard: aus). */
+export const MHD_CARD_UI_SETTING_KEYS = Object.freeze(['mhd_show_kitchen', 'mhd_show_box']);
+
+/** @type {Readonly<Record<string, string>>} */
+export const MHD_CARD_UI_SETTING_LABELS = Object.freeze({
+  mhd_show_kitchen: 'Küche-Button',
+  mhd_show_box: 'Box-Button',
+});
+
 /** Kurzhinweis: Audit-Trail liegt nur lokal (Laden-iPhone / Browser), nicht zentral. */
 export const AUDIT_STORAGE_SCOPE_LABEL = 'Lokal auf diesem Gerät';
 export const AUDIT_STORAGE_SCOPE_HINT =
@@ -92,7 +101,13 @@ function auditKey(tenantId) {
 
 /**
  * @param {string} tenantId
- * @returns {{ displayName?: string, logoUrl?: string }}
+ * @returns {{
+ *   displayName?: string,
+ *   logoUrl?: string,
+ *   mhd_show_kitchen?: boolean,
+ *   mhd_show_box?: boolean,
+ *   updatedAt?: number,
+ * }}
  */
 export function readTenantSettingsDraft(tenantId) {
   try {
@@ -107,21 +122,58 @@ export function readTenantSettingsDraft(tenantId) {
 
 /**
  * @param {string} tenantId
- * @param {{ displayName?: string, logoUrl?: string }} draft
+ * @returns {{ mhd_show_kitchen: boolean, mhd_show_box: boolean }}
+ */
+export function readMhdCardUiSettings(tenantId) {
+  const draft = readTenantSettingsDraft(tenantId);
+  return {
+    mhd_show_kitchen: draft.mhd_show_kitchen === true,
+    mhd_show_box: draft.mhd_show_box === true,
+  };
+}
+
+/**
+ * @param {string} tenantId
+ * @param {{
+ *   displayName?: string,
+ *   logoUrl?: string,
+ *   mhd_show_kitchen?: boolean,
+ *   mhd_show_box?: boolean,
+ * }} draft
  */
 export function writeTenantSettingsDraft(tenantId, draft = {}) {
   try {
-    localStorage.setItem(
-      settingsKey(tenantId),
-      JSON.stringify({
-        displayName: String(draft.displayName || '').trim(),
-        logoUrl: String(draft.logoUrl || '').trim(),
-        updatedAt: Date.now(),
-      }),
-    );
+    const current = readTenantSettingsDraft(tenantId);
+    const next = {
+      displayName: String(
+        draft.displayName !== undefined ? draft.displayName : (current.displayName || ''),
+      ).trim(),
+      logoUrl: String(
+        draft.logoUrl !== undefined ? draft.logoUrl : (current.logoUrl || ''),
+      ).trim(),
+      mhd_show_kitchen: draft.mhd_show_kitchen !== undefined
+        ? draft.mhd_show_kitchen === true
+        : current.mhd_show_kitchen === true,
+      mhd_show_box: draft.mhd_show_box !== undefined
+        ? draft.mhd_show_box === true
+        : current.mhd_show_box === true,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(settingsKey(tenantId), JSON.stringify(next));
   } catch (err) {
     console.warn('[Tenant-Admin] Einstellungen konnten lokal nicht gespeichert werden:', err);
   }
+}
+
+/**
+ * @param {string} tenantId
+ * @param {{ mhd_show_kitchen?: boolean, mhd_show_box?: boolean }} settings
+ */
+export function writeMhdCardUiSettings(tenantId, settings = {}) {
+  writeTenantSettingsDraft(tenantId, {
+    mhd_show_kitchen: settings.mhd_show_kitchen === true,
+    mhd_show_box: settings.mhd_show_box === true,
+  });
 }
 
 /**
