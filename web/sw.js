@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260907-compact-mhd-cards';
+const CACHE_NAME = 'charculogic-v20260910-product-master-tenant-cache';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
