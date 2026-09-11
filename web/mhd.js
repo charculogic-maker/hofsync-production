@@ -10,7 +10,8 @@ import {
 import {
   hydrateProductMasterFromFirestore,
   persistProductMasterToFirestore,
-  writeLocalProductMasterEntry,
+  readLocalProductMaster,
+  writeLocalProductMasterMap,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -1245,7 +1246,6 @@ function refreshMhdToolbarSummary() {
   updateMhdToolbarAccordionMeta();
 }
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
-const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
 const VPE_MASTER_CSV_URL = 'vpe-master.csv';
 
 let lastReceivingHeadCategory = '';
@@ -1573,6 +1573,10 @@ function writeLocalMaster(key, value) {
   }
 }
 
+function resolveProductMasterTenantId() {
+  return canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+}
+
 function parseCsvRows(text) {
   const rows = [];
   let row = [];
@@ -1741,18 +1745,8 @@ async function loadVpeMasterFromCsv() {
 function saveProductMaster(product) {
   const barcode = cleanScannedBarcode(product.barcode || product.ean);
   const name = sanitizeProductName(product.name);
-  if (!barcode || !name) return;
-  writeLocalProductMasterEntry({
-    barcode,
-    ean: barcode,
-    name,
-    brand: product.brand || '',
-    category: product.kategorie || product.category || '📦 Trockenware',
-    kategorie: product.kategorie || product.category,
-    scanBarcode: product.scanBarcode,
-  });
   const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
-  if (!tenantId) return;
+  if (!tenantId || !barcode || !name) return;
   void persistProductMasterToFirestore(tenantId, {
     ean: barcode,
     name,
@@ -2008,7 +2002,7 @@ function lookupScannedProduct(scannedCode) {
     return { ...vpeMaster[scannedCode], barcode: scannedCode, existingProduct, isVpe: true, source: 'vpe-stammdaten' };
   }
 
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  const productMaster = readLocalProductMaster(resolveProductMasterTenantId());
   if (productMaster[scannedCode]) {
     const entry = productMaster[scannedCode];
     return {
@@ -2942,10 +2936,12 @@ function findProductsByBarcode(barcode) {
 function rememberCategoryForBarcode(product = {}, barcode, kategorie) {
   const clean = cleanScannedBarcode(barcode);
   if (!clean || !kategorie) return;
+  const tenantId = resolveProductMasterTenantId();
+  if (!tenantId) return;
   const name = product.name || product.produkt || '';
   const brand = product.brand || product.marke || '';
 
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  const productMaster = readLocalProductMaster(tenantId);
   productMaster[clean] = {
     ...(productMaster[clean] || {}),
     barcode: clean,
@@ -2953,7 +2949,7 @@ function rememberCategoryForBarcode(product = {}, barcode, kategorie) {
     brand: productMaster[clean]?.brand || brand,
     category: kategorie,
   };
-  writeLocalMaster(PRODUCT_MASTER_STORAGE_KEY, productMaster);
+  writeLocalProductMasterMap(tenantId, productMaster);
 
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
   if (vpeMaster[clean] || product.isVpe) {
@@ -4354,7 +4350,7 @@ async function updateRecentReceiptCategory(id) {
 
 function showMasterData() {
   if (!requireOfficeAccess('Stammdaten')) return;
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  const productMaster = readLocalProductMaster(resolveProductMasterTenantId());
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
   const samples = Object.values(productMaster).slice(0, 8);
   showUtilityDialog('Stammdaten', `

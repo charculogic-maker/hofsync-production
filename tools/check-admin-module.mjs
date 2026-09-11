@@ -488,7 +488,7 @@ const uiResult = await page.evaluate(async () => {
     brand: 'Weißenhorner',
     kategorie: '🥛MoPro',
   });
-  const masterKey = 'charculogic.productMaster.v1';
+  const masterKey = `charculogic.productMaster.v1.${String(tenantId || '').trim().toLowerCase()}`;
   const master = JSON.parse(localStorage.getItem(masterKey) || '{}');
   const created = master['4028332320111'];
   delete master['4028332320111'];
