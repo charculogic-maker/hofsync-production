@@ -40,7 +40,7 @@ Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@A
 
 | Dokument | Zielgruppe | Inhalt |
 |----------|------------|--------|
-| [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) | Alle (technisch) | **Ausführlicher Ist-Stand:** Architektur, Module inkl. Herkunft/LMIV, Mandanten, Rollen, Sync, Functions, Kunden-Signal, Deployment (Juli 2026) |
+| [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) | Alle (technisch) | **Ausführlicher Ist-Stand:** Architektur, Module inkl. Herkunft/LMIV, Mandanten, Rollen, Sync, Functions, Kunden-Signal, Deployment (September 2026) |
 
 ## Technik & Betrieb
 

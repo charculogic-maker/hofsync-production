@@ -17,7 +17,7 @@ Diese Anleitung gilt für den Mandanten **TorFabrik Krefeld** (`tenantId: torfab
 | **Team** | Stephan, Boris, Aushilfe (keine StevesHof-Namen) |
 | **Tab Prod.** | **Nicht aktiv** (keine Wurstküche im Center) |
 | **Wareneingang** | Kategorien: Getränke (Jakob Bayen), TK & Snacks (Metro), Zubehör & Hygiene (Metro) |
-| **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge für die Thekenklade (Modul `traceability`) |
+| **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge für die Thekenklade (Modul `chargenDoku`) |
 | **KI-Lieferschein** | Tab **Neu** → **📸 Lieferschein scannen (KI)** (Metro / Jakob Bayen) |
 | **Rolle „helper“** | Eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv |
 

@@ -98,7 +98,7 @@ const TENANT_BRANDING = {
       wurstkueche: false,        // true → Tab Prod. / WRS
       haccp: true,
       orders: true,
-      traceability: true,        // Tab Herkunft + Thekenklade
+      chargenDoku: true,         // Tab Herkunft + Thekenklade
       batches: true,
       knowledge: false,
     },
@@ -121,7 +121,7 @@ const TENANT_BRANDING = {
 |------|---------------|
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang); `wareneingangMetzgerei` zusätzlich den Metzgerei-Modus |
-| `traceability` | Tab **Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
+| `chargenDoku` | Tab **Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
 | `wurstkueche` | Tab **Prod.** (Rezepte / WRS) |
 | `haccp` | Admin-Modul **HACCP** (und ggf. Team-Reiter Temperatur-Check, wenn Team aktiv) |
 | `orders` | Im Tab **Team** die Reiter **💬 Nachrichten** und **🛒 Bestellungen** |
@@ -137,9 +137,11 @@ const TENANT_BRANDING = {
 | `mhd_show_kitchen` | `false` | Button **Küche** in der MHD-Karte |
 | `mhd_show_box` | `false` | Button **Box** in der MHD-Karte |
 
-Steuerung im Dev-Dashboard unter **Einstellungen → MHD-Karten-Aktionen** bzw. im Modul-Panel. Speicherung lokal pro Betrieb auf dem Laden-iPhone.
+Steuerung im Dev-Dashboard unter **Einstellungen → MHD-Karten-Aktionen** bzw. im Modul-Panel. Speicherung lokal pro Betrieb auf dem Laden-iPhone; diese Flags ändern keine Firestore-`enabledModules`.
 
-**`enabledModules`-Keys (Firestore):** `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`.
+**`enabledModules`-Keys (Firestore):** `start`, `team`, `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `chargenDoku`.
+
+`chargenDoku` ist der aktuelle Key für Thekenbuch / LMIV. Ältere Dokumente mit `enabledModules.traceability` werden im Client noch als Fallback gelesen, beim Umschalten im Dev-Dashboard aber auf `chargenDoku` bereinigt.
 
 **Tab Team — kombinierte Sichtbarkeit (Stand Juli 2026):**
 

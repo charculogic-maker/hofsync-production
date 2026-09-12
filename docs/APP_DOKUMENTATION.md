@@ -1,6 +1,6 @@
 # CharcuLogic / HofSync – App-Dokumentation (aktueller Stand)
 
-> **Stand:** Juli 2026  
+> **Stand:** September 2026
 > **Zielgruppe:** Entwicklung, Betrieb, Admins und Kolleginnen/Kollegen mit technischem Hintergrund  
 > **Produktivsystem:** Progressive Web App im Ordner `web/` (Vanilla JavaScript + Firebase)  
 > **Nicht produktiv:** `lib/main.dart` (früher Flutter-Prototyp)
@@ -35,7 +35,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 
 | Bereich | Funktion |
 |---------|----------|
-| **MHD-Monitor** | Haltbarkeiten prüfen, Ware bearbeiten (OK / Raus / Küche / Ausverkauft) |
+| **MHD-Monitor** | Haltbarkeiten prüfen, Ware bearbeiten (OK / Raus / optional Küche / optional Box / Ausverkauft) |
 | **Wareneingang** | Schnellerfassung per Barcode, Lieferungen dokumentieren |
 | **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
 | **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen |
@@ -121,7 +121,7 @@ Pro Mandant konfigurierbar:
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
-| `traceability` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
+| `chargenDoku` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
 | `cutGlossary` / `knowledge` | Wissen / Cuts (Admin-Header) |
 | `haccp` | **HACCP** (Admin-Header) |
@@ -132,7 +132,11 @@ Pro Mandant konfigurierbar:
 | `rezeptAudit` | Rezept-Audit-Karte in Prod. |
 | `retterBox` | Retter-Box-Funktion im MHD (nur StevesHof) |
 
-**Runtime-Schalter:** `tenants/{tenantId}.enabledModules` (`mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`) — siehe `web/tenant-modules.js`, Toggle unter `/dev-dashboard`.
+**Runtime-Schalter:** `tenants/{tenantId}.enabledModules` (`start`, `team`, `mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `chargenDoku`) — siehe `web/tenant-modules.js`, Toggle unter `/dev-dashboard`.
+
+`enabledModules` ist die mandantenweite Firestore-Ebene. `web/tenant-modules.js` mappt diese Keys auf die historischen Branding-Flags (`mhdMonitor`, `wareneingang`, `wurstkueche`, `batches`, …). Für Thekenbuch / LMIV ist `chargenDoku` der aktuelle Key; ein vorhandenes `enabledModules.traceability` wird nur noch als Legacy-Fallback gelesen und beim Umschalten bereinigt.
+
+**Lokale MHD-Karten-Aktionen:** Die Buttons **Küche** und **Box** sind keine `enabledModules`-Flags. Sie werden pro Gerät im lokalen Tenant-Settings-Entwurf gespeichert (`charculogic_tenant_settings_v1_{tenantId}`; Keys `mhd_show_kitchen`, `mhd_show_box`, Standard `false`) und steuern nur das Rendern der Karten in `web/mhd.js`.
 
 Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danach filtert `applyRoleBasedUi()` nach Rolle und Mandant.
 
@@ -148,7 +152,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `team` | Team | `page-team` | `team-tab.js`, `customer-orders.js` | Nachrichten, Kundenbestellungen |
 | `mhd` | MHD | `page-mhd` | `mhd.js`, `scanner.js`, `retter-box.js` | MHD-Monitor, Barcode, Retter-Box |
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
-| `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
+| `chargenDoku` | Herkunft | `page-chargen-doku` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS |
 
 **Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
@@ -157,9 +161,10 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 ### MHD-Monitor (`web/mhd.js`)
 
 - Zeigt Posten aus `tenants/{tenantId}/mhd_liste` nach Zeitraum (7 / 14 / 21 Tage) und Kategorie
-- Aktionen: OK, Raus, Küche, Ausverkauft; Mengenkorrektur
+- Standard-Aktionen: **OK**, **Raus**, **Ausverkauft**; Mengenkorrektur
+- Optionale lokale Karten-Aktionen: **Küche** (`mhd_show_kitchen`) und **Box** (`mhd_show_box`) aus `web/admin-tenant-models.js`
 - Barcode-Scanner für Suche und Wareneingang
-- **Retter-Box** (StevesHof): Angebote für kurz vor MHD ablaufende Ware (`retter_boxen`)
+- **Retter-Box** (StevesHof): **Box** legt MHD-Posten in den Tagesvorschlag (`tenants/{tenantId}/retter_boxen`); `firebase.rules` erlaubt diese Collection aktuell nur für `StevesHof_Hauptbetrieb`
 - Sticky-Speicherleiste; Helper sehen keine Speichern-Leiste
 
 ### Wareneingang (`web/mhd.js`, Tab Neu)
@@ -173,8 +178,9 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 
 ### Herkunft / LMIV (`web/traceability.js`)
 
-- Erfassungsmaske Tab **Herkunft**: Foto → Storage `tenants/{tenantId}/traceability/{recordId}.jpg`
-- Firestore `tenants/{tenantId}/traceabilityRecords` — Felder u. a. `lotNumber`, `healthMark`, `animalType`, `origin`, `status` (`active`|`archived`), `createdBy`
+- Erfassungsmaske Tab **Herkunft**: Foto → Storage `tenants/{tenantId}/chargendoku/{recordId}.jpg`
+- Firestore `tenants/{tenantId}/chargendoku` — Felder u. a. `lotNumber`, `healthMark`, `animalType`, `origin`, `status` (`active`|`archived`), `createdBy`
+- Legacy-Einträge aus `tenants/{tenantId}/traceabilityRecords` und Fotos unter `tenants/{tenantId}/traceability/…` werden weiterhin gelesen.
 - Create/Read: Mandanten-Nutzer; Status-Update/Delete: Admin
 - Admin-UI: `/dev-dashboard` → **Rückverfolgbarkeit** (Suche, Archiv, Detail inkl. Etikett)
 - Abgrenzung: Büro-**Chargen** = Produktionschargen; Herkunft = LMIV-Thekenklade
@@ -243,7 +249,7 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | MHD | ✅ |
 | Wareneingang (Laden) | ✅ |
 | Wareneingang Metzgerei | ❌ |
-| Herkunft / LMIV (`traceability`) | ✅ |
+| Herkunft / LMIV (`chargenDoku`) | ✅ |
 | Wurstküche / Prod. | ✅ |
 | HACCP | ✅ (Admin-Header; Seed/`enabledModules`) |
 | Wissen | optional (Admin-Header) |
@@ -297,7 +303,7 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 |-------|--------|
 | MHD | ✅ |
 | Wareneingang | ✅ |
-| Herkunft / LMIV (`traceability`) | ✅ |
+| Herkunft / LMIV (`chargenDoku`) | ✅ |
 | Wurstküche | ❌ (hardcoded + Branding) |
 | HACCP | ✅ |
 | Teamboard | ✅ |
@@ -449,7 +455,8 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `haccp_logs` | HACCP-Protokolle (immutable) |
 | `haccp_stale_archive` | Abgewiesene Offline-Payloads |
 | `retter_boxen` | Retter-Box-Angebote (StevesHof) |
-| `traceabilityRecords` | LMIV-Herkunft / Thekenklade |
+| `chargendoku` | Primäre LMIV-Chargen-Doku / Thekenbuch |
+| `traceabilityRecords` | Legacy-LMIV-Collection für bestehende Einträge |
 | `tasks` | Team-Aufgaben |
 | `bulletinBoard` | Nachricht des Tages |
 | `customerOrders` | Kundenbestellungen |
@@ -466,9 +473,11 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `system_errors` | Client-Telemetrie (append-only) |
 | `priceRuns` | Fleischpreis-Lauf-Lifecycle |
 
-**Storage:** `tenants/{tenantId}/bulletin/…`, `tenants/{tenantId}/order_slips/…`, `tenants/{tenantId}/traceability/…`
+**Storage:** `tenants/{tenantId}/bulletin/…`, `tenants/{tenantId}/order_slips/…`, `tenants/{tenantId}/chargendoku/…` (Legacy: `tenants/{tenantId}/traceability/…`)
 
 Pfad-Helfer im Client: `web/tenant-db.js` → `getTenantCollection(name)`.
+
+Das Tenant-Root-Dokument (`tenants/{tenantId}`) hält `displayName`, `status`, `enabledModules` und Zeitstempel. Lokale Admin-Entwürfe wie `mhd_show_kitchen` / `mhd_show_box` gehören nicht in dieses Dokument; sie liegen bewusst im Browser-localStorage des jeweiligen Geräts.
 
 ---
 
@@ -579,7 +588,7 @@ Einige Kollegen-Dokumente beschreiben noch den Tab **Team** mit Temperatur-Check
 - StevesHof: Tabs **Team** und **Start** sind deaktiviert (`team: false`, `teamboard: false`)
 - Kundenbestell-UI: `orders: false` (Backend Kunden-Signal ist vorbereitet)
 - Alltagstabs StevesHof: **MHD · Neu · Herkunft · Prod.**; HACCP/Wissen/Büro über Admin-Menü
-- LMIV-Thekenklade: `/dev-dashboard → Rückverfolgbarkeit` (`traceabilityRecords`)
+- LMIV-Thekenklade: `/dev-dashboard → Rückverfolgbarkeit` (`chargendoku`, Legacy `traceabilityRecords`)
 
 Bei UI-Änderungen diese Doku und die Kollegen-Anleitungen gemeinsam pflegen.
 
