@@ -15,6 +15,7 @@ import {
   formatBerlinDay,
   formatMovementTime,
   formatQtyDelta,
+  getProtokollCorrectionFailure,
   inferMovementAction,
   mergeMovementRows,
   movementFromAuditDoc,
@@ -187,5 +188,16 @@ describe('mhd-audit report helpers', () => {
     expect(plan.auditQtyMhdPatch.qtyTo).to.equal(5);
     expect(plan.mhdListeId).to.equal('cold-brew-1');
     expect(plan.auditId).to.equal('mv-1');
+  });
+
+  it('treats any rejected Protokoll correction write as a failed save', () => {
+    const reason = new Error('permission-denied');
+    expect(getProtokollCorrectionFailure([
+      { status: 'fulfilled', value: undefined },
+      { status: 'rejected', reason },
+    ])).to.equal(reason);
+    expect(getProtokollCorrectionFailure([
+      { status: 'fulfilled', value: undefined },
+    ])).to.equal(null);
   });
 });

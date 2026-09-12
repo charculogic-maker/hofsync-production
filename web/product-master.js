@@ -2,7 +2,7 @@
  * Gemeinsame Artikel-Stammdaten (Name je EAN) für Wareneingang und Protokoll-Korrekturen.
  * Pfad: tenants/{tenantId}/product_master/{ean}
  */
-import { getNamedTenantCollection } from './tenant-db.js';
+import { getNamedTenantCollection, normalizeTenantId } from './tenant-db.js';
 import { sanitizeProductName } from './utils.js';
 
 export const PRODUCT_MASTER_COLLECTION = 'product_master';
@@ -12,28 +12,39 @@ export function cleanProductEan(raw) {
   return String(raw || '').replace(/\D/g, '');
 }
 
-export function readLocalProductMaster() {
+export function getProductMasterStorageKey(tenantId) {
+  const tenantKey = normalizeTenantId(tenantId);
+  return tenantKey ? `${PRODUCT_MASTER_STORAGE_KEY}.${tenantKey}` : '';
+}
+
+export function readLocalProductMaster(tenantId) {
+  const storageKey = getProductMasterStorageKey(tenantId);
+  if (!storageKey) return {};
   try {
-    return JSON.parse(localStorage.getItem(PRODUCT_MASTER_STORAGE_KEY) || '{}') || {};
+    return JSON.parse(localStorage.getItem(storageKey) || '{}') || {};
   } catch (err) {
     console.warn('[HofSync] Lokale Artikeldaten konnten nicht gelesen werden:', err);
     return {};
   }
 }
 
-function writeLocalProductMasterMap(value) {
+function writeLocalProductMasterMap(tenantId, value) {
+  const storageKey = getProductMasterStorageKey(tenantId);
+  if (!storageKey) return;
   try {
-    localStorage.setItem(PRODUCT_MASTER_STORAGE_KEY, JSON.stringify(value || {}));
+    localStorage.setItem(storageKey, JSON.stringify(value || {}));
   } catch (err) {
     console.warn('[HofSync] Lokale Artikeldaten konnten nicht gespeichert werden:', err);
   }
 }
 
-export function writeLocalProductMasterEntry(product = {}) {
+export function writeLocalProductMasterEntry(tenantId, product = {}) {
+  const tenantKey = normalizeTenantId(tenantId);
+  if (!tenantKey) return null;
   const barcode = cleanProductEan(product.barcode || product.ean);
   const name = sanitizeProductName(product.name || product.articleName || product.produkt || '');
   if (!barcode || !name) return null;
-  const productMaster = readLocalProductMaster();
+  const productMaster = readLocalProductMaster(tenantKey);
   const entry = {
     barcode,
     name,
@@ -49,7 +60,7 @@ export function writeLocalProductMasterEntry(product = {}) {
       einzelBarcode: barcode,
     };
   }
-  writeLocalProductMasterMap(productMaster);
+  writeLocalProductMasterMap(tenantKey, productMaster);
   return entry;
 }
 
@@ -73,7 +84,7 @@ export async function persistProductMasterToFirestore(tenantId, product = {}, ed
   const id = String(tenantId || '').trim();
   const doc = buildProductMasterDoc(id, product, editorLabel);
   if (!id || !doc) return null;
-  writeLocalProductMasterEntry(doc);
+  writeLocalProductMasterEntry(id, doc);
   const col = getNamedTenantCollection(id, PRODUCT_MASTER_COLLECTION);
   await col.doc(doc.ean).set(doc, { merge: true });
   return doc;
@@ -85,7 +96,7 @@ export async function hydrateProductMasterFromFirestore(tenantId) {
   try {
     const col = getNamedTenantCollection(id, PRODUCT_MASTER_COLLECTION);
     const snap = await col.get();
-    const local = readLocalProductMaster();
+    const local = readLocalProductMaster(id);
     (snap.docs || []).forEach((doc) => {
       const data = doc.data ? doc.data() : (doc || {});
       const ean = cleanProductEan(data.ean || doc.id);
@@ -98,7 +109,7 @@ export async function hydrateProductMasterFromFirestore(tenantId) {
         category: data.category || data.kategorie || '📦 Trockenware',
       };
     });
-    writeLocalProductMasterMap(local);
+    writeLocalProductMasterMap(id, local);
     return (snap.docs || []).length;
   } catch (err) {
     console.warn('[HofSync] Gemeinsame Artikeldaten konnten nicht geladen werden:', err);
