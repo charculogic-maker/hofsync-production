@@ -231,6 +231,12 @@ export function buildProtokollCorrectionPlan({
   };
 }
 
+export function getProtokollCorrectionFailure(results = []) {
+  const failed = (results || []).find((entry) => entry?.status === 'rejected');
+  if (!failed) return null;
+  return failed.reason || new Error('correction-failed');
+}
+
 export function formatQtyDelta(qtyFrom, qtyTo) {
   const from = Number(qtyFrom);
   const to = Number(qtyTo);

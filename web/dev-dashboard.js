@@ -52,6 +52,7 @@ import {
   filterMovements,
   formatMovementTime,
   formatQtyDelta,
+  getProtokollCorrectionFailure,
   mergeMovementRows,
   movementActionLabel,
   movementFromAuditDoc,
@@ -626,6 +627,11 @@ async function saveReportCorrection() {
       console.error('[Dev-Dashboard] Protokoll-Korrektur Schreiben fehlgeschlagen:', entry.reason);
     });
 
+    const correctionFailure = getProtokollCorrectionFailure(results);
+    if (correctionFailure) {
+      throw correctionFailure;
+    }
+
     if (plan.ean) {
       try {
         await persistProductMasterToFirestore(tenantId, {
@@ -635,10 +641,6 @@ async function saveReportCorrection() {
       } catch (err) {
         console.warn('[Dev-Dashboard] Artikelname für künftige Eingänge nicht zentral gespeichert:', err);
       }
-    }
-
-    if (!dashboardState.correctionWrites.length && failed.length) {
-      throw failed[0].reason || new Error('correction-failed');
     }
 
     dashboardState.lastCorrection = plan;
