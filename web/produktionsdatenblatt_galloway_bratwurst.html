@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Gestaltetes 2-Seiten-Template · Standard-Charge Alexanderwerk / OSKAR 20: 16,0 kg -->
+  <title>Produktionsdatenblatt – Frische Bratwurst vom Galloway</title>
+  <style>
+:root { --ds-accent: #5D4037; --ds-ink: #1a1a1a; --ds-muted: #4b5563; --ds-line: #c5c9c3; --ds-fill: #f3f6f1; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: #e8e6e1;
+  color: var(--ds-ink);
+  font-family: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+.no-print { }
+.datasheet-toolbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; gap: 10px; align-items: center; justify-content: center;
+  padding: 12px 16px;
+  background: #111; color: #fff;
+}
+.datasheet-toolbar button {
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 8px;
+  font-weight: 800; cursor: pointer;
+}
+.datasheet-toolbar .btn-print { background: #fff; color: #111; }
+.datasheet-toolbar .btn-close { background: #374151; color: #fff; }
+.datasheet-toolbar p { font-size: 12px; opacity: 0.85; }
+.sheet-wrap { padding: 12px 0 32px; }
+.sheet {
+  width: 210mm;
+  min-height: 297mm;
+  height: 297mm;
+  margin: 12px auto;
+  background: #fff;
+  padding: 10mm 11mm 12mm;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  page-break-after: always;
+  break-after: page;
+}
+.sheet:last-child { page-break-after: auto; break-after: auto; }
+.sheet-head {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 3px solid var(--ds-accent);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.sheet-head img { width: 28px; height: 28px; object-fit: contain; }
+.kicker { font-size: 8pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ds-accent); font-weight: 800; }
+.sheet-head h1 { font-size: 15pt; line-height: 1.15; }
+.confidential { font-size: 8pt; font-weight: 800; color: #7f1d1d; text-align: right; text-transform: uppercase; }
+.meta-grid, .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 8px 0;
+}
+.meta-item, .kpi-item {
+  background: var(--ds-fill);
+  border: 1px solid var(--ds-line);
+  padding: 6px 8px;
+  min-height: 42px;
+}
+.meta-item span, .kpi-item span, .tbl caption span, th span { display: block; font-size: 7pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ds-muted); font-weight: 700; }
+.meta-item strong, .kpi-item strong { font-size: 10pt; }
+h2 {
+  font-size: 10pt;
+  margin: 10px 0 4px;
+  padding: 3px 0;
+  border-bottom: 1.5px solid var(--ds-accent);
+  color: var(--ds-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tbl { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+.tbl th, .tbl td { border: 1px solid var(--ds-line); padding: 4px 6px; vertical-align: top; }
+.tbl th { background: var(--ds-accent); color: #fff; text-align: left; font-weight: 700; }
+.tbl tr:nth-child(even) td { background: #fafbf8; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.audit { min-width: 72px; height: 22px; }
+.label-box {
+  border: 2px solid #111;
+  padding: 10px 12px;
+  min-height: 118px;
+  font-size: 9.5pt;
+  line-height: 1.45;
+}
+.quid-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.quid-chip {
+  border: 1px solid var(--ds-accent);
+  background: var(--ds-fill);
+  padding: 5px 8px;
+  font-weight: 800;
+  font-size: 9pt;
+}
+.sop { font-size: 8pt; color: var(--ds-muted); margin-top: 8px; max-height: 52px; overflow: hidden; }
+.sign-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: auto; padding-top: 18px; }
+.sign-row div { border-top: 1px solid #111; padding-top: 4px; font-size: 8pt; }
+.sheet-foot {
+  display: flex; justify-content: space-between;
+  font-size: 7.5pt; color: var(--ds-muted);
+  margin-top: 8px; border-top: 1px solid var(--ds-line); padding-top: 4px;
+}
+.legal { font-size: 7.5pt; color: var(--ds-muted); margin-top: 8px; }
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  html, body { background: #fff !important; width: 210mm; }
+  .no-print { display: none !important; }
+  .sheet-wrap { padding: 0; }
+  .sheet {
+    box-shadow: none;
+    margin: 0;
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .sheet:last-child { page-break-after: auto; break-after: auto; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+</style>
+</head>
+<body>
+  <div class="datasheet-toolbar no-print">
+    <button type="button" class="btn-print" onclick="window.print()">Drucken</button>
+    <button type="button" class="btn-close" onclick="window.close()">Schließen</button>
+    <p>DIN A4 hoch · genau 2 Seiten · Hintergründe im Druckdialog aktiv lassen</p>
+  </div>
+  <div class="sheet-wrap">
+    <section class="sheet" id="datasheet-page-1">
+      <header class="sheet-head">
+        <img src="/icon-192.png" alt="">
+        <div>
+          <div class="kicker">HofSync · Produktionsdatenblatt DIN A4</div>
+          <h1>Frische Bratwurst vom Galloway</h1>
+        </div>
+        <div class="confidential">Betriebsintern<br>Seite 1 / 2</div>
+      </header>
+      <div class="meta-grid">
+        <div class="meta-item"><span>Produktgattung</span><strong>Frische Bratwurst (Brühwurstartiges Erzeugnis zum Braten)</strong></div>
+        <div class="meta-item"><span>Leitsatz-Nr.</span><strong>2.221</strong></div>
+        <div class="meta-item"><span>Version</span><strong>2.0</strong></div>
+        <div class="meta-item"><span>Ersteller / Freigabe</span><strong>StevesHof Hofladen</strong></div>
+        <div class="meta-item"><span>Datum</span><strong>13.09.2026</strong></div>
+        <div class="meta-item"><span>Rezept-ID</span><strong>G-BW</strong></div>
+      </div>
+      <h2>Maschinenpark &amp; Zielausbeute</h2>
+      <div class="meta-grid">
+        <div class="meta-item"><span>Kutter</span><strong>Alexanderwerk / 3-Sichel / M1/S1 – M2/S2</strong></div>
+        <div class="meta-item"><span>Füller</span><strong>OSKAR 20 (20 Liter)</strong></div>
+        <div class="meta-item"><span>Zielausbeute</span><strong>16,0 kg · 160 Stück à 100 g</strong></div>
+      </div>
+      <h2>Tab 1 · Fleischeinsatz</h2>
+      <table class="tbl">
+        <thead><tr><th>Rohstoff</th><th>Klasse</th><th>Gewicht</th><th>Anteil</th><th>Konditionierung</th></tr></thead>
+        <tbody>
+    <tr>
+      <td>Bio-Galloway R II</td>
+      <td>R II</td>
+      <td class="num">8,320 kg</td>
+      <td class="num">52,00 %</td>
+      <td>0–2 °C</td>
+    </tr>
+    <tr>
+      <td>Bio-Schweinefleisch S II</td>
+      <td>S II</td>
+      <td class="num">3,520 kg</td>
+      <td class="num">22,00 %</td>
+      <td>0–2 °C</td>
+    </tr>
+    <tr>
+      <td>Bio-Speck</td>
+      <td>S V</td>
+      <td class="num">2,880 kg</td>
+      <td class="num">18,00 %</td>
+      <td>leicht anfrosten</td>
+    </tr></tbody>
+      </table>
+      <h2>Tab 2 · Gewürze &amp; Zusatzstoffe</h2>
+      <table class="tbl">
+        <thead><tr><th>Zutat</th><th>Lieferant</th><th>Dosis / kg</th><th>Gesamt</th><th>Funktion</th><th>LMIV</th></tr></thead>
+        <tbody>
+    <tr>
+      <td>eiskaltes Wasser</td>
+      <td>Betrieb</td>
+      <td class="num">50,00 g/kg</td>
+      <td class="num">0,800 kg</td>
+      <td>Schüttung</td>
+      <td>Trinkwasser</td>
+    </tr>
+    <tr>
+      <td>Meersalz fein</td>
+      <td>Zukauf</td>
+      <td class="num">18,00 g/kg</td>
+      <td class="num">0,288 kg</td>
+      <td>Würzung</td>
+      <td>Meersalz</td>
+    </tr>
+    <tr>
+      <td>Natriumcarbonate</td>
+      <td>Zukauf</td>
+      <td class="num">3,00 g/kg</td>
+      <td class="num">0,048 kg</td>
+      <td>Säureregulator</td>
+      <td>Natriumcarbonate</td>
+    </tr>
+    <tr>
+      <td>Senfmehl</td>
+      <td>Zukauf</td>
+      <td class="num">4,00 g/kg</td>
+      <td class="num">0,064 kg</td>
+      <td>Zutat</td>
+      <td>Senfmehl</td>
+    </tr>
+    <tr>
+      <td>Pfeffer weiß</td>
+      <td>Zukauf</td>
+      <td class="num">3,00 g/kg</td>
+      <td class="num">0,048 kg</td>
+      <td>Würzung</td>
+      <td>Pfeffer weiß</td>
+    </tr>
+    <tr>
+      <td>Thymian</td>
+      <td>Zukauf</td>
+      <td class="num">2,00 g/kg</td>
+      <td class="num">0,032 kg</td>
+      <td>Würzung</td>
+      <td>Thymian</td>
+    </tr></tbody>
+      </table>
+      <h2>Technologische KPIs</h2>
+      <div class="kpi-grid">
+        <div class="kpi-item"><span>BEFFE</span><strong>–</strong></div>
+        <div class="kpi-item"><span>WEV</span><strong>–</strong></div>
+        <div class="kpi-item"><span>Wasserzusatz</span><strong>5,00 %</strong></div>
+        <div class="kpi-item"><span>Ziel-pH</span><strong>5,8 (5,6–6,2)</strong></div>
+        <div class="kpi-item"><span>Kerntemperatur-Soll</span><strong>Brät-/Kerntemperatur-Soll ≤ 4 °C (Sperre 7 °C)</strong></div>
+        <div class="kpi-item"><span>Gesamtmasse</span><strong>16,0 kg</strong></div>
+      </div>
+      <div class="sheet-foot">
+        <span>StevesHof Hofladen · Frische Bratwurst vom Galloway</span>
+        <span>Seite 1 / 2</span>
+      </div>
+    </section>
+    <section class="sheet" id="datasheet-page-2">
+      <header class="sheet-head">
+        <img src="/icon-192.png" alt="">
+        <div>
+          <div class="kicker">LMIV-Etikett · QUID · HACCP</div>
+          <h1>Frische Bratwurst vom Galloway</h1>
+        </div>
+        <div class="confidential">Betriebsintern<br>Seite 2 / 2</div>
+      </header>
+      <h2>QUID Hauptfleischkomponenten</h2>
+      <div class="quid-list"><span class="quid-chip">Bio-Galloway-Rindfleisch* 52,00 %</span><span class="quid-chip">Bio-Schweinefleisch* 22,00 %</span><span class="quid-chip">Bio-Speck* 18,00 %</span></div>
+      <h2>Etikettentext (LMIV)</h2>
+      <div class="label-box">
+        <strong>Frische Bratwurst vom Galloway</strong><br>
+        Zutaten: Bio-Galloway-Rindfleisch* (52,0 %), Bio-Schweinefleisch* (22,0 %), Bio-Speck* (18,0 %), Trinkwasser, Meersalz, <strong>SENF</strong>mehl, Säureregulator: Natriumcarbonate, Pfeffer weiß, Thymian.<br>
+        Allergene: <strong>SENF</strong>.
+        <br>*aus kontrolliert biologischer Landwirtschaft
+      </div>
+      <p class="legal">QUID-Angaben beziehen sich auf die Gesamtmasse der Charge. Deklaration gemäß LMIV (EU) Nr. 1169/2011.</p>
+      <h2>HACCP-Prüfpunkte &amp; Audit</h2>
+      <table class="tbl">
+        <thead><tr><th>Prüfpunkt</th><th>Grenzwert / Soll</th><th>Ist</th><th>Audit / Kürzel</th></tr></thead>
+        <tbody>
+    <tr>
+      <td>CCP 1 Rohstofftemperatur</td>
+      <td>0–2 °C (Fleisch/Fett kernig, nicht schmierend)</td>
+      <td> </td>
+      <td class="audit"></td>
+    </tr>
+    <tr>
+      <td>CCP 2 Brättemperatur nach Kutter</td>
+      <td>≤ 4 °C, Sperre 7 °C</td>
+      <td> </td>
+      <td class="audit"></td>
+    </tr>
+    <tr>
+      <td>pH-Wert Fertigbrät</td>
+      <td>Soll 5,6–6,2 (Ziel 5,8)</td>
+      <td> </td>
+      <td class="audit"></td>
+    </tr>
+    <tr>
+      <td>CCP 3 Füllen / Portionieren</td>
+      <td>Luftarm, ohne Überdruck; OSKAR 20 nicht überfüllen</td>
+      <td> </td>
+      <td class="audit"></td>
+    </tr>
+    <tr>
+      <td>CCP 4 Kühlung Fertigware</td>
+      <td>≤ 4 °C innerhalb von 2 Stunden</td>
+      <td> </td>
+      <td class="audit"></td>
+    </tr></tbody>
+      </table>
+      <p class="sop">Rohstoffe vorbereiten, Zutaten exakt abwiegen und Arbeitsmittel hygienisch bereitstellen. Daerme oder Huellen vorbereiten, waessern und auf Risse pruefen. Fleisch und Fett kalt wolfen. Salz und Gewuerze einarbeiten, bis eine passende Bindung entsteht; die Masse darf nicht warm werden. Luftarm fuellen, portionieren und Lufteinschluesse vermeiden. Fertigware sofort kuehlen, sauber kennzeichnen und Charge dokumentieren.</p>
+      <div class="sign-row">
+        <div>Herstellung · StevesHof Hofladen</div>
+        <div>Freigabe QS / Meister</div>
+        <div>Datum 13.09.2026</div>
+      </div>
+      <div class="sheet-foot">
+        <span>Leitsatz 2.221 · Version 2.0</span>
+        <span>Seite 2 / 2</span>
+      </div>
+    </section>
+  </div>
+  
+</body>
+</html>

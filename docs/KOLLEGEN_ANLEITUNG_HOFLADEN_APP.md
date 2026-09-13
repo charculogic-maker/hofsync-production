@@ -165,6 +165,7 @@ So berichtigen wir falsch zugeordnete Artikel ohne Zugriff auf die technische Da
 
 Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
+Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schnellwahl **Alexanderwerk / OSKAR 20: 16,0 kg**. Das **Druckdatenblatt DIN A4** öffnet zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 

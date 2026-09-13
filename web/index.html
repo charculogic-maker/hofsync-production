@@ -1858,6 +1858,27 @@
               <span class="production-unit">kg</span>
               <button class="btn-stepper" id="btn-prod-plus" aria-label="Menge erhöhen">+</button>
             </div>
+            <div class="production-batch-profiles" id="production-batch-profiles">
+              <span class="production-input-label" id="production-batch-profiles-label">Schnellwahl Standard-Charge</span>
+              <div class="production-batch-profile-row" role="group" aria-labelledby="production-batch-profiles-label">
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-16"
+                  id="btn-batch-profile-16kg"
+                >
+                  Standard-Charge Alexanderwerk / OSKAR 20: 16,0 kg
+                </button>
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-10"
+                  id="btn-batch-profile-10kg"
+                >
+                  WRS-Basis 10,0 kg
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Warning Box (Allergens / Core Temp) -->
@@ -1873,6 +1894,15 @@
           <div class="section-title">⚖️ Zutaten berechnet</div>
           <div class="ingredients-card" id="ingredients-card" data-static="true">
             <div id="recipe-ingredients-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;"></div>
+          </div>
+
+          <div class="production-datasheet-card" id="production-datasheet-card">
+            <div class="section-title">Produktionsdatenblatt</div>
+            <p class="production-datasheet-hint">Zwei DIN-A4-Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten – bereit für den Ausdruck.</p>
+            <div class="production-datasheet-quid" id="production-datasheet-quid" aria-live="polite"></div>
+            <button type="button" class="btn btn-primary btn-datasheet-print" id="btn-print-production-datasheet">
+              📄 Druckdatenblatt DIN A4
+            </button>
           </div>
 
           <!-- Statische SOP-Struktur – Texte werden per ID aus app.js befüllt -->

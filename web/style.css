@@ -2739,6 +2739,106 @@ button:active, .btn:active {
   padding-right: 8px;
 }
 
+.production-batch-profiles {
+  margin-top: 14px;
+}
+
+.production-batch-profile-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.production-batch-profile-btn {
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: var(--border-radius-md);
+  border: 2px solid var(--primary-alpha-18);
+  background: var(--bg-color);
+  color: var(--text-dark);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.production-batch-profile-btn.is-active {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
+}
+
+.production-datasheet-card {
+  background-color: var(--surface-color);
+  border-radius: var(--border-radius-lg);
+  padding: 16px;
+  margin: 8px 0 16px;
+  border: 2px solid var(--primary-color);
+  box-shadow: 0 6px 18px var(--primary-alpha-20);
+}
+
+.production-datasheet-card .section-title {
+  margin-top: 0;
+}
+
+.production-datasheet-hint {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-dark);
+}
+
+.production-datasheet-quid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.production-datasheet-quid-chip,
+.production-datasheet-quid-empty {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.production-datasheet-quid-empty {
+  background: var(--bg-color);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.btn-datasheet-print {
+  width: 100%;
+  min-height: 58px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.production-datasheet-print-frame {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0;
+  visibility: hidden;
+}
+
+@media print {
+  .no-print,
+  .production-datasheet-print-frame,
+  .production-batch-profiles,
+  .btn-datasheet-print {
+    display: none !important;
+  }
+}
+
 /* Ingredients Table */
 .section-title {
   font-size: 15px;
@@ -4851,6 +4951,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 [data-theme="dark"] .ingredients-card,
 [data-theme="dark"] .instructions-card,
 [data-theme="dark"] .production-log-card,
+[data-theme="dark"] .production-datasheet-card,
 [data-theme="dark"] .wrs-board,
 [data-theme="dark"] .haccp-card,
 [data-theme="dark"] .batch-audit-card,

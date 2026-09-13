@@ -38,7 +38,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 | **MHD-Monitor** | Haltbarkeiten prüfen, Ware bearbeiten (OK / Raus / Küche / Ausverkauft) |
 | **Wareneingang** | Schnellerfassung per Barcode, Lieferungen dokumentieren |
 | **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
-| **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen |
+| **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen, DIN-A4-Datenblatt |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
 | **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
 | **Büro** | Chargen-Archiv, Leitstand, Team-Konfiguration (Admin) |
@@ -149,7 +149,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `mhd` | MHD | `page-mhd` | `mhd.js`, `scanner.js`, `retter-box.js` | MHD-Monitor, Barcode, Retter-Box |
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
 | `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
-| `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS |
+| `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS, DIN-A4-Datenblatt |
 
 **Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
 **Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
@@ -179,10 +179,12 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - Admin-UI: `/dev-dashboard` → **Rückverfolgbarkeit** (Suche, Archiv, Detail inkl. Etikett)
 - Abgrenzung: Büro-**Chargen** = Produktionschargen; Herkunft = LMIV-Thekenklade
 
-### Wurstküche / Prod. (`web/production.js`, `web/beffe_calc.js`)
+### Wurstküche / Prod. (`web/production.js`, `web/beffe_calc.js`, `web/production-datasheet.js`)
 
 - Rezeptliste, Produktionserfassung, Chargen-Dokumentation
 - WRS-Kalkulation mit wöchentlichen Fleischpreisen aus `fleischpreise/{kw}`
+- Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20, 16,0 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
+- Dynamisches DIN-A4-Produktionsdatenblatt (2 Seiten) mit Recipe-to-Print-Matrix, QUID/LMIV-Etikettentext und HACCP-Prüfpunkten
 - Fleischpreis-Update-Button nur für Büro-Admins
 - Modul deaktiviert für Mandant `torfabrik`
 
