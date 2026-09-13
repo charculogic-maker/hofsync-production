@@ -139,7 +139,8 @@ describe('QUID and LMIV label', () => {
     expect(sheet.lmiv.bioFootnote).to.match(/biologischer Landwirtschaft/);
 
     const rebuilt = buildLmivLabel(GALLOWAY_BRATWURST, sheet.meat, sheet.spices, sheet.lmiv.quid);
-    expect(rebuilt.ingredientsHtml).to.match(/<strong>SENF<\/strong>/);
+    expect(rebuilt.ingredientsHtml).to.match(/<strong>Senfmehl<\/strong>/);
+    expect(rebuilt.allergenHtml).to.match(/<strong>SENF<\/strong>/);
   });
 });
 

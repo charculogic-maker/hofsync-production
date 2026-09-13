@@ -466,17 +466,6 @@ export function computeQuidValues(meatRows) {
   return [...groups.values()].sort((a, b) => b.percentage - a.percentage);
 }
 
-function emphasizeAllergenToken(text, allergenLabel) {
-  if (!allergenLabel) return escapeHtml(text);
-  const safeLabel = escapeHtml(allergenLabel);
-  const escaped = escapeHtml(text);
-  const pattern = new RegExp(allergenLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
-  if (pattern.test(text)) {
-    return escaped.replace(new RegExp(allergenLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), `<strong>${safeLabel}</strong>`);
-  }
-  return `${escaped} (<strong>${safeLabel}</strong>)`;
-}
-
 export function buildLmivLabel(recipe, meatRows, spiceRows, quid, options = {}) {
   const productName = recipe?.name || 'Erzeugnis';
   const entries = [
@@ -526,7 +515,7 @@ export function buildLmivLabel(recipe, meatRows, spiceRows, quid, options = {}) 
     plainParts.push(plain);
 
     const htmlName = entry.allergen
-      ? emphasizeAllergenToken(display, entry.allergenLabel)
+      ? `<strong>${escapeHtml(display)}</strong>`
       : escapeHtml(display);
     htmlParts.push(`${htmlName}${escapeHtml(quidSuffix)}`);
   });
