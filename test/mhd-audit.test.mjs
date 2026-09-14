@@ -23,6 +23,9 @@ import {
   normalizeActorName,
   timestampToMs,
   buildProtokollCorrectionPlan,
+  buildProtokollListePatchForDoc,
+  inferProtokollListeTargetId,
+  shouldBlockAmbiguousProtokollListeCorrection,
 } from '../web/mhd-audit.js';
 
 describe('mhd-audit report helpers', () => {
@@ -187,5 +190,59 @@ describe('mhd-audit report helpers', () => {
     expect(plan.auditQtyMhdPatch.qtyTo).to.equal(5);
     expect(plan.mhdListeId).to.equal('cold-brew-1');
     expect(plan.auditId).to.equal('mv-1');
+  });
+
+  it('targets qty/MHD to a unique live posten when an audit row has no liste id', () => {
+    const plan = buildProtokollCorrectionPlan({
+      row: {
+        id: 'mv-1',
+        auditId: 'mv-1',
+        ean: '4012346200507',
+        articleName: 'Cold Brew Süße Kräuter',
+        qtyTo: 6,
+        mhdDate: '2026-09-20',
+      },
+      articleName: 'Cold Brew Süße Kräuter',
+      qty: '5',
+      mhdDate: '2026-09-22',
+      editorLabel: 'Paddy',
+      nowIso: '2026-09-03T12:00:00.000Z',
+    });
+    const targetId = inferProtokollListeTargetId(plan, [{ id: 'cold-brew-1' }]);
+    const patch = buildProtokollListePatchForDoc(plan, 'cold-brew-1', targetId);
+
+    expect(plan.mhdListeId).to.equal('');
+    expect(targetId).to.equal('cold-brew-1');
+    expect(shouldBlockAmbiguousProtokollListeCorrection(plan, [{ id: 'cold-brew-1' }])).to.equal(false);
+    expect(patch.name).to.equal('Cold Brew Süße Kräuter');
+    expect(patch.qty).to.equal(5);
+    expect(patch.mhdDate).to.equal('2026-09-22');
+  });
+
+  it('does not guess a qty/MHD target when multiple live posten share the EAN', () => {
+    const plan = buildProtokollCorrectionPlan({
+      row: {
+        id: 'mv-1',
+        auditId: 'mv-1',
+        ean: '4012346200507',
+        articleName: 'Cold Brew Süße Kräuter',
+        qtyTo: 6,
+      },
+      articleName: 'Cold Brew Süße Kräuter',
+      qty: '5',
+    });
+    const targetId = inferProtokollListeTargetId(plan, [
+      { id: 'cold-brew-1' },
+      { id: 'cold-brew-old' },
+    ]);
+    const patch = buildProtokollListePatchForDoc(plan, 'cold-brew-1', targetId);
+
+    expect(targetId).to.equal('');
+    expect(shouldBlockAmbiguousProtokollListeCorrection(plan, [
+      { id: 'cold-brew-1' },
+      { id: 'cold-brew-old' },
+    ])).to.equal(true);
+    expect(patch.name).to.equal('Cold Brew Süße Kräuter');
+    expect(patch).to.not.have.property('qty');
   });
 });

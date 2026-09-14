@@ -45,6 +45,7 @@ import {
   berlinDayStartMs,
   berlinTodayIso,
   buildProtokollCorrectionPlan,
+  buildProtokollListePatchForDoc,
   buildShopNameOptions,
   defaultReportFromIso,
   formatBerlinDay,
@@ -57,7 +58,9 @@ import {
   movementFromAuditDoc,
   movementFromMhdListeDoc,
   movementsToCsv,
+  inferProtokollListeTargetId,
   normalizeIsoDate,
+  shouldBlockAmbiguousProtokollListeCorrection,
 } from './mhd-audit.js';
 
 // Sofortige Boot-Guards (Modul-Crash / fehlende Session → kein weißer Screen).
@@ -581,11 +584,16 @@ async function saveReportCorrection() {
         queryDocsByField(listeCol, 'ean', plan.ean),
         queryDocsByField(listeCol, 'barcode', plan.ean),
       ]));
+      if (shouldBlockAmbiguousProtokollListeCorrection(plan, listeDocs)) {
+        const message = 'Wir konnten den genauen MHD-Posten nicht eindeutig finden. Bitte die Korrektur direkt in der MHD-Liste speichern.';
+        setReportEditStatus(message, 'error');
+        window.showToast?.(message, 'warning');
+        return;
+      }
+      const targetListeId = inferProtokollListeTargetId(plan, listeDocs);
       listeDocs.forEach((doc) => {
         listeIds.add(doc.id);
-        const patch = doc.id === plan.mhdListeId
-          ? { ...plan.listeNamePatch, ...plan.listeQtyMhdPatch }
-          : { ...plan.listeNamePatch };
+        const patch = buildProtokollListePatchForDoc(plan, doc.id, targetListeId);
         writes.push(updateNamedDoc(listeCol, 'mhd_liste', doc.id, patch));
       });
     }
@@ -637,7 +645,7 @@ async function saveReportCorrection() {
       }
     }
 
-    if (!dashboardState.correctionWrites.length && failed.length) {
+    if (failed.length) {
       throw failed[0].reason || new Error('correction-failed');
     }
 

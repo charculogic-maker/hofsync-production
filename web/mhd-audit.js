@@ -163,6 +163,33 @@ export function resolveMovementAuditId(row = {}) {
   return '';
 }
 
+export function inferProtokollListeTargetId(plan = {}, listeDocs = []) {
+  const explicit = String(plan.mhdListeId || '').replace(/^liste:/, '').trim();
+  if (explicit) return explicit;
+  const ids = [...new Set((listeDocs || [])
+    .map((doc) => String(doc?.id || '').trim())
+    .filter(Boolean))];
+  return ids.length === 1 ? ids[0] : '';
+}
+
+export function shouldBlockAmbiguousProtokollListeCorrection(plan = {}, listeDocs = []) {
+  const explicit = String(plan.mhdListeId || '').replace(/^liste:/, '').trim();
+  if (explicit) return false;
+  const ids = [...new Set((listeDocs || [])
+    .map((doc) => String(doc?.id || '').trim())
+    .filter(Boolean))];
+  return ids.length > 1;
+}
+
+export function buildProtokollListePatchForDoc(plan = {}, docId = '', targetListeId = '') {
+  const targetId = String(targetListeId || plan.mhdListeId || '').replace(/^liste:/, '').trim();
+  const isQtyMhdTarget = Boolean(targetId) && String(docId || '').trim() === targetId;
+  return {
+    ...plan.listeNamePatch,
+    ...(isQtyMhdTarget ? plan.listeQtyMhdPatch : {}),
+  };
+}
+
 export function buildProtokollCorrectionPlan({
   row = {},
   articleName,
