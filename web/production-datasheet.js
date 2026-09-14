@@ -531,10 +531,7 @@ export function buildLmivLabel(recipe, meatRows, spiceRows, quid, options = {}) 
     ingredientsText: `Zutaten: ${plainParts.join(', ')}.`,
     ingredientsHtml: `Zutaten: ${htmlParts.join(', ')}.`,
     allergenText,
-    allergenHtml: allergenText.replace(
-      /(SULFITE|SENF|SELLERIE|SOJA|MILCH|EI|GLUTEN|SESAM|SCHALENFRÜCHTE)/g,
-      '<strong>$1</strong>',
-    ),
+    allergenHtml: allergenHtml(allergenText),
     bioFootnote: hasOrganic ? BIO_FOOTNOTE : '',
     legalNotice: options.legalNotice
       || 'QUID-Angaben beziehen sich auf die Gesamtmasse der Charge. Deklaration gemäß LMIV (EU) Nr. 1169/2011.',
@@ -580,6 +577,13 @@ function uniqueAllergens(recipe, spiceRows) {
     .filter((row) => row.allergen)
     .map((row) => row.allergenLabel || String(row.name || '').toUpperCase());
   return [...new Set([...fromRecipe, ...fromRows].map((item) => item.trim()).filter(Boolean))];
+}
+
+function allergenHtml(allergenText) {
+  return escapeHtml(allergenText).replace(
+    /(SULFITE|SENF|SELLERIE|SOJA|MILCH|EI|GLUTEN|SESAM|SCHALENFRÜCHTE)/g,
+    '<strong>$1</strong>',
+  );
 }
 
 function categoryTechnoDefaults(recipe) {

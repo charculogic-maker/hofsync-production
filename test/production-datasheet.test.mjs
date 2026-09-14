@@ -169,4 +169,27 @@ describe('print renderer', () => {
     expect(html.match(/class="sheet"/g)).to.have.length(2);
     expect(formatDeNumber(16, 1)).to.equal('16,0');
   });
+
+  it('escapes recipe-controlled LMIV content in the print document', () => {
+    const poisoned = {
+      ...GALLOWAY_BRATWURST,
+      name: 'Bratwurst <img src=x onerror=alert(1)>',
+      allergene: ['SENF<script>alert(1)</script>'],
+      ingredients: [
+        { name: 'Bio-Galloway <img src=x onerror=alert(2)>', pct: 95, typ: 'base' },
+        { name: 'Senf<script>alert(3)</script>', pct: 5, typ: 'spice', allergen: true },
+      ],
+    };
+    const sheet = buildProductionDatasheetData(poisoned, {
+      targetKg: 16,
+      machineProfile: PROFILE_16,
+    });
+    const html = renderProductionDatasheetHtml(sheet, { autoPrint: false });
+
+    expect(html).to.not.include('<script>');
+    expect(html).to.not.include('<img src=x');
+    expect(html).to.include('&lt;SCRIPT&gt;ALERT(1)&lt;/SCRIPT&gt;');
+    expect(html).to.include('<strong>SENF</strong>');
+    expect(html).to.include('Bio-Galloway &lt;img src=x onerror=alert(2)&gt;');
+  });
 });

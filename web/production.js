@@ -5036,9 +5036,12 @@ function renderDatasheetQuidPreview(datasheet) {
     host.innerHTML = `<span class="production-datasheet-quid-empty">QUID erscheint hier, sobald Fleischanteile berechnet sind.</span>`;
     return;
   }
-  host.innerHTML = datasheet.lmiv.quid.map((item) => (
-    `<span class="production-datasheet-quid-chip">${item.label}* ${formatPercent(item.percentage)}</span>`
-  )).join('');
+  host.replaceChildren(...datasheet.lmiv.quid.map((item) => {
+    const chip = document.createElement('span');
+    chip.className = 'production-datasheet-quid-chip';
+    chip.textContent = `${item.label}* ${formatPercent(item.percentage)}`;
+    return chip;
+  }));
 }
 
 function refreshProductionDatasheetState() {
