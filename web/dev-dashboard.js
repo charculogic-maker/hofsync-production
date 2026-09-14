@@ -1545,6 +1545,27 @@ let manageEmployeesCallable = null;
 const STEVESHOF_PROFILE_FALLBACK_NAMES = [
   'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
 ];
+const STEVESHOF_PROFILE_ADMIN_NAMES = ['Paddy'];
+const STEVESHOF_ADMIN_EMAILS = ['paddy@steveshof-hofladen.de'];
+
+function roleForProfileName(tenantId, displayName) {
+  if (tenantId !== 'StevesHof_Hauptbetrieb') return 'employee';
+  const needle = String(displayName || '').trim().toLowerCase();
+  return STEVESHOF_PROFILE_ADMIN_NAMES.some((name) => name.toLowerCase() === needle)
+    ? 'admin'
+    : 'employee';
+}
+
+function applyKnownAdminRole(tenantId, employee) {
+  if (!employee) return employee;
+  const email = String(employee.email || '').trim().toLowerCase();
+  const name = String(employee.displayName || '').trim();
+  if (tenantId !== 'StevesHof_Hauptbetrieb') return employee;
+  if (STEVESHOF_ADMIN_EMAILS.includes(email) || name.toLowerCase() === 'paddy') {
+    return { ...employee, role: 'admin' };
+  }
+  return employee;
+}
 
 function getCreateEmployeeCallable() {
   if (createEmployeeCallable) return createEmployeeCallable;
@@ -1577,7 +1598,7 @@ function namesToProfileEmployees(names, tenantId) {
       uid: `profile:${tenantId}:${displayName.toLowerCase()}`,
       email: '',
       displayName,
-      role: 'employee',
+      role: roleForProfileName(tenantId, displayName),
       tenantId,
       allowedModules: { mhd: true, kitchen: true, buero: true },
       status: 'active',
@@ -1623,12 +1644,17 @@ async function loadEmployeeProfileFallback(tenantId, db) {
   }
   const byName = new Map();
   collected.forEach((entry) => {
-    const key = String(entry.uid || '').startsWith('profile:')
-      ? `name:${String(entry.displayName || '').toLowerCase()}`
-      : `uid:${entry.uid}`;
-    if (!byName.has(key)) byName.set(key, entry);
+    const isProfile = String(entry.uid || '').startsWith('profile:') || entry.source === 'profile';
+    const normalized = applyKnownAdminRole(
+      tenantId,
+      isProfile ? { ...entry, role: roleForProfileName(tenantId, entry.displayName) } : entry,
+    );
+    const key = isProfile
+      ? `name:${String(normalized.displayName || '').toLowerCase()}`
+      : `uid:${normalized.uid}`;
+    if (!byName.has(key)) byName.set(key, normalized);
   });
-  return [...byName.values()];
+  return [...byName.values()].map((entry) => applyKnownAdminRole(tenantId, entry));
 }
 
 function setEmployeeFormStatus(message = '', tone = 'info') {
@@ -1710,7 +1736,7 @@ function bindEmployeeCreateForm(dashboardState) {
   });
 }
 
-function renderEmployeePermissionToggles(uid, allowedModules = {}, tenantId) {
+function renderEmployeePermissionToggles(uid, allowedModules = {}, tenantId, { disabled = false } = {}) {
   const safeUid = escapeHtml(uid);
   const safeTenantId = escapeHtml(tenantId);
   return EMPLOYEE_PERMISSION_KEYS.map((key) => {
@@ -1724,6 +1750,7 @@ function renderEmployeePermissionToggles(uid, allowedModules = {}, tenantId) {
           data-employee-tenant="${safeTenantId}"
           data-permission-key="${safeKey}"
           ${checked ? 'checked' : ''}
+          ${disabled ? 'disabled' : ''}
         >
         <span>${escapeHtml(EMPLOYEE_MODULE_LABELS[key])}</span>
       </label>
@@ -1757,7 +1784,7 @@ function renderEmployeeRow(employee, currentUserUid) {
         ${isDisabled ? '<span class="dev-dashboard-role-badge dev-dashboard-role-badge--inactive">Deaktiviert</span>' : ''}
       </td>
       <td class="dev-dashboard-employee-perms">
-        ${renderEmployeePermissionToggles(employee.uid, employee.allowedModules, employee.tenantId)}
+        ${renderEmployeePermissionToggles(employee.uid, employee.allowedModules, employee.tenantId, { disabled: isProfile })}
       </td>
       <td class="dev-dashboard-employee-actions">
         <button
@@ -1850,7 +1877,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
       tenantId,
     });
     const fallback = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
-    dashboardStateRef.employees = fallback;
+    dashboardStateRef.employees = fallback.map((entry) => applyKnownAdminRole(tenantId, entry));
     renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
     if (statusEl) {
@@ -1874,6 +1901,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
       console.warn('[Dev-Dashboard] Callable list leer — Profil-Fallback', { tenantId, region: FUNCTIONS_REGION });
       employees = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
     }
+    employees = employees.map((entry) => applyKnownAdminRole(tenantId, entry));
     dashboardStateRef.employees = employees;
     renderEmployeeTable(employees, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
@@ -1894,7 +1922,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
     } catch (fallbackErr) {
       console.error('[Dev-Dashboard] Profil-Fallback fehlgeschlagen', fallbackErr);
     }
-    dashboardStateRef.employees = fallback;
+    dashboardStateRef.employees = fallback.map((entry) => applyKnownAdminRole(tenantId, entry));
     if (fallback.length) {
       renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
       if (statusEl) statusEl.textContent = `${fallback.length} Team-Profile — ${message}`;
@@ -1919,6 +1947,12 @@ function bindEmployeeTableActions(dashboardState) {
     const tenantId = input.getAttribute('data-employee-tenant');
     const permissionKey = input.getAttribute('data-permission-key');
     if (!uid || !tenantId || !permissionKey) return;
+
+    if (isProfileEmployeeUid(uid)) {
+      input.checked = !input.checked;
+      window.showToast?.('Für dieses Team-Profil gibt es noch kein Konto. Bitte zuerst ein Nutzerkonto anlegen.', 'warning');
+      return;
+    }
 
     const employee = dashboardState.employees?.find((e) => e.uid === uid);
     const allowedModules = normalizeAllowedModules(employee?.allowedModules);
