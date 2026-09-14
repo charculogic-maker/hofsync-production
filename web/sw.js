@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260907-compact-mhd-cards';
+const CACHE_NAME = 'charculogic-v20260913-prod-datasheet-b';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -33,6 +33,7 @@ const CRITICAL_ASSETS = [
   '/delivery-parser.js',
   '/haccp.js',
   '/production.js',
+  '/production-datasheet.js',
   '/beffe_calc.js',
   '/cuts.js',
   '/sync.js',

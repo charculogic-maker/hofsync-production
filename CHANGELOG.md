@@ -4,6 +4,16 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [v1.4.0] - 2026-09-13
+
+### Hinzugefügt (Produktionsdatenblatt DIN A4)
+
+- **Tab Prod.:** Schnellwahl Standard-Charge Alexanderwerk / OSKAR 20 (16,0 kg) skaliert Fleisch, Schüttung und Gewürze.
+- **Druckdatenblatt:** 2-Seiten-DIN-A4 aus Rezeptdaten (`web/production-datasheet.js`) mit QUID/LMIV-Etikettentext und HACCP-Prüfpunkten.
+- Template: `web/produktionsdatenblatt_galloway_bratwurst.html`.
+
+---
+
 ## [v1.3.0] - 2026-07-23
 
 ### Hinzugefügt (LMIV-Rückverfolgbarkeit)

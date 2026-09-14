@@ -94,7 +94,7 @@ Die untere Navigationsleiste umfasst Alltagstabs (pro Mandant konfigurierbar in 
 | **MHD** | MHD-Monitor | `mhd.js` | Täglicher Morgencheck, Postenbearbeitung, Suche |
 | **Neu** | Wareneingang | `mhd.js` | Laden-Schnellerfassung, Scanner, **Letzte Eingänge**; Metzgerei-Lieferungen; Stammdaten nur Büro |
 | **Herkunft** | LMIV | `traceability.js` | Etikettfoto, Charge/LOT, Herkunftsfelder |
-| **Prod.** | Wurstküche | `production.js`, `beffe_calc.js` | Rezepte, Produktion, WRS-Kalkulation |
+| **Prod.** | Wurstküche | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS-Kalkulation, DIN-A4-Datenblatt |
 
 **Admin-Menü / Header:** HACCP, Wissen, Büro (Chargen). **Dev-Dashboard** (`/dev-dashboard`): Modul-Toggles, Mitarbeiter, Digitale Thekenklade (**Rückverfolgbarkeit**).
 

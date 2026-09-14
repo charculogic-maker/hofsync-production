@@ -6,6 +6,16 @@ import {
   getTenantCollectionPath,
   tenantIdsMatch,
 } from './tenant-db.js';
+import {
+  DEFAULT_MACHINE_PARK,
+  MACHINE_BATCH_PROFILES,
+  STANDARD_BATCH_PROFILE_ID,
+  buildProductionDatasheetData,
+  formatDeNumber,
+  formatPercent,
+  getMachineBatchProfile,
+  openProductionDatasheetPrint,
+} from './production-datasheet.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
@@ -36,6 +46,8 @@ const productionState = {
   initialized: false,
   batchDocumentInFlight: false,
   getAuditActorName: () => '',
+  machineProfileId: STANDARD_BATCH_PROFILE_ID,
+  datasheet: null,
 };
 
 function shouldUseBratwurstMasterlist() {
@@ -4568,6 +4580,7 @@ function calculateIngredients() {
 
   if (!ingredients.length) {
     listContainer.innerHTML = "<div style='color:red; padding:15px; font-weight:bold;'>&#9888;&#65039; Keine Zutaten in den Daten gefunden!</div>";
+    refreshProductionDatasheetState();
     return;
   }
 
@@ -4589,6 +4602,7 @@ function calculateIngredients() {
       const roundedG = roundToButcherPrecision(amountG);
       const amountStr = formatButcherAmount(roundedG);
       const pctText = `${zutatPct.toFixed(2).replace('.', ',')}%`;
+      /* Zutatenzeile bleibt unabhängig vom Datenblatt-State. */
       const rowHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px; border-bottom: 2px solid #eee; background: #fff; font-size: 18px;">
           <div style="font-weight: bold; flex: 2; color: #333;">${zutatName}</div>
@@ -4602,6 +4616,8 @@ function calculateIngredients() {
       console.error('Fehler bei Zutat:', ing, e);
     }
   });
+
+  refreshProductionDatasheetState();
 }
 
 function currentProductionTargetKg() {
@@ -4992,12 +5008,135 @@ async function documentRecipeBatch() {
   }
 }
 
+function currentDatasheetRecipe() {
+  if (productionState.activeRecipeDetail) return productionState.activeRecipeDetail;
+  if (!productionState.selectedRecipeId) return null;
+  return resolveActiveRecipeForDetail(productionState.selectedRecipeId);
+}
+
+function syncBatchProfileButtons() {
+  const activeId = productionState.machineProfileId;
+  const targetKg = currentProductionTargetKg();
+  document.querySelectorAll('[data-batch-profile]').forEach((button) => {
+    const profile = getMachineBatchProfile(button.getAttribute('data-batch-profile'));
+    const isActive = Boolean(
+      profile
+      && profile.id === activeId
+      && Math.abs(targetKg - profile.targetKg) < 0.05,
+    );
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function renderDatasheetQuidPreview(datasheet) {
+  const host = document.getElementById('production-datasheet-quid');
+  if (!host) return;
+  if (!datasheet?.lmiv?.quid?.length) {
+    host.innerHTML = `<span class="production-datasheet-quid-empty">QUID erscheint hier, sobald Fleischanteile berechnet sind.</span>`;
+    return;
+  }
+  host.innerHTML = datasheet.lmiv.quid.map((item) => (
+    `<span class="production-datasheet-quid-chip">${item.label}* ${formatPercent(item.percentage)}</span>`
+  )).join('');
+}
+
+function refreshProductionDatasheetState() {
+  const recipe = currentDatasheetRecipe();
+  const printBtn = document.getElementById('btn-print-production-datasheet');
+  if (!recipe) {
+    productionState.datasheet = null;
+    renderDatasheetQuidPreview(null);
+    if (printBtn) printBtn.disabled = true;
+    syncBatchProfileButtons();
+    return;
+  }
+
+  const targetKg = currentProductionTargetKg();
+  const profile = getMachineBatchProfile(productionState.machineProfileId);
+  const units = readProductionUnits();
+  const pieceWeightG = profile?.pieceWeightG || DEFAULT_MACHINE_PARK.pieceWeightG;
+  const measuredPh = parseFloat(String(document.getElementById('recipe-batch-ph')?.value || '').replace(',', '.'));
+  const measuredCoreTemp = parseFloat(String(document.getElementById('recipe-batch-core-temp')?.value || '').replace(',', '.'));
+
+  try {
+    productionState.datasheet = buildProductionDatasheetData(recipe, {
+      targetKg,
+      profileId: productionState.machineProfileId,
+      machineProfile: profile || { id: 'custom', ...DEFAULT_MACHINE_PARK, targetKg },
+      pieceCount: units.gesamt || undefined,
+      pieceWeightG,
+      createdBy: window.BRANDING?.betriebsName || 'StevesHof Hofladen',
+      accentColor: window.BRANDING?.primaryColor,
+      logoUrl: window.BRANDING?.logoUrl,
+      measuredPh: Number.isFinite(measuredPh) ? measuredPh : undefined,
+      measuredCoreTemp: Number.isFinite(measuredCoreTemp) ? measuredCoreTemp : undefined,
+    });
+  } catch (error) {
+    console.error('[CharcuLogic Produktionsdatenblatt] Aufbau fehlgeschlagen:', error);
+    productionState.datasheet = null;
+  }
+
+  renderDatasheetQuidPreview(productionState.datasheet);
+  if (printBtn) printBtn.disabled = !productionState.datasheet;
+  syncBatchProfileButtons();
+}
+
+function applyMachineBatchProfile(profileId) {
+  const profile = getMachineBatchProfile(profileId) || MACHINE_BATCH_PROFILES[0];
+  if (!profile) return;
+  productionState.machineProfileId = profile.id;
+  productionState.productionTargetKg = profile.targetKg;
+  if (inputProdTarget) {
+    inputProdTarget.value = profile.targetKg.toFixed(1);
+  }
+  const wrsTarget = document.getElementById('target-weight');
+  if (wrsTarget) {
+    wrsTarget.value = String(profile.targetKg);
+    wrsTarget.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  productionState.playClickSound(1250, 0.04, 0.14);
+  calculateIngredients();
+  refreshProductionDatasheetState();
+  productionState.showHUD(
+    'Standard-Charge',
+    `${formatDeNumber(profile.targetKg, 1)} kg eingestellt – Fleisch, Schüttung und Gewürze sind skaliert.`,
+  );
+}
+
+function printProductionDatasheet() {
+  refreshProductionDatasheetState();
+  if (!productionState.datasheet) {
+    productionState.showHUD('Rezept fehlt', 'Bitte zuerst ein Rezept öffnen, dann das Datenblatt drucken.', '!');
+    return;
+  }
+  productionState.playClickSound(900, 0.05, 0.12);
+  const result = openProductionDatasheetPrint(productionState.datasheet, {
+    onBlocked: () => {
+      productionState.showHUD(
+        'Druckfenster blockiert',
+        'Bitte das Druckfenster in Safari zulassen und erneut tippen.',
+        '!',
+      );
+    },
+  });
+  if (result?.mode === 'blocked') {
+    productionState.showHUD(
+      'Druckfenster blockiert',
+      'Bitte das Druckfenster in Safari zulassen und erneut tippen.',
+      '!',
+    );
+  }
+}
+
 function initProductionControls() {
   if (inputProdTarget) {
     inputProdTarget.addEventListener('input', (e) => {
       let val = parseFloat(String(e.target.value).replace(',', '.'));
       if (isNaN(val) || val <= 0) val = 0.5;
       productionState.productionTargetKg = val;
+      const matching = MACHINE_BATCH_PROFILES.find((profile) => Math.abs(profile.targetKg - val) < 0.05);
+      if (matching) productionState.machineProfileId = matching.id;
       calculateIngredients();
     });
   }
@@ -5027,6 +5166,32 @@ function initProductionControls() {
       await documentRecipeBatch();
     });
   }
+
+  const profileHost = document.getElementById('production-batch-profiles');
+  if (profileHost && profileHost.dataset.datasheetBound !== '1') {
+    profileHost.dataset.datasheetBound = '1';
+    profileHost.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-batch-profile]');
+      if (!button) return;
+      applyMachineBatchProfile(button.getAttribute('data-batch-profile'));
+    });
+  }
+
+  const printBtn = document.getElementById('btn-print-production-datasheet');
+  if (printBtn && printBtn.dataset.datasheetBound !== '1') {
+    printBtn.dataset.datasheetBound = '1';
+    printBtn.addEventListener('click', () => printProductionDatasheet());
+  }
+
+  ['recipe-batch-ph', 'recipe-batch-core-temp', 'recipe-unit-large', 'recipe-unit-sb', 'recipe-unit-loose', 'recipe-unit-glass']
+    .forEach((fieldId) => {
+      const field = document.getElementById(fieldId);
+      if (!field || field.dataset.datasheetBound === '1') return;
+      field.dataset.datasheetBound = '1';
+      field.addEventListener('input', () => refreshProductionDatasheetState());
+    });
+
+  syncBatchProfileButtons();
 }
 
 function bindRecipeListEvents() {
@@ -5114,6 +5279,7 @@ export function activateBatchesTab() {
 }
 
 export {
+  applyMachineBatchProfile,
   calculateIngredients,
   createRecipeFromForm,
   documentRecipeBatch as saveCharge,
@@ -5122,6 +5288,8 @@ export {
   importBratwurstRecipesToCloud,
   loadProductionBatchesFromCloud,
   loadRecipesFromCloud,
+  printProductionDatasheet,
+  refreshProductionDatasheetState,
   renderProductionBatches as renderChargenList,
   renderProductionBatches,
   renderRecipes,
