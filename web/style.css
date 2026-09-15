@@ -5719,6 +5719,286 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   background: rgba(255, 255, 255, 0.06);
 }
 
+/* =========================================================================
+   VERSIONS-BADGE, RELEASE-TOAST, CHANGELOG-POPOVER
+   ========================================================================= */
+
+.app-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-color) 88%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-version-badge:hover,
+.app-version-badge:focus-visible {
+  border-color: var(--primary-alpha-35);
+  color: var(--text-dark);
+  outline: none;
+}
+
+.app-version-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok-color) 22%, transparent);
+  flex-shrink: 0;
+}
+
+.app-version-label {
+  color: var(--text-dark);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-version-status {
+  color: var(--text-muted);
+  font-weight: 550;
+  max-width: 9.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-version-badge--header {
+  max-width: 100%;
+}
+
+.app-version-badge--header .app-version-status {
+  display: none;
+}
+
+.app-version-badge--footer {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1001;
+  max-width: calc(100% - 160px);
+  background: color-mix(in srgb, var(--surface-color) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.release-toast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--mhd-bottom-nav-height, 64px) + 12px);
+  z-index: 9100;
+  padding: 0 12px;
+  transform: translateY(18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.28s ease, opacity 0.28s ease;
+}
+
+.release-toast.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.release-toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--primary-alpha-28);
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--surface-color));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  color: var(--text-dark);
+}
+
+.release-toast-text {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.release-toast-dismiss {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.release-toast-dismiss:hover,
+.release-toast-dismiss:focus-visible {
+  background: var(--primary-alpha-12);
+  color: var(--text-dark);
+  outline: none;
+}
+
+.version-changelog-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.version-changelog-modal.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.version-changelog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.version-changelog-card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  max-height: min(72vh, 520px);
+  overflow: auto;
+  padding: 18px 16px 16px;
+  border-radius: 16px 16px 12px 12px;
+  background: var(--surface-color);
+  color: var(--text-dark);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  transform: translateY(16px);
+  transition: transform 0.22s ease;
+}
+
+.version-changelog-modal.is-open .version-changelog-card {
+  transform: translateY(0);
+}
+
+.version-changelog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.version-changelog-kicker {
+  margin: 0 0 2px;
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.version-changelog-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.version-changelog-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.version-changelog-meta {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.version-changelog-list {
+  margin: 0 0 16px;
+  padding: 0 0 0 1.1rem;
+  display: grid;
+  gap: 8px;
+  color: var(--text-dark);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.version-changelog-list li {
+  padding-left: 2px;
+}
+
+.version-changelog-ok {
+  width: 100%;
+  min-height: 44px;
+}
+
+[data-theme="dark"] .app-version-badge {
+  background: color-mix(in srgb, var(--surface-secondary) 90%, transparent);
+}
+
+[data-theme="dark"] .release-toast-body {
+  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface-color));
+}
+
+@media (max-width: 420px) {
+  .app-header-actions .app-version-badge--header {
+    padding: 4px 7px;
+  }
+
+  .app-version-badge--footer .app-version-status {
+    display: none;
+  }
+}
+
+body.app-shell-sidebar .app-version-badge--footer {
+  left: auto;
+  right: 18px;
+  bottom: 18px;
+}
+
+body.app-shell-sidebar .app-version-badge--header .app-version-status {
+  display: inline;
+}
+
+body.is-dev-dashboard .app-version-badge--footer,
+body.dev-dashboard-view .app-version-badge--footer {
+  display: none;
+}
+
 /* --- Team-Leitstand: Schwarzes Brett & Aufgaben-Tokens --- */
 
 .team-home-panel {
@@ -7017,6 +7297,9 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   .meister-override-modal,
   .hud-overlay,
   .update-toast,
+  .release-toast,
+  .version-changelog-modal,
+  .app-version-badge,
   .scanner-overlay,
   .qa-panel,
   body > *:not(.preview-container) {
