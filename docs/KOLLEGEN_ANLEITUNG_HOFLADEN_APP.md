@@ -82,28 +82,30 @@ Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der M
 
 ## 2. Neue Ware erfassen (Wareneingang)
 
-Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
+Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben wählen wir den **Lieferant**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
 
 1. Tab **Neu** öffnen — bei Bedarf zuerst **unser Profil** wählen.
-2. Einmal die passende **Kategorie (Laden)** wählen:
+2. **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion).
+3. Einmal die passende **Kategorie (Laden)** wählen:
    - Frische
    - MoPro
    - Kühlware
+   - Aufschnitt
    - TK
    - Getränke
    - Trockenware
    - Gewürze
-3. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
-4. Bei bekannter EAN: grüne Zeile **Erkannt: …**
-5. Bei unbekannter EAN den **Produktnamen** ergänzen.
-6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
-7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
-9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
-10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
-11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
+4. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
+5. Bei bekannter EAN: grüne Zeile **Erkannt: …**
+6. Bei unbekannter EAN den **Produktnamen** ergänzen.
+7. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
+8. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
+9. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
+10. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
+11. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
+12. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 
-Fehlt der Lieferant, speichert unsere App die Lieferung als **Direkterfassung** (mit unserem Profilnamen). Das ist in Ordnung für schnelles Einräumen ohne Lieferschein.
+Fehlt der Lieferant beim Abschließen, öffnet unsere App ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird die Lieferung gebucht.
 
 ### Wichtig: Kategorie bleibt erhalten
 
@@ -139,7 +141,7 @@ Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben 
 Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
 
 1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
+2. Lieferschein fotografieren, ein Foto wählen **oder ein PDF** hochladen (max. ca. 12 MB).
 3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
 4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
 5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**

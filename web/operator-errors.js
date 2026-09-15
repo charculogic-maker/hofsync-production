@@ -54,7 +54,14 @@ export function mapOperatorError(error, context = '') {
     return 'Fleischpreis-Aktualisierung fehlgeschlagen. Bitte später erneut versuchen.';
   }
   if (context === 'delivery-note') {
-    return 'KI-Analyse fehlgeschlagen. Bitte Foto erneut aufnehmen oder manuell erfassen.';
+    const raw = String(error?.message || error?.code || error || '').toLowerCase();
+    if (raw.includes('zu groß') || raw.includes('too large') || raw.includes('max. 12')) {
+      return 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.';
+    }
+    if (raw.includes('dateityp') || raw.includes('mime') || raw.includes('nicht erlaubt')) {
+      return 'Nur Fotos (JPG/PNG) oder PDF vom Lieferschein sind möglich.';
+    }
+    return 'KI-Analyse fehlgeschlagen. Bitte Foto oder PDF erneut wählen oder manuell erfassen.';
   }
   if (context === 'meat-label') {
     return 'Etikett konnte nicht gelesen werden. Bitte Daten manuell eintragen.';

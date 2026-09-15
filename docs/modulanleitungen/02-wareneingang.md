@@ -6,16 +6,16 @@ Hier erfassen wir **Lieferungen**: Lieferschein-Fotos, Lieferant, Temperatur und
 
 ## Zwei Bereiche
 
-Oben wählen wir zwischen:
+Oben wählen wir zuerst den **Lieferant** (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion). Danach wechseln wir zwischen:
 
 | Modus | Inhalt |
 |-------|--------|
 | **Laden** | Kategorie, Barcode/EAN, Menge, MHD, Postenliste |
-| **Metzgerei** | Lieferant, Waren-Kategorie, Temperatur, Lieferschein-Fotos |
+| **Metzgerei** | Waren-Kategorie, Temperatur, Lieferschein-Fotos/PDF |
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
 
 ---
 
@@ -25,15 +25,15 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
 ### Schritte
 
-1. Tab **Neu** → **Laden**
-2. **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, TK, Getränke, Trockenware oder Gewürze
+1. Tab **Neu** → zuerst **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion)
+2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
 4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
 5. **Unbekannte EAN**: **Produktname** eintragen
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
 7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
 8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
-9. **💾 Gesamte Lieferung abschließen** — alle Posten der aktuellen Lieferung werden gebucht
+9. **💾 Gesamte Lieferung abschließen** — fehlt der Lieferant, erscheint ein Auswahl-Pop-up
 10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
 11. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
@@ -82,12 +82,11 @@ Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI 
 
 ### Schritte
 
-1. Tab **Neu** → **Laden**
-2. **📸 Lieferschein fotografieren / hochladen** antippen
-3. Lieferschein mit dem iPhone fotografieren oder ein vorhandenes Foto wählen
-4. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
-5. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
-6. **📥 Artikel in den Bestand einbuchen** antippen
+1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen
+2. Lieferschein mit dem iPhone fotografieren, ein vorhandenes Foto wählen **oder ein PDF** vom Lieferschein hochladen (max. ca. 12 MB)
+3. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
+4. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
+5. **📥 Artikel in den Bestand einbuchen** antippen
 
 Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 
@@ -113,10 +112,9 @@ Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisc
 ### Schritte
 
 1. Auf **Metzgerei** wechseln
-2. **Lieferant** (oder **🏠 Eigenproduktion**)
-3. **Waren-Kategorie** und **Temperatur (°C)**
-4. **📸 Lieferscheine fotografieren** (mindestens ein Foto für Entwurf)
-5. **📝 Als offenen Entwurf speichern** – auch ohne Posten (morgens nur dokumentieren)
+2. **Waren-Kategorie** und **Temperatur (°C)**
+3. **📸 Lieferscheine fotografieren / PDF** (mindestens ein Foto oder PDF für Entwurf)
+4. **📝 Als offenen Entwurf speichern** – auch ohne Posten (morgens nur dokumentieren)
 
 ![Lieferschein-Fotos in der Vorschau](./screenshots/03b-lieferschein-fotos.png)
 
@@ -128,9 +126,10 @@ Bei Temperatur über 7 °C kann eine **Meister-Freigabe** (PIN) nötig sein.
 
 ## Lieferung abschließen
 
-1. Unter **Laden** mindestens einen Posten erfassen
-2. Unter **Metzgerei** Lieferant (und ggf. Fotos) pflegen
-3. **💾 Gesamte Lieferung abschließen**
+1. Oben **Lieferant** wählen (oder beim Abschließen im Pop-up nachholen)
+2. Unter **Laden** mindestens einen Posten erfassen
+3. Optional unter **Metzgerei** Temperatur und Fotos/PDF pflegen
+4. **💾 Gesamte Lieferung abschließen**
 
 ## Offene Lieferungen (unten)
 

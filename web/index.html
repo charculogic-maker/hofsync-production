@@ -1027,7 +1027,33 @@
           <div class="page" id="page-receiving">
             <div class="haccp-card receiving-card">
               <div class="section-title">Wareneingang</div>
-              <p class="learn-mode-desc">Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).</p>
+              <p class="learn-mode-desc">Schnellerfassung für Posten im Alltag. Lieferant oben wählen; Metzgerei für Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).</p>
+
+              <section class="receiving-section receiving-section--supplier-head" aria-labelledby="we-supplier-head-title">
+                <h3 class="receiving-section-title" id="we-supplier-head-title">Lieferant</h3>
+                <div class="receiving-form-stack">
+                  <div class="receiving-supplier-row">
+                    <label class="receiving-field receiving-field--supplier" for="we-supplier">
+                      <span>Lieferant</span>
+                      <select id="we-supplier" class="gastro-input" autocomplete="organization">
+                        <option value="">-- Lieferant wählen --</option>
+                        <option value="Weiling">Weiling</option>
+                        <option value="Naturverbund">Naturverbund</option>
+                        <option value="Stautenhof">Stautenhof</option>
+                        <option value="__sonstige__">Sonstige</option>
+                        <option value="Eigene Produktion">Eigene Produktion</option>
+                      </select>
+                    </label>
+                    <button type="button" class="btn btn-eigenproduktion" id="we-eigenproduktion-btn" title="Lieferant auf Eigene Produktion setzen">
+                      🏠 Eigenproduktion
+                    </button>
+                  </div>
+                  <label class="receiving-field hidden" id="we-supplier-custom-wrap" for="we-supplier-custom">
+                    <span>Name bei Sonstige</span>
+                    <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
+                  </label>
+                </div>
+              </section>
 
               <div class="receiving-mode-switch" role="tablist" aria-label="Wareneingang Bereich">
                 <button type="button" class="receiving-mode-tab active" id="receiving-mode-schnell" data-receiving-mode="schnell" role="tab" aria-selected="true" aria-controls="receiving-panel-schnell">
@@ -1103,9 +1129,9 @@
 
               <div class="receiving-tool-row">
                 <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📸 Lieferschein fotografieren / hochladen</button>
-                <input type="file" id="delivery-parser-file-input" accept="image/*" capture="environment" hidden>
+                <input type="file" id="delivery-parser-file-input" accept="application/pdf,image/*" hidden>
                 <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
-                <input type="file" id="delivery-note-file-input" accept="image/*" capture="environment" hidden>
+                <input type="file" id="delivery-note-file-input" accept="application/pdf,image/*" hidden>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>
@@ -1127,17 +1153,8 @@
 
               <div id="receiving-panel-metzgerei" class="receiving-mode-panel hidden" role="tabpanel" aria-labelledby="receiving-mode-metzgerei" hidden>
               <section class="receiving-section receiving-section--kopf receiving-section--metzgerei" aria-labelledby="we-kopf-title">
-                <h3 class="receiving-section-title" id="we-kopf-title">Lieferant &amp; Lieferschein</h3>
+                <h3 class="receiving-section-title" id="we-kopf-title">Temperatur &amp; Lieferschein</h3>
                 <div class="receiving-form-stack">
-                  <div class="receiving-supplier-row">
-                    <label class="receiving-field receiving-field--supplier" for="we-supplier">
-                      <span>Lieferant</span>
-                      <input type="text" id="we-supplier" class="gastro-input" placeholder="Lieferant (z. B. Bauer Meier)" autocomplete="organization">
-                    </label>
-                    <button type="button" class="btn btn-eigenproduktion" id="we-eigenproduktion-btn" title="Lieferant auf Eigene Produktion setzen">
-                      🏠 Eigenproduktion
-                    </button>
-                  </div>
                   <label class="receiving-field" for="we-category">
                     <span>Waren-Kategorie</span>
                     <select id="we-category" class="gastro-input">
@@ -1152,10 +1169,14 @@
                     <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                 </div>
-                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="image/*" capture="environment">
+                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="application/pdf,image/*">
                 <button type="button" class="btn btn-primary btn-receiving-photo" id="we-photo-btn">
-                  📸 Lieferscheine fotografieren
+                  📸 Lieferscheine fotografieren / PDF
                 </button>
+                <div id="we-photo-upload-status" class="we-photo-upload-status hidden" role="status" aria-live="polite">
+                  <span class="we-photo-upload-spinner" aria-hidden="true"></span>
+                  <span id="we-photo-upload-status-text">Lieferschein wird geladen…</span>
+                </div>
                 <div id="we-photo-previews" class="we-photo-previews" aria-live="polite"></div>
               </section>
               </div>
@@ -2089,6 +2110,28 @@
 
         <!-- Home Indicator Bar -->
         <div class="home-indicator"></div>
+
+        <!-- Lieferant wählen (Fallback beim Abschließen) -->
+        <div class="supplier-pick-modal" id="supplier-pick-modal" hidden>
+          <div class="supplier-pick-card" role="dialog" aria-modal="true" aria-labelledby="supplier-pick-title">
+            <div class="supplier-pick-title" id="supplier-pick-title">Bitte Lieferant wählen</div>
+            <p class="supplier-pick-desc" id="supplier-pick-desc">Ohne Lieferant können wir die Lieferung nicht abschließen.</p>
+            <div class="supplier-pick-grid" id="supplier-pick-grid" role="group" aria-label="Lieferanten">
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Weiling">Weiling</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Naturverbund">Naturverbund</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Stautenhof">Stautenhof</button>
+              <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstige</button>
+            </div>
+            <label class="receiving-field hidden" id="supplier-pick-custom-wrap" for="supplier-pick-custom">
+              <span>Name bei Sonstige</span>
+              <input type="text" id="supplier-pick-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
+            </label>
+            <div class="supplier-pick-actions">
+              <button type="button" class="btn btn-primary" id="supplier-pick-confirm" hidden>Übernehmen</button>
+              <button type="button" class="btn" id="supplier-pick-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Meister-Override bei HACCP-Temperatur-Abweichung -->
         <div class="meister-override-modal" id="meister-override-modal" hidden>
