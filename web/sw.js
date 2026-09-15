@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260913-prod-datasheet-b';
+const CACHE_NAME = 'charculogic-v20260915-v140-release';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -13,6 +13,7 @@ const CRITICAL_ASSETS = [
   '/libs/firebase-firestore.js',
   '/libs/firebase-storage.js',
   '/app.js',
+  '/app-version.js',
   '/app-check.js',
   '/firebase-config.js',
   '/firebase-init.js',

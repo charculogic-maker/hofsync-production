@@ -216,6 +216,18 @@
               <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
               <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
             </div>
+            <button
+              type="button"
+              class="app-version-badge app-version-badge--header"
+              id="app-version-badge-header"
+              data-app-version-badge
+              aria-haspopup="dialog"
+              title="Versionsinfo"
+            >
+              <span class="app-version-dot" aria-hidden="true"></span>
+              <span class="app-version-label" data-app-version-label>v1.4.0</span>
+              <span class="app-version-status" data-app-version-status>System aktuell</span>
+            </button>
             <div class="employee-session-badge" id="employee-session-badge" style="display: none;">
               <span id="employee-session-name"></span>
             </div>
@@ -2087,6 +2099,19 @@
           </div>
         </nav>
 
+        <button
+          type="button"
+          class="app-version-badge app-version-badge--footer"
+          id="app-version-badge-footer"
+          data-app-version-badge
+          aria-haspopup="dialog"
+          title="Versionsinfo"
+        >
+          <span class="app-version-dot" aria-hidden="true"></span>
+          <span class="app-version-label" data-app-version-label>v1.4.0</span>
+          <span class="app-version-status" data-app-version-status>System aktuell</span>
+        </button>
+
         <!-- Home Indicator Bar -->
         <div class="home-indicator"></div>
 
@@ -2152,7 +2177,7 @@
           </div>
         </div>
 
-        <!-- Update-Toast Banner -->
+        <!-- Update-Toast Banner (Service-Worker: neue Version bereit) -->
         <div class="update-toast" id="update-toast" role="alert">
           <div class="update-toast-body">
             <div class="update-toast-text">
@@ -2163,6 +2188,37 @@
               <button type="button" class="update-toast-btn" id="update-toast-btn" onclick="window.forceAppUpdate && window.forceAppUpdate()">Aktualisieren</button>
               <button type="button" class="update-toast-dismiss" id="update-toast-dismiss" aria-label="Später">Später</button>
             </div>
+          </div>
+        </div>
+
+        <!-- Einmaliger Release-Hinweis nach Update -->
+        <div class="release-toast" id="release-toast" role="status" aria-live="polite" hidden>
+          <div class="release-toast-body">
+            <p class="release-toast-text" id="release-toast-text">HofSync aktualisiert: VPE-Lernlogik, LIFO-Scan &amp; MHD-Parser geladen.</p>
+            <button type="button" class="release-toast-dismiss" id="release-toast-dismiss" aria-label="Hinweis schließen">×</button>
+          </div>
+        </div>
+
+        <!-- Mini-Changelog Popover (Versions-Badge) -->
+        <div class="version-changelog-modal" id="version-changelog-modal" hidden>
+          <div class="version-changelog-backdrop" data-changelog-dismiss="1"></div>
+          <div class="version-changelog-card" role="dialog" aria-modal="true" aria-labelledby="version-changelog-title">
+            <div class="version-changelog-header">
+              <div>
+                <p class="version-changelog-kicker">HofSync</p>
+                <h2 id="version-changelog-title" class="version-changelog-title">Was ist neu</h2>
+              </div>
+              <button type="button" class="version-changelog-close" data-changelog-dismiss="1" aria-label="Schließen">×</button>
+            </div>
+            <p class="version-changelog-meta" id="version-changelog-meta">v1.4.0 · 2026-09-15</p>
+            <ul class="version-changelog-list" id="version-changelog-list">
+              <li>Gebindegrößen-Erkennung (Auto-VPE)</li>
+              <li>LIFO-Reihenfolge im Wareneingang (neuester Scan oben)</li>
+              <li>Flexible 2-stellige MHD-Eingabe (29 → 2029)</li>
+              <li>Auto-Kategorienerkennung</li>
+              <li>Fixes für Lieferantenauswahl &amp; PDF-Upload</li>
+            </ul>
+            <button type="button" class="btn btn-primary version-changelog-ok" data-changelog-dismiss="1">Verstanden</button>
           </div>
         </div>
 
@@ -2319,7 +2375,7 @@
     </form>
   </template>
 
-  <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
-  <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20260915-v140"></script>
+  <script type="module" src="/app.js?v=20260915-v140"></script>
 </body>
 </html>

@@ -146,6 +146,7 @@ import {
   showDevDashboardLoginRequired,
   useTenantAdminAuth,
 } from './dev-dashboard.js';
+import { initAppVersionUi } from './app-version.js';
 import {
   consumeTenantAdminRedirectToast,
   isPlatformSuperAdmin,
@@ -3414,6 +3415,7 @@ try {
 // --- SERVICE WORKER REGISTRIERUNG (PWA) ---
 let updateAvailable = false;
 let serviceWorkerRegistration = null;
+let refreshingForSwUpdate = false;
 
 function showUpdateToast() {
   const toast = document.getElementById('update-toast');
@@ -3451,6 +3453,7 @@ async function activateWaitingServiceWorker() {
 }
 
 async function refreshAppFromNetwork() {
+  refreshingForSwUpdate = true;
   try {
     const registration = serviceWorkerRegistration
       || await navigator.serviceWorker?.getRegistration?.();
@@ -3502,16 +3505,60 @@ document.getElementById('update-toast-btn')?.addEventListener('click', () => {
 document.getElementById('update-toast-dismiss')?.addEventListener('click', hideUpdateToast);
 document.getElementById('app-refresh-btn')?.addEventListener('click', () => applyUpdate(false));
 
+document.getElementById('version-changelog-modal')?.addEventListener('click', (event) => {
+  if (event.target?.closest?.('[data-changelog-dismiss]')) {
+    const modal = document.getElementById('version-changelog-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    window.setTimeout(() => {
+      modal.hidden = true;
+    }, 200);
+  }
+});
+
 if ('serviceWorker' in navigator) {
+  // Neuer SW (skipWaiting + clientsClaim) übernimmt sofort — Seite neu laden,
+  // sobald keine offenen Eingaben blockieren. Erste Aktivierung (kein vorheriger
+  // Controller) darf nicht neu laden, sonst Reload-Schleife.
+  let hadSwController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadSwController) {
+      hadSwController = true;
+      return;
+    }
+    if (refreshingForSwUpdate) return;
+    if (isUiDirty) {
+      updateAvailable = true;
+      showUpdateToast();
+      return;
+    }
+    refreshingForSwUpdate = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260612-1405')
+    initAppVersionUi();
+
+    navigator.serviceWorker.register('./sw.js?v=20260915-v140')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
 
+        // Periodisch nach Updates suchen (PWA auf Laden-iPhones).
+        try {
+          reg.update?.();
+          window.setInterval(() => {
+            reg.update?.().catch(() => {});
+          }, 15 * 60 * 1000);
+        } catch (_) { /* noop */ }
+
         if (reg.installing) {
           console.info('[CharcuLogic SW] Neuer SW wird installiert...');
           if (qaState.active) qaState.log('SW: Neuer Worker wird installiert');
+        }
+
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
 
         reg.addEventListener('updatefound', () => {
@@ -3523,14 +3570,27 @@ if ('serviceWorker' in navigator) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               updateAvailable = true;
-              console.info('[CharcuLogic SW] Neuer Worker bereit — Update-Banner wird angezeigt.');
-              if (qaState.active) qaState.log('SW: Update bereit, Banner sichtbar');
-              showUpdateToast();
+              // skipWaiting läuft im SW bereits — falls noch waiting: nachstoßen.
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              if (isUiDirty) {
+                console.info('[CharcuLogic SW] Neuer Worker bereit — Update-Banner (Eingaben offen).');
+                if (qaState.active) qaState.log('SW: Update bereit, Banner sichtbar');
+                showUpdateToast();
+              } else {
+                console.info('[CharcuLogic SW] Neuer Worker bereit — übernimmt sofort.');
+                if (qaState.active) qaState.log('SW: Update übernimmt sofort');
+              }
             }
           });
         });
       })
       .catch((err) => console.warn('[CharcuLogic SW] Registrierung fehlgeschlagen:', err));
+  });
+} else {
+  window.addEventListener('load', () => {
+    initAppVersionUi();
   });
 }
 
