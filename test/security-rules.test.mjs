@@ -890,6 +890,44 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
     });
 
+    it('allows employee to learn default_vpe on own product_master', async () => {
+      const ctx = authContext(testEnv, 'sh-master-vpe', TENANTS.STEVES_HOF, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4035626114509');
+      const payload = sampleProductMaster(TENANTS.STEVES_HOF, {
+        ean: '4035626114509',
+        articleName: 'b*Joghurt mild',
+        name: 'b*Joghurt mild',
+        default_vpe: 1,
+      });
+      await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+      await expectFirestoreAllow(ctx, ownPath, 'update', {
+        ...payload,
+        default_vpe: 6,
+      });
+    });
+
+    it('denies invalid default_vpe values on product_master', async () => {
+      const ctx = authContext(testEnv, 'sh-master-vpe-bad', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4035626114599'),
+        'create',
+        sampleProductMaster(TENANTS.STEVES_HOF, {
+          ean: '4035626114599',
+          default_vpe: 0,
+        }),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4035626114588'),
+        'create',
+        sampleProductMaster(TENANTS.STEVES_HOF, {
+          ean: '4035626114588',
+          default_vpe: 1.5,
+        }),
+      );
+    });
+
     it('denies helper writes to product_master', async () => {
       const helper = authContext(testEnv, 'sh-master-helper', TENANTS.STEVES_HOF, 'helper');
       const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', 'helper-master');
