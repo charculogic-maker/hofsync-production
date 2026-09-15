@@ -66,6 +66,19 @@ export function resolvePrefillQty(productInfo = null) {
 }
 
 /**
+ * Neue default_vpe nach bestätigter Menge.
+ * Mehrere gleiche Gebinde (z. B. 12 bei gewohnter VPE 6) überschreiben die
+ * Gebindegröße nicht — nur die Stückzahl der Erfassung war höher.
+ */
+export function resolveLearnedDefaultVpe(confirmedQty, previousDefaultVpe = null) {
+  const qty = normalizeDefaultVpe(confirmedQty);
+  if (previousDefaultVpe == null || previousDefaultVpe === '') return qty;
+  const prev = normalizeDefaultVpe(previousDefaultVpe);
+  if (prev > 1 && qty > prev && qty % prev === 0) return prev;
+  return qty;
+}
+
+/**
  * Ob ein Badge „Gewohnte VPE“ angezeigt werden soll (Wert stammt aus Historie/Stamm).
  */
 export function hasHabitualVpe(productInfo = null) {
@@ -199,7 +212,12 @@ export async function learnDefaultVpeFromConfirmedQty(tenantId, product = {}, op
   if (!shouldLearnDefaultVpe({ ...options, ...product, qty })) return null;
   const ean = cleanProductEan(product.ean || product.barcode || options.ean);
   if (!ean) return null;
-  const defaultVpe = normalizeDefaultVpe(qty);
+  const previous = readLocalProductMaster()[ean]?.default_vpe
+    ?? readLocalProductMaster()[ean]?.defaultVpe
+    ?? options.previousDefaultVpe
+    ?? product.previousDefaultVpe
+    ?? null;
+  const defaultVpe = resolveLearnedDefaultVpe(qty, previous);
   const local = writeLocalDefaultVpe(ean, defaultVpe, product);
   if (!local) return null;
   const id = String(tenantId || '').trim();

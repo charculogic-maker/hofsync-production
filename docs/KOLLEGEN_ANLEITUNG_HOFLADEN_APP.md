@@ -98,7 +98,7 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Pos
 5. Bei unbekannter EAN den **Produktnamen** ergänzen.
 6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
 7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-   Bei bekannter EAN steht oft schon die **gewohnte VPE** (z. B. 6) — erkennbar am Badge. Tippen wir ins Mengenfeld, ist die Zahl markiert und lässt sich sofort überschreiben.
+   Bei bekannter EAN steht oft schon die **gewohnte VPE** (z. B. 6) — erkennbar am Badge. Die Menge bleibt frei editierbar: Tippen wir ins Feld, ist die Zahl markiert. Bei zwei Gebinden tippen wir z. B. `12` oder nutzen **+ VPE**.
 8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
 9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.

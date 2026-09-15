@@ -81,7 +81,7 @@ Beispiel:
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
 2. **MoPro** auswählen.
 3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
-   Bekannte EAN: unsere App füllt die **gewohnte VPE** voraus (Badge *Gewohnte VPE: …*); im Mengenfeld ist der Wert markiert, damit wir Anbruchmengen sofort überschreiben können.
+   Bekannte EAN: unsere App füllt die **gewohnte VPE** voraus (Badge *Gewohnte VPE: …*); die Menge bleibt frei editierbar (Anbruch oder zwei Gebinde). Mit **+ VPE** addieren wir ein weiteres Gebinde.
 4. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
 5. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
 6. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.

@@ -11,9 +11,11 @@ import {
   hydrateProductMasterFromFirestore,
   persistProductMasterToFirestore,
   writeLocalProductMasterEntry,
+  readLocalProductMaster,
   normalizeDefaultVpe,
   shouldLearnDefaultVpe,
   resolvePrefillQty,
+  resolveLearnedDefaultVpe,
   hasHabitualVpe,
   formatHabitualVpeBadge,
 } from './product-master.js';
@@ -1756,7 +1758,12 @@ function saveProductMaster(product, options = {}) {
       actionType: options.actionType,
       soldOut: options.soldOut ?? product.soldOut,
     });
-  const defaultVpe = learnVpe ? normalizeDefaultVpe(qtyCandidate) : undefined;
+  const previousVpe = readLocalProductMaster()[barcode]?.default_vpe
+    ?? readLocalProductMaster()[barcode]?.defaultVpe
+    ?? null;
+  const defaultVpe = learnVpe
+    ? resolveLearnedDefaultVpe(qtyCandidate, previousVpe)
+    : undefined;
   writeLocalProductMasterEntry({
     barcode,
     ean: barcode,
@@ -2117,19 +2124,51 @@ function lookupScannedProduct(scannedCode) {
 
 function updateReceivingVpeHabitBadge(productInfo = null) {
   const badge = document.getElementById('we-qty-vpe-badge');
-  if (!badge) return;
+  const addVpeBtn = document.getElementById('we-qty-add-vpe');
+  const qtyInput = document.getElementById('we-qty');
+  if (qtyInput) {
+    qtyInput.readOnly = false;
+    qtyInput.disabled = false;
+    qtyInput.removeAttribute('readonly');
+    qtyInput.removeAttribute('aria-readonly');
+  }
+  if (!badge) {
+    if (addVpeBtn) {
+      addVpeBtn.classList.add('hidden');
+      delete addVpeBtn.dataset.vpeSize;
+    }
+    return;
+  }
   if (!hasHabitualVpe(productInfo)) {
     badge.textContent = '';
     badge.classList.add('hidden');
+    delete badge.dataset.vpeSize;
+    if (addVpeBtn) {
+      addVpeBtn.classList.add('hidden');
+      delete addVpeBtn.dataset.vpeSize;
+    }
     return;
   }
   const qty = resolvePrefillQty(productInfo);
   badge.textContent = formatHabitualVpeBadge(qty);
+  badge.dataset.vpeSize = String(qty);
   badge.classList.remove('hidden');
+  if (addVpeBtn) {
+    addVpeBtn.dataset.vpeSize = String(qty);
+    addVpeBtn.classList.toggle('hidden', qty < 1);
+    addVpeBtn.setAttribute(
+      'aria-label',
+      `Ein weiteres Gebinde (+${qty}) zur Menge addieren`,
+    );
+  }
 }
 
 function applyPrefillQtyToInput(inputEl, productInfo) {
   if (!inputEl) return;
+  inputEl.readOnly = false;
+  inputEl.disabled = false;
+  inputEl.removeAttribute('readonly');
+  inputEl.removeAttribute('aria-readonly');
   const qtyUnit = getReceivingQtyUnitFromCategory(
     document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '',
   );
@@ -2148,6 +2187,30 @@ function bindQtyInputFastOverride(inputEl) {
       // ignore selection errors on unsupported inputs
     }
   });
+}
+
+function addOneReceivingVpeToQty() {
+  const qtyInput = document.getElementById('we-qty');
+  const addVpeBtn = document.getElementById('we-qty-add-vpe');
+  if (!qtyInput || !addVpeBtn) return;
+  const vpeSize = normalizeDefaultVpe(
+    addVpeBtn.dataset.vpeSize
+      || document.getElementById('we-qty-vpe-badge')?.dataset?.vpeSize
+      || 1,
+  );
+  if (vpeSize < 1) return;
+  const current = parseReceivingQty(qtyInput.value, 'Stk');
+  const base = Number.isFinite(current) ? current : 0;
+  qtyInput.readOnly = false;
+  qtyInput.disabled = false;
+  qtyInput.value = String(base + vpeSize);
+  try {
+    qtyInput.focus();
+    qtyInput.select();
+  } catch (_err) {
+    // ignore
+  }
+  mhdState.playClickSound?.(1100, 0.03, 0.1);
 }
 
 function buildCategoryOptions(selectedCategory) {
@@ -2616,8 +2679,11 @@ function showLearnModeDialog(ean) {
   }
   if (inputQty) {
     inputQty.min = '1';
-    inputQty.step = isKnownVpe ? '1' : '0.1';
+    inputQty.step = '1';
     inputQty.inputMode = 'numeric';
+    inputQty.readOnly = false;
+    inputQty.disabled = false;
+    inputQty.title = 'Menge frei anpassbar — z. B. zwei Gebinde = doppelte Stückzahl';
     if (!inputQty.value) {
       inputQty.value = String(defaultQty);
     }
@@ -5058,7 +5124,11 @@ function clearDeliveryItemFields() {
   if (productNameEl) productNameEl.value = '';
   if (herstellerEl) herstellerEl.value = '';
   if (manualEl) manualEl.value = '';
-  if (qtyEl) qtyEl.value = '';
+  if (qtyEl) {
+    qtyEl.readOnly = false;
+    qtyEl.disabled = false;
+    qtyEl.value = '';
+  }
   if (mhdEl) setGermanDateField(mhdEl, '');
   manualWrap?.classList.remove('is-manual-open');
   applyLastReceivingHeadCategory();
@@ -5132,14 +5202,18 @@ async function addDeliveryItem() {
   });
 
   // Lokal gewohnte VPE merken (Firestore beim Lieferung abschließen).
+  // Mehrere gleiche Gebinde (z. B. 12 bei VPE 6) ändern die Gebindegröße nicht.
   if (qtyUnit === 'Stk' && barcode && product) {
+    const previousVpe = readLocalProductMaster()[barcode]?.default_vpe
+      ?? readLocalProductMaster()[barcode]?.defaultVpe
+      ?? null;
     writeLocalProductMasterEntry({
       barcode,
       ean: barcode,
       name: product,
       brand: herstellerZusatz,
       category,
-      default_vpe: Math.max(1, Math.round(qtyValue)),
+      default_vpe: resolveLearnedDefaultVpe(Math.max(1, Math.round(qtyValue)), previousVpe),
     });
   }
 
@@ -5975,6 +6049,14 @@ function bindReceivingControls() {
     });
   }
   bindQtyInputFastOverride(document.getElementById('we-qty'));
+  const btnAddVpe = document.getElementById('we-qty-add-vpe');
+  if (btnAddVpe && btnAddVpe.dataset.mhdBound !== '1') {
+    btnAddVpe.dataset.mhdBound = '1';
+    btnAddVpe.addEventListener('click', (event) => {
+      event.preventDefault();
+      addOneReceivingVpeToQty();
+    });
+  }
   const btnOpenScanner = document.getElementById('btn-open-scanner');
   const btnReceivingScan = document.getElementById('btn-receiving-scan');
   const categoryQuickSelect = document.getElementById('we-category-quick');

@@ -11,6 +11,7 @@ import {
   formatHabitualVpeBadge,
   buildProductMasterDoc,
   DEFAULT_VPE_FALLBACK,
+  resolveLearnedDefaultVpe,
 } from '../web/product-master.js';
 
 describe('product-master default_vpe', () => {
@@ -41,12 +42,21 @@ describe('product-master default_vpe', () => {
     expect(shouldLearnDefaultVpe({ qty: 0, qtyUnit: 'Stk' })).to.equal(false);
   });
 
-  it('prefills from packageSize for VPE barcodes, else default_vpe, else 1', () => {
+    it('prefills from packageSize for VPE barcodes, else default_vpe, else 1', () => {
     expect(resolvePrefillQty(null)).to.equal(1);
     expect(resolvePrefillQty({ isVpe: true, packageSize: 6 })).to.equal(6);
     expect(resolvePrefillQty({ default_vpe: 8 })).to.equal(8);
     expect(resolvePrefillQty({ name: 'Joghurt' })).to.equal(1);
     expect(resolvePrefillQty({ isVpe: true, packageSize: 12, default_vpe: 4 })).to.equal(12);
+  });
+
+  it('keeps habitual VPE when confirming multiple packages of the same size', () => {
+    expect(resolveLearnedDefaultVpe(12, 6)).to.equal(6);
+    expect(resolveLearnedDefaultVpe(18, 6)).to.equal(6);
+    expect(resolveLearnedDefaultVpe(4, 6)).to.equal(4);
+    expect(resolveLearnedDefaultVpe(6, 6)).to.equal(6);
+    expect(resolveLearnedDefaultVpe(12, null)).to.equal(12);
+    expect(resolveLearnedDefaultVpe(7, 6)).to.equal(7);
   });
 
   it('shows habit badge only when VPE comes from history', () => {
