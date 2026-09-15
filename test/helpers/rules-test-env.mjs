@@ -185,6 +185,7 @@ export function sampleProductMaster(tenantId, extra = {}) {
     name: 'Cold Brew Süße Kräuter',
     brand: '',
     category: '',
+    default_vpe: 1,
     updatedAt: '2026-09-03T12:00:00.000Z',
     updatedBy: 'Paddy',
     ...extra,

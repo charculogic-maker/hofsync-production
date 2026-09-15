@@ -1084,8 +1084,11 @@
                     <span>Produktname (unbekannte EAN)</span>
                     <input type="text" id="we-product-manual" class="gastro-input" placeholder="z. B. Schwarzkümmel" autocomplete="off">
                   </label>
-                  <label class="receiving-field" for="we-qty">
-                    <span id="we-qty-label">Menge (Stk)</span>
+                  <label class="receiving-field receiving-field--qty" for="we-qty">
+                    <span class="receiving-qty-label-row">
+                      <span id="we-qty-label">Menge (Stk)</span>
+                      <span id="we-qty-vpe-badge" class="vpe-habit-badge hidden" aria-live="polite"></span>
+                    </span>
                     <input type="number" id="we-qty" class="gastro-input" placeholder="1" min="1" step="1" inputmode="numeric">
                   </label>
                   <label class="receiving-field" for="we-mhd">

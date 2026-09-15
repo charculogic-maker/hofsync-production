@@ -158,15 +158,20 @@ service cloud.firestore {
     }
 
     // Artikelname je EAN für künftige Wareneingänge (Protokoll-Korrektur + MHD-Bearbeiten)
+    // default_vpe: gelernte übliche Stückzahl / Gebindegröße (Integer ≥ 1, Fallback 1)
     match /tenants/{tenantId}/product_master/{ean} {
       allow read: if isTenantUser(tenantId);
       allow create, update: if isEmployeeOrAdmin(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data.ean)
         && isNonEmptyString(request.resource.data.articleName)
+        && (!('default_vpe' in request.resource.data)
+          || (request.resource.data.default_vpe is int
+            && request.resource.data.default_vpe >= 1
+            && request.resource.data.default_vpe <= 9999))
         && request.resource.data.keys().hasOnly([
           'tenantId', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
-          'updatedAt', 'updatedBy'
+          'default_vpe', 'updatedAt', 'updatedBy'
         ]);
       allow delete: if isAdmin(tenantId);
     }

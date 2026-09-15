@@ -32,6 +32,9 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 5. **Unbekannte EAN**: **Produktname** eintragen
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
 7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
+   - Bei bekannter EAN füllt unsere App die **gewohnte Gebindegröße (VPE)** voraus (z. B. 6er-Karton). Ein kleines Hinweis-Badge zeigt *Gewohnte VPE: 6*.
+   - Tippen wir ins Mengenfeld, ist der Wert markiert — abweichende Mengen (Anbruch) überschreiben wir sofort ohne manuelles Löschen.
+   - Nach dem Speichern merkt sich unsere App die zuletzt bestätigte Stückzahl für den nächsten Scan. Ausverkauft und reine Korrekturen ändern die gewohnte VPE nicht.
 8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
 9. **💾 Gesamte Lieferung abschließen** — alle Posten der aktuellen Lieferung werden gebucht
 10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
