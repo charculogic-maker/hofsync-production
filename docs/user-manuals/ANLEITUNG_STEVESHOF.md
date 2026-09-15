@@ -56,7 +56,7 @@ Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **Mo
 
 Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 
-Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir **✏️ Bearbeiten**. Unter **Artikel-Stammdaten bearbeiten** stellen wir Bezeichnung, Marke, EAN und die Kategorie auf **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern wechselt unsere App in den passenden Filter.
+Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir **✏️ Bearbeiten**. Unter **Artikel-Stammdaten bearbeiten** stellen wir Bezeichnung, Marke, EAN und die Kategorie auf **MoPro & Kühlware** oder **Trockenware**. Optional gleichen wir den **Gesamtbestand** ab, ohne MHD-Chargen zu überschreiben (Differenz → **Allgemeiner Bestand**). Nach dem Speichern wechselt unsere App in den passenden Filter.
 
 Wenn ein MHD offensichtlich falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen MHD-Eintrag und fragt vor dem Speichern noch einmal nach.
 
@@ -80,14 +80,14 @@ Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
 2. **MoPro** auswählen.
-3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
+3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen** (neueste Posten stehen oben).
 4. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
 5. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
 6. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
 Ohne eingetragenen Lieferanten speichert unsere App eine **Direkterfassung** mit unserem Profilnamen — das ist für schnelles Verräumen ohne Lieferschein vorgesehen.
 
-Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
+Das MHD-Datum tippen wir als `TT.MM.JJJJ` oder kurz `TT.MM.JJ`, zum Beispiel `31.12.26` → `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 

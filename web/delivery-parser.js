@@ -12,6 +12,7 @@ import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
 import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
+import { detectCategoryFromKeywords, MHD_CANONICAL_CATEGORY_LABELS } from './mhd-category-rules.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -108,14 +109,20 @@ function articleDocId(name) {
 }
 
 function toMhdKategorie(kategorie, artikel) {
+  const detected = detectCategoryFromKeywords(artikel, kategorie);
+  if (detected) return detected;
   const text = `${kategorie || ''} ${artikel || ''}`.toLowerCase();
-  if (/gem(ü|ue)se|salat|kr(ä|ae)uter|obst|frucht|beere|frische/.test(text)) return '🍎 Frische';
-  if (/molkerei|milch|joghurt|jogurt|k(ä|ae)se|quark|sahne|butter|mopro|frischk/.test(text)) return '🥛MoPro';
-  if (/tk|tiefk(ü|ue)hl|gefrier/.test(text)) return '🧊 TK';
-  if (/getr(ä|ae)nk/.test(text)) return '🍺 Getränke';
-  if (/gew(ü|ue)rz/.test(text)) return '🌿 Gewürze';
-  if (/k(ü|ue)hl/.test(text)) return '🥗 Kühlware';
-  return '📦 Trockenware';
+  if (/gem(ü|ue)se|salat|kr(ä|ae)uter|obst|frucht|beere|frische/.test(text)) {
+    return MHD_CANONICAL_CATEGORY_LABELS.frische;
+  }
+  if (/molkerei|milch|joghurt|jogurt|k(ä|ae)se|quark|sahne|butter|mopro|frischk/.test(text)) {
+    return MHD_CANONICAL_CATEGORY_LABELS.mopro;
+  }
+  if (/tk|tiefk(ü|ue)hl|gefrier/.test(text)) return MHD_CANONICAL_CATEGORY_LABELS.tk;
+  if (/getr(ä|ae)nk/.test(text)) return MHD_CANONICAL_CATEGORY_LABELS.getraenke;
+  if (/gew(ü|ue)rz/.test(text)) return MHD_CANONICAL_CATEGORY_LABELS.gewuerze;
+  if (/k(ü|ue)hl/.test(text)) return MHD_CANONICAL_CATEGORY_LABELS.kuehlware;
+  return MHD_CANONICAL_CATEGORY_LABELS.trockenware;
 }
 
 function standardTageAusArtikelname(artikel) {

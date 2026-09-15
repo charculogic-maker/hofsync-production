@@ -1,17 +1,33 @@
 /**
  * Deutsche Datumsfelder (TT.MM.JJJJ) – einheitlich in der gesamten App.
+ * 2-stellige Jahreszahlen (z. B. 29) werden auf das aktuelle Jahrhundert ergänzt (2029).
  */
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const DOTTED_DATE_RE = /^\d{2}\.\d{2}\.\d{4}$/;
-const COMPACT_DATE_RE = /^\d{8}$/;
+const COMPACT_DATE_RE = /^\d{6}$|^\d{8}$/;
 
 function isValidDateParts(year, month, day) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < 1900 || year > 2100) return false;
   const probe = new Date(year, month - 1, day);
   return probe.getFullYear() === year
     && probe.getMonth() === month - 1
     && probe.getDate() === day;
+}
+
+/**
+ * Ergänzt eine genau 2-stellige Jahreszahl auf 20xx.
+ * 4-stellige Jahre bleiben unverändert.
+ * @param {string|number} yearPart
+ * @returns {number|null}
+ */
+export function expandTwoDigitYear(yearPart) {
+  const raw = String(yearPart ?? '').trim();
+  if (!/^\d{2}$|^\d{4}$/.test(raw)) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed)) return null;
+  if (raw.length === 2) return 2000 + parsed;
+  return parsed;
 }
 
 export function formatIsoToGerman(iso = '') {
@@ -22,19 +38,42 @@ export function formatIsoToGerman(iso = '') {
   return `${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${y}`;
 }
 
+/**
+ * Parser für MHD-/Datumseingaben: akzeptiert TT.MM.JJJJ, TT.MM.JJ, TT/MM/JJ,
+ * ISO (JJJJ-MM-TT) sowie kompakte Ziffernfolgen (TTMMJJ / TTMMJJJJ).
+ * @param {string} value
+ * @returns {string} ISO-Datum JJJJ-MM-TT oder ''
+ */
+export function parseMHDInput(value = '') {
+  return parseGermanDateToIso(value);
+}
+
 export function parseGermanDateToIso(value = '') {
   const raw = String(value).trim();
   if (!raw) return '';
-  if (ISO_DATE_RE.test(raw)) return raw;
-  if (COMPACT_DATE_RE.test(raw)) {
-    return parseGermanDateToIso(`${raw.slice(0, 2)}.${raw.slice(2, 4)}.${raw.slice(4, 8)}`);
+  if (ISO_DATE_RE.test(raw)) {
+    const [y, m, d] = raw.split('-').map((part) => Number.parseInt(part, 10));
+    return isValidDateParts(y, m, d) ? raw : '';
   }
-  if (!DOTTED_DATE_RE.test(raw)) return '';
-  const [dayStr, monthStr, yearStr] = raw.split('.');
-  const year = Number.parseInt(yearStr, 10);
-  const month = Number.parseInt(monthStr, 10);
-  const day = Number.parseInt(dayStr, 10);
-  if (!isValidDateParts(year, month, day)) return '';
+
+  const digitsOnly = raw.replace(/\D/g, '');
+  if (COMPACT_DATE_RE.test(digitsOnly) && !/[./\-]/.test(raw)) {
+    if (digitsOnly.length === 8) {
+      return parseGermanDateToIso(`${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4, 8)}`);
+    }
+    if (digitsOnly.length === 6) {
+      return parseGermanDateToIso(`${digitsOnly.slice(0, 2)}.${digitsOnly.slice(2, 4)}.${digitsOnly.slice(4, 6)}`);
+    }
+  }
+
+  const normalized = raw.replace(/[/\-]/g, '.');
+  const match = normalized.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/);
+  if (!match) return '';
+
+  const day = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const year = expandTwoDigitYear(match[3]);
+  if (year == null || !isValidDateParts(year, month, day)) return '';
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
@@ -113,7 +152,7 @@ export function initGermanDateInputs(root = document) {
       el.value = formatIsoToGerman(el.dataset.isoValue);
     } else if (el.value && ISO_DATE_RE.test(el.value.trim())) {
       setGermanDateField(el, el.value.trim());
-    } else if (el.value && DOTTED_DATE_RE.test(el.value.trim())) {
+    } else if (el.value) {
       normalizeGermanDateField(el);
     }
 

@@ -13,6 +13,7 @@
     "test:functions:security": "npm --prefix functions run test:security",
     "test:admin": "node tools/check-admin-module.mjs",
     "test:mhd-audit": "mocha test/mhd-audit.test.mjs",
+    "test:mhd-helpers": "mocha test/date-input-mhd.test.mjs test/mhd-category-rules.test.mjs test/mhd-stock.test.mjs",
     "test:datasheet": "mocha test/production-datasheet.test.mjs",
     "screenshots:modules": "node tools/capture-module-screenshots.mjs",
     "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs"

@@ -34,12 +34,18 @@ export function writeLocalProductMasterEntry(product = {}) {
   const name = sanitizeProductName(product.name || product.articleName || product.produkt || '');
   if (!barcode || !name) return null;
   const productMaster = readLocalProductMaster();
+  const previous = productMaster[barcode] || {};
   const entry = {
     barcode,
     name,
     brand: sanitizeProductName(product.brand || product.marke || ''),
-    category: product.kategorie || product.category || '📦 Trockenware',
+    category: product.kategorie || product.category || previous.category || '📦 Trockenware',
   };
+  if (product.unassignedStock != null || previous.unassignedStock != null) {
+    const raw = product.unassignedStock != null ? product.unassignedStock : previous.unassignedStock;
+    const parsed = Number(raw);
+    entry.unassignedStock = Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
+  }
   productMaster[barcode] = entry;
   const scanBarcode = cleanProductEan(product.scanBarcode);
   if (scanBarcode && scanBarcode !== barcode) {
@@ -57,7 +63,7 @@ export function buildProductMasterDoc(tenantId, product = {}, editorLabel = '') 
   const ean = cleanProductEan(product.ean || product.barcode);
   const articleName = sanitizeProductName(product.articleName || product.name || product.produkt || '');
   if (!ean || !articleName) return null;
-  return {
+  const doc = {
     tenantId: String(tenantId || '').trim(),
     ean,
     articleName,
@@ -67,6 +73,11 @@ export function buildProductMasterDoc(tenantId, product = {}, editorLabel = '') 
     updatedAt: new Date().toISOString(),
     updatedBy: String(editorLabel || product.updatedBy || '').trim(),
   };
+  if (product.unassignedStock != null) {
+    const parsed = Number(product.unassignedStock);
+    doc.unassignedStock = Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
+  }
+  return doc;
 }
 
 export async function persistProductMasterToFirestore(tenantId, product = {}, editorLabel = '') {
@@ -97,6 +108,10 @@ export async function hydrateProductMasterFromFirestore(tenantId) {
         brand: sanitizeProductName(data.brand || ''),
         category: data.category || data.kategorie || '📦 Trockenware',
       };
+      if (data.unassignedStock != null) {
+        const parsed = Number(data.unassignedStock);
+        local[ean].unassignedStock = Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
+      }
     });
     writeLocalProductMasterMap(local);
     return (snap.docs || []).length;

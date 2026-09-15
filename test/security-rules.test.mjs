@@ -890,6 +890,20 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
     });
 
+    it('allows unassignedStock on product_master for MHD-safe stock reconciliation', async () => {
+      const ctx = authContext(testEnv, 'sh-master-stock', TENANTS.STEVES_HOF, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200517');
+      const payload = sampleProductMaster(TENANTS.STEVES_HOF, {
+        ean: '4012346200517',
+        unassignedStock: 4,
+      });
+      await expectFirestoreAllow(ctx, ownPath, 'create', payload);
+      await expectFirestoreAllow(ctx, ownPath, 'update', {
+        ...payload,
+        unassignedStock: -2,
+      });
+    });
+
     it('denies helper writes to product_master', async () => {
       const helper = authContext(testEnv, 'sh-master-helper', TENANTS.STEVES_HOF, 'helper');
       const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', 'helper-master');

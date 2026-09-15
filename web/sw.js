@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260913-prod-datasheet-b';
+const CACHE_NAME = 'charculogic-v20260915-mhd-stock-category-c';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -27,8 +27,11 @@ const CRITICAL_ASSETS = [
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/mhd-category-rules.js',
+  '/mhd-stock.js',
   '/retter-box.js',
   '/date-input.js',
+  '/product-master.js',
   '/delivery-note.js',
   '/delivery-parser.js',
   '/haccp.js',

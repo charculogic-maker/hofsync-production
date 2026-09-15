@@ -26,13 +26,13 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 ### Schritte
 
 1. Tab **Neu** → **Laden**
-2. **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, TK, Getränke, Trockenware oder Gewürze
+2. **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Fleisch/Wurst, Feinkost, Konserven, Süßwaren & Schokolade, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
 4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
 5. **Unbekannte EAN**: **Produktname** eintragen
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
-7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
-8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
+7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` oder kurz `TT.MM.JJ` eintippen (z. B. `31.12.26` → `31.12.2026`)
+8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen (der **neueste Posten** erscheint **oben** in der Liste)
 9. **💾 Gesamte Lieferung abschließen** — alle Posten der aktuellen Lieferung werden gebucht
 10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
 11. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
@@ -40,6 +40,8 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 ### Kategorie bei Serien-Scans
 
 Die ausgewählte Laden-Kategorie bleibt nach **Posten hinzufügen** für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
+
+Fehlt noch eine Kategorie, erkennen wir sie oft am Artikelnamen (z. B. Joghurt → MoPro, Schokolade → Süßwaren & Schokolade, Passata → Konserven) und legen fehlende Einträge in der Auswahl nach.
 
 Die Kategorie kann jederzeit geändert werden — sie gilt für den nächsten Posten.
 
@@ -70,7 +72,7 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 ![EAN erkannt und Posten in der Lieferung](./screenshots/02c-posten-erkannt.png)
 
 - Grüne Zeile **Erkannt:** nach bekannter EAN
-- Liste darunter: bereits hinzugefügte Posten (mit **×** entfernen)
+- Liste darunter: bereits hinzugefügte Posten — **zuletzt hinzugefügt ganz oben** (mit **×** entfernen)
 
 ---
 
