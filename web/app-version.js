@@ -42,6 +42,17 @@ export function markReleaseToastSeen(version = APP_VERSION) {
   }
 }
 
+function isAuthLockBlockingUi() {
+  try {
+    if (window.__charculogicLoginPromptOpen) return true;
+    if (document.body?.classList?.contains('auth-lock-open')) return true;
+    if (document.body?.classList?.contains('auth-loop-lockdown')) return true;
+    const lock = document.getElementById('auth-lock-screen');
+    if (lock?.classList?.contains('active')) return true;
+  } catch (_) { /* noop */ }
+  return false;
+}
+
 function ensureReleaseToastEl() {
   let toast = document.getElementById('release-toast');
   if (toast) return toast;
@@ -74,13 +85,17 @@ function hideReleaseToast() {
 
 /**
  * Einmaliger Hinweis nach App-Update (pro Version, localStorage).
+ * Wird erst gezeigt, wenn kein Login-Overlay die App verdeckt — sonst bleibt
+ * der Status ungesehen und wird später erneut versucht.
  */
 export function maybeShowReleaseToast({
   version = APP_VERSION,
   message = RELEASE_TOAST_MESSAGE,
   durationMs = RELEASE_TOAST_MS,
+  force = false,
 } = {}) {
-  if (hasSeenReleaseToast(version)) return false;
+  if (!force && hasSeenReleaseToast(version)) return false;
+  if (!force && isAuthLockBlockingUi()) return false;
 
   const toast = ensureReleaseToastEl();
   const textEl = document.getElementById('release-toast-text');
@@ -182,6 +197,28 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+function scheduleReleaseToastAttempts() {
+  const attempt = () => {
+    maybeShowReleaseToast();
+  };
+
+  window.setTimeout(attempt, 900);
+  window.setTimeout(attempt, 2500);
+  window.setTimeout(attempt, 6000);
+
+  try {
+    const observer = new MutationObserver(() => {
+      if (!isAuthLockBlockingUi()) attempt();
+    });
+    if (document.body) {
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
+  } catch (_) { /* noop */ }
+
+  window.addEventListener('charculogic:auth-ready', attempt);
+  window.addEventListener('focus', attempt);
+}
+
 /**
  * Dezentes Versions-Badge (Header/Fußzeile) + Changelog-Popover.
  */
@@ -207,10 +244,8 @@ export function initAppVersionUi({
     label: versionLabel,
     tag: APP_VERSION_TAG,
     openChangelog: openChangelogModal,
+    showReleaseToast: maybeShowReleaseToast,
   };
 
-  // Nach erstem Paint einmaligen Release-Hinweis zeigen.
-  window.setTimeout(() => {
-    maybeShowReleaseToast();
-  }, 900);
+  scheduleReleaseToastAttempts();
 }

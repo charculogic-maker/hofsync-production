@@ -5798,7 +5798,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   left: 0;
   right: 0;
   bottom: calc(var(--mhd-bottom-nav-height, 64px) + 12px);
-  z-index: 9100;
+  z-index: 100050;
   padding: 0 12px;
   transform: translateY(18px);
   opacity: 0;
@@ -5860,7 +5860,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 .version-changelog-modal {
   position: absolute;
   inset: 0;
-  z-index: 9500;
+  z-index: 100060;
   display: flex;
   align-items: flex-end;
   justify-content: center;

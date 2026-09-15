@@ -521,6 +521,9 @@ function hideLoginOverlay() {
   document.body?.classList.remove('auth-lock-open');
   window.__charculogicLoginPromptOpen = false;
   setAuthError('');
+  try {
+    window.dispatchEvent(new CustomEvent('charculogic:auth-ready'));
+  } catch (_) { /* noop */ }
 }
 
 /** Öffnet das Anmelde-Overlay (z. B. Login-Button im Dev-Dashboard-Denied-Panel). */
