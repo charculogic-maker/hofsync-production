@@ -142,6 +142,22 @@ describe('QUID and LMIV label', () => {
     expect(rebuilt.ingredientsHtml).to.match(/<strong>Senfmehl<\/strong>/);
     expect(rebuilt.allergenHtml).to.match(/<strong>SENF<\/strong>/);
   });
+
+  it('escapes recipe allergen text before rendering label HTML', () => {
+    const maliciousRecipe = {
+      ...GALLOWAY_BRATWURST,
+      allergene: ['SENF<img src=x onerror=alert(1)>'],
+    };
+    const sheet = buildProductionDatasheetData(maliciousRecipe, {
+      targetKg: 16,
+      machineProfile: PROFILE_16,
+    });
+    const html = renderProductionDatasheetHtml(sheet, { autoPrint: false });
+
+    expect(sheet.lmiv.allergenHtml).to.include('<strong>SENF</strong>&lt;IMG SRC=X ONERROR=ALERT(1)&gt;');
+    expect(html).to.not.include('<img src=x onerror=alert(1)>');
+    expect(html).to.include('&lt;IMG SRC=X ONERROR=ALERT(1)&gt;');
+  });
 });
 
 describe('print renderer', () => {

@@ -531,7 +531,7 @@ export function buildLmivLabel(recipe, meatRows, spiceRows, quid, options = {}) 
     ingredientsText: `Zutaten: ${plainParts.join(', ')}.`,
     ingredientsHtml: `Zutaten: ${htmlParts.join(', ')}.`,
     allergenText,
-    allergenHtml: allergenText.replace(
+    allergenHtml: escapeHtml(allergenText).replace(
       /(SULFITE|SENF|SELLERIE|SOJA|MILCH|EI|GLUTEN|SESAM|SCHALENFRÜCHTE)/g,
       '<strong>$1</strong>',
     ),
