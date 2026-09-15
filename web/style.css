@@ -3868,6 +3868,33 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   min-height: 0;
 }
 
+.we-photo-upload-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.we-photo-upload-status.hidden {
+  display: none;
+}
+
+.we-photo-upload-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(0, 0, 0, 0.12);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: delivery-parser-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
 .we-photo-thumb {
   position: relative;
   width: 60px;
@@ -3877,6 +3904,38 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border: 2px solid var(--primary-alpha-25);
   background: #000;
   flex-shrink: 0;
+}
+
+.we-photo-thumb--pdf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  background: #f2f2f7;
+  text-align: center;
+}
+
+.we-photo-pdf-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.we-photo-pdf-name {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .we-photo-thumb img {
@@ -4004,8 +4063,80 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   align-items: end;
 }
 
+.receiving-section--supplier-head {
+  margin-bottom: 4px;
+  border-color: var(--primary-alpha-28);
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--surface-color));
+}
+
 .receiving-field--supplier {
   min-width: 0;
+}
+
+.receiving-field--supplier select.gastro-input {
+  min-height: 64px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.supplier-pick-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 2450;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.supplier-pick-modal.is-open {
+  display: flex;
+}
+
+.supplier-pick-card {
+  width: 100%;
+  max-width: 360px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  background: var(--surface-color);
+  border-radius: var(--border-radius-lg);
+  padding: 20px 16px 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.supplier-pick-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+
+.supplier-pick-desc {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.supplier-pick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.supplier-pick-option {
+  min-height: 56px;
+  font-weight: 800;
+}
+
+.supplier-pick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .btn-eigenproduktion {

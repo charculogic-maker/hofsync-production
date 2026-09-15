@@ -72,20 +72,21 @@ Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Kart
 
 ## 4. Wareneingang mit Serien-Scans und Lieferungsabschluss
 
-Im Modus **Laden** sammeln wir Posten in einer Lieferung. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
+Im Modus **Laden** sammeln wir Posten in einer Lieferung. Oben wählen wir den **Lieferant**. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
 
 Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Nach einem erfolgreichen Scan werden Barcode und Menge geleert, die **Kategorie (Laden)** bleibt erhalten.
 
 Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
-2. **MoPro** auswählen.
-3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
-4. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
-5. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
-6. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
+2. **Lieferant** wählen (z. B. Weiling).
+3. **MoPro** auswählen.
+4. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
+5. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
+6. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
+7. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
-Ohne eingetragenen Lieferanten speichert unsere App eine **Direkterfassung** mit unserem Profilnamen — das ist für schnelles Verräumen ohne Lieferschein vorgesehen.
+Fehlt der Lieferant beim Abschließen, erscheint ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird gebucht.
 
 Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
@@ -112,7 +113,7 @@ Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (siehe oben). D
 Nach Freigabe läuft der Ablauf so:
 
 1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
+2. Lieferschein fotografieren, ein Foto wählen **oder ein PDF** hochladen (max. ca. 12 MB).
 3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
 4. In der Vorschau je Artikel **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
 5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**

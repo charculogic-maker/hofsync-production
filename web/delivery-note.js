@@ -6,6 +6,7 @@ import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
+import { validateDeliveryUploadFile } from './delivery-upload.js';
 
 const TORFABRIK_TENANT_ID = 'torfabrik';
 
@@ -200,15 +201,35 @@ async function saveDeliveryNoteInventory(items) {
   }
 }
 
+function showDeliveryNoteLoadingOverlay() {
+  hideDeliveryNoteLoadingOverlay();
+  const overlay = document.createElement('div');
+  overlay.id = 'delivery-note-loading-overlay';
+  overlay.className = 'learn-mode-overlay delivery-parser-loading-overlay';
+  overlay.innerHTML = `
+    <div class="delivery-parser-loading-card" role="status" aria-live="polite">
+      <div class="delivery-parser-spinner" aria-hidden="true"></div>
+      <p class="delivery-parser-loading-text">Die KI liest den Lieferschein für uns...</p>
+    </div>
+  `;
+  document.querySelector('.app-container')?.appendChild(overlay);
+}
+
+function hideDeliveryNoteLoadingOverlay() {
+  document.getElementById('delivery-note-loading-overlay')?.remove();
+}
+
 async function handleDeliveryNoteFile(file) {
   if (!file || deliveryNoteState.ocrInFlight) return;
-  const mimeType = String(file.type || 'image/jpeg').trim() || 'image/jpeg';
-  if (!/^image\//i.test(mimeType)) {
-    window.showToast?.('Bitte ein Foto (JPG/PNG) wählen.', 'warning');
+
+  const check = validateDeliveryUploadFile(file);
+  if (!check.ok) {
+    window.showToast?.(check.message, 'warning');
     return;
   }
+  const mimeType = check.mimeType;
 
-  window.showToast?.('Lieferschein wird analysiert…', 'warning');
+  showDeliveryNoteLoadingOverlay();
   try {
     deliveryNoteState.ocrInFlight = true;
     const imageBase64 = await readFileAsBase64(file);
@@ -223,6 +244,7 @@ async function handleDeliveryNoteFile(file) {
     window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
   } finally {
     deliveryNoteState.ocrInFlight = false;
+    hideDeliveryNoteLoadingOverlay();
   }
 }
 

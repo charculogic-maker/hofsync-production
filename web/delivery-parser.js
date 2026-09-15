@@ -12,6 +12,7 @@ import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
 import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
+import { validateDeliveryUploadFile } from './delivery-upload.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -461,11 +462,13 @@ async function bucheLieferungEin(rows) {
 async function handleDeliveryFile(file) {
   if (!parserState.featureEnabled) return;
   if (!file || parserState.ocrInFlight) return;
-  const mimeType = String(file.type || 'image/jpeg').trim() || 'image/jpeg';
-  if (!/^image\//i.test(mimeType)) {
-    window.showToast?.('Bitte ein Foto vom Lieferschein wählen.', 'warning');
+
+  const check = validateDeliveryUploadFile(file);
+  if (!check.ok) {
+    window.showToast?.(check.message, 'warning');
     return;
   }
+  const mimeType = check.mimeType;
 
   showLoadingOverlay();
   try {
