@@ -1841,6 +1841,18 @@ button:active, .btn:active {
   width: 100%;
 }
 
+.mhd-action-badge--percent {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.mhd-action-badge--regular {
+  background: rgba(107, 114, 128, 0.08);
+  border: 1px solid rgba(107, 114, 128, 0.22) !important;
+  color: #6B7280;
+  font-weight: 600;
+}
+
 .mhd-category-badge {
   align-items: center;
   background: var(--surface-secondary);

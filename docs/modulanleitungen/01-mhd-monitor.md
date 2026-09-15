@@ -7,9 +7,22 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Automatische Liste aller Posten mit **MHD im passenden Zeitraum**: MoPro 0-3 Tage, Trockenware 0-21 Tage
+- Automatische Liste aller Posten mit **MHD im passenden Zeitraum**: MoPro 0-4 Tage, Trockenware 0-21 Tage
 - Optional nach **Zeitraum** und **Kategorie** filtern
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
+
+## Rabatt-Empfehlung
+
+Produktregeln gewinnen vor Kategorie-Regeln:
+
+| Produkttyp | Rabatt |
+|------------|--------|
+| **Frischmilch** | 1 Tag vorher **10 %**, MHD-Tag **20 %**, sonst **Regulär** |
+| **MoPro / Käse** | 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
+| **Frische / Fleisch / Wurst** | 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
+| **Trockenware / Konserven** | 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %** |
+
+Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge aus.
 
 ## Oberfläche
 
