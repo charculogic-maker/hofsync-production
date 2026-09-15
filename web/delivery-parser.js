@@ -115,6 +115,7 @@ function toMhdKategorie(kategorie, artikel) {
   if (/tk|tiefk(ü|ue)hl|gefrier/.test(text)) return '🧊 TK';
   if (/getr(ä|ae)nk/.test(text)) return '🍺 Getränke';
   if (/gew(ü|ue)rz/.test(text)) return '🌿 Gewürze';
+  if (/aufschnitt|salami|schinken|wurst|mettwurst|leberwurst/.test(text)) return '🥓 Aufschnitt';
   if (/k(ü|ue)hl/.test(text)) return '🥗 Kühlware';
   return '📦 Trockenware';
 }

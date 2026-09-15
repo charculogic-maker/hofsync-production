@@ -550,6 +550,7 @@ const MHD_CANONICAL_CATEGORIES = {
   frische: '🍎 Frische',
   mopro: '🥛MoPro',
   kuehlware: '🥗 Kühlware',
+  aufschnitt: '🥓 Aufschnitt',
   tk: '🧊 TK',
   trockenware: '📦 Trockenware',
   gewuerze: '🌿 Gewürze',
@@ -576,7 +577,11 @@ const MHD_TROCKEN_MONITOR_CATEGORIES = new Set([
 
 function getMhdMonitorGroup(prod = {}) {
   const category = getProductCategory(prod);
-  if (category === MHD_CANONICAL_CATEGORIES.mopro || category === MHD_CANONICAL_CATEGORIES.kuehlware) {
+  if (
+    category === MHD_CANONICAL_CATEGORIES.mopro
+    || category === MHD_CANONICAL_CATEGORIES.kuehlware
+    || category === MHD_CANONICAL_CATEGORIES.aufschnitt
+  ) {
     return 'mopro';
   }
   if (MHD_TROCKEN_MONITOR_CATEGORIES.has(category)) {
@@ -943,6 +948,7 @@ const MHD_RABATT_MATRIX = {
   '🍎 Frische': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
   '🥛MoPro': { pruefen: 2, rabatt30: 1, rabatt50: 0, tonne: -1 },
   '🥗 Kühlware': { pruefen: 7, rabatt30: 3, rabatt50: 0, tonne: -1 },
+  '🥓 Aufschnitt': { pruefen: 7, rabatt30: 3, rabatt50: 0, tonne: -1 },
   '🧊 TK': { pruefen: 14, rabatt30: 7, rabatt50: 3, tonne: -1 },
   '📦 Trockenware': { pruefen: 30, rabatt30: 2, rabatt50: 1, tonne: -1 },
   '🌿 Gewürze': { pruefen: 60, rabatt30: 30, rabatt50: 14, tonne: -1 },
@@ -991,6 +997,7 @@ const RECEIVING_CATEGORIES = [
   { value: '🍎 Frische', label: '🍎 Frische' },
   { value: '🥛MoPro', label: '🥛 MoPro' },
   { value: '🥗 Kühlware', label: '❄️ Kühlware' },
+  { value: '🥓 Aufschnitt', label: '🥓 Aufschnitt' },
   { value: '🧊 TK', label: '🧊 TK' },
   { value: '🍺 Getränke', label: '🍺 Getränke' },
   { value: '📦 Trockenware', label: '📦 Trockenware' },
@@ -1829,7 +1836,7 @@ function checkMhdAnomaly(barcode, mhdDateStr, kategorie) {
 
   const restTage = Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
 
-  const isFresh = /frische|mopro|kühlware|kuehlware/i.test(kategorie || '');
+  const isFresh = /frische|mopro|kühlware|kuehlware|aufschnitt/i.test(kategorie || '');
   if (isFresh && restTage < 4) {
     return {
       restTage,
@@ -2765,6 +2772,7 @@ function normalizeMhdCategory(kategorie) {
   if (kat === 'MoPro' || kat === '🥛 MoPro') return MHD_CANONICAL_CATEGORIES.mopro;
   if (kat === 'Frische') return MHD_CANONICAL_CATEGORIES.frische;
   if (kat === 'Kühlware' || kat === 'Kuehlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
+  if (kat === 'Aufschnitt' || kat === '🥓 Aufschnitt' || kat === '🥓Aufschnitt') return MHD_CANONICAL_CATEGORIES.aufschnitt;
   if (kat === 'TK') return MHD_CANONICAL_CATEGORIES.tk;
   if (kat === 'Trockenware') return MHD_CANONICAL_CATEGORIES.trockenware;
   return kat;
@@ -4549,6 +4557,7 @@ function submitManualBarcodeFrom(inputEl) {
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
   const normalized = String(warenKategorie || '').trim().toLowerCase();
   if (/kaese_theke|käse-theke|käsetheke/.test(normalized)) return MHD_CANONICAL_CATEGORIES.kuehlware;
+  if (/aufschnitt|🥓/.test(normalized)) return MHD_CANONICAL_CATEGORIES.aufschnitt;
   if (/gewürze|gewuerze|🌿/.test(normalized)) return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke|🍺/.test(normalized)) return MHD_CANONICAL_CATEGORIES.getraenke;
   if (/trockenware/.test(normalized)) return MHD_CANONICAL_CATEGORIES.trockenware;
@@ -4748,6 +4757,7 @@ function getReceivingQtyUnitFromCategory(warenKategorie = '') {
     || normalized.includes('getränke')
     || normalized.includes('getraenke')
     || normalized.includes('wurst zukauf')
+    || normalized.includes('aufschnitt')
   ) {
     return 'Stk';
   }
@@ -4809,7 +4819,10 @@ function normalizeDateInputToDotted(value = '') {
 
 function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
   const normalized = String(warenKategorie).trim().toLowerCase();
-  return normalized.includes('kühl') || normalized.includes('kuehl') || normalized === 'tk';
+  return normalized.includes('kühl')
+    || normalized.includes('kuehl')
+    || normalized.includes('aufschnitt')
+    || normalized === 'tk';
 }
 
 function getReceivingTemperatureInputs() {

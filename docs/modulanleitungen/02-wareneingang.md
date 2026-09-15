@@ -26,7 +26,7 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 ### Schritte
 
 1. Tab **Neu** → zuerst **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion)
-2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, TK, Getränke, Trockenware oder Gewürze
+2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
 4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
 5. **Unbekannte EAN**: **Produktname** eintragen

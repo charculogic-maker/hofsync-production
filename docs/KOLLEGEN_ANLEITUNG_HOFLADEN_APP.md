@@ -90,6 +90,7 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben w�
    - Frische
    - MoPro
    - Kühlware
+   - Aufschnitt
    - TK
    - Getränke
    - Trockenware
