@@ -140,7 +140,7 @@ Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben 
 Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
 
 1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
+2. Lieferschein fotografieren, ein Foto wählen **oder ein PDF** hochladen (max. ca. 12 MB).
 3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
 4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
 5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
