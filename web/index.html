@@ -1829,6 +1829,22 @@
             </div>
             <label class="form-label" for="mhd-stammdaten-ean">EAN / Artikelnummer</label>
             <input type="text" id="mhd-stammdaten-ean" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="z. B. 4028332320111">
+            <details class="mhd-stammdaten-stock" id="mhd-stammdaten-stock">
+              <summary>Optional: Gesamtbestand abgleichen</summary>
+              <p class="learn-mode-desc">Wir passen nur den Allgemeinen Bestand an. Bestehende MHD-Chargen bleiben unverändert.</p>
+              <div class="mhd-stammdaten-stock-grid">
+                <div>
+                  <span class="form-label">MHD-Chargen</span>
+                  <strong id="mhd-stammdaten-assigned-stock">0</strong>
+                </div>
+                <div>
+                  <span class="form-label">Allgemeiner Bestand</span>
+                  <strong id="mhd-stammdaten-unassigned-stock">0</strong>
+                </div>
+              </div>
+              <label class="form-label" for="mhd-stammdaten-total-stock">Gesamtbestand (Soll)</label>
+              <input type="number" id="mhd-stammdaten-total-stock" class="input-text-touch" min="0" step="1" inputmode="numeric" placeholder="z. B. 24">
+            </details>
             <div class="mhd-stammdaten-actions">
               <button type="button" class="btn btn-primary" id="mhd-stammdaten-save">Speichern</button>
               <button type="button" class="btn btn-secondary" id="mhd-stammdaten-cancel">Abbrechen</button>

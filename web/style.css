@@ -1986,6 +1986,34 @@ button:active, .btn:active {
   margin-top: 16px;
 }
 
+.mhd-stammdaten-stock {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.mhd-stammdaten-stock > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.mhd-stammdaten-stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.mhd-stammdaten-stock-grid .form-label {
+  display: block;
+  margin-bottom: 2px;
+}
+
 .mhd-stammdaten-actions .btn {
   width: 100%;
   min-height: 52px;

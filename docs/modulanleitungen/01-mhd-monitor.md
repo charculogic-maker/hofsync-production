@@ -31,11 +31,12 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 - **Badge oben**: empfohlene Aktion (z. B. Rabatt, Prüfen, Tonne)
 - **Kategorie-Badge oben**: antippen, wenn die Kategorie falsch ist; vor dem Speichern bestätigen wir die Änderung
 - **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
-- **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Trockenware); nach dem Speichern zeigt unsere App den Artikel im passenden Filter
-- **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
+- **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Trockenware); optional **Gesamtbestand abgleichen** — MHD-Chargen bleiben unverändert, Differenzen landen im **Allgemeinen Bestand**; nach dem Speichern zeigt unsere App den Artikel im passenden Filter
+- **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen (pro MHD-Charge)
 - **🗑️ Ausverkauft** oder Wischen nach **links**
 - **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken)*
 - **Reduziert**: Karte nach **rechts wischen**
+- **MHD ändern**: 2-stellige Jahreszahlen (z. B. `12.09.29`) werden automatisch zu `12.09.2029`
 
 ### 3. Artikel suchen (optional)
 

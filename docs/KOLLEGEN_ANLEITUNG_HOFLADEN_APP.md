@@ -54,7 +54,7 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
 
-Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
+Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Optional gleichen wir den **Gesamtbestand** ab: bestehende MHD-Chargen bleiben unverändert, Differenzen landen im **Allgemeinen Bestand**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 
 Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 
@@ -98,8 +98,10 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Pos
 5. Bei unbekannter EAN den **Produktnamen** ergänzen.
 6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
 7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
+8. **➕ Posten hinzufügen** wählen — der Artikel erscheint **oben** in der Liste **Posten in Lieferung**.
 9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
+
+Die Kategorie bleibt nach dem Hinzufügen aktiv. Fehlt sie noch, erkennt unsere App sie oft am Namen (z. B. Joghurt → MoPro, Schokolade → Süßwaren). Das MHD darf als `TT.MM.JJJJ` oder kurz `TT.MM.JJ` (z. B. `31.12.26`) eingegeben werden.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
 11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 

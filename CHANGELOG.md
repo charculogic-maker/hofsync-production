@@ -4,6 +4,17 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [v1.4.1] - 2026-09-15
+
+### MHD / Wareneingang
+
+- **2-stellige MHD-Jahre:** `parseMHDInput` akzeptiert `TT.MM.JJ` / `TT/MM/JJ` und ergänzt auf `20JJ` (`web/date-input.js`).
+- **Wareneingang LIFO:** neue Posten erscheinen oben in der Lieferliste (`unshift` + Sortierung nach `scannedAt`).
+- **Kategorie-Erkennung:** Keyword-Regeln für MoPro, Fleisch/Wurst, Feinkost, Konserven, Süßwaren & Schokolade, Getränke; fehlende Kategorien werden dynamisch ergänzt (`web/mhd-category-rules.js`).
+- **Optionaler Bestandsabgleich:** Gesamt-Soll je EAN ohne Überschreiben der MHD-Chargen; Differenz als `unassignedStock` / Allgemeiner Bestand (`web/mhd-stock.js`, `product_master`).
+
+---
+
 ## [v1.4.0] - 2026-09-13
 
 ### Hinzugefügt (Produktionsdatenblatt DIN A4)

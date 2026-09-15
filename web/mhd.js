@@ -1,6 +1,13 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
-import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import {
+  formatIsoToGerman,
+  initGermanDateInputs,
+  parseGermanDateToIso,
+  parseMHDInput,
+  readGermanDateField,
+  setGermanDateField,
+} from './date-input.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -10,6 +17,7 @@ import {
 import {
   hydrateProductMasterFromFirestore,
   persistProductMasterToFirestore,
+  readLocalProductMaster,
   writeLocalProductMasterEntry,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
@@ -28,6 +36,19 @@ import {
   inferMovementAction,
 } from './mhd-audit.js';
 import { readMhdCardUiSettings } from './admin-tenant-models.js';
+import {
+  DEFAULT_RECEIVING_CATEGORY_OPTIONS,
+  MHD_CANONICAL_CATEGORY_LABELS,
+  detectCategoryFromKeywords,
+  ensureCategoryInList,
+  normalizeTextForCategoryMatch,
+} from './mhd-category-rules.js';
+import {
+  computeTotalStock,
+  normalizeUnassignedStock,
+  resolveUnassignedFromTotalTarget,
+  sumActiveBatchQuantities,
+} from './mhd-stock.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -534,13 +555,7 @@ function beginReceivingSaveButtonLock(button, restoreState) {
 const MHD_TROCKEN_CATEGORY = '📦 Trockenware';
 const MHD_RENDER_LIMIT = 50;
 const MHD_CANONICAL_CATEGORIES = {
-  frische: '🍎 Frische',
-  mopro: '🥛MoPro',
-  kuehlware: '🥗 Kühlware',
-  tk: '🧊 TK',
-  trockenware: '📦 Trockenware',
-  gewuerze: '🌿 Gewürze',
-  getraenke: '🍺 Getränke',
+  ...MHD_CANONICAL_CATEGORY_LABELS,
 };
 
 const MHD_MONITOR_GROUP_LABELS = {
@@ -559,11 +574,21 @@ const MHD_TROCKEN_MONITOR_CATEGORIES = new Set([
   MHD_CANONICAL_CATEGORIES.trockenware,
   MHD_CANONICAL_CATEGORIES.gewuerze,
   MHD_CANONICAL_CATEGORIES.getraenke,
+  MHD_CANONICAL_CATEGORIES.konserven,
+  MHD_CANONICAL_CATEGORIES.suesswaren,
+  MHD_CANONICAL_CATEGORIES.feinkost,
 ]);
+
+/** Dynamisch ergänzte Wareneingang-Kategorien (Keyword-Erkennung). */
+let dynamicReceivingCategories = [];
 
 function getMhdMonitorGroup(prod = {}) {
   const category = getProductCategory(prod);
-  if (category === MHD_CANONICAL_CATEGORIES.mopro || category === MHD_CANONICAL_CATEGORIES.kuehlware) {
+  if (
+    category === MHD_CANONICAL_CATEGORIES.mopro
+    || category === MHD_CANONICAL_CATEGORIES.kuehlware
+    || category === MHD_CANONICAL_CATEGORIES.fleischWurst
+  ) {
     return 'mopro';
   }
   if (MHD_TROCKEN_MONITOR_CATEGORIES.has(category)) {
@@ -974,15 +999,7 @@ function showUtilityDialog(title, bodyHtml) {
 }
 
 
-const RECEIVING_CATEGORIES = [
-  { value: '🍎 Frische', label: '🍎 Frische' },
-  { value: '🥛MoPro', label: '🥛 MoPro' },
-  { value: '🥗 Kühlware', label: '❄️ Kühlware' },
-  { value: '🧊 TK', label: '🧊 TK' },
-  { value: '🍺 Getränke', label: '🍺 Getränke' },
-  { value: '📦 Trockenware', label: '📦 Trockenware' },
-  { value: '🌿 Gewürze', label: '🌿 Gewürze' },
-];
+const RECEIVING_CATEGORIES = DEFAULT_RECEIVING_CATEGORY_OPTIONS.map((entry) => ({ ...entry }));
 
 const TORFABRIK_RECEIVING_CATEGORIES = [
   { value: '🍺 Getränke (Jakob Bayen)', label: '🍺 Getränke (Jakob Bayen)' },
@@ -1087,8 +1104,23 @@ function isTorfabrikTenant() {
 function getReceivingCategoriesForTenant() {
   if (isTorfabrikTenant()) return TORFABRIK_RECEIVING_CATEGORIES;
   const extra = getBrandingReceivingCategoriesExtra();
-  if (!extra.length) return RECEIVING_CATEGORIES;
-  return [...RECEIVING_CATEGORIES, ...extra];
+  let base = RECEIVING_CATEGORIES;
+  if (extra.length) base = [...RECEIVING_CATEGORIES, ...extra];
+  return dynamicReceivingCategories.reduce(
+    (list, entry) => ensureCategoryInList(list, entry?.value || entry),
+    base,
+  );
+}
+
+function registerDetectedReceivingCategory(categoryValue) {
+  const value = normalizeMhdCategory(categoryValue || '');
+  if (!value) return value;
+  dynamicReceivingCategories = ensureCategoryInList(dynamicReceivingCategories, value)
+    .map((entry) => ({ value: entry.value, label: entry.label || entry.value }));
+  try {
+    applyReceivingCategoryOptions();
+  } catch (_) { /* noop during early init */ }
+  return value;
 }
 
 function formatIsoToGermanDate(isoDate) {
@@ -1662,32 +1694,19 @@ function decodeVpeCsvBuffer(buffer) {
 }
 
 function normalizeTextForCategory(value = '') {
-  return String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ß/g, 'ss');
+  return normalizeTextForCategoryMatch(value);
 }
 
-function inferMhdCategoryFromProductName(productName = '', fallbackCategory = '') {
+function inferMhdCategoryFromProductName(productName = '', fallbackCategory = '', supplierHint = '') {
+  const detected = detectCategoryFromKeywords(productName, supplierHint);
+  if (detected) {
+    registerDetectedReceivingCategory(detected);
+    return detected;
+  }
+
   const normalizedName = normalizeTextForCategory(productName);
   if (!normalizedName) return normalizeMhdCategory(fallbackCategory || '');
-
-  const fallback = normalizeMhdCategory(fallbackCategory || '');
-  const looksLikeDryMilkChocolate = /(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9].*)?(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern)/.test(normalizedName)
-    || /(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern).*(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9]|$)/.test(normalizedName);
-  const looksLikeDryRice = /milchreis.*(rundkorn|reis|weiss|weiss)/.test(normalizedName);
-  if (looksLikeDryMilkChocolate || looksLikeDryRice) return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
-
-  if (/(joghurt|joghurtdrink|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|butter|feta|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|mozzarella|ricotta|mascarpone|brie|camembert)/.test(normalizedName)) {
-    return MHD_CANONICAL_CATEGORIES.mopro;
-  }
-
-  if (/(^|[^a-z0-9])(h-?milch|frische milch|fettarme milch|alpenmilch|heumilch|weidemilch|vollmilch|milch|kakao-milch|schokoladen-milch|milch alternative)([^a-z0-9]|$)/.test(normalizedName)) {
-    return MHD_CANONICAL_CATEGORIES.mopro;
-  }
-
-  return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
+  return normalizeMhdCategory(fallbackCategory || '') || MHD_CANONICAL_CATEGORIES.trockenware;
 }
 
 function mapVpeCsv(text) {
@@ -1742,7 +1761,7 @@ function saveProductMaster(product) {
   const barcode = cleanScannedBarcode(product.barcode || product.ean);
   const name = sanitizeProductName(product.name);
   if (!barcode || !name) return;
-  writeLocalProductMasterEntry({
+  const payload = {
     barcode,
     ean: barcode,
     name,
@@ -1750,17 +1769,50 @@ function saveProductMaster(product) {
     category: product.kategorie || product.category || '📦 Trockenware',
     kategorie: product.kategorie || product.category,
     scanBarcode: product.scanBarcode,
-  });
+  };
+  if (product.unassignedStock != null) {
+    payload.unassignedStock = normalizeUnassignedStock(product.unassignedStock);
+  }
+  writeLocalProductMasterEntry(payload);
   const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
   if (!tenantId) return;
-  void persistProductMasterToFirestore(tenantId, {
-    ean: barcode,
-    name,
-    brand: product.brand || '',
-    category: product.kategorie || product.category,
-  }, getAuditActorName()).catch((err) => {
+  void persistProductMasterToFirestore(tenantId, payload, getAuditActorName()).catch((err) => {
     console.warn('[CharcuLogic] Gemeinsame Artikeldaten konnten nicht gespeichert werden:', err);
   });
+}
+
+function getUnassignedStockForEan(ean) {
+  const clean = cleanScannedBarcode(ean);
+  if (!clean) return 0;
+  try {
+    const local = readLocalProductMaster();
+    return normalizeUnassignedStock(local[clean]?.unassignedStock);
+  } catch (_) {
+    return 0;
+  }
+}
+
+function getAssignedStockForEan(ean) {
+  return sumActiveBatchQuantities(findProductsByBarcode(ean));
+}
+
+function getTotalStockForEan(ean) {
+  return computeTotalStock(getAssignedStockForEan(ean), getUnassignedStockForEan(ean));
+}
+
+function refreshMhdStammdatenStockUi(ean) {
+  const assignedEl = document.getElementById('mhd-stammdaten-assigned-stock');
+  const unassignedEl = document.getElementById('mhd-stammdaten-unassigned-stock');
+  const totalInput = document.getElementById('mhd-stammdaten-total-stock');
+  const clean = cleanScannedBarcode(ean);
+  const assigned = clean ? getAssignedStockForEan(clean) : 0;
+  const unassigned = clean ? getUnassignedStockForEan(clean) : 0;
+  const total = computeTotalStock(assigned, unassigned);
+  if (assignedEl) assignedEl.textContent = String(assigned);
+  if (unassignedEl) unassignedEl.textContent = String(unassigned);
+  if (totalInput && document.activeElement !== totalInput) {
+    totalInput.value = String(total);
+  }
 }
 
 async function refreshSharedProductMaster() {
@@ -2115,16 +2167,30 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
     if (productNameEl) productNameEl.value = currentDeliveryItemProduct;
     if (herstellerEl && info.brand) herstellerEl.value = String(info.brand).trim();
     const selectedCategory = document.getElementById('we-category-quick')?.value || '';
-    if (!selectedCategory && info.category) {
-      const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
+    const inferredCategory = inferMhdCategoryFromProductName(
+      currentDeliveryItemProduct,
+      info.category || '',
+      document.getElementById('we-supplier')?.value || '',
+    );
+    if (!selectedCategory && (info.category || inferredCategory)) {
+      const mappedCategory = mapMhdCategoryToHeadCategory(info.category || inferredCategory);
       const categorySelect = document.getElementById('we-category-quick');
       if (mappedCategory && categorySelect) {
+        registerDetectedReceivingCategory(mappedCategory);
         const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
         if (hasOption) {
           categorySelect.value = mappedCategory;
           rememberReceivingHeadCategory(mappedCategory);
           updateReceivingQtyFieldUi();
         }
+      }
+    } else if (!selectedCategory && inferredCategory) {
+      const categorySelect = document.getElementById('we-category-quick');
+      registerDetectedReceivingCategory(inferredCategory);
+      if (categorySelect && Array.from(categorySelect.options || []).some((option) => option.value === inferredCategory)) {
+        categorySelect.value = inferredCategory;
+        rememberReceivingHeadCategory(inferredCategory);
+        updateReceivingQtyFieldUi();
       }
     } else {
       applyLastReceivingHeadCategory();
@@ -2452,7 +2518,14 @@ function showLearnModeDialog(ean) {
   const isKnown = Boolean(productInfo?.name);
   const isKnownVpe = Boolean(productInfo?.isVpe);
   const defaultQty = Math.max(1, Number(productInfo?.packageSize || 1));
-  const defaultCategory = productInfo?.category || productInfo?.kategorie || lastMhdScanCategory || '';
+  const seedName = productInfo?.name
+    || document.getElementById('we-product-manual')?.value?.trim()
+    || '';
+  const defaultCategory = inferMhdCategoryFromProductName(
+    seedName,
+    productInfo?.category || productInfo?.kategorie || lastMhdScanCategory || '',
+    document.getElementById('we-supplier')?.value || '',
+  );
 
   learnModeOverlay = document.createElement('div');
   learnModeOverlay.className = 'learn-mode-overlay';
@@ -2511,6 +2584,16 @@ function showLearnModeDialog(ean) {
   if (inputName) inputName.value = productInfo?.name || document.getElementById('we-product-manual')?.value.trim() || '';
   if (inputBrand) inputBrand.value = productInfo?.brand || document.getElementById('we-supplier')?.value.trim() || '';
   initGermanDateInputs(learnModeOverlay);
+  if (inputCategory) inputCategory.innerHTML = buildCategoryOptions(defaultCategory);
+  inputName?.addEventListener('change', () => {
+    if (!inputCategory) return;
+    const inferred = inferMhdCategoryFromProductName(
+      inputName.value,
+      inputCategory.value || defaultCategory,
+      inputBrand?.value || '',
+    );
+    if (inferred) inputCategory.innerHTML = buildCategoryOptions(inferred);
+  });
   if (inputMhd && document.getElementById('we-mhd')?.value) {
     const isoMhd = normalizeDateInputToIso(document.getElementById('we-mhd').value);
     if (isoMhd) setGermanDateField(inputMhd, isoMhd);
@@ -2528,7 +2611,6 @@ function showLearnModeDialog(ean) {
       inputQty.value = String(defaultQty);
     }
   }
-  if (inputCategory) inputCategory.innerHTML = buildCategoryOptions(defaultCategory);
 
   const actionsEl = learnModeOverlay.querySelector('.learn-mode-actions');
   const vpeLabel = document.createElement('label');
@@ -2752,6 +2834,14 @@ function normalizeMhdCategory(kategorie) {
   if (kat === 'MoPro' || kat === '🥛 MoPro') return MHD_CANONICAL_CATEGORIES.mopro;
   if (kat === 'Frische') return MHD_CANONICAL_CATEGORIES.frische;
   if (kat === 'Kühlware' || kat === 'Kuehlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
+  if (/fleisch\/wurst|fleischwurst|fleisch.?wurst/i.test(kat) || kat.startsWith('🥩')) {
+    return MHD_CANONICAL_CATEGORIES.fleischWurst;
+  }
+  if (/feinkost/i.test(kat) || kat.startsWith('🍽️')) return MHD_CANONICAL_CATEGORIES.feinkost;
+  if (/konserven/i.test(kat) || kat.startsWith('🥫')) return MHD_CANONICAL_CATEGORIES.konserven;
+  if (/süßwaren|suesswaren|schokolade/i.test(kat) || kat.startsWith('🍫')) {
+    return MHD_CANONICAL_CATEGORIES.suesswaren;
+  }
   if (kat === 'TK') return MHD_CANONICAL_CATEGORIES.tk;
   if (kat === 'Trockenware') return MHD_CANONICAL_CATEGORIES.trockenware;
   return kat;
@@ -4023,6 +4113,7 @@ function openMhdStammdatenEditor(id) {
   if (brandInput) brandInput.value = sanitizeProductName(prod.brand || prod.marke || '');
   if (eanInput) eanInput.value = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode || '');
   setMhdStammdatenGroupSelection(getMhdMonitorGroup(prod));
+  refreshMhdStammdatenStockUi(eanInput?.value || getProductBarcode(prod));
 
   modal.hidden = false;
   modal.classList.add('is-open');
@@ -4042,6 +4133,19 @@ function bindMhdStammdatenModal() {
   });
   document.getElementById('mhd-stammdaten-save')?.addEventListener('click', () => {
     saveMhdStammdatenCorrection(mhdStammdatenEditId);
+  });
+  document.getElementById('mhd-stammdaten-ean')?.addEventListener('input', (event) => {
+    refreshMhdStammdatenStockUi(event.target?.value);
+  });
+  document.getElementById('mhd-stammdaten-total-stock')?.addEventListener('input', (event) => {
+    const ean = cleanScannedBarcode(document.getElementById('mhd-stammdaten-ean')?.value || '');
+    const assigned = ean ? getAssignedStockForEan(ean) : 0;
+    const desired = Number.parseInt(String(event.target?.value || '').trim(), 10);
+    const unassigned = resolveUnassignedFromTotalTarget(desired, assigned);
+    const unassignedEl = document.getElementById('mhd-stammdaten-unassigned-stock');
+    if (unassignedEl) {
+      unassignedEl.textContent = unassigned == null ? '–' : String(unassigned);
+    }
   });
   modal.querySelectorAll('[data-mhd-stammdaten-group]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -4068,11 +4172,23 @@ async function saveMhdStammdatenCorrection(id) {
   const monitorGroup = getSelectedMhdStammdatenGroup();
   const kategorie = resolveStammdatenKategorie(prod, monitorGroup);
   const previousGroup = getMhdMonitorGroup(prod);
+  const assignedStock = ean ? getAssignedStockForEan(ean) : sumActiveBatchQuantities([prod]);
+  const desiredTotalRaw = document.getElementById('mhd-stammdaten-total-stock')?.value;
+  const desiredTotal = desiredTotalRaw === '' || desiredTotalRaw == null
+    ? getTotalStockForEan(ean || getProductBarcode(prod))
+    : Number.parseInt(String(desiredTotalRaw).trim(), 10);
+  const nextUnassigned = resolveUnassignedFromTotalTarget(desiredTotal, assignedStock);
 
   if (!name) {
     mhdState.showHUD('Name fehlt', 'Bitte eine Produktbezeichnung eintragen.', '!');
     window.showToast?.('Bitte eine Produktbezeichnung eintragen.', 'warning');
     document.getElementById('mhd-stammdaten-name')?.focus();
+    return;
+  }
+
+  if (nextUnassigned == null) {
+    mhdState.showHUD('Bestand ungültig', 'Bitte eine gültige Gesamtmenge eingeben.', '!');
+    document.getElementById('mhd-stammdaten-total-stock')?.focus();
     return;
   }
 
@@ -4144,6 +4260,7 @@ async function saveMhdStammdatenCorrection(id) {
       brand,
       kategorie,
       category: kategorie,
+      unassignedStock: nextUnassigned,
     });
     if (ean || previousBarcode) {
       rememberCategoryForBarcode({ name, brand, produkt: name }, ean || previousBarcode, kategorie);
@@ -4156,7 +4273,12 @@ async function saveMhdStammdatenCorrection(id) {
     renderMhdList();
     const groupLabel = monitorGroup === 'mopro' ? 'MoPro & Kühlware' : 'Trockenware';
     mhdState.showHUD('Artikel gespeichert', `Wir zeigen den Artikel jetzt unter ${groupLabel}.`);
-    window.showToast?.('Artikel gespeichert.', 'success');
+    window.showToast?.(
+      nextUnassigned === 0
+        ? 'Artikel gespeichert.'
+        : `Artikel gespeichert. Allgemeiner Bestand: ${nextUnassigned}.`,
+      'success',
+    );
   } catch (err) {
     if (maybeResetOnFirestorePermissionError(err, 'saveMhdStammdatenCorrection')) return;
     console.error('[CharcuLogic Firebase] Stammdaten-Korrektur fehlgeschlagen:', err);
@@ -4538,6 +4660,10 @@ function mapWarenKategorieToMhdKategorie(warenKategorie) {
   if (/kaese_theke|käse-theke|käsetheke/.test(normalized)) return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (/gewürze|gewuerze|🌿/.test(normalized)) return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke|🍺/.test(normalized)) return MHD_CANONICAL_CATEGORIES.getraenke;
+  if (/süßwaren|suesswaren|schokolade|🍫/.test(normalized)) return MHD_CANONICAL_CATEGORIES.suesswaren;
+  if (/konserven|🥫/.test(normalized)) return MHD_CANONICAL_CATEGORIES.konserven;
+  if (/feinkost|🍽️/.test(normalized)) return MHD_CANONICAL_CATEGORIES.feinkost;
+  if (/fleisch\/wurst|fleisch.?wurst|🥩/.test(normalized)) return MHD_CANONICAL_CATEGORIES.fleischWurst;
   if (/trockenware/.test(normalized)) return MHD_CANONICAL_CATEGORIES.trockenware;
   if (/frische/.test(normalized)) return MHD_CANONICAL_CATEGORIES.frische;
   if (/mopro/.test(normalized)) return MHD_CANONICAL_CATEGORIES.mopro;
@@ -4613,63 +4739,25 @@ function getReceivingQtyUnitFromCategory(warenKategorie = '') {
     || normalized.includes('getränke')
     || normalized.includes('getraenke')
     || normalized.includes('wurst zukauf')
+    || normalized.includes('fleisch')
+    || normalized.includes('feinkost')
+    || normalized.includes('konserven')
+    || normalized.includes('süßwaren')
+    || normalized.includes('suesswaren')
+    || normalized.includes('schokolade')
   ) {
     return 'Stk';
   }
   return 'kg';
 }
 
-function isIsoDateLike(value = '') {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
-}
-
-function isDottedDateLike(value = '') {
-  return /^\d{2}\.\d{2}\.\d{4}$/.test(String(value).trim());
-}
-
-function isValidDateParts(year, month, day) {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
-  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() + 1 === month && parsed.getUTCDate() === day;
-}
-
-function dottedDateToIso(value = '') {
-  const raw = String(value).trim();
-  if (!isDottedDateLike(raw)) return '';
-  const [dayStr, monthStr, yearStr] = raw.split('.');
-  const day = Number.parseInt(dayStr, 10);
-  const month = Number.parseInt(monthStr, 10);
-  const year = Number.parseInt(yearStr, 10);
-  if (!isValidDateParts(year, month, day)) return '';
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function isoDateToDotted(value = '') {
-  const raw = String(value).trim();
-  if (!isIsoDateLike(raw)) return '';
-  const [yearStr, monthStr, dayStr] = raw.split('-');
-  const year = Number.parseInt(yearStr, 10);
-  const month = Number.parseInt(monthStr, 10);
-  const day = Number.parseInt(dayStr, 10);
-  if (!isValidDateParts(year, month, day)) return '';
-  return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).padStart(4, '0')}`;
-}
-
 function normalizeDateInputToIso(value = '') {
-  const raw = String(value).trim();
-  if (!raw) return '';
-  if (isIsoDateLike(raw)) return isoDateToDotted(raw) ? raw : '';
-  if (isDottedDateLike(raw)) return dottedDateToIso(raw);
-  return '';
+  return parseMHDInput(value) || parseGermanDateToIso(value) || '';
 }
 
 function normalizeDateInputToDotted(value = '') {
-  const raw = String(value).trim();
-  if (!raw) return '';
-  if (isDottedDateLike(raw)) return dottedDateToIso(raw) ? raw : '';
-  if (isIsoDateLike(raw)) return isoDateToDotted(raw);
-  return '';
+  const iso = normalizeDateInputToIso(value);
+  return iso ? formatIsoToGerman(iso) : '';
 }
 
 function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
@@ -4921,7 +5009,12 @@ function renderDeliveryItemsTable() {
     table.innerHTML = '<div class="we-items-table-empty">Noch keine Posten in dieser Lieferung.</div>';
     return;
   }
-  table.innerHTML = currentDeliveryItems.map((item) => {
+  const sortedItems = [...currentDeliveryItems].sort((a, b) => {
+    const aTime = Number(a?.scannedAt) || 0;
+    const bTime = Number(b?.scannedAt) || 0;
+    return bTime - aTime;
+  });
+  table.innerHTML = sortedItems.map((item) => {
     const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
     const brandMeta = brandLabel
       ? `${escapeHtml(brandLabel.toUpperCase())} · `
@@ -5016,7 +5109,7 @@ async function addDeliveryItem() {
     ? crypto.randomUUID()
     : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  currentDeliveryItems.push({
+  currentDeliveryItems.unshift({
     id: itemId,
     product,
     barcode,
@@ -5028,6 +5121,7 @@ async function addDeliveryItem() {
     // Legacy-Feld fuer bestehende Auswertungen weiter mitschreiben.
     qtyKg: qtyUnit === 'Stk' ? Math.max(1, Math.round(qtyValue)) : Math.round(qtyValue * 100) / 100,
     mhdDate,
+    scannedAt: Date.now(),
   });
 
   clearDeliveryItemFields();
