@@ -3883,7 +3883,7 @@ const bratwurstRecipes = [
         "pct": 0.25,
         "typ": "additive",
         "allergen": false,
-        "hinweis": "Citratbasis",
+        "hinweis": "",
         "funktion": "pH-Puffer & Eiweißaufschluss (Citratbasis)",
         "supplier": "NovaTaste / WIBERG"
       },
