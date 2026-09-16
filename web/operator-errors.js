@@ -54,6 +54,15 @@ export function mapOperatorError(error, context = '') {
     return 'Fleischpreis-Aktualisierung fehlgeschlagen. Bitte später erneut versuchen.';
   }
   if (context === 'delivery-note') {
+    if (code.includes('deadline-exceeded') || code.includes('timeout') || raw.toLowerCase().includes('timeout')) {
+      return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
+    }
+    if (code.includes('unavailable') || code.includes('network') || raw.toLowerCase().includes('network') || raw.toLowerCase().includes('offline')) {
+      return 'Das Laden-iPhone hat kurz die Verbindung verloren. Bitte versuche es noch einmal.';
+    }
+    if (raw.toLowerCase().includes('zu groß') || raw.toLowerCase().includes('12 mb') || raw.toLowerCase().includes('too large')) {
+      return 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.';
+    }
     return 'KI-Analyse fehlgeschlagen. Bitte Foto erneut aufnehmen oder manuell erfassen.';
   }
   if (context === 'meat-label') {

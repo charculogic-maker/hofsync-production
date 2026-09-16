@@ -30,6 +30,7 @@ import {
   seedFirestoreDoc,
   tenantDocPath,
   chargenDokuObjectPath,
+  deliveryNotesObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -587,6 +588,23 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('denies cross-tenant chargendoku storage upload', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TORFABRIK, 'employee');
       await expectStorageUploadDeny(ctx, chargenDokuObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
+    });
+  });
+
+  describe('TEST CASE 6b: delivery_notes storage tenant isolation', () => {
+    it('allows employee upload to own tenant delivery_notes path', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadAllow(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-own.jpg'));
+    });
+
+    it('denies cross-tenant delivery_notes storage upload', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage-x', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.STEVES_HOF, 'ls-foreign.jpg'));
+    });
+
+    it('denies helper write on delivery_notes', async () => {
+      const ctx = authContext(testEnv, 'tf-helper-delivery-storage', TENANTS.TORFABRIK, 'helper');
+      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-helper.jpg'));
     });
   });
 
