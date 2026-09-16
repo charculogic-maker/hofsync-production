@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260916-bgw-rostbratwurst';
+const CACHE_NAME = 'charculogic-v20260916-delivery-upload-hardening';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -32,6 +32,7 @@ const CRITICAL_ASSETS = [
   '/date-input.js',
   '/delivery-note.js',
   '/delivery-parser.js',
+  '/delivery-upload.js',
   '/haccp.js',
   '/production.js',
   '/production-datasheet.js',

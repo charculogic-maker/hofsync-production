@@ -257,6 +257,10 @@ export function chargenDokuObjectPath(tenantId, fileName = 'record.jpg') {
   return `tenants/${tenantId}/chargendoku/${fileName}`;
 }
 
+export function deliveryNotesObjectPath(tenantId, fileName = 'lieferschein.jpg') {
+  return `tenants/${tenantId}/delivery_notes/${fileName}`;
+}
+
 export {
   assertFails,
   assertSucceeds,

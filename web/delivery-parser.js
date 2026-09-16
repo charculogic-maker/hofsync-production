@@ -8,10 +8,14 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { waitForAppCheckReady } from './app-check.js';
-import { createHttpsCallable } from './firebase-functions.js';
 import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
+import {
+  analyzeDeliveryNoteFile,
+  isAllowedDeliveryFile,
+  mapDeliveryUploadError,
+  DeliveryUploadError,
+} from './delivery-upload.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -178,19 +182,6 @@ export function vorhersagenMhd(artikel, kategorie, history, todayIso = startOfDa
 // KI-Lieferschein einlesen
 // ---------------------------------------------------------------------------
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error || new Error('Datei konnte nicht gelesen werden.'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function normalizeParsedItems(items) {
   if (!Array.isArray(items)) return [];
   return items.map((entry) => {
@@ -204,15 +195,14 @@ function normalizeParsedItems(items) {
   }).filter((row) => row.artikel);
 }
 
-async function callParseDeliveryNote(imageBase64, mimeType) {
-  const firebase = parserState.getFirebase();
-  if (!firebase?.app) {
-    throw new Error('Lieferschein-Einlesen ist gerade nicht bereit.');
-  }
-  const callable = createHttpsCallable('parseDeliveryNote', undefined, firebase);
-  await waitForAppCheckReady();
-  const result = await callable({ imageBase64, mimeType });
-  return normalizeParsedItems(result?.data?.items);
+async function callParseDeliveryNote(file) {
+  const tenantId = getAuthContext()?.tenantId || '';
+  const result = await analyzeDeliveryNoteFile({
+    file,
+    tenantId,
+    getFirebase: parserState.getFirebase,
+  });
+  return normalizeParsedItems(result.items);
 }
 
 // ---------------------------------------------------------------------------
@@ -461,17 +451,15 @@ async function bucheLieferungEin(rows) {
 async function handleDeliveryFile(file) {
   if (!parserState.featureEnabled) return;
   if (!file || parserState.ocrInFlight) return;
-  const mimeType = String(file.type || 'image/jpeg').trim() || 'image/jpeg';
-  if (!/^image\//i.test(mimeType)) {
-    window.showToast?.('Bitte ein Foto vom Lieferschein wählen.', 'warning');
+  if (!isAllowedDeliveryFile(file)) {
+    window.showToast?.(mapDeliveryUploadError(new DeliveryUploadError('unsupported-type', 'Unsupported')), 'warning');
     return;
   }
 
   showLoadingOverlay();
   try {
     parserState.ocrInFlight = true;
-    const imageBase64 = await readFileAsBase64(file);
-    const items = await callParseDeliveryNote(imageBase64, mimeType);
+    const items = await callParseDeliveryNote(file);
     if (!items.length) {
       window.showToast?.('Wir konnten keine Artikel auf dem Lieferschein erkennen.', 'warning');
       return;
@@ -479,7 +467,10 @@ async function handleDeliveryFile(file) {
     showPreview(buildPreviewRows(items));
   } catch (err) {
     console.error('[DeliveryParser] Lieferschein-Einlesen fehlgeschlagen:', err);
-    window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
+    const toast = err instanceof DeliveryUploadError
+      ? mapDeliveryUploadError(err)
+      : (mapDeliveryUploadError(err) || logAndMapOperatorError(err, 'delivery-note'));
+    window.showToast?.(toast, 'error');
   } finally {
     parserState.ocrInFlight = false;
     hideLoadingOverlay();

@@ -71,6 +71,12 @@ service firebase.storage {
       allow write: if istTenantMitglied(tenantId) && istDateigroesseOk() && istBildOderPdf();
     }
 
+    // Lieferschein-Uploads für KI-Analyse: tenants/{tenantId}/delivery_notes/…
+    match /tenants/{tenantId}/delivery_notes/{allPaths=**} {
+      allow read: if istTenantMitglied(tenantId);
+      allow write: if istMitarbeiter(tenantId) && istDateigroesseOk() && istBildOderPdf();
+    }
+
     // Legacy LMIV-Fotos (Migration)
     match /tenants/{tenantId}/traceability/{allPaths=**} {
       allow read: if istTenantMitglied(tenantId);

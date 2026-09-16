@@ -15,7 +15,7 @@ exports.parseDeliveryNote = onCall(
     ...CALLABLE_BASE_OPTIONS,
     secrets: ['GEMINI_API_KEY'],
     timeoutSeconds: 120,
-    memory: '512MiB',
+    memory: '1GiB',
   },
   async (request) => require('./deliveryNote').handleParseDeliveryNote(request),
 );

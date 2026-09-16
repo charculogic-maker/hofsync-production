@@ -1,10 +1,30 @@
+const admin = require('firebase-admin');
 const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
 
 const DELIVERY_NOTE_MODEL = process.env.GEMINI_DELIVERY_NOTE_MODEL || 'gemini-2.5-flash';
 const MAX_IMAGE_BASE64_LENGTH = 16 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+]);
+
+const EXT_TO_MIME = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  webp: 'image/webp',
+};
+
 const DELIVERY_NOTE_PROMPT = [
   'Du bist ein präziser OCR-Gastro-Parser.',
   'Analysiere diesen Lieferschein (z.B. von Metro oder Jakob Bayen).',
@@ -84,12 +104,114 @@ function validateParsedItems(items) {
   });
 }
 
+function normalizeMimeType(mimeType, storagePath = '') {
+  let mime = String(mimeType || '').trim().toLowerCase();
+  if (mime === 'image/jpg') mime = 'image/jpeg';
+  if (mime && mime !== 'application/octet-stream' && ALLOWED_MIME_TYPES.has(mime)) {
+    return mime;
+  }
+  const extMatch = String(storagePath || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  const fromExt = extMatch ? EXT_TO_MIME[extMatch[1]] : '';
+  if (fromExt) return fromExt;
+  return mime || 'image/jpeg';
+}
+
+function assertAllowedMimeType(mimeType) {
+  const mime = normalizeMimeType(mimeType);
+  if (!ALLOWED_MIME_TYPES.has(mime)) {
+    throw new HttpsError('invalid-argument', 'Dateityp nicht erlaubt.');
+  }
+  return mime;
+}
+
+/**
+ * Erzwingt tenants/{tenantId}/… und blockiert Path-Traversal / Cross-Tenant.
+ */
+function assertTenantStoragePath(tenantId, storagePath) {
+  const cleaned = String(storagePath || '').trim().replace(/^\/+/, '');
+  const prefix = `tenants/${tenantId}/`;
+  if (!cleaned || !cleaned.startsWith(prefix)) {
+    throw new HttpsError('permission-denied', 'Speicherpfad gehört nicht zu diesem Mandanten.');
+  }
+  if (cleaned.includes('..') || cleaned.includes('\\')) {
+    throw new HttpsError('invalid-argument', 'Ungültiger Speicherpfad.');
+  }
+  if (!cleaned.startsWith(`${prefix}delivery_notes/`)) {
+    throw new HttpsError('invalid-argument', 'Speicherpfad muss unter delivery_notes liegen.');
+  }
+  return cleaned;
+}
+
+async function loadImageFromStorage(tenantId, storagePath) {
+  const cleaned = assertTenantStoragePath(tenantId, storagePath);
+  console.log('[parseDeliveryNote] Storage-Pfad verifiziert', { tenantId, storagePath: cleaned });
+
+  try {
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(cleaned);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new HttpsError('not-found', 'Lieferschein-Datei wurde nicht gefunden.');
+    }
+    const [buffer] = await file.download();
+    const [metadata] = await file.getMetadata();
+    const mimeType = assertAllowedMimeType(
+      normalizeMimeType(metadata?.contentType, cleaned),
+    );
+    const imageBase64 = buffer.toString('base64');
+    if (!imageBase64 || imageBase64.length < 32) {
+      throw new HttpsError('invalid-argument', 'Bilddaten fehlen oder sind zu kurz.');
+    }
+    if (imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+      throw new HttpsError('invalid-argument', 'Bild ist zu groß (max. 12 MB).');
+    }
+    return { imageBase64, mimeType, storagePath: cleaned };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    console.error('[parseDeliveryNote] Storage-Download fehlgeschlagen:', error?.message || error);
+    throw new HttpsError('internal', 'Lieferschein konnte nicht aus dem Speicher geladen werden.');
+  }
+}
+
+async function resolveImagePayload(requestData, tenantId) {
+  const imageBase64 = String(
+    requestData?.imageBase64
+    || requestData?.imageBytes
+    || '',
+  ).trim();
+  const storagePath = String(requestData?.storagePath || requestData?.imagePath || '').trim();
+  const mimeHint = String(requestData?.mimeType || '').trim().toLowerCase();
+
+  if (storagePath) {
+    return loadImageFromStorage(tenantId, storagePath);
+  }
+
+  if (imageBase64) {
+    if (imageBase64.length < 32) {
+      throw new HttpsError('invalid-argument', 'Bilddaten fehlen oder sind zu kurz.');
+    }
+    if (imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+      throw new HttpsError('invalid-argument', 'Bild ist zu groß (max. 12 MB).');
+    }
+    const mimeType = assertAllowedMimeType(normalizeMimeType(mimeHint || 'image/jpeg'));
+    return { imageBase64, mimeType, storagePath: '' };
+  }
+
+  throw new HttpsError('invalid-argument', 'Bilddaten oder Speicherpfad fehlen.');
+}
+
 async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
   const apiKey = resolveGeminiApiKey();
   const ai = new GoogleGenerativeAI(apiKey);
   const model = ai.getGenerativeModel({
     model: DELIVERY_NOTE_MODEL,
     generationConfig: { temperature: 0.1 },
+  });
+
+  console.log('[parseDeliveryNote] OCR/KI-Extraktion gestartet', {
+    model: DELIVERY_NOTE_MODEL,
+    mimeType,
+    base64Length: imageBase64?.length || 0,
   });
 
   let result;
@@ -128,30 +250,42 @@ async function handleParseDeliveryNote(request) {
   const callerContext = resolveAuthContext(request.auth);
   const tenantContext = requireEmployeeAccess(request.auth, callerContext.tenantId);
 
-  const imageBase64 = String(request.data?.imageBase64 || '').trim();
-  const mimeType = String(request.data?.mimeType || 'image/jpeg').trim().toLowerCase() || 'image/jpeg';
+  console.log('[parseDeliveryNote] Upload empfangen', {
+    tenantId: tenantContext.tenantId,
+    hasStoragePath: Boolean(request.data?.storagePath || request.data?.imagePath),
+    hasBase64: Boolean(request.data?.imageBase64 || request.data?.imageBytes),
+    mimeHint: request.data?.mimeType || null,
+  });
 
-  if (!imageBase64 || imageBase64.length < 32) {
-    throw new HttpsError('invalid-argument', 'Bilddaten fehlen oder sind zu kurz.');
-  }
-  if (imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
-    throw new HttpsError('invalid-argument', 'Bild ist zu groß (max. 12 MB).');
-  }
-  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-    throw new HttpsError('invalid-argument', 'Dateityp nicht erlaubt.');
-  }
+  const { imageBase64, mimeType, storagePath } = await resolveImagePayload(
+    request.data || {},
+    tenantContext.tenantId,
+  );
 
   const items = await parseDeliveryNoteImage(imageBase64, mimeType);
-  return {
+  const response = {
     items,
     model: DELIVERY_NOTE_MODEL,
     tenantId: tenantContext.tenantId,
     previewOnly: true,
+    storagePath: storagePath || null,
   };
+
+  console.log('[parseDeliveryNote] Ergebnis zurückgesendet', {
+    tenantId: tenantContext.tenantId,
+    itemCount: items.length,
+    storagePath: storagePath || null,
+  });
+
+  return response;
 }
 
 module.exports = {
   DELIVERY_NOTE_MODEL,
+  ALLOWED_MIME_TYPES,
+  assertTenantStoragePath,
   handleParseDeliveryNote,
+  normalizeMimeType,
   parseDeliveryNoteImage,
+  resolveImagePayload,
 };
