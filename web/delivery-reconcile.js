@@ -13,23 +13,28 @@ function escapeHtml(value) {
 export function normalizeArticleKey(name) {
   return String(name || '')
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
     .replace(/ä/g, 'ae')
     .replace(/ö/g, 'oe')
     .replace(/ü/g, 'ue')
     .replace(/ß/g, 'ss')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(\d+)[,.](\d+)\b/g, '$1 $2')
+    .replace(/\b(\d+)\s*l(?:iter)?\b/g, '$1 l')
+    .replace(/\b(\d+)\s*kg\b/g, '$1 kg')
+    .replace(/\b(\d+)\s*g\b/g, '$1 g')
+    .replace(/\b(\d+)\s*stk\b/g, '$1 stk')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
 }
 
 function tokensOf(key) {
-  return key.split(' ').filter((t) => t.length > 1);
+  return key.split(' ').filter((t) => t.length > 0);
 }
 
 /**
- * Fuzzy-Match: exakt, enthält, oder ≥60 % Token-Überlappung.
+ * Fuzzy-Match: exakt, enthält, oder starke Token-Überlappung.
  */
 export function articlesLikelyMatch(a, b) {
   const ka = normalizeArticleKey(a);
@@ -38,10 +43,14 @@ export function articlesLikelyMatch(a, b) {
   if (ka === kb) return true;
   if (ka.includes(kb) || kb.includes(ka)) return true;
   const ta = tokensOf(ka);
-  const tb = new Set(tokensOf(kb));
-  if (!ta.length || !tb.size) return false;
-  const hit = ta.filter((t) => tb.has(t)).length;
-  return hit / Math.max(ta.length, tb.size) >= 0.6;
+  const tb = tokensOf(kb);
+  if (!ta.length || !tb.length) return false;
+  const setB = new Set(tb);
+  const hit = ta.filter((t) => setB.has(t)).length;
+  const minLen = Math.min(ta.length, tb.length);
+  const maxLen = Math.max(ta.length, tb.length);
+  if (minLen > 0 && hit / minLen >= 0.6) return true;
+  return maxLen > 0 && hit / maxLen >= 0.6;
 }
 
 function toSollRows(items) {
