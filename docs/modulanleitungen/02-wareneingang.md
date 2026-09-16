@@ -81,7 +81,7 @@ Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
 ### Ablauf
 
 1. Tab **Neu** → **Laden** → Artikel per **Barcode scannen** hinzufügen
-2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera)
+2. **📄 Lieferschein / Rechnung hochladen** (PDF aus der Dateien-App, z. B. Weiling) oder **📸 Lieferschein scannen (KI)** (Kamera)
 3. Der **Lieferschein-Abgleich** zeigt:
    - noch nicht erfasste LS-Artikel
    - extra erfasste Posten

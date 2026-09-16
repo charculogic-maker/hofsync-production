@@ -148,7 +148,7 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
 1. Artikel wie gewohnt per **Barcode scannen** zur Lieferung hinzufügen.
-2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera).
+2. **📄 Lieferschein / Rechnung hochladen** (PDF aus der Dateien-App, z. B. Weiling) oder **📸 Lieferschein scannen (KI)** (Kamera).
 3. Bei vorhandenen Posten öffnet sich direkt der **Lieferschein-Abgleich**.
 4. Wir sehen auf einen Blick:
    - **Noch nicht erfasst** – steht auf dem Lieferschein, fehlt im Wareneingang

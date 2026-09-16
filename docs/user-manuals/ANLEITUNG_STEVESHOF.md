@@ -111,7 +111,7 @@ Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADE
 Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
 1. Artikel per **Barcode scannen** zur Lieferung hinzufügen.
-2. **📄 Lieferschein hochladen** oder **📸 Lieferschein scannen (KI)**.
+2. **📄 Lieferschein / Rechnung hochladen** oder **📸 Lieferschein scannen (KI)**.
 3. Der **Lieferschein-Abgleich** zeigt fehlende, extra und mengenabweichende Artikel.
 4. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
 5. Optional fehlende LS-Artikel in den Bestand übernehmen.
