@@ -93,16 +93,25 @@ const discountCases = [
   { name: 'Dinkel Spätzle', category: TROCKEN, days: 1, expected: 'rabatt50', short: '50%', percent: 50 },
   { name: 'Dinkel Spätzle', category: TROCKEN, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
 
-  // Legacy TK / Gewürze / Getränke unchanged thresholds
-  { name: 'TK Beeren', category: TK, days: 14, expected: 'pruefen', short: 'Prüfen', percent: 0 },
-  { name: 'TK Beeren', category: TK, days: 7, expected: 'rabatt30', short: '30%', percent: 30 },
-  { name: 'TK Beeren', category: TK, days: 3, expected: 'rabatt50', short: '50%', percent: 50 },
-  { name: 'Pfeffer ganz', category: GEWUERZE, days: 60, expected: 'pruefen', short: 'Prüfen', percent: 0 },
-  { name: 'Pfeffer ganz', category: GEWUERZE, days: 30, expected: 'rabatt30', short: '30%', percent: 30 },
-  { name: 'Pfeffer ganz', category: GEWUERZE, days: 14, expected: 'rabatt50', short: '50%', percent: 50 },
-  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 14, expected: 'pruefen', short: 'Prüfen', percent: 0 },
-  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 7, expected: 'rabatt30', short: '30%', percent: 30 },
-  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 3, expected: 'rabatt50', short: '50%', percent: 50 },
+  // TK / Gewürze / Getränke → same matrix as Trockenware / Konserven
+  { name: 'TK Beeren', category: TK, days: 6, expected: 'ok', short: 'Regulär', percent: 0 },
+  { name: 'TK Beeren', category: TK, days: 5, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'TK Beeren', category: TK, days: 3, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'TK Beeren', category: TK, days: 2, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'TK Beeren', category: TK, days: 1, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'TK Beeren', category: TK, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 6, expected: 'ok', short: 'Regulär', percent: 0 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 5, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 3, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 2, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 1, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 6, expected: 'ok', short: 'Regulär', percent: 0 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 5, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 3, expected: 'rabatt20', short: '20%', percent: 20 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 2, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 1, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
 
   // Edge: MoPro on MHD day (0) is 50% even though the prose only named „1 Tag“
   { name: 'b*Joghurt mild 1,8%', category: MOPRO, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
@@ -129,6 +138,9 @@ for (const item of discountCases) {
 assert.equal(resolveMhdRabattRuleGroup({ name: 'Frischmilch Hof', kategorie: MOPRO }, MOPRO), 'frischmilch');
 assert.equal(resolveMhdRabattRuleGroup({ name: 'Bergkäse', kategorie: KUEHL }, KUEHL), 'mopro');
 assert.equal(resolveMhdRabattRuleGroup({ name: 'Mortadella', kategorie: KUEHL }, KUEHL), 'frische');
+assert.equal(resolveMhdRabattRuleGroup({ name: 'TK Beeren', kategorie: TK }, TK), 'trockenware');
+assert.equal(resolveMhdRabattRuleGroup({ name: 'Pfeffer ganz', kategorie: GEWUERZE }, GEWUERZE), 'trockenware');
+assert.equal(resolveMhdRabattRuleGroup({ name: 'Apfelsaft 1l', kategorie: GETRAENKE }, GETRAENKE), 'trockenware');
 assert.equal(mapMhdActionKeyToStatus('rabatt10'), 'critical');
 assert.equal(mapMhdActionKeyToStatus('rabatt20'), 'critical');
 assert.equal(mapMhdActionKeyToStatus('rabatt50'), 'critical');

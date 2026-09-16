@@ -20,7 +20,7 @@ Produktregeln gewinnen vor Kategorie-Regeln:
 | **Frischmilch** | 1 Tag vorher **10 %**, MHD-Tag **20 %**, sonst **Regulär** |
 | **MoPro / Käse** | 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
 | **Frische / Fleisch / Wurst** | 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
-| **Trockenware / Konserven** | 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %** |
+| **Trockenware / Konserven / TK / Gewürze / Getränke** | 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %** |
 
 Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge aus.
 
