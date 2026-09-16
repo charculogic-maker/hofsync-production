@@ -133,7 +133,7 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
 
-Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl Standard-Charge** (Alexanderwerk / OSKAR 20: 16,0 kg) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
+Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8 / 12 / 16 / 20 kg, Standard Alexanderwerk / OSKAR 20: **16,0 kg**) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 

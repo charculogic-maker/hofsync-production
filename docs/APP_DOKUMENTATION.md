@@ -183,7 +183,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 
 - Rezeptliste, Produktionserfassung, Chargen-Dokumentation
 - WRS-Kalkulation mit wöchentlichen Fleischpreisen aus `fleischpreise/{kw}`
-- Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20, 16,0 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
+- Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20: 8 / 12 / 16 / 20 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
 - Dynamisches DIN-A4-Produktionsdatenblatt (2 Seiten) mit Recipe-to-Print-Matrix, QUID/LMIV-Etikettentext und HACCP-Prüfpunkten
 - Fleischpreis-Update-Button nur für Büro-Admins
 - Modul deaktiviert für Mandant `torfabrik`
