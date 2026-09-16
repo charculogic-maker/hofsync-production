@@ -1128,10 +1128,11 @@
               </section>
 
               <div class="receiving-tool-row">
-                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📸 Lieferschein fotografieren / hochladen</button>
-                <input type="file" id="delivery-parser-file-input" accept="application/pdf,image/*" hidden>
+                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📄 Lieferschein hochladen</button>
+                <input type="file" id="delivery-parser-file-input" accept="application/pdf,.pdf,image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" hidden>
                 <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
-                <input type="file" id="delivery-note-file-input" accept="application/pdf,image/*" hidden>
+                <input type="file" id="delivery-note-file-input" accept="image/*,.heic,.heif" capture="environment" hidden>
+                <button class="btn btn-secondary btn-receiving-tool" id="btn-delivery-reconcile" type="button" hidden>🔎 Lieferschein abgleichen</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>
@@ -1169,7 +1170,7 @@
                     <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                 </div>
-                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="application/pdf,image/*">
+                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="application/pdf,.pdf,image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif">
                 <button type="button" class="btn btn-primary btn-receiving-photo" id="we-photo-btn">
                   📸 Lieferscheine fotografieren / PDF
                 </button>
@@ -1885,18 +1886,34 @@
                 <button
                   type="button"
                   class="production-batch-profile-btn"
-                  data-batch-profile="alexanderwerk-oskar20-16"
-                  id="btn-batch-profile-16kg"
+                  data-batch-profile="alexanderwerk-oskar20-8"
+                  id="btn-batch-profile-8kg"
                 >
-                  Standard-Charge Alexanderwerk / OSKAR 20: 16,0 kg
+                  8,0 kg
                 </button>
                 <button
                   type="button"
                   class="production-batch-profile-btn"
-                  data-batch-profile="alexanderwerk-oskar20-10"
-                  id="btn-batch-profile-10kg"
+                  data-batch-profile="alexanderwerk-oskar20-12"
+                  id="btn-batch-profile-12kg"
                 >
-                  WRS-Basis 10,0 kg
+                  12,0 kg
+                </button>
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-16"
+                  id="btn-batch-profile-16kg"
+                >
+                  Standard-Charge 16,0 kg
+                </button>
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-20"
+                  id="btn-batch-profile-20kg"
+                >
+                  20,0 kg
                 </button>
               </div>
             </div>

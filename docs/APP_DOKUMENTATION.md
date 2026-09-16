@@ -167,9 +167,9 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - **Laden-Modus:** Schnellerfassung mit Kategorie (Frische, MoPro, Kühlware, TK, …), EAN-Scan, Hersteller/Zusatz, MHD
 - **Letzte Eingänge:** Kategorie-Korrektur für alle Nutzer mit Tab Neu
 - **Metzgerei-Modus:** mandantenabhängig (`wareneingangMetzgerei`)
-- **Stammdaten / KI-Lieferschein (Büro):** `#btn-master-data`, `#btn-delivery-note-ai` — nur `isOfficeUser()`
-- **StevesHof KI-Parser** (`web/delivery-parser.js`): Testweise nur für `patrik@charculogic.de`; schreibt in `mhd_liste` / `stammdaten`
-- **TorFabrik KI-Lieferschein** (`web/delivery-note.js`): Callable `parseDeliveryNote` → `inventory`
+- **Stammdaten (Büro):** `#btn-master-data` — nur `isOfficeUser()`
+- **KI-Parser Wareneingang** (`web/delivery-parser.js`): `#btn-delivery-parser` („Lieferschein hochladen“, Datei/PDF ohne Kamera) und `#btn-delivery-note-ai` („Lieferschein scannen (KI)“, Kamera) für StevesHof & Co.; Storage-Upload + `parseDeliveryNote` → `mhd_liste` / `stammdaten`
+- **TorFabrik KI-Lieferschein** (`web/delivery-note.js`): Scan-Button → Callable `parseDeliveryNote` → `inventory`
 
 ### Herkunft / LMIV (`web/traceability.js`)
 
@@ -183,7 +183,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 
 - Rezeptliste, Produktionserfassung, Chargen-Dokumentation
 - WRS-Kalkulation mit wöchentlichen Fleischpreisen aus `fleischpreise/{kw}`
-- Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20, 16,0 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
+- Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20: 8 / 12 / 16 / 20 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
 - Dynamisches DIN-A4-Produktionsdatenblatt (2 Seiten) mit Recipe-to-Print-Matrix, QUID/LMIV-Etikettentext und HACCP-Prüfpunkten
 - Fleischpreis-Update-Button nur für Büro-Admins
 - Modul deaktiviert für Mandant `torfabrik`

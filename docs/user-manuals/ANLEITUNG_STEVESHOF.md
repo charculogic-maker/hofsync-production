@@ -49,7 +49,7 @@ Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACC
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
+Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-4 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
 
 - **Zeitraum** — 7, 14 oder 21 Tage
 - **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware, Gewürze
@@ -106,19 +106,17 @@ Offline speichert unsere App den Eintrag lokal und synchronisiert ihn bei WLAN. 
 
 Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [modulanleitungen/07-herkunft.md](../modulanleitungen/07-herkunft.md)
 
-### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
+### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (siehe oben). Der KI-Wareneingang ist vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
-Nach Freigabe läuft der Ablauf so:
+1. Artikel per **Barcode scannen** zur Lieferung hinzufügen.
+2. **📄 Lieferschein hochladen** oder **📸 Lieferschein scannen (KI)**.
+3. Der **Lieferschein-Abgleich** zeigt fehlende, extra und mengenabweichende Artikel.
+4. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
+5. Optional fehlende LS-Artikel in den Bestand übernehmen.
 
-1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren, ein Foto wählen **oder ein PDF** hochladen (max. ca. 12 MB).
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau je Artikel **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Vor dem Einbuchen können wir jedes MHD als `TT.MM.JJJJ` anpassen.
+**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
@@ -134,7 +132,7 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
 
-Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl Standard-Charge** (Alexanderwerk / OSKAR 20: 16,0 kg) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
+Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8 / 12 / 16 / 20 kg, Standard Alexanderwerk / OSKAR 20: **16,0 kg**) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 

@@ -4,9 +4,12 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { waitForAppCheckReady } from './app-check.js';
-import { createHttpsCallable } from './firebase-functions.js';
-import { validateDeliveryUploadFile } from './delivery-upload.js';
+import {
+  analyzeDeliveryNoteFile,
+  isAllowedDeliveryFile,
+  mapDeliveryUploadError,
+  DeliveryUploadError,
+} from './delivery-upload.js';
 
 const TORFABRIK_TENANT_ID = 'torfabrik';
 
@@ -28,19 +31,6 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error || new Error('Datei konnte nicht gelesen werden.'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function normalizeParsedItems(items) {
   if (!Array.isArray(items)) return [];
   return items.map((entry, index) => {
@@ -55,15 +45,13 @@ function normalizeParsedItems(items) {
   }).filter((row) => row.artikel);
 }
 
-async function callParseDeliveryNote(imageBase64, mimeType) {
-  const firebase = deliveryNoteState.getFirebase();
-  if (!firebase?.functions) {
-    throw new Error('Firebase Functions SDK nicht geladen.');
-  }
-  const callable = createHttpsCallable('parseDeliveryNote', undefined, firebase);
-  await waitForAppCheckReady();
-  const result = await callable({ imageBase64, mimeType });
-  return normalizeParsedItems(result?.data?.items);
+async function callParseDeliveryNote(file) {
+  const result = await analyzeDeliveryNoteFile({
+    file,
+    tenantId: deliveryNoteState.tenantId || getAuthContext()?.tenantId || '',
+    getFirebase: deliveryNoteState.getFirebase,
+  });
+  return normalizeParsedItems(result.items);
 }
 
 function removePreviewOverlay() {
@@ -201,39 +189,17 @@ async function saveDeliveryNoteInventory(items) {
   }
 }
 
-function showDeliveryNoteLoadingOverlay() {
-  hideDeliveryNoteLoadingOverlay();
-  const overlay = document.createElement('div');
-  overlay.id = 'delivery-note-loading-overlay';
-  overlay.className = 'learn-mode-overlay delivery-parser-loading-overlay';
-  overlay.innerHTML = `
-    <div class="delivery-parser-loading-card" role="status" aria-live="polite">
-      <div class="delivery-parser-spinner" aria-hidden="true"></div>
-      <p class="delivery-parser-loading-text">Die KI liest den Lieferschein für uns...</p>
-    </div>
-  `;
-  document.querySelector('.app-container')?.appendChild(overlay);
-}
-
-function hideDeliveryNoteLoadingOverlay() {
-  document.getElementById('delivery-note-loading-overlay')?.remove();
-}
-
 async function handleDeliveryNoteFile(file) {
   if (!file || deliveryNoteState.ocrInFlight) return;
-
-  const check = validateDeliveryUploadFile(file);
-  if (!check.ok) {
-    window.showToast?.(check.message, 'warning');
+  if (!isAllowedDeliveryFile(file)) {
+    window.showToast?.(mapDeliveryUploadError(new DeliveryUploadError('unsupported-type', 'Unsupported')), 'warning');
     return;
   }
-  const mimeType = check.mimeType;
 
-  showDeliveryNoteLoadingOverlay();
+  window.showToast?.('Lieferschein wird analysiert…', 'warning');
   try {
     deliveryNoteState.ocrInFlight = true;
-    const imageBase64 = await readFileAsBase64(file);
-    const items = await callParseDeliveryNote(imageBase64, mimeType);
+    const items = await callParseDeliveryNote(file);
     if (!items.length) {
       window.showToast?.('Keine Artikel erkannt.', 'warning');
       return;
@@ -241,10 +207,12 @@ async function handleDeliveryNoteFile(file) {
     showDeliveryNotePreview(items);
   } catch (err) {
     console.error('[DeliveryNote] OCR fehlgeschlagen:', err);
-    window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
+    const toast = err instanceof DeliveryUploadError
+      ? mapDeliveryUploadError(err)
+      : (mapDeliveryUploadError(err) || logAndMapOperatorError(err, 'delivery-note'));
+    window.showToast?.(toast, 'error');
   } finally {
     deliveryNoteState.ocrInFlight = false;
-    hideDeliveryNoteLoadingOverlay();
   }
 }
 

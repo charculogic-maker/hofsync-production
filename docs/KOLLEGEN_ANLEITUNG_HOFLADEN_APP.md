@@ -52,7 +52,16 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
+Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-4 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
+
+Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach dem Produkt:
+
+- **Frischmilch:** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
+- **MoPro / Käse:** 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
+- **Frische / Fleisch / Wurst:** 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
+- **Trockenware / Konserven / TK / Gewürze / Getränke:** 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %**
+
+Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge).
 
 Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 
@@ -134,19 +143,24 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
+### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben unter Wareneingang). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
-Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
+1. Artikel wie gewohnt per **Barcode scannen** zur Lieferung hinzufügen.
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera).
+3. Bei vorhandenen Posten öffnet sich direkt der **Lieferschein-Abgleich**.
+4. Wir sehen auf einen Blick:
+   - **Noch nicht erfasst** – steht auf dem Lieferschein, fehlt im Wareneingang
+   - **Extra erfasst** – im Wareneingang, fehlt auf dem Lieferschein
+   - **Mengenabweichung** – Name passt, Menge nicht
+   - **Stimmt überein**
+5. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
+6. Optional: fehlende LS-Artikel später in den Bestand übernehmen.
 
-1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren, ein Foto wählen **oder ein PDF** hochladen (max. ca. 12 MB).
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+Der Button **🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
+Barcode-Scan bleibt parallel verfügbar für einzelne Artikel.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -167,7 +181,7 @@ So berichtigen wir falsch zugeordnete Artikel ohne Zugriff auf die technische Da
 
 Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
-Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schnellwahl **Alexanderwerk / OSKAR 20: 16,0 kg**. Das **Druckdatenblatt DIN A4** öffnet zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten.
+Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schnellwahl **8 / 12 / 16 / 20 kg** (Standard: Alexanderwerk / OSKAR 20: **16,0 kg**), z. B. für die **Bio-Galloway Rostbrat- & Currywurst**. Das **Druckdatenblatt DIN A4** öffnet zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 

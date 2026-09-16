@@ -56,6 +56,7 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
+  getCurrentDeliveryItems,
   getMhdProducts,
   applyReceivingMetzgereiVisibility,
   handleMhdBarcodeScan,
@@ -1907,7 +1908,7 @@ function applyRoleBasedUi(authSession) {
     if (teamLoginCard) teamLoginCard.hidden = true;
   }
 
-  ['btn-master-data', 'btn-delivery-note-ai', 'office-tools-panel'].forEach((id) => {
+  ['btn-master-data', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.hidden = !isOffice;
   });
@@ -3724,6 +3725,7 @@ async function bootstrapAuthenticatedApp() {
     showHUD,
     writeOrQueueFirestore: writeFirestoreDocOrQueue,
     getHistory: getMhdProducts,
+    getCurrentDeliveryItems,
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {

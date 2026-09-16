@@ -74,22 +74,23 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ---
 
-## 📸 Lieferschein einlesen (KI-Wareneingang)
+## 📸 Lieferschein einlesen & abgleichen (KI-Wareneingang)
 
-> **StevesHof:** Am neutralen Laden-iPhone ist dieser Button **noch ausgeblendet** (interner Testlauf). Für StevesHof gilt bis zur Freigabe der Barcode-Scan im Bereich **Laden**.
+Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
 
-Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
+### Ablauf
 
-### Schritte
+1. Tab **Neu** → **Laden** → Artikel per **Barcode scannen** hinzufügen
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera)
+3. Der **Lieferschein-Abgleich** zeigt:
+   - noch nicht erfasste LS-Artikel
+   - extra erfasste Posten
+   - Mengenabweichungen
+   - Übereinstimmungen
+4. Nach weiteren Scans **Abgleich aktualisieren**
+5. Optional fehlende LS-Artikel in den Bestand übernehmen
 
-1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen
-2. Lieferschein mit dem iPhone fotografieren, ein vorhandenes Foto wählen **oder ein PDF** vom Lieferschein hochladen (max. ca. 12 MB)
-3. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
-4. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
-5. **📥 Artikel in den Bestand einbuchen** antippen
-
-Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
+**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 ### Vorgeschlagenes MHD aus Erfahrungswerten
 
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
