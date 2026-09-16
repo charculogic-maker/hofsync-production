@@ -3834,14 +3834,14 @@ const bratwurstRecipes = [
     "ingredients": [
       {
         "name": "Bio-Galloway mager (dry-aged, hofeigen)",
-        "pct": 30,
+        "pct": 28.926,
         "typ": "base",
         "allergen": false,
         "hinweis": "3 mm gewolft, flachgefroren (−18 °C)"
       },
       {
         "name": "Bio-Schweinefleisch mager (Zukauf DE-ÖKO-006)",
-        "pct": 25,
+        "pct": 24.105,
         "typ": "base",
         "allergen": false,
         "hinweis": "3 mm gewolft, flachgefroren (−18 °C)",
@@ -3849,7 +3849,7 @@ const bratwurstRecipes = [
       },
       {
         "name": "Bio-Schweinerückenspeck kernig (Zukauf DE-ÖKO-006)",
-        "pct": 25,
+        "pct": 24.105,
         "typ": "base",
         "allergen": false,
         "hinweis": "3 mm gewolft, flachgefroren (−18 °C)",
@@ -3857,14 +3857,14 @@ const bratwurstRecipes = [
       },
       {
         "name": "Crushed Ice / Flacheisschollen",
-        "pct": 10,
+        "pct": 9.642,
         "typ": "spice",
         "allergen": false,
         "hinweis": "Crushed Ice oder dünne Flacheisschollen"
       },
       {
         "name": "Eiswasser (Trinkwasser)",
-        "pct": 10,
+        "pct": 9.642,
         "typ": "spice",
         "allergen": false,
         "hinweis": "0–1 °C, Direktzugabe"
