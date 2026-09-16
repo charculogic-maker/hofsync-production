@@ -88,7 +88,9 @@ export function isKaeseProduct(prod = {}, category = '') {
   return Boolean(name) && KAESE_RE.test(name);
 }
 
-export function isFleischWurstProduct(prod = {}) {
+export function isFleischWurstProduct(prod = {}, category = '') {
+  const resolvedCategory = String(category || prod.kategorie || prod.category || prod.warenKategorie || '').trim();
+  if (/aufschnitt|🥓/i.test(resolvedCategory)) return true;
   const { name } = getProductIdentity(prod);
   return Boolean(name) && FLEISCH_WURST_RE.test(name);
 }
@@ -123,7 +125,7 @@ export function resolveMhdRabattRuleGroup(prod = {}, category = '') {
   }
 
   if (resolvedCategory === MHD_FRISCHE_CATEGORY
-    || isFleischWurstProduct(prod)
+    || isFleischWurstProduct(prod, resolvedCategory)
     || (resolvedCategory === MHD_KUEHLWARE_CATEGORY && !isKaeseProduct(prod, resolvedCategory))) {
     return 'frische';
   }

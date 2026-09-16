@@ -36,6 +36,10 @@ import {
   inferMovementAction,
 } from './mhd-audit.js';
 import { readMhdCardUiSettings } from './admin-tenant-models.js';
+import {
+  validateDeliveryUploadFile,
+  isPdfMimeType,
+} from './delivery-upload.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -92,6 +96,7 @@ const MHD_MONITOR_CATEGORY_HORIZON_DAYS = {
 
 const RECEIVING_FORM_IDS = [
   'we-supplier',
+  'we-supplier-custom',
   'we-category',
   'we-category-quick',
   'we-temperature',
@@ -102,6 +107,14 @@ const RECEIVING_FORM_IDS = [
   'we-qty',
   'we-mhd',
 ];
+
+const SUPPLIER_SELECT_SONSTIGE = '__sonstige__';
+const KNOWN_SUPPLIER_OPTIONS = Object.freeze([
+  'Weiling',
+  'Naturverbund',
+  'Stautenhof',
+  'Eigene Produktion',
+]);
 
 let currentDeliveryItemBarcode = '';
 let currentDeliveryItemProduct = '';
@@ -545,6 +558,7 @@ const MHD_CANONICAL_CATEGORIES = {
   frische: '🍎 Frische',
   mopro: '🥛MoPro',
   kuehlware: '🥗 Kühlware',
+  aufschnitt: '🥓 Aufschnitt',
   tk: '🧊 TK',
   trockenware: '📦 Trockenware',
   gewuerze: '🌿 Gewürze',
@@ -571,7 +585,11 @@ const MHD_TROCKEN_MONITOR_CATEGORIES = new Set([
 
 function getMhdMonitorGroup(prod = {}) {
   const category = getProductCategory(prod);
-  if (category === MHD_CANONICAL_CATEGORIES.mopro || category === MHD_CANONICAL_CATEGORIES.kuehlware) {
+  if (
+    category === MHD_CANONICAL_CATEGORIES.mopro
+    || category === MHD_CANONICAL_CATEGORIES.kuehlware
+    || category === MHD_CANONICAL_CATEGORIES.aufschnitt
+  ) {
     return 'mopro';
   }
   if (MHD_TROCKEN_MONITOR_CATEGORIES.has(category)) {
@@ -967,6 +985,7 @@ const RECEIVING_CATEGORIES = [
   { value: '🍎 Frische', label: '🍎 Frische' },
   { value: '🥛MoPro', label: '🥛 MoPro' },
   { value: '🥗 Kühlware', label: '❄️ Kühlware' },
+  { value: '🥓 Aufschnitt', label: '🥓 Aufschnitt' },
   { value: '🧊 TK', label: '🧊 TK' },
   { value: '🍺 Getränke', label: '🍺 Getränke' },
   { value: '📦 Trockenware', label: '📦 Trockenware' },
@@ -1805,7 +1824,7 @@ function checkMhdAnomaly(barcode, mhdDateStr, kategorie) {
 
   const restTage = Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
 
-  const isFresh = /frische|mopro|kühlware|kuehlware/i.test(kategorie || '');
+  const isFresh = /frische|mopro|kühlware|kuehlware|aufschnitt/i.test(kategorie || '');
   if (isFresh && restTage < 4) {
     return {
       restTage,
@@ -2498,7 +2517,7 @@ function showLearnModeDialog(ean) {
 
   if (btnLearnSave) btnLearnSave.textContent = 'Wareneingang speichern';
   if (inputName) inputName.value = productInfo?.name || document.getElementById('we-product-manual')?.value.trim() || '';
-  if (inputBrand) inputBrand.value = productInfo?.brand || document.getElementById('we-supplier')?.value.trim() || '';
+  if (inputBrand) inputBrand.value = productInfo?.brand || readDeliveryHeadValues().supplier || '';
   initGermanDateInputs(learnModeOverlay);
   if (inputMhd && document.getElementById('we-mhd')?.value) {
     const isoMhd = normalizeDateInputToIso(document.getElementById('we-mhd').value);
@@ -2741,6 +2760,7 @@ function normalizeMhdCategory(kategorie) {
   if (kat === 'MoPro' || kat === '🥛 MoPro') return MHD_CANONICAL_CATEGORIES.mopro;
   if (kat === 'Frische') return MHD_CANONICAL_CATEGORIES.frische;
   if (kat === 'Kühlware' || kat === 'Kuehlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
+  if (kat === 'Aufschnitt' || kat === '🥓 Aufschnitt' || kat === '🥓Aufschnitt') return MHD_CANONICAL_CATEGORIES.aufschnitt;
   if (kat === 'TK') return MHD_CANONICAL_CATEGORIES.tk;
   if (kat === 'Trockenware') return MHD_CANONICAL_CATEGORIES.trockenware;
   return kat;
@@ -4519,6 +4539,7 @@ function submitManualBarcodeFrom(inputEl) {
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
   const normalized = String(warenKategorie || '').trim().toLowerCase();
   if (/kaese_theke|käse-theke|käsetheke/.test(normalized)) return MHD_CANONICAL_CATEGORIES.kuehlware;
+  if (/aufschnitt|🥓/.test(normalized)) return MHD_CANONICAL_CATEGORIES.aufschnitt;
   if (/gewürze|gewuerze|🌿/.test(normalized)) return MHD_CANONICAL_CATEGORIES.gewuerze;
   if (/getränke|getraenke|🍺/.test(normalized)) return MHD_CANONICAL_CATEGORIES.getraenke;
   if (/trockenware/.test(normalized)) return MHD_CANONICAL_CATEGORIES.trockenware;
@@ -4571,12 +4592,134 @@ function createDeliveryId() {
   return `lieferung_${Date.now().toString(36)}_${randomPart}`;
 }
 
+function syncSupplierCustomFieldVisibility() {
+  const selectEl = document.getElementById('we-supplier');
+  const wrap = document.getElementById('we-supplier-custom-wrap');
+  if (!wrap) return;
+  const showCustom = selectEl?.value === SUPPLIER_SELECT_SONSTIGE;
+  wrap.classList.toggle('hidden', !showCustom);
+}
+
+function applySupplierToForm(supplierName = '') {
+  const selectEl = document.getElementById('we-supplier');
+  const customEl = document.getElementById('we-supplier-custom');
+  const name = String(supplierName || '').trim();
+  if (!selectEl) return;
+
+  if (!name) {
+    selectEl.value = '';
+    if (customEl) customEl.value = '';
+    syncSupplierCustomFieldVisibility();
+    return;
+  }
+
+  if (KNOWN_SUPPLIER_OPTIONS.includes(name)) {
+    selectEl.value = name;
+    if (customEl) customEl.value = '';
+  } else {
+    selectEl.value = SUPPLIER_SELECT_SONSTIGE;
+    if (customEl) customEl.value = name;
+  }
+  syncSupplierCustomFieldVisibility();
+}
+
 function readDeliveryHeadValues() {
-  const supplier = document.getElementById('we-supplier')?.value.trim() || '';
+  const selectValue = document.getElementById('we-supplier')?.value.trim() || '';
+  let supplier = '';
+  if (selectValue === SUPPLIER_SELECT_SONSTIGE) {
+    supplier = document.getElementById('we-supplier-custom')?.value.trim() || '';
+  } else {
+    supplier = selectValue;
+  }
   const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
   const warenKategorieMetzgerei = document.getElementById('we-category')?.value || 'Fremdfleisch';
   const temperatur = getReceivingTemperatureValue();
   return { supplier, warenKategorie, warenKategorieMetzgerei, temperatur };
+}
+
+function showSupplierPickModal({ purpose = 'finalize' } = {}) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('supplier-pick-modal');
+    const desc = document.getElementById('supplier-pick-desc');
+    const grid = document.getElementById('supplier-pick-grid');
+    const customWrap = document.getElementById('supplier-pick-custom-wrap');
+    const customInput = document.getElementById('supplier-pick-custom');
+    const confirmBtn = document.getElementById('supplier-pick-confirm');
+    const cancelBtn = document.getElementById('supplier-pick-cancel');
+    if (!modal || !grid) {
+      resolve('');
+      return;
+    }
+
+    let selected = '';
+    if (desc) {
+      desc.textContent = purpose === 'draft'
+        ? 'Für den Entwurf brauchen wir einen Lieferanten.'
+        : 'Ohne Lieferant können wir die Lieferung nicht abschließen.';
+    }
+    if (customInput) customInput.value = '';
+    customWrap?.classList.add('hidden');
+    if (confirmBtn) confirmBtn.hidden = true;
+
+    const close = (value) => {
+      grid.removeEventListener('click', onGridClick);
+      cancelBtn?.removeEventListener('click', onCancel);
+      confirmBtn?.removeEventListener('click', onConfirm);
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      resolve(String(value || '').trim());
+    };
+
+    const onCancel = () => close('');
+    const onConfirm = () => {
+      const customName = customInput?.value.trim() || '';
+      if (!customName) {
+        window.showToast?.('Bitte den Lieferanten bei Sonstige eintippen.', 'warning');
+        customInput?.focus();
+        return;
+      }
+      close(customName);
+    };
+    const onGridClick = (event) => {
+      const pick = event.target.closest('[data-supplier-pick]')?.dataset.supplierPick;
+      if (!pick) return;
+      selected = pick;
+      if (pick === SUPPLIER_SELECT_SONSTIGE) {
+        customWrap?.classList.remove('hidden');
+        if (confirmBtn) confirmBtn.hidden = false;
+        customInput?.focus();
+        return;
+      }
+      close(pick);
+    };
+
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    grid.addEventListener('click', onGridClick);
+    cancelBtn?.addEventListener('click', onCancel);
+    confirmBtn?.addEventListener('click', onConfirm);
+  });
+}
+
+async function ensureDeliverySupplierSelected({ purpose = 'finalize' } = {}) {
+  const current = readDeliveryHeadValues().supplier;
+  if (current) return current;
+
+  document.getElementById('we-supplier')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  const picked = await showSupplierPickModal({ purpose });
+  if (!picked) {
+    window.showToast?.(
+      purpose === 'draft'
+        ? 'Bitte Lieferant wählen, dann Entwurf speichern.'
+        : 'Bitte Lieferant wählen, dann Lieferung abschließen.',
+      'warning',
+    );
+    document.getElementById('we-supplier')?.focus();
+    return '';
+  }
+  applySupplierToForm(picked);
+  updateReceivingSaveButtonState();
+  return picked;
 }
 
 function getReceivingQtyUnitFromCategory(warenKategorie = '') {
@@ -4596,6 +4739,7 @@ function getReceivingQtyUnitFromCategory(warenKategorie = '') {
     || normalized.includes('getränke')
     || normalized.includes('getraenke')
     || normalized.includes('wurst zukauf')
+    || normalized.includes('aufschnitt')
   ) {
     return 'Stk';
   }
@@ -4657,7 +4801,10 @@ function normalizeDateInputToDotted(value = '') {
 
 function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
   const normalized = String(warenKategorie).trim().toLowerCase();
-  return normalized.includes('kühl') || normalized.includes('kuehl') || normalized === 'tk';
+  return normalized.includes('kühl')
+    || normalized.includes('kuehl')
+    || normalized.includes('aufschnitt')
+    || normalized === 'tk';
 }
 
 function getReceivingTemperatureInputs() {
@@ -4738,12 +4885,7 @@ function updateReceivingQtyFieldUi() {
 
 function normalizeDeliveryHeadForFinalize(head) {
   if (head?.supplier) return head;
-  const scannedBy = getActiveEmployee() || '';
-  const fallbackSupplier = scannedBy ? `Direkterfassung (${scannedBy})` : 'Direkterfassung (ohne Lieferant)';
-  return {
-    ...head,
-    supplier: fallbackSupplier,
-  };
+  return { ...head, supplier: '' };
 }
 
 function readDeliveryItemDraftValues() {
@@ -4816,10 +4958,9 @@ async function loadDeliveryDraftFromIndexedDB() {
     if (Array.isArray(payload.items)) currentDeliveryItems = payload.items;
     if (Array.isArray(payload.photos)) currentDeliveryPhotos = payload.photos;
     if (payload.head) {
-      const supplierEl = document.getElementById('we-supplier');
       const categoryEl = document.getElementById('we-category');
       const categoryQuickEl = document.getElementById('we-category-quick');
-      if (supplierEl && payload.head.supplier) supplierEl.value = payload.head.supplier;
+      if (payload.head.supplier) applySupplierToForm(payload.head.supplier);
       if (categoryEl && payload.head.warenKategorieMetzgerei) categoryEl.value = payload.head.warenKategorieMetzgerei;
       if (categoryQuickEl && payload.head.warenKategorie) categoryQuickEl.value = payload.head.warenKategorie;
       if (payload.head.temperatur != null && !Number.isNaN(payload.head.temperatur)) {
@@ -4887,12 +5028,22 @@ function renderDeliveryPhotoPreviews() {
     container.innerHTML = '';
     return;
   }
-  container.innerHTML = currentDeliveryPhotos.map((photo) => `
+  container.innerHTML = currentDeliveryPhotos.map((photo) => {
+    const isPdf = isPdfMimeType(photo.mimeType) || String(photo.dataUrl || '').startsWith('data:application/pdf');
+    if (isPdf) {
+      return `
+    <div class="we-photo-thumb we-photo-thumb--pdf" data-photo-id="${escapeHtml(photo.id)}">
+      <span class="we-photo-pdf-badge">PDF</span>
+      <span class="we-photo-pdf-name">${escapeHtml(photo.name || 'Lieferschein.pdf')}</span>
+      <button type="button" class="we-photo-thumb-remove" data-photo-remove="${escapeHtml(photo.id)}" aria-label="Datei entfernen">×</button>
+    </div>`;
+    }
+    return `
     <div class="we-photo-thumb" data-photo-id="${escapeHtml(photo.id)}">
       <img src="${photo.dataUrl}" alt="Lieferschein">
       <button type="button" class="we-photo-thumb-remove" data-photo-remove="${escapeHtml(photo.id)}" aria-label="Foto entfernen">×</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderDeliveryItemsTable() {
@@ -5036,29 +5187,61 @@ function removeDeliveryPhoto(photoId) {
 }
 
 async function handleDeliveryPhotoSelection(fileList) {
-  const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
-  if (!files.length) return;
+  const rawFiles = Array.from(fileList || []);
+  if (!rawFiles.length) return;
 
-  for (const file of files) {
-    try {
-      const dataUrl = await compressImageFileToDataUrl(file);
-      const photoId = typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      currentDeliveryPhotos.push({
-        id: photoId,
-        name: file.name || 'lieferschein.jpg',
-        dataUrl,
-      });
-    } catch (err) {
-      console.warn('[CharcuLogic MHD] Lieferschein-Foto konnte nicht verarbeitet werden:', err);
+  const statusEl = document.getElementById('we-photo-upload-status');
+  const statusText = document.getElementById('we-photo-upload-status-text');
+  const photoBtn = document.getElementById('we-photo-btn');
+  const accepted = [];
+  for (const file of rawFiles) {
+    const check = validateDeliveryUploadFile(file);
+    if (!check.ok) {
+      window.showToast?.(check.message, 'warning');
+      continue;
     }
+    accepted.push({ file, mimeType: check.mimeType });
   }
+  if (!accepted.length) return;
+
+  statusEl?.classList.remove('hidden');
+  if (statusText) statusText.textContent = 'Lieferschein wird geladen…';
+  if (photoBtn) photoBtn.disabled = true;
+
+  let added = 0;
+  try {
+    for (const { file, mimeType } of accepted) {
+      try {
+        const dataUrl = await compressImageFileToDataUrl(file);
+        const photoId = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        currentDeliveryPhotos.push({
+          id: photoId,
+          name: file.name || (isPdfMimeType(mimeType) ? 'lieferschein.pdf' : 'lieferschein.jpg'),
+          mimeType,
+          dataUrl,
+        });
+        added += 1;
+      } catch (err) {
+        console.warn('[CharcuLogic MHD] Lieferschein-Datei konnte nicht verarbeitet werden:', err);
+        window.showToast?.('Eine Datei konnte nicht geladen werden. Bitte erneut versuchen.', 'error');
+      }
+    }
+  } finally {
+    statusEl?.classList.add('hidden');
+    if (photoBtn) photoBtn.disabled = false;
+  }
+
+  if (!added) return;
 
   renderDeliveryPhotoPreviews();
   updateReceivingSaveButtonState();
   persistDeliveryDraftToIndexedDB();
-  window.showToast?.(`${files.length} Lieferschein-Foto(s) hinzugefügt.`, 'success');
+  window.showToast?.(
+    added === 1 ? 'Lieferschein hinzugefügt.' : `${added} Lieferscheine hinzugefügt.`,
+    'success',
+  );
 }
 
 function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, meisterOverrideReason) {
@@ -5294,11 +5477,15 @@ function subscribeToPendingDeliveryDrafts() {
 }
 
 function loadDraftPhotosFromBundle(fotos = []) {
-  currentDeliveryPhotos = (Array.isArray(fotos) ? fotos : []).map((dataUrl, index) => ({
-    id: `draft_photo_${index}_${Date.now().toString(36)}`,
-    name: `lieferschein-${index + 1}.jpg`,
-    dataUrl,
-  }));
+  currentDeliveryPhotos = (Array.isArray(fotos) ? fotos : []).map((dataUrl, index) => {
+    const isPdf = String(dataUrl || '').startsWith('data:application/pdf');
+    return {
+      id: `draft_photo_${index}_${Date.now().toString(36)}`,
+      name: isPdf ? `lieferschein-${index + 1}.pdf` : `lieferschein-${index + 1}.jpg`,
+      mimeType: isPdf ? 'application/pdf' : 'image/jpeg',
+      dataUrl,
+    };
+  });
   renderDeliveryPhotoPreviews();
 }
 
@@ -5308,10 +5495,9 @@ function openDraftForEditing(draft) {
   activeEditingDraftId = draft.id;
   currentDeliveryItems = [];
 
-  const supplierEl = document.getElementById('we-supplier');
   const categoryEl = document.getElementById('we-category');
   const categoryQuickEl = document.getElementById('we-category-quick');
-  if (supplierEl) supplierEl.value = draft.lieferant || '';
+  applySupplierToForm(draft.lieferant || '');
   if (categoryEl) categoryEl.value = draft.warenKategorieMetzgerei || 'Fremdfleisch';
   if (categoryQuickEl) categoryQuickEl.value = draft.warenKategorie || MHD_CANONICAL_CATEGORIES.trockenware;
   if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
@@ -5363,8 +5549,8 @@ export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || 
 
     if (desc) {
       desc.textContent = enabled
-        ? 'Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
-        : 'Schnellerfassung für Posten: Kategorie, Barcode oder EAN, Menge und MHD.';
+        ? 'Schnellerfassung für Posten im Alltag. Lieferant oben wählen; Metzgerei für Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).'
+        : 'Schnellerfassung für Posten: Lieferant wählen, dann Kategorie, Barcode oder EAN, Menge und MHD.';
     }
 
     setReceivingMode('schnell');
@@ -5377,7 +5563,6 @@ export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || 
 async function saveDeliveryDraft() {
   if (!isReceivingMetzgereiEnabled()) return;
 
-  const head = readDeliveryHeadValues();
   const draftBtn = document.getElementById('we-save-draft-btn');
 
   if (activeEditingDraftId) {
@@ -5385,12 +5570,10 @@ async function saveDeliveryDraft() {
     return;
   }
 
-  if (!head.supplier) {
-    setReceivingMode('metzgerei');
-    mhdState.showHUD('Lieferant fehlt', 'Bitte den Lieferanten unter Metzgerei erfassen.', '!');
-    document.getElementById('we-supplier')?.focus();
-    return;
-  }
+  const supplier = await ensureDeliverySupplierSelected({ purpose: 'draft' });
+  if (!supplier) return;
+
+  const head = readDeliveryHeadValues();
   if (!currentDeliveryPhotos.length) {
     setReceivingMode('metzgerei');
     mhdState.showHUD('Foto fehlt', 'Mindestens ein Lieferschein-Foto ist für den Entwurf Pflicht.', '!');
@@ -5466,6 +5649,7 @@ function resetReceivingForm() {
     'we-qty': '',
     'we-mhd': '',
     'we-supplier': '',
+    'we-supplier-custom': '',
     'we-category': 'Fremdfleisch',
     'we-category-quick': lastReceivingHeadCategory,
     'we-temperature': '',
@@ -5474,6 +5658,7 @@ function resetReceivingForm() {
     const el = document.getElementById(id);
     if (el) el.value = value;
   });
+  syncSupplierCustomFieldVisibility();
   setReceivingTemperatureValue('');
   applyLastReceivingHeadCategory();
   updateReceivingTemperatureFieldUi();
@@ -5571,7 +5756,6 @@ function showMeisterOverrideModal(temperature) {
 }
 
 async function finalizeDelivery() {
-  const rawHead = readDeliveryHeadValues();
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
 
@@ -5582,10 +5766,11 @@ async function finalizeDelivery() {
     mhdState.showHUD('Keine Posten', 'Bitte mindestens einen Waren-Posten unter Schnellerfassung hinzufügen.', '!');
     return;
   }
-  const head = normalizeDeliveryHeadForFinalize(rawHead);
-  if (!rawHead.supplier) {
-    window.showToast?.('Lieferant fehlte - Lieferung wurde als Direkterfassung gespeichert.', 'warning');
-  }
+
+  const supplier = await ensureDeliverySupplierSelected({ purpose: 'finalize' });
+  if (!supplier) return;
+
+  const head = readDeliveryHeadValues();
 
   const tempGuard = await applyDeliveryTemperatureGuard(head);
   if (!tempGuard) return;
@@ -5750,14 +5935,13 @@ function ensureReceivingFormDefaults() {
 }
 
 function updateReceivingSaveButtonState() {
-  const supplierInput = document.getElementById('we-supplier');
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const draftBtn = document.getElementById('we-save-draft-btn');
   const countEl = document.getElementById('receiving-item-count');
   if (countEl) countEl.textContent = String(currentDeliveryItems.length);
   updateReceivingQtyFieldUi();
 
-  const hasSupplier = Boolean(supplierInput?.value?.trim());
+  const hasSupplier = Boolean(readDeliveryHeadValues().supplier);
   const hasItems = currentDeliveryItems.length > 0;
   const hasPhotos = currentDeliveryPhotos.length > 0;
 
@@ -5966,10 +6150,29 @@ function bindReceivingControls() {
   if (btnEigenproduktion && btnEigenproduktion.dataset.mhdBound !== '1') {
     btnEigenproduktion.dataset.mhdBound = '1';
     btnEigenproduktion.addEventListener('click', () => {
-      const supplierEl = document.getElementById('we-supplier');
-      if (supplierEl) supplierEl.value = EIGENPRODUKTION_SUPPLIER;
+      applySupplierToForm(EIGENPRODUKTION_SUPPLIER);
       updateReceivingSaveButtonState();
       window.showToast?.('Lieferant: Eigene Produktion', 'success');
+    });
+  }
+  const supplierSelect = document.getElementById('we-supplier');
+  if (supplierSelect && supplierSelect.dataset.mhdBound !== '1') {
+    supplierSelect.dataset.mhdBound = '1';
+    supplierSelect.addEventListener('change', () => {
+      syncSupplierCustomFieldVisibility();
+      if (supplierSelect.value === SUPPLIER_SELECT_SONSTIGE) {
+        document.getElementById('we-supplier-custom')?.focus();
+      }
+      updateReceivingSaveButtonState();
+      persistDeliveryDraftToIndexedDB();
+    });
+  }
+  const supplierCustom = document.getElementById('we-supplier-custom');
+  if (supplierCustom && supplierCustom.dataset.mhdBound !== '1') {
+    supplierCustom.dataset.mhdBound = '1';
+    supplierCustom.addEventListener('input', () => {
+      updateReceivingSaveButtonState();
+      persistDeliveryDraftToIndexedDB();
     });
   }
   if (openDraftsList && openDraftsList.dataset.mhdBound !== '1') {

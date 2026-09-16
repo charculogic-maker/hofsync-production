@@ -212,6 +212,37 @@ export function mapDeliveryUploadError(error) {
   return 'Lieferschein konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
 }
 
+/**
+ * Kompatibilitäts-API für Metzgerei-Foto/PDF-Anhänge im Wareneingang.
+ * @returns {{ ok: true, mimeType: string } | { ok: false, message: string }}
+ */
+export function validateDeliveryUploadFile(file) {
+  if (!file) {
+    return { ok: false, message: 'Bitte ein Foto oder PDF vom Lieferschein wählen.' };
+  }
+  const size = Number(file.size) || 0;
+  if (size <= 0) {
+    return { ok: false, message: 'Die Datei ist leer. Bitte ein anderes Foto oder PDF wählen.' };
+  }
+  if (size > MAX_DELIVERY_FILE_BYTES) {
+    return {
+      ok: false,
+      message: 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.',
+    };
+  }
+  if (!isAllowedDeliveryFile(file)) {
+    return {
+      ok: false,
+      message: 'Bitte ein Foto oder PDF vom Lieferschein wählen (JPG, PNG, HEIC oder PDF).',
+    };
+  }
+  return { ok: true, mimeType: resolveDeliveryMimeType(file) };
+}
+
+export function isPdfMimeType(mimeType) {
+  return String(mimeType || '').trim().toLowerCase() === 'application/pdf';
+}
+
 function assertOnline() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     throw new DeliveryUploadError('offline', 'Offline');
