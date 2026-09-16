@@ -3291,7 +3291,7 @@ function showSyncQueueDialog() {
 
   const overlay = document.createElement('div');
   overlay.id = 'sync-queue-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:120100;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
 
   const pendingRows = pending.length
     ? pending.map((item) => `
