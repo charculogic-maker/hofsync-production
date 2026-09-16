@@ -3297,7 +3297,7 @@ function showSyncQueueDialog() {
     ? pending.map((item) => `
       <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
         <div style="font-weight:700;font-size:12px;">${item._op || 'update'} · ${item._docId || 'ohne-id'}</div>
-        <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${item._attempts || 0}</div>
+        <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${Number(item.retryCount ?? item._attempts) || 0}</div>
         ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${item._lastError}${item._errorCode ? ` (${item._errorCode})` : ''}</div>` : ''}
       </div>
     `).join('')
@@ -3326,9 +3326,9 @@ function showSyncQueueDialog() {
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Nicht automatisch übertragen (${dead.length})</div>
         ${deadRows}
       </div>
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="btn btn-primary" id="sync-queue-retry">Jetzt synchronisieren</button>
-        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Liste leeren</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="sync-queue-retry">Erneut synchronisieren</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Warteschlange bereinigen</button>
       </div>
     </div>
   `;
@@ -3348,14 +3348,14 @@ function showSyncQueueDialog() {
     showToast(
       requeued > 0 || reset > 0
         ? `${requeued + reset} Einträge erneut eingeplant, Übertragung läuft.`
-        : 'Übertragung erneut angestoßen.',
+        : 'Erneute Synchronisierung gestartet.',
       'success',
     );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
     clearAllPendingSyncQueues();
     close();
-    showToast('Wartende und fehlerhafte Einträge lokal verworfen.', 'warning');
+    showToast('Warteschlange bereinigt. Wartende Einträge wurden lokal entfernt.', 'warning');
   });
 }
 

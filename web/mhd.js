@@ -359,10 +359,6 @@ function mhdAuditCollectionPath() {
   return buildTenantScopedCollectionPath(MHD_AUDIT_COLLECTION);
 }
 
-function newMhdMovementDocId() {
-  return `mv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 async function recordMhdMovement(partial = {}) {
   try {
     const collectionPath = mhdAuditCollectionPath();
@@ -374,10 +370,10 @@ async function recordMhdMovement(partial = {}) {
       ...partial,
     });
     if (!record.articleName) return;
+    // Write-only: collection.add / op add — no GET before write, no fixed docId.
     await mhdState.writeOrQueueFirestore({
       collectionPath,
-      docId: newMhdMovementDocId(),
-      op: 'set',
+      op: 'add',
       onlineData: record,
       queueData: record,
       offlineMessage: 'Warenbewegung wird nachträglich synchronisiert.',
