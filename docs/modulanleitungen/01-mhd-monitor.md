@@ -30,7 +30,7 @@ Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge au
 
 | Element | Funktion |
 |---------|----------|
-| **Zeitraum** | Auswahl zwischen **0-3**, **0-7**, **0-14** und **0-21 Tagen**; MoPro bleibt bei **0-3**, Trockenware bei **0-21** |
+| **Zeitraum** | Auswahl zwischen **0-3**, **0-7**, **0-14** und **0-21 Tagen**; MoPro bleibt bei **0-4**, Trockenware bei **0-21** |
 | **Kategorie** | Alle Kategorien oder gezielt: Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze |
 
 Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.

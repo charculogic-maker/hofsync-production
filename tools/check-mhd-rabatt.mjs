@@ -15,6 +15,8 @@ const KUEHL = '🥗 Kühlware';
 const FRISCHE = '🍎 Frische';
 const TK = '🧊 TK';
 const TROCKEN = '📦 Trockenware';
+const GEWUERZE = '🌿 Gewürze';
+const GETRAENKE = '🍺 Getränke';
 
 function key(category, tage, name, extra = {}) {
   return resolveMhdActionKey(category, tage, { name, produkt: name, kategorie: category, ...extra });
@@ -91,9 +93,19 @@ const discountCases = [
   { name: 'Dinkel Spätzle', category: TROCKEN, days: 1, expected: 'rabatt50', short: '50%', percent: 50 },
   { name: 'Dinkel Spätzle', category: TROCKEN, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
 
-  // Legacy TK unchanged shape
+  // Legacy TK / Gewürze / Getränke unchanged thresholds
   { name: 'TK Beeren', category: TK, days: 14, expected: 'pruefen', short: 'Prüfen', percent: 0 },
   { name: 'TK Beeren', category: TK, days: 7, expected: 'rabatt30', short: '30%', percent: 30 },
+  { name: 'TK Beeren', category: TK, days: 3, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 60, expected: 'pruefen', short: 'Prüfen', percent: 0 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 30, expected: 'rabatt30', short: '30%', percent: 30 },
+  { name: 'Pfeffer ganz', category: GEWUERZE, days: 14, expected: 'rabatt50', short: '50%', percent: 50 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 14, expected: 'pruefen', short: 'Prüfen', percent: 0 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 7, expected: 'rabatt30', short: '30%', percent: 30 },
+  { name: 'Apfelsaft 1l', category: GETRAENKE, days: 3, expected: 'rabatt50', short: '50%', percent: 50 },
+
+  // Edge: MoPro on MHD day (0) is 50% even though the prose only named „1 Tag“
+  { name: 'b*Joghurt mild 1,8%', category: MOPRO, days: 0, expected: 'rabatt50', short: '50%', percent: 50 },
 ];
 
 for (const item of discountCases) {
