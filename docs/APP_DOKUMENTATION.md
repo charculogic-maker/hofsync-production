@@ -167,8 +167,8 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - **Laden-Modus:** Schnellerfassung mit Kategorie (Frische, MoPro, Kühlware, TK, …), EAN-Scan, Hersteller/Zusatz, MHD
 - **Letzte Eingänge:** Kategorie-Korrektur für alle Nutzer mit Tab Neu
 - **Metzgerei-Modus:** mandantenabhängig (`wareneingangMetzgerei`)
-- **Stammdaten / KI-Lieferschein (Büro):** `#btn-master-data`, `#btn-delivery-note-ai` — nur `isOfficeUser()`
-- **StevesHof KI-Parser** (`web/delivery-parser.js`): Testweise nur für `patrik@charculogic.de`; schreibt in `mhd_liste` / `stammdaten`
+- **Stammdaten / TorFabrik-KI-Lieferschein (Büro):** `#btn-master-data`, `#btn-delivery-note-ai` — nur `isOfficeUser()`
+- **KI-Parser Wareneingang** (`web/delivery-parser.js`): freigeschaltet für Mandanten mit Tab Neu; schreibt in `mhd_liste` / `stammdaten` via Storage-Upload + `parseDeliveryNote`
 - **TorFabrik KI-Lieferschein** (`web/delivery-note.js`): Callable `parseDeliveryNote` → `inventory`
 
 ### Herkunft / LMIV (`web/traceability.js`)

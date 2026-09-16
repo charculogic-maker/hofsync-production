@@ -30,10 +30,6 @@ const MHD_FALLBACK_KEYWORDS = [
 const MHD_FALLBACK_DEFAULT_TAGE = 7;
 const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
 
-// Sicherheitsriegel: Für StevesHof ist der KI-Wareneingang standardmäßig
-// ausgeblendet. Nur das Test-Konto sieht ihn, bis das Feature freigegeben ist.
-const FEATURE_TEST_EMAIL = 'patrik@charculogic.de';
-
 const parserState = {
   getFirebase: () => null,
   showHUD: () => {},
@@ -45,13 +41,9 @@ const parserState = {
   featureEnabled: true,
 };
 
-function isSteveshofTenant(tenantId) {
-  return String(tenantId || '').trim().toLowerCase().startsWith('steveshof');
-}
-
-function isDeliveryParserVisible(tenantId, email) {
-  if (!isSteveshofTenant(tenantId)) return true;
-  return String(email || '').trim().toLowerCase() === FEATURE_TEST_EMAIL;
+function isDeliveryParserVisible(_tenantId, _email) {
+  // Freigeschaltet für alle Mandanten mit Wareneingang (inkl. StevesHof Laden-iPhone).
+  return true;
 }
 
 // ---------------------------------------------------------------------------

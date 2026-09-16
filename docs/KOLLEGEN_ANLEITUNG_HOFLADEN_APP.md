@@ -141,19 +141,19 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
+### Lieferschein per Foto (KI-Wareneingang)
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben unter Wareneingang). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein per Foto oder PDF einlesen:
 
-Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
-
-1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
+1. Auf **📸 Lieferschein fotografieren / hochladen** tippen.
+2. Lieferschein fotografieren oder ein Foto/PDF wählen.
 3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
 4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
 5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 
 Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
+
+Barcode-Scan bleibt parallel verfügbar, wenn wir einzelne Artikel lieber manuell erfassen.
 
 ### Zuordnung nachträglich korrigieren
 
