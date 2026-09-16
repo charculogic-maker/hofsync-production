@@ -107,23 +107,15 @@ Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADE
 
 ### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein einlesen:
+Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
-**Hochladen (PDF/Datei)**
-1. Auf **📄 Lieferschein hochladen** tippen.
-2. In der Dateien-App ein PDF (oder Foto) wählen.
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau je Artikel **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen.
+1. Artikel per **Barcode scannen** zur Lieferung hinzufügen.
+2. **📄 Lieferschein hochladen** oder **📸 Lieferschein scannen (KI)**.
+3. Der **Lieferschein-Abgleich** zeigt fehlende, extra und mengenabweichende Artikel.
+4. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
+5. Optional fehlende LS-Artikel in den Bestand übernehmen.
 
-**Scannen (Kamera)**
-1. Auf **📸 Lieferschein scannen (KI)** tippen.
-2. Den Lieferschein mit der Kamera fotografieren.
-3. Wie oben Vorschau prüfen und einbuchen.
-
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Vor dem Einbuchen können wir jedes MHD als `TT.MM.JJJJ` anpassen.
-
-Barcode-Scan bleibt parallel verfügbar für einzelne Artikel.
+**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 

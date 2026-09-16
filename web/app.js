@@ -56,6 +56,7 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
+  getCurrentDeliveryItems,
   getMhdProducts,
   applyReceivingMetzgereiVisibility,
   handleMhdBarcodeScan,
@@ -3724,6 +3725,7 @@ async function bootstrapAuthenticatedApp() {
     showHUD,
     writeOrQueueFirestore: writeFirestoreDocOrQueue,
     getHistory: getMhdProducts,
+    getCurrentDeliveryItems,
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {

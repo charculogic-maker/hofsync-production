@@ -74,28 +74,23 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ---
 
-## 📸 Lieferschein einlesen (KI-Wareneingang)
+## 📸 Lieferschein einlesen & abgleichen (KI-Wareneingang)
 
-Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
+Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
 
-### Hochladen (PDF aus der Dateien-App)
+### Ablauf
 
-1. Tab **Neu** → **Laden**
-2. **📄 Lieferschein hochladen** antippen
-3. In der Dateien-App ein PDF (oder Foto) wählen
-4. Animation **„Die KI liest den Lieferschein für uns...“** abwarten
-5. Vorschau prüfen und **📥 Artikel in den Bestand einbuchen**
+1. Tab **Neu** → **Laden** → Artikel per **Barcode scannen** hinzufügen
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera)
+3. Der **Lieferschein-Abgleich** zeigt:
+   - noch nicht erfasste LS-Artikel
+   - extra erfasste Posten
+   - Mengenabweichungen
+   - Übereinstimmungen
+4. Nach weiteren Scans **Abgleich aktualisieren**
+5. Optional fehlende LS-Artikel in den Bestand übernehmen
 
-### Scannen (Kamera)
-
-1. Tab **Neu** → **Laden**
-2. **📸 Lieferschein scannen (KI)** antippen
-3. Lieferschein mit der Kamera fotografieren
-4. Vorschau prüfen und einbuchen
-
-Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
-Barcode-Scan bleibt parallel verfügbar, wenn wir einzelne Artikel lieber manuell erfassen.
+**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 ### Vorgeschlagenes MHD aus Erfahrungswerten
 
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:

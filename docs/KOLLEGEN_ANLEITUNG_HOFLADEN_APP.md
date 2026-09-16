@@ -143,23 +143,22 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein einlesen:
+Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
-**Hochladen (PDF/Datei)**
-1. Auf **📄 Lieferschein hochladen** tippen.
-2. In der Dateien-App ein PDF (oder Foto) wählen.
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen.
+1. Artikel wie gewohnt per **Barcode scannen** zur Lieferung hinzufügen.
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera).
+3. Bei vorhandenen Posten öffnet sich direkt der **Lieferschein-Abgleich**.
+4. Wir sehen auf einen Blick:
+   - **Noch nicht erfasst** – steht auf dem Lieferschein, fehlt im Wareneingang
+   - **Extra erfasst** – im Wareneingang, fehlt auf dem Lieferschein
+   - **Mengenabweichung** – Name passt, Menge nicht
+   - **Stimmt überein**
+5. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
+6. Optional: fehlende LS-Artikel später in den Bestand übernehmen.
 
-**Scannen (Kamera)**
-1. Auf **📸 Lieferschein scannen (KI)** tippen.
-2. Den Lieferschein mit der Kamera fotografieren.
-3. Wie oben Vorschau prüfen und einbuchen.
+Der Button **🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
-
-Barcode-Scan bleibt parallel verfügbar, wenn wir einzelne Artikel lieber manuell erfassen.
+Barcode-Scan bleibt parallel verfügbar für einzelne Artikel.
 
 ### Zuordnung nachträglich korrigieren
 

@@ -16,6 +16,11 @@ import {
   mapDeliveryUploadError,
   DeliveryUploadError,
 } from './delivery-upload.js';
+import {
+  reconcileDeliveryNote,
+  showReconcileOverlay,
+  removeReconcileOverlay,
+} from './delivery-reconcile.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -35,7 +40,9 @@ const parserState = {
   showHUD: () => {},
   writeOrQueueFirestore: null,
   getHistory: () => [],
+  getCurrentDeliveryItems: () => [],
   pendingRows: [],
+  sollItems: [],
   ocrInFlight: false,
   saveInFlight: false,
   featureEnabled: true,
@@ -298,7 +305,13 @@ function readRowsFromPreview() {
 
 function showPreview(rows) {
   removePreviewOverlay();
+  removeReconcileOverlay();
   parserState.pendingRows = rows;
+  parserState.sollItems = rows.map((row) => ({
+    artikel: row.artikel,
+    menge: row.menge,
+    kategorie: row.kategorie,
+  }));
 
   const overlay = document.createElement('div');
   overlay.id = 'delivery-parser-overlay';
@@ -306,10 +319,11 @@ function showPreview(rows) {
   overlay.innerHTML = `
     <div class="learn-mode-card delivery-note-preview-card" role="dialog" aria-modal="true" aria-labelledby="delivery-parser-title">
       <div class="learn-mode-title" id="delivery-parser-title">Lieferschein – erkannte Artikel</div>
-      <p class="learn-mode-desc">Bitte Liefermenge und vorgeschlagenes MHD prüfen. Wir schlagen das MHD aus Erfahrungswerten oder Standard-Haltbarkeit vor.</p>
+      <p class="learn-mode-desc">Zuerst mit dem Wareneingang abgleichen. Optional kannst du fehlende Artikel später noch einbuchen.</p>
       <div class="delivery-note-preview-scroll">${renderPreviewTable(rows)}</div>
       <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;">
-        <button type="button" class="btn btn-primary" id="delivery-parser-save">📥 Artikel in den Bestand einbuchen</button>
+        <button type="button" class="btn btn-primary" id="delivery-parser-reconcile">🔎 Mit Wareneingang abgleichen</button>
+        <button type="button" class="btn btn-secondary" id="delivery-parser-save">📥 Nur fehlende / alle in den Bestand einbuchen</button>
         <button type="button" class="btn" id="delivery-parser-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
       </div>
     </div>
@@ -324,9 +338,59 @@ function showPreview(rows) {
   initGermanDateInputs(overlay);
 
   overlay.querySelector('#delivery-parser-cancel')?.addEventListener('click', removePreviewOverlay);
+  overlay.querySelector('#delivery-parser-reconcile')?.addEventListener('click', () => {
+    parserState.sollItems = readRowsFromPreview().map((row) => ({
+      artikel: row.artikel,
+      menge: row.menge,
+      kategorie: row.kategorie,
+    }));
+    openReconcileFromSoll();
+  });
   overlay.querySelector('#delivery-parser-save')?.addEventListener('click', () => {
     bucheLieferungEin(readRowsFromPreview());
   });
+
+  // Direkt Abgleich öffnen, wenn schon Posten im Wareneingang stehen.
+  const ist = parserState.getCurrentDeliveryItems?.() || [];
+  if (Array.isArray(ist) && ist.length > 0) {
+    openReconcileFromSoll();
+  }
+}
+
+function openReconcileFromSoll() {
+  const soll = Array.isArray(parserState.sollItems) ? parserState.sollItems : [];
+  if (!soll.length) {
+    window.showToast?.('Bitte zuerst einen Lieferschein hochladen oder scannen.', 'warning');
+    return;
+  }
+  const ist = parserState.getCurrentDeliveryItems?.() || [];
+  const result = reconcileDeliveryNote(soll, ist);
+  removePreviewOverlay();
+  showReconcileOverlay(result, {
+    onRefresh: () => openReconcileFromSoll(),
+    onBookMissing: (missing) => {
+      const rows = missing.map((row) => ({
+        artikel: row.artikel,
+        menge: row.menge,
+        kategorie: row.kategorie || '',
+        mhdIso: '',
+      }));
+      // MHD nachziehen: Vorschläge wie in der Vorschau
+      const withMhd = buildPreviewRows(rows).map((row) => ({
+        artikel: row.artikel,
+        menge: row.menge,
+        kategorie: row.kategorie,
+        mhdIso: row.mhdIso,
+      }));
+      removeReconcileOverlay();
+      showPreview(buildPreviewRows(rows));
+      window.showToast?.(
+        `${withMhd.length} fehlende Artikel – bitte MHD prüfen, dann einbuchen.`,
+        'warning',
+      );
+    },
+  });
+  applyReconcileButtonVisibility();
 }
 
 // ---------------------------------------------------------------------------
@@ -485,10 +549,20 @@ function applyFeatureVisibility() {
     if (scanBtn) scanBtn.hidden = !parserState.featureEnabled;
   }
 
+  applyReconcileButtonVisibility();
+
   if (!parserState.featureEnabled) {
     removePreviewOverlay();
     hideLoadingOverlay();
+    removeReconcileOverlay();
   }
+}
+
+function applyReconcileButtonVisibility() {
+  const btn = document.getElementById('btn-delivery-reconcile');
+  if (!btn) return;
+  const hasSoll = Array.isArray(parserState.sollItems) && parserState.sollItems.length > 0;
+  btn.hidden = !parserState.featureEnabled || !hasSoll;
 }
 
 function bindFilePicker(buttonId, inputId, datasetKey) {
@@ -516,6 +590,12 @@ function bindUi() {
   if (parserState.ownsScanButton) {
     bindFilePicker('btn-delivery-note-ai', 'delivery-note-file-input', 'deliveryParserScanBound');
   }
+
+  const reconcileBtn = document.getElementById('btn-delivery-reconcile');
+  if (reconcileBtn && reconcileBtn.dataset.deliveryReconcileBound !== '1') {
+    reconcileBtn.dataset.deliveryReconcileBound = '1';
+    reconcileBtn.addEventListener('click', () => openReconcileFromSoll());
+  }
 }
 
 export function initDeliveryParser(options = {}) {
@@ -523,6 +603,9 @@ export function initDeliveryParser(options = {}) {
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;
   parserState.getHistory = typeof options.getHistory === 'function' ? options.getHistory : parserState.getHistory;
+  parserState.getCurrentDeliveryItems = typeof options.getCurrentDeliveryItems === 'function'
+    ? options.getCurrentDeliveryItems
+    : parserState.getCurrentDeliveryItems;
   parserState.tenantId = options.tenantId || '';
   parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
   parserState.ownsScanButton = !isTorfabrikTenant(parserState.tenantId);
