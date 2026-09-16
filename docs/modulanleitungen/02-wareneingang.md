@@ -76,21 +76,20 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ## 📸 Lieferschein einlesen (KI-Wareneingang)
 
-> **StevesHof:** Am neutralen Laden-iPhone ist dieser Button **noch ausgeblendet** (interner Testlauf). Für StevesHof gilt bis zur Freigabe der Barcode-Scan im Bereich **Laden**.
-
 Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
 
 ### Schritte
 
 1. Tab **Neu** → **Laden**
 2. **📸 Lieferschein fotografieren / hochladen** antippen
-3. Lieferschein mit dem iPhone fotografieren oder ein vorhandenes Foto wählen
+3. Lieferschein mit dem iPhone fotografieren oder ein Foto/PDF wählen
 4. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
 5. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
 6. **📥 Artikel in den Bestand einbuchen** antippen
 
 Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 
+Barcode-Scan bleibt parallel verfügbar, wenn wir einzelne Artikel lieber manuell erfassen.
 ### Vorgeschlagenes MHD aus Erfahrungswerten
 
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
