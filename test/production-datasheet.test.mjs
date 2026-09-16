@@ -195,15 +195,21 @@ describe('Bio-Galloway Rostbrat- & Currywurst (SH-BGW-160)', () => {
     },
     anweisung_D: 'Zwei-Stufen-Garen: Brühen dann Pasteurisieren.',
     ingredients: [
-      { name: 'Bio-Galloway mager (dry-aged, hofeigen)', pct: 30, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
-      { name: 'Bio-Schweinefleisch mager (Zukauf DE-ÖKO-006)', pct: 25, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
-      { name: 'Bio-Schweinerückenspeck kernig (Zukauf DE-ÖKO-006)', pct: 25, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
-      { name: 'Crushed Ice / Flacheisschollen', pct: 10, typ: 'spice', hinweis: 'Crushed Ice oder dünne Flacheisschollen' },
-      { name: 'Eiswasser (Trinkwasser)', pct: 10, typ: 'spice', hinweis: '0–1 °C, Direktzugabe' },
+      { name: 'Bio-Galloway mager (dry-aged, hofeigen)', pct: 28.926, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
+      { name: 'Bio-Schweinefleisch mager (Zukauf DE-ÖKO-006)', pct: 24.105, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
+      { name: 'Bio-Schweinerückenspeck kernig (Zukauf DE-ÖKO-006)', pct: 24.105, typ: 'base', hinweis: '3 mm gewolft, flachgefroren (−18 °C)' },
+      { name: 'Crushed Ice / Flacheisschollen', pct: 9.642, typ: 'spice', hinweis: 'Crushed Ice oder dünne Flacheisschollen' },
+      { name: 'Eiswasser (Trinkwasser)', pct: 9.642, typ: 'spice', hinweis: '0–1 °C, Direktzugabe' },
       { name: 'Meersalz (unbehandelt, fein)', pct: 1.8, typ: 'spice', funktion: 'Geschmack & Eiweißquellung' },
       { name: 'BIO Kutterpower OH AF (NovaTaste / WIBERG)', pct: 0.25, typ: 'additive', funktion: 'pH-Puffer & Eiweißaufschluss (Citratbasis)' },
       { name: 'BIO Tex Pure (NovaTaste / WIBERG)', pct: 0.8, typ: 'additive', funktion: 'Knack, Hitzestabilität & Geleeschutz (Bockshornklee-Galactomannane)' },
       { name: 'BIO Pfeffer weiß gemahlen (WIBERG)', pct: 0.3, typ: 'spice', funktion: 'Grundschärfe (helle Optik)' },
+      { name: 'BIO Macisblüte gemahlen (WIBERG)', pct: 0.1, typ: 'spice', funktion: 'Klassische Bratwurst-Körpernote' },
+      { name: 'BIO Zwiebelpulver (WIBERG)', pct: 0.15, typ: 'spice', funktion: 'Herzhafte Grundwürze' },
+      { name: 'BIO Koriander gemahlen (WIBERG)', pct: 0.05, typ: 'spice', funktion: 'Kräuterwürze & Frische' },
+      { name: 'BIO Ingwer gemahlen (WIBERG)', pct: 0.05, typ: 'spice', funktion: 'Frische & Würztiefe' },
+      { name: 'BIO Zitronenschale gemahlen (WIBERG)', pct: 0.05, typ: 'spice', funktion: 'Frischeakzent' },
+      { name: 'BIO Cardamom gemahlen (WIBERG)', pct: 0.03, typ: 'spice', funktion: 'Feine Kopfnote' },
     ],
   };
 
@@ -231,9 +237,9 @@ describe('Bio-Galloway Rostbrat- & Currywurst (SH-BGW-160)', () => {
 
     const galloway8 = at8.meat.find((row) => row.quidGroup === 'galloway');
     const galloway16 = at16.meat.find((row) => row.quidGroup === 'galloway');
-    expect(galloway8.weightKg).to.be.closeTo(2.4, 1e-9);
-    expect(galloway16.weightKg).to.be.closeTo(4.8, 1e-9);
-    expect(at12.meat.find((row) => row.quidGroup === 'speck').weightKg).to.be.closeTo(3.0, 1e-9);
+    expect(galloway8.weightKg).to.be.closeTo(2.31408, 1e-9);
+    expect(galloway16.weightKg).to.be.closeTo(4.62816, 1e-9);
+    expect(at12.meat.find((row) => row.quidGroup === 'speck').weightKg).to.be.closeTo(2.8926, 1e-9);
 
     const salt16 = at16.spices.find((row) => /meersalz/i.test(row.name));
     expect(salt16.dosePerKg).to.be.closeTo(18, 1e-9);
@@ -242,11 +248,23 @@ describe('Bio-Galloway Rostbrat- & Currywurst (SH-BGW-160)', () => {
 
     const tex = at16.spices.find((row) => /tex\s*pure/i.test(row.name));
     expect(tex.function).to.match(/Knack|Hitzestabilität/i);
-    expect(at16.kpis.waterAdditionPercent).to.be.closeTo(20, 1e-9);
+    expect(at16.kpis.waterAdditionPercent).to.be.closeTo(19.284, 1e-9);
     expect(at16.kpis.beffe).to.equal(8.5);
     expect(at16.kpis.wev).to.equal(4.0);
     expect(at16.kpis.targetPhRange).to.equal('5,9–6,2');
     expect(at16.haccp.some((row) => /11,0/.test(row.limit))).to.equal(true);
     expect(at16.sopHint).to.match(/Zwei-Stufen-Garen/);
+  });
+
+  it('keeps printed ingredient weights within the selected charge size', () => {
+    for (const targetKg of [8, 12, 16, 20]) {
+      const sheet = buildProductionDatasheetData(ROSTBRATWURST, { targetKg, machineProfile: PROFILE_16 });
+      const totalKg = [
+        ...sheet.meat.map((row) => row.weightKg),
+        ...sheet.spices.map((row) => row.weightTotal),
+      ].reduce((sum, weight) => sum + weight, 0);
+
+      expect(totalKg).to.be.closeTo(targetKg, 1e-9);
+    }
   });
 });
