@@ -78,14 +78,20 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
 
-### Schritte
+### Hochladen (PDF aus der Dateien-App)
 
 1. Tab **Neu** → **Laden**
-2. **📸 Lieferschein fotografieren / hochladen** antippen
-3. Lieferschein mit dem iPhone fotografieren oder ein Foto/PDF wählen
-4. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
-5. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
-6. **📥 Artikel in den Bestand einbuchen** antippen
+2. **📄 Lieferschein hochladen** antippen
+3. In der Dateien-App ein PDF (oder Foto) wählen
+4. Animation **„Die KI liest den Lieferschein für uns...“** abwarten
+5. Vorschau prüfen und **📥 Artikel in den Bestand einbuchen**
+
+### Scannen (Kamera)
+
+1. Tab **Neu** → **Laden**
+2. **📸 Lieferschein scannen (KI)** antippen
+3. Lieferschein mit der Kamera fotografieren
+4. Vorschau prüfen und einbuchen
 
 Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
 

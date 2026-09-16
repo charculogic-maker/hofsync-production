@@ -39,11 +39,17 @@ const parserState = {
   ocrInFlight: false,
   saveInFlight: false,
   featureEnabled: true,
+  ownsScanButton: true,
+  tenantId: '',
 };
 
 function isDeliveryParserVisible(_tenantId, _email) {
   // Freigeschaltet für alle Mandanten mit Wareneingang (inkl. StevesHof Laden-iPhone).
   return true;
+}
+
+function isTorfabrikTenant(tenantId) {
+  return String(tenantId || '').trim().toLowerCase() === 'torfabrik';
 }
 
 // ---------------------------------------------------------------------------
@@ -470,19 +476,26 @@ async function handleDeliveryFile(file) {
 }
 
 function applyFeatureVisibility() {
-  const btn = document.getElementById('btn-delivery-parser');
-  if (btn) btn.hidden = !parserState.featureEnabled;
+  const uploadBtn = document.getElementById('btn-delivery-parser');
+  if (uploadBtn) uploadBtn.hidden = !parserState.featureEnabled;
+
+  // Scan-Button: StevesHof & Co. über diesen Parser; TorFabrik nutzt delivery-note.js.
+  if (parserState.ownsScanButton) {
+    const scanBtn = document.getElementById('btn-delivery-note-ai');
+    if (scanBtn) scanBtn.hidden = !parserState.featureEnabled;
+  }
+
   if (!parserState.featureEnabled) {
     removePreviewOverlay();
     hideLoadingOverlay();
   }
 }
 
-function bindUi() {
-  const btn = document.getElementById('btn-delivery-parser');
-  const input = document.getElementById('delivery-parser-file-input');
-  if (!btn || !input || btn.dataset.deliveryParserBound === '1') return;
-  btn.dataset.deliveryParserBound = '1';
+function bindFilePicker(buttonId, inputId, datasetKey) {
+  const btn = document.getElementById(buttonId);
+  const input = document.getElementById(inputId);
+  if (!btn || !input || btn.dataset[datasetKey] === '1') return;
+  btn.dataset[datasetKey] = '1';
 
   btn.addEventListener('click', () => {
     if (!parserState.featureEnabled) return;
@@ -496,12 +509,23 @@ function bindUi() {
   });
 }
 
+function bindUi() {
+  // Hochladen: Dateien-App / Galerie (kein capture → keine Kamera-App).
+  bindFilePicker('btn-delivery-parser', 'delivery-parser-file-input', 'deliveryParserBound');
+  // Scannen: Kamera (capture=environment am Scan-Input).
+  if (parserState.ownsScanButton) {
+    bindFilePicker('btn-delivery-note-ai', 'delivery-note-file-input', 'deliveryParserScanBound');
+  }
+}
+
 export function initDeliveryParser(options = {}) {
   parserState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : parserState.getFirebase;
   parserState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : parserState.showHUD;
   parserState.writeOrQueueFirestore = options.writeOrQueueFirestore || parserState.writeOrQueueFirestore;
   parserState.getHistory = typeof options.getHistory === 'function' ? options.getHistory : parserState.getHistory;
+  parserState.tenantId = options.tenantId || '';
   parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
+  parserState.ownsScanButton = !isTorfabrikTenant(parserState.tenantId);
 
   bindUi();
   applyFeatureVisibility();

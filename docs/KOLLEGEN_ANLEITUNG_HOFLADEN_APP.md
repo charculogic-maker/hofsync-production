@@ -141,15 +141,21 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto (KI-Wareneingang)
+### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein per Foto oder PDF einlesen:
+Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein einlesen:
 
-1. Auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto/PDF wählen.
+**Hochladen (PDF/Datei)**
+1. Auf **📄 Lieferschein hochladen** tippen.
+2. In der Dateien-App ein PDF (oder Foto) wählen.
 3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
 4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+5. **📥 Artikel in den Bestand einbuchen** tippen.
+
+**Scannen (Kamera)**
+1. Auf **📸 Lieferschein scannen (KI)** tippen.
+2. Den Lieferschein mit der Kamera fotografieren.
+3. Wie oben Vorschau prüfen und einbuchen.
 
 Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
 
