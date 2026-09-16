@@ -3789,6 +3789,177 @@ const bratwurstRecipes = [
         "hinweis": "Vorschlag: 1g/kg"
       }
     ]
+  },
+  {
+    "id": "SH-BGW-160",
+    "name": "Bio-Galloway Rostbrat- & Currywurst",
+    "kat": "Brühwurst",
+    "produktgattung": "Rostbratwurst & Currywurst",
+    "leitsatzNr": "2.221.03",
+    "leitsatz": "2.221.03 (Feine Rostbratwurst)",
+    "kaliber": "Schweinedarm Kaliber 28/30",
+    "basis_g": "1.000,00",
+    "version": "1.0",
+    "pieceWeightG": 118,
+    "stueckgewicht_g": 118,
+    "standardChargeKg": 16,
+    "chargePresetsKg": [8, 12, 16, 20],
+    "zertifizierung": "Bio (DE-ÖKO-006, nps-frei, phosphatfrei)",
+    "cutterType": "Alexanderwerk 3-Sichel (M1: 1500 U/min, M2: 3000 U/min)",
+    "fillerType": "OSKAR 20 (20 Liter)",
+    "maschinen": {
+      "kutter": "Alexanderwerk 3-Sichel (M1: 1500 U/min, M2: 3000 U/min)",
+      "fueller": "OSKAR 20 (20 Liter)"
+    },
+    "kpis": {
+      "beffe": 8.5,
+      "beffeLabel": "≥ 8,5 % BEFFE i. FE",
+      "fatPercentRange": "24–26 %",
+      "wev": 4.0,
+      "wevLabel": "≤ 4,0",
+      "targetPh": 6.05,
+      "targetPhRange": "5,9–6,2",
+      "coreTempTarget": 70,
+      "coreTempLabel": "Kerntemperatur-Soll Brühen 68–70 °C",
+      "kutterEndTempMax": 11
+    },
+    "allergene": [],
+    "tipp": "Meister-Tipp: Standard-Charge 16,0 kg auf Alexanderwerk / OSKAR 20. Stückgewicht 118 g im Schweinedarm 28/30. Zwei-Stufen-Garen einhalten – erst brühen, dann pasteurisieren. Bio, nps-frei und phosphatfrei (DE-ÖKO-006).",
+    "haltbar": "Nach Pasteurisieren und Rückkühlung auf ≤ 4 °C gekühlt lagern. Charge und Kerntemperatur dokumentieren.",
+    "hinweis": "Zertifizierung: Bio (DE-ÖKO-006, nps-frei, phosphatfrei). CCP Kutterendtemperatur max. 11,0 °C. Leitsatz 2.221.03 (Feine Rostbratwurst).",
+    "anweisung_A": "Bio-Galloway mager, Bio-Schweinefleisch mager und Bio-Schweinerückenspeck 3 mm wolfen und flachgefroren (−18 °C) bereitstellen. Meersalz, BIO Kutterpower OH AF, BIO Tex Pure und alle WIBERG-Gewürze exakt auf 1.000 g Gesamtmasse abwiegen. Schweinedarm Kaliber 28/30 wässern und auf Risse prüfen. Crushed Ice bzw. Flacheisschollen sowie Eiswasser (0–1 °C) bereitlegen.",
+    "anweisung_B": "Magerfleisch mit Meersalz, BIO Kutterpower OH AF und einem Teil der Schüttung im Alexanderwerk 3-Sichel kuttern (M1: 1.500 U/min, danach M2: 3.000 U/min), bis Bindung entsteht. Speck, restliche Schüttung und Gewürze kalt einarbeiten. BIO Tex Pure für Knack und Hitzestabilität mitziehen. Kutterendtemperatur (CCP) max. 11,0 °C; Ziel-pH Brät 5,9–6,2.",
+    "anweisung_C": "Brät blasenfrei auf dem OSKAR 20 (20 Liter) in Schweinedarm Kaliber 28/30 füllen. Gleichmäßig abdrehen auf Stückgewicht 118 g. Nicht überfüllen; Portionen und Kaliber kontrollieren.",
+    "anweisung_D": "Zwei-Stufen-Garen: (1) Brühen im Wasserbad 75 °C bis Kerntemperatur 68–70 °C (ca. 25 Min.), danach im Eiswasserbad auf < 15 °C kühlen und abtrocknen lassen. (2) Vakuumieren, im Wasserbad 75 °C für 20–25 Min. pasteurisieren, anschließend Rückkühlung auf ≤ 4 °C. Charge, Kerntemperatur und Kühlung dokumentieren.",
+    "ingredients": [
+      {
+        "name": "Bio-Galloway mager (dry-aged, hofeigen)",
+        "pct": 30,
+        "typ": "base",
+        "allergen": false,
+        "hinweis": "3 mm gewolft, flachgefroren (−18 °C)"
+      },
+      {
+        "name": "Bio-Schweinefleisch mager (Zukauf DE-ÖKO-006)",
+        "pct": 25,
+        "typ": "base",
+        "allergen": false,
+        "hinweis": "3 mm gewolft, flachgefroren (−18 °C)",
+        "supplier": "Zukauf DE-ÖKO-006"
+      },
+      {
+        "name": "Bio-Schweinerückenspeck kernig (Zukauf DE-ÖKO-006)",
+        "pct": 25,
+        "typ": "base",
+        "allergen": false,
+        "hinweis": "3 mm gewolft, flachgefroren (−18 °C)",
+        "supplier": "Zukauf DE-ÖKO-006"
+      },
+      {
+        "name": "Crushed Ice / Flacheisschollen",
+        "pct": 10,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "Crushed Ice oder dünne Flacheisschollen"
+      },
+      {
+        "name": "Eiswasser (Trinkwasser)",
+        "pct": 10,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "0–1 °C, Direktzugabe"
+      },
+      {
+        "name": "Meersalz (unbehandelt, fein)",
+        "pct": 1.8,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Geschmack & Eiweißquellung",
+        "supplier": "NovaTaste / WIBERG"
+      },
+      {
+        "name": "BIO Kutterpower OH AF (NovaTaste / WIBERG)",
+        "pct": 0.25,
+        "typ": "additive",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "pH-Puffer & Eiweißaufschluss (Citratbasis)",
+        "supplier": "NovaTaste / WIBERG"
+      },
+      {
+        "name": "BIO Tex Pure (NovaTaste / WIBERG)",
+        "pct": 0.8,
+        "typ": "additive",
+        "allergen": false,
+        "hinweis": "Bockshornklee-Galactomannane",
+        "funktion": "Knack, Hitzestabilität & Geleeschutz (Bockshornklee-Galactomannane)",
+        "supplier": "NovaTaste / WIBERG"
+      },
+      {
+        "name": "BIO Pfeffer weiß gemahlen (WIBERG)",
+        "pct": 0.3,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Grundschärfe (helle Optik)",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Macisblüte gemahlen (WIBERG)",
+        "pct": 0.1,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Klassische Bratwurst-Körpernote",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Zwiebelpulver (WIBERG)",
+        "pct": 0.15,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Herzhafte Grundwürze",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Koriander gemahlen (WIBERG)",
+        "pct": 0.05,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Kräuterwürze & Frische",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Ingwer gemahlen (WIBERG)",
+        "pct": 0.05,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Frische & Würztiefe",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Zitronenschale gemahlen (WIBERG)",
+        "pct": 0.05,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Frischeakzent",
+        "supplier": "WIBERG"
+      },
+      {
+        "name": "BIO Cardamom gemahlen (WIBERG)",
+        "pct": 0.03,
+        "typ": "spice",
+        "allergen": false,
+        "hinweis": "",
+        "funktion": "Feine Kopfnote",
+        "supplier": "WIBERG"
+      }
+    ]
   }
 ];
 
@@ -5055,7 +5226,10 @@ function refreshProductionDatasheetState() {
   const targetKg = currentProductionTargetKg();
   const profile = getMachineBatchProfile(productionState.machineProfileId);
   const units = readProductionUnits();
-  const pieceWeightG = profile?.pieceWeightG || DEFAULT_MACHINE_PARK.pieceWeightG;
+  const recipePieceWeight = Number(recipe.pieceWeightG ?? recipe.stueckgewicht_g ?? recipe.stueckgewichtG);
+  const pieceWeightG = Number.isFinite(recipePieceWeight) && recipePieceWeight > 0
+    ? recipePieceWeight
+    : (profile?.pieceWeightG || DEFAULT_MACHINE_PARK.pieceWeightG);
   const measuredPh = parseFloat(String(document.getElementById('recipe-batch-ph')?.value || '').replace(',', '.'));
   const measuredCoreTemp = parseFloat(String(document.getElementById('recipe-batch-core-temp')?.value || '').replace(',', '.'));
 
@@ -5066,6 +5240,9 @@ function refreshProductionDatasheetState() {
       machineProfile: profile || { id: 'custom', ...DEFAULT_MACHINE_PARK, targetKg },
       pieceCount: units.gesamt || undefined,
       pieceWeightG,
+      cutterType: recipe.cutterType || recipe.maschinen?.kutter,
+      fillerType: recipe.fillerType || recipe.maschinen?.fueller,
+      kpis: recipe.kpis || undefined,
       createdBy: window.BRANDING?.betriebsName || 'StevesHof Hofladen',
       accentColor: window.BRANDING?.primaryColor,
       logoUrl: window.BRANDING?.logoUrl,

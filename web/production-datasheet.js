@@ -8,32 +8,62 @@
 
 export const STANDARD_BATCH_PROFILE_ID = 'alexanderwerk-oskar20-16';
 
+const DEFAULT_CUTTER_TYPE = 'Alexanderwerk 3-Sichel (M1: 1500 U/min, M2: 3000 U/min)';
+const DEFAULT_FILLER_TYPE = 'OSKAR 20 (20 Liter)';
+
 /** @type {MachineBatchProfile[]} */
 export const MACHINE_BATCH_PROFILES = [
+  {
+    id: 'alexanderwerk-oskar20-8',
+    label: 'Schnellwahl Alexanderwerk / OSKAR 20: 8,0 kg',
+    shortLabel: '8,0 kg',
+    cutterType: DEFAULT_CUTTER_TYPE,
+    fillerType: DEFAULT_FILLER_TYPE,
+    targetKg: 8,
+    pieceWeightG: 118,
+  },
+  {
+    id: 'alexanderwerk-oskar20-12',
+    label: 'Schnellwahl Alexanderwerk / OSKAR 20: 12,0 kg',
+    shortLabel: '12,0 kg',
+    cutterType: DEFAULT_CUTTER_TYPE,
+    fillerType: DEFAULT_FILLER_TYPE,
+    targetKg: 12,
+    pieceWeightG: 118,
+  },
   {
     id: STANDARD_BATCH_PROFILE_ID,
     label: 'Standard-Charge Alexanderwerk / OSKAR 20: 16,0 kg',
     shortLabel: '16,0 kg',
-    cutterType: 'Alexanderwerk / 3-Sichel / M1/S1 – M2/S2',
-    fillerType: 'OSKAR 20 (20 Liter)',
+    cutterType: DEFAULT_CUTTER_TYPE,
+    fillerType: DEFAULT_FILLER_TYPE,
     targetKg: 16,
-    pieceWeightG: 100,
+    pieceWeightG: 118,
+  },
+  {
+    id: 'alexanderwerk-oskar20-20',
+    label: 'Schnellwahl Alexanderwerk / OSKAR 20: 20,0 kg',
+    shortLabel: '20,0 kg',
+    cutterType: DEFAULT_CUTTER_TYPE,
+    fillerType: DEFAULT_FILLER_TYPE,
+    targetKg: 20,
+    pieceWeightG: 118,
   },
   {
     id: 'alexanderwerk-oskar20-10',
     label: 'WRS-Basis Alexanderwerk / OSKAR 20: 10,0 kg',
     shortLabel: '10,0 kg',
-    cutterType: 'Alexanderwerk / 3-Sichel / M1/S1 – M2/S2',
-    fillerType: 'OSKAR 20 (20 Liter)',
+    cutterType: DEFAULT_CUTTER_TYPE,
+    fillerType: DEFAULT_FILLER_TYPE,
     targetKg: 10,
     pieceWeightG: 100,
   },
 ];
 
 export const DEFAULT_MACHINE_PARK = {
-  cutterType: 'Alexanderwerk / 3-Sichel / M1/S1 – M2/S2',
-  fillerType: 'OSKAR 20 (20 Liter)',
-  pieceWeightG: 100,
+  cutterType: DEFAULT_CUTTER_TYPE,
+  fillerType: DEFAULT_FILLER_TYPE,
+  pieceWeightG: 118,
 };
 
 /**
@@ -147,6 +177,7 @@ export const DEFAULT_MACHINE_PARK = {
  */
 
 const LEITSATZ_BY_CATEGORY = [
+  { match: /rostbratwurst|feine\s*rostbratwurst|currywurst/, nr: '2.221.03', gattung: 'Feine Rostbratwurst' },
   { match: /frische\s*bratwurst|bratwurst/, nr: '2.221', gattung: 'Frische Bratwurst (Brühwurstartiges Erzeugnis zum Braten)' },
   { match: /brühwurst|bruehwurst/, nr: '2.21', gattung: 'Brühwurst' },
   { match: /rohwurst|salami|peitsche|pfefferbeißer|peperoni/, nr: '2.23', gattung: 'Rohwurst' },
@@ -161,8 +192,9 @@ const ADDITIVE_LOOKUP = [
   { match: /ascorb|e300|nadurot|acerola/, fn: 'Antioxidationsmittel', lmiv: 'Ascorbinsäure', supplier: 'Zukauf' },
   { match: /phosphat|e450|diphosphat/, fn: 'Stabilisator', lmiv: 'Diphosphate', supplier: 'Zukauf' },
   { match: /nitrit|pökelsalz|poekelsalz/, fn: 'Konservierungsstoff', lmiv: 'Nitritpökelsalz', supplier: 'Zukauf' },
-  { match: /kutterpower|kutterhilfsmittel/, fn: 'Kutterhilfsmittel', lmiv: 'Pflanzenfaser / Bindemittel', supplier: 'Zukauf' },
-  { match: /meersalz|speisesalz|nitritfrei.*salz|^salz/, fn: 'Würzung', lmiv: 'Meersalz', supplier: 'Zukauf' },
+  { match: /tex\s*pure|biotex/, fn: 'Knack, Hitzestabilität & Geleeschutz', lmiv: 'Pflanzenfaser / Galactomannane', supplier: 'NovaTaste / WIBERG' },
+  { match: /kutterpower|kutterhilfsmittel/, fn: 'pH-Puffer & Eiweißaufschluss', lmiv: 'Pflanzenfaser / Bindemittel', supplier: 'NovaTaste / WIBERG' },
+  { match: /meersalz|speisesalz|nitritfrei.*salz|^salz/, fn: 'Geschmack & Eiweißquellung', lmiv: 'Meersalz', supplier: 'Zukauf' },
 ];
 
 const ALLERGEN_LOOKUP = [
@@ -257,6 +289,8 @@ export function classifyIngredient(ing) {
   const hint = String(ing?.hinweis || ing?.Hinweis || '').trim();
   const pct = parseIngredientPct(ing);
   const hay = normalizeMatchText(`${name} ${typ} ${hint}`);
+  const explicitFunction = String(ing?.funktion || ing?.function || ing?.Funktion || '').trim();
+  const explicitSupplier = String(ing?.supplier || ing?.lieferant || ing?.Lieferant || '').trim();
 
   const allergenHit = ALLERGEN_LOOKUP.find((entry) => entry.match.test(hay));
   const additiveHit = ADDITIVE_LOOKUP.find((entry) => entry.match.test(hay));
@@ -271,8 +305,8 @@ export function classifyIngredient(ing) {
       quidGroup: '',
       quidLabel: '',
       conditioning: hint || 'eiskalt / Trinkwasserqualität',
-      supplier: 'Betrieb',
-      function: 'Schüttung',
+      supplier: explicitSupplier || 'Betrieb',
+      function: explicitFunction || 'Schüttung',
       lmivDecl: 'Trinkwasser',
       organic: false,
       allergen,
@@ -289,8 +323,8 @@ export function classifyIngredient(ing) {
       quidGroup: '',
       quidLabel: '',
       conditioning: hint || 'gewässert',
-      supplier: 'Zukauf',
-      function: 'Hülle',
+      supplier: explicitSupplier || 'Zukauf',
+      function: explicitFunction || 'Hülle',
       lmivDecl: lmivCasingName(name),
       organic,
       allergen,
@@ -308,8 +342,8 @@ export function classifyIngredient(ing) {
       quidGroup: meat.quidGroup,
       quidLabel: meat.quidLabel,
       conditioning: hint || '0–2 °C, kernig / nicht schmierend',
-      supplier: 'Eigenproduktion',
-      function: 'Fleischeinsatz',
+      supplier: explicitSupplier || 'Eigenproduktion',
+      function: explicitFunction || 'Fleischeinsatz',
       lmivDecl: meat.lmivDecl,
       organic: true,
       allergen,
@@ -325,8 +359,8 @@ export function classifyIngredient(ing) {
     quidGroup: '',
     quidLabel: '',
     conditioning: hint || '',
-    supplier: additiveHit?.supplier || inferSpiceSupplier(hay),
-    function: additiveHit?.fn || inferSpiceFunction(hay),
+    supplier: explicitSupplier || additiveHit?.supplier || inferSpiceSupplier(hay),
+    function: explicitFunction || additiveHit?.fn || inferSpiceFunction(hay),
     lmivDecl: additiveHit?.lmiv || spiceLmivName(name, organic),
     organic,
     allergen,
@@ -344,7 +378,7 @@ function normalizeMatchText(value) {
 }
 
 function isWaterLike(hay) {
-  return /(?:^|[^a-z])(?:eiskalt|eisschnee|schnee|\beis\b|wasser|trinkwasser|bruehe|bruhe|schuttung|schuettung)/.test(hay)
+  return /(?:^|[^a-z])(?:eiskalt|eisschnee|schnee|crushed\s*ice|flacheis|\beis\b|wasser|trinkwasser|bruehe|bruhe|schuttung|schuettung)/.test(hay)
     && !/(fleisch|speck|wurst|pfeffer)/.test(hay);
 }
 
@@ -505,7 +539,7 @@ export function buildLmivLabel(recipe, meatRows, spiceRows, quid, options = {}) 
     if (showQuid) usedQuid.add(entry.quidGroup);
 
     let display = entry.name;
-    if (isAdditiveFunction(entry.function) && !/^säureregulator|^antioxidationsmittel|^stabilisator|^konservierungsstoff|^kutterhilfsmittel/i.test(display)) {
+    if (isAdditiveFunction(entry.function) && !/^(säureregulator|antioxidationsmittel|stabilisator|konservierungsstoff|kutterhilfsmittel|ph-puffer|knack)/i.test(display)) {
       display = `${entry.function}: ${stripStar(display)}`;
       if (entry.organic && !display.includes('*')) display += '*';
     }
@@ -565,7 +599,7 @@ function mergeLmivEntries(entries) {
 }
 
 function isAdditiveFunction(fn) {
-  return /säureregulator|antioxidationsmittel|stabilisator|konservierungsstoff|kutterhilfsmittel/i.test(String(fn || ''));
+  return /säureregulator|antioxidationsmittel|stabilisator|konservierungsstoff|kutterhilfsmittel|ph-puffer|eiweißaufschluss|hitzestabilität|geleeschutz|knack/i.test(String(fn || ''));
 }
 
 function stripStar(value) {
@@ -583,7 +617,16 @@ function uniqueAllergens(recipe, spiceRows) {
 }
 
 function categoryTechnoDefaults(recipe) {
+  const recipeKpis = recipe?.kpis || {};
   const hay = normalizeMatchText(`${recipe?.kat || ''} ${recipe?.name || ''}`);
+  if (Number.isFinite(Number(recipeKpis.targetPh)) || recipeKpis.targetPhRange || recipeKpis.coreTempLabel) {
+    return {
+      targetPh: Number.isFinite(Number(recipeKpis.targetPh)) ? Number(recipeKpis.targetPh) : 5.8,
+      targetPhRange: recipeKpis.targetPhRange || '5,6–6,2',
+      coreTempTarget: Number.isFinite(Number(recipeKpis.coreTempTarget)) ? Number(recipeKpis.coreTempTarget) : 4,
+      coreTempLabel: recipeKpis.coreTempLabel || 'Brät-/Kerntemperatur-Soll ≤ 4 °C (Sperre 7 °C)',
+    };
+  }
   if (/(kochwurst|leberwurst|bruehwurst|bruhwurst)/.test(hay) && !/frische/.test(hay)) {
     return {
       targetPh: 6.2,
@@ -611,7 +654,12 @@ function categoryTechnoDefaults(recipe) {
 function buildHaccpCheckpoints(recipe, kpis, options = {}) {
   const measuredPh = Number.isFinite(options.measuredPh) ? formatDeNumber(options.measuredPh, 2) : '';
   const measuredTemp = Number.isFinite(options.measuredCoreTemp) ? `${formatDeNumber(options.measuredCoreTemp, 1)} °C` : '';
-  return [
+  const kutterEndTempMax = Number(
+    options.kpis?.kutterEndTempMax
+    ?? recipe?.kpis?.kutterEndTempMax
+    ?? kpis.kutterEndTempMax,
+  );
+  const checkpoints = [
     {
       id: 'ccp-raw',
       name: 'CCP 1 Rohstofftemperatur',
@@ -622,7 +670,9 @@ function buildHaccpCheckpoints(recipe, kpis, options = {}) {
     {
       id: 'ccp-batter',
       name: 'CCP 2 Brättemperatur nach Kutter',
-      limit: `≤ ${formatDeNumber(Math.min(kpis.coreTempTarget, 4), 0)} °C, Sperre 7 °C`,
+      limit: Number.isFinite(kutterEndTempMax) && kutterEndTempMax > 0
+        ? `Kutterendtemperatur max. ${formatDeNumber(kutterEndTempMax, 1)} °C`
+        : `≤ ${formatDeNumber(Math.min(kpis.coreTempTarget, 4), 0)} °C, Sperre 7 °C`,
       auditField: 'Ist-Wert / Uhrzeit / Kürzel',
       measured: measuredTemp,
     },
@@ -648,6 +698,7 @@ function buildHaccpCheckpoints(recipe, kpis, options = {}) {
       measured: '',
     },
   ];
+  return checkpoints;
 }
 
 function resolveCreatedBy(options = {}) {
@@ -692,7 +743,17 @@ export function buildProductionDatasheetData(recipe, options = {}) {
     targetKg: Number(options.targetKg) || 10,
   };
   const targetKg = Number(options.targetKg) > 0 ? Number(options.targetKg) : profile.targetKg;
-  const pieceWeightG = Number(options.pieceWeightG) > 0 ? Number(options.pieceWeightG) : (profile.pieceWeightG || 100);
+  const recipePieceWeight = Number(
+    recipe.pieceWeightG
+    ?? recipe.stueckgewicht_g
+    ?? recipe.stueckgewichtG
+    ?? recipe.Stückgewicht
+  );
+  const pieceWeightG = Number(options.pieceWeightG) > 0
+    ? Number(options.pieceWeightG)
+    : (Number.isFinite(recipePieceWeight) && recipePieceWeight > 0
+      ? recipePieceWeight
+      : (profile.pieceWeightG || DEFAULT_MACHINE_PARK.pieceWeightG || 100));
   const pieceCount = Number(options.pieceCount) > 0
     ? Number(options.pieceCount)
     : Math.max(1, Math.round((targetKg * 1000) / pieceWeightG));
@@ -744,14 +805,28 @@ export function buildProductionDatasheetData(recipe, options = {}) {
 
   const quid = computeQuidValues(meat);
   const techDefaults = categoryTechnoDefaults(recipe);
+  const recipeKpis = recipe.kpis || {};
+  const optionKpis = options.kpis || {};
   const kpis = {
-    beffe: Number.isFinite(options.kpis?.beffe) ? options.kpis.beffe : null,
-    wev: Number.isFinite(options.kpis?.wev) ? options.kpis.wev : null,
+    beffe: Number.isFinite(optionKpis.beffe)
+      ? optionKpis.beffe
+      : (Number.isFinite(Number(recipeKpis.beffe)) ? Number(recipeKpis.beffe) : null),
+    wev: Number.isFinite(optionKpis.wev)
+      ? optionKpis.wev
+      : (Number.isFinite(Number(recipeKpis.wev)) ? Number(recipeKpis.wev) : null),
     waterAdditionPercent,
-    targetPh: Number.isFinite(options.kpis?.targetPh) ? options.kpis.targetPh : techDefaults.targetPh,
-    targetPhRange: options.kpis?.targetPhRange || techDefaults.targetPhRange,
-    coreTempTarget: Number.isFinite(options.kpis?.coreTempTarget) ? options.kpis.coreTempTarget : techDefaults.coreTempTarget,
-    coreTempLabel: options.kpis?.coreTempLabel || techDefaults.coreTempLabel,
+    targetPh: Number.isFinite(optionKpis.targetPh)
+      ? optionKpis.targetPh
+      : (Number.isFinite(Number(recipeKpis.targetPh)) ? Number(recipeKpis.targetPh) : techDefaults.targetPh),
+    targetPhRange: optionKpis.targetPhRange || recipeKpis.targetPhRange || techDefaults.targetPhRange,
+    coreTempTarget: Number.isFinite(optionKpis.coreTempTarget)
+      ? optionKpis.coreTempTarget
+      : (Number.isFinite(Number(recipeKpis.coreTempTarget)) ? Number(recipeKpis.coreTempTarget) : techDefaults.coreTempTarget),
+    coreTempLabel: optionKpis.coreTempLabel || recipeKpis.coreTempLabel || techDefaults.coreTempLabel,
+    kutterEndTempMax: Number.isFinite(Number(optionKpis.kutterEndTempMax ?? recipeKpis.kutterEndTempMax))
+      ? Number(optionKpis.kutterEndTempMax ?? recipeKpis.kutterEndTempMax)
+      : null,
+    fatPercentRange: optionKpis.fatPercentRange || recipeKpis.fatPercentRange || '',
   };
 
   if (options.beffeEngine && typeof options.beffeEngine.calculateCharge === 'function') {
@@ -772,6 +847,17 @@ export function buildProductionDatasheetData(recipe, options = {}) {
     .filter(Boolean)
     .join(' ');
 
+  const cutterType = options.cutterType
+    || recipe.cutterType
+    || recipe.maschinen?.kutter
+    || profile.cutterType
+    || DEFAULT_MACHINE_PARK.cutterType;
+  const fillerType = options.fillerType
+    || recipe.fillerType
+    || recipe.maschinen?.fueller
+    || profile.fillerType
+    || DEFAULT_MACHINE_PARK.fillerType;
+
   return {
     meta: {
       recipeName: recipe.name || '',
@@ -782,11 +868,12 @@ export function buildProductionDatasheetData(recipe, options = {}) {
       createdBy: resolveCreatedBy(options),
       dateIso: todayIso(now),
       dateLabel: formatDeDate(now),
+      zertifizierung: recipe.zertifizierung || '',
     },
     machines: {
       profileId: profile.id || 'custom',
-      cutterType: options.cutterType || profile.cutterType || DEFAULT_MACHINE_PARK.cutterType,
-      fillerType: options.fillerType || profile.fillerType || DEFAULT_MACHINE_PARK.fillerType,
+      cutterType,
+      fillerType,
       targetYieldKg: targetKg,
       pieceCount,
       pieceWeightG,

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260916-mhd-tk-trockenware';
+const CACHE_NAME = 'charculogic-v20260916-bgw-rostbratwurst';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
