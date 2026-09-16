@@ -4,7 +4,8 @@
  * Spezifische Produktregeln (Frischmilch) gewinnen immer vor Kategorie-Regeln.
  *
  * FRISCHMILCH: 1 Tag vorher 10 %, MHD-Tag 20 %, sonst 0 %.
- * TROCKENWARE / KONSERVEN: 3–5 Tage 20 %, 1–2 Tage (inkl. MHD-Tag) 50 %.
+ * TROCKENWARE / KONSERVEN / TK / GEWÜRZE / GETRÄNKE:
+ *   >5 Tage 0 %, 3–5 Tage 20 %, 1–2 Tage / MHD-Tag 50 %.
  * FRISCHE / FLEISCH / WURST: 2–3 Tage 20 %, 1 Tag / MHD-Tag 50 %.
  * MOPRO / KÄSE: 2–4 Tage 20 %, 1 Tag / MHD-Tag 50 %.
  */
@@ -43,13 +44,6 @@ const DRINKING_MILK_TOKEN_RE = /(^|[^a-z0-9])milch([^a-z0-9]|$)/;
 const KAESE_RE = /(kaese|kase|käse|gouda|emmentaler|camembert|brie|feta|mozzarella|bergkaese|schnittkaese|weichkaese|frischkaese|ricotta|mascarpone|parmesan|cheddar|tilsiter|butterkaese)/;
 const FLEISCH_WURST_RE = /(fleisch|wurst|schinken|salami|mortadella|bratwurst|leberwurst|mettwurst|hackfleisch|schnitzel|steak|filet|brust|keule|rippchen|bacon|speck|aufschnitt|wurstwaren)/;
 const KONSERVEN_RE = /(konserve|glas|eingelegt|marmelade|konfituere|konfitüre|aufstrich|schoko|keks|cookie|gebaeck|gebäck|riegel|nussmus|honig)/;
-
-/** Legacy thresholds for categories without the new product-tier matrix. */
-const LEGACY_RABATT_MATRIX = {
-  [MHD_TK_CATEGORY]: { pruefen: 14, rabatt30: 7, rabatt50: 3, tonne: -1 },
-  [MHD_GEWUERZE_CATEGORY]: { pruefen: 60, rabatt30: 30, rabatt50: 14, tonne: -1 },
-  [MHD_GETRAENKE_CATEGORY]: { pruefen: 14, rabatt30: 7, rabatt50: 3, tonne: -1 },
-};
 
 export function normalizeMhdRabattText(value = '') {
   return String(value || '')
@@ -101,7 +95,12 @@ export function isFleischWurstProduct(prod = {}) {
 
 export function isTrockenwareOrKonserven(prod = {}, category = '') {
   const resolvedCategory = String(category || prod.kategorie || prod.category || prod.warenKategorie || '').trim();
-  if (resolvedCategory === MHD_TROCKEN_CATEGORY || /trocken|konserve/i.test(resolvedCategory)) {
+  // TK / Gewürze / Getränke use the same Rest-MHD matrix as Trockenware / Konserven.
+  if (resolvedCategory === MHD_TROCKEN_CATEGORY
+    || resolvedCategory === MHD_TK_CATEGORY
+    || resolvedCategory === MHD_GEWUERZE_CATEGORY
+    || resolvedCategory === MHD_GETRAENKE_CATEGORY
+    || /trocken|konserve|tiefkuehl|tiefkühl|\btk\b|gewuerz|gewürz|getraenk|getränk/i.test(resolvedCategory)) {
     return true;
   }
   // Name-based fallback only when category is missing — avoid misrouting MoPro „… Glas“.
@@ -118,12 +117,6 @@ export function resolveMhdRabattRuleGroup(prod = {}, category = '') {
   const resolvedCategory = String(category || prod.kategorie || prod.category || prod.warenKategorie || '').trim();
 
   if (isFrischmilchProduct(prod, resolvedCategory)) return 'frischmilch';
-
-  if (resolvedCategory === MHD_TK_CATEGORY
-    || resolvedCategory === MHD_GEWUERZE_CATEGORY
-    || resolvedCategory === MHD_GETRAENKE_CATEGORY) {
-    return 'legacy';
-  }
 
   if (resolvedCategory === MHD_TROCKEN_CATEGORY || isTrockenwareOrKonserven(prod, resolvedCategory)) {
     return 'trockenware';
@@ -173,18 +166,6 @@ export function getDiscountForProduct(product = {}, daysRemaining = null) {
     return { percent: 0, actionKey: 'ok', ruleGroup };
   }
 
-  if (ruleGroup === 'legacy') {
-    const rules = LEGACY_RABATT_MATRIX[category] || LEGACY_RABATT_MATRIX[MHD_TK_CATEGORY];
-    for (const key of MHD_ACTION_SEVERITY) {
-      if (!Number.isFinite(rules[key])) continue;
-      if (days <= rules[key]) {
-        const percent = key === 'rabatt50' ? 50 : key === 'rabatt30' ? 30 : 0;
-        return { percent, actionKey: key, ruleGroup };
-      }
-    }
-    return { percent: 0, actionKey: 'ok', ruleGroup };
-  }
-
   // MOPRO / KÄSE fallback
   if (days <= 1) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
   if (days <= 4) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
@@ -201,9 +182,6 @@ export function getMhdRabattRules(category, prod = {}) {
   }
   if (group === 'frische') {
     return { rabatt20: 3, rabatt50: 1, tonne: -1 };
-  }
-  if (group === 'legacy') {
-    return LEGACY_RABATT_MATRIX[category] || LEGACY_RABATT_MATRIX[MHD_TK_CATEGORY];
   }
   return { rabatt20: 4, rabatt50: 1, tonne: -1 };
 }

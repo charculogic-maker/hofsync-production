@@ -30,7 +30,12 @@ const uiResult = await page.evaluate(async () => {
     { id: 'joghurt-1', ean: '4035626114510', name: 'b*Joghurt mild 1,8% Demeter Glas', produkt: 'b*Joghurt mild 1,8% Demeter Glas', qty: 2, kategorie: '🥛MoPro', mhdDate: isoDaysFromToday(1), mhd: isoDaysFromToday(1), status: 'aktiv' },
     { id: 'joghurt-0', ean: '4035626114511', name: 'b*Joghurt mild 1,8% Demeter Glas', produkt: 'b*Joghurt mild 1,8% Demeter Glas', qty: 2, kategorie: '🥛MoPro', mhdDate: isoDaysFromToday(0), mhd: isoDaysFromToday(0), status: 'aktiv' },
     { id: 'kuehl-3', ean: '8008161501796', name: 'Ital. Mortadella', produkt: 'Ital. Mortadella', qty: 1, kategorie: '🥗 Kühlware', mhdDate: isoDaysFromToday(3), mhd: isoDaysFromToday(3), status: 'aktiv' },
-    { id: 'tk-7', ean: '4000417025005', name: 'TK Beeren', produkt: 'TK Beeren', qty: 1, kategorie: '🧊 TK', mhdDate: isoDaysFromToday(7), mhd: isoDaysFromToday(7), status: 'aktiv' },
+    { id: 'tk-6', ean: '4000417025005', name: 'TK Beeren', produkt: 'TK Beeren', qty: 1, kategorie: '🧊 TK', mhdDate: isoDaysFromToday(6), mhd: isoDaysFromToday(6), status: 'aktiv' },
+    { id: 'tk-4', ean: '4000417025006', name: 'TK Spinat', produkt: 'TK Spinat', qty: 1, kategorie: '🧊 TK', mhdDate: isoDaysFromToday(4), mhd: isoDaysFromToday(4), status: 'aktiv' },
+    { id: 'tk-2', ean: '4000417025007', name: 'TK Erbsen', produkt: 'TK Erbsen', qty: 1, kategorie: '🧊 TK', mhdDate: isoDaysFromToday(2), mhd: isoDaysFromToday(2), status: 'aktiv' },
+    { id: 'tk-0', ean: '4000417025008', name: 'TK Pizza', produkt: 'TK Pizza', qty: 1, kategorie: '🧊 TK', mhdDate: isoDaysFromToday(0), mhd: isoDaysFromToday(0), status: 'aktiv' },
+    { id: 'gewuerz-5', ean: '4000417025010', name: 'Pfeffer ganz', produkt: 'Pfeffer ganz', qty: 1, kategorie: '🌿 Gewürze', mhdDate: isoDaysFromToday(5), mhd: isoDaysFromToday(5), status: 'aktiv' },
+    { id: 'getraenk-1', ean: '4000417025011', name: 'Apfelsaft 1l', produkt: 'Apfelsaft 1l', qty: 1, kategorie: '🍺 Getränke', mhdDate: isoDaysFromToday(1), mhd: isoDaysFromToday(1), status: 'aktiv' },
   ];
 
   window.firebase = { apps: [{}], auth: () => ({ currentUser: { uid: 'employee-user' } }) };
@@ -82,10 +87,15 @@ const uiResult = await page.evaluate(async () => {
   if (trockenTab) trockenTab.click();
   await new Promise((resolve) => setTimeout(resolve, 200));
 
-  steps.push({ name: 'TK legacy 7 days is 30%', pass: badgeById('tk-7') === '30%', got: badgeById('tk-7') });
+  steps.push({ name: 'TK 6 days is Regulär', pass: badgeById('tk-6') === 'Regulär', got: badgeById('tk-6') });
+  steps.push({ name: 'TK 4 days is 20%', pass: badgeById('tk-4') === '20%', got: badgeById('tk-4') });
+  steps.push({ name: 'TK 2 days is 50%', pass: badgeById('tk-2') === '50%', got: badgeById('tk-2') });
+  steps.push({ name: 'TK MHD day is 50%', pass: badgeById('tk-0') === '50%', got: badgeById('tk-0') });
+  steps.push({ name: 'Gewürze 5 days is 20%', pass: badgeById('gewuerz-5') === '20%', got: badgeById('gewuerz-5') });
+  steps.push({ name: 'Getränke 1 day is 50%', pass: badgeById('getraenk-1') === '50%', got: badgeById('getraenk-1') });
   steps.push({
     name: 'renders MoPro seed cards plus TK after filter switch',
-    pass: document.querySelectorAll('.mhd-card').length >= 1 && Boolean(badgeById('tk-7')),
+    pass: document.querySelectorAll('.mhd-card').length >= 1 && Boolean(badgeById('tk-4')),
     got: document.querySelectorAll('.mhd-card').length,
   });
 
