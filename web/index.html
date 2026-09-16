@@ -1084,9 +1084,15 @@
                     <span>Produktname (unbekannte EAN)</span>
                     <input type="text" id="we-product-manual" class="gastro-input" placeholder="z. B. Schwarzkümmel" autocomplete="off">
                   </label>
-                  <label class="receiving-field" for="we-qty">
-                    <span id="we-qty-label">Menge (Stk)</span>
-                    <input type="number" id="we-qty" class="gastro-input" placeholder="1" min="1" step="1" inputmode="numeric">
+                  <label class="receiving-field receiving-field--qty" for="we-qty">
+                    <span class="receiving-qty-label-row">
+                      <span id="we-qty-label">Menge (Stk)</span>
+                      <span id="we-qty-vpe-badge" class="vpe-habit-badge hidden" aria-live="polite"></span>
+                    </span>
+                    <div class="receiving-qty-input-row">
+                      <input type="number" id="we-qty" class="gastro-input" placeholder="1" min="1" step="1" inputmode="numeric" title="Menge frei anpassbar — z. B. zwei Gebinde = doppelte Stückzahl">
+                      <button type="button" id="we-qty-add-vpe" class="btn btn-secondary receiving-qty-add-vpe hidden" aria-label="Ein weiteres Gebinde zur Menge addieren" title="Ein weiteres Gebinde addieren">+ VPE</button>
+                    </div>
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>

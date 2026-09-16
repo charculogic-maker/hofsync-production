@@ -11,6 +11,13 @@ import {
   hydrateProductMasterFromFirestore,
   persistProductMasterToFirestore,
   writeLocalProductMasterEntry,
+  readLocalProductMaster,
+  normalizeDefaultVpe,
+  shouldLearnDefaultVpe,
+  resolvePrefillQty,
+  resolveLearnedDefaultVpe,
+  hasHabitualVpe,
+  formatHabitualVpeBadge,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -1727,10 +1734,25 @@ async function loadVpeMasterFromCsv() {
   }
 }
 
-function saveProductMaster(product) {
+function saveProductMaster(product, options = {}) {
   const barcode = cleanScannedBarcode(product.barcode || product.ean);
   const name = sanitizeProductName(product.name);
   if (!barcode || !name) return;
+  const qtyCandidate = options.qty ?? product.qty ?? product.menge ?? product.default_vpe;
+  const learnVpe = options.learnDefaultVpe === true
+    && shouldLearnDefaultVpe({
+      ...options,
+      qty: qtyCandidate,
+      qtyUnit: options.qtyUnit || product.mengeEinheit || product.einheit || 'Stk',
+      actionType: options.actionType,
+      soldOut: options.soldOut ?? product.soldOut,
+    });
+  const previousVpe = readLocalProductMaster()[barcode]?.default_vpe
+    ?? readLocalProductMaster()[barcode]?.defaultVpe
+    ?? null;
+  const defaultVpe = learnVpe
+    ? resolveLearnedDefaultVpe(qtyCandidate, previousVpe)
+    : undefined;
   writeLocalProductMasterEntry({
     barcode,
     ean: barcode,
@@ -1739,6 +1761,7 @@ function saveProductMaster(product) {
     category: product.kategorie || product.category || '📦 Trockenware',
     kategorie: product.kategorie || product.category,
     scanBarcode: product.scanBarcode,
+    ...(defaultVpe != null ? { default_vpe: defaultVpe } : {}),
   });
   const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
   if (!tenantId) return;
@@ -1747,6 +1770,7 @@ function saveProductMaster(product) {
     name,
     brand: product.brand || '',
     category: product.kategorie || product.category,
+    ...(defaultVpe != null ? { default_vpe: defaultVpe } : {}),
   }, getAuditActorName()).catch((err) => {
     console.warn('[CharcuLogic] Gemeinsame Artikeldaten konnten nicht gespeichert werden:', err);
   });
@@ -1994,19 +2018,36 @@ function lookupScannedProduct(scannedCode) {
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
   if (vpeMaster[scannedCode]) {
     const existingProduct = mhdState.products.find(p => cleanScannedBarcode(p.ean || p.barcode || p.id) === scannedCode);
-    return { ...vpeMaster[scannedCode], barcode: scannedCode, existingProduct, isVpe: true, source: 'vpe-stammdaten' };
+    const entry = vpeMaster[scannedCode];
+    return {
+      ...entry,
+      barcode: scannedCode,
+      existingProduct,
+      isVpe: true,
+      source: 'vpe-stammdaten',
+      default_vpe: normalizeDefaultVpe(entry.packageSize || entry.default_vpe || 1),
+    };
   }
 
   const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
   if (productMaster[scannedCode]) {
     const entry = productMaster[scannedCode];
-    return {
+    const hasStoredVpe = entry.default_vpe != null || entry.defaultVpe != null;
+    const result = {
       ...entry,
       name: sanitizeProductName(entry.name),
       brand: sanitizeProductName(entry.brand || ''),
       barcode: scannedCode,
       source: 'lokale-stammdaten',
+      _hasStoredVpe: hasStoredVpe,
     };
+    if (hasStoredVpe) {
+      result.default_vpe = normalizeDefaultVpe(entry.default_vpe ?? entry.defaultVpe);
+    } else {
+      delete result.default_vpe;
+      delete result.defaultVpe;
+    }
+    return result;
   }
 
   if (csvVpeMaster[scannedCode]) {
@@ -2015,7 +2056,14 @@ function lookupScannedProduct(scannedCode) {
       const productBarcode = cleanScannedBarcode(product.ean || product.barcode || product.id);
       return productBarcode === cleanScannedBarcode(csvVpe.einzelBarcode) || productBarcode === scannedCode;
     });
-    return { ...csvVpe, existingProduct };
+    return {
+      ...csvVpe,
+      existingProduct,
+      isVpe: true,
+      source: 'csv-vpe-stammdaten',
+      default_vpe: normalizeDefaultVpe(csvVpe.packageSize || 1),
+      _hasStoredVpe: true,
+    };
   }
 
   const csvProduct = Object.values(csvVpeMaster).find((entry) =>
@@ -2026,6 +2074,8 @@ function lookupScannedProduct(scannedCode) {
       const productBarcode = cleanScannedBarcode(product.ean || product.barcode || product.id);
       return productBarcode === scannedCode || productBarcode === cleanScannedBarcode(csvProduct.barcode);
     });
+    const productMasterEntry = productMaster[scannedCode];
+    const hasStoredVpe = productMasterEntry?.default_vpe != null || productMasterEntry?.defaultVpe != null;
     return {
       barcode: scannedCode,
       name: csvProduct.name,
@@ -2033,11 +2083,17 @@ function lookupScannedProduct(scannedCode) {
       category: csvProduct.category || '📦 Trockenware',
       existingProduct,
       source: 'csv-produkt-stammdaten',
+      ...(hasStoredVpe
+        ? { default_vpe: normalizeDefaultVpe(productMasterEntry.default_vpe ?? productMasterEntry.defaultVpe) }
+        : {}),
+      _hasStoredVpe: hasStoredVpe,
     };
   }
 
   const existing = mhdState.products.find(p => cleanScannedBarcode(p.ean || p.barcode || p.id) === scannedCode);
   if (existing) {
+    const productMasterEntry = productMaster[scannedCode];
+    const hasStoredVpe = productMasterEntry?.default_vpe != null || productMasterEntry?.defaultVpe != null;
     return {
       barcode: scannedCode,
       name: existing.name || existing.produkt || '',
@@ -2045,10 +2101,105 @@ function lookupScannedProduct(scannedCode) {
       category: normalizeMhdCategory(existing.kategorie || existing.category || ''),
       existingProduct: existing,
       source: 'bestand',
+      ...(hasStoredVpe
+        ? { default_vpe: normalizeDefaultVpe(productMasterEntry.default_vpe ?? productMasterEntry.defaultVpe) }
+        : {}),
+      _hasStoredVpe: hasStoredVpe,
     };
   }
 
   return null;
+}
+
+function updateReceivingVpeHabitBadge(productInfo = null) {
+  const badge = document.getElementById('we-qty-vpe-badge');
+  const addVpeBtn = document.getElementById('we-qty-add-vpe');
+  const qtyInput = document.getElementById('we-qty');
+  if (qtyInput) {
+    qtyInput.readOnly = false;
+    qtyInput.disabled = false;
+    qtyInput.removeAttribute('readonly');
+    qtyInput.removeAttribute('aria-readonly');
+  }
+  if (!badge) {
+    if (addVpeBtn) {
+      addVpeBtn.classList.add('hidden');
+      delete addVpeBtn.dataset.vpeSize;
+    }
+    return;
+  }
+  if (!hasHabitualVpe(productInfo)) {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+    delete badge.dataset.vpeSize;
+    if (addVpeBtn) {
+      addVpeBtn.classList.add('hidden');
+      delete addVpeBtn.dataset.vpeSize;
+    }
+    return;
+  }
+  const qty = resolvePrefillQty(productInfo);
+  badge.textContent = formatHabitualVpeBadge(qty);
+  badge.dataset.vpeSize = String(qty);
+  badge.classList.remove('hidden');
+  if (addVpeBtn) {
+    addVpeBtn.dataset.vpeSize = String(qty);
+    addVpeBtn.classList.toggle('hidden', qty < 1);
+    addVpeBtn.setAttribute(
+      'aria-label',
+      `Ein weiteres Gebinde (+${qty}) zur Menge addieren`,
+    );
+  }
+}
+
+function applyPrefillQtyToInput(inputEl, productInfo) {
+  if (!inputEl) return;
+  inputEl.readOnly = false;
+  inputEl.disabled = false;
+  inputEl.removeAttribute('readonly');
+  inputEl.removeAttribute('aria-readonly');
+  const qtyUnit = getReceivingQtyUnitFromCategory(
+    document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '',
+  );
+  if (qtyUnit !== 'Stk') return;
+  const prefill = resolvePrefillQty(productInfo);
+  inputEl.value = String(prefill);
+}
+
+function bindQtyInputFastOverride(inputEl) {
+  if (!inputEl || inputEl.dataset.vpeSelectBound === '1') return;
+  inputEl.dataset.vpeSelectBound = '1';
+  inputEl.addEventListener('focus', () => {
+    try {
+      inputEl.select();
+    } catch (_err) {
+      // ignore selection errors on unsupported inputs
+    }
+  });
+}
+
+function addOneReceivingVpeToQty() {
+  const qtyInput = document.getElementById('we-qty');
+  const addVpeBtn = document.getElementById('we-qty-add-vpe');
+  if (!qtyInput || !addVpeBtn) return;
+  const vpeSize = normalizeDefaultVpe(
+    addVpeBtn.dataset.vpeSize
+      || document.getElementById('we-qty-vpe-badge')?.dataset?.vpeSize
+      || 1,
+  );
+  if (vpeSize < 1) return;
+  const current = parseReceivingQty(qtyInput.value, 'Stk');
+  const base = Number.isFinite(current) ? current : 0;
+  qtyInput.readOnly = false;
+  qtyInput.disabled = false;
+  qtyInput.value = String(base + vpeSize);
+  try {
+    qtyInput.focus();
+    qtyInput.select();
+  } catch (_err) {
+    // ignore
+  }
+  mhdState.playClickSound?.(1100, 0.03, 0.1);
 }
 
 function buildCategoryOptions(selectedCategory) {
@@ -2131,6 +2282,8 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   }
 
   updateDeliveryItemProductUi();
+  applyPrefillQtyToInput(document.getElementById('we-qty'), info);
+  updateReceivingVpeHabitBadge(info);
   applyTorfabrikFassMhdSuggestion();
   setReceivingMode('schnell');
   return true;
@@ -2440,7 +2593,8 @@ function showLearnModeDialog(ean) {
   const productInfo = selectedProduct || null;
   const isKnown = Boolean(productInfo?.name);
   const isKnownVpe = Boolean(productInfo?.isVpe);
-  const defaultQty = Math.max(1, Number(productInfo?.packageSize || 1));
+  const defaultQty = resolvePrefillQty(productInfo);
+  const showHabitBadge = hasHabitualVpe(productInfo);
   const defaultCategory = productInfo?.category || productInfo?.kategorie || lastMhdScanCategory || '';
 
   learnModeOverlay = document.createElement('div');
@@ -2461,8 +2615,11 @@ function showLearnModeDialog(ean) {
         Hersteller / Marke
         <input type="text" id="learn-product-brand" class="input-text-touch" placeholder="z.B. StevesHof">
       </label>
-      <label class="learn-mode-label">
-        Menge / Bestand
+      <label class="learn-mode-label" for="learn-product-qty">
+        <span class="learn-qty-label-row">
+          <span>Menge / Bestand</span>
+          ${showHabitBadge ? `<span class="vpe-habit-badge">${escapeHtml(formatHabitualVpeBadge(defaultQty))}</span>` : ''}
+        </span>
         <input type="number" id="learn-product-qty" class="input-text-touch" min="1" step="1" placeholder="1" inputmode="numeric">
       </label>
       <label class="learn-mode-label">
@@ -2511,11 +2668,15 @@ function showLearnModeDialog(ean) {
   }
   if (inputQty) {
     inputQty.min = '1';
-    inputQty.step = isKnownVpe ? '1' : '0.1';
+    inputQty.step = '1';
     inputQty.inputMode = 'numeric';
-    if (!inputQty.value && defaultQty > 1) {
+    inputQty.readOnly = false;
+    inputQty.disabled = false;
+    inputQty.title = 'Menge frei anpassbar — z. B. zwei Gebinde = doppelte Stückzahl';
+    if (!inputQty.value) {
       inputQty.value = String(defaultQty);
     }
+    bindQtyInputFastOverride(inputQty);
   }
   if (inputCategory) inputCategory.innerHTML = buildCategoryOptions(defaultCategory);
 
@@ -2680,7 +2841,12 @@ function showLearnModeDialog(ean) {
         console.warn('[CharcuLogic Firebase] Mindestens ein Speicherziel hat nicht geantwortet:', failedSave.reason);
       }
       const firestoreResult = saveResults[1]?.status === 'fulfilled' ? saveResults[1].value : null;
-      saveProductMaster(newProduct);
+      saveProductMaster(newProduct, {
+        learnDefaultVpe: true,
+        qty: qty,
+        qtyUnit: 'Stk',
+        actionType: existingBatch ? 'menge' : 'neu',
+      });
       rememberMhdScanCategory(kategorie);
       if (isVpe) {
         saveVpeMaster({
@@ -4941,11 +5107,16 @@ function clearDeliveryItemFields() {
   if (productNameEl) productNameEl.value = '';
   if (herstellerEl) herstellerEl.value = '';
   if (manualEl) manualEl.value = '';
-  if (qtyEl) qtyEl.value = '';
+  if (qtyEl) {
+    qtyEl.readOnly = false;
+    qtyEl.disabled = false;
+    qtyEl.value = '';
+  }
   if (mhdEl) setGermanDateField(mhdEl, '');
   manualWrap?.classList.remove('is-manual-open');
   applyLastReceivingHeadCategory();
   updateDeliveryItemProductUi();
+  updateReceivingVpeHabitBadge(null);
 }
 
 async function addDeliveryItem() {
@@ -5012,6 +5183,22 @@ async function addDeliveryItem() {
     qtyKg: qtyUnit === 'Stk' ? Math.max(1, Math.round(qtyValue)) : Math.round(qtyValue * 100) / 100,
     mhdDate,
   });
+
+  // Lokal gewohnte VPE merken (Firestore beim Lieferung abschließen).
+  // Mehrere gleiche Gebinde (z. B. 12 bei VPE 6) ändern die Gebindegröße nicht.
+  if (qtyUnit === 'Stk' && barcode && product) {
+    const previousVpe = readLocalProductMaster()[barcode]?.default_vpe
+      ?? readLocalProductMaster()[barcode]?.defaultVpe
+      ?? null;
+    writeLocalProductMasterEntry({
+      barcode,
+      ean: barcode,
+      name: product,
+      brand: herstellerZusatz,
+      category,
+      default_vpe: resolveLearnedDefaultVpe(Math.max(1, Math.round(qtyValue)), previousVpe),
+    });
+  }
 
   clearDeliveryItemFields();
   renderDeliveryItemsTable();
@@ -5681,7 +5868,17 @@ async function finalizeDelivery() {
         queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
-      saveProductMaster(record);
+      const itemQtyUnit = item.qtyUnit || record.mengeEinheit || record.einheit || 'Stk';
+      const itemQtyRaw = Number(item.qtyValue ?? item.qtyKg ?? 0);
+      const itemQty = itemQtyUnit === 'Stk'
+        ? Math.max(1, Math.round(itemQtyRaw))
+        : Math.round(itemQtyRaw * 100) / 100;
+      saveProductMaster(record, {
+        learnDefaultVpe: true,
+        qty: itemQtyUnit === 'Stk' ? itemQty : null,
+        qtyUnit: itemQtyUnit,
+        actionType: writeOp === 'update' ? 'menge' : 'neu',
+      });
       void recordMhdMovement({
         product: record,
         qtyFrom: Number.isFinite(qtyFrom) ? qtyFrom : 0,
@@ -5832,6 +6029,15 @@ function bindReceivingControls() {
         event.preventDefault();
         applyBarcodeToDeliveryItemDraft(eanInput.value);
       }
+    });
+  }
+  bindQtyInputFastOverride(document.getElementById('we-qty'));
+  const btnAddVpe = document.getElementById('we-qty-add-vpe');
+  if (btnAddVpe && btnAddVpe.dataset.mhdBound !== '1') {
+    btnAddVpe.dataset.mhdBound = '1';
+    btnAddVpe.addEventListener('click', (event) => {
+      event.preventDefault();
+      addOneReceivingVpeToQty();
     });
   }
   const btnOpenScanner = document.getElementById('btn-open-scanner');
