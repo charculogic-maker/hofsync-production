@@ -223,7 +223,7 @@ function showLoadingOverlay() {
   overlay.innerHTML = `
     <div class="delivery-parser-loading-card" role="status" aria-live="polite">
       <div class="delivery-parser-spinner" aria-hidden="true"></div>
-      <p class="delivery-parser-loading-text">Die KI liest den Lieferschein für uns...</p>
+      <p class="delivery-parser-loading-text">Die KI liest den Lieferschein / die Rechnung für uns...</p>
     </div>
   `;
   document.querySelector('.app-container')?.appendChild(overlay);
@@ -319,7 +319,7 @@ function showPreview(rows) {
   overlay.className = 'learn-mode-overlay';
   overlay.innerHTML = `
     <div class="learn-mode-card delivery-note-preview-card" role="dialog" aria-modal="true" aria-labelledby="delivery-parser-title">
-      <div class="learn-mode-title" id="delivery-parser-title">Lieferschein – erkannte Artikel</div>
+      <div class="learn-mode-title" id="delivery-parser-title">Lieferschein / Rechnung – erkannte Artikel</div>
       <p class="learn-mode-desc">Zuerst mit dem Wareneingang abgleichen. Optional kannst du fehlende Artikel später noch einbuchen.</p>
       <div class="delivery-note-preview-scroll">${renderPreviewTable(rows)}</div>
       <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;">
@@ -524,7 +524,7 @@ async function handleDeliveryFile(file) {
     parserState.ocrInFlight = true;
     const items = await callParseDeliveryNote(file);
     if (!items.length) {
-      window.showToast?.('Wir konnten keine Artikel auf dem Lieferschein erkennen.', 'warning');
+      window.showToast?.('Wir konnten keine Artikel auf dem Lieferschein / der Rechnung erkennen.', 'warning');
       return;
     }
     showPreview(buildPreviewRows(items));

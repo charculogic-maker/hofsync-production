@@ -179,14 +179,14 @@ export function mapDeliveryUploadError(error) {
       case 'file-too-large':
         return 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.';
       case 'unsupported-type':
-        return 'Bitte ein Foto oder PDF vom Lieferschein wählen (JPG, PNG, HEIC oder PDF).';
+        return 'Bitte ein Foto oder PDF vom Lieferschein oder der Rechnung wählen (JPG, PNG, HEIC oder PDF).';
       case 'offline':
       case 'network':
         return 'Das Laden-iPhone hat kurz die Verbindung verloren. Bitte versuche es noch einmal.';
       case 'timeout':
-        return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
+        return 'Die KI-Analyse hat zu lange gedauert. Bitte manuell erfassen.';
       default:
-        return error.message || 'Lieferschein konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
+        return error.message || 'Lieferschein/Rechnung konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
     }
   }
 
@@ -194,7 +194,7 @@ export function mapDeliveryUploadError(error) {
   const raw = String(error?.message || error || '').toLowerCase();
 
   if (code.includes('deadline-exceeded') || raw.includes('timeout') || raw.includes('deadline')) {
-    return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
+    return 'Die KI-Analyse hat zu lange gedauert. Bitte manuell erfassen.';
   }
   if (
     code.includes('unavailable')
@@ -209,7 +209,7 @@ export function mapDeliveryUploadError(error) {
   if (raw.includes('zu groß') || raw.includes('too large') || raw.includes('12 mb')) {
     return 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.';
   }
-  return 'Lieferschein konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
+  return 'Lieferschein/Rechnung konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
 }
 
 /**
@@ -218,7 +218,7 @@ export function mapDeliveryUploadError(error) {
  */
 export function validateDeliveryUploadFile(file) {
   if (!file) {
-    return { ok: false, message: 'Bitte ein Foto oder PDF vom Lieferschein wählen.' };
+    return { ok: false, message: 'Bitte ein Foto oder PDF vom Lieferschein oder der Rechnung wählen.' };
   }
   const size = Number(file.size) || 0;
   if (size <= 0) {
@@ -233,7 +233,7 @@ export function validateDeliveryUploadFile(file) {
   if (!isAllowedDeliveryFile(file)) {
     return {
       ok: false,
-      message: 'Bitte ein Foto oder PDF vom Lieferschein wählen (JPG, PNG, HEIC oder PDF).',
+      message: 'Bitte ein Foto oder PDF vom Lieferschein oder der Rechnung wählen (JPG, PNG, HEIC oder PDF).',
     };
   }
   return { ok: true, mimeType: resolveDeliveryMimeType(file) };
