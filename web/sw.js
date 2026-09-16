@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260916-delivery-parser-enabled';
+const CACHE_NAME = 'charculogic-v20260916-delivery-reconcile';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -33,6 +33,7 @@ const CRITICAL_ASSETS = [
   '/delivery-note.js',
   '/delivery-parser.js',
   '/delivery-upload.js',
+  '/delivery-reconcile.js',
   '/haccp.js',
   '/production.js',
   '/production-datasheet.js',

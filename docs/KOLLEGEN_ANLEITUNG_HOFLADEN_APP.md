@@ -141,19 +141,24 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto (KI-Wareneingang)
+### Lieferschein per Foto oder PDF (KI-Wareneingang)
 
-Im Tab **Neu** (Modus **Laden**) können wir einen Lieferschein per Foto oder PDF einlesen:
+Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
 
-1. Auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto/PDF wählen.
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
+1. Artikel wie gewohnt per **Barcode scannen** zur Lieferung hinzufügen.
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera).
+3. Bei vorhandenen Posten öffnet sich direkt der **Lieferschein-Abgleich**.
+4. Wir sehen auf einen Blick:
+   - **Noch nicht erfasst** – steht auf dem Lieferschein, fehlt im Wareneingang
+   - **Extra erfasst** – im Wareneingang, fehlt auf dem Lieferschein
+   - **Mengenabweichung** – Name passt, Menge nicht
+   - **Stimmt überein**
+5. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
+6. Optional: fehlende LS-Artikel später in den Bestand übernehmen.
 
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
+Der Button **🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 
-Barcode-Scan bleibt parallel verfügbar, wenn wir einzelne Artikel lieber manuell erfassen.
+Barcode-Scan bleibt parallel verfügbar für einzelne Artikel.
 
 ### Zuordnung nachträglich korrigieren
 

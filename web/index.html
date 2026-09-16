@@ -1102,10 +1102,11 @@
               </section>
 
               <div class="receiving-tool-row">
-                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📸 Lieferschein fotografieren / hochladen</button>
-                <input type="file" id="delivery-parser-file-input" accept="image/*,.heic,.heif,.pdf,application/pdf" capture="environment" hidden>
+                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📄 Lieferschein hochladen</button>
+                <input type="file" id="delivery-parser-file-input" accept="application/pdf,.pdf,image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" hidden>
                 <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
-                <input type="file" id="delivery-note-file-input" accept="image/*,.heic,.heif,.pdf,application/pdf" capture="environment" hidden>
+                <input type="file" id="delivery-note-file-input" accept="image/*,.heic,.heif" capture="environment" hidden>
+                <button class="btn btn-secondary btn-receiving-tool" id="btn-delivery-reconcile" type="button" hidden>🔎 Lieferschein abgleichen</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>

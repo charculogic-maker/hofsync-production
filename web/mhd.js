@@ -6159,9 +6159,14 @@ export function refreshReceivingTabUiSafe() {
   }
 }
 
+function getCurrentDeliveryItems() {
+  return Array.isArray(currentDeliveryItems) ? currentDeliveryItems.slice() : [];
+}
+
 export {
   checkMhdAnomaly,
   finalizeDelivery,
+  getCurrentDeliveryItems,
   importMhdBestandToCloud,
   loadMhdFromCloud,
   renderMhdList,
