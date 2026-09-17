@@ -103,6 +103,80 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 1b: KI-Lieferschein receipt writes', () => {
+    it('allows employee to create own-tenant inventory and MHD receipt rows', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-parser', TENANTS.STEVES_HOF, 'employee');
+      const batchId = 'ls_20260917_abc123';
+      const inventoryPayload = {
+        artikel: 'Bio Milch',
+        menge: 6,
+        kategorie: '🥛MoPro',
+        tenantId: TENANTS.STEVES_HOF,
+        source: 'wareneingang-lieferschein',
+        batchId,
+        createdBy: 'anna',
+        createdAt: '2026-09-17T09:00:00.000Z',
+      };
+      const mhdPayload = {
+        id: 'ls_mhd_20260917_abc123_00_bio-milch',
+        postenId: 'ls_mhd_20260917_abc123_00_bio-milch',
+        produkt: 'Bio Milch',
+        name: 'Bio Milch',
+        marke: '',
+        brand: '',
+        mhd: '2026-09-24',
+        mhdDate: '2026-09-24',
+        mhdText: '7 Resttage',
+        date: '24.09.2026',
+        tage: 7,
+        resttage: 7,
+        status: 'aktiv',
+        qty: 6,
+        menge: 6,
+        eingangMenge: 6,
+        kategorie: '🥛MoPro',
+        soldOut: false,
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        wareneingangAt: '2026-09-17T09:00:00.000Z',
+        lieferungId: batchId,
+        tenantId: TENANTS.STEVES_HOF,
+        erfassungsDatum: '2026-09-17T09:00:00.000Z',
+        scannedBy: 'anna',
+        updatedAt: '2026-09-17T09:00:00.000Z',
+        createdAt: '2026-09-17T09:00:00.000Z',
+      };
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', 'ls_inventory_20260917_abc123_00_bio-milch'),
+        'create',
+        inventoryPayload,
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', mhdPayload.id),
+        'create',
+        mhdPayload,
+      );
+    });
+
+    it('denies receipt rows missing the own tenant marker', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-parser-missing-tenant', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'ls-missing-tenant'),
+        'create',
+        {
+          name: 'Bio Milch',
+          produkt: 'Bio Milch',
+          qty: 6,
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2: helper Role Constraints', () => {
     const torfabrikHelper = () => authContext(
       testEnv,
