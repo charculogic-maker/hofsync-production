@@ -289,6 +289,82 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2e: KI-Lieferschein receipt creates', () => {
+    const batchId = 'ls_rules_parser';
+    const inventoryPayload = (tenantId) => ({
+      artikel: 'Bio Milch 1l',
+      menge: 6,
+      kategorie: '🥛MoPro',
+      tenantId,
+      source: 'wareneingang-lieferschein',
+      batchId,
+      createdBy: 'Mara',
+      createdAt: '2026-09-16T10:00:00.000Z',
+    });
+    const mhdPayload = (tenantId) => ({
+      id: `${batchId}_bio-milch-1l_0`,
+      postenId: `${batchId}_bio-milch-1l_0`,
+      produkt: 'Bio Milch 1l',
+      name: 'Bio Milch 1l',
+      marke: '',
+      brand: '',
+      mhd: '2026-09-23',
+      mhdDate: '2026-09-23',
+      mhdText: '7 Resttage',
+      date: '23.09.2026',
+      tage: 7,
+      resttage: 7,
+      status: 'aktiv',
+      qty: 6,
+      menge: 6,
+      eingangMenge: 6,
+      kategorie: '🥛MoPro',
+      soldOut: false,
+      source: 'wareneingang-lieferschein',
+      postentyp: 'wareneingang',
+      wareneingangAt: '2026-09-16T10:00:00.000Z',
+      erfassungsDatum: '2026-09-16T10:00:00.000Z',
+      scannedBy: 'Mara',
+      tenantId,
+      updatedAt: '2026-09-16T10:00:00.000Z',
+      createdAt: '2026-09-16T10:00:00.000Z',
+    });
+
+    it('allows employees to create paired inventory and MHD rows for their tenant', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-parser-receipt', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `${batchId}_0`),
+        'create',
+        inventoryPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_bio-milch-1l_0`),
+        'create',
+        mhdPayload(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies parser receipt creates when tenantId does not match the auth tenant', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-parser-receipt', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `${batchId}_foreign`),
+        'create',
+        inventoryPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', `${batchId}_wrong-tenant`),
+        'create',
+        mhdPayload(TENANTS.STEVES_HOF),
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
