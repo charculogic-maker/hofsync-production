@@ -83,7 +83,7 @@ export async function expectFirestoreAllow(ctx, docPath, operation, payload = {}
   const db = ctx.firestore();
   const ref = doc(db, docPath);
 
-  if (operation === 'read') {
+  if (operation === 'read' || operation === 'get') {
     await assertSucceeds(getDoc(ref));
     return;
   }
@@ -113,7 +113,7 @@ export async function expectFirestoreDeny(ctx, docPath, operation, payload = {})
   const db = ctx.firestore();
   const ref = doc(db, docPath);
 
-  if (operation === 'read') {
+  if (operation === 'read' || operation === 'get') {
     await assertFails(getDoc(ref));
     return;
   }
