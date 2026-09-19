@@ -304,7 +304,7 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 | HACCP | ✅ |
 | Teamboard | ✅ |
 | Team + Bestellungen | ✅ |
-| KI-Lieferschein (Wareneingang) | ✅ (UI TorFabrik-only) |
+| KI-Lieferschein (Wareneingang) | ✅ (eigener TorFabrik-Scanner → `inventory`) |
 
 ### Rollen am Laden
 

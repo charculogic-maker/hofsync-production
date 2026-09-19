@@ -102,6 +102,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `mhd_liste/{itemId}` | MHD-Posten (Verkauf & Kühlung) | Mandanten-Nutzer (schema-validiert) |
 | `mhd_audit/{id}` | Warenbewegungs- und MHD-Protokoll (Datum, Mitarbeiter, Delta) | create: Employee/Admin; read: Mandanten-Nutzer; update/delete: Admin |
 | `audit_logs/{id}` | optionales Alias-Protokoll derselben Bewegungen | analog `mhd_audit` |
+| `stammdaten/{id}` | Artikel-Stammdaten/Bestand für MHD, Bestellungen und KI-Lieferschein-Buchungen | read: Mandanten-Nutzer; full write: Admin; begrenzte `currentStock`-Abbuchung (`neu <= alt`): Employee/Admin |
 | `product_master/{ean}` | Gemeinsamer Artikelname je EAN (künftige Wareneingänge) | read: Mandanten-Nutzer; create/update: Employee/Admin; delete: Admin |
 | `wareneingang_lieferungen/{id}` | Lieferungen (Kopf, Posten, Fotos) | Mandanten-Nutzer (schema-validiert) |
 | `rezepte/{id}` | Rezepturen (Betriebswissen) | nur Admin |
@@ -161,7 +162,7 @@ Claims setzen — siehe **§1.1**.
 
 ### 3.4 Storage-Rules (`storage.rules`)
 
-Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Lieferschein-Fotos (`order_slips/`): Mitarbeiter; LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
+Storage nutzt **Custom Claims** (`tenantId`, `role`) — ohne Firestore-Lookup. Bulletin-Uploads: Admin; Bestell-Lieferscheine (`order_slips/`): Mitarbeiter; KI-Lieferschein-Uploads (`delivery_notes/`): Mitarbeiter; Chargendoku-Fotos (`chargendoku/`) und Legacy-LMIV-Etikettfotos (`traceability/`): Mandanten-Mitglieder.
 
 **Empfehlung:** Custom Claims (`tenantId`, `role`, optional `isAdmin`) per Admin SDK setzen und Token-Refresh erzwingen.
 
@@ -290,13 +291,26 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+### 4.3 `parseDeliveryNote` – KI-Lieferschein
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
 - **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
-- **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
-- **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
-- **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
+- **Gemeinsamer Upload-Helfer:** `web/delivery-upload.js` validiert PDF/JPG/PNG/HEIC/HEIF/WebP, komprimiert Fotos (max. Kante 2000 px), begrenzt Dateien auf 12 MB und lädt nach `tenants/{tenantId}/delivery_notes/{timestamp}_{filename}`.
+- **Callable-Payload:** bevorzugt `storagePath` + `mimeType`; Legacy-Fallback `imageBase64` / `imageBytes` bleibt serverseitig begrenzt (`MAX_IMAGE_BASE64_LENGTH`).
+- **Auth:** `resolveAuthContext()` + `requireEmployeeAccess()`; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`), Aushilfe (`helper`) ist ausgeschlossen.
+- **Tenant-Schutz:** `functions/deliveryNote.js` akzeptiert Storage-Pfade nur unter `tenants/{claimTenantId}/delivery_notes/`, blockiert `..` und Backslashes und normalisiert MIME aus Metadaten/Dateiendung.
+- **Antwort:** nur erkannte Posten als Vorschau (`items`, `model`, `tenantId`, `previewOnly: true`, optional `storagePath`); die Callable schreibt keine Betriebsdaten.
+
+#### Frontend-Pfade
+
+| Mandant/Client | Modul | Einstieg | Nachgelagerte Writes |
+|----------------|-------|----------|----------------------|
+| StevesHof & weitere Mandanten mit Tab **Neu** | `web/delivery-parser.js` | **📄 Lieferschein hochladen** und **📸 Lieferschein scannen (KI)**; TorFabrik überlässt den Scan-Button dem TorFabrik-Modul | Abgleich gegen aktuelle Wareneingangs-Posten; optional `mhd_liste/{id}` (`source: "wareneingang-lieferschein"`) und `stammdaten/{id}` über `getTenantCollection()` / Sync-Queue |
+| TorFabrik (`torfabrik`) | `web/delivery-note.js` | **📸 Lieferschein scannen (KI)** | `inventory/{batchId_index}` mit `source: "delivery-note-ai"` über `writeOrQueueFirestore()` |
+
+Damit bleibt `parseDeliveryNote` mandantenneutral: Mandantenlogik und Ziel-Collection liegen im Client-Modul, der Backend-Parser liefert nur geprüfte OCR/KI-Ergebnisse zurück.
+
+**Pitfall:** `delivery-parser.js` erhöht vor dem MHD-Posten auch `stammdaten.currentStock` und setzt Liefer-Metadaten. Die aktuelle `firebase.rules` erlaubt vollständige `stammdaten`-Writes nur Admins; Employee/Admin-Updates sind dort auf `currentStock`-Abbuchungen (`neu <= alt`) beschränkt. Wenn operative Mitarbeitende KI-Lieferscheine einbuchen sollen, müssen Rules und Tests diesen Schreibpfad ausdrücklich abdecken.
 
 ### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
 
