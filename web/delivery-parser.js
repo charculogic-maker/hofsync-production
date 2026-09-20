@@ -8,7 +8,7 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { getTenantCollection } from './tenant-db.js';
+import { canonicalTenantId } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -106,14 +106,9 @@ function addDaysIso(baseIso, days) {
   return startOfDayIso(base);
 }
 
-function articleDocId(name) {
-  const slug = String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120);
-  return slug || `artikel-${Date.now()}`;
+function deliveryBatchId(now = Date.now()) {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `ls_${now}_${suffix}`;
 }
 
 function toMhdKategorie(kategorie, artikel) {
@@ -398,67 +393,146 @@ function openReconcileFromSoll() {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
-    artikel: row.artikel,
-    name: row.artikel,
-    kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+export function buildDeliveryPersistenceWrites(rows, {
+  tenantId,
+  author = 'Team',
+  nowIso = new Date().toISOString(),
+  batchId = deliveryBatchId(),
+} = {}) {
+  const cleanTenantId = canonicalTenantId(tenantId);
+  if (!cleanTenantId) {
+    throw new Error('Mandant fehlt für den Lieferschein-Wareneingang.');
+  }
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  return rows.flatMap((row, index) => {
+    const artikel = String(row?.artikel || '').trim();
+    const menge = Number(row?.menge);
+    const mhdIso = String(row?.mhdIso || '').trim();
+    if (!artikel || !Number.isFinite(menge) || menge <= 0 || !mhdIso) return [];
+
+    const mhdKategorie = toMhdKategorie(row.kategorie, artikel);
+    const tage = diffInDays(startOfDayIso(), mhdIso);
+    const mhdDocId = `${batchId}_mhd_${index}`;
+    const inventoryDocId = `${batchId}_inventory_${index}`;
+    const mhdData = {
+      id: mhdDocId,
+      postenId: mhdDocId,
+      produkt: artikel,
+      name: artikel,
+      marke: '',
+      brand: '',
+      mhd: mhdIso,
+      mhdDate: mhdIso,
+      mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'Wareneingang',
+      date: formatIsoToGerman(mhdIso),
+      tage,
+      resttage: tage,
+      status: 'aktiv',
+      qty: menge,
+      menge,
+      eingangMenge: menge,
+      kategorie: mhdKategorie,
+      soldOut: false,
+      source: 'wareneingang-lieferschein',
+      postentyp: 'wareneingang',
+      wareneingangAt: nowIso,
+      erfassungsDatum: nowIso,
+      scannedBy: author,
+      tenantId: cleanTenantId,
+      lieferungId: batchId,
+      updatedAt: nowIso,
+      createdAt: nowIso,
+    };
+    const inventoryData = {
+      artikel,
+      menge,
+      kategorie: mhdKategorie,
+      tenantId: cleanTenantId,
+      source: 'wareneingang-lieferschein',
+      batchId,
+      createdBy: author,
+      createdAt: nowIso,
+    };
+
+    return [
+      {
+        collectionPath: 'inventory',
+        docId: inventoryDocId,
+        op: 'set',
+        onlineData: inventoryData,
+        queueData: inventoryData,
+      },
+      {
+        collectionPath: 'mhd_liste',
+        docId: mhdDocId,
+        op: 'set',
+        onlineData: mhdData,
+        queueData: mhdData,
+      },
+    ];
+  });
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
+function isNetworkUnavailableForBatch() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function isPermissionDeniedError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const message = String(err?.message || '').toLowerCase();
+  return code.includes('permission-denied') || message.includes('permission-denied');
+}
+
+async function commitDeliveryWritesOnline(writes, tenantId) {
+  const firebaseApi = parserState.getFirebase?.();
+  const db = firebaseApi?.firestore?.();
+  if (!db || typeof db.batch !== 'function') {
+    throw new Error('Firestore ist für den Lieferschein-Wareneingang nicht bereit.');
+  }
+
+  const batch = db.batch();
+  for (const write of writes) {
+    const ref = db.collection('tenants')
+      .doc(tenantId)
+      .collection(write.collectionPath)
+      .doc(write.docId);
+    batch.set(ref, write.onlineData);
+  }
+  await batch.commit();
+}
+
+async function queueDeliveryWrites(writes) {
   const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
+  if (typeof writeFn !== 'function') {
+    throw new Error('MHD Sync-Engine ist nicht initialisiert.');
+  }
 
-  const mhdIso = row.mhdIso || '';
-  const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
-  const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
+  let hatWartende = false;
+  for (const write of writes) {
+    const result = await writeFn({
+      ...write,
+      offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+    });
+    if (result === 'queued') hatWartende = true;
+  }
+  return hatWartende ? 'queued' : 'written';
+}
 
-  const onlineData = {
-    id: postenId,
-    postenId,
-    produkt: row.artikel,
-    name: row.artikel,
-    marke: '',
-    brand: '',
-    mhd: mhdIso,
-    mhdDate: mhdIso,
-    mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'Wareneingang',
-    date: mhdIso ? formatIsoToGerman(mhdIso) : new Date().toLocaleDateString('de-DE'),
-    tage,
-    resttage: tage,
-    status: 'aktiv',
-    qty: row.menge,
-    menge: row.menge,
-    eingangMenge: row.menge,
-    kategorie: mhdKategorie,
-    soldOut: false,
-    source: 'wareneingang-lieferschein',
-    postentyp: 'wareneingang',
-    wareneingangAt: nowIso,
-    erfassungsDatum: nowIso,
-    scannedBy: author,
-    updatedAt: nowIso,
-    createdAt: nowIso,
-  };
+async function persistDeliveryWrites(writes, tenantId) {
+  if (!writes.length) return 'written';
+  if (isNetworkUnavailableForBatch()) {
+    return queueDeliveryWrites(writes);
+  }
 
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
-  });
+  try {
+    await commitDeliveryWritesOnline(writes, tenantId);
+    return 'written';
+  } catch (err) {
+    if (isPermissionDeniedError(err)) throw err;
+    console.warn('[DeliveryParser] Online-Batch fehlgeschlagen, Queue-Fallback wird versucht:', err);
+    return queueDeliveryWrites(writes);
+  }
 }
 
 async function bucheLieferungEin(rows) {
@@ -483,14 +557,18 @@ async function bucheLieferungEin(rows) {
 
   try {
     parserState.saveInFlight = true;
-    let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
-      if (result === 'queued') hatWartende = true;
+    const tenantId = canonicalTenantId(parserState.tenantId || getAuthContext()?.tenantId || '');
+    const writes = buildDeliveryPersistenceWrites(rows, {
+      tenantId,
+      author,
+      nowIso,
+    });
+    if (writes.length !== rows.length * 2) {
+      throw new Error('Lieferschein-Daten sind unvollständig.');
     }
+    const result = await persistDeliveryWrites(writes, tenantId);
     removePreviewOverlay();
-    if (hatWartende) {
+    if (result === 'queued') {
       window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
       return;
     }
