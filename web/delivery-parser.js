@@ -8,7 +8,6 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -398,32 +397,43 @@ function openReconcileFromSoll() {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
+export function buildInventoryPostenPayload(row, tenantId, author, nowIso, batchId, index) {
+  return {
     artikel: row.artikel,
-    name: row.artikel,
+    menge: row.menge,
     kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+    tenantId,
+    source: 'wareneingang-lieferschein',
+    batchId,
+    createdBy: author,
+    createdAt: nowIso,
+    _docId: `${batchId}_${index}`,
+  };
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
+async function schreibeInventoryPosten(row, tenantId, author, nowIso, batchId, index) {
   const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
+  if (typeof writeFn !== 'function') throw new Error('Speichern ist nicht initialisiert.');
 
+  const payload = buildInventoryPostenPayload(row, tenantId, author, nowIso, batchId, index);
+  const { _docId, ...data } = payload;
+  return writeFn({
+    collectionPath: 'inventory',
+    docId: _docId,
+    op: 'set',
+    onlineData: data,
+    queueData: data,
+    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+  });
+}
+
+export function buildMhdPostenPayload(row, tenantId, author, nowIso, batchId, index) {
   const mhdIso = row.mhdIso || '';
   const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
   const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
+  const postenId = `ls_${batchId}_${index}_${articleDocId(row.artikel)}`.slice(0, 180);
 
-  const onlineData = {
+  return {
     id: postenId,
     postenId,
     produkt: row.artikel,
@@ -447,13 +457,21 @@ async function schreibeMhdPosten(row, author, nowIso) {
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
     scannedBy: author,
+    tenantId,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
+}
+
+async function schreibeMhdPosten(row, tenantId, author, nowIso, batchId, index) {
+  const writeFn = parserState.writeOrQueueFirestore;
+  if (typeof writeFn !== 'function') throw new Error('Speichern ist nicht initialisiert.');
+
+  const onlineData = buildMhdPostenPayload(row, tenantId, author, nowIso, batchId, index);
 
   return writeFn({
     collectionPath: 'mhd_liste',
-    docId: postenId,
+    docId: onlineData.postenId,
     op: 'set',
     onlineData,
     queueData: onlineData,
@@ -474,7 +492,13 @@ async function bucheLieferungEin(rows) {
   }
 
   const author = getAuthContext()?.email?.split('@')[0] || 'Team';
+  const tenantId = String(getAuthContext()?.tenantId || parserState.tenantId || '').trim();
+  if (!tenantId) {
+    window.showToast?.('Betrieb fehlt. Bitte neu anmelden und den Lieferschein erneut speichern.', 'error');
+    return;
+  }
   const nowIso = new Date().toISOString();
+  const batchId = `ls_${Date.now()}`;
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -484,10 +508,11 @@ async function bucheLieferungEin(rows) {
   try {
     parserState.saveInFlight = true;
     let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
-      if (result === 'queued') hatWartende = true;
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const inventoryResult = await schreibeInventoryPosten(row, tenantId, author, nowIso, batchId, index);
+      const mhdResult = await schreibeMhdPosten(row, tenantId, author, nowIso, batchId, index);
+      if (inventoryResult === 'queued' || mhdResult === 'queued') hatWartende = true;
     }
     removePreviewOverlay();
     if (hatWartende) {

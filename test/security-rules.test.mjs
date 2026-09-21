@@ -156,6 +156,51 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       );
     });
 
+    it('allows employee KI-Lieferschein inventory and MHD rows only with tenantId', async () => {
+      const employee = authContext(testEnv, 'tf-employee-delivery-parser', TENANTS.TORFABRIK, 'employee');
+      const inventoryPath = tenantDocPath(TENANTS.TORFABRIK, 'inventory', 'ls-rules-0');
+      const mhdPath = tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'ls-rules-0-mhd');
+      const mhdPayload = {
+        id: 'ls-rules-0-mhd',
+        postenId: 'ls-rules-0-mhd',
+        produkt: 'Bio Vollmilch',
+        name: 'Bio Vollmilch',
+        mhd: '2026-09-28',
+        mhdDate: '2026-09-28',
+        status: 'aktiv',
+        qty: 6,
+        menge: 6,
+        kategorie: '🥛MoPro',
+        soldOut: false,
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        tenantId: TENANTS.TORFABRIK,
+        createdAt: '2026-09-21T22:00:00.000Z',
+        updatedAt: '2026-09-21T22:00:00.000Z',
+        scannedBy: 'team',
+      };
+
+      await expectFirestoreAllow(employee, inventoryPath, 'create', {
+        artikel: 'Bio Vollmilch',
+        menge: 6,
+        kategorie: '🥛MoPro',
+        tenantId: TENANTS.TORFABRIK,
+        source: 'wareneingang-lieferschein',
+        batchId: 'ls-rules',
+        createdBy: 'team',
+        createdAt: '2026-09-21T22:00:00.000Z',
+      });
+      await expectFirestoreAllow(employee, mhdPath, 'create', mhdPayload);
+
+      const { tenantId: _tenantId, ...missingTenantPayload } = mhdPayload;
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'ls-rules-missing-tenant'),
+        'create',
+        missingTenantPayload,
+      );
+    });
+
     it('denies helper create/update/delete on operative collections and settings', async () => {
       const ctx = torfabrikHelper();
 
