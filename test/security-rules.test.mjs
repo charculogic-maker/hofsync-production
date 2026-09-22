@@ -33,6 +33,7 @@ import {
   deliveryNotesObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { buildDeliveryReceiptWrites } from '../web/delivery-parser.js';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -236,6 +237,51 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         stockPath,
         'update',
         { currentStock: 14, updatedAt: serverTimestamp() },
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: KI-Lieferschein receipt writes', () => {
+    it('allows employees to create inventory and MHD receipt rows for their own tenant', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-parser', TENANTS.STEVES_HOF, 'employee');
+      const [write] = buildDeliveryReceiptWrites([
+        { artikel: 'Bio Milch', menge: 6, kategorie: 'MoPro', mhdIso: '2026-09-25' },
+      ], {
+        tenantId: TENANTS.STEVES_HOF,
+        author: 'Laden',
+        nowIso: '2026-09-22T10:00:00.000Z',
+        batchId: 'ls-rules',
+      });
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', write.inventoryDocId),
+        'create',
+        write.inventoryData,
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', write.mhdDocId),
+        'create',
+        write.mhdData,
+      );
+    });
+
+    it('keeps the old direct stammdaten receipt path denied for employees', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-stammdaten-receipt', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'bio-milch'),
+        'create',
+        {
+          artikel: 'Bio Milch',
+          name: 'Bio Milch',
+          kategorie: '🥛MoPro',
+          currentStock: 6,
+          lastMhd: '2026-09-25',
+          tenantId: TENANTS.STEVES_HOF,
+        },
       );
     });
   });
