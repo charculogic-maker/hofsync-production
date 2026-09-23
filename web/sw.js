@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260916-supplier-aufschnitt';
+const CACHE_NAME = 'charculogic-v20260923-delivery-parser-reconcile';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
