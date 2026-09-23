@@ -8,6 +8,7 @@ const {
   buildDeliveryParserDocIds,
   buildDeliveryParserInventoryRecord,
   buildDeliveryParserMhdRecord,
+  shouldAutoOpenReconcile,
 } = mod;
 
 describe('delivery-parser persistence payloads', () => {
@@ -71,5 +72,15 @@ describe('delivery-parser persistence payloads', () => {
 
     assert.notEqual(first.inventoryDocId, second.inventoryDocId);
     assert.notEqual(first.mhdDocId, second.mhdDocId);
+  });
+
+  it('does not reopen reconcile when showing the missing-lines booking preview', () => {
+    const currentDeliveryItems = [{ artikel: 'Bio Milch', menge: 6 }];
+
+    assert.equal(shouldAutoOpenReconcile(currentDeliveryItems), true);
+    assert.equal(
+      shouldAutoOpenReconcile(currentDeliveryItems, { skipAutoReconcile: true }),
+      false,
+    );
   });
 });

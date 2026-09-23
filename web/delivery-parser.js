@@ -307,7 +307,13 @@ function readRowsFromPreview() {
   }).filter((row) => row.artikel);
 }
 
-function showPreview(rows) {
+export function shouldAutoOpenReconcile(currentDeliveryItems, { skipAutoReconcile = false } = {}) {
+  return !skipAutoReconcile
+    && Array.isArray(currentDeliveryItems)
+    && currentDeliveryItems.length > 0;
+}
+
+function showPreview(rows, { skipAutoReconcile = false } = {}) {
   removePreviewOverlay();
   removeReconcileOverlay();
   parserState.pendingRows = rows;
@@ -356,7 +362,7 @@ function showPreview(rows) {
 
   // Direkt Abgleich öffnen, wenn schon Posten im Wareneingang stehen.
   const ist = parserState.getCurrentDeliveryItems?.() || [];
-  if (Array.isArray(ist) && ist.length > 0) {
+  if (shouldAutoOpenReconcile(ist, { skipAutoReconcile })) {
     openReconcileFromSoll();
   }
 }
@@ -387,7 +393,7 @@ function openReconcileFromSoll() {
         mhdIso: row.mhdIso,
       }));
       removeReconcileOverlay();
-      showPreview(buildPreviewRows(rows));
+      showPreview(buildPreviewRows(rows), { skipAutoReconcile: true });
       window.showToast?.(
         `${withMhd.length} fehlende Artikel – bitte MHD prüfen, dann einbuchen.`,
         'warning',
