@@ -8,7 +8,6 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -114,6 +113,10 @@ function articleDocId(name) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 120);
   return slug || `artikel-${Date.now()}`;
+}
+
+function resolveParserTenantId() {
+  return String(parserState.tenantId || getAuthContext()?.tenantId || '').trim();
 }
 
 function toMhdKategorie(kategorie, artikel) {
@@ -398,32 +401,45 @@ function openReconcileFromSoll() {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
-    artikel: row.artikel,
-    name: row.artikel,
-    kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+export function buildDeliveryParserDocIds(row, batchId, index) {
+  const safeBatchId = String(batchId || `ls_${Date.now()}`).replace(/[^\w-]+/g, '_');
+  const safeIndex = Number.isFinite(Number(index)) ? Number(index) : 0;
+  const articleSlug = articleDocId(row?.artikel || row?.name || 'artikel');
+  return {
+    inventoryDocId: `${safeBatchId}_${safeIndex}`,
+    mhdDocId: `${safeBatchId}_mhd_${safeIndex}_${articleSlug}`.slice(0, 180),
+  };
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
-  const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
+export function buildDeliveryParserInventoryRecord(row, {
+  tenantId,
+  batchId,
+  author,
+  createdAt,
+} = {}) {
+  return {
+    artikel: row.artikel,
+    menge: row.menge,
+    kategorie: row.kategorie || toMhdKategorie(row.kategorie, row.artikel),
+    tenantId,
+    source: 'wareneingang-lieferschein',
+    batchId,
+    createdBy: author,
+    createdAt,
+  };
+}
 
+export function buildDeliveryParserMhdRecord(row, {
+  tenantId,
+  author,
+  nowIso,
+  postenId,
+} = {}) {
   const mhdIso = row.mhdIso || '';
   const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
   const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
 
-  const onlineData = {
+  return {
     id: postenId,
     postenId,
     produkt: row.artikel,
@@ -446,19 +462,99 @@ async function schreibeMhdPosten(row, author, nowIso) {
     postentyp: 'wareneingang',
     wareneingangAt: nowIso,
     erfassungsDatum: nowIso,
+    tenantId,
     scannedBy: author,
     updatedAt: nowIso,
     createdAt: nowIso,
   };
+}
 
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+function buildDeliveryParserWriteSet(rows, {
+  tenantId,
+  author,
+  batchId,
+  nowIso,
+  serverTimestamp,
+} = {}) {
+  return rows.map((row, index) => {
+    const { inventoryDocId, mhdDocId } = buildDeliveryParserDocIds(row, batchId, index);
+    const inventoryOnline = buildDeliveryParserInventoryRecord(row, {
+      tenantId,
+      batchId,
+      author,
+      createdAt: serverTimestamp || nowIso,
+    });
+    const inventoryQueue = buildDeliveryParserInventoryRecord(row, {
+      tenantId,
+      batchId,
+      author,
+      createdAt: nowIso,
+    });
+    const mhdRecord = buildDeliveryParserMhdRecord(row, {
+      tenantId,
+      author,
+      nowIso,
+      postenId: mhdDocId,
+    });
+    return {
+      inventoryDocId,
+      mhdDocId,
+      inventoryOnline,
+      inventoryQueue,
+      mhdRecord,
+    };
   });
+}
+
+async function writeDeliveryRowsOnlineBatch(writeSet, tenantId) {
+  const firebase = parserState.getFirebase();
+  const db = firebase?.firestore?.();
+  if (!db?.batch || !db?.doc) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+
+  const batch = db.batch();
+  writeSet.forEach((entry) => {
+    batch.set(db.doc(`tenants/${tenantId}/inventory/${entry.inventoryDocId}`), entry.inventoryOnline);
+    batch.set(db.doc(`tenants/${tenantId}/mhd_liste/${entry.mhdDocId}`), entry.mhdRecord);
+  });
+  try {
+    await batch.commit();
+    return true;
+  } catch (err) {
+    const code = String(err?.code || '').toLowerCase();
+    if (code.includes('permission-denied') || code === 'permission-denied') throw err;
+    console.warn('[DeliveryParser] Online-Batch fehlgeschlagen, Sync-Queue übernimmt:', err);
+    return false;
+  }
+}
+
+async function queueDeliveryRows(writeSet) {
+  const writeFn = parserState.writeOrQueueFirestore;
+  if (typeof writeFn !== 'function') {
+    throw new Error('Wareneingang-Sync ist nicht initialisiert.');
+  }
+
+  let hatWartende = false;
+  for (const entry of writeSet) {
+    const inventoryResult = await writeFn({
+      collectionPath: 'inventory',
+      docId: entry.inventoryDocId,
+      op: 'set',
+      onlineData: entry.inventoryOnline,
+      queueData: entry.inventoryQueue,
+      offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+    });
+    const mhdResult = await writeFn({
+      collectionPath: 'mhd_liste',
+      docId: entry.mhdDocId,
+      op: 'set',
+      onlineData: entry.mhdRecord,
+      queueData: entry.mhdRecord,
+      offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+    });
+    if (inventoryResult === 'queued' || mhdResult === 'queued') hatWartende = true;
+  }
+  return hatWartende ? 'queued' : 'written';
 }
 
 async function bucheLieferungEin(rows) {
@@ -474,7 +570,13 @@ async function bucheLieferungEin(rows) {
   }
 
   const author = getAuthContext()?.email?.split('@')[0] || 'Team';
+  const tenantId = resolveParserTenantId();
+  if (!tenantId) {
+    window.showToast?.('Mandant fehlt für den Lieferschein. Bitte neu anmelden.', 'error');
+    return;
+  }
   const nowIso = new Date().toISOString();
+  const batchId = `ls_${Date.now()}`;
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -483,14 +585,19 @@ async function bucheLieferungEin(rows) {
 
   try {
     parserState.saveInFlight = true;
-    let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
-      if (result === 'queued') hatWartende = true;
-    }
+    const firebase = parserState.getFirebase();
+    const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp?.();
+    const writeSet = buildDeliveryParserWriteSet(rows, {
+      tenantId,
+      author,
+      batchId,
+      nowIso,
+      serverTimestamp,
+    });
+    const wroteOnline = await writeDeliveryRowsOnlineBatch(writeSet, tenantId);
+    const writeResult = wroteOnline ? 'written' : await queueDeliveryRows(writeSet);
     removePreviewOverlay();
-    if (hatWartende) {
+    if (writeResult === 'queued') {
       window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
       return;
     }
