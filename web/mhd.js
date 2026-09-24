@@ -126,6 +126,7 @@ const DELIVERY_DRAFT_KEY = 'active';
 let currentDeliveryItems = [];
 let currentDeliveryPhotos = [];
 let activeEditingDraftId = null;
+let activeFinalizeDeliveryId = null;
 let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 
@@ -4592,6 +4593,14 @@ function createDeliveryId() {
   return `lieferung_${Date.now().toString(36)}_${randomPart}`;
 }
 
+function resolveFinalizeDeliveryId(isDraftCompletion) {
+  if (isDraftCompletion) return activeEditingDraftId;
+  if (!activeFinalizeDeliveryId) {
+    activeFinalizeDeliveryId = createDeliveryId();
+  }
+  return activeFinalizeDeliveryId;
+}
+
 function syncSupplierCustomFieldVisibility() {
   const selectEl = document.getElementById('we-supplier');
   const wrap = document.getElementById('we-supplier-custom-wrap');
@@ -5264,8 +5273,13 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   const postenId = buildMhdBatchDocId(barcode, item.mhdDate);
   const existingBatch = findExistingMhdBatch(barcode, item.mhdDate);
   const manufacturer = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
-  const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qtyInt;
-  const mergedMenge = (existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0) + qtyValue;
+  const existingQty = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
+  const existingMenge = existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0;
+  const deliveryAlreadyApplied = Boolean(existingBatch && existingBatch.lieferungId === deliveryId);
+  const lineQty = deliveryAlreadyApplied ? 0 : qtyInt;
+  const lineMenge = deliveryAlreadyApplied ? 0 : qtyValue;
+  const mergedQty = existingQty + lineQty;
+  const mergedMenge = existingMenge + lineMenge;
 
   const record = sanitizeMhdProductRecord({
     id: postenId,
@@ -5315,8 +5329,50 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     delete record.tenantId;
   }
   record._mhdWriteOp = existingBatch ? 'update' : 'set';
-  record._qtyFrom = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
+  record._qtyFrom = Number.isFinite(existingQty) ? existingQty : 0;
+  record._mengeFrom = Number.isFinite(existingMenge) ? existingMenge : 0;
+  record._lineQty = Number.isFinite(lineQty) ? lineQty : 0;
+  record._lineMenge = Number.isFinite(lineMenge) ? lineMenge : 0;
+  record._deliveryAlreadyApplied = deliveryAlreadyApplied;
   return record;
+}
+
+export function mergeDeliveryMhdRecordsForWrite(records = []) {
+  const grouped = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    if (!record?.id) continue;
+    const qtyFrom = Number(record._qtyFrom);
+    const mengeFrom = Number(record._mengeFrom);
+    const lineQty = Number(record._lineQty);
+    const lineMenge = Number(record._lineMenge);
+    const baseQty = Number.isFinite(qtyFrom) ? qtyFrom : 0;
+    const baseMenge = Number.isFinite(mengeFrom) ? mengeFrom : baseQty;
+    const deltaQty = Number.isFinite(lineQty) ? lineQty : 0;
+    const deltaMenge = Number.isFinite(lineMenge) ? lineMenge : deltaQty;
+
+    if (!grouped.has(record.id)) {
+      grouped.set(record.id, {
+        ...record,
+        qty: baseQty,
+        menge: baseMenge,
+        eingangMenge: baseMenge,
+        _qtyFrom: baseQty,
+        _mengeFrom: baseMenge,
+        _lineQty: 0,
+        _lineMenge: 0,
+        _deliveryAlreadyApplied: Boolean(record._deliveryAlreadyApplied),
+      });
+    }
+
+    const current = grouped.get(record.id);
+    current.qty = (Number(current.qty) || 0) + deltaQty;
+    current.menge = Math.round(((Number(current.menge) || 0) + deltaMenge) * 100) / 100;
+    current.eingangMenge = current.menge;
+    current._lineQty = (Number(current._lineQty) || 0) + deltaQty;
+    current._lineMenge = Math.round(((Number(current._lineMenge) || 0) + deltaMenge) * 100) / 100;
+    current._deliveryAlreadyApplied = Boolean(current._deliveryAlreadyApplied && record._deliveryAlreadyApplied);
+  }
+  return Array.from(grouped.values());
 }
 
 function mapDeliveryDraftDoc(doc) {
@@ -5640,6 +5696,7 @@ function resetReceivingForm() {
   currentDeliveryItems = [];
   currentDeliveryPhotos = [];
   clearActiveDraftEditing();
+  activeFinalizeDeliveryId = null;
 
   const defaults = {
     'we-ean': '',
@@ -5790,7 +5847,7 @@ async function finalizeDelivery() {
     : null;
   const erfassungsDatum = existingDraft?.erfassungsDatum || new Date().toISOString();
   const completedAt = new Date().toISOString();
-  const deliveryId = isDraftCompletion ? activeEditingDraftId : createDeliveryId();
+  const deliveryId = resolveFinalizeDeliveryId(isDraftCompletion);
 
   const deliveryBundle = buildDeliveryBundlePayload(head, {
     deliveryId,
@@ -5836,23 +5893,21 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
-      const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
+    const mhdRecords = mergeDeliveryMhdRecordsForWrite(currentDeliveryItems.map((item) => (
+      buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason)
+    )));
+    const mhdWrites = mhdRecords.map(async (record) => {
       record.tenantId = activeTenantId;
       const writeOp = record._mhdWriteOp || 'set';
       const qtyFrom = Number(record._qtyFrom);
       const qtyTo = Number(record.qty ?? record.menge ?? 0);
+      const deliveryAlreadyApplied = Boolean(record._deliveryAlreadyApplied);
       delete record._mhdWriteOp;
       delete record._qtyFrom;
+      delete record._mengeFrom;
+      delete record._lineQty;
+      delete record._lineMenge;
+      delete record._deliveryAlreadyApplied;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
@@ -5867,12 +5922,14 @@ async function finalizeDelivery() {
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
       });
       saveProductMaster(record);
-      void recordMhdMovement({
-        product: record,
-        qtyFrom: Number.isFinite(qtyFrom) ? qtyFrom : 0,
-        qtyTo: Number.isFinite(qtyTo) ? qtyTo : 0,
-        actionType: writeOp === 'update' ? 'menge' : 'neu',
-      });
+      if (!deliveryAlreadyApplied) {
+        void recordMhdMovement({
+          product: record,
+          qtyFrom: Number.isFinite(qtyFrom) ? qtyFrom : 0,
+          qtyTo: Number.isFinite(qtyTo) ? qtyTo : 0,
+          actionType: writeOp === 'update' ? 'menge' : 'neu',
+        });
+      }
       return result;
     });
 
@@ -5885,6 +5942,14 @@ async function finalizeDelivery() {
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
       return;
     }
+    const deliveryResult = await mhdState.writeOrQueueFirestore({
+      collectionPath: deliveryPath,
+      docId: deliveryId,
+      op: 'set',
+      onlineData: deliveryBundleOnline,
+      queueData: queuedBundle,
+      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+    });
     const hasQueuedWrites = deliveryResult === 'queued'
       || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
 
