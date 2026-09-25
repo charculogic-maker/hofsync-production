@@ -33,6 +33,7 @@ import {
   deliveryNotesObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { buildDeliveryParserWriteOps } from '../web/delivery-parser-writes.js';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -100,6 +101,30 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'list-probe'),
         'list',
       );
+    });
+
+    it('allows employee KI-Lieferschein write plan on own tenant', async () => {
+      const ctx = torfabrikEmployee();
+      const ops = buildDeliveryParserWriteOps(
+        { artikel: 'Bio Salami', menge: 4, kategorie: 'Aufschnitt', mhdIso: '2026-10-05' },
+        {
+          tenantId: TENANTS.TORFABRIK,
+          author: 'laden-team',
+          nowIso: '2026-09-25T08:00:00.000Z',
+          batchId: 'ls_rules_delivery_parser',
+          index: 0,
+          todayIso: '2026-09-25',
+        },
+      );
+
+      for (const op of ops) {
+        await expectFirestoreAllow(
+          ctx,
+          tenantDocPath(TENANTS.TORFABRIK, op.collectionPath, op.docId),
+          'create',
+          op.onlineData,
+        );
+      }
     });
   });
 

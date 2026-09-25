@@ -8,7 +8,6 @@
 
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { getTenantCollection } from './tenant-db.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -16,11 +15,12 @@ import {
   mapDeliveryUploadError,
   DeliveryUploadError,
 } from './delivery-upload.js';
+import { reconcileDeliveryNote, showReconcileOverlay, removeReconcileOverlay } from './delivery-reconcile.js';
 import {
-  reconcileDeliveryNote,
-  showReconcileOverlay,
-  removeReconcileOverlay,
-} from './delivery-reconcile.js';
+  buildDeliveryParserWriteOps,
+  createDeliveryParserBatchId,
+  toMhdKategorie,
+} from './delivery-parser-writes.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -104,28 +104,6 @@ function addDaysIso(baseIso, days) {
   if (Number.isNaN(base.getTime())) return '';
   base.setDate(base.getDate() + (Number(days) || 0));
   return startOfDayIso(base);
-}
-
-function articleDocId(name) {
-  const slug = String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120);
-  return slug || `artikel-${Date.now()}`;
-}
-
-function toMhdKategorie(kategorie, artikel) {
-  const text = `${kategorie || ''} ${artikel || ''}`.toLowerCase();
-  if (/gem(ü|ue)se|salat|kr(ä|ae)uter|obst|frucht|beere|frische/.test(text)) return '🍎 Frische';
-  if (/molkerei|milch|joghurt|jogurt|k(ä|ae)se|quark|sahne|butter|mopro|frischk/.test(text)) return '🥛MoPro';
-  if (/tk|tiefk(ü|ue)hl|gefrier/.test(text)) return '🧊 TK';
-  if (/getr(ä|ae)nk/.test(text)) return '🍺 Getränke';
-  if (/gew(ü|ue)rz/.test(text)) return '🌿 Gewürze';
-  if (/aufschnitt|salami|schinken|wurst|mettwurst|leberwurst/.test(text)) return '🥓 Aufschnitt';
-  if (/k(ü|ue)hl/.test(text)) return '🥗 Kühlware';
-  return '📦 Trockenware';
 }
 
 function standardTageAusArtikelname(artikel) {
@@ -398,67 +376,29 @@ function openReconcileFromSoll() {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
-    artikel: row.artikel,
-    name: row.artikel,
-    kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
-}
-
-async function schreibeMhdPosten(row, author, nowIso) {
+async function schreibeLieferposten(row, { author, nowIso, batchId, index, tenantId }) {
   const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
+  if (typeof writeFn !== 'function') {
+    throw new Error('Speichern ist noch nicht bereit. Bitte Seite neu laden.');
+  }
 
-  const mhdIso = row.mhdIso || '';
-  const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
-  const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
-
-  const onlineData = {
-    id: postenId,
-    postenId,
-    produkt: row.artikel,
-    name: row.artikel,
-    marke: '',
-    brand: '',
-    mhd: mhdIso,
-    mhdDate: mhdIso,
-    mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'Wareneingang',
-    date: mhdIso ? formatIsoToGerman(mhdIso) : new Date().toLocaleDateString('de-DE'),
-    tage,
-    resttage: tage,
-    status: 'aktiv',
-    qty: row.menge,
-    menge: row.menge,
-    eingangMenge: row.menge,
-    kategorie: mhdKategorie,
-    soldOut: false,
-    source: 'wareneingang-lieferschein',
-    postentyp: 'wareneingang',
-    wareneingangAt: nowIso,
-    erfassungsDatum: nowIso,
-    scannedBy: author,
-    updatedAt: nowIso,
-    createdAt: nowIso,
-  };
-
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+  const writeOps = buildDeliveryParserWriteOps(row, {
+    tenantId,
+    author,
+    nowIso,
+    batchId,
+    index,
   });
+
+  let queued = false;
+  for (const op of writeOps) {
+    const result = await writeFn({
+      ...op,
+      offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
+    });
+    if (result === 'queued') queued = true;
+  }
+  return queued ? 'queued' : 'written';
 }
 
 async function bucheLieferungEin(rows) {
@@ -473,8 +413,11 @@ async function bucheLieferungEin(rows) {
     return;
   }
 
-  const author = getAuthContext()?.email?.split('@')[0] || 'Team';
+  const authContext = getAuthContext() || {};
+  const author = authContext.email?.split('@')[0] || 'Team';
+  const tenantId = parserState.tenantId || authContext.tenantId || '';
   const nowIso = new Date().toISOString();
+  const batchId = createDeliveryParserBatchId();
   const saveBtn = document.getElementById('delivery-parser-save');
   if (saveBtn) {
     saveBtn.disabled = true;
@@ -484,9 +427,15 @@ async function bucheLieferungEin(rows) {
   try {
     parserState.saveInFlight = true;
     let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const result = await schreibeLieferposten(row, {
+        author,
+        nowIso,
+        batchId,
+        index,
+        tenantId,
+      });
       if (result === 'queued') hatWartende = true;
     }
     removePreviewOverlay();
@@ -494,7 +443,7 @@ async function bucheLieferungEin(rows) {
       window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
       return;
     }
-    window.showToast?.('Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!', 'success');
+    window.showToast?.('Lieferschein erfolgreich verbucht. Bestand und MHD-Posten sind gespeichert.', 'success');
   } catch (err) {
     console.error('[DeliveryParser] Einbuchen fehlgeschlagen:', err);
     window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
