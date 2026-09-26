@@ -240,6 +240,101 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2c.1: KI-Lieferschein receipt writes', () => {
+    const batchId = 'ls-rules-receipt';
+    const inventoryPayload = (tenantId) => ({
+      artikel: 'Bio Milch 1L',
+      menge: 6,
+      kategorie: '🥛MoPro',
+      tenantId,
+      source: 'wareneingang-lieferschein',
+      batchId,
+      createdBy: 'stephie',
+      createdAt: '2026-09-26T12:00:00.000Z',
+    });
+    const mhdPayload = (tenantId) => ({
+      id: `${batchId}_000_bio-milch-1l`,
+      postenId: `${batchId}_000_bio-milch-1l`,
+      produkt: 'Bio Milch 1L',
+      name: 'Bio Milch 1L',
+      mhd: '2026-10-04',
+      mhdDate: '2026-10-04',
+      status: 'aktiv',
+      qty: 6,
+      menge: 6,
+      eingangMenge: 6,
+      kategorie: '🥛MoPro',
+      soldOut: false,
+      source: 'wareneingang-lieferschein',
+      postentyp: 'wareneingang',
+      wareneingangAt: '2026-09-26T12:00:00.000Z',
+      erfassungsDatum: '2026-09-26T12:00:00.000Z',
+      scannedBy: 'stephie',
+      tenantId,
+      updatedAt: '2026-09-26T12:00:00.000Z',
+      createdAt: '2026-09-26T12:00:00.000Z',
+    });
+
+    it('allows employee to create tenant-owned inventory and MHD receipt rows', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `${batchId}_000_bio-milch-1l`),
+        'create',
+        inventoryPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_000_bio-milch-1l`),
+        'create',
+        mhdPayload(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies helper and cross-tenant receipt writes', async () => {
+      const helper = authContext(testEnv, 'sh-helper-receipt', TENANTS.STEVES_HOF, 'helper');
+      const foreignEmployee = authContext(testEnv, 'tf-employee-receipt', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `${batchId}_helper`),
+        'create',
+        inventoryPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_helper`),
+        'create',
+        mhdPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        foreignEmployee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `${batchId}_foreign`),
+        'create',
+        inventoryPayload(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        foreignEmployee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_foreign`),
+        'create',
+        mhdPayload(TENANTS.STEVES_HOF),
+      );
+    });
+
+    it('denies MHD receipt rows without tenantId', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-receipt-no-tenant', TENANTS.STEVES_HOF, 'employee');
+      const { tenantId, ...payloadWithoutTenant } = mhdPayload(TENANTS.STEVES_HOF);
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_missing_tenant`),
+        'create',
+        payloadWithoutTenant,
+      );
+    });
+  });
+
   describe('TEST CASE 2d: MHD shopfloor updates', () => {
     const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'shopfloor-mhd-1');
     const mhdItem = {
