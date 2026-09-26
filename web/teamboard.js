@@ -29,25 +29,19 @@ export { clearTeamboardTenantStorage };
 export const TEAM_SOLO_ALL_AREAS = 'Alle meine Bereiche';
 
 const DEFAULT_TEAM_AREAS = ['Laden / Verkauf', 'Metzgerei / Produktion', 'Küche / Gastro', 'Allgemein'];
-const TORFABRIK_TEAM_AREAS = ['Theke', 'Küche & Events', 'Halle', 'Allgemein'];
 
 export const TEAM_AREAS = DEFAULT_TEAM_AREAS;
 export const TEAM_SHIFTS = TEAM_AREAS;
 
-export function getTeamAreasForTenant(tenantId = teamboardState.tenantId) {
-  return tenantId === 'torfabrik' ? [...TORFABRIK_TEAM_AREAS] : [...DEFAULT_TEAM_AREAS];
+export function getTeamAreasForTenant() {
+  return [...DEFAULT_TEAM_AREAS];
 }
 
-export function getTeamAreaOptions(tenantId = teamboardState.tenantId) {
-  const areas = getTeamAreasForTenant(tenantId);
-  if (tenantId === 'torfabrik') {
-    return [TEAM_SOLO_ALL_AREAS, ...areas];
-  }
-  return areas;
+export function getTeamAreaOptions() {
+  return getTeamAreasForTenant();
 }
 
-export function getDefaultAreaForTenant(tenantId = teamboardState.tenantId) {
-  if (tenantId === 'torfabrik') return TEAM_SOLO_ALL_AREAS;
+export function getDefaultAreaForTenant() {
   return 'Allgemein';
 }
 

@@ -557,13 +557,6 @@ const RECEIVING_CATEGORIES = [
   { value: '🌿 Gewürze', label: '🌿 Gewürze' },
 ];
 
-const TORFABRIK_RECEIVING_CATEGORIES = [
-  { value: '🍺 Getränke (Jakob Bayen)', label: '🍺 Getränke (Jakob Bayen)' },
-  { value: '🧊 TK & Snacks (Metro)', label: '🧊 TK & Snacks (Metro)' },
-  { value: '🧴 Zubehör & Hygiene (Metro)', label: '🧴 Zubehör & Hygiene (Metro)' },
-];
-
-const TORFABRIK_FASS_SHELF_DAYS = 14;
 const KAESE_THEKE_CATEGORY_VALUE = 'kaese_theke';
 let kaeseThekeQtyMode = 'stueck';
 
@@ -652,13 +645,7 @@ function updateKaeseThekeQtyModeVisibility(category = '') {
   }
 }
 
-function isTorfabrikTenant() {
-  const tenantId = getGlobalTenantId() || String(mhdState.tenantId || '').trim();
-  return tenantId === 'torfabrik';
-}
-
 function getReceivingCategoriesForTenant() {
-  if (isTorfabrikTenant()) return TORFABRIK_RECEIVING_CATEGORIES;
   const extra = getBrandingReceivingCategoriesExtra();
   if (!extra.length) return RECEIVING_CATEGORIES;
   return [...RECEIVING_CATEGORIES, ...extra];
@@ -669,21 +656,6 @@ function formatIsoToGermanDate(isoDate) {
   const parts = String(isoDate).split('-');
   if (parts.length !== 3) return '';
   return `${parts[2]}.${parts[1]}.${parts[0]}`;
-}
-
-function suggestTorfabrikMhdAfterAnstich(kategorie, produktName = '') {
-  if (!isTorfabrikTenant()) return null;
-  const kat = String(kategorie || '');
-  const name = String(produktName || '').toLowerCase();
-  if (!/getränke|jakob bayen/i.test(kat)) return null;
-  if (!/fass|fäss|anstich|bier/i.test(name)) return null;
-  const target = new Date();
-  target.setHours(0, 0, 0, 0);
-  target.setDate(target.getDate() + TORFABRIK_FASS_SHELF_DAYS);
-  const y = target.getFullYear();
-  const m = String(target.getMonth() + 1).padStart(2, '0');
-  const d = String(target.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 function applyReceivingCategoryOptions() {
@@ -1558,21 +1530,8 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   }
 
   updateDeliveryItemProductUi();
-  applyTorfabrikFassMhdSuggestion();
   setReceivingMode('schnell');
   return true;
-}
-
-function applyTorfabrikFassMhdSuggestion() {
-  const mhdInput = document.getElementById('we-mhd');
-  if (!mhdInput) return;
-  const category = document.getElementById('we-category-quick')?.value || '';
-  const productName = document.getElementById('we-product-name')?.value?.trim()
-    || currentDeliveryItemProduct
-    || document.getElementById('we-product-manual')?.value?.trim()
-    || '';
-  const suggested = suggestTorfabrikMhdAfterAnstich(category, productName);
-  if (suggested) setGermanDateField(mhdInput, suggested);
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera') {
@@ -5000,7 +4959,6 @@ function bindReceivingControls() {
       rememberReceivingHeadCategory(categoryQuickSelect.value);
       updateReceivingQtyFieldUi();
       updateReceivingTemperatureFieldUi();
-      applyTorfabrikFassMhdSuggestion();
       updateReceivingSaveButtonState();
     });
   }

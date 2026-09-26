@@ -1,11 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 :root {
-  /* White-label Kernfarben */
-  --primary-color: #28a745;
-  --primary-color-hover: #218838;
-  --dark-header-bg: #343a40;
+  /* ButcherOS / HofSync — M3 Design Tokens */
+  --color-primary: #680006;
+  --color-primary-container: #8c1515;
+  --color-on-primary: #ffffff;
+  --color-background: #f7f9fb;
+  --color-surface: #f7f9fb;
+  --color-surface-container-low: #f2f4f6;
+  --color-surface-container-highest: #e0e3e5;
+  --color-outline-variant: #e0bfbb;
+  --color-tertiary-fixed: #a6f4b5;
+  --color-on-tertiary-fixed: #00210b;
+
+  /* Typografie */
+  --font-family-headline: "Hanken Grotesk", "Segoe UI", sans-serif;
+  --font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* White-label Kernfarben (Default = M3; Branding überschreibt zur Laufzeit) */
+  --primary-color: var(--color-primary);
+  --primary-color-hover: var(--color-primary-container);
+  --dark-header-bg: #2b0a0c;
   --accent-alert: #dc3545;
   --accent-action: #ffc107;
-  --light-bg: #f8f9fa;
+  --light-bg: var(--color-background);
 
   /* Abgeleitete Design-Tokens */
   --primary-hover: var(--primary-color-hover);
@@ -24,7 +43,7 @@
   --primary-alpha-45: color-mix(in srgb, var(--primary-color) 45%, transparent);
   --primary-tint-bg: color-mix(in srgb, var(--primary-color) 12%, var(--light-bg));
   --primary-tint-bg-strong: color-mix(in srgb, var(--primary-color) 18%, var(--light-bg));
-  --header-text: #ffffff;
+  --header-text: var(--color-on-primary);
   --header-text-muted: rgba(255, 255, 255, 0.72);
   --nav-text: rgba(255, 255, 255, 0.65);
   --secondary-color: var(--accent-alert);
@@ -37,13 +56,14 @@
   --alert-on-light: color-mix(in srgb, var(--accent-alert) 75%, black);
   --action-tint-bg: color-mix(in srgb, var(--accent-action) 18%, white);
   --action-on-light: color-mix(in srgb, var(--accent-action) 45%, black);
-  --bg-color: var(--light-bg);
+  --bg-color: var(--color-background);
   --surface-color: #FFFFFF;
-  --surface-secondary: #F2F2F7;
-  --surface-tertiary: var(--light-bg);
+  --surface-secondary: var(--color-surface-container-low);
+  --surface-tertiary: var(--color-surface);
   --text-dark: #1C1C1E;
   --text-muted: #6E6E73;
   --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-color: var(--color-outline-variant);
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.03);
   --body-bg: linear-gradient(135deg, color-mix(in srgb, var(--dark-header-bg) 75%, black) 0%, var(--dark-header-bg) 100%);
   --iphone-frame-bg: #000000;
@@ -51,8 +71,9 @@
   --border-radius-lg: 20px;
   --border-radius-md: 12px;
   --border-radius-sm: 8px;
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
+  --desktop-topbar-height: 64px;
+  --desktop-sidebar-width: 280px;
   --touch-target-size: 64px;
   --icon-button-size: 64px;
 }
@@ -273,6 +294,14 @@ body {
   flex-direction: column;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+h1, h2, h3, h4,
+.tenant-header-page,
+.dev-dashboard-page-title,
+.dev-dashboard-section-title,
+.app-nav-brand-name {
+  font-family: var(--font-family-headline);
 }
 
 .tenant-header-name,
@@ -607,6 +636,24 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
 .app-refresh-btn:active {
   transform: scale(0.96);
   background: rgba(255, 255, 255, 0.2);
+}
+
+.app-update-info {
+  flex: 0 0 auto;
+  padding: 4px 14px 6px;
+  background: var(--dark-header-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.app-update-info #app-update-info-text {
+  display: inline-block;
+  max-width: 100%;
 }
 
 .hidden {
@@ -6596,6 +6643,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   .desktop-controls,
   .status-bar,
   .app-header,
+  .app-update-info,
   .bottom-nav,
   .home-indicator,
   .pin-auth-modal,
@@ -7935,7 +7983,7 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Desktop Sidebar-Shell (ab 1024px): Laden-Alltag vs. Verwaltung
+   Desktop Sidebar-Shell (ab 1024px): 280px Sidebar + 64px Topbar
    ========================================================================= */
 
 @media (min-width: 1024px) {
@@ -7943,7 +7991,7 @@ body.role-helper #team-subnav-orders {
     align-items: stretch;
     justify-content: stretch;
     padding: 0;
-    background: color-mix(in srgb, var(--dark-header-bg) 88%, black);
+    background: var(--color-surface-container-low);
   }
 
   body.app-shell-sidebar .preview-container {
@@ -7975,8 +8023,8 @@ body.role-helper #team-subnav-orders {
 
   body.app-shell-sidebar .app-container {
     display: grid;
-    grid-template-columns: 248px minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: var(--desktop-sidebar-width) minmax(0, 1fr);
+    grid-template-rows: var(--desktop-topbar-height) minmax(0, 1fr);
     grid-template-areas:
       "nav header"
       "nav content";
@@ -7984,6 +8032,7 @@ body.role-helper #team-subnav-orders {
     height: 100dvh;
     min-height: 100dvh;
     overflow: hidden;
+    background: var(--color-background);
   }
 
   body.app-shell-sidebar .bottom-nav,
@@ -7991,30 +8040,38 @@ body.role-helper #team-subnav-orders {
     grid-area: nav;
     position: relative;
     inset: auto;
-    width: 100%;
+    width: var(--desktop-sidebar-width);
     height: 100%;
     flex-direction: column;
     align-items: stretch;
-    padding: 18px 12px 20px;
+    padding: 16px 14px 20px;
     border-top: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid color-mix(in srgb, var(--color-outline-variant) 55%, transparent);
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--dark-header-bg) 92%, black) 0%, var(--dark-header-bg) 100%);
+      linear-gradient(180deg, color-mix(in srgb, var(--dark-header-bg) 94%, black) 0%, var(--dark-header-bg) 100%);
     overflow: hidden;
   }
 
   body.app-shell-sidebar .app-nav-brand {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
-    padding: 4px 8px 16px;
-    margin-bottom: 8px;
+    padding: 4px 4px 14px;
+    margin-bottom: 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
+  body.app-shell-sidebar .app-nav-facility-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
   body.app-shell-sidebar .app-nav-brand-logo {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
   }
 
   body.app-shell-sidebar .app-nav-brand-text {
@@ -8026,9 +8083,10 @@ body.role-helper #team-subnav-orders {
 
   body.app-shell-sidebar .app-nav-brand-name {
     color: var(--header-text);
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.2px;
+    font-family: var(--font-family-headline);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -8040,6 +8098,42 @@ body.role-helper #team-subnav-orders {
     font-weight: 700;
     letter-spacing: 0.8px;
     text-transform: uppercase;
+  }
+
+  body.app-shell-sidebar .app-nav-user-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  body.app-shell-sidebar .app-nav-user-avatar {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    background: var(--color-primary-container);
+    color: var(--color-on-primary);
+    font-family: var(--font-family-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  body.app-shell-sidebar .app-nav-user-name {
+    min-width: 0;
+    color: var(--header-text);
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   body.app-shell-sidebar .app-nav-zone {
@@ -8102,6 +8196,7 @@ body.role-helper #team-subnav-orders {
 
   body.app-shell-sidebar .nav-item.active {
     background: var(--primary-alpha-18);
+    opacity: 1;
   }
 
   body.app-shell-sidebar .nav-item.active i {
@@ -8137,8 +8232,16 @@ body.role-helper #team-subnav-orders {
 
   body.app-shell-sidebar .app-header {
     grid-area: header;
+    position: sticky;
+    top: 0;
+    z-index: 120;
+    height: var(--desktop-topbar-height);
+    min-height: var(--desktop-topbar-height);
+    max-height: var(--desktop-topbar-height);
     align-items: center;
-    padding: 14px 24px;
+    padding: 0 24px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-outline-variant) 70%, transparent);
+    background: color-mix(in srgb, var(--dark-header-bg) 96%, black);
   }
 
   body.app-shell-sidebar .app-header .tenant-header-logo {
@@ -8153,6 +8256,7 @@ body.role-helper #team-subnav-orders {
     grid-area: content;
     padding: 20px 28px 28px;
     overflow: auto;
+    background: var(--color-background);
   }
 
   body.app-shell-sidebar.admin-module-view .app-nav-zone--ops {
@@ -8354,7 +8458,9 @@ body.dev-dashboard-view .app-container {
 }
 
 body.is-dev-dashboard .app-header,
-body.dev-dashboard-view .app-header {
+body.dev-dashboard-view .app-header,
+body.is-dev-dashboard .app-update-info,
+body.dev-dashboard-view .app-update-info {
   display: none;
 }
 
@@ -9265,6 +9371,91 @@ body.role-firebase-auth #team-login-card {
 
 .chargen-book-panel {
   margin: 0;
+}
+
+.chargen-spreadsheet-wrap {
+  position: relative;
+  max-height: min(62vh, 720px);
+  overflow: auto;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 12px;
+  background: var(--surface-color);
+}
+
+.chargen-spreadsheet {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.chargen-spreadsheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface-container-low);
+  border-bottom: 1px solid var(--color-outline-variant);
+  font-family: var(--font-family-headline);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.chargen-spreadsheet th,
+.chargen-spreadsheet td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-outline-variant) 55%, transparent);
+}
+
+.chargen-spreadsheet .chargen-mono,
+.chargen-spreadsheet .dev-trace-lot-btn {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.chargen-spreadsheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 2px 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-family: var(--font-family-mono);
+}
+
+.chargen-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chargen-status-badge[data-status="success"] {
+  background: var(--color-tertiary-fixed);
+  color: var(--color-on-tertiary-fixed);
+}
+
+.chargen-status-badge[data-status="reprint"] {
+  background: color-mix(in srgb, var(--color-primary-container) 18%, white);
+  color: var(--color-primary);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.chargen-status-badge[data-status="archived"] {
+  background: var(--color-surface-container-highest);
+  color: var(--text-muted);
 }
 
 @media (max-width: 420px) {

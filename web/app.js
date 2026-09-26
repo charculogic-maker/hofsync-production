@@ -128,7 +128,7 @@ import {
   resolveFunctionsBaseUrl,
 } from './firebase-functions.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
-import { attachLocalFirebaseEmulators, isLocalFirebaseEmulatorHost } from './firebase-emulator.js';
+import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
   hasAnyAdminModuleEnabled,
   hasModule,
@@ -813,9 +813,55 @@ function syncAppShellLayout(pageId) {
       const sidebar = document.body.classList.contains('app-shell-sidebar');
       navBrand.setAttribute('aria-hidden', sidebar ? 'false' : 'true');
     }
+    syncSidebarFacilityUserCard();
   } catch (err) {
     console.warn('[CharcuLogic Layout] App-Shell-Layout fehlgeschlagen:', err);
   }
+}
+
+/**
+ * Sidebar-Topkarte: Betriebsname + aktuelle Person (Name / Initialen).
+ */
+function syncSidebarFacilityUserCard(employeeName = readActiveEmployee()) {
+  try {
+    const branding = window.BRANDING || {};
+    const facilityEl = document.getElementById('app-nav-facility-name');
+    if (facilityEl) {
+      facilityEl.textContent = branding.betriebsName || branding.displayName || 'Betriebs-Leitstand';
+    }
+
+    const nameEl = document.getElementById('app-nav-user-name');
+    const initialsEl = document.getElementById('app-nav-user-initials');
+    if (!nameEl && !initialsEl) return;
+
+    let resolved = String(employeeName || '').trim();
+    if (!resolved) {
+      try {
+        const authSession = getAuthContext() || {};
+        resolved = resolveFirebaseEmployeeName(authSession);
+        if (!resolved || resolved === 'Mitarbeiter') {
+          const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+          resolved = String(user?.displayName || user?.email?.split('@')[0] || '').trim();
+        }
+      } catch (_) { /* noop */ }
+    }
+
+    const display = resolved || 'Nicht angemeldet';
+    if (nameEl) nameEl.textContent = display;
+    if (initialsEl) initialsEl.textContent = initialsFromDisplayName(display);
+  } catch (err) {
+    console.warn('[CharcuLogic Layout] Sidebar-Nutzerkarte fehlgeschlagen:', err);
+  }
+}
+
+function initialsFromDisplayName(name = '') {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length || parts[0] === 'Nicht' || parts[0] === '–') return '–';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
 window.syncAppShellLayout = syncAppShellLayout;
@@ -1725,13 +1771,10 @@ function applyBranding() {
 
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute('content', primaryColor);
+
+  syncSidebarFacilityUserCard();
 }
 window.applyBranding = applyBranding;
-
-function isWurstkuecheEnabledForTenant(tenantId = '', branding = window.BRANDING || {}) {
-  const normalizedTenantId = String(tenantId || '').trim().toLowerCase();
-  return normalizedTenantId !== 'torfabrik' && branding.modules?.wurstkueche !== false;
-}
 
 window.applyModuleVisibility = applyModuleVisibility;
 
@@ -1906,7 +1949,12 @@ function applyRoleBasedUi(authSession) {
 
   ['btn-master-data', 'btn-delivery-note-ai', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.hidden = !isOffice;
+    if (!el) return;
+    if (id === 'btn-delivery-note-ai') {
+      el.hidden = !isOffice || window.BRANDING?.modules?.deliveryNoteAi !== true;
+      return;
+    }
+    el.hidden = !isOffice;
   });
 
   const saveMhdBar = document.querySelector('#page-mhd .sticky-action-bar');
@@ -2107,9 +2155,10 @@ function initFirebase() {
   try {
     ensureFirebaseApp(firebase);
     assertFirebaseProjectIsolation(firebase);
-    if (isLocalFirebaseEmulatorHost()) {
-      attachLocalFirebaseEmulators(firebase);
-    }
+    // TEMP: Emulatoren deaktiviert — localhost spricht Live-Staging (Auth/Firestore).
+    // if (shouldUseFirebaseEmulators()) {
+    //   attachLocalFirebaseEmulators(firebase);
+    // }
     db = firebase.firestore();
     initTenantDb(db);
     if (typeof firebase.auth === 'function') {
@@ -2123,7 +2172,7 @@ function initFirebase() {
       console.warn('Firestore Persistence Error:', err.code);
     });
     firebaseReady = true;
-    const modeLabel = isLocalFirebaseEmulatorHost() ? 'Emulator' : 'Cloud';
+    const modeLabel = areLocalFirebaseEmulatorsAttached() ? 'Emulator' : 'Cloud';
     console.log(
       `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" `
       + `(${resolveFirebaseProjectKey()}, ${modeLabel}).`,
@@ -2752,15 +2801,20 @@ function readActiveEmployee() {
 }
 
 function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
-  if (!employeeSessionBadge || !employeeSessionName) return;
+  if (!employeeSessionBadge || !employeeSessionName) {
+    syncSidebarFacilityUserCard(employeeName);
+    return;
+  }
   if (!employeeName) {
     employeeSessionBadge.style.display = 'none';
     employeeSessionName.textContent = '';
+    syncSidebarFacilityUserCard('');
     return;
   }
   const firstName = String(employeeName).trim().split(/\s+/)[0] || employeeName;
   employeeSessionName.textContent = `👤 ${firstName}`;
   employeeSessionBadge.style.display = 'inline-flex';
+  syncSidebarFacilityUserCard(employeeName);
 }
 
 const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero', 'page-dev-dashboard']);
@@ -3432,6 +3486,85 @@ try {
 let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
+/** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
+const APP_RELEASE_AT = '2026-09-23T16:46:00+02:00';
+const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
+const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
+
+function formatAppUpdateStamp(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function readStoredAppUpdateAt() {
+  try {
+    return localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberAppStand(releasedAt) {
+  if (!releasedAt) return;
+  try {
+    const previousStand = localStorage.getItem(APP_STAND_STORAGE_KEY) || '';
+    if (previousStand !== releasedAt) {
+      localStorage.setItem(APP_STAND_STORAGE_KEY, releasedAt);
+      const stored = localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY);
+      const storedMs = Date.parse(stored || '');
+      const releasedMs = Date.parse(releasedAt);
+      if (!Number.isFinite(storedMs) || (Number.isFinite(releasedMs) && releasedMs > storedMs)) {
+        localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, releasedAt);
+      }
+    }
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
+function resolveAppUpdateIso(swReleasedAt) {
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  const stored = readStoredAppUpdateAt();
+  const releasedMs = Date.parse(releasedAt);
+  const storedMs = Date.parse(stored || '');
+  if (Number.isFinite(storedMs) && Number.isFinite(releasedMs)) {
+    return storedMs >= releasedMs ? stored : releasedAt;
+  }
+  return stored || releasedAt;
+}
+
+function renderAppUpdateInfo(swReleasedAt) {
+  const textEl = document.getElementById('app-update-info-text');
+  if (!textEl) return;
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  rememberAppStand(releasedAt);
+  const stamp = formatAppUpdateStamp(resolveAppUpdateIso(releasedAt));
+  textEl.textContent = stamp
+    ? `Zuletzt aktualisiert: ${stamp}`
+    : 'Zuletzt aktualisiert: noch unbekannt';
+  const infoEl = document.getElementById('app-update-info');
+  if (infoEl) {
+    infoEl.title = `App-Stand ${formatAppUpdateStamp(releasedAt) || releasedAt}`;
+  }
+}
+
+function requestServiceWorkerVersion() {
+  if (!navigator.serviceWorker?.controller) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+    return;
+  }
+  try {
+    navigator.serviceWorker.controller.postMessage({ type: 'GET_SW_VERSION' });
+  } catch (_) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+  }
+}
+
 function showUpdateToast() {
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.add('is-visible');
@@ -3469,6 +3602,9 @@ async function activateWaitingServiceWorker() {
 
 async function refreshAppFromNetwork() {
   try {
+    try {
+      localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, new Date().toISOString());
+    } catch (_) { /* private mode / blocked storage */ }
     const registration = serviceWorkerRegistration
       || await navigator.serviceWorker?.getRegistration?.();
     await registration?.update?.();
@@ -3519,12 +3655,20 @@ document.getElementById('update-toast-btn')?.addEventListener('click', () => {
 document.getElementById('update-toast-dismiss')?.addEventListener('click', hideUpdateToast);
 document.getElementById('app-refresh-btn')?.addEventListener('click', () => applyUpdate(false));
 
+renderAppUpdateInfo(APP_RELEASE_AT);
+
 if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type !== 'SW_VERSION') return;
+    renderAppUpdateInfo(event.data.releasedAt || APP_RELEASE_AT);
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260612-1405')
+    navigator.serviceWorker.register('./sw.js?v=20260923-1646')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
+        requestServiceWorkerVersion();
 
         if (reg.installing) {
           console.info('[CharcuLogic SW] Neuer SW wird installiert...');

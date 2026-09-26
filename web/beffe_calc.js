@@ -1,3 +1,5 @@
+import { calculateBeffe, calculateMeatComposition, gevoProfiles } from './domain-core.js';
+
 const MATERIAL_KEYS = [
   'S I', 'S II', 'S III', 'S IV Bauch', 'S V Bauch Fett', 'S V II Speck', 'S V III Kutterfett',
   'R I', 'R II', 'R III',
@@ -9,8 +11,48 @@ const MATERIAL_KEYS = [
 const SCHWEIN_CLASS_MATERIALS = ['S I', 'S II', 'S III', 'S IV Bauch'];
 const RIND_CLASS_MATERIALS = ['R I', 'R II', 'R III'];
 
-/** Relativbasis: gleiche Massebezüge wie FE / BEP. Unterhalb gilt „kein Fleisch“. */
+/** Relativbasis: gleiche Massebezüge wie FE / Bindegewebseiweiß. Unterhalb gilt „kein Fleisch“. */
 const FE_ZERO_EPSILON = 1e-9;
+
+/** HofSync-Materialname → GEVO-Klasse. Laborwerte bleiben am Rohstoff, der Kern rechnet. */
+const MATERIAL_CUT_ID = {
+  'S I': 'S_I',
+  'S II': 'S_II',
+  'S III': 'S_III',
+  'S IV Bauch': 'S_IV',
+  'S V Bauch Fett': 'S_V',
+  'S V II Speck': 'S_VII',
+  'S V III Kutterfett': 'S_VIII',
+  'R I': 'R_I',
+  'R II': 'R_II',
+  'R III': 'R_III',
+  'Leber': 'S_LEBER',
+  'Kopffleisch': 'S_VI',
+  'Einlage S I': 'S_I',
+  'Einlage S II': 'S_II',
+  'Einlage SIV Bauch': 'S_IV',
+  'Einlage Wamme': 'S_X',
+  'Einlage Speck': 'S_VII',
+};
+
+function compositionForAmount(material, amountKg, proteinPct, connectiveTissuePct) {
+  const cutId = MATERIAL_CUT_ID[material];
+  if (cutId && gevoProfiles[cutId]) {
+    return calculateMeatComposition([{
+      cutId,
+      weightKg: amountKg,
+      proteinAvgPct: proteinPct,
+      connectiveTissueAvgPct: connectiveTissuePct,
+    }]);
+  }
+  const meatProteinKg = amountKg * proteinPct / 100;
+  const connectiveTissueProteinKg = amountKg * connectiveTissuePct / 100;
+  return {
+    meatProteinKg,
+    connectiveTissueProteinKg,
+    ...calculateBeffe(meatProteinKg, connectiveTissueProteinKg),
+  };
+}
 
 /**
  * BEFFE als Masseanteil des Erzeugnisses [% m/m].
@@ -18,8 +60,8 @@ const FE_ZERO_EPSILON = 1e-9;
  */
 export function beffeProduktProzentMM(fleischEiweissPctMM, bindegewebsEiweissPctMM) {
   const fe = Math.max(0, Number(fleischEiweissPctMM) || 0);
-  const bep = Math.max(0, Number(bindegewebsEiweissPctMM) || 0);
-  return Math.max(0, fe - bep);
+  const connectiveTissue = Math.max(0, Number(bindegewebsEiweissPctMM) || 0);
+  return calculateBeffe(fe, connectiveTissue).beffeAbsoluteKg;
 }
 
 /**
@@ -29,10 +71,10 @@ export function beffeProduktProzentMM(fleischEiweissPctMM, bindegewebsEiweissPct
  */
 export function beffeImFePct(fleischEiweiss, bindegewebsEiweiss) {
   const fe = Number(fleischEiweiss);
-  const bep = Number(bindegewebsEiweiss);
+  const connectiveTissue = Number(bindegewebsEiweiss);
   if (!Number.isFinite(fe) || fe <= FE_ZERO_EPSILON) return null;
-  const bepSafe = Number.isFinite(bep) ? Math.max(0, bep) : 0;
-  return ((fe - bepSafe) / fe) * 100;
+  const connectiveTissueSafe = Number.isFinite(connectiveTissue) ? Math.max(0, connectiveTissue) : 0;
+  return calculateBeffe(fe, connectiveTissueSafe).beffeInMeatProteinPct;
 }
 
 /**
@@ -164,9 +206,10 @@ export class BeffeCalcEngine {
       const fettProzent = materialData.fett ?? 0;
       const { feProzent, beProzent, beffeProzent } = resolveMaterialProtein(materialData);
       const cost = amountKg * priceKg;
-      const feKg = amountKg * feProzent / 100;
-      const bepKg = amountKg * beProzent / 100;
-      const beffeKg = amountKg * beffeProzent / 100;
+      const composition = compositionForAmount(ingredient.material, amountKg, feProzent, beProzent);
+      const feKg = composition.meatProteinKg;
+      const bepKg = composition.connectiveTissueProteinKg;
+      const beffeKg = composition.beffeAbsoluteKg;
       const fatKg = amountKg * fettProzent / 100;
       const waterKg = amountKg * wasserProzent / 100;
 

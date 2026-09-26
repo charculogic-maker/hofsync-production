@@ -65,6 +65,9 @@
     window.forceAppUpdate = async function forceAppUpdate() {
       if (window.__forceAppUpdateRunning) return;
       window.__forceAppUpdateRunning = true;
+      try {
+        localStorage.setItem('charculogic.lastAppUpdateAt', new Date().toISOString());
+      } catch (_) { /* private mode / blocked storage */ }
       const hardReload = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('appUpdate', String(Date.now()));
@@ -146,7 +149,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260725-chargendoku-header">
+  <link rel="stylesheet" href="/style.css?v=20260727-butcheros-shell">
 </head>
 <body>
 
@@ -222,6 +225,10 @@
             <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
         </header>
+
+        <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
+          <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
+        </div>
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
@@ -1145,8 +1152,8 @@
                     <input id="chargen-book-date" type="date">
                   </label>
                 </div>
-                <div class="dev-dashboard-table-wrap">
-                  <table class="dev-dashboard-table" id="chargen-book-table">
+                <div class="dev-dashboard-table-wrap chargen-spreadsheet-wrap">
+                  <table class="dev-dashboard-table chargen-spreadsheet" id="chargen-book-table">
                     <thead>
                       <tr>
                         <th scope="col">LOT</th>
@@ -1161,6 +1168,7 @@
                     <tbody id="chargen-book-body"></tbody>
                   </table>
                 </div>
+                <p class="chargen-spreadsheet-footer" id="chargen-book-footer" aria-live="polite">Zeige 0 von 0 Einträgen</p>
                 <div id="chargen-book-detail" class="dev-trace-detail" aria-live="polite">
                   <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
                 </div>
@@ -1813,18 +1821,24 @@
         <!-- Navigation: Alltag (unten / Sidebar) + optional Verwaltung -->
         <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
           <div class="app-nav-brand" id="app-nav-brand" aria-hidden="true">
-            <img
-              class="tenant-header-logo app-nav-brand-logo"
-              id="app-nav-brand-logo"
-              src="/icon-192.png"
-              alt=""
-              width="40"
-              height="40"
-              decoding="async"
-            />
-            <div class="app-nav-brand-text">
-              <span class="app-nav-brand-name brand-betriebs-name">Betriebs-Leitstand</span>
-              <span class="app-nav-brand-hint">Laden-Alltag</span>
+            <div class="app-nav-facility-card" id="app-nav-facility-card">
+              <img
+                class="tenant-header-logo app-nav-brand-logo"
+                id="app-nav-brand-logo"
+                src="/icon-192.png"
+                alt=""
+                width="44"
+                height="44"
+                decoding="async"
+              />
+              <div class="app-nav-brand-text">
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">Betriebs-Leitstand</span>
+                <span class="app-nav-brand-hint">Laden-Alltag</span>
+              </div>
+            </div>
+            <div class="app-nav-user-card" id="app-nav-user-card" aria-label="Angemeldete Person">
+              <span class="app-nav-user-avatar" id="app-nav-user-initials" aria-hidden="true">–</span>
+              <span class="app-nav-user-name" id="app-nav-user-name">Nicht angemeldet</span>
             </div>
           </div>
 

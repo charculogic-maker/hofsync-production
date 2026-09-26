@@ -1,5 +1,6 @@
-const CACHE_NAME = 'charculogic-v20260831-auth-errors';
-const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
+const CACHE_NAME = 'charculogic-v20260926-lmiv-core';
+const CACHE_SCHEMA = 'p0-release-gate-sep2026';
+const RELEASED_AT = '2026-09-26T13:20:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -34,6 +35,7 @@ const CRITICAL_ASSETS = [
   '/haccp.js',
   '/production.js',
   '/beffe_calc.js',
+  '/domain-core.js',
   '/cuts.js',
   '/sync.js',
   '/traceability.js',
@@ -109,7 +111,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'GET_SW_VERSION') {
-    event.source?.postMessage({ type: 'SW_VERSION', cacheName: CACHE_NAME });
+    event.source?.postMessage({
+      type: 'SW_VERSION',
+      cacheName: CACHE_NAME,
+      cacheSchema: CACHE_SCHEMA,
+      releasedAt: RELEASED_AT,
+    });
   }
 
   if (event.data?.type === 'SKIP_WAITING') {

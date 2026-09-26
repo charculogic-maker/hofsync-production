@@ -158,6 +158,8 @@ process.on('SIGTERM', () => shutdown(0));
 
 logOrch('Starte Firebase-Emulatoren und Web-Server …');
 logOrch(`Projektverzeichnis: ${ROOT_DIR}`);
+logOrch('Frontend mit Emulatoren: http://127.0.0.1:5173/?emulators=1');
+logOrch('Ohne Emulatoren (Live-Firebase): http://127.0.0.1:5173/');
 
 spawnManaged(
   'firebase',

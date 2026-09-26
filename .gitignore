@@ -92,3 +92,4 @@ firestore-debug.log
 !.agents/skills/shop-wording-cop/**
 !.agents/skills/tenant-isolation-validator/
 !.agents/skills/tenant-isolation-validator/**
+.vercel
