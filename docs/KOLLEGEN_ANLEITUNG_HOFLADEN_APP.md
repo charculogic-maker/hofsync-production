@@ -271,7 +271,7 @@ Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
 | Lieferung lässt sich nicht abschließen | Profil prüfen (oben rechts), WLAN prüfen, **↻** App aktualisieren. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
-| KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
+| KI-Lieferschein-Button fehlt unter **Neu** | Wir tippen **↻**, prüfen unser Profil und testen WLAN. Bis der Button wieder da ist, scannen wir die Ware per Barcode. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
 | Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
 | App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |

@@ -15,7 +15,7 @@ Oben wählen wir zuerst den **Lieferant** (Weiling, Naturverbund, Stautenhof, So
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist im Laden-Modus freigeschaltet: Wir scannen zuerst Artikel per Barcode und gleichen sie danach mit Foto oder PDF vom Lieferschein ab.
 
 ---
 

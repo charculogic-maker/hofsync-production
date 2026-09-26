@@ -290,13 +290,36 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+### 4.3 `parseDeliveryNote` – KI-Lieferschein (Wareneingang)
 
-- **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
+- **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash` (Override `GEMINI_DELIVERY_NOTE_MODEL`).
 - **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
-- **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
-- **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
-- **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
+- **Auth:** `resolveAuthContext` + `requireEmployeeAccess`; Mandant und Rolle kommen ausschließlich aus Custom Claims. `helper` ist gesperrt, `employee`/`admin` dürfen den eigenen Mandanten nutzen.
+- **Payload bevorzugt:** Storage-Pfad `tenants/{tenantId}/delivery_notes/{timestamp}_{datei}` plus `mimeType`. Base64 (`imageBase64` / `imageBytes`) bleibt serverseitig möglich, wird im Laden-Client aber nicht mehr direkt verwendet.
+- **Storage-Härtung:** `functions/deliveryNote.js` akzeptiert nur Pfade unter `tenants/{claimTenantId}/delivery_notes/`, blockiert `..` und Backslashes, prüft Datei-Existenz, MIME (`jpg/png/webp/heic/heif/pdf`) und max. Base64-Länge (12-MB-Upload-Limit im Client/Storage).
+- **Antwort:** `{ items, model, tenantId, previewOnly: true, storagePath }`; die Callable schreibt keine Firestore-Daten. Alle Buchungen passieren danach im jeweiligen Frontend-Flow.
+
+#### Frontend-Flows
+
+| Mandant / Modul | Client | Ergebnis |
+|-----------------|--------|----------|
+| StevesHof und andere Wareneingang-Mandanten | `web/delivery-parser.js` + `web/delivery-upload.js` | **📄 Lieferschein hochladen** (Datei/Galerie: PDF oder Foto) und **📸 Lieferschein scannen (KI)** (Kamera) laden nach Storage, rufen `parseDeliveryNote`, vergleichen Soll-Posten mit gescannten Wareneingangs-Posten (`web/delivery-reconcile.js`) und schlagen MHD aus Historie oder Standard-Haltbarkeit vor. |
+| TorFabrik | `web/delivery-note.js` + `web/delivery-upload.js` | Der Scan-Button wird von TorFabrik übernommen und schreibt nach Prüfung in `tenants/torfabrik/inventory`. |
+
+**Buchungsgrenzen / Rules:**
+
+- `mhd_liste`: `delivery-parser.js` legt beim Einbuchen MHD-Posten mit `source: "wareneingang-lieferschein"` über `writeFirestoreDocOrQueue` an; Offline-Fälle werden in der Sync-Queue nachgereicht.
+- `stammdaten`: `delivery-parser.js` versucht zusätzlich, `currentStock`, `lastMhd`, `lastDeliveryAt` und `lastDeliveryBy` zu aktualisieren. `firebase.rules` erlaubt volle `stammdaten`-Writes nur Admins; für Nicht-Admins sind aktuell nur reine `currentStock`-Verringerungen freigegeben. Wenn der Laden-Flow Bestände über `stammdaten` erhöhen soll, müssen Rules oder ein Callable gezielt erweitert und getestet werden.
+- `inventory`: TorFabrik-Importe schreiben ausschließlich die schema-validierten Felder `artikel`, `menge`, `kategorie`, `tenantId`, `source`, `batchId`, `createdBy`, `createdAt`.
+
+#### Runbook / Troubleshooting
+
+| Symptom | Prüfen |
+|---------|--------|
+| Button fehlt unter **Neu** | `initDeliveryParser()` / `initDeliveryNoteScanner()` initialisiert? `helper` sieht Tab **Neu** nicht; TorFabrik besitzt den Scan-Button separat. |
+| Upload klappt, Callable meldet `permission-denied` | Custom Claims (`tenantId`, `role`) prüfen; Storage-Pfad muss exakt unter `tenants/{claimTenantId}/delivery_notes/` liegen. |
+| Callable `failed-precondition` / Gemini-Fehler | Secret `GEMINI_API_KEY`, Modell-Override und App-Check-Enforcement prüfen; manuelle Wareneingangserfassung bleibt Fallback. |
+| Storage-Datei nicht gefunden | `storage.rules`, Upload-Pfad aus `web/delivery-upload.js` und Bucket-Metadaten prüfen. |
 
 ### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
 

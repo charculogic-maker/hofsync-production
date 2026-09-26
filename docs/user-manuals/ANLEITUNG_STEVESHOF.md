@@ -5,7 +5,7 @@
 CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten im Alltag nur mit:
 
 - **MHD**: tägliche Haltbarkeitskontrolle inkl. **Retter-Box** vormerken (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
-- **Neu**: Wareneingang im Laden (Barcode-Scan, Lieferung abschließen)
+- **Neu**: Wareneingang im Laden (Barcode-Scan, KI-Lieferschein-Abgleich, Lieferung abschließen)
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
