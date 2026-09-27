@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260916-supplier-aufschnitt';
+const CACHE_NAME = 'charculogic-v20260927-finalize-batch';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 
 const CRITICAL_ASSETS = [
@@ -27,6 +27,7 @@ const CRITICAL_ASSETS = [
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/mhd-finalize-writes.js',
   '/mhd-rabatt.js',
   '/retter-box.js',
   '/date-input.js',
