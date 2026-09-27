@@ -40,6 +40,7 @@ import {
   validateDeliveryUploadFile,
   isPdfMimeType,
 } from './delivery-upload.js';
+import { commitDeliveryFinalizeWrites } from './mhd-finalize-writes.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -5836,16 +5837,7 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
+    const mhdFinalizeWrites = currentDeliveryItems.map((item) => {
       const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
       const writeOp = record._mhdWriteOp || 'set';
@@ -5858,14 +5850,37 @@ async function finalizeDelivery() {
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
       finalizeTargetPath = `${mhdPath}/${record.id}`;
-      const result = await mhdState.writeOrQueueFirestore({
-        collectionPath: mhdPath,
-        docId: record.id,
-        op: writeOp,
-        onlineData: auditedRecord.onlineData,
-        queueData: auditedRecord.queueData,
-        offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
-      });
+      return {
+        record,
+        qtyFrom,
+        qtyTo,
+        writeOp,
+        write: {
+          collectionPath: mhdPath,
+          docId: record.id,
+          op: writeOp,
+          onlineData: auditedRecord.onlineData,
+          queueData: auditedRecord.queueData,
+        },
+      };
+    });
+
+    const finalizeResult = await commitDeliveryFinalizeWrites({
+      db: mhdState.db,
+      firebaseReady: isFirebaseReady(),
+      online: typeof navigator === 'undefined' || navigator.onLine !== false,
+      addPendingSync: mhdState.addPendingSync,
+      deliveryWrite: {
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+      },
+      mhdWrites: mhdFinalizeWrites.map((entry) => entry.write),
+    });
+
+    mhdFinalizeWrites.forEach(({ record, qtyFrom, qtyTo, writeOp }) => {
       saveProductMaster(record);
       void recordMhdMovement({
         product: record,
@@ -5873,20 +5888,10 @@ async function finalizeDelivery() {
         qtyTo: Number.isFinite(qtyTo) ? qtyTo : 0,
         actionType: writeOp === 'update' ? 'menge' : 'neu',
       });
-      return result;
     });
 
-    const mhdResults = await Promise.allSettled(mhdWrites);
-    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite) {
-      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
-      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
-      return;
-    }
-    const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
+    const hasQueuedWrites = finalizeResult.deliveryResult === 'queued'
+      || finalizeResult.mhdResults.some((result) => result === 'queued');
 
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
