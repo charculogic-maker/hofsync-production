@@ -32,6 +32,7 @@ import {
   qaState,
   requeueDeadPendingSyncs,
   reportCriticalError,
+  removeQueuedMutation,
   savePendingSyncs,
   updateSyncIndicator,
   writeFirestoreDocOrQueue,
@@ -3355,6 +3356,27 @@ function formatQueueAge(ts) {
   return `${h}h ${m}m`;
 }
 
+function queueItemTitle(item) {
+  const data = item?.data || {};
+  return data.artikelName || data.name || data.produkt || item?._docId || 'ohne Namen';
+}
+
+function queueItemSubtitle(item) {
+  const data = item?.data || {};
+  const op = String(item?._op || 'update').toUpperCase();
+  const status = data.status || 'Update';
+  const collection = String(item?._collectionPath || 'ohne-pfad').split('/').filter(Boolean).pop() || 'ohne-pfad';
+  return `${op} · ${status} · ${collection}`;
+}
+
+function escapeQueueText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function showSyncQueueDialog() {
   const pending = getPendingSyncs();
   const dead = getDeadPendingSyncs();
@@ -3366,10 +3388,13 @@ function showSyncQueueDialog() {
 
   const pendingRows = pending.length
     ? pending.map((item) => `
-      <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
-        <div style="font-weight:700;font-size:12px;">${item._op || 'update'} · ${item._docId || 'ohne-id'}</div>
-        <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${item._attempts || 0}</div>
-        ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${item._lastError}${item._errorCode ? ` (${item._errorCode})` : ''}</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #e5e7eb;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;">${escapeQueueText(queueItemTitle(item))}</div>
+          <div style="font-size:11px;color:#4b5563;">${escapeQueueText(queueItemSubtitle(item))} · Alter ${formatQueueAge(item._queuedAt)}</div>
+          ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${escapeQueueText(item._lastError)}${item._errorCode ? ` (${escapeQueueText(item._errorCode)})` : ''}</div>` : ''}
+        </div>
+        <button type="button" class="sync-queue-drop" data-queue-id="${escapeQueueText(item._id || '')}" aria-label="Eintrag verwerfen" style="min-width:44px;min-height:44px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-size:18px;">🗑️</button>
       </div>
     `).join('')
     : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine wartenden Einträge.</div>';
@@ -3388,6 +3413,10 @@ function showSyncQueueDialog() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
         <h3 style="margin:0;font-size:16px;">Wartende Änderungen</h3>
         <button type="button" id="sync-queue-close" class="btn btn-secondary" style="min-height:36px;">Schließen</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" class="btn btn-primary" id="sync-queue-send-all" style="flex:1;min-height:44px;">🔄 Alle jetzt senden</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-drop-all" style="flex:1;min-height:44px;">⚠️ Alle verwerfen</button>
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Wartend (${pending.length})</div>
@@ -3410,6 +3439,28 @@ function showSyncQueueDialog() {
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) close();
   });
+  document.getElementById('sync-queue-send-all')?.addEventListener('click', async () => {
+    await flushPendingSyncs();
+    updateSyncIndicator();
+    close();
+    showToast('Übertragung angestoßen.', 'success');
+  });
+  document.getElementById('sync-queue-drop-all')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
+    savePendingSyncs([]);
+    updateSyncIndicator();
+    close();
+    showToast('Warteschlange geleert.', 'warning');
+  });
+  overlay.querySelectorAll('.sync-queue-drop').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.getAttribute('data-queue-id');
+      if (!id) return;
+      removeQueuedMutation(id);
+      updateSyncIndicator();
+      showSyncQueueDialog();
+    });
+  });
   document.getElementById('sync-queue-retry')?.addEventListener('click', async () => {
     const requeued = requeueDeadPendingSyncs();
     await flushPendingSyncs();
@@ -3423,6 +3474,7 @@ function showSyncQueueDialog() {
     );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
     savePendingSyncs([]);
     updateSyncIndicator();
     close();
