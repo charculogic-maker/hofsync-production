@@ -33,6 +33,7 @@ import {
   deliveryNotesObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { buildDeliveryBookingWrites } from '../web/delivery-parser.js';
 
 describe('Firebase Security Rules (Custom Claims only)', function () {
   this.timeout(15000);
@@ -100,6 +101,63 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'list-probe'),
         'list',
       );
+    });
+  });
+
+  describe('TEST CASE 1b: KI-Lieferschein booking writes', () => {
+    function deliveryParserWrites(tenantId) {
+      return buildDeliveryBookingWrites([
+        {
+          artikel: 'Bio Joghurt Natur',
+          menge: 6,
+          kategorie: 'Mopro',
+          mhdIso: '2026-10-08',
+        },
+      ], {
+        tenantId,
+        author: 'Stephie',
+        nowIso: '2026-09-28T10:00:00.000Z',
+        todayIso: '2026-09-28',
+        batchId: 'ls-rules-test',
+      });
+    }
+
+    it('allows employees to book parser-shaped MHD and inventory records in their tenant', async () => {
+      const ctx = authContext(
+        testEnv,
+        'sh-employee-delivery-parser',
+        TENANTS.STEVES_HOF,
+        'employee',
+      );
+      const writes = deliveryParserWrites(TENANTS.STEVES_HOF);
+
+      for (const write of writes) {
+        await expectFirestoreAllow(
+          ctx,
+          tenantDocPath(TENANTS.STEVES_HOF, write.collectionPath, write.docId),
+          'create',
+          write.onlineData,
+        );
+      }
+    });
+
+    it('denies parser-shaped writes against a different tenant', async () => {
+      const ctx = authContext(
+        testEnv,
+        'tf-employee-delivery-parser',
+        TENANTS.TORFABRIK,
+        'employee',
+      );
+      const writes = deliveryParserWrites(TENANTS.STEVES_HOF);
+
+      for (const write of writes) {
+        await expectFirestoreDeny(
+          ctx,
+          tenantDocPath(TENANTS.STEVES_HOF, write.collectionPath, write.docId),
+          'create',
+          write.onlineData,
+        );
+      }
     });
   });
 
