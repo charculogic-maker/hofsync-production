@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260928-mhd-stichprobe';
+const CACHE_NAME = 'charculogic-v20260928-audit-bypass';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
 const RELEASED_AT = '2026-09-26T13:35:00+02:00';
