@@ -209,6 +209,22 @@ export function requeueDeadPendingSyncs() {
   return requeued;
 }
 
+export function removeQueuedMutation(id) {
+  const target = String(id || '');
+  if (!target) return false;
+  const next = getPendingSyncs().filter((item) => item._id !== target);
+  return savePendingSyncs(next);
+}
+
+function isMhdAuditPath(collectionPath) {
+  return String(collectionPath || '').includes('/mhd_audit');
+}
+
+function isPermissionDeniedError(err) {
+  const code = String(err?.code || err?.message || '').toLowerCase();
+  return code.includes('permission-denied');
+}
+
 export function savePendingSyncs(queue) {
   const key = pendingSyncsKey();
   if (!key) {
@@ -706,6 +722,10 @@ export async function writeFirestoreDocOrQueue({
     if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return 'written';
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
+      if (isMhdAuditPath(normalizedCollectionPath)) {
+        console.warn('[CharcuLogic Sync] mhd_audit verworfen, Queue bleibt frei:', docId, err);
+        return 'skipped';
+      }
       if (!silentPermissionDenied) {
         notifyPermissionDeniedToast(normalizedCollectionPath, docId);
       }
@@ -749,6 +769,10 @@ export async function flushPendingSyncs() {
       try {
         await flushOnePendingSync(item);
       } catch (err) {
+        if (isMhdAuditPath(item._collectionPath) && isPermissionDeniedError(err)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, err);
+          continue;
+        }
         if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
         console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
         const attempts = (item._attempts || 0) + 1;

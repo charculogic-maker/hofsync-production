@@ -513,6 +513,8 @@ const MHD_ACTION_STYLES = {
   tonne: { label: '🗑️ ABSCHREIBEN / TONNE', color: '#F44336', bg: 'rgba(244, 67, 54, 0.14)' },
   rabatt50: { label: '🔥 50% RABATT', color: '#EF6C00', bg: 'rgba(239, 108, 0, 0.14)' },
   rabatt30: { label: '🏷️ 30% RABATT', color: '#F57F17', bg: 'rgba(245, 127, 23, 0.14)' },
+  rabatt20: { label: '🏷️ 20% RABATT', color: '#EF6C00', bg: 'rgba(239, 108, 0, 0.12)' },
+  rabatt10: { label: '🏷️ 10% RABATT', color: '#F9A825', bg: 'rgba(249, 168, 37, 0.16)' },
   pruefen: { label: '👀 PRÜFEN', color: '#1565C0', bg: 'rgba(21, 101, 192, 0.14)' },
   ok: { label: '✅ OK (Regal)', color: '#2E7D32', bg: 'rgba(46, 125, 50, 0.14)' },
 };
@@ -2113,12 +2115,75 @@ function getProductCategory(prod) {
   return storedCategory;
 }
 
-function resolveMhdActionKey(category, tage) {
+function mhdProductName(prod) {
+  if (!prod || typeof prod === 'string') return typeof prod === 'string' ? prod : '';
+  return prod.name || prod.produkt || prod.product || prod.artikelName || '';
+}
+
+function isFrischmilchName(name) {
+  const normalized = String(name || '').toLowerCase();
+  if (normalized.includes('haltbare') || normalized.includes('h-')) return false;
+  return normalized.includes('frischmilch')
+    || normalized.includes('vollmilch frisch')
+    || normalized.includes('weidemilch frisch');
+}
+
+function isMoproFamilyCategory(category) {
+  const normalized = String(category || '').toLowerCase();
+  return normalized.includes('mopro') || normalized.includes('kühlware') || normalized.includes('kuehlware');
+}
+
+function isTrockenCategory(category) {
+  const normalized = String(category || '').toLowerCase();
+  return normalized.includes('trocken') || normalized.includes('standard');
+}
+
+/** StevesHof-Rabatt in Prozent. null = Kategorie bleibt bei der bisherigen Matrix. */
+function stevesHofDiscountPercent(name, category, tage) {
+  if (!Number.isFinite(tage)) return null;
+  if (isFrischmilchName(name)) {
+    if (tage <= 0) return 20;
+    if (tage === 1) return 10;
+    return 0;
+  }
+  if (isMoproFamilyCategory(category)) {
+    if (tage <= 0) return 50;
+    if (tage === 1) return 30;
+    if (tage === 2) return 10;
+    return 0;
+  }
+  if (isTrockenCategory(category)) {
+    if (tage <= 7) return 50;
+    if (tage <= 15) return 20;
+    if (tage <= 30) return 10;
+    return 0;
+  }
+  return null;
+}
+
+function actionKeyFromDiscountPercent(percent) {
+  if (percent >= 50) return 'rabatt50';
+  if (percent >= 30) return 'rabatt30';
+  if (percent >= 20) return 'rabatt20';
+  if (percent >= 10) return 'rabatt10';
+  return 'ok';
+}
+
+function resolveMhdActionKey(category, tage, prod) {
+  const percent = stevesHofDiscountPercent(mhdProductName(prod), category, tage);
+  if (percent != null) return actionKeyFromDiscountPercent(percent);
   const rules = MHD_RABATT_MATRIX[category] || MHD_RABATT_MATRIX['🥛MoPro'];
   if (tage <= rules.tonne) return 'tonne';
   if (tage <= rules.rabatt50) return 'rabatt50';
   if (tage <= rules.rabatt30) return 'rabatt30';
   if (tage <= rules.pruefen) return 'pruefen';
+  return 'ok';
+}
+
+function mhdStatusFromActionKey(actionKey) {
+  if (actionKey === 'tonne') return 'expired';
+  if (actionKey === 'rabatt50' || actionKey === 'rabatt30' || actionKey === 'rabatt20' || actionKey === 'rabatt10') return 'critical';
+  if (actionKey === 'pruefen') return 'warning';
   return 'ok';
 }
 
@@ -2348,23 +2413,22 @@ function openPostenHistory(prodId) {
 function computeMhdAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
-  const key = resolveMhdActionKey(category, tage);
-  if (key === 'pruefen' && category === MHD_TROCKEN_CATEGORY) {
-    return { label: '📦 SONDERFLÄCHE / 20%', color: '#F57F17', bg: 'rgba(245, 127, 23, 0.14)' };
-  }
-  return MHD_ACTION_STYLES[key];
+  const key = resolveMhdActionKey(category, tage, prod);
+  return MHD_ACTION_STYLES[key] || MHD_ACTION_STYLES.ok;
 }
 
 function getMhdCardAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
-  const key = resolveMhdActionKey(category, tage);
+  const key = resolveMhdActionKey(category, tage, prod);
   const action = computeMhdAction(prod);
   const shortLabels = {
     tonne: 'Abschreiben',
     rabatt50: '50%',
     rabatt30: '30%',
-    pruefen: category === MHD_TROCKEN_CATEGORY ? '20%' : 'Prüfen',
+    rabatt20: '20%',
+    rabatt10: '10%',
+    pruefen: 'Prüfen',
     ok: 'OK',
   };
   return {
@@ -2474,8 +2538,8 @@ function mapMhdDoc(doc) {
   });
   let status = data.status;
   if (!data.soldOut && Number.isFinite(Number(tage))) {
-    const actionKey = resolveMhdActionKey(category, tage);
-    status = actionKey === 'tonne' ? 'expired' : actionKey === 'rabatt50' || actionKey === 'rabatt30' ? 'critical' : actionKey === 'pruefen' ? 'warning' : 'ok';
+    const actionKey = resolveMhdActionKey(category, tage, data);
+    status = mhdStatusFromActionKey(actionKey);
   }
   return {
     ...data,
@@ -3226,14 +3290,8 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
   }
   const tage = computeResttageFromMhd(draft.newIso);
   const category = getProductCategory(draft.prod);
-  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(category, tage) : 'ok';
-  const status = actionKey === 'tonne'
-    ? 'expired'
-    : actionKey === 'rabatt50' || actionKey === 'rabatt30'
-      ? 'critical'
-      : actionKey === 'pruefen'
-        ? 'warning'
-        : 'ok';
+  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(category, tage, draft.prod) : 'ok';
+  const status = mhdStatusFromActionKey(actionKey);
   const updatedAtIso = new Date().toISOString();
   const onlineData = {
     mhd: draft.newIso,
