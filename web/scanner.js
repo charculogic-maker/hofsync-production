@@ -91,12 +91,33 @@ function cleanScannedBarcode(rawCode) {
   return String(rawCode || '').trim().replace(/[^0-9]/g, '');
 }
 
+function isMhdMonitorPageActive() {
+  return Boolean(document.getElementById('page-mhd')?.classList.contains('active'));
+}
+
+function openExistingMhdBatches(code) {
+  if (!isMhdMonitorPageActive()) return false;
+  const openInspection = window.openMhdBatchInspection;
+  if (typeof openInspection !== 'function') return false;
+  return openInspection(code) === true;
+}
+
 function emitScanSuccess(decodedText) {
   if (!scannerRunning) return;
   const code = cleanScannedBarcode(decodedText);
   if (!code) return;
   scannerRunning = false;
   clearDetectionTimeouts();
+  let opened = false;
+  try {
+    opened = openExistingMhdBatches(code);
+  } catch (err) {
+    console.warn('[CharcuLogic Scanner] Multi-MHD-Stichprobe fehlgeschlagen:', err);
+  }
+  if (opened) {
+    closeScanner();
+    return;
+  }
   scannerContext.onScanSuccess(code);
 }
 

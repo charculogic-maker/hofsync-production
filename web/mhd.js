@@ -1704,6 +1704,12 @@ async function handleScannedEan(ean) {
     return;
   }
 
+  if (openMhdBatchInspection(scannedCode)) {
+    if (activeScan) activeScan.handled = true;
+    mhdState.playFeedbackSound('success');
+    return;
+  }
+
   showUnknownBarcodePromptForMhd(scannedCode);
 }
 
@@ -2842,6 +2848,243 @@ export function updateMhdAdminSearchVisibility(isAdmin = isOfficeUser()) {
   }
 }
 
+function normalizeArticleName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function articleLookup(articleOrEan) {
+  if (articleOrEan && typeof articleOrEan === 'object') {
+    return {
+      ean: cleanScannedBarcode(articleOrEan.ean || articleOrEan.barcode || articleOrEan.scanBarcode || ''),
+      name: normalizeArticleName(articleOrEan.artikelName || articleOrEan.name || articleOrEan.produkt || ''),
+    };
+  }
+  const raw = String(articleOrEan || '').trim();
+  const byId = (mhdState.products || []).find((entry) => entry.id === raw);
+  if (byId) return articleLookup(byId);
+  const ean = cleanScannedBarcode(raw);
+  if (ean && ean === raw.replace(/\s+/g, '')) {
+    const named = (mhdState.products || []).find((entry) =>
+      cleanScannedBarcode(entry.ean || entry.barcode || entry.scanBarcode) === ean
+    );
+    return {
+      ean,
+      name: named ? normalizeArticleName(named.artikelName || named.name || named.produkt) : '',
+    };
+  }
+  return { ean: '', name: normalizeArticleName(raw) };
+}
+
+function mhdItemQuantity(item) {
+  const qty = Number(item?.menge ?? item?.qty ?? 0);
+  return Number.isFinite(qty) ? qty : 0;
+}
+
+function isOpenMhdBatch(item) {
+  if (!item || item.soldOut) return false;
+  const status = String(item.status || '').toLowerCase();
+  if (status === 'disposed' || status === 'sold_out') return false;
+  return mhdItemQuantity(item) > 0;
+}
+
+function batchExpiryStamp(item) {
+  const iso = normalizeDateInputToIso(getExplicitMhdDateValue(item));
+  if (!iso) return Number.POSITIVE_INFINITY;
+  const time = new Date(`${iso}T00:00:00`).getTime();
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
+export function getBatchesForArticle(articleOrEan) {
+  const query = articleLookup(articleOrEan);
+  if (!query.ean && !query.name) return [];
+  return (mhdState.products || [])
+    .filter((item) => {
+      if (!isOpenMhdBatch(item)) return false;
+      const itemEan = cleanScannedBarcode(item.ean || item.barcode || item.scanBarcode);
+      const itemName = normalizeArticleName(item.artikelName || item.name || item.produkt);
+      const eanMatch = Boolean(query.ean && itemEan && itemEan === query.ean);
+      const nameMatch = Boolean(query.name && itemName && itemName === query.name);
+      return eanMatch || nameMatch;
+    })
+    .sort((left, right) => batchExpiryStamp(left) - batchExpiryStamp(right));
+}
+
+function formatRestlaufzeit(tage) {
+  if (!Number.isFinite(tage)) return 'Datum offen';
+  if (tage < 0) return `seit ${Math.abs(tage)} Tagen abgelaufen`;
+  if (tage === 0) return 'heute';
+  if (tage === 1) return 'morgen';
+  return `in ${tage} Tagen`;
+}
+
+function formatStevesHofDiscount(prod) {
+  const tage = getMhdResttage(prod);
+  const percent = stevesHofDiscountPercent(mhdProductName(prod), getProductCategory(prod), tage);
+  if (percent == null) return getMhdCardAction(prod).label;
+  return percent === 0 ? '0 %' : `-${percent} %`;
+}
+
+function parseStichprobeDate(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 6) {
+    return normalizeDateInputToIso(`${digits.slice(0, 2)}.${digits.slice(2, 4)}.20${digits.slice(4, 6)}`);
+  }
+  if (digits.length === 8) {
+    return normalizeDateInputToIso(`${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4, 8)}`);
+  }
+  return normalizeDateInputToIso(raw);
+}
+
+function rememberLocalMhdBatch(payload) {
+  const local = {
+    ...payload,
+    id: payload.id,
+    name: payload.name,
+    qty: payload.qty,
+    menge: payload.menge,
+    tage: payload.tage,
+    soldOut: false,
+  };
+  const existing = mhdState.products.findIndex((entry) => entry.id === payload.id);
+  if (existing >= 0) mhdState.products[existing] = { ...mhdState.products[existing], ...local };
+  else mhdState.products.push(local);
+}
+
+async function saveStichprobeBatch(source, rawDate, rawQty) {
+  const iso = parseStichprobeDate(rawDate);
+  const qty = Math.round(Number(rawQty));
+  if (!iso) {
+    mhdState.showHUD('MHD fehlt', 'Bitte das Datum als TTMMJJ eingeben.', '!');
+    return false;
+  }
+  if (!Number.isFinite(qty) || qty < 1) {
+    mhdState.showHUD('Menge fehlt', 'Bitte mindestens 1 Stück eintragen.', '!');
+    return false;
+  }
+  const name = mhdProductName(source) || 'Artikel';
+  const ean = cleanScannedBarcode(source.ean || source.barcode || source.scanBarcode);
+  const kategorie = getProductCategory(source);
+  const tage = computeResttageFromMhd(iso);
+  const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(kategorie, tage, source) : 'ok';
+  const postenId = createReceivingPostenId(ean || source.id || 'stichprobe', iso);
+  const payload = {
+    id: postenId,
+    postenId,
+    produkt: name,
+    name,
+    marke: source.marke || source.brand || '',
+    brand: source.brand || source.marke || '',
+    mhd: iso,
+    mhdDate: iso,
+    mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'Stichprobe',
+    date: mhdDateToDisplay(iso),
+    tage,
+    resttage: tage,
+    status: mhdStatusFromActionKey(actionKey),
+    qty,
+    menge: qty,
+    eingangMenge: qty,
+    einheit: 'Stk',
+    mengeEinheit: 'Stk',
+    kategorie,
+    warenKategorie: source.warenKategorie || kategorie,
+    soldOut: false,
+    source: 'mhd-stichprobe',
+    postentyp: 'stichprobe',
+    erfassungsDatum: new Date().toISOString().slice(0, 10),
+    wareneingangAt: new Date().toISOString(),
+    tenantId: mhdState.tenantId,
+  };
+  if (ean) {
+    payload.ean = ean;
+    payload.barcode = ean;
+    payload.scanBarcode = ean;
+  }
+  const audited = withSanitizedMhdAudit(payload, { ...payload, updatedAt: new Date().toISOString() });
+  await mhdState.writeOrQueueFirestore({
+    collectionPath: mhdCollectionPath(),
+    docId: postenId,
+    op: 'set',
+    onlineData: audited.onlineData,
+    queueData: audited.queueData,
+    offlineMessage: 'Neues MHD aus der Stichprobe wird nachträglich synchronisiert.',
+  });
+  rememberLocalMhdBatch(payload);
+  renderMhdList();
+  mhdState.showHUD('MHD erfasst', `${name} · ${formatIsoToGermanDate(iso) || iso} · ${qty} Stück`);
+  return true;
+}
+
+function openStichprobeModal(prod) {
+  const batches = getBatchesForArticle(prod);
+  const name = mhdProductName(prod) || 'Artikel';
+  const ean = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode) || '–';
+  const category = getCategoryBadgeLabel(prod);
+  const rows = batches.length
+    ? batches.map((entry) => {
+      const dateLabel = formatMhdDateForCardMeta(entry) || 'ohne Datum';
+      const qty = mhdItemQuantity(entry);
+      const unit = Number.isInteger(qty) ? qty : qty;
+      return `
+        <div class="utility-row">
+          <div class="utility-row-title">${escapeHtml(dateLabel)}</div>
+          <div class="utility-row-meta">${escapeHtml(formatRestlaufzeit(getMhdResttage(entry)))} · ${escapeHtml(unit)} Stück · Rabatt ${escapeHtml(formatStevesHofDiscount(entry))}</div>
+        </div>
+      `;
+    }).join('')
+    : '<div class="utility-row"><div class="utility-row-meta">Keine offenen MHDs im System.</div></div>';
+
+  showUtilityDialog('Stichprobe / Regal-Abgleich', `
+    <p class="learn-mode-desc">${escapeHtml(name)} · EAN ${escapeHtml(ean)} · ${escapeHtml(category)}</p>
+    <div class="utility-list">${rows}</div>
+    <div id="stichprobe-capture" hidden style="margin-top:12px;">
+      <label class="learn-mode-label">Neues MHD
+        <input type="text" id="stichprobe-date" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="TTMMJJ (z.B. 101026)">
+      </label>
+      <label class="learn-mode-label">Menge
+        <input type="number" id="stichprobe-qty" class="input-text-touch" min="1" step="1" value="1" inputmode="numeric">
+      </label>
+      <button type="button" class="btn btn-primary" id="stichprobe-save" style="width:100%;min-height:52px;">In die MHD-Liste schreiben</button>
+    </div>
+    <button type="button" class="btn btn-primary" id="stichprobe-add" style="width:100%;min-height:52px;margin-top:12px;">➕ Weiteres MHD im Regal gefunden</button>
+  `);
+
+  document.getElementById('stichprobe-add')?.addEventListener('click', () => {
+    const capture = document.getElementById('stichprobe-capture');
+    if (capture) capture.hidden = false;
+    document.getElementById('stichprobe-date')?.focus();
+  });
+  document.getElementById('stichprobe-save')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (button) button.disabled = true;
+    try {
+      const saved = await saveStichprobeBatch(
+        prod,
+        document.getElementById('stichprobe-date')?.value,
+        document.getElementById('stichprobe-qty')?.value,
+      );
+      if (saved) openStichprobeModal(prod);
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'saveStichprobeBatch')) return;
+      console.error('[CharcuLogic MHD] Stichproben-MHD speichern fehlgeschlagen:', err);
+      mhdState.showHUD('Fehler', 'Das zusätzliche MHD konnte nicht gespeichert werden.', '!');
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+}
+
+function openMhdBatchInspection(articleOrEan) {
+  const batches = getBatchesForArticle(articleOrEan);
+  if (!batches.length) return false;
+  openStichprobeModal(batches[0]);
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.openMhdBatchInspection = openMhdBatchInspection;
+}
+
 function buildMhdCardHtml(prod = {}) {
   const action = getMhdCardAction(prod);
   const resttage = getMhdResttage(prod);
@@ -2857,6 +3100,7 @@ function buildMhdCardHtml(prod = {}) {
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
+  const batchCount = getBatchesForArticle(prod).length;
   const retterBoxAction = window.BRANDING?.modules?.retterBox === true
     ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
     : '';
@@ -2870,6 +3114,7 @@ function buildMhdCardHtml(prod = {}) {
           ${escapeHtml(categoryBadgeLabel)}
         </button>
       </div>
+      <button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}" style="margin:0 0 8px;padding:2px 0;border:0;background:transparent;color:#666;font-size:13px;text-align:left;">🔍 Alle MHDs (${batchCount})</button>
       <div class="mhd-card-header">
         <div class="mhd-product-info">
           <span class="mhd-product-name">${prod.name}</span>
@@ -3594,6 +3839,10 @@ function bindMhdCardActions() {
     if (command === 'retterbox') addMhdItemToRetterBox(id);
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
+    if (command === 'stichprobe') {
+      const prod = mhdState.products.find((entry) => entry.id === id);
+      if (prod) openStichprobeModal(prod);
+    }
   });
   page.addEventListener('change', (event) => {
     if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
