@@ -253,11 +253,6 @@ async function writeMhdAuditDirect(db, firebase, collectionPath, docId, op, payl
   await tenantFirestoreDocRef(db, collectionPath, docId).set(body);
 }
 
-function isPermissionDeniedError(err) {
-  const code = String(err?.code || err?.message || '').toLowerCase();
-  return code.includes('permission-denied');
-}
-
 export function savePendingSyncs(queue) {
   const key = pendingSyncsKey();
   if (!key) {
@@ -462,8 +457,8 @@ function isPermissionOrExistsError(err) {
 }
 
 export function isPermissionDeniedError(err) {
-  const code = String(err?.code || '').toLowerCase();
-  return code.includes('permission-denied') || code === 'permission-denied';
+  const code = String(err?.code || err?.message || '').toLowerCase();
+  return code.includes('permission-denied');
 }
 
 const permissionToastState = { lastAt: 0 };
