@@ -1,6 +1,6 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
-import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField, resolveMonthEndMhd } from './date-input.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -453,6 +453,25 @@ function recordInventoryProfileActivity() {
   window.touchProfileLastActionTime?.();
 }
 
+function releaseReceivingActionButtons() {
+  const saveBtn = document.getElementById('we-save-delivery-btn');
+  const draftBtn = document.getElementById('we-save-draft-btn');
+  if (saveBtn) delete saveBtn.dataset.receivingSaveLock;
+  if (draftBtn) delete draftBtn.dataset.receivingSaveLock;
+  if (saveBtn) {
+    const canFinalize = currentDeliveryItems.length > 0;
+    saveBtn.disabled = !canFinalize;
+    saveBtn.setAttribute('aria-disabled', canFinalize ? 'false' : 'true');
+    saveBtn.textContent = activeEditingDraftId ? DRAFT_FINALIZE_LABEL : DEFAULT_FINALIZE_LABEL;
+  }
+  if (draftBtn && !draftBtn.hidden) {
+    const canDraft = !activeEditingDraftId && currentDeliveryItems.length > 0;
+    draftBtn.disabled = !canDraft;
+    draftBtn.setAttribute('aria-disabled', canDraft ? 'false' : 'true');
+    draftBtn.textContent = '📝 Als offenen Entwurf speichern';
+  }
+}
+
 function beginReceivingSaveButtonLock(button, restoreState) {
   if (!button || button.dataset.receivingSaveLock === '1') return false;
   button.dataset.receivingSaveLock = '1';
@@ -784,6 +803,26 @@ function refreshMhdToolbarSummary() {
 const VPE_MASTER_STORAGE_KEY = 'charculogic.vpeMaster.v1';
 const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
 const VPE_MASTER_CSV_URL = 'vpe-master.csv';
+
+/** Praxis-Alias: VPE-EAN → Einzelpackung (TK). */
+const RECEIVING_ALIAS_CATALOG = [
+  {
+    ean: '4260100263774',
+    name: 'Bio Brokkoli',
+    category: '❄️ TK',
+    aliasEans: ['4260100268779'],
+    packageSize: 8,
+    vpeLabel: '8x300g',
+  },
+  {
+    ean: '4026584903465',
+    name: 'Bio Mango gewürfelt',
+    category: '❄️ TK',
+    aliasEans: ['4026584903465'],
+    packageSize: 6,
+    vpeLabel: '6x300g',
+  },
+];
 
 let lastReceivingHeadCategory = '';
 let lastMhdScanCategory = '';
@@ -1398,7 +1437,95 @@ function createReceivingPostenId(barcode, mhdDate) {
   ].filter(Boolean).join('_');
 }
 
+function lookupAliasCatalogProduct(scannedCode) {
+  const clean = cleanScannedBarcode(scannedCode);
+  if (!clean) return null;
+  for (const entry of RECEIVING_ALIAS_CATALOG) {
+    for (const alias of entry.aliasEans || []) {
+      if (cleanScannedBarcode(alias) === clean) {
+        return {
+          barcode: entry.ean,
+          scanBarcode: clean,
+          name: entry.name,
+          category: entry.category,
+          isVpe: true,
+          packageSize: entry.packageSize,
+          vpeLabel: entry.vpeLabel,
+          matchedAlias: clean,
+          source: 'alias-katalog',
+        };
+      }
+    }
+    if (cleanScannedBarcode(entry.ean) === clean) {
+      return {
+        barcode: entry.ean,
+        name: entry.name,
+        category: entry.category,
+        packageSize: 1,
+        vpeLabel: entry.vpeLabel,
+        source: 'alias-katalog',
+      };
+    }
+  }
+  return null;
+}
+
+function searchReceivingArticlesByName(query = '', limit = 8) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (needle.length < 2) return [];
+  if (/^\d{4,}$/.test(needle)) {
+    const hit = lookupScannedProduct(needle);
+    return hit ? [hit] : [];
+  }
+  const hits = [];
+  const seen = new Set();
+  const push = (item) => {
+    const key = `${cleanScannedBarcode(item.barcode || item.ean || '')}|${String(item.name || '').toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    hits.push(item);
+  };
+  RECEIVING_ALIAS_CATALOG.forEach((entry) => {
+    if (entry.name.toLowerCase().includes(needle)) {
+      push({
+        barcode: entry.ean,
+        name: entry.name,
+        category: entry.category,
+        packageSize: entry.packageSize,
+        vpeLabel: entry.vpeLabel,
+        source: 'alias-katalog',
+      });
+    }
+  });
+  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  Object.values(productMaster).forEach((entry) => {
+    if (String(entry.name || '').toLowerCase().includes(needle)) push({ ...entry, source: 'lokale-stammdaten' });
+  });
+  mhdState.products.forEach((prod) => {
+    const name = String(prod.name || prod.produkt || '');
+    if (name.toLowerCase().includes(needle)) {
+      push({
+        barcode: cleanScannedBarcode(prod.ean || prod.barcode || ''),
+        name,
+        brand: prod.brand || prod.marke || '',
+        category: normalizeMhdCategory(prod.kategorie || prod.category || ''),
+        source: 'bestand',
+      });
+    }
+  });
+  return hits.slice(0, limit);
+}
+
 function lookupScannedProduct(scannedCode) {
+  const aliasHit = lookupAliasCatalogProduct(scannedCode);
+  if (aliasHit) {
+    const existingProduct = mhdState.products.find((p) => {
+      const productBarcode = cleanScannedBarcode(p.ean || p.barcode || p.id);
+      return productBarcode === cleanScannedBarcode(aliasHit.barcode) || productBarcode === scannedCode;
+    });
+    return { ...aliasHit, existingProduct };
+  }
+
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
   if (vpeMaster[scannedCode]) {
     const existingProduct = mhdState.products.find(p => cleanScannedBarcode(p.ean || p.barcode || p.id) === scannedCode);
@@ -1500,10 +1627,18 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   const info = lookupScannedProduct(code);
   const productNameEl = document.getElementById('we-product-name');
   const herstellerEl = document.getElementById('we-hersteller-zusatz');
+  const qtyEl = document.getElementById('we-qty');
   if (info?.name) {
     currentDeliveryItemProduct = String(info.name).trim();
     if (productNameEl) productNameEl.value = currentDeliveryItemProduct;
     if (herstellerEl && info.brand) herstellerEl.value = String(info.brand).trim();
+    if (info.isVpe && Number(info.packageSize) > 1 && qtyEl) {
+      qtyEl.value = String(Math.max(1, Number(info.packageSize)));
+      window.showToast?.(
+        `Gebinde erkannt${info.vpeLabel ? ` (${info.vpeLabel})` : ''}: ${info.packageSize} Packungen vorgewählt.`,
+        'info',
+      );
+    }
     const selectedCategory = document.getElementById('we-category-quick')?.value || '';
     if (!selectedCategory && info.category) {
       const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
@@ -1688,7 +1823,7 @@ async function handleScannedEan(ean) {
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: existing.id,
-        op: 'update',
+        op: 'set',
         onlineData: audited.onlineData,
         queueData: audited.queueData,
         offlineMessage: 'Bestandsaenderung wird nachtraeglich synchronisiert.',
@@ -3887,11 +4022,12 @@ function ensureManualBarcodeFallback() {
   panel.id = 'mhd-manual-barcode-fallback';
   panel.className = 'manual-barcode-fallback';
   panel.innerHTML = `
-    <div class="manual-barcode-title">Manuelle Barcode-Eingabe</div>
+    <div class="manual-barcode-title">🔍 Manuelle Suche / EAN</div>
     <div class="manual-barcode-row">
-      <input type="text" id="manual-barcode-input" class="manual-barcode-input" placeholder="Barcode-Nummer eingeben..." inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="text" id="manual-barcode-input" class="manual-barcode-input" placeholder="EAN oder Name (z.B. Schedel)" autocomplete="off">
       <button type="button" id="btn-manual-barcode-fallback-submit" class="btn btn-primary manual-barcode-submit">OK</button>
     </div>
+    <div id="manual-barcode-search-hits" class="manual-barcode-hits" hidden></div>
   `;
   scanButton.insertAdjacentElement('afterend', panel);
   updateManualBarcodeFallback();
@@ -3900,18 +4036,95 @@ function ensureManualBarcodeFallback() {
 function updateManualBarcodeFallback() {
   const panel = document.getElementById('mhd-manual-barcode-fallback');
   if (!panel) return;
-  panel.style.display = isCameraBlockedForPwa() ? 'block' : 'none';
+  // Immer erreichbar: Textsuche für barcodefreie Ware + Kamera-Fallback
+  panel.style.display = 'block';
+}
+
+function renderManualArticleSearchHits(container, hits, onPick) {
+  if (!container) return;
+  if (!hits.length) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+  container.hidden = false;
+  container.innerHTML = hits.map((hit, index) => {
+    const label = escapeHtml(hit.name || 'Artikel');
+    const meta = escapeHtml([
+      hit.category || '',
+      hit.barcode || hit.ean || '',
+      hit.vpeLabel || (hit.packageSize > 1 ? `${hit.packageSize} Stk` : ''),
+    ].filter(Boolean).join(' · '));
+    return `<button type="button" class="manual-barcode-hit" data-hit-index="${index}">${label}<span>${meta}</span></button>`;
+  }).join('');
+  container.querySelectorAll('[data-hit-index]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const hit = hits[Number(btn.dataset.hitIndex)];
+      if (hit) onPick(hit);
+    });
+  });
+}
+
+function applyReceivingArticleHit(hit) {
+  const code = cleanScannedBarcode(hit.barcode || hit.ean || hit.scanBarcode || '');
+  if (code) {
+    applyBarcodeToDeliveryItemDraft(code);
+    return;
+  }
+  const productNameEl = document.getElementById('we-product-name');
+  if (hit.name && productNameEl) {
+    productNameEl.value = hit.name;
+    currentDeliveryItemProduct = hit.name;
+  }
+  if (hit.category) {
+    const mappedCategory = mapMhdCategoryToHeadCategory(hit.category);
+    const categorySelect = document.getElementById('we-category-quick');
+    if (mappedCategory && categorySelect) {
+      const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
+      if (hasOption) {
+        categorySelect.value = mappedCategory;
+        rememberReceivingHeadCategory(mappedCategory);
+        updateReceivingQtyFieldUi();
+      }
+    }
+  }
+  updateDeliveryItemProductUi();
+  setReceivingMode('schnell');
+  document.getElementById('we-mhd')?.focus();
 }
 
 function submitManualBarcodeFrom(inputEl) {
-  const code = cleanScannedBarcode(inputEl?.value);
-  if (!code) {
-    setScannerStatus('Kein Barcode eingegeben.');
+  const raw = String(inputEl?.value || '').trim();
+  if (!raw) {
+    setScannerStatus('Kein Barcode oder Name eingegeben.');
     inputEl?.focus();
     return;
   }
-  renderReceivingStatus({ lastScan: code, status: 'Manuelle Eingabe' });
-  processScannedBarcode(code, 'manual');
+  const digits = raw.replace(/\D/g, '');
+  if (/^\d{4,}$/.test(digits) && digits.length === raw.replace(/\s/g, '').length) {
+    const code = cleanScannedBarcode(digits);
+    renderReceivingStatus({ lastScan: code, status: 'Manuelle Eingabe' });
+    processScannedBarcode(code, 'manual');
+    return;
+  }
+  const hits = searchReceivingArticlesByName(raw);
+  const hitsEl = document.getElementById('manual-barcode-search-hits')
+    || document.getElementById('scanner-manual-search-hits');
+  if (hits.length === 1) {
+    applyReceivingArticleHit(hits[0]);
+    mhdState.closeScanner?.({ preserveScanState: true });
+    return;
+  }
+  if (hits.length > 1) {
+    renderManualArticleSearchHits(hitsEl, hits, (hit) => {
+      applyReceivingArticleHit(hit);
+      mhdState.closeScanner?.({ preserveScanState: true });
+    });
+    setScannerStatus(`${hits.length} Treffer – bitte auswählen.`);
+    return;
+  }
+  setScannerStatus('Kein Artikel gefunden. Anderen Namen oder EAN versuchen.');
+  window.showToast?.('Kein Treffer für die Suche.', 'warning');
 }
 
 function mapWarenKategorieToMhdKategorie(warenKategorie) {
@@ -4042,6 +4255,11 @@ function normalizeDateInputToIso(value = '') {
   if (!raw) return '';
   if (isIsoDateLike(raw)) return isoDateToDotted(raw) ? raw : '';
   if (isDottedDateLike(raw)) return dottedDateToIso(raw);
+  const digitsOnly = raw.replace(/\D/g, '');
+  if (digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(raw)) {
+    const monthEnd = resolveMonthEndMhd(raw);
+    if (monthEnd) return monthEnd;
+  }
   return '';
 }
 
@@ -4193,6 +4411,9 @@ async function persistDeliveryDraftToIndexedDB() {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+    console.info(
+      `[CharcuLogic MHD] ${currentDeliveryItems.length} Lieferposten lokal in IndexedDB ${DELIVERY_DRAFT_DB_NAME}/${DELIVERY_DRAFT_STORE}/${DELIVERY_DRAFT_KEY}`,
+    );
     db.close();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Lieferungs-Entwurf konnte nicht in IndexedDB gespeichert werden:', err);
@@ -4211,6 +4432,7 @@ async function loadDeliveryDraftFromIndexedDB() {
     });
     db.close();
     if (!payload) return;
+    const restoredCount = Array.isArray(payload.items) ? payload.items.length : 0;
     if (Array.isArray(payload.items)) currentDeliveryItems = payload.items;
     if (Array.isArray(payload.photos)) currentDeliveryPhotos = payload.photos;
     if (payload.head) {
@@ -4229,7 +4451,15 @@ async function loadDeliveryDraftFromIndexedDB() {
     }
     renderDeliveryPhotoPreviews();
     renderDeliveryItemsTable();
-    updateReceivingSaveButtonState();
+    if (restoredCount > 0) {
+      releaseReceivingActionButtons();
+      console.info(
+        `[CharcuLogic MHD] ${restoredCount} Lieferposten aus IndexedDB ${DELIVERY_DRAFT_DB_NAME}/${DELIVERY_DRAFT_STORE}/${DELIVERY_DRAFT_KEY} wiederhergestellt`,
+      );
+      window.showToast?.(`${restoredCount} Posten aus lokalem Entwurf wiederhergestellt.`, 'info');
+    } else {
+      updateReceivingSaveButtonState();
+    }
   } catch (err) {
     console.warn('[CharcuLogic MHD] Lieferungs-Entwurf konnte nicht aus IndexedDB geladen werden:', err);
   }
@@ -4785,6 +5015,12 @@ async function saveDeliveryDraft() {
     return;
   }
   if (!currentDeliveryPhotos.length) {
+    await persistDeliveryDraftToIndexedDB();
+    if (currentDeliveryItems.length) {
+      window.showToast?.(`${currentDeliveryItems.length} Posten bleiben auf diesem Gerät im lokalen Entwurf.`, 'warning');
+      mhdState.showHUD('Lokal gesichert', 'Die gescannten Posten liegen auf diesem iPhone, bis die Lieferung abgeschlossen wird.');
+      return;
+    }
     setReceivingMode('metzgerei');
     mhdState.showHUD('Foto fehlt', 'Mindestens ein Lieferschein-Foto ist für den Entwurf Pflicht.', '!');
     document.getElementById('we-photo-btn')?.focus();
@@ -4839,10 +5075,7 @@ async function saveDeliveryDraft() {
     mhdState.showHUD('Fehler', 'Entwurf konnte nicht gespeichert werden.', '!');
     window.showToast?.('Entwurf konnte nicht gespeichert werden.', 'error');
   } finally {
-    if (draftBtn) {
-      draftBtn.textContent = '📝 Als offenen Entwurf speichern';
-      updateReceivingSaveButtonState();
-    }
+    releaseReceivingActionButtons();
   }
 }
 
@@ -5037,6 +5270,7 @@ async function finalizeDelivery() {
   if (queuedBundle) queuedBundle.tenantId = activeTenantId;
 
   let finalizeTargetPath = deliveryPath;
+  let finalizeFailed = false;
 
   try {
     if (saveBtn) {
@@ -5076,6 +5310,7 @@ async function finalizeDelivery() {
     const mhdResults = await Promise.allSettled(mhdWrites);
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
     if (rejectedMhdWrite) {
+      finalizeFailed = true;
       console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
       window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
       mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
@@ -5095,13 +5330,17 @@ async function finalizeDelivery() {
     renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
     window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
   } catch (err) {
+    finalizeFailed = true;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
     const message = String(err?.message || err || 'Unbekannter Fehler');
     window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
     mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    if (maybeResetOnFirestorePermissionError(err, 'finalizeDelivery')) return;
+    maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
   } finally {
-    if (saveBtn) {
+    if (finalizeFailed) {
+      await persistDeliveryDraftToIndexedDB();
+      releaseReceivingActionButtons();
+    } else if (saveBtn) {
       saveBtn.textContent = activeEditingDraftId ? DRAFT_FINALIZE_LABEL : DEFAULT_FINALIZE_LABEL;
       updateReceivingSaveButtonState();
     }
@@ -5155,7 +5394,7 @@ function updateReceivingSaveButtonState() {
   }
 
   if (draftBtn && !draftBtn.hidden) {
-    const canDraft = hasSupplier && hasPhotos && !activeEditingDraftId;
+    const canDraft = !activeEditingDraftId && (currentDeliveryItems.length > 0 || (hasSupplier && hasPhotos));
     draftBtn.disabled = !canDraft;
     draftBtn.setAttribute('aria-disabled', canDraft ? 'false' : 'true');
   }

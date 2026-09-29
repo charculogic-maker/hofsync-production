@@ -579,7 +579,7 @@ async function preferredHtml5CameraConfig() {
   }
 
   return {
-    facingMode: { exact: 'environment' },
+    facingMode: { ideal: 'environment' },
     width: { ideal: 1280 },
     height: { ideal: 720 },
   };

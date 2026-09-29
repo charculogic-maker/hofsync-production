@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260928-audit-bypass';
+const CACHE_NAME = 'charculogic-v20260929-tk-upgrade';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
 const RELEASED_AT = '2026-09-26T13:35:00+02:00';
@@ -90,9 +90,9 @@ self.addEventListener('install', (event) => {
         }
       }
 
+      await self.skipWaiting();
     })()
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -273,6 +273,11 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/auth.js')
     || pathname.endsWith('/auth-errors.js')
     || pathname.endsWith('/sw.js')
+    || pathname.endsWith('/sync.js')
+    || pathname.endsWith('/mhd.js')
+    || pathname.endsWith('/delivery-note.js')
+    || pathname.endsWith('/scanner.js')
+    || pathname.endsWith('/tenant-db.js')
   );
   if (isCoreModule) {
     const cleanRequest = new Request(url.pathname, {

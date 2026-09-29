@@ -221,6 +221,20 @@ function isMhdAuditPath(collectionPath) {
   return value === 'mhd_audit' || value.endsWith('mhd_audit');
 }
 
+function isMhdListePath(collectionPath) {
+  const leaf = String(collectionPath || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+  return leaf === 'mhd_liste';
+}
+
+/** Neuer Posten wird angelegt, bestehender Posten wird gemerged. Kein update() auf fehlende Dokumente. */
+function upsertMhdListeDoc(ref, payload, firebase, writeOp) {
+  const setPayload = { ...(payload || {}) };
+  if ((writeOp === 'set' || writeOp === 'create') && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return ref.set(setPayload, { merge: true });
+}
+
 /** Append-only Audit: kein Server-Get. set bei bekannter ID, sonst add. */
 async function writeMhdAuditDirect(db, firebase, collectionPath, docId, op, payload) {
   const body = { ...(payload || {}) };
@@ -573,6 +587,8 @@ export async function flushOnePendingSync(item) {
     try {
       if (writeOp === 'delete') {
         await ref.delete();
+      } else if (isMhdListePath(collectionPath)) {
+        await upsertMhdListeDoc(ref, payload, firebase, writeOp);
       } else if (writeOp === 'set') {
         const setPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -726,6 +742,8 @@ export async function writeFirestoreDocOrQueue({
     let writePromise;
     if (writeOp === 'delete') {
       writePromise = ref.delete();
+    } else if (isMhdListePath(normalizedCollectionPath)) {
+      writePromise = upsertMhdListeDoc(ref, onlinePayload, firebase, writeOp);
     } else if (writeOp === 'set') {
       const setPayload = { ...onlinePayload };
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {

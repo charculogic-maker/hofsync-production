@@ -940,7 +940,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
+                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ oder MMJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -2004,10 +2004,13 @@
           <div class="scanner-status-panel">
             <div id="scanner-status-text">Scanner wird vorbereitet...</div>
             <div class="scanner-manual-entry" id="scanner-manual-entry">
-              <input id="scanner-manual-barcode-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Barcode">
-              <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              <div class="scanner-manual-entry-row">
+                <input id="scanner-manual-barcode-input" inputmode="search" autocomplete="off" placeholder="EAN oder Name (z.B. Schedel)">
+                <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              </div>
+              <div id="scanner-manual-search-hits" class="manual-barcode-hits" hidden></div>
             </div>
-            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">Eintippen</button>
+            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">🔍 Manuelle Suche / EAN</button>
           </div>
         </div>
 

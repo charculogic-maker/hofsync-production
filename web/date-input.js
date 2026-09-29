@@ -1,5 +1,6 @@
 /**
  * Deutsche Datumsfelder (TT.MM.JJJJ) – einheitlich in der gesamten App.
+ * Monats-MHD (LMIV Ultimo): MMJJ / MM-YYYY → letzter Kalendertag.
  */
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,6 +13,38 @@ function isValidDateParts(year, month, day) {
   return probe.getFullYear() === year
     && probe.getMonth() === month - 1
     && probe.getDate() === day;
+}
+
+/** „0328“, „03-2028“, „03/2027“, „06.2027“ → ISO Monatsende. */
+export function resolveMonthEndMhd(inputStr = '') {
+  const trimmed = String(inputStr || '').trim();
+  if (!trimmed) return '';
+  let month = null;
+  let year = null;
+  const digits = trimmed.replace(/\D/g, '');
+  const mmYyyy = /^(\d{1,2})[.\-/](\d{4})$/.exec(trimmed);
+  const mmYy = /^(\d{1,2})[.\-/](\d{2})$/.exec(trimmed);
+  if (mmYyyy) {
+    month = Number.parseInt(mmYyyy[1], 10);
+    year = Number.parseInt(mmYyyy[2], 10);
+  } else if (mmYy) {
+    month = Number.parseInt(mmYy[1], 10);
+    year = 2000 + Number.parseInt(mmYy[2], 10);
+  } else if (digits.length === 4) {
+    month = Number.parseInt(digits.slice(0, 2), 10);
+    year = 2000 + Number.parseInt(digits.slice(2, 4), 10);
+  } else if (digits.length === 6) {
+    const maybeMonth = Number.parseInt(digits.slice(0, 2), 10);
+    const maybeYear = Number.parseInt(digits.slice(2, 6), 10);
+    if (maybeMonth >= 1 && maybeMonth <= 12 && maybeYear >= 2000 && maybeYear <= 2099) {
+      month = maybeMonth;
+      year = maybeYear;
+    }
+  }
+  if (!month || !year || month < 1 || month > 12 || year < 2000 || year > 2099) return '';
+  const lastDay = new Date(year, month, 0).getDate();
+  if (!isValidDateParts(year, month, lastDay)) return '';
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 }
 
 export function formatIsoToGerman(iso = '') {
@@ -28,6 +61,12 @@ export function parseGermanDateToIso(value = '') {
   if (ISO_DATE_RE.test(raw)) return raw;
   if (COMPACT_DATE_RE.test(raw)) {
     return parseGermanDateToIso(`${raw.slice(0, 2)}.${raw.slice(2, 4)}.${raw.slice(4, 8)}`);
+  }
+  // Ultimo nur bei reinem Monatsformat, nicht bei „31.03.2028“.
+  const digitsOnly = raw.replace(/\D/g, '');
+  if (digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(raw)) {
+    const monthEnd = resolveMonthEndMhd(raw);
+    if (monthEnd) return monthEnd;
   }
   if (!DOTTED_DATE_RE.test(raw)) return '';
   const [dayStr, monthStr, yearStr] = raw.split('.');
@@ -73,7 +112,11 @@ function normalizeGermanDateField(el) {
     el.classList.remove('input-date-de--invalid');
     return;
   }
-  const iso = parseGermanDateToIso(trimmed);
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  // Nur bei reinem MMJJ oder MM-YYYY: Ultimo. Nicht bei TT.MM…-Zwischenständen.
+  const monthEndCandidate = digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(trimmed);
+  const monthEnd = monthEndCandidate ? resolveMonthEndMhd(trimmed) : '';
+  const iso = monthEnd || parseGermanDateToIso(trimmed);
   if (!iso) {
     el.classList.add('input-date-de--invalid');
     return;
@@ -81,12 +124,22 @@ function normalizeGermanDateField(el) {
   el.dataset.isoValue = iso;
   el.value = formatIsoToGerman(iso);
   el.classList.remove('input-date-de--invalid');
+  if (monthEnd) {
+    window.showToast?.(`MHD zum Monatsende gesetzt: ${formatIsoToGerman(iso)}`, 'info');
+  }
 }
 
 function handleGermanDateInput(el) {
   if (!el) return;
   const formatted = formatDateInputWhileTyping(el.value);
   if (formatted !== el.value) el.value = formatted;
+  const digitsOnly = String(el.value || '').replace(/\D/g, '');
+  // Während Tippens kein Ultimo – sonst blockiert „0310…“ die TTMMJJ-Eingabe.
+  if (digitsOnly.length === 4) {
+    delete el.dataset.isoValue;
+    el.classList.remove('input-date-de--invalid');
+    return;
+  }
   const iso = parseGermanDateToIso(formatted);
   if (iso) {
     el.dataset.isoValue = iso;
@@ -106,7 +159,7 @@ export function initGermanDateInputs(root = document) {
     el.setAttribute('inputmode', 'numeric');
     el.setAttribute('autocomplete', 'off');
     el.setAttribute('maxlength', '10');
-    if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', 'TT.MM.JJJJ');
+    if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', 'TT.MM.JJJJ oder MMJJ');
     if (!el.getAttribute('pattern')) el.setAttribute('pattern', '[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}');
 
     if (el.dataset.isoValue) {

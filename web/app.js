@@ -3716,7 +3716,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260923-1646')
+    navigator.serviceWorker.register('./sw.js?v=20260929-tk-upgrade')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
