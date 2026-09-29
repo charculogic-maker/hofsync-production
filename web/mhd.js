@@ -3236,9 +3236,6 @@ function buildMhdCardHtml(prod = {}) {
     : '';
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
   const batchCount = getBatchesForArticle(prod).length;
-  const retterBoxAction = window.BRANDING?.modules?.retterBox === true
-    ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
-    : '';
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
       <div class="mhd-card-badge-row">
@@ -3280,10 +3277,8 @@ function buildMhdCardHtml(prod = {}) {
         </button>
       </div>
       <div class="mhd-action-row">
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
-        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>
-        ${retterBoxAction}
+        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">🔴 Raus</button>
+        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">🟢 OK</button>
       </div>
     </div>
   `;
@@ -3970,8 +3965,14 @@ function bindMhdCardActions() {
     const command = button.dataset.mhdCommand;
     if (command === 'adjust') adjustQty(id, Number(button.dataset.mhdChange || 0));
     if (command === 'soldout') setSoldOut(id);
-    if (command === 'action') markMhdAction(id, button.dataset.mhdActionStatus);
-    if (command === 'retterbox') addMhdItemToRetterBox(id);
+    if (command === 'action') {
+      const actionStatus = button.dataset.mhdActionStatus;
+      // StevesHof: Küche/Retter-Box sind absichtlich nicht in der UI – alte Calls ignorieren.
+      if (actionStatus === 'kueche' || actionStatus === 'retterbox') return;
+      markMhdAction(id, actionStatus);
+      return;
+    }
+    if (command === 'retterbox') return;
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
     if (command === 'stichprobe') {

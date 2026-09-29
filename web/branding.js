@@ -83,7 +83,7 @@ const TENANT_BRANDING = {
       haccp: false,
       orders: false,
       batches: true,
-      retterBox: true,
+      retterBox: false,
       chargenDoku: true,
       employeePin: false,
       employeeAuth: 'profile',

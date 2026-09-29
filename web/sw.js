@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20260929-tk-upgrade';
+const CACHE_NAME = 'charculogic-v20260929-mhd-clean';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
 const RELEASED_AT = '2026-09-26T13:35:00+02:00';
