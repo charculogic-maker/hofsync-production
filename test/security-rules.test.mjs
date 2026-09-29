@@ -240,6 +240,102 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2c.1: KI-Lieferschein receipt booking', () => {
+    const employeeCtx = () => authContext(
+      testEnv,
+      'sh-employee-delivery-parser',
+      TENANTS.STEVES_HOF,
+      'employee',
+    );
+    const nowIso = '2026-09-29T10:00:00.000Z';
+
+    function deliveryMhdPayload(tenantId = TENANTS.STEVES_HOF) {
+      return {
+        id: 'lieferung-abc-001-bio-milch-mhd',
+        postenId: 'lieferung-abc-001-bio-milch-mhd',
+        produkt: 'Bio Milch',
+        name: 'Bio Milch',
+        marke: '',
+        brand: '',
+        mhd: '2026-10-05',
+        mhdDate: '2026-10-05',
+        mhdText: '6 Resttage',
+        date: '05.10.2026',
+        tage: 6,
+        resttage: 6,
+        status: 'aktiv',
+        qty: 6,
+        menge: 6,
+        eingangMenge: 6,
+        kategorie: '🥛MoPro',
+        soldOut: false,
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        wareneingangAt: nowIso,
+        erfassungsDatum: nowIso,
+        scannedBy: 'team',
+        tenantId,
+        lieferungId: 'lieferung-abc',
+        updatedAt: nowIso,
+        createdAt: nowIso,
+      };
+    }
+
+    function inventoryPayload(tenantId = TENANTS.STEVES_HOF) {
+      return {
+        artikel: 'Bio Milch',
+        menge: 6,
+        kategorie: '🥛MoPro',
+        tenantId,
+        source: 'wareneingang-lieferschein',
+        batchId: 'lieferung-abc',
+        createdBy: 'team',
+        createdAt: nowIso,
+      };
+    }
+
+    it('allows employee delivery parser MHD and inventory receipt creates', async () => {
+      const ctx = employeeCtx();
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'lieferung-abc-001-bio-milch-mhd'),
+        'create',
+        deliveryMhdPayload(),
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', 'lieferung-abc-001-bio-milch-inventory'),
+        'create',
+        inventoryPayload(),
+      );
+    });
+
+    it('denies old parser shapes without tenantId or with direct stock increases', async () => {
+      const ctx = employeeCtx();
+      const tenantlessMhd = deliveryMhdPayload();
+      delete tenantlessMhd.tenantId;
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'tenantless-delivery-mhd'),
+        'create',
+        tenantlessMhd,
+      );
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'stammdaten', 'bio-milch'),
+        'create',
+        {
+          artikel: 'Bio Milch',
+          name: 'Bio Milch',
+          currentStock: 6,
+          updatedAt: nowIso,
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2d: MHD shopfloor updates', () => {
     const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'shopfloor-mhd-1');
     const mhdItem = {
