@@ -9878,6 +9878,44 @@ body.beef-labels-open {
   display: none;
 }
 
+.beef-custom-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1f2937;
+  background: #0f172a;
+  flex-shrink: 0;
+}
+
+.beef-custom-add input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  background: #030712;
+  color: #f9fafb;
+  font-size: 16px;
+}
+
+.beef-custom-add-btn {
+  flex-shrink: 0;
+  min-height: 48px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: #047857;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 .beef-tab {
   flex: 0 0 auto;
   border: none;

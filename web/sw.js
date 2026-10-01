@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261001-beef-ux2';
+const CACHE_NAME = 'charculogic-v20261001-beef-catalog-v3b';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
-const RELEASED_AT = '2026-10-01T16:40:00+02:00';
+const RELEASED_AT = '2026-10-01T21:25:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
