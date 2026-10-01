@@ -9660,3 +9660,482 @@ body.role-firebase-auth #team-login-card {
 .trace-detail-dl dd {
   margin: 0;
 }
+
+/* ===== Galloway Zerlege-Etiketten · Avery 3475 ===== */
+.beef-labels-trigger-wrap {
+  margin: 12px 0 16px;
+}
+
+.beef-labels-trigger-wrap--kitchen {
+  margin: 0 0 12px;
+}
+
+.beef-labels-open-btn {
+  width: 100%;
+  min-height: 52px;
+  font-weight: 800;
+}
+
+.beef-labels-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.beef-labels-modal[hidden] {
+  display: none !important;
+}
+
+.beef-labels-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  max-height: 96vh;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #111827;
+  color: #f3f4f6;
+  border: 1px solid #374151;
+}
+
+.beef-labels-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1f2937;
+  background: #030712;
+}
+
+.beef-labels-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #34d399;
+}
+
+.beef-labels-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.beef-labels-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.beef-basket-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(6, 78, 59, 0.55);
+  color: #a7f3d0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.beef-labels-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1f2937;
+}
+
+@media (min-width: 720px) {
+  .beef-labels-settings {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.beef-labels-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.beef-labels-settings input {
+  min-height: 42px;
+  background: #030712;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+}
+
+.beef-labels-main {
+  display: grid;
+  grid-template-columns: 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 800px) {
+  .beef-labels-main {
+    grid-template-columns: 1.3fr 0.9fr;
+  }
+}
+
+.beef-labels-catalog,
+.beef-labels-basket {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.beef-labels-catalog {
+  border-right: 1px solid #1f2937;
+}
+
+.beef-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  background: #030712;
+  border-bottom: 1px solid #1f2937;
+}
+
+.beef-tab {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #1f2937;
+  color: #d1d5db;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.beef-tab.is-active {
+  background: #059669;
+  color: #fff;
+}
+
+.beef-cut-list,
+.beef-queue-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.beef-cut-row,
+.beef-queue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #030712;
+  border: 1px solid #1f2937;
+}
+
+.beef-cut-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.beef-cut-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f9fafb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beef-cut-detail,
+.beef-cut-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beef-cut-meta {
+  color: #34d399;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-top: 2px;
+}
+
+.beef-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.beef-qty-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.beef-qty-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.beef-qty-btn--plus {
+  background: #047857;
+}
+
+.beef-qty-val {
+  width: 28px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  color: #34d399;
+}
+
+.beef-basket-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d1d5db;
+}
+
+.beef-clear-btn {
+  border: none;
+  background: transparent;
+  color: #f87171;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.beef-queue-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.beef-basket-foot {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-top: 1px solid #1f2937;
+  background: #030712;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.beef-basket-foot > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.beef-basket-foot strong {
+  color: #f9fafb;
+}
+
+#beef-labels-print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0mm !important;
+  }
+
+  body.printing-beef-labels {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-beef-labels .preview-container,
+  body.printing-beef-labels .iphone-frame,
+  body.printing-beef-labels .desktop-controls,
+  body.printing-beef-labels .status-bar,
+  body.printing-beef-labels .app-header,
+  body.printing-beef-labels .app-update-info,
+  body.printing-beef-labels .bottom-nav,
+  body.printing-beef-labels .home-indicator,
+  body.printing-beef-labels .pin-auth-modal,
+  body.printing-beef-labels .meister-override-modal,
+  body.printing-beef-labels .hud-overlay,
+  body.printing-beef-labels .update-toast,
+  body.printing-beef-labels .scanner-overlay,
+  body.printing-beef-labels .qa-panel,
+  body.printing-beef-labels .beef-labels-modal,
+  body.printing-beef-labels .delivery-note-modal {
+    display: none !important;
+  }
+
+  body.printing-beef-labels > *:not(#beef-labels-print-root) {
+    display: none !important;
+  }
+
+  body.printing-beef-labels #beef-labels-print-root {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    visibility: visible !important;
+  }
+
+  body.printing-beef-labels #beef-labels-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-beef-labels .avery-page-sheet {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto;
+    box-sizing: border-box;
+    padding-top: 4.5mm;
+    padding-bottom: 4.5mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  body.printing-beef-labels .avery-grid-3x8 {
+    display: grid;
+    grid-template-columns: repeat(3, 70mm);
+    grid-template-rows: repeat(8, 36mm);
+    width: 210mm;
+    height: 288mm;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    left: 1.5mm;
+  }
+
+  body.printing-beef-labels .avery-label-card {
+    box-sizing: border-box;
+    width: 70mm;
+    height: 36mm;
+    padding: 1.8mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    border: 0.15mm solid rgba(0, 0, 0, 0.15);
+    background: #fff;
+    color: #000;
+  }
+
+  body.printing-beef-labels .avery-grid-3x8 > :nth-child(3n + 1) {
+    padding-left: 7.2mm !important;
+  }
+
+  body.printing-beef-labels .avery-label-empty {
+    visibility: hidden !important;
+  }
+
+  body.printing-beef-labels .avery-label-head {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 0.2mm solid #000;
+    padding-bottom: 0.4mm;
+    font-size: 6.5pt;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  body.printing-beef-labels .avery-label-title {
+    font-size: 8.5pt;
+    font-weight: 900;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.printing-beef-labels .avery-label-detail {
+    font-size: 6.5pt;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.printing-beef-labels .avery-label-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1mm;
+    border-top: 0.15mm solid #ddd;
+    border-bottom: 0.15mm solid #ddd;
+    padding: 0.4mm 0;
+    font-size: 5.8pt;
+    line-height: 1.15;
+  }
+
+  body.printing-beef-labels .avery-label-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 2mm;
+    font-size: 6pt;
+    line-height: 1.1;
+  }
+
+  body.printing-beef-labels .avery-strong {
+    font-weight: 700;
+  }
+
+  body.printing-beef-labels .avery-right {
+    text-align: right;
+  }
+
+  body.printing-beef-labels .avery-muted {
+    color: #666;
+    font-size: 5.5pt;
+    margin-right: 1mm;
+  }
+
+  body.printing-beef-labels .avery-weight {
+    display: inline-block;
+    min-width: 10mm;
+    border-bottom: 0.2mm solid #888;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  body.printing-beef-labels .avery-truncate {
+    max-width: 45mm;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

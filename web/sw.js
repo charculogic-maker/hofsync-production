@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20260929-mhd-clean';
+const CACHE_NAME = 'charculogic-v20261001-beef-labels';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
-const RELEASED_AT = '2026-09-26T13:35:00+02:00';
+const RELEASED_AT = '2026-10-01T15:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -44,6 +44,7 @@ const CRITICAL_ASSETS = [
   '/dev-dashboard.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
+  '/beef-labels.js',
 ];
 
 const SCANNER_LIBS = [

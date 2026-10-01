@@ -988,6 +988,11 @@
                       🏠 Eigenproduktion
                     </button>
                   </div>
+                  <div class="beef-labels-trigger-wrap">
+                    <button type="button" class="btn btn-secondary beef-labels-open-btn" id="beef-labels-open-receiving">
+                      🥩 Galloway Zerlegung / Avery 3475
+                    </button>
+                  </div>
                   <label class="receiving-field" for="we-category">
                     <span>Waren-Kategorie</span>
                     <select id="we-category" class="gastro-input">
@@ -1180,6 +1185,11 @@
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
+            <div class="beef-labels-trigger-wrap beef-labels-trigger-wrap--kitchen">
+              <button type="button" class="btn btn-secondary beef-labels-open-btn" id="beef-labels-open-kitchen">
+                🥩 Galloway Zerlegung / Avery 3475
+              </button>
+            </div>
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
               <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
@@ -2133,6 +2143,7 @@
     </form>
   </template>
 
+  <script type="module" src="/beef-labels.js?v=20261001-avery3475"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
   <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
 </body>
