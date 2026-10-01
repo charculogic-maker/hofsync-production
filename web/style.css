@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  /* ButcherOS / HofSync — M3 Design Tokens */
+  /* ButcherOS / HofSync â€” M3 Design Tokens */
   --color-primary: #680006;
   --color-primary-container: #8c1515;
   --color-on-primary: #ffffff;
@@ -18,7 +18,7 @@
   --font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* White-label Kernfarben (Default = M3; Branding überschreibt zur Laufzeit) */
+  /* White-label Kernfarben (Default = M3; Branding Ã¼berschreibt zur Laufzeit) */
   --primary-color: var(--color-primary);
   --primary-color-hover: var(--color-primary-container);
   --dark-header-bg: #2b0a0c;
@@ -158,7 +158,7 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-  user-select: none; /* Verhindert Selektionsstörungen bei schnellem Tippen */
+  user-select: none; /* Verhindert SelektionsstÃ¶rungen bei schnellem Tippen */
 }
 
 body {
@@ -995,10 +995,10 @@ button:active, .btn:active {
   cursor: not-allowed;
 }
 
-/* Sticky Save Bar (MHD) – im Dokumentfluss, nicht über Karten legen */
+/* Sticky Save Bar (MHD) â€“ im Dokumentfluss, nicht Ã¼ber Karten legen */
 .sticky-action-bar {
   position: absolute;
-  bottom: 80px; /* über Bottom-Nav kleben beim Scrollen */
+  bottom: 80px; /* Ã¼ber Bottom-Nav kleben beim Scrollen */
   left: 14px;
   right: 14px;
   flex-shrink: 0;
@@ -1229,7 +1229,7 @@ button:active, .btn:active {
   justify-content: center;
 }
 
-/* Schmal: untereinander · ab ~380px: Bereich + Ansicht nebeneinander, Kategorie darunter */
+/* Schmal: untereinander Â· ab ~380px: Bereich + Ansicht nebeneinander, Kategorie darunter */
 @media (min-width: 380px) {
   .mhd-filter-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1240,7 +1240,7 @@ button:active, .btn:active {
   }
 }
 
-/* Breit: alle drei Filter in einer Zeile (Kategorie ausgeblendet → nur zwei Spalten) */
+/* Breit: alle drei Filter in einer Zeile (Kategorie ausgeblendet â†’ nur zwei Spalten) */
 @media (min-width: 640px) {
   .mhd-filter-row {
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(0, 1fr);
@@ -1986,7 +1986,7 @@ button:active, .btn:active {
   font-size: 11px;
 }
 
-/* --- SCREEN 2: WURSTKÜCHE --- */
+/* --- SCREEN 2: WURSTKÃœCHE --- */
 .wrs-board {
   display: flex;
   flex-direction: column;
@@ -2198,13 +2198,13 @@ button:active, .btn:active {
 }
 
 .kitchen-collapsible > summary::after {
-  content: '▾';
+  content: 'â–¾';
   float: right;
   color: var(--text-muted);
 }
 
 .kitchen-collapsible:not([open]) > summary::after {
-  content: '▸';
+  content: 'â–¸';
 }
 
 .kitchen-collapsible > .recipe-toolbar,
@@ -2798,7 +2798,7 @@ button:active, .btn:active {
 }
 
 .haccp-collapsible > summary::after {
-  content: '▾';
+  content: 'â–¾';
   float: right;
   color: var(--text-muted);
   font-weight: 700;
@@ -2806,7 +2806,7 @@ button:active, .btn:active {
 }
 
 .haccp-collapsible:not([open]) > summary::after {
-  content: '▸';
+  content: 'â–¸';
 }
 
 .haccp-collapsible-body {
@@ -3407,7 +3407,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   display: none !important;
 }
 
-/* Käse-Theke: pill-shaped segmented unit toggle (Wet-Finger) */
+/* KÃ¤se-Theke: pill-shaped segmented unit toggle (Wet-Finger) */
 .kaese-qty-field-label {
   display: block;
   font-size: 14px;
@@ -5048,7 +5048,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   .nav-item--admin span {
-    /* Icon-first: vermeidet abgeschnittenes „VERWALTU…“ */
+    /* Icon-first: vermeidet abgeschnittenes â€žVERWALTUâ€¦â€œ */
     font-size: 0;
     line-height: 0;
     overflow: hidden;
@@ -5079,8 +5079,8 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   /*
-   * iOS/PWA: position:sticky im .app-content-Scroller ist unzuverlässig.
-   * Feste Speichern-Leiste + Padding in der Liste – Karten bleiben frei.
+   * iOS/PWA: position:sticky im .app-content-Scroller ist unzuverlÃ¤ssig.
+   * Feste Speichern-Leiste + Padding in der Liste â€“ Karten bleiben frei.
    */
   :root {
     --mhd-save-bar-height: 80px;
@@ -5114,7 +5114,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     bottom: var(--mhd-bottom-nav-height);
   }
 
-  /* MHD-Toolbar: nicht sticky – scrollt mit, überdeckt keine Karten */
+  /* MHD-Toolbar: nicht sticky â€“ scrollt mit, Ã¼berdeckt keine Karten */
   .mhd-monitor-toolbar {
     position: static;
     margin-bottom: 6px;
@@ -6676,14 +6676,14 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 @media print {
-  /* Alles verstecken – nur der Kisten-Zettel bleibt übrig */
+  /* Alles verstecken â€“ nur der Kisten-Zettel bleibt Ã¼brig */
   body {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* iPhone-Frame, Desktop-Wrapper, App-Navigation, Overlays: völlig aus dem Druck */
+  /* iPhone-Frame, Desktop-Wrapper, App-Navigation, Overlays: vÃ¶llig aus dem Druck */
   .preview-container,
   .iphone-frame,
   .desktop-controls,
@@ -6729,7 +6729,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     overflow: visible !important;
   }
 
-  /* App-Chrome innerhalb des Modals unterdrücken */
+  /* App-Chrome innerhalb des Modals unterdrÃ¼cken */
   .delivery-note-toolbar {
     display: none !important;
   }
@@ -6889,14 +6889,14 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 .leitstand-collapsible > summary::after {
-  content: '▾';
+  content: 'â–¾';
   float: right;
   color: var(--text-muted);
   font-weight: 700;
 }
 
 .leitstand-collapsible:not([open]) > summary::after {
-  content: '▸';
+  content: 'â–¸';
 }
 
 .leitstand-collapsible-body {
@@ -7080,7 +7080,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   min-width: 0;
 }
 
-/* KI-Wareneingang (Phase 4 · ERP-Light) ---------------------------------- */
+/* KI-Wareneingang (Phase 4 Â· ERP-Light) ---------------------------------- */
 .delivery-parser-loading-overlay {
   flex-direction: column;
 }
@@ -7159,7 +7159,7 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Active Hofladen tabs polish: Neu, Prod., HACCP, Büro
+   Active Hofladen tabs polish: Neu, Prod., HACCP, BÃ¼ro
    ========================================================================= */
 
 #page-receiving,
@@ -7215,14 +7215,14 @@ body.role-helper #team-subnav-orders {
 }
 
 .knowledge-accordion > summary::after {
-  content: '▾';
+  content: 'â–¾';
   margin-left: auto;
   color: var(--text-muted);
   font-weight: 900;
 }
 
 .knowledge-accordion:not([open]) > summary::after {
-  content: '▸';
+  content: 'â–¸';
 }
 
 .knowledge-accordion-body {
@@ -7471,7 +7471,7 @@ body.role-helper #team-subnav-orders {
 }
 
 .cut-title--definition::before {
-  content: '💡 ';
+  content: 'ðŸ’¡ ';
 }
 
 .cut-region-pill--definition {
@@ -8315,8 +8315,8 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Desktop wide layout (Wissen + Büro), ab 1024px
-   Mobile/PWA unter 768px bleibt unverändert.
+   Desktop wide layout (Wissen + BÃ¼ro), ab 1024px
+   Mobile/PWA unter 768px bleibt unverÃ¤ndert.
    ========================================================================= */
 
 @media (min-width: 1024px) {
@@ -8404,7 +8404,7 @@ body.role-helper #team-subnav-orders {
     overflow-x: visible;
   }
 
-  /* Büro-Tab: volle Breite, Admin-Grids nebeneinander */
+  /* BÃ¼ro-Tab: volle Breite, Admin-Grids nebeneinander */
   body.desktop-wide-layout #page-batches,
   body.desktop-wide-layout #page-buero {
     max-width: none;
@@ -8445,7 +8445,7 @@ body.role-helper #team-subnav-orders {
   }
 }
 
-/* Sticky Login-/Denied-Fallback für Direktaufruf /dev-dashboard */
+/* Sticky Login-/Denied-Fallback fÃ¼r Direktaufruf /dev-dashboard */
 #dev-dashboard-boot-fallback {
   position: fixed !important;
   inset: 0 !important;
@@ -8526,7 +8526,7 @@ body.dev-dashboard-view .admin-header-dropdown {
   display: none !important;
 }
 
-/* Nie das Dokument-Body über Tab-Panel-[hidden]-Regeln ausblenden. */
+/* Nie das Dokument-Body Ã¼ber Tab-Panel-[hidden]-Regeln ausblenden. */
 body.is-dev-dashboard[hidden],
 body.dev-dashboard-view[hidden] {
   display: flex !important;
@@ -9110,7 +9110,7 @@ body.role-firebase-auth #team-login-card {
   display: none !important;
 }
 
-/* ===== LMIV Rückverfolgbarkeit ===== */
+/* ===== LMIV RÃ¼ckverfolgbarkeit ===== */
 .trace-capture-card {
   display: flex;
   flex-direction: column;
@@ -9661,7 +9661,7 @@ body.role-firebase-auth #team-login-card {
   margin: 0;
 }
 
-/* ===== Galloway Zerlege-Etiketten � Avery 3475 ===== */
+/* ===== Galloway Zerlege-Etiketten · Avery 3475 ===== */
 .beef-labels-trigger-wrap {
   margin: 12px 0 16px;
 }
@@ -9676,6 +9676,10 @@ body.role-firebase-auth #team-login-card {
   font-weight: 800;
 }
 
+body.beef-labels-open {
+  overflow: hidden;
+}
+
 .beef-labels-modal {
   position: fixed;
   inset: 0;
@@ -9683,9 +9687,8 @@ body.role-firebase-auth #team-login-card {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(4px);
+  padding: 0;
+  background: rgba(0, 0, 0, 0.78);
 }
 
 .beef-labels-modal[hidden] {
@@ -9695,131 +9698,199 @@ body.role-firebase-auth #team-login-card {
 .beef-labels-sheet {
   display: flex;
   flex-direction: column;
-  width: min(960px, 100%);
-  max-height: 96vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100dvh;
   overflow: hidden;
-  border-radius: 16px;
-  background: #111827;
+  background: #0b1220;
   color: #f3f4f6;
-  border: 1px solid #374151;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 900px) {
+  .beef-labels-modal {
+    padding: 12px;
+  }
+
+  .beef-labels-sheet {
+    width: min(920px, 100%);
+    height: min(94vh, 920px);
+    max-height: 94vh;
+    border-radius: 16px;
+    border: 1px solid #374151;
+  }
 }
 
 .beef-labels-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px;
+  padding-top: max(8px, env(safe-area-inset-top, 8px));
   border-bottom: 1px solid #1f2937;
   background: #030712;
+  flex-shrink: 0;
 }
 
 .beef-labels-header h2 {
   margin: 0;
   font-size: 1.05rem;
+  font-weight: 800;
   color: #34d399;
+  line-height: 1.2;
 }
 
-.beef-labels-sub {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.beef-labels-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.beef-basket-pill {
+.beef-close-btn {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(52, 211, 153, 0.45);
-  background: rgba(6, 78, 59, 0.55);
-  color: #a7f3d0;
-  font-size: 12px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid #4b5563;
+  border-radius: 12px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-size: 14px;
   font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.beef-stammdaten {
+  border-bottom: 1px solid #1f2937;
+  background: #0f172a;
+  flex-shrink: 0;
+}
+
+.beef-stammdaten > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #e5e7eb;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.beef-stammdaten > summary::-webkit-details-marker {
+  display: none;
+}
+
+.beef-stammdaten > summary::after {
+  content: "▾";
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.beef-stammdaten[open] > summary::after {
+  content: "▴";
+}
+
+.beef-stammdaten-preview {
+  flex: 1;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: #34d399;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .beef-labels-settings {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid #1f2937;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 0 14px 14px;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 640px) {
   .beef-labels-settings {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .beef-labels-settings label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: 12px;
   color: #9ca3af;
 }
 
 .beef-labels-settings input {
-  min-height: 42px;
+  min-height: 48px;
+  padding: 0 12px;
   background: #030712;
   color: #f9fafb;
   border: 1px solid #374151;
-  border-radius: 8px;
+  border-radius: 10px;
+  font-size: 16px;
 }
 
 .beef-labels-main {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-@media (min-width: 800px) {
+@media (min-width: 900px) {
   .beef-labels-main {
-    grid-template-columns: 1.3fr 0.9fr;
+    display: grid;
+    grid-template-columns: 1.4fr 0.9fr;
   }
 }
 
-.beef-labels-catalog,
-.beef-labels-basket {
+.beef-labels-catalog {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1;
   overflow: hidden;
-}
-
-.beef-labels-catalog {
-  border-right: 1px solid #1f2937;
 }
 
 .beef-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 10px 12px;
   background: #030712;
   border-bottom: 1px solid #1f2937;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.beef-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .beef-tab {
+  flex: 0 0 auto;
   border: none;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 0 16px;
   background: #1f2937;
   color: #d1d5db;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .beef-tab.is-active {
@@ -9831,10 +9902,12 @@ body.role-firebase-auth #team-login-card {
 .beef-queue-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  overscroll-behavior: contain;
 }
 
 .beef-cut-row,
@@ -9842,9 +9915,9 @@ body.role-firebase-auth #team-login-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
   background: #030712;
   border: 1px solid #1f2937;
 }
@@ -9855,46 +9928,52 @@ body.role-firebase-auth #team-login-card {
 }
 
 .beef-cut-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   color: #f9fafb;
-  white-space: nowrap;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .beef-cut-detail,
 .beef-cut-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
-  white-space: nowrap;
+  line-height: 1.3;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .beef-cut-meta {
   color: #34d399;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin-top: 2px;
 }
 
 .beef-qty {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .beef-qty-btn {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #1f2937;
   color: #fff;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .beef-qty-btn:disabled {
@@ -9907,57 +9986,126 @@ body.role-firebase-auth #team-login-card {
 }
 
 .beef-qty-val {
-  width: 28px;
+  width: 32px;
   text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 800;
+  font-size: 18px;
   color: #34d399;
 }
 
-.beef-basket-head {
+.beef-labels-basket {
+  border-top: 1px solid #1f2937;
+  background: #0f172a;
+  flex-shrink: 0;
+  max-height: 34%;
+  overflow: hidden;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+}
+
+@media (min-width: 900px) {
+  .beef-labels-basket {
+    max-height: none;
+    border-top: none;
+    border-left: 1px solid #1f2937;
+    height: 100%;
+  }
+}
+
+.beef-labels-basket > summary.beef-basket-head {
+  list-style: none;
+  display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid #1f2937;
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #d1d5db;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.beef-labels-basket > summary.beef-basket-head::-webkit-details-marker {
+  display: none;
 }
 
 .beef-clear-btn {
   border: none;
   background: transparent;
   color: #f87171;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0 8px;
   cursor: pointer;
-  text-decoration: underline;
 }
 
 .beef-queue-empty {
-  padding: 28px 12px;
+  padding: 20px 12px;
   text-align: center;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 13px;
 }
 
-.beef-basket-foot {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
+.beef-labels-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid #1f2937;
   background: #030712;
-  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.beef-footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.beef-basket-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(6, 78, 59, 0.55);
+  color: #a7f3d0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.beef-footer-sheets {
+  font-size: 13px;
   color: #9ca3af;
 }
 
-.beef-basket-foot > div {
-  display: flex;
-  justify-content: space-between;
+.beef-footer-sheets strong {
+  color: #f9fafb;
 }
 
-.beef-basket-foot strong {
-  color: #f9fafb;
+.beef-print-btn {
+  width: 100%;
+  min-height: 52px;
+  border: none;
+  border-radius: 14px;
+  background: #059669;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.beef-print-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 #beef-labels-print-root {

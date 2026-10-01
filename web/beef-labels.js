@@ -597,6 +597,11 @@ function renderModalBody() {
   if (plantEl && document.activeElement !== plantEl) plantEl.value = state.betriebsNummer;
   if (skipEl && document.activeElement !== skipEl) skipEl.value = String(state.skipCount);
 
+  const summaryCharge = modal.querySelector('#beef-stammdaten-summary');
+  if (summaryCharge) {
+    summaryCharge.textContent = `${state.chargenNummer || '—'} · Start Slot ${state.skipCount + 1}`;
+  }
+
   modal.querySelectorAll('[data-beef-tab]').forEach((btn) => {
     const cat = btn.getAttribute('data-beef-tab');
     btn.classList.toggle('is-active', cat === state.activeTab);
@@ -609,16 +614,16 @@ function renderModalBody() {
 
   const totalEl = modal.querySelector('#beef-total-labels');
   const sheetsEl = modal.querySelector('#beef-sheets');
-  const skipInfo = modal.querySelector('#beef-skip-info');
   const printBtn = modal.querySelector('#beef-print-btn');
   const basketPill = modal.querySelector('#beef-basket-pill');
-  if (totalEl) totalEl.textContent = `${totalLabels()} Stück`;
-  if (sheetsEl) sheetsEl.textContent = `${sheetsNeeded()} DIN A4`;
-  if (skipInfo) skipInfo.textContent = `Slot ${state.skipCount + 1}`;
-  if (basketPill) basketPill.textContent = `Korb: ${totalLabels()}`;
+  const queueCount = modal.querySelector('#beef-queue-count');
+  if (totalEl) totalEl.textContent = String(totalLabels());
+  if (sheetsEl) sheetsEl.textContent = String(sheetsNeeded());
+  if (basketPill) basketPill.textContent = `${totalLabels()} Etiketten`;
+  if (queueCount) queueCount.textContent = `${state.queue.length} Pos.`;
   if (printBtn) {
     printBtn.disabled = totalLabels() === 0;
-    printBtn.textContent = `Bogen drucken (${sheetsNeeded()})`;
+    printBtn.textContent = `Drucken · ${sheetsNeeded()} Bogen`;
   }
 }
 
@@ -640,11 +645,14 @@ function closeModal() {
 }
 
 function ensureModal() {
-  if (document.getElementById('beef-labels-modal')) return;
+  const existing = document.getElementById('beef-labels-modal');
+  if (existing?.dataset.ux === 'mobile-v2') return;
+  existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal';
+  modal.dataset.ux = 'mobile-v2';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -659,59 +667,64 @@ function ensureModal() {
   modal.innerHTML = `
     <div class="beef-labels-sheet" role="document">
       <header class="beef-labels-header">
-        <div>
-          <h2 id="beef-labels-title">Galloway-Zerlegung · Avery 3475</h2>
-          <p class="beef-labels-sub">Unterschale ≠ Semerrolle · Innereien Lag ≤ 3 °C</p>
-        </div>
-        <div class="beef-labels-header-actions">
-          <span class="beef-basket-pill" id="beef-basket-pill">Korb: 0</span>
-          <button type="button" class="btn btn-primary" id="beef-print-btn">Bogen drucken</button>
-          <button type="button" class="btn btn-secondary" id="beef-close-btn">Schließen</button>
-        </div>
+        <h2 id="beef-labels-title">Galloway Zerlegung</h2>
+        <button type="button" class="beef-close-btn" id="beef-close-btn" aria-label="Schließen">
+          <span aria-hidden="true">✕</span>
+          <span>Schließen</span>
+        </button>
       </header>
 
-      <div class="beef-labels-settings">
-        <label>Charge
-          <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
-        </label>
-        <label>Ohrmarke
-          <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off">
-        </label>
-        <label>Schlachtdatum
-          <input type="text" id="beef-schlacht" class="input-text-touch" inputmode="numeric" autocomplete="off">
-        </label>
-        <label>Zerlege-Datum
-          <input type="text" id="beef-zerlege" class="input-text-touch" inputmode="numeric" autocomplete="off">
-        </label>
-        <label>Herkunft
-          <input type="text" id="beef-herkunft" class="input-text-touch" autocomplete="off">
-        </label>
-        <label>Betrieb
-          <input type="text" id="beef-betrieb" class="input-text-touch" autocomplete="off">
-        </label>
-        <label>Bereits verbraucht (0–23)
-          <input type="number" id="beef-skip" class="input-text-touch" min="0" max="23" step="1">
-        </label>
-      </div>
+      <details class="beef-stammdaten" id="beef-stammdaten">
+        <summary>
+          <span>Stammdaten</span>
+          <span class="beef-stammdaten-preview" id="beef-stammdaten-summary">—</span>
+        </summary>
+        <div class="beef-labels-settings">
+          <label>Charge
+            <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Ohrmarke
+            <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Schlachtdatum
+            <input type="text" id="beef-schlacht" class="input-text-touch" inputmode="numeric" autocomplete="off">
+          </label>
+          <label>Zerlege-Datum
+            <input type="text" id="beef-zerlege" class="input-text-touch" inputmode="numeric" autocomplete="off">
+          </label>
+          <label>Herkunft
+            <input type="text" id="beef-herkunft" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Betrieb
+            <input type="text" id="beef-betrieb" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Bereits verbraucht (0–23)
+            <input type="number" id="beef-skip" class="input-text-touch" min="0" max="23" step="1">
+          </label>
+        </div>
+      </details>
 
       <div class="beef-labels-main">
         <div class="beef-labels-catalog">
-          <div class="beef-tabs">${tabs}</div>
+          <div class="beef-tabs" role="tablist">${tabs}</div>
           <div id="beef-cut-list" class="beef-cut-list"></div>
         </div>
-        <div class="beef-labels-basket">
-          <div class="beef-basket-head">
-            <span>Druckkorb</span>
-            <button type="button" class="beef-clear-btn" id="beef-clear-btn">Korb leeren</button>
-          </div>
+        <details class="beef-labels-basket" id="beef-basket-panel" open>
+          <summary class="beef-basket-head">
+            <span>Druckkorb <span id="beef-queue-count">0 Pos.</span></span>
+            <button type="button" class="beef-clear-btn" id="beef-clear-btn">Leeren</button>
+          </summary>
           <div id="beef-queue-list" class="beef-queue-list"></div>
-          <div class="beef-basket-foot">
-            <div><span>Gesamt</span><strong id="beef-total-labels">0 Stück</strong></div>
-            <div><span>Start</span><strong id="beef-skip-info">Slot 1</strong></div>
-            <div><span>Bögen</span><strong id="beef-sheets">1 DIN A4</strong></div>
-          </div>
-        </div>
+        </details>
       </div>
+
+      <footer class="beef-labels-footer">
+        <div class="beef-footer-meta">
+          <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
+          <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen</span>
+        </div>
+        <button type="button" class="beef-print-btn" id="beef-print-btn">Drucken · 1 Bogen</button>
+      </footer>
     </div>
   `;
 
@@ -719,7 +732,9 @@ function ensureModal() {
 
   modal.querySelector('#beef-close-btn')?.addEventListener('click', closeModal);
   modal.querySelector('#beef-print-btn')?.addEventListener('click', handlePrint);
-  modal.querySelector('#beef-clear-btn')?.addEventListener('click', () => {
+  modal.querySelector('#beef-clear-btn')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     state.queue = [];
     persist();
     renderModalBody();
@@ -738,7 +753,7 @@ function ensureModal() {
       const raw = /** @type {HTMLInputElement} */ (el).value;
       state[key] = transform ? transform(raw) : raw;
       persist();
-      if (key === 'skipCount') renderModalBody();
+      if (key === 'skipCount' || key === 'chargenNummer') renderModalBody();
     });
   };
   bindField('#beef-charge', 'chargenNummer');
