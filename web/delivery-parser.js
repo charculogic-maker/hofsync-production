@@ -21,6 +21,7 @@ import {
   showReconcileOverlay,
   removeReconcileOverlay,
 } from './delivery-reconcile.js';
+import { persistDeliveryParserRows } from './delivery-parser-persistence.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -104,16 +105,6 @@ function addDaysIso(baseIso, days) {
   if (Number.isNaN(base.getTime())) return '';
   base.setDate(base.getDate() + (Number(days) || 0));
   return startOfDayIso(base);
-}
-
-function articleDocId(name) {
-  const slug = String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120);
-  return slug || `artikel-${Date.now()}`;
 }
 
 function toMhdKategorie(kategorie, artikel) {
@@ -398,67 +389,16 @@ function openReconcileFromSoll() {
 // In den Bestand einbuchen (Firestore)
 // ---------------------------------------------------------------------------
 
-async function erhoeheBestand(row, author, nowIso) {
-  const firebase = parserState.getFirebase();
-  const FieldValue = firebase?.firestore?.FieldValue;
-  const docRef = getTenantCollection('stammdaten').doc(articleDocId(row.artikel));
-  await docRef.set({
-    artikel: row.artikel,
-    name: row.artikel,
-    kategorie: toMhdKategorie(row.kategorie, row.artikel),
-    currentStock: FieldValue?.increment ? FieldValue.increment(row.menge) : row.menge,
-    lastMhd: row.mhdIso || '',
-    lastDeliveryAt: nowIso,
-    lastDeliveryBy: author,
-    updatedAt: FieldValue?.serverTimestamp ? FieldValue.serverTimestamp() : nowIso,
-  }, { merge: true });
+function resolveParserTenantId() {
+  return parserState.tenantId || getAuthContext()?.tenantId || '';
 }
 
-async function schreibeMhdPosten(row, author, nowIso) {
-  const writeFn = parserState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') return 'written';
+function getTenantDocRef(collectionPath, docId) {
+  return getTenantCollection(collectionPath).doc(docId);
+}
 
-  const mhdIso = row.mhdIso || '';
-  const tage = mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
-  const mhdKategorie = toMhdKategorie(row.kategorie, row.artikel);
-  const postenId = `ls_${articleDocId(row.artikel)}_${Date.now()}`;
-
-  const onlineData = {
-    id: postenId,
-    postenId,
-    produkt: row.artikel,
-    name: row.artikel,
-    marke: '',
-    brand: '',
-    mhd: mhdIso,
-    mhdDate: mhdIso,
-    mhdText: Number.isFinite(tage) ? `${tage} Resttage` : 'Wareneingang',
-    date: mhdIso ? formatIsoToGerman(mhdIso) : new Date().toLocaleDateString('de-DE'),
-    tage,
-    resttage: tage,
-    status: 'aktiv',
-    qty: row.menge,
-    menge: row.menge,
-    eingangMenge: row.menge,
-    kategorie: mhdKategorie,
-    soldOut: false,
-    source: 'wareneingang-lieferschein',
-    postentyp: 'wareneingang',
-    wareneingangAt: nowIso,
-    erfassungsDatum: nowIso,
-    scannedBy: author,
-    updatedAt: nowIso,
-    createdAt: nowIso,
-  };
-
-  return writeFn({
-    collectionPath: 'mhd_liste',
-    docId: postenId,
-    op: 'set',
-    onlineData,
-    queueData: onlineData,
-    offlineMessage: 'Lieferschein wird automatisch verbucht, sobald WLAN verfügbar ist.',
-  });
+function resttageForMhd(mhdIso) {
+  return mhdIso ? diffInDays(startOfDayIso(), mhdIso) : null;
 }
 
 async function bucheLieferungEin(rows) {
@@ -483,14 +423,19 @@ async function bucheLieferungEin(rows) {
 
   try {
     parserState.saveInFlight = true;
-    let hatWartende = false;
-    for (const row of rows) {
-      await erhoeheBestand(row, author, nowIso);
-      const result = await schreibeMhdPosten(row, author, nowIso);
-      if (result === 'queued') hatWartende = true;
-    }
+    const result = await persistDeliveryParserRows(rows, {
+      firebaseApi: parserState.getFirebase(),
+      writeOrQueueFirestore: parserState.writeOrQueueFirestore,
+      getDocRef: getTenantDocRef,
+      tenantId: resolveParserTenantId(),
+      author,
+      nowIso,
+      getMhdKategorie: toMhdKategorie,
+      getResttage: resttageForMhd,
+      formatMhdDate: formatIsoToGerman,
+    });
     removePreviewOverlay();
-    if (hatWartende) {
+    if (result === 'queued') {
       window.showToast?.('Lieferschein gespeichert – Bestände werden synchronisiert, sobald WLAN verfügbar ist.', 'warning');
       return;
     }
