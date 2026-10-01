@@ -343,6 +343,69 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2b: Lieferschein receipt writes', () => {
+    const stevesEmployee = () => authContext(
+      testEnv,
+      'sh-employee-delivery-parser',
+      TENANTS.STEVES_HOF,
+      'employee',
+    );
+
+    it('allows tenant-scoped MHD and inventory receipt creates, but denies legacy tenantless MHD rows', async () => {
+      const ctx = stevesEmployee();
+      const nowIso = '2026-10-01T10:00:00.000Z';
+      const mhdPayload = {
+        id: 'ls-test-01',
+        postenId: 'ls-test-01',
+        produkt: 'Rinder Hack',
+        name: 'Rinder Hack',
+        mhd: '2026-10-05',
+        mhdDate: '2026-10-05',
+        qty: 4.5,
+        menge: 4.5,
+        eingangMenge: 4.5,
+        kategorie: 'Fleisch & Wurst',
+        source: 'wareneingang-lieferschein',
+        postentyp: 'wareneingang',
+        wareneingangAt: nowIso,
+        erfassungsDatum: nowIso,
+        tenantId: TENANTS.STEVES_HOF,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'ls-test-01'),
+        'create',
+        mhdPayload,
+      );
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', 'ls-test-01'),
+        'create',
+        {
+          artikel: 'Rinder Hack',
+          menge: 4.5,
+          kategorie: 'Fleisch & Wurst',
+          tenantId: TENANTS.STEVES_HOF,
+          source: 'wareneingang-lieferschein',
+          batchId: 'ls-test',
+          createdBy: 'Stephie',
+          createdAt: nowIso,
+        },
+      );
+
+      const { tenantId, ...legacyTenantlessMhd } = mhdPayload;
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'ls-test-tenantless'),
+        'create',
+        { ...legacyTenantlessMhd, id: 'ls-test-tenantless', postenId: 'ls-test-tenantless' },
+      );
+    });
+  });
+
   describe('TEST CASE 3: Terminal Credentials Lockout', () => {
     const torfabrikAdmin = () => authContext(
       testEnv,
