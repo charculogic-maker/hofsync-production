@@ -11,6 +11,7 @@ const CUSTOM_CUTS_KEY = 'hofsync_custom_beef_cuts';
  * @typedef {{
  *   id: string,
  *   kategorie: CutCategory,
+ *   alsoIn?: CutCategory[],
  *   bezeichnung: string,
  *   teilstueckDetail: string,
  *   reifung: string,
@@ -31,10 +32,11 @@ export const BEEF_CUT_CATALOG = [
     lagerung: 'Lag: 0–2 °C',
   },
   {
-    id: 'schulter-schildstueck',
+    id: 'schulter-flat-iron',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY SCHILDSTÜCK',
-    teilstueckDetail: 'Flat Iron · Entsehntes Schaufelstück',
+    alsoIn: ['LAPPEN'],
+    bezeichnung: 'BIO-GALLOWAY FLAT IRON STEAK',
+    teilstueckDetail: 'Schildstück entsehnt · Kurzbraten / Steak',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
   },
@@ -57,8 +59,8 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'schulter-schaufelbraten',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY SCHAUFELBRATEN',
-    teilstueckDetail: 'Schaufelbraten · Schmor- & Bratstück',
+    bezeichnung: 'BIO-GALLOWAY SCHAUFELBRATEN / SCHILDSTÜCK',
+    teilstueckDetail: 'Schmorbraten / Sieden · Schaufelbraten',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
   },
@@ -494,7 +496,9 @@ function findCut(id) {
 
 function cutsForTab(tab) {
   if (tab === 'CUSTOM') return customCuts.slice();
-  return BEEF_CUT_CATALOG.filter((c) => c.kategorie === tab);
+  return BEEF_CUT_CATALOG.filter(
+    (c) => c.kategorie === tab || (Array.isArray(c.alsoIn) && c.alsoIn.includes(tab)),
+  );
 }
 
 function slugifyCutName(name) {
@@ -838,12 +842,42 @@ function renderModalBody() {
   }
 }
 
+function goToCutSelection() {
+  const modal = document.getElementById('beef-labels-modal');
+  const details = /** @type {HTMLDetailsElement|null} */ (modal?.querySelector('#beef-stammdaten'));
+  if (details) details.open = false;
+  const tabs = modal?.querySelector('.beef-tabs');
+  tabs?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetNewCharge() {
+  const ok = window.confirm(
+    'Neue Charge starten? Der aktuelle Druckkorb wird geleert.',
+  );
+  if (!ok) return;
+  state.queue = [];
+  state.skipCount = 0;
+  state.chargenNummer = '';
+  state.ohrmarke = '';
+  persist();
+  const modal = document.getElementById('beef-labels-modal');
+  const details = /** @type {HTMLDetailsElement|null} */ (modal?.querySelector('#beef-stammdaten'));
+  if (details) details.open = true;
+  renderModalBody();
+  const chargeEl = /** @type {HTMLInputElement|null} */ (modal?.querySelector('#beef-charge'));
+  window.setTimeout(() => chargeEl?.focus(), 50);
+}
+
 function openModal() {
   const modal = document.getElementById('beef-labels-modal');
   if (!modal) return;
   modal.hidden = false;
   modal.setAttribute('aria-hidden', 'false');
   document.body.classList.add('beef-labels-open');
+  const details = /** @type {HTMLDetailsElement|null} */ (modal.querySelector('#beef-stammdaten'));
+  if (details) {
+    details.open = !String(state.chargenNummer || '').trim();
+  }
   renderModalBody();
 }
 
@@ -857,13 +891,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'catalog-v3') return;
+  if (existing?.dataset.ux === 'stammdaten-v4') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal';
-  modal.dataset.ux = 'catalog-v3';
+  modal.dataset.ux = 'stammdaten-v4';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -890,6 +924,9 @@ function ensureModal() {
           <span>Stammdaten</span>
           <span class="beef-stammdaten-preview" id="beef-stammdaten-summary">—</span>
         </summary>
+        <div class="beef-stammdaten-actions">
+          <button type="button" class="beef-reset-btn" id="beef-reset-btn">Neue Charge / Reset</button>
+        </div>
         <div class="beef-labels-settings">
           <label>Charge
             <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
@@ -913,9 +950,12 @@ function ensureModal() {
             <input type="number" id="beef-skip" class="input-text-touch" min="0" max="23" step="1">
           </label>
         </div>
+        <div class="beef-stammdaten-footer">
+          <button type="button" class="beef-continue-btn" id="beef-continue-btn">Weiter zur Fleischauswahl</button>
+        </div>
       </details>
 
-      <div class="beef-labels-main">
+      <div class="beef-labels-main" id="beef-labels-main">
         <div class="beef-labels-catalog">
           <div class="beef-tabs" role="tablist">${tabs}</div>
           <div class="beef-custom-add">
@@ -947,6 +987,8 @@ function ensureModal() {
 
   modal.querySelector('#beef-close-btn')?.addEventListener('click', closeModal);
   modal.querySelector('#beef-print-btn')?.addEventListener('click', handlePrint);
+  modal.querySelector('#beef-continue-btn')?.addEventListener('click', goToCutSelection);
+  modal.querySelector('#beef-reset-btn')?.addEventListener('click', resetNewCharge);
   modal.querySelector('#beef-clear-btn')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();

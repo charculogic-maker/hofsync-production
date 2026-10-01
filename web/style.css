@@ -9807,6 +9807,44 @@ body.beef-labels-open {
   text-overflow: ellipsis;
 }
 
+.beef-stammdaten-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+
+.beef-reset-btn {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #7f1d1d;
+  border-radius: 12px;
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.beef-stammdaten-footer {
+  padding: 0 14px 14px;
+}
+
+.beef-continue-btn {
+  width: 100%;
+  min-height: 52px;
+  border: none;
+  border-radius: 14px;
+  background: #059669;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 .beef-labels-settings {
   display: grid;
   grid-template-columns: 1fr;
@@ -9844,6 +9882,7 @@ body.beef-labels-open {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  scroll-margin-top: 8px;
 }
 
 @media (min-width: 900px) {
@@ -9941,7 +9980,7 @@ body.beef-labels-open {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 10px 12px;
+  padding: 10px 12px 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
