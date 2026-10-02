@@ -1,13 +1,10 @@
 /**
- * Cloud Functions entry – discovery-safe (no top-level Admin init / heavy deps).
+ * Cloud Functions entry – discovery-safe & load-fast.
  *
- * Callable/trigger wrappers register with firebase-functions only; feature modules
- * are required inside handlers so `require('./index.js')` exits immediately.
+ * Every export is a lazy getter: `require('./index.js')` + Object.keys stays
+ * under 500ms because firebase-functions / Admin are not loaded until an export
+ * value is actually read (Firebase discovery / runtime).
  */
-
-const { onCall } = require('firebase-functions/v2/https');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 
 const REGION = 'europe-west3';
 
@@ -19,7 +16,6 @@ const CALLABLE_BASE_OPTIONS = {
 /** @type {undefined | (() => void)} */
 let adminReady;
 
-/** Lazy Admin init – never at module top-level (keeps discovery event-loop clean). */
 function ensureAdminApp() {
   if (adminReady) return;
   const admin = require('./firebaseAdmin');
@@ -36,9 +32,37 @@ function withAdmin(handler) {
   };
 }
 
+function lazyExport(exportName, factory) {
+  let cached;
+  Object.defineProperty(exports, exportName, {
+    enumerable: true,
+    configurable: true,
+    get() {
+      if (!cached) cached = factory();
+      return cached;
+    },
+  });
+}
+
+function onCall(options, handler) {
+  return require('firebase-functions/v2/https').onCall(options, handler);
+}
+
+function onSchedule(options, handler) {
+  return require('firebase-functions/v2/scheduler').onSchedule(options, handler);
+}
+
+function onDocumentCreated(options, handler) {
+  return require('firebase-functions/v2/firestore').onDocumentCreated(options, handler);
+}
+
+function onDocumentUpdated(options, handler) {
+  return require('firebase-functions/v2/firestore').onDocumentUpdated(options, handler);
+}
+
 // —— HTTPS Callables ——
 
-exports.parseDeliveryNote = onCall(
+lazyExport('parseDeliveryNote', () => onCall(
   {
     ...CALLABLE_BASE_OPTIONS,
     secrets: ['GEMINI_API_KEY'],
@@ -46,9 +70,9 @@ exports.parseDeliveryNote = onCall(
     memory: '512MiB',
   },
   withAdmin(async (request) => require('./deliveryNote').handleParseDeliveryNote(request)),
-);
+));
 
-exports.parseMeatLabel = onCall(
+lazyExport('parseMeatLabel', () => onCall(
   {
     ...CALLABLE_BASE_OPTIONS,
     secrets: ['GEMINI_API_KEY'],
@@ -56,36 +80,33 @@ exports.parseMeatLabel = onCall(
     memory: '512MiB',
   },
   withAdmin(async (request) => require('./meatLabel').handleParseMeatLabel(request)),
-);
+));
 
-exports.verifyTerminalPin = onCall(
+lazyExport('verifyTerminalPin', () => onCall(
   {
     ...CALLABLE_BASE_OPTIONS,
     timeoutSeconds: 30,
     memory: '256MiB',
   },
   withAdmin(async (request) => require('./verifyTerminalPinCallable').handleVerifyTerminalPin(request)),
-);
+));
 
-exports.createTenantEmployee = onCall(
+lazyExport('createTenantEmployee', () => onCall(
   CALLABLE_BASE_OPTIONS,
   withAdmin(async (request) => require('./createTenantEmployee').handleCreateTenantEmployee(request)),
-);
+));
 
-exports.manageTenantEmployees = onCall(
+lazyExport('manageTenantEmployees', () => onCall(
   CALLABLE_BASE_OPTIONS,
   withAdmin(async (request) => require('./manageTenantEmployees').handleManageTenantEmployees(request)),
-);
+));
 
-exports.provisionDemoTenant = onCall(
+lazyExport('provisionDemoTenant', () => onCall(
   CALLABLE_BASE_OPTIONS,
-  withAdmin(async (request) => {
-    const tenantAdmin = require('./tenantAdmin');
-    return tenantAdmin.handleProvisionDemoTenant(request);
-  }),
-);
+  withAdmin(async (request) => require('./tenantAdmin').handleProvisionDemoTenant(request)),
+));
 
-exports.triggerManualMeatPriceRun = onCall(
+lazyExport('triggerManualMeatPriceRun', () => onCall(
   {
     ...CALLABLE_BASE_OPTIONS,
     timeoutSeconds: 120,
@@ -93,11 +114,20 @@ exports.triggerManualMeatPriceRun = onCall(
     secrets: ['GEMINI_API_KEY'],
   },
   withAdmin(async (request) => require('./meatPrices').handleTriggerManualMeatPriceRun(request)),
-);
+));
+
+lazyExport('archiveZeroStockBatches', () => onCall(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+  },
+  withAdmin(async (request) => require('./mhdArchive').handleArchiveZeroStockBatches(request)),
+));
 
 // —— Schedulers ——
 
-exports.fetchWeeklyMeatPrices = onSchedule(
+lazyExport('fetchWeeklyMeatPrices', () => onSchedule(
   {
     region: REGION,
     schedule: '0 8 * * 3',
@@ -110,11 +140,26 @@ exports.fetchWeeklyMeatPrices = onSchedule(
     ensureAdminApp();
     return require('./meatPrices').handleFetchWeeklyMeatPrices(event);
   },
-);
+));
+
+lazyExport('archiveZeroStockBatchesScheduled', () => onSchedule(
+  {
+    region: REGION,
+    schedule: '0 3 * * 0',
+    timeZone: 'Europe/Berlin',
+    retryCount: 1,
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async () => {
+    ensureAdminApp();
+    return require('./mhdArchive').handleArchiveZeroStockBatchesScheduled();
+  },
+));
 
 // —— Firestore triggers ——
 
-exports.notifyTeamEntryCreated = onDocumentCreated(
+lazyExport('notifyTeamEntryCreated', () => onDocumentCreated(
   {
     document: 'tenants/{tenantId}/tasks/{taskId}',
     region: REGION,
@@ -123,9 +168,9 @@ exports.notifyTeamEntryCreated = onDocumentCreated(
     ensureAdminApp();
     return require('./teamPush').handleNotifyTeamEntryCreated(event);
   },
-);
+));
 
-exports.onOrderReadySendSignal = onDocumentUpdated(
+lazyExport('onOrderReadySendSignal', () => onDocumentUpdated(
   {
     document: 'tenants/{tenantId}/customerOrders/{orderId}',
     region: REGION,
@@ -134,9 +179,9 @@ exports.onOrderReadySendSignal = onDocumentUpdated(
     ensureAdminApp();
     return require('./orderNotifications').handleOrderReadySendSignal(event);
   },
-);
+));
 
-exports.onBulletinConfirmationAuditMail = onDocumentCreated(
+lazyExport('onBulletinConfirmationAuditMail', () => onDocumentCreated(
   {
     document: 'tenants/{tenantId}/bulletinConfirmations/{confirmationId}',
     region: REGION,
@@ -145,4 +190,4 @@ exports.onBulletinConfirmationAuditMail = onDocumentCreated(
     ensureAdminApp();
     return require('./bulletinAuditMail').handleBulletinConfirmationAuditMail(event);
   },
-);
+));

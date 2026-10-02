@@ -1659,6 +1659,28 @@
               </div>
             </section>
 
+            <section
+              class="batch-audit-card mhd-archive-card"
+              id="mhd-archive-card"
+              aria-label="0er-Bestände archivieren"
+            >
+              <div class="batch-audit-title">🧹 MHD-Bereinigung</div>
+              <p class="admin-leitstand-hint">
+                Verschiebt alte Null-Bestände (älter als 90 Tage) aus der aktiven MHD-Liste ins Archiv.
+              </p>
+              <button
+                type="button"
+                class="btn btn-secondary mhd-archive-btn"
+                id="mhd-archive-zero-btn"
+                data-mhd-archive-btn
+                style="width:100%;min-height:52px;"
+              >
+                <span class="mhd-archive-spinner" aria-hidden="true" hidden></span>
+                <span data-mhd-archive-label>🧹 Alte 0er-Bestände archivieren (&gt;90 Tage)</span>
+              </button>
+              <p class="admin-leitstand-hint" id="mhd-archive-status" data-mhd-archive-status hidden role="status"></p>
+            </section>
+
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 

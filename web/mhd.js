@@ -15,6 +15,8 @@ import {
   scopedTeamboardStorageKey,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
+import { createHttpsCallable } from './firebase-functions.js';
+import { waitForAppCheckReady } from './app-check.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -6161,6 +6163,67 @@ function bindMhdToolbar() {
     });
   }
 }
+function initMhdArchiveButton() {
+  const button = document.getElementById('mhd-archive-zero-btn')
+    || document.querySelector('[data-mhd-archive-btn]');
+  if (!button || button.dataset.mhdBound === '1') return;
+  button.dataset.mhdBound = '1';
+
+  const statusEl = document.getElementById('mhd-archive-status')
+    || document.querySelector('[data-mhd-archive-status]');
+  const labelEl = button.querySelector('[data-mhd-archive-label]');
+  const spinnerEl = button.querySelector('.mhd-archive-spinner');
+  const defaultLabel = labelEl?.textContent || '🧹 Alte 0er-Bestände archivieren (>90 Tage)';
+
+  const setBusy = (busy) => {
+    button.disabled = busy;
+    button.classList.toggle('is-loading', busy);
+    if (spinnerEl) spinnerEl.hidden = !busy;
+    if (labelEl) labelEl.textContent = busy ? 'Archiviere…' : defaultLabel;
+  };
+
+  const setStatus = (message, tone = 'info') => {
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    statusEl.dataset.tone = tone;
+    statusEl.hidden = !message;
+  };
+
+  button.addEventListener('click', async () => {
+    if (!isOfficeUser()) {
+      const msg = 'Nur Büro-Admins dürfen 0er-Bestände archivieren.';
+      setStatus(msg, 'error');
+      window.showToast?.(msg, 'error');
+      return;
+    }
+    setBusy(true);
+    setStatus('Prüfe und archiviere alte Null-Bestände…', 'info');
+    try {
+      await waitForAppCheckReady();
+      const firebaseApi = mhdState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+      const callable = createHttpsCallable('archiveZeroStockBatches', { timeout: 300000 }, firebaseApi);
+      const response = await callable({
+        tenantId: mhdState.tenantId || getGlobalTenantId() || undefined,
+      });
+      const data = response?.data || response || {};
+      const count = Number(data.archivedCount || 0);
+      const successMsg = `Erfolgreich ${count} alte Posten ins Archiv verschoben.`;
+      setStatus(successMsg, 'success');
+      window.showToast?.(successMsg, 'success');
+      mhdState.showHUD?.('Archivierung fertig', successMsg);
+      if (typeof loadMhdFromCloud === 'function') loadMhdFromCloud();
+    } catch (err) {
+      console.error('[CharcuLogic MHD] archiveZeroStockBatches failed:', err);
+      const msg = String(err?.message || err || 'Archivierung fehlgeschlagen.').replace(/^FirebaseError:\s*/i, '');
+      setStatus(msg, 'error');
+      window.showToast?.(msg, 'error');
+      mhdState.showHUD?.('Fehler', msg, '!');
+    } finally {
+      setBusy(false);
+    }
+  });
+}
+
 export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {}, uiCallbacks = {}) {
   mhdState.db = databaseInstance || mhdState.db;
   mhdState.tenantId = uiCallbacks.tenantId || mhdState.tenantId;
@@ -6182,6 +6245,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   if (!mhdState.initialized) {
     initMhdSubnavAndSearch();
     initMhdAdminSearch();
+    initMhdArchiveButton();
     bindMhdCardActions();
     bindUtilityDialogActions();
     bindReceivingControls();

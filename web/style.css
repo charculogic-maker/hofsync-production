@@ -4471,6 +4471,49 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   font-size: 13px;
 }
 
+.mhd-archive-card {
+  margin-bottom: 16px;
+}
+
+.mhd-archive-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mhd-archive-btn.is-loading {
+  opacity: 0.85;
+}
+
+.mhd-archive-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: #1e293b;
+  border-radius: 50%;
+  animation: mhd-archive-spin 0.7s linear infinite;
+}
+
+.mhd-archive-spinner[hidden] {
+  display: none;
+}
+
+@keyframes mhd-archive-spin {
+  to { transform: rotate(360deg); }
+}
+
+#mhd-archive-status[data-tone="error"] {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+#mhd-archive-status[data-tone="success"] {
+  color: #047857;
+  font-weight: 600;
+}
+
 .btn-danger-small {
   min-height: 48px;
   padding: 0 12px;
