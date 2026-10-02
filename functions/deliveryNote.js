@@ -1,6 +1,9 @@
-const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
+
+function loadGeminiSdk() {
+  return require('@google/generative-ai');
+}
 
 const DELIVERY_NOTE_MODEL = process.env.GEMINI_DELIVERY_NOTE_MODEL || 'gemini-2.5-flash';
 const MAX_IMAGE_BASE64_LENGTH = 16 * 1024 * 1024;
@@ -86,6 +89,7 @@ function validateParsedItems(items) {
 
 async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
   const apiKey = resolveGeminiApiKey();
+  const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = loadGeminiSdk();
   const ai = new GoogleGenerativeAI(apiKey);
   const model = ai.getGenerativeModel({
     model: DELIVERY_NOTE_MODEL,

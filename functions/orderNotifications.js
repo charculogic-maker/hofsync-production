@@ -1,8 +1,5 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { defineString } = require('firebase-functions/params');
-const admin = require('firebase-admin');
-const nodemailer = require('nodemailer');
-const twilio = require('twilio');
 
 const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' });
 const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
@@ -13,10 +10,6 @@ const FROM_EMAIL = defineString('FROM_EMAIL', { default: ORDER_SIGNAL_EMAIL });
 const TWILIO_ACCOUNT_SID = defineString('TWILIO_ACCOUNT_SID', { default: '' });
 const TWILIO_AUTH_TOKEN = defineString('TWILIO_AUTH_TOKEN', { default: '' });
 const FROM_NUMBER = defineString('FROM_NUMBER', { default: '' });
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
 
 function getNotificationConfig() {
   return {
@@ -32,6 +25,7 @@ function getNotificationConfig() {
 }
 
 function createSmtpTransport(config) {
+  const nodemailer = require('nodemailer');
   const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
   return nodemailer.createTransport({
     host: String(config.smtpHost || 'mail.agenturserver.de').trim(),
@@ -248,6 +242,7 @@ async function sendCustomerSms(signal, config, meta) {
   }
 
   try {
+    const twilio = require('twilio');
     const client = twilio(accountSid, authToken);
     await client.messages.create({
       to: toNumber,

@@ -8,7 +8,14 @@ function hashPin(pin, saltHex) {
   return crypto.pbkdf2Sync(String(pin), salt, PIN_HASH_ITERATIONS, 32, 'sha256').toString('hex');
 }
 
-const DUMMY_HASH_HEX = hashPin('0000', DUMMY_SALT_HEX);
+/** Lazy: avoid 120k PBKDF2 iterations during Cloud Functions module discovery. */
+let dummyHashHex = null;
+function getDummyHashHex() {
+  if (!dummyHashHex) {
+    dummyHashHex = hashPin('0000', DUMMY_SALT_HEX);
+  }
+  return dummyHashHex;
+}
 
 function createPinRecord(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -33,7 +40,7 @@ function verifyPinRecord(pin, record) {
 function runDummyPinVerification(pin) {
   const candidate = hashPin(pin, DUMMY_SALT_HEX);
   try {
-    crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(DUMMY_HASH_HEX, 'hex'));
+    crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(getDummyHashHex(), 'hex'));
   } catch (_) {
     // intentional no-op — comparison must still run for timing parity
   }

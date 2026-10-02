@@ -1,6 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineString } = require('firebase-functions/params');
-const nodemailer = require('nodemailer');
 
 const SMTP_HOST = defineString('SMTP_HOST', { default: 'mail.agenturserver.de' });
 const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
@@ -20,6 +19,7 @@ function getSmtpConfig() {
 }
 
 function createSmtpTransport(config) {
+  const nodemailer = require('nodemailer');
   const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
   return nodemailer.createTransport({
     host: String(config.smtpHost || 'mail.agenturserver.de').trim(),

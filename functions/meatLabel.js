@@ -1,10 +1,14 @@
 /**
  * Gemini Vision – LMIV / Bio Fleisch-Etikett → strukturierte Herkunftsdaten.
+ * @google/generative-ai wird lazy geladen (Deploy-Discovery-Timeout).
  */
 const admin = require('firebase-admin');
-const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
+
+function loadGeminiSdk() {
+  return require('@google/generative-ai');
+}
 
 const MEAT_LABEL_MODEL = process.env.GEMINI_MEAT_LABEL_MODEL || 'gemini-2.5-flash';
 const MAX_IMAGE_BASE64_LENGTH = 16 * 1024 * 1024;
@@ -339,6 +343,7 @@ async function resolveImagePayload(requestData, tenantId) {
 
 async function parseMeatLabelImage(imageBase64, mimeType = 'image/jpeg') {
   const apiKey = resolveGeminiApiKey();
+  const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = loadGeminiSdk();
   const ai = new GoogleGenerativeAI(apiKey);
   const model = ai.getGenerativeModel({
     model: MEAT_LABEL_MODEL,

@@ -1,10 +1,6 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
 const DEFAULT_TEAM_GROUPS = {
   finn_stephie: { label: 'Finn & Stephie', members: ['Finn', 'Stephie'] },
   metzgerei: { label: 'Metzgerei', members: ['Nicole', 'Bettina', 'Heiko', 'Paddy'] },

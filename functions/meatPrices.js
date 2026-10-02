@@ -1,13 +1,17 @@
 /**
  * Fleischpreis-Automation – geplanter Lauf + manueller Admin-Trigger.
  * Lifecycle-Logging in /priceRuns/{runId}, Validierung vor Schreiben nach fleischpreise/.
+ * @google/generative-ai wird lazy geladen (Deploy-Discovery-Timeout).
  */
-const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const adminDb = require('./adminDb');
 const { cleanTenantId } = require('./authContext');
 const { randomUUID } = require('crypto');
+
+function loadGeminiSdk() {
+  return require('@google/generative-ai');
+}
 
 const GEMINI_API_KEY_PLACEHOLDER = 'DEIN_AI_STUDIO_KEY';
 const MODEL_VERSION = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
@@ -222,6 +226,7 @@ function classifyRunError(error) {
   ) {
     return ERROR_CODES.PARSE;
   }
+  const { GoogleGenerativeAIFetchError } = loadGeminiSdk();
   if (error instanceof GoogleGenerativeAIFetchError) return ERROR_CODES.GEMINI_API;
   return ERROR_CODES.UNKNOWN;
 }
@@ -251,6 +256,7 @@ function logGeminiDiagnostics(phase = 'run') {
 }
 
 function logGeminiDetailedError(error, context = {}) {
+  const { GoogleGenerativeAIFetchError } = loadGeminiSdk();
   const payload = {
     message: error?.message,
     status: error?.status,
@@ -276,6 +282,7 @@ async function fetchMeatPricesFromGemini() {
   logGeminiDiagnostics('gemini-fetch');
 
   const apiKey = resolveGeminiApiKey();
+  const { GoogleGenerativeAI } = loadGeminiSdk();
   const ai = new GoogleGenerativeAI(apiKey);
   const geminiRequestOptions = getGeminiRequestOptions();
   const model = ai.getGenerativeModel({
@@ -538,7 +545,9 @@ module.exports = {
   logGeminiDetailedError,
   logger,
   ERROR_CODES,
-  GoogleGenerativeAIFetchError,
+  get GoogleGenerativeAIFetchError() {
+    return loadGeminiSdk().GoogleGenerativeAIFetchError;
+  },
   resolveSchedulerTenantId,
   shouldSkipScheduledMeatPriceRun,
   WHITELABEL_TEST_PROJECT_ID,

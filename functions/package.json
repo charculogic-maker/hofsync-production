@@ -3,13 +3,14 @@
   "description": "Scheduled meat-price sync for CharcuLogic / HofSync",
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "test": "vitest run --config vitest.config.mjs --configLoader runner",
-    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js tests/tenantAdminRbac.test.js tests/meatLabelNormalization.test.js --config vitest.config.mjs --configLoader runner"
+    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js tests/tenantAdminRbac.test.js tests/meatLabelNormalization.test.js --config vitest.config.mjs --configLoader runner",
+    "verify:load": "node -e \"const t=Date.now(); require('./index.js'); const ms=Date.now()-t; console.log('load_ms='+ms); if(ms>=500){console.error('LOAD_TOO_SLOW'); process.exit(1)}\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

@@ -72,7 +72,9 @@ describe('App Check coverage – Callable registration contract', () => {
   test('index.js exports every App-Check-protected callable', () => {
     const index = readFunctionSource('index.js');
     for (const { id } of APP_CHECK_CALLABLES) {
-      expect(index).toMatch(new RegExp(`exports\\.${id}\\s*=`));
+      const direct = new RegExp(`exports\\.${id}\\s*=`);
+      const lazy = new RegExp(`lazyExport\\(\\s*['"]${id}['"]`);
+      expect(direct.test(index) || lazy.test(index)).toBe(true);
     }
   });
 });
