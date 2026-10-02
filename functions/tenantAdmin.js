@@ -19,6 +19,15 @@ const DEFAULT_CONTINUE_URL = 'https://hofsync-production.web.app/';
 
 const MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'cutting', 'haccp'];
 
+/** Frontend may send friendly keys (mhdMonitor, wareneingang, …) or internal keys. */
+const MODULE_ALIASES = {
+  mhd: ['mhd', 'mhdMonitor'],
+  receiving: ['receiving', 'wareneingang'],
+  kitchen: ['kitchen', 'wurstkueche'],
+  cutting: ['cutting', 'zerlegung'],
+  haccp: ['haccp'],
+};
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -48,7 +57,8 @@ function normalizeModules(raw) {
   /** @type {Record<string, boolean>} */
   const modules = {};
   MODULE_KEYS.forEach((key) => {
-    modules[key] = src[key] === true;
+    const aliases = MODULE_ALIASES[key] || [key];
+    modules[key] = aliases.some((alias) => src[alias] === true);
   });
   return modules;
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261002-mhd-zero-undo-v1';
+const CACHE_NAME = 'charculogic-v20261002-fast-onboard-v1';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
 const RELEASED_AT = '2026-10-02T05:30:00+02:00';
@@ -42,7 +42,7 @@ const CRITICAL_ASSETS = [
   '/traceability.js',
   '/tenant-modules.js',
   '/dev-dashboard.js',
-  '/demo-tenant-onboarding.js',
+  '/fast-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
   '/beef-labels.js',

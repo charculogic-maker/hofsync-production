@@ -10450,18 +10450,18 @@ body.beef-labels-open {
   }
 }
 
-/* —— Demo Tenant Schnell-Onboarding —— */
-.demo-onboarding-card {
+/* —— Fast-Onboarding: Test-Mandant / Interessenten —— */
+.fast-onboarding-card {
   margin-bottom: 16px;
 }
 
-.demo-onboarding-form {
+.fast-onboarding-form {
   display: grid;
   gap: 12px;
   margin-top: 10px;
 }
 
-.demo-onboarding-modules {
+.fast-onboarding-modules {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
@@ -10471,42 +10471,92 @@ body.beef-labels-open {
   margin: 0;
 }
 
-.demo-onboarding-modules legend {
+.fast-onboarding-modules legend {
   padding: 0 6px;
   font-size: 12px;
   font-weight: 700;
   color: #64748b;
 }
 
-.demo-onboarding-modules label {
+.fast-onboarding-modules label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
   color: #1e293b;
+  min-height: 44px;
 }
 
-.demo-onboarding-submit {
+.fast-onboarding-submit {
   min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-.demo-onboarding-status {
+.fast-onboarding-spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: fast-onboarding-spin 0.7s linear infinite;
+}
+
+.fast-onboarding-submit.is-loading .fast-onboarding-spinner {
+  display: inline-block;
+}
+
+@keyframes fast-onboarding-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fast-onboarding-status {
   margin-top: 10px;
   font-size: 13px;
   font-weight: 600;
 }
 
-.demo-onboarding-status[data-tone="error"] {
+.fast-onboarding-status[data-tone="error"] {
   color: #b91c1c;
 }
 
-.demo-onboarding-status[data-tone="success"] {
+.fast-onboarding-status[data-tone="success"] {
   color: #047857;
 }
 
-.demo-onboarding-result {
+.fast-onboarding-result {
   margin-top: 12px;
   display: grid;
   gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+}
+
+.fast-onboarding-tenant-id {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #d1fae5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.fast-onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fast-onboarding-actions .btn,
+.fast-onboarding-actions .dev-dashboard-submit-btn {
+  min-height: 44px;
+  flex: 1 1 160px;
 }

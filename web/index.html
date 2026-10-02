@@ -558,48 +558,56 @@
                     </div>
 
                     <div
-                      class="dev-dashboard-tenant-create demo-onboarding-card"
-                      data-demo-onboarding-card
+                      class="dev-dashboard-tenant-create fast-onboarding-card"
+                      data-fast-onboarding-card
                       hidden
-                      aria-label="Schnell-Onboarding für Interessenten"
+                      aria-label="Interessenten-Zugang / Test-Mandant anlegen"
                     >
-                      <h3 class="dev-dashboard-subsection-title">Schnell-Onboarding für Interessenten</h3>
+                      <h3 class="dev-dashboard-subsection-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</h3>
                       <p class="dev-dashboard-intro">
-                        Sofort sauberen Test-Mandanten anlegen und Passwort-Link für Meisterschüler generieren.
+                        Sofort sauberen Test-Mandanten anlegen und 1-Klick-Einladungs-Link für Meisterschüler generieren.
                       </p>
-                      <form class="demo-onboarding-form" data-demo-onboarding-form>
+                      <form class="fast-onboarding-form" data-fast-onboarding-form>
                         <label class="dev-dashboard-field">
                           <span>Betriebsname</span>
-                          <input name="companyName" type="text" required maxlength="80" placeholder="z. B. Metzgerei Müller" autocomplete="organization">
+                          <input name="companyName" type="text" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
                         </label>
                         <label class="dev-dashboard-field">
-                          <span>Name des Inhabers / Meisters</span>
-                          <input name="adminName" type="text" required maxlength="80" placeholder="z. B. Benjamin Büge" autocomplete="name">
+                          <span>Inhaber / Meister</span>
+                          <input name="adminName" type="text" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
                         </label>
                         <label class="dev-dashboard-field">
                           <span>E-Mail-Adresse</span>
-                          <input name="adminEmail" type="email" required maxlength="120" placeholder="meister@beispiel.de" autocomplete="email">
+                          <input name="adminEmail" type="email" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
                         </label>
-                        <fieldset class="dev-dashboard-permissions-fieldset demo-onboarding-modules">
-                          <legend>Module</legend>
+                        <fieldset class="dev-dashboard-permissions-fieldset fast-onboarding-modules">
+                          <legend>Modul-Freischaltung</legend>
                           <div class="dev-dashboard-permissions-row">
-                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="mhd" checked><span>MHD</span></label>
-                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="receiving" checked><span>Wareneingang</span></label>
-                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="kitchen" checked><span>Wurstküche</span></label>
-                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="cutting" checked><span>Zerlegung / Avery 3475</span></label>
-                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="haccp" checked><span>HACCP</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="mhdMonitor" checked><span>MHD-Monitor</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wareneingang" checked><span>Wareneingang &amp; KI-Lieferschein</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wurstkueche" checked><span>Wurstküche &amp; BEFFE-Kalkulation</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="haccp" checked><span>HACCP-Tageskontrollen</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="zerlegung" checked><span>Galloway-Zerlegung &amp; Avery 3475 Etiketten</span></label>
                           </div>
                         </fieldset>
-                        <button type="submit" class="dev-dashboard-submit-btn">Test-Mandant anlegen &amp; Link generieren</button>
+                        <button type="submit" class="dev-dashboard-submit-btn fast-onboarding-submit" data-fast-submit>
+                          <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                          <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
+                        </button>
                       </form>
-                      <p class="dev-dashboard-employee-status" data-demo-onboarding-status hidden role="status"></p>
-                      <div class="demo-onboarding-result" data-demo-onboarding-result hidden>
-                        <p class="dev-dashboard-intro" data-demo-onboarding-meta></p>
+                      <p class="dev-dashboard-employee-status" data-fast-onboarding-status hidden role="status"></p>
+                      <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                        <p class="dev-dashboard-intro">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                        <p class="dev-dashboard-intro" data-fast-onboarding-meta></p>
                         <label class="dev-dashboard-field">
                           <span>Einladungs-Link</span>
-                          <input type="text" data-demo-invite-link readonly>
+                          <input type="text" data-fast-invite-link readonly>
                         </label>
-                        <button type="button" class="dev-dashboard-submit-btn" data-demo-copy-link>Link in Zwischenablage kopieren</button>
+                        <div class="fast-onboarding-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-copy-link>📋 Link kopieren</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-whatsapp>💬 Per WhatsApp senden</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-reset>🔄 Weiteren Mandanten anlegen</button>
+                        </div>
                       </div>
                     </div>
 
@@ -1593,51 +1601,61 @@
 
             <div id="office-access-content" class="office-access-content">
             <section
-              class="batch-audit-card demo-onboarding-card"
-              id="demo-onboarding-card"
-              data-demo-onboarding-card
+              class="batch-audit-card fast-onboarding-card"
+              id="fast-onboarding-card"
+              data-fast-onboarding-card
               hidden
-              aria-label="Schnell-Onboarding für Interessenten"
+              aria-label="Interessenten-Zugang / Test-Mandant anlegen"
             >
-              <div class="batch-audit-title">Schnell-Onboarding für Interessenten</div>
+              <div class="batch-audit-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</div>
               <p class="admin-leitstand-hint">
-                Legt einen sauberen Test-Mandanten an und erzeugt einen Passwort-Setzen-Link für Meisterschüler / Interessenten.
+                Legt einen sauberen Test-Mandanten an und erzeugt einen 1-Klick-Einladungs-Link für Meisterschüler / Interessenten.
               </p>
-              <form class="demo-onboarding-form" data-demo-onboarding-form>
-                <label class="form-label" for="demo-onboarding-company">
+              <form class="fast-onboarding-form" data-fast-onboarding-form>
+                <label class="form-label" for="fast-onboarding-company">
                   Betriebsname
-                  <input id="demo-onboarding-company" name="companyName" type="text" class="input-text-touch" required maxlength="80" placeholder="z. B. Metzgerei Müller" autocomplete="organization">
+                  <input id="fast-onboarding-company" name="companyName" type="text" class="input-text-touch" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
                 </label>
-                <label class="form-label" for="demo-onboarding-admin-name">
-                  Name des Inhabers / Meisters
-                  <input id="demo-onboarding-admin-name" name="adminName" type="text" class="input-text-touch" required maxlength="80" placeholder="z. B. Benjamin Büge" autocomplete="name">
+                <label class="form-label" for="fast-onboarding-admin-name">
+                  Inhaber / Meister
+                  <input id="fast-onboarding-admin-name" name="adminName" type="text" class="input-text-touch" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
                 </label>
-                <label class="form-label" for="demo-onboarding-admin-email">
+                <label class="form-label" for="fast-onboarding-admin-email">
                   E-Mail-Adresse
-                  <input id="demo-onboarding-admin-email" name="adminEmail" type="email" class="input-text-touch" required maxlength="120" placeholder="meister@beispiel.de" autocomplete="email">
+                  <input id="fast-onboarding-admin-email" name="adminEmail" type="email" class="input-text-touch" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
                 </label>
-                <fieldset class="demo-onboarding-modules">
-                  <legend>Module</legend>
-                  <label><input type="checkbox" data-demo-mod="mhd" checked> MHD</label>
-                  <label><input type="checkbox" data-demo-mod="receiving" checked> Wareneingang</label>
-                  <label><input type="checkbox" data-demo-mod="kitchen" checked> Wurstküche</label>
-                  <label><input type="checkbox" data-demo-mod="cutting" checked> Zerlegung / Avery 3475</label>
-                  <label><input type="checkbox" data-demo-mod="haccp" checked> HACCP</label>
+                <fieldset class="fast-onboarding-modules">
+                  <legend>Modul-Freischaltung</legend>
+                  <label><input type="checkbox" data-fast-mod="mhdMonitor" checked> MHD-Monitor</label>
+                  <label><input type="checkbox" data-fast-mod="wareneingang" checked> Wareneingang &amp; KI-Lieferschein</label>
+                  <label><input type="checkbox" data-fast-mod="wurstkueche" checked> Wurstküche &amp; BEFFE-Kalkulation</label>
+                  <label><input type="checkbox" data-fast-mod="haccp" checked> HACCP-Tageskontrollen</label>
+                  <label><input type="checkbox" data-fast-mod="zerlegung" checked> Galloway-Zerlegung &amp; Avery 3475 Etiketten</label>
                 </fieldset>
-                <button type="submit" class="btn btn-primary demo-onboarding-submit">
-                  Test-Mandant anlegen &amp; Link generieren
+                <button type="submit" class="btn btn-primary fast-onboarding-submit" data-fast-submit>
+                  <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                  <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
                 </button>
               </form>
-              <p class="demo-onboarding-status" data-demo-onboarding-status hidden role="status"></p>
-              <div class="demo-onboarding-result" data-demo-onboarding-result hidden>
-                <p class="admin-leitstand-hint" data-demo-onboarding-meta></p>
-                <label class="form-label" for="demo-onboarding-invite-link">
+              <p class="fast-onboarding-status" data-fast-onboarding-status hidden role="status"></p>
+              <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                <p class="admin-leitstand-hint">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                <p class="admin-leitstand-hint" data-fast-onboarding-meta></p>
+                <label class="form-label" for="fast-onboarding-invite-link">
                   Einladungs-Link
-                  <input id="demo-onboarding-invite-link" type="text" class="input-text-touch" data-demo-invite-link readonly>
+                  <input id="fast-onboarding-invite-link" type="text" class="input-text-touch" data-fast-invite-link readonly>
                 </label>
-                <button type="button" class="btn btn-secondary" data-demo-copy-link>
-                  Link in Zwischenablage kopieren
-                </button>
+                <div class="fast-onboarding-actions">
+                  <button type="button" class="btn btn-secondary" data-fast-copy-link>
+                    📋 Link kopieren
+                  </button>
+                  <button type="button" class="btn btn-secondary" data-fast-whatsapp>
+                    💬 Per WhatsApp senden
+                  </button>
+                  <button type="button" class="btn btn-primary" data-fast-reset>
+                    🔄 Weiteren Mandanten anlegen
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -2245,7 +2263,7 @@
     </form>
   </template>
 
-  <script type="module" src="/demo-tenant-onboarding.js?v=20261002-provision-v1"></script>
+  <script type="module" src="/fast-onboarding.js?v=20261002-fast-onboard-v1"></script>
   <script type="module" src="/beef-labels.js?v=20261001-stammdaten-v4"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
   <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
