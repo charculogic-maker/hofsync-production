@@ -289,6 +289,92 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2e: KI-Lieferschein receipt creates', () => {
+    it('allows employee to create fixed tenant-scoped MHD and inventory receipt rows', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-parser', TENANTS.STEVES_HOF, 'employee');
+      const batchId = 'ls_rules_batch';
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', `${batchId}_001_bio-milch`),
+        'create',
+        {
+          id: `${batchId}_001_bio-milch`,
+          postenId: `${batchId}_001_bio-milch`,
+          produkt: 'Bio Milch',
+          name: 'Bio Milch',
+          mhd: '2026-10-08',
+          mhdDate: '2026-10-08',
+          mhdText: '6 Resttage',
+          date: '08.10.2026',
+          tage: 6,
+          resttage: 6,
+          status: 'aktiv',
+          qty: 6,
+          menge: 6,
+          eingangMenge: 6,
+          kategorie: '🥛MoPro',
+          soldOut: false,
+          source: 'wareneingang-lieferschein',
+          postentyp: 'wareneingang',
+          wareneingangAt: '2026-10-02T10:00:00.000Z',
+          erfassungsDatum: '2026-10-02T10:00:00.000Z',
+          scannedBy: 'Laden',
+          tenantId: TENANTS.STEVES_HOF,
+          lieferungId: batchId,
+          updatedAt: '2026-10-02T10:00:00.000Z',
+          createdAt: '2026-10-02T10:00:00.000Z',
+        },
+      );
+
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'inventory', `inv_${batchId}_001_bio-milch`),
+        'create',
+        {
+          artikel: 'Bio Milch',
+          menge: 6,
+          kategorie: '🥛MoPro',
+          tenantId: TENANTS.STEVES_HOF,
+          source: 'wareneingang-lieferschein',
+          batchId,
+          createdBy: 'Laden',
+          createdAt: '2026-10-02T10:00:00.000Z',
+        },
+      );
+    });
+
+    it('denies the old tenantless MHD receipt row shape', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-delivery-parser-old', TENANTS.STEVES_HOF, 'employee');
+
+      await expectFirestoreDeny(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'old-ls-row'),
+        'create',
+        {
+          id: 'old-ls-row',
+          postenId: 'old-ls-row',
+          produkt: 'Bio Milch',
+          name: 'Bio Milch',
+          mhd: '2026-10-08',
+          mhdDate: '2026-10-08',
+          qty: 6,
+          menge: 6,
+          eingangMenge: 6,
+          kategorie: '🥛MoPro',
+          soldOut: false,
+          source: 'wareneingang-lieferschein',
+          postentyp: 'wareneingang',
+          wareneingangAt: '2026-10-02T10:00:00.000Z',
+          erfassungsDatum: '2026-10-02T10:00:00.000Z',
+          scannedBy: 'Laden',
+          updatedAt: '2026-10-02T10:00:00.000Z',
+          createdAt: '2026-10-02T10:00:00.000Z',
+        },
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
