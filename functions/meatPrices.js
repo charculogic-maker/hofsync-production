@@ -479,29 +479,48 @@ const scheduledMeatPriceOptions = {
   secrets: ['GEMINI_API_KEY'],
 };
 
+async function handleFetchWeeklyMeatPrices(event) {
+  if (shouldSkipScheduledMeatPriceRun()) {
+    console.log(
+      '[fetchWeeklyMeatPrices] Scheduler übersprungen — Whitelabel-Testprojekt ohne Fleischpreis-Pipeline.',
+      { projectId: MEAT_PRICE_PROJECT_ID },
+    );
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'whitelabel-test-project',
+      projectId: MEAT_PRICE_PROJECT_ID,
+    };
+  }
+
+  logGeminiDiagnostics('scheduler-start');
+  return executeMeatPriceRun({
+    tenantId: resolveSchedulerTenantId(),
+    initiatedBy: 'system',
+    scheduleEventId: event?.id || null,
+  });
+}
+
+async function handleTriggerManualMeatPriceRun(request) {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
+  }
+  if (request.auth.token?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Nur Admins dürfen einen manuellen Fleischpreis-Lauf starten.');
+  }
+
+  const tenantId = cleanTenantId(request.auth.token?.tenantId);
+  if (!tenantId) {
+    throw new HttpsError('unauthenticated', 'Custom Claim tenantId fehlt.');
+  }
+
+  logGeminiDiagnostics('manual-trigger');
+  return executeMeatPriceRun({ tenantId, initiatedBy: request.auth.uid });
+}
+
 exports.fetchWeeklyMeatPrices = onSchedule(
   scheduledMeatPriceOptions,
-  async (event) => {
-    if (shouldSkipScheduledMeatPriceRun()) {
-      console.log(
-        '[fetchWeeklyMeatPrices] Scheduler übersprungen — Whitelabel-Testprojekt ohne Fleischpreis-Pipeline.',
-        { projectId: MEAT_PRICE_PROJECT_ID },
-      );
-      return {
-        ok: true,
-        skipped: true,
-        reason: 'whitelabel-test-project',
-        projectId: MEAT_PRICE_PROJECT_ID,
-      };
-    }
-
-    logGeminiDiagnostics('scheduler-start');
-    return executeMeatPriceRun({
-      tenantId: resolveSchedulerTenantId(),
-      initiatedBy: 'system',
-      scheduleEventId: event?.id || null,
-    });
-  },
+  handleFetchWeeklyMeatPrices,
 );
 
 exports.triggerManualMeatPriceRun = onCall(
@@ -512,26 +531,13 @@ exports.triggerManualMeatPriceRun = onCall(
     memory: '512MiB',
     secrets: ['GEMINI_API_KEY'],
   },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
-    }
-    if (request.auth.token?.role !== 'admin') {
-      throw new HttpsError('permission-denied', 'Nur Admins dürfen einen manuellen Fleischpreis-Lauf starten.');
-    }
-
-    const tenantId = cleanTenantId(request.auth.token?.tenantId);
-    if (!tenantId) {
-      throw new HttpsError('unauthenticated', 'Custom Claim tenantId fehlt.');
-    }
-
-    logGeminiDiagnostics('manual-trigger');
-    return executeMeatPriceRun({ tenantId, initiatedBy: request.auth.uid });
-  },
+  handleTriggerManualMeatPriceRun,
 );
 
 module.exports = {
   executeMeatPriceRun,
+  handleFetchWeeklyMeatPrices,
+  handleTriggerManualMeatPriceRun,
   fetchWeeklyMeatPrices: exports.fetchWeeklyMeatPrices,
   triggerManualMeatPriceRun: exports.triggerManualMeatPriceRun,
   extractJsonArray,

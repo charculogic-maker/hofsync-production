@@ -2,7 +2,7 @@
  * Gemini Vision – LMIV / Bio Fleisch-Etikett → strukturierte Herkunftsdaten.
  * @google/generative-ai wird lazy geladen (Deploy-Discovery-Timeout).
  */
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
 

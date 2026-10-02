@@ -71,8 +71,12 @@ describe('App Check coverage – Callable registration contract', () => {
 
   test('index.js exports every App-Check-protected callable', () => {
     const index = readFunctionSource('index.js');
+    // Discovery-safe: Admin init only inside ensureAdminApp, never at module top-level.
+    const beforeEnsure = index.split('function ensureAdminApp')[0] || index;
+    expect(beforeEnsure).not.toMatch(/initializeApp\s*\(/);
+    expect(index).toMatch(/function ensureAdminApp/);
     for (const { id } of APP_CHECK_CALLABLES) {
-      const direct = new RegExp(`exports\\.${id}\\s*=`);
+      const direct = new RegExp(`exports\\.${id}\\s*=\\s*onCall`);
       const lazy = new RegExp(`lazyExport\\(\\s*['"]${id}['"]`);
       expect(direct.test(index) || lazy.test(index)).toBe(true);
     }

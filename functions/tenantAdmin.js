@@ -3,7 +3,7 @@
  * Callable: provisionDemoTenant
  */
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const adminDb = require('./adminDb');
 const { roleFromToken } = require('./authContext');
 const { isSuperAdminForDashboard } = require('./superAdmin');

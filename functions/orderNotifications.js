@@ -282,47 +282,50 @@ async function dispatchCustomerSignal(signal, meta) {
   return Promise.all(tasks);
 }
 
+async function handleOrderReadySendSignal(event) {
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!before || !after) return null;
+  if (before.status === 'ready' || after.status !== 'ready') return null;
+
+  const tenantId = event.params.tenantId;
+  const orderId = event.params.orderId;
+  if (after.tenantId && after.tenantId !== tenantId) {
+    console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
+    return null;
+  }
+
+  const meta = { tenantId, orderId, customerName: after.customerName || null };
+  const signal = buildCustomerSignal(after);
+
+  console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
+    ...meta,
+    hasEmail: Boolean(signal.to.email),
+    hasPhone: Boolean(signal.to.phone),
+    finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
+    pickupWindow: formatPickupWindow(after.readyAt),
+  });
+
+  try {
+    const results = await dispatchCustomerSignal(signal, meta);
+    console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+  } catch (error) {
+    console.error('[KundenSignal] Unerwarteter Versandfehler', {
+      ...meta,
+      message: error?.message,
+    });
+  }
+
+  return null;
+}
+
+exports.handleOrderReadySendSignal = handleOrderReadySendSignal;
 exports.onOrderReadySendSignal = onDocumentUpdated(
   {
     document: 'tenants/{tenantId}/customerOrders/{orderId}',
     region: 'europe-west3',
   },
-  async (event) => {
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-    if (!before || !after) return null;
-    if (before.status === 'ready' || after.status !== 'ready') return null;
-
-    const tenantId = event.params.tenantId;
-    const orderId = event.params.orderId;
-    if (after.tenantId && after.tenantId !== tenantId) {
-      console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
-      return null;
-    }
-
-    const meta = { tenantId, orderId, customerName: after.customerName || null };
-    const signal = buildCustomerSignal(after);
-
-    console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-      ...meta,
-      hasEmail: Boolean(signal.to.email),
-      hasPhone: Boolean(signal.to.phone),
-      finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
-      pickupWindow: formatPickupWindow(after.readyAt),
-    });
-
-    try {
-      const results = await dispatchCustomerSignal(signal, meta);
-      console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
-    } catch (error) {
-      console.error('[KundenSignal] Unerwarteter Versandfehler', {
-        ...meta,
-        message: error?.message,
-      });
-    }
-
-    return null;
-  },
+  handleOrderReadySendSignal,
 );
 
 exports._test = {
