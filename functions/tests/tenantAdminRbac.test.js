@@ -159,4 +159,63 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(caught).toBeTruthy();
     expect(['unauthenticated', 'permission-denied']).toContain(caught.code);
   });
+
+  test('provisionDemoTenant slugifyTenantId derives clean underscore ids', async () => {
+    const { slugifyTenantId } = await import('../tenantAdmin.js');
+    expect(slugifyTenantId('Metzgerei Schmidt')).toBe('metzgerei_schmidt');
+    expect(slugifyTenantId('  Bio-Hof Müller  ')).toBe('bio_hof_mueller');
+  });
+
+  test('provisionDemoTenant rejects employee caller', async () => {
+    const { handleProvisionDemoTenant } = await import('../tenantAdmin.js');
+    let caught = null;
+    try {
+      await handleProvisionDemoTenant({
+        auth: authAs({ tenantId: TENANT_A, role: 'employee' }),
+        data: {
+          companyName: 'Metzgerei Schmidt',
+          adminEmail: 'meister@example.de',
+          adminName: 'Max Meister',
+          modules: { mhd: true },
+        },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught.code).toBe('permission-denied');
+  });
+
+  test('provisionDemoTenant rejects tenant-admin who is not platform super-admin', async () => {
+    const { handleProvisionDemoTenant } = await import('../tenantAdmin.js');
+    let caught = null;
+    try {
+      await handleProvisionDemoTenant({
+        auth: authAs({ uid: 'admin-a', tenantId: TENANT_A, role: 'admin', email: 'admin@steveshof.de' }),
+        data: {
+          companyName: 'Metzgerei Schmidt',
+          adminEmail: 'meister@example.de',
+          adminName: 'Max Meister',
+          modules: { mhd: true },
+        },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeTruthy();
+    expect(caught.code).toBe('permission-denied');
+  });
+
+  test('assertProvisionAccess allows platform super-admin', async () => {
+    const { assertProvisionAccess } = await import('../tenantAdmin.js');
+    const ctx = assertProvisionAccess(
+      authAs({
+        uid: 'VYwMy5IAlAR26pj8ZbFfc5PNdou2',
+        tenantId: TENANT_A,
+        role: 'admin',
+        email: 'patrik@charculogic.de',
+      }),
+    );
+    expect(ctx.isSuperAdmin).toBe(true);
+  });
 });

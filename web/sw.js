@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261001-beef-stammdaten-v4b';
+const CACHE_NAME = 'charculogic-v20261002-demo-onboarding-v1b';
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
-const RELEASED_AT = '2026-10-01T21:50:00+02:00';
+const RELEASED_AT = '2026-10-02T05:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -42,6 +42,7 @@ const CRITICAL_ASSETS = [
   '/traceability.js',
   '/tenant-modules.js',
   '/dev-dashboard.js',
+  '/demo-tenant-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
   '/beef-labels.js',

@@ -149,7 +149,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261001-beef-stammdaten-v4">
+  <link rel="stylesheet" href="/style.css?v=20261002-demo-onboarding-v1">
 </head>
 <body>
 
@@ -555,6 +555,52 @@
                         <button type="submit" class="dev-dashboard-submit-btn">Betrieb anlegen</button>
                       </form>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-tenant-form-status" aria-live="polite"></p>
+                    </div>
+
+                    <div
+                      class="dev-dashboard-tenant-create demo-onboarding-card"
+                      data-demo-onboarding-card
+                      hidden
+                      aria-label="Schnell-Onboarding für Interessenten"
+                    >
+                      <h3 class="dev-dashboard-subsection-title">Schnell-Onboarding für Interessenten</h3>
+                      <p class="dev-dashboard-intro">
+                        Sofort sauberen Test-Mandanten anlegen und Passwort-Link für Meisterschüler generieren.
+                      </p>
+                      <form class="demo-onboarding-form" data-demo-onboarding-form>
+                        <label class="dev-dashboard-field">
+                          <span>Betriebsname</span>
+                          <input name="companyName" type="text" required maxlength="80" placeholder="z. B. Metzgerei Müller" autocomplete="organization">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>Name des Inhabers / Meisters</span>
+                          <input name="adminName" type="text" required maxlength="80" placeholder="z. B. Benjamin Büge" autocomplete="name">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>E-Mail-Adresse</span>
+                          <input name="adminEmail" type="email" required maxlength="120" placeholder="meister@beispiel.de" autocomplete="email">
+                        </label>
+                        <fieldset class="dev-dashboard-permissions-fieldset demo-onboarding-modules">
+                          <legend>Module</legend>
+                          <div class="dev-dashboard-permissions-row">
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="mhd" checked><span>MHD</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="receiving" checked><span>Wareneingang</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="kitchen" checked><span>Wurstküche</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="cutting" checked><span>Zerlegung / Avery 3475</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-demo-mod="haccp" checked><span>HACCP</span></label>
+                          </div>
+                        </fieldset>
+                        <button type="submit" class="dev-dashboard-submit-btn">Test-Mandant anlegen &amp; Link generieren</button>
+                      </form>
+                      <p class="dev-dashboard-employee-status" data-demo-onboarding-status hidden role="status"></p>
+                      <div class="demo-onboarding-result" data-demo-onboarding-result hidden>
+                        <p class="dev-dashboard-intro" data-demo-onboarding-meta></p>
+                        <label class="dev-dashboard-field">
+                          <span>Einladungs-Link</span>
+                          <input type="text" data-demo-invite-link readonly>
+                        </label>
+                        <button type="button" class="dev-dashboard-submit-btn" data-demo-copy-link>Link in Zwischenablage kopieren</button>
+                      </div>
                     </div>
 
                     <div class="dev-dashboard-table-wrap">
@@ -1539,6 +1585,55 @@
             </div>
 
             <div id="office-access-content" class="office-access-content">
+            <section
+              class="batch-audit-card demo-onboarding-card"
+              id="demo-onboarding-card"
+              data-demo-onboarding-card
+              hidden
+              aria-label="Schnell-Onboarding für Interessenten"
+            >
+              <div class="batch-audit-title">Schnell-Onboarding für Interessenten</div>
+              <p class="admin-leitstand-hint">
+                Legt einen sauberen Test-Mandanten an und erzeugt einen Passwort-Setzen-Link für Meisterschüler / Interessenten.
+              </p>
+              <form class="demo-onboarding-form" data-demo-onboarding-form>
+                <label class="form-label" for="demo-onboarding-company">
+                  Betriebsname
+                  <input id="demo-onboarding-company" name="companyName" type="text" class="input-text-touch" required maxlength="80" placeholder="z. B. Metzgerei Müller" autocomplete="organization">
+                </label>
+                <label class="form-label" for="demo-onboarding-admin-name">
+                  Name des Inhabers / Meisters
+                  <input id="demo-onboarding-admin-name" name="adminName" type="text" class="input-text-touch" required maxlength="80" placeholder="z. B. Benjamin Büge" autocomplete="name">
+                </label>
+                <label class="form-label" for="demo-onboarding-admin-email">
+                  E-Mail-Adresse
+                  <input id="demo-onboarding-admin-email" name="adminEmail" type="email" class="input-text-touch" required maxlength="120" placeholder="meister@beispiel.de" autocomplete="email">
+                </label>
+                <fieldset class="demo-onboarding-modules">
+                  <legend>Module</legend>
+                  <label><input type="checkbox" data-demo-mod="mhd" checked> MHD</label>
+                  <label><input type="checkbox" data-demo-mod="receiving" checked> Wareneingang</label>
+                  <label><input type="checkbox" data-demo-mod="kitchen" checked> Wurstküche</label>
+                  <label><input type="checkbox" data-demo-mod="cutting" checked> Zerlegung / Avery 3475</label>
+                  <label><input type="checkbox" data-demo-mod="haccp" checked> HACCP</label>
+                </fieldset>
+                <button type="submit" class="btn btn-primary demo-onboarding-submit">
+                  Test-Mandant anlegen &amp; Link generieren
+                </button>
+              </form>
+              <p class="demo-onboarding-status" data-demo-onboarding-status hidden role="status"></p>
+              <div class="demo-onboarding-result" data-demo-onboarding-result hidden>
+                <p class="admin-leitstand-hint" data-demo-onboarding-meta></p>
+                <label class="form-label" for="demo-onboarding-invite-link">
+                  Einladungs-Link
+                  <input id="demo-onboarding-invite-link" type="text" class="input-text-touch" data-demo-invite-link readonly>
+                </label>
+                <button type="button" class="btn btn-secondary" data-demo-copy-link>
+                  Link in Zwischenablage kopieren
+                </button>
+              </div>
+            </section>
+
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 
@@ -2143,6 +2238,7 @@
     </form>
   </template>
 
+  <script type="module" src="/demo-tenant-onboarding.js?v=20261002-provision-v1"></script>
   <script type="module" src="/beef-labels.js?v=20261001-stammdaten-v4"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
   <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>

@@ -17,6 +17,7 @@ const APP_CHECK_CALLABLES = [
   { id: 'triggerManualMeatPriceRun', file: 'meatPrices.js', anchor: 'triggerManualMeatPriceRun' },
   { id: 'createTenantEmployee', file: 'createTenantEmployee.js', anchor: 'exports.createTenantEmployee' },
   { id: 'manageTenantEmployees', file: 'manageTenantEmployees.js', anchor: 'exports.manageTenantEmployees' },
+  { id: 'provisionDemoTenant', file: 'tenantAdmin.js', anchor: 'exports.provisionDemoTenant' },
 ];
 
 const ON_CALL_SOURCE_FILES = [
@@ -26,6 +27,7 @@ const ON_CALL_SOURCE_FILES = [
   'meatPrices.js',
   'createTenantEmployee.js',
   'manageTenantEmployees.js',
+  'tenantAdmin.js',
 ];
 
 function readFunctionSource(file) {
@@ -59,7 +61,7 @@ describe('App Check coverage – Callable registration contract', () => {
       return sum + (matches?.length || 0);
     }, 0);
     expect(onCallCount).toBe(APP_CHECK_CALLABLES.length);
-    expect(APP_CHECK_CALLABLES).toHaveLength(6);
+    expect(APP_CHECK_CALLABLES).toHaveLength(7);
   });
 
   test.each(APP_CHECK_CALLABLES)('$id configures enforceAppCheck: true', ({ file, anchor }) => {

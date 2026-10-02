@@ -14,6 +14,7 @@ exports.parseMeatLabel = require('./parseMeatLabelCallable').parseMeatLabel;
 exports.verifyTerminalPin = require('./verifyTerminalPinCallable').verifyTerminalPin;
 exports.createTenantEmployee = require('./createTenantEmployee').createTenantEmployee;
 exports.manageTenantEmployees = require('./manageTenantEmployees').manageTenantEmployees;
+exports.provisionDemoTenant = require('./tenantAdmin').provisionDemoTenant;
 exports.fetchWeeklyMeatPrices = require('./meatPrices').fetchWeeklyMeatPrices;
 exports.triggerManualMeatPriceRun = require('./meatPrices').triggerManualMeatPriceRun;
 exports.onOrderReadySendSignal = require('./orderNotifications').onOrderReadySendSignal;
