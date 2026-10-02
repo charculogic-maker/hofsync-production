@@ -235,9 +235,14 @@ const mhdState = {
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
   showZeroQty: false,
+  zeroQtyCount: 0,
+  zeroProducts: [],
+  inStockProducts: [],
   pendingUndo: null,
   undoToastTimer: null,
   unsubscribe: null,
+  unsubscribeZero: null,
+  expandedStichprobeBatchId: null,
   writeOrQueueFirestore: async () => { throw new Error('MHD Sync-Engine ist nicht initialisiert.'); },
   addPendingSync: () => {},
   playFeedbackSound: () => {},
@@ -2409,7 +2414,10 @@ function filterMhdProducts(products) {
 }
 
 function countZeroQtyInHorizon(products = mhdState.products) {
-  return products.filter((prod) => {
+  const source = mhdState.showZeroQty
+    ? products
+    : (mhdState.zeroProducts?.length ? mhdState.zeroProducts : products);
+  const localCount = source.filter((prod) => {
     if (mhdItemQuantity(prod) > 0) return false;
     const days = getMhdResttage(prod);
     if (!Number.isFinite(days)) return false;
@@ -2421,6 +2429,8 @@ function countZeroQtyInHorizon(products = mhdState.products) {
         : mhdState.monitorHorizonDays;
     return days <= upperLimit;
   }).length;
+  if (mhdState.showZeroQty) return localCount;
+  return Math.max(localCount, Number(mhdState.zeroQtyCount) || 0);
 }
 
 /** Later open batches for the same article (same EAN/name, later MHD). */
@@ -2705,7 +2715,13 @@ function initMhdSubnavAndSearch() {
     zeroToggle.addEventListener('click', () => {
       mhdState.showZeroQty = !mhdState.showZeroQty;
       mhdState.playClickSound(940, 0.04, 0.12);
-      renderMhdList();
+      if (mhdState.showZeroQty) {
+        startMhdZeroQtyLiveSync();
+      } else {
+        stopMhdZeroQtyLiveSync();
+        mergeMhdLiveProducts();
+        renderMhdList();
+      }
     });
   }
 
@@ -2761,28 +2777,167 @@ function mapMhdDoc(doc) {
   };
 }
 
+function isAusverkauftMhdDoc(data = {}) {
+  if (data.soldOut === true) return true;
+  const status = String(data.status || '').toLowerCase();
+  return status === 'ausverkauft'
+    || status === 'sold_out'
+    || status === 'disposed';
+}
+
+function mergeMhdDocsById(...docLists) {
+  const byId = new Map();
+  docLists.flat().forEach((item) => {
+    if (!item?.id) return;
+    byId.set(item.id, item);
+  });
+  return [...byId.values()];
+}
+
+function mergeMhdLiveProducts() {
+  const inStock = Array.isArray(mhdState.inStockProducts) ? mhdState.inStockProducts : [];
+  if (!mhdState.showZeroQty) {
+    mhdState.products = inStock;
+    return mhdState.products;
+  }
+  const zeros = Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : [];
+  mhdState.products = mergeMhdDocsById(inStock, zeros);
+  return mhdState.products;
+}
+
+function stopMhdLiveSync() {
+  if (mhdState.unsubscribe) {
+    mhdState.unsubscribe();
+    mhdState.unsubscribe = null;
+  }
+  stopMhdZeroQtyLiveSync();
+}
+
+function stopMhdZeroQtyLiveSync() {
+  if (mhdState.unsubscribeZero) {
+    mhdState.unsubscribeZero();
+    mhdState.unsubscribeZero = null;
+  }
+  mhdState.zeroProducts = [];
+}
+
+async function refreshMhdZeroQtyCount() {
+  if (!canStartMhdFirestoreLiveSync() || !mhdState.db) {
+    mhdState.zeroQtyCount = 0;
+    updateZeroQtyToggleUi();
+    return;
+  }
+  try {
+    const coll = mhdState.db.collection(mhdCollectionPath());
+    const qtyQuery = coll.where('qty', '==', 0);
+    if (typeof qtyQuery.count === 'function') {
+      const agg = await qtyQuery.count().get();
+      mhdState.zeroQtyCount = Number(agg.data()?.count || 0);
+    } else {
+      const snap = await qtyQuery.limit(1).get();
+      mhdState.zeroQtyCount = snap.empty ? 0 : Math.max(1, mhdState.zeroQtyCount || 1);
+    }
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'refreshMhdZeroQtyCount')) return;
+    console.warn('[CharcuLogic MHD] 0er-Zähler konnte nicht geladen werden:', err);
+  }
+  updateZeroQtyToggleUi();
+}
+
+function startMhdZeroQtyLiveSync() {
+  if (!canStartMhdFirestoreLiveSync() || !mhdState.db) return;
+  stopMhdZeroQtyLiveSync();
+  const coll = mhdState.db.collection(mhdCollectionPath());
+  const unsubscribers = [];
+
+  const applyZeroSnapshots = (snapshots) => {
+    const mapped = mergeMhdDocsById(
+      ...snapshots.map((snapshot) => (snapshot?.docs || []).map(mapMhdDoc)),
+    ).filter((item) => mhdItemQuantity(item) <= 0);
+    mhdState.zeroProducts = mapped;
+    mhdState.zeroQtyCount = mapped.length;
+    mergeMhdLiveProducts();
+    renderMhdList();
+    refreshMhdAdminSearchFromCache();
+  };
+
+  /** @type {FirebaseFirestore.QuerySnapshot[]} */
+  const snaps = [null, null];
+  const onErr = (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'loadMhdZeroQty')) return;
+    console.error('[CharcuLogic Firebase] MHD 0er Live-Sync Fehler:', err);
+  };
+
+  unsubscribers.push(
+    coll.where('qty', '==', 0).onSnapshot((snapshot) => {
+      snaps[0] = snapshot;
+      applyZeroSnapshots(snaps.filter(Boolean));
+    }, onErr),
+  );
+  unsubscribers.push(
+    coll.where('menge', '==', 0).onSnapshot((snapshot) => {
+      snaps[1] = snapshot;
+      applyZeroSnapshots(snaps.filter(Boolean));
+    }, onErr),
+  );
+
+  mhdState.unsubscribeZero = () => {
+    unsubscribers.forEach((unsub) => {
+      try { unsub(); } catch (_) { /* noop */ }
+    });
+  };
+}
+
 function loadMhdFromCloud() {
   if (!canStartMhdFirestoreLiveSync()) return;
   if (!isFirebaseReady() || !mhdState.db) {
     return;
   }
 
-  if (mhdState.unsubscribe) {
-    mhdState.unsubscribe();
-    mhdState.unsubscribe = null;
-  }
+  stopMhdLiveSync();
 
-  mhdState.unsubscribe = mhdState.db.collection(mhdCollectionPath()).onSnapshot(
-    (snapshot) => {
-      mhdState.products = snapshot.docs.map(mapMhdDoc);
-      renderMhdList();
-      refreshMhdAdminSearchFromCache();
-    },
-    (err) => {
-      if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
-      console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
-    }
+  const coll = mhdState.db.collection(mhdCollectionPath());
+  /** @type {FirebaseFirestore.QuerySnapshot[]} */
+  const inStockSnaps = [null, null];
+  const unsubscribers = [];
+
+  const applyInStock = () => {
+    const mapped = mergeMhdDocsById(
+      ...inStockSnaps.filter(Boolean).map((snapshot) => (snapshot.docs || []).map(mapMhdDoc)),
+    ).filter((item) => mhdItemQuantity(item) > 0 && !isAusverkauftMhdDoc(item));
+    mhdState.inStockProducts = mapped;
+    mergeMhdLiveProducts();
+    renderMhdList();
+    refreshMhdAdminSearchFromCache();
+  };
+
+  const onErr = (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
+    console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
+  };
+
+  // Default: only in-stock docs (skip historical zero-qty / ausverkauft backlog).
+  unsubscribers.push(
+    coll.where('qty', '>', 0).onSnapshot((snapshot) => {
+      inStockSnaps[0] = snapshot;
+      applyInStock();
+    }, onErr),
   );
+  unsubscribers.push(
+    coll.where('menge', '>', 0).onSnapshot((snapshot) => {
+      inStockSnaps[1] = snapshot;
+      applyInStock();
+    }, onErr),
+  );
+
+  mhdState.unsubscribe = () => {
+    unsubscribers.forEach((unsub) => {
+      try { unsub(); } catch (_) { /* noop */ }
+    });
+  };
+
+  void refreshMhdZeroQtyCount();
+  if (mhdState.showZeroQty) startMhdZeroQtyLiveSync();
 }
 
 async function isMhdCollectionEmpty() {
@@ -3147,6 +3302,15 @@ function rememberLocalMhdBatch(payload) {
   const existing = mhdState.products.findIndex((entry) => entry.id === payload.id);
   if (existing >= 0) mhdState.products[existing] = { ...mhdState.products[existing], ...local };
   else mhdState.products.push(local);
+
+  if (!Array.isArray(mhdState.inStockProducts)) mhdState.inStockProducts = [];
+  const stockIdx = mhdState.inStockProducts.findIndex((entry) => entry.id === payload.id);
+  if (mhdItemQuantity(local) > 0) {
+    if (stockIdx >= 0) mhdState.inStockProducts[stockIdx] = { ...mhdState.inStockProducts[stockIdx], ...local };
+    else mhdState.inStockProducts.push(local);
+  } else if (stockIdx >= 0) {
+    mhdState.inStockProducts.splice(stockIdx, 1);
+  }
 }
 
 async function saveStichprobeBatch(source, rawDate, rawQty) {
@@ -3214,28 +3378,105 @@ async function saveStichprobeBatch(source, rawDate, rawQty) {
   return true;
 }
 
+function buildStichprobeBatchRow(entry, expandedId = null) {
+  const id = String(entry.id || '');
+  const expanded = Boolean(id && expandedId === id);
+  const dateLabel = formatMhdDateForCardMeta(entry) || 'ohne Datum';
+  const qty = mhdItemQuantity(entry);
+  const qtyLabel = Number.isInteger(qty) ? String(qty) : String(qty);
+  return `
+    <div class="utility-row stichprobe-batch-row${expanded ? ' is-expanded' : ''}" data-stichprobe-batch="${escapeHtml(id)}">
+      <button
+        type="button"
+        class="stichprobe-batch-header"
+        data-stichprobe-expand="${escapeHtml(id)}"
+        aria-expanded="${expanded ? 'true' : 'false'}"
+        aria-controls="stichprobe-controls-${escapeHtml(id)}"
+      >
+        <div class="utility-row-title">${escapeHtml(dateLabel)}</div>
+        <div class="utility-row-meta">${escapeHtml(formatRestlaufzeit(getMhdResttage(entry)))} · ${escapeHtml(qtyLabel)} Stück · Rabatt ${escapeHtml(formatStevesHofDiscount(entry))}</div>
+      </button>
+      <div
+        class="stichprobe-batch-controls"
+        id="stichprobe-controls-${escapeHtml(id)}"
+        data-stichprobe-controls="${escapeHtml(id)}"
+        ${expanded ? '' : 'hidden'}
+      >
+        <div class="qty-stepper stichprobe-qty-stepper">
+          <button type="button" class="btn-stepper" data-stichprobe-cmd="adjust" data-mhd-id="${escapeHtml(id)}" data-mhd-change="-1" aria-label="Menge verringern">−</button>
+          <div class="qty-value-container">
+            <span class="stichprobe-qty-value" data-stichprobe-qty="${escapeHtml(id)}">${escapeHtml(qtyLabel)}</span>
+          </div>
+          <button type="button" class="btn-stepper" data-stichprobe-cmd="adjust" data-mhd-id="${escapeHtml(id)}" data-mhd-change="1" aria-label="Menge erhöhen">+</button>
+        </div>
+        <div class="stichprobe-batch-actions">
+          <button type="button" class="btn-mhd-action btn-mhd-action--primary" data-stichprobe-cmd="ok" data-mhd-id="${escapeHtml(id)}">✓ OK</button>
+          <button type="button" class="btn-mhd-action" data-stichprobe-cmd="raus" data-mhd-id="${escapeHtml(id)}">Raus</button>
+          <button type="button" class="btn btn-soldout stichprobe-soldout-btn" data-stichprobe-cmd="soldout" data-mhd-id="${escapeHtml(id)}">Ausverkauft</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindStichprobeBatchInteractions(prod) {
+  const root = learnModeOverlay;
+  if (!root) return;
+
+  root.querySelectorAll('[data-stichprobe-expand]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const batchId = String(button.getAttribute('data-stichprobe-expand') || '');
+      mhdState.expandedStichprobeBatchId = mhdState.expandedStichprobeBatchId === batchId
+        ? null
+        : batchId;
+      openStichprobeModal(prod);
+    });
+  });
+
+  root.querySelectorAll('[data-stichprobe-cmd]').forEach((button) => {
+    button.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const cmd = String(button.getAttribute('data-stichprobe-cmd') || '');
+      const id = String(button.getAttribute('data-mhd-id') || '');
+      if (!id) return;
+      button.disabled = true;
+      try {
+        if (cmd === 'adjust') {
+          await adjustQty(id, Number(button.getAttribute('data-mhd-change') || 0));
+        } else if (cmd === 'ok') {
+          await markMhdAction(id, 'geprueft');
+        } else if (cmd === 'raus') {
+          await markMhdAction(id, 'rausgenommen');
+        } else if (cmd === 'soldout') {
+          await setSoldOut(id);
+        }
+        mhdState.expandedStichprobeBatchId = id;
+        openStichprobeModal(prod);
+      } catch (err) {
+        if (maybeResetOnFirestorePermissionError(err, `stichprobe:${cmd}`)) return;
+        console.error('[CharcuLogic MHD] Stichprobe-Aktion fehlgeschlagen:', err);
+        mhdState.showHUD('Fehler', 'Aktion für diesen MHD-Posten fehlgeschlagen.', '!');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
 function openStichprobeModal(prod) {
   const batches = getBatchesForArticle(prod);
   const name = mhdProductName(prod) || 'Artikel';
   const ean = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode) || '–';
   const category = getCategoryBadgeLabel(prod);
+  const expandedId = mhdState.expandedStichprobeBatchId;
   const rows = batches.length
-    ? batches.map((entry) => {
-      const dateLabel = formatMhdDateForCardMeta(entry) || 'ohne Datum';
-      const qty = mhdItemQuantity(entry);
-      const unit = Number.isInteger(qty) ? qty : qty;
-      return `
-        <div class="utility-row">
-          <div class="utility-row-title">${escapeHtml(dateLabel)}</div>
-          <div class="utility-row-meta">${escapeHtml(formatRestlaufzeit(getMhdResttage(entry)))} · ${escapeHtml(unit)} Stück · Rabatt ${escapeHtml(formatStevesHofDiscount(entry))}</div>
-        </div>
-      `;
-    }).join('')
+    ? batches.map((entry) => buildStichprobeBatchRow(entry, expandedId)).join('')
     : '<div class="utility-row"><div class="utility-row-meta">Keine offenen MHDs im System.</div></div>';
 
   showUtilityDialog('Stichprobe / Regal-Abgleich', `
     <p class="learn-mode-desc">${escapeHtml(name)} · EAN ${escapeHtml(ean)} · ${escapeHtml(category)}</p>
-    <div class="utility-list">${rows}</div>
+    <div class="utility-list stichprobe-batch-list">${rows}</div>
     <div id="stichprobe-capture" hidden style="margin-top:12px;">
       <label class="learn-mode-label">Neues MHD
         <input type="text" id="stichprobe-date" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="TTMMJJ (z.B. 101026)">
@@ -3247,6 +3488,8 @@ function openStichprobeModal(prod) {
     </div>
     <button type="button" class="btn btn-primary" id="stichprobe-add" style="width:100%;min-height:52px;margin-top:12px;">➕ Weiteres MHD im Regal gefunden</button>
   `);
+
+  bindStichprobeBatchInteractions(prod);
 
   document.getElementById('stichprobe-add')?.addEventListener('click', () => {
     const capture = document.getElementById('stichprobe-capture');
@@ -3398,12 +3641,16 @@ function updateZeroQtyToggleUi() {
   const btn = document.getElementById('mhd-zero-qty-toggle');
   if (!btn) return;
   const count = countZeroQtyInHorizon();
-  btn.hidden = count === 0 && !mhdState.showZeroQty;
+  btn.hidden = count === 0 && !mhdState.showZeroQty && !(Number(mhdState.zeroQtyCount) > 0);
   btn.setAttribute('aria-pressed', mhdState.showZeroQty ? 'true' : 'false');
   btn.classList.toggle('is-active', mhdState.showZeroQty);
-  btn.innerHTML = mhdState.showZeroQty
-    ? `👁️ 0er-Bestände ausblenden (${count})`
-    : `👁️ 0er-Bestände (${count})`;
+  if (mhdState.showZeroQty) {
+    btn.innerHTML = `👁️ 0er-Bestände ausblenden (${count})`;
+  } else if (count > 0) {
+    btn.innerHTML = `👁️ 0er-Bestände anzeigen (${count})`;
+  } else {
+    btn.innerHTML = '👁️ 0er-Bestände anzeigen';
+  }
 }
 
 function dismissMhdUndoToast() {

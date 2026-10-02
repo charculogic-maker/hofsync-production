@@ -4402,6 +4402,75 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   margin-top: 10px;
 }
 
+.stichprobe-batch-list {
+  gap: 12px;
+}
+
+.stichprobe-batch-row {
+  padding: 0;
+  overflow: hidden;
+}
+
+.stichprobe-batch-header {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stichprobe-batch-header:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.stichprobe-batch-row.is-expanded {
+  border-color: rgba(46, 125, 50, 0.35);
+  box-shadow: 0 0 0 1px rgba(46, 125, 50, 0.12);
+}
+
+.stichprobe-batch-controls {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.stichprobe-qty-stepper {
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.stichprobe-qty-stepper .btn-stepper {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.stichprobe-qty-value {
+  min-width: 48px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.stichprobe-batch-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stichprobe-batch-actions .btn-mhd-action,
+.stichprobe-batch-actions .stichprobe-soldout-btn {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
 .btn-danger-small {
   min-height: 48px;
   padding: 0 12px;
