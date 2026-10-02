@@ -234,6 +234,9 @@ const mhdState = {
   categoryFilter: 'all',
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
+  showZeroQty: false,
+  pendingUndo: null,
+  undoToastTimer: null,
   unsubscribe: null,
   writeOrQueueFirestore: async () => { throw new Error('MHD Sync-Engine ist nicht initialisiert.'); },
   addPendingSync: () => {},
@@ -367,6 +370,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'vpeBarcode', 'vpeInhalt',
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'lastModifiedBy', 'previousQuantity',
   'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
@@ -2364,7 +2368,8 @@ function isMhdActionWindow(prod) {
 }
 
 function matchesMhdMonitorHorizon(prod) {
-  if (prod.soldOut) return false;
+  const qty = mhdItemQuantity(prod);
+  if (prod.soldOut && !(mhdState.showZeroQty && qty <= 0)) return false;
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
   const category = getProductCategory(prod);
@@ -2392,6 +2397,8 @@ function filterMhdProducts(products) {
   const categoryFilter = MHD_CATEGORY_FILTERS[mhdState.categoryFilter];
   return products.filter((prod) => {
     if (!matchesMhdMonitorHorizon(prod)) return false;
+    const qty = mhdItemQuantity(prod);
+    if (!mhdState.showZeroQty && qty <= 0) return false;
     const category = getProductCategory(prod);
     if (categoryFilter && category !== categoryFilter) return false;
     if (!query) return true;
@@ -2399,6 +2406,53 @@ function filterMhdProducts(products) {
     const brand = (prod.brand || prod.marke || '').toLowerCase();
     return name.includes(query) || brand.includes(query);
   });
+}
+
+function countZeroQtyInHorizon(products = mhdState.products) {
+  return products.filter((prod) => {
+    if (mhdItemQuantity(prod) > 0) return false;
+    const days = getMhdResttage(prod);
+    if (!Number.isFinite(days)) return false;
+    const category = getProductCategory(prod);
+    const upperLimit = category === MHD_CANONICAL_CATEGORIES.mopro
+      ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro
+      : category === MHD_CANONICAL_CATEGORIES.trockenware
+        ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware
+        : mhdState.monitorHorizonDays;
+    return days <= upperLimit;
+  }).length;
+}
+
+/** Later open batches for the same article (same EAN/name, later MHD). */
+function getLaterBatchesForItem(prod) {
+  const currentStamp = batchExpiryStamp(prod);
+  if (!Number.isFinite(currentStamp)) return [];
+  return getBatchesForArticle(prod).filter((batch) => {
+    if (batch.id === prod.id) return false;
+    const stamp = batchExpiryStamp(batch);
+    return Number.isFinite(stamp) && stamp > currentStamp;
+  });
+}
+
+function formatMhdBadgeDate(prod) {
+  const dotted = formatMhdDateForCardMeta(prod);
+  if (dotted) return dotted;
+  const iso = normalizeDateInputToIso(getExplicitMhdDateValue(prod));
+  if (!iso) return '–';
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function buildLaterMhdBadgeHtml(prod) {
+  const later = getLaterBatchesForItem(prod);
+  if (!later.length) return '';
+  const next = later[0];
+  const count = later.length;
+  const nextLabel = formatMhdBadgeDate(next);
+  const countLabel = count === 1
+    ? '+1 weiteres MHD im System'
+    : `+${count} weitere MHDs im System`;
+  return `<div class="mhd-multi-batch-badge" role="status">📦 ${countLabel} (nächstes: ${escapeHtml(nextLabel)})</div>`;
 }
 
 function formatMhdDateForCardMeta(prod = {}) {
@@ -2640,6 +2694,16 @@ function initMhdSubnavAndSearch() {
         ? selectedDays
         : MHD_MONITOR_DEFAULT_HORIZON_DAYS;
       updateMonitorHint();
+      mhdState.playClickSound(940, 0.04, 0.12);
+      renderMhdList();
+    });
+  }
+
+  const zeroToggle = document.getElementById('mhd-zero-qty-toggle');
+  if (zeroToggle && zeroToggle.dataset.mhdBound !== '1') {
+    zeroToggle.dataset.mhdBound = '1';
+    zeroToggle.addEventListener('click', () => {
+      mhdState.showZeroQty = !mhdState.showZeroQty;
       mhdState.playClickSound(940, 0.04, 0.12);
       renderMhdList();
     });
@@ -3225,19 +3289,25 @@ function buildMhdCardHtml(prod = {}) {
   const resttage = getMhdResttage(prod);
   const isZeroDay = resttage === 0;
   const isOverdue = resttage < 0;
+  const qty = mhdItemQuantity(prod);
+  const isZeroQty = qty <= 0;
   const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
   const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
   const badgeDaysLabel = `${badgeLabel} Tage`;
   const badgeDateLabel = formatMhdDateForCardMeta(prod) || '–';
-  const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? 0);
+  const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? prod.menge ?? 0);
   const productMetaHtml = buildMhdProductMetaHtml(prod);
   const mhdDateEditButton = formatMhdDateForCardMeta(prod)
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
   const categoryBadgeLabel = getCategoryBadgeLabel(prod);
   const batchCount = getBatchesForArticle(prod).length;
+  const laterBadgeHtml = isZeroQty ? '' : buildLaterMhdBadgeHtml(prod);
+  const zeroRestoreHtml = isZeroQty
+    ? `<button type="button" class="btn btn-secondary mhd-restore-zero-btn" data-mhd-command="restore-zero" data-mhd-id="${escapeHtml(prod.id)}">↩️ Wiederherstellen / +</button>`
+    : '';
   return `
-    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}" id="mhd-card-${prod.id}">
+    <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
       <div class="mhd-card-badge-row">
         <div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};box-shadow:0 0 14px ${action.bg};">
           ${action.label}
@@ -3251,6 +3321,7 @@ function buildMhdCardHtml(prod = {}) {
         <div class="mhd-product-info">
           <span class="mhd-product-name">${prod.name}</span>
           ${productMetaHtml || mhdDateEditButton ? `<span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}</span>` : ''}
+          ${laterBadgeHtml}
         </div>
         <button
           type="button"
@@ -3264,6 +3335,7 @@ function buildMhdCardHtml(prod = {}) {
           title="Tippen für MHD-Datum"${badgeStyle}
         >${escapeHtml(badgeDaysLabel)}</button>
       </div>
+      ${zeroRestoreHtml}
       <div class="mhd-controls-row">
         <div class="qty-stepper">
           <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
@@ -3289,6 +3361,8 @@ function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
 
+  updateZeroQtyToggleUi();
+
   if (!mhdState.products.length) {
     updateMhdToolbarLimitHint(0);
     container.innerHTML = `
@@ -3305,9 +3379,12 @@ function renderMhdList() {
 
   if (!visibleProducts.length) {
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
+    const zeroHint = !mhdState.showZeroQty && countZeroQtyInHorizon() > 0
+      ? ' 0er-Bestände sind ausgeblendet.'
+      : '';
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()}${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.
+        Keine Artikel mit MHD ${getMhdMonitorEmptyHorizonText()}${mhdState.categoryFilter !== 'all' ? ` in ${escapeHtml(categoryLabel)}` : ''}${mhdState.searchQuery ? ' für deine Suche' : ''}.${zeroHint}
       </div>`;
     return;
   }
@@ -3315,6 +3392,117 @@ function renderMhdList() {
   container.innerHTML = renderedProducts.map((prod) => buildMhdCardHtml(prod)).join('');
 
   initMhdSwipeGestures();
+}
+
+function updateZeroQtyToggleUi() {
+  const btn = document.getElementById('mhd-zero-qty-toggle');
+  if (!btn) return;
+  const count = countZeroQtyInHorizon();
+  btn.hidden = count === 0 && !mhdState.showZeroQty;
+  btn.setAttribute('aria-pressed', mhdState.showZeroQty ? 'true' : 'false');
+  btn.classList.toggle('is-active', mhdState.showZeroQty);
+  btn.innerHTML = mhdState.showZeroQty
+    ? `👁️ 0er-Bestände ausblenden (${count})`
+    : `👁️ 0er-Bestände (${count})`;
+}
+
+function dismissMhdUndoToast() {
+  if (mhdState.undoToastTimer) {
+    window.clearTimeout(mhdState.undoToastTimer);
+    mhdState.undoToastTimer = null;
+  }
+  mhdState.pendingUndo = null;
+  const toast = document.getElementById('mhd-undo-toast');
+  if (toast) toast.hidden = true;
+}
+
+function showMhdUndoToast(pending) {
+  dismissMhdUndoToast();
+  mhdState.pendingUndo = pending;
+  let toast = document.getElementById('mhd-undo-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'mhd-undo-toast';
+    toast.className = 'mhd-undo-toast';
+    toast.setAttribute('role', 'status');
+    toast.innerHTML = `
+      <span class="mhd-undo-toast-text">Menge auf 0 gesetzt</span>
+      <button type="button" class="mhd-undo-toast-btn" data-mhd-undo-btn>↩️ Rückgängig</button>
+    `;
+    document.body.appendChild(toast);
+    toast.querySelector('[data-mhd-undo-btn]')?.addEventListener('click', () => {
+      void undoMhdZeroAction();
+    });
+  }
+  toast.hidden = false;
+  mhdState.undoToastTimer = window.setTimeout(() => {
+    dismissMhdUndoToast();
+  }, 8000);
+}
+
+async function undoMhdZeroAction() {
+  const pending = mhdState.pendingUndo;
+  if (!pending?.itemId) return;
+  const qty = Math.max(1, Number(pending.previousQuantity) || 1);
+  dismissMhdUndoToast();
+  await restoreMhdQuantity(pending.itemId, qty, {
+    soldOut: false,
+    clearSoldOutStatus: true,
+  });
+  mhdState.showHUD?.('Rückgängig', `Menge wieder auf ${qty} gesetzt.`);
+}
+
+async function restoreMhdQuantity(id, quantity, options = {}) {
+  const prod = mhdState.products.find((p) => p.id === id);
+  if (!prod) return;
+  const previousQuantity = mhdItemQuantity(prod);
+  const actor = getAuditActorName();
+  const updates = {
+    qty: quantity,
+    menge: quantity,
+    previousQuantity,
+    lastModifiedBy: actor || 'unbekannt',
+    soldOut: options.soldOut === true ? true : false,
+  };
+  if (options.clearSoldOutStatus) {
+    updates.status = 'aktiv';
+    updates.mhdActionStatus = 'geprueft';
+  }
+  const audited = withHiddenAudit(updates);
+  try {
+    await mhdState.writeOrQueueFirestore({
+      collectionPath: mhdCollectionPath(),
+      docId: id,
+      onlineData: audited.onlineData,
+      queueData: audited.queueData,
+      offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
+    });
+    const idx = mhdState.products.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      mhdState.products[idx] = {
+        ...mhdState.products[idx],
+        qty: quantity,
+        menge: quantity,
+        soldOut: false,
+        previousQuantity,
+        lastModifiedBy: actor || 'unbekannt',
+      };
+      renderMhdList();
+    }
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'restoreMhdQuantity')) return;
+    console.error('[CharcuLogic Firebase] restoreMhdQuantity fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Menge konnte nicht wiederhergestellt werden.', '!');
+  }
+}
+
+function armZeroQtyUndo(prod, previousQuantity) {
+  if (!(previousQuantity > 0)) return;
+  showMhdUndoToast({
+    itemId: prod.id,
+    previousQuantity,
+    timestamp: Date.now(),
+  });
 }
 
 // --- MHD-KARTEN SWIPE-GESTEN ---
@@ -3420,9 +3608,16 @@ function initMhdSwipeGestures() {
 async function saveMhdCardQty(id, newQty) {
   const prod = mhdState.products.find((p) => p.id === id);
   if (!prod || prod.soldOut) return;
-  if (newQty === (prod.qty ?? 0)) return;
+  const previousQuantity = mhdItemQuantity(prod);
+  if (newQty === previousQuantity) return;
 
-  const audited = withHiddenAudit({ qty: newQty });
+  const actor = getAuditActorName();
+  const audited = withHiddenAudit({
+    qty: newQty,
+    menge: newQty,
+    previousQuantity,
+    lastModifiedBy: actor || 'unbekannt',
+  });
 
   try {
     await mhdState.writeOrQueueFirestore({
@@ -3432,6 +3627,22 @@ async function saveMhdCardQty(id, newQty) {
       queueData: audited.queueData,
       offlineMessage: 'Mengenänderung wird nachträglich synchronisiert.',
     });
+    const idx = mhdState.products.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      mhdState.products[idx] = {
+        ...mhdState.products[idx],
+        qty: newQty,
+        menge: newQty,
+        previousQuantity,
+        lastModifiedBy: actor || 'unbekannt',
+      };
+    }
+    if (newQty === 0 && previousQuantity > 0) {
+      armZeroQtyUndo(prod, previousQuantity);
+      renderMhdList();
+    } else if (previousQuantity === 0 && newQty > 0) {
+      renderMhdList();
+    }
   } catch (err) {
     if (maybeResetOnFirestorePermissionError(err, 'saveMhdCardQty')) return;
     console.error('[CharcuLogic Firebase] saveMhdCardQty() Update fehlgeschlagen:', err);
@@ -3443,7 +3654,7 @@ async function adjustQty(id, change) {
   const prod = mhdState.products.find(p => p.id === id);
   if (!prod || prod.soldOut) return;
 
-  const newQty = Math.max(0, (prod.qty ?? 0) + change);
+  const newQty = Math.max(0, mhdItemQuantity(prod) + change);
   mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
   await saveMhdCardQty(id, newQty);
 }
@@ -3461,11 +3672,21 @@ async function setSoldOut(id) {
   const prod = mhdState.products.find(p => p.id === id);
   if (!prod) return;
 
+  const previousQuantity = mhdItemQuantity(prod);
   const newSoldOut = !prod.soldOut;
+  const actor = getAuditActorName();
   const updates = {
     soldOut: newSoldOut,
-    qty: newSoldOut ? 0 : (prod.qty ?? 0),
+    qty: newSoldOut ? 0 : Math.max(1, previousQuantity || 1),
+    menge: newSoldOut ? 0 : Math.max(1, previousQuantity || 1),
+    previousQuantity,
+    lastModifiedBy: actor || 'unbekannt',
   };
+  if (!newSoldOut) {
+    updates.status = 'aktiv';
+  } else {
+    updates.status = 'sold_out';
+  }
   mhdState.playClickSound(400, 0.08, 0.2);
 
   const audited = withHiddenAudit(updates);
@@ -3478,6 +3699,17 @@ async function setSoldOut(id) {
       queueData: audited.queueData,
       offlineMessage: "Ausverkauft-Status wird nachträglich synchronisiert.",
     });
+    const idx = mhdState.products.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      mhdState.products[idx] = {
+        ...mhdState.products[idx],
+        ...updates,
+      };
+    }
+    if (newSoldOut && previousQuantity > 0) {
+      armZeroQtyUndo(prod, previousQuantity);
+    }
+    renderMhdList();
   } catch (err) {
     if (maybeResetOnFirestorePermissionError(err, 'setSoldOut')) return;
     console.error('[CharcuLogic Firebase] setSoldOut() Update fehlgeschlagen:', err);
@@ -3704,23 +3936,34 @@ async function saveMhdDateForPosten(id, preparedDraft = null) {
 }
 
 async function markMhdAction(id, actionStatus) {
+  const prod = mhdState.products.find((p) => p.id === id);
+  const previousQuantity = prod ? mhdItemQuantity(prod) : 0;
+  const actor = getAuditActorName();
   const today = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();
   const updates = {
     mhdActionStatus: actionStatus,
     lastMhdCheckDate: today,
     lastMhdCheckAt: serverTimestampFallback(),
+    lastModifiedBy: actor || 'unbekannt',
+    previousQuantity,
   };
   const queuedUpdates = {
     mhdActionStatus: actionStatus,
     lastMhdCheckDate: today,
     lastMhdCheckAt: nowIso,
+    lastModifiedBy: actor || 'unbekannt',
+    previousQuantity,
   };
   if (actionStatus === 'rausgenommen') {
     updates.soldOut = true;
     updates.qty = 0;
+    updates.menge = 0;
+    updates.status = 'disposed';
     queuedUpdates.soldOut = true;
     queuedUpdates.qty = 0;
+    queuedUpdates.menge = 0;
+    queuedUpdates.status = 'disposed';
   }
   if (actionStatus === 'reduziert') {
     updates.rabattiert = true;
@@ -3750,6 +3993,21 @@ async function markMhdAction(id, actionStatus) {
       queueData: audited.queueData,
       offlineMessage: "MHD-Aktion wird nachträglich synchronisiert.",
     });
+    if (actionStatus === 'rausgenommen' && prod && previousQuantity > 0) {
+      const idx = mhdState.products.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        mhdState.products[idx] = {
+          ...mhdState.products[idx],
+          soldOut: true,
+          qty: 0,
+          menge: 0,
+          previousQuantity,
+          lastModifiedBy: actor || 'unbekannt',
+        };
+      }
+      armZeroQtyUndo(prod, previousQuantity);
+      renderMhdList();
+    }
     const successMessage = actionResult === 'queued'
       ? 'Lokal vorgemerkt. Wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
       : actionStatus === 'reduziert'
@@ -3965,6 +4223,10 @@ function bindMhdCardActions() {
     const command = button.dataset.mhdCommand;
     if (command === 'adjust') adjustQty(id, Number(button.dataset.mhdChange || 0));
     if (command === 'soldout') setSoldOut(id);
+    if (command === 'restore-zero') {
+      void restoreMhdQuantity(id, 1, { soldOut: false, clearSoldOutStatus: true });
+      return;
+    }
     if (command === 'action') {
       const actionStatus = button.dataset.mhdActionStatus;
       // StevesHof: Küche/Retter-Box sind absichtlich nicht in der UI – alte Calls ignorieren.
