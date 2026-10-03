@@ -33,7 +33,7 @@ import {
   requeueDeadPendingSyncs,
   reportCriticalError,
   resetPendingSyncRetries,
-  clearAllPendingSyncQueues,,
+  clearAllPendingSyncQueues,
   removeQueuedMutation,
   savePendingSyncs,
   updateSyncIndicator,
