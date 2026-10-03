@@ -346,6 +346,18 @@ service cloud.firestore {
         && hasWurstkuecheModule(tenantId);
     }
 
+    // Galloway-Zerlegung: Ausbeute-Protokoll im Chargenbuch
+    match /tenants/{tenantId}/zerlegung_ausbeute/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.chargenNummer)
+        && request.resource.data.keys().size() < 60;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
     // =========================================================================
     // HACCP-GERÄTE – Ausschließlich Admin-Zugriff für Schreiboperationen
     // =========================================================================

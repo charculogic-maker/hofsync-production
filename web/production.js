@@ -5195,6 +5195,7 @@ async function documentRecipeBatch() {
     zutatenBerechnet: scaledIngredients,
     verkaufsEinheiten,
     etikettBasis: labelBasis,
+    verarbeitungsfleisch: selectedGallowayYieldLots(),
     tenantId: productionState.tenantId,
     zeitstempel: serverTimestampFallback(),
   };
@@ -5346,6 +5347,7 @@ export function initProductionModule(databaseInstance, writeOrQueueFirestoreFunc
   renderRecipes();
   renderProductionBatches();
   restoreProductionDraftFields();
+  refreshGallowayProcessingStockPanel();
 }
 
 export function disableProductionModule() {
@@ -5379,8 +5381,260 @@ export function activateKitchenTab() {
   syncRecipeAdminFormVisibility();
   renderRecipes();
   restoreProductionDraftFields();
+  refreshGallowayProcessingStockPanel();
   window.applyProfileKitchenRestrictions?.();
 }
+
+const YIELD_STOCK_KEY = 'hofsync.gallowayYieldStock.v1';
+
+function rememberYieldStock(lots) {
+  try {
+    localStorage.setItem(YIELD_STOCK_KEY, JSON.stringify(lots));
+  } catch {
+    /* private mode */
+  }
+}
+
+function readYieldStock() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(YIELD_STOCK_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function selectedGallowayYieldLots() {
+  return [...document.querySelectorAll('#galloway-yield-stock [data-yield-lot]:checked')].map((el) => ({
+    id: el.getAttribute('data-yield-lot') || '',
+    gevoClass: el.getAttribute('data-gevo-class') || '',
+    mengeKg: Number(el.getAttribute('data-menge-kg')) || 0,
+    chargenNummer: el.getAttribute('data-charge') || '',
+    artikel: el.getAttribute('data-artikel') || '',
+  })).filter((lot) => lot.id && lot.mengeKg > 0);
+}
+
+function yieldInventoryDocId(chargeId, suffix) {
+  return getSafeFirestoreId(`galloway-${chargeId}-${suffix}`).slice(0, 140);
+}
+
+function renderYieldStockLots(lots) {
+  const panel = document.getElementById('galloway-yield-stock');
+  if (!panel) return;
+  const available = lots.filter((lot) => Number(lot.menge) > 0);
+  if (!available.length) {
+    panel.innerHTML = '<p class="galloway-yield-stock-empty">Noch kein Verarbeitungsfleisch aus der Zerlegung im Magazin.</p>';
+    return;
+  }
+  panel.innerHTML = `
+    <p class="galloway-yield-stock-title">Verarbeitungsfleisch aus der Zerlegung</p>
+    ${available.map((lot) => `
+      <label class="galloway-yield-stock-row">
+        <input type="checkbox" data-yield-lot="${escapeHtml(lot.id)}" data-gevo-class="${escapeHtml(lot.kategorie)}" data-menge-kg="${Number(lot.menge) || 0}" data-charge="${escapeHtml(lot.batchId || '')}" data-artikel="${escapeHtml(lot.artikel || '')}">
+        <span>${escapeHtml(lot.kategorie)} · ${escapeHtml(String(lot.menge))} kg · ${escapeHtml(lot.artikel || lot.batchId || '')}</span>
+      </label>
+    `).join('')}
+  `;
+}
+
+function ensureYieldStockPanel() {
+  let panel = document.getElementById('galloway-yield-stock');
+  if (panel) return panel;
+  const host = document.querySelector('.production-log-card');
+  if (!host) return null;
+  panel = document.createElement('div');
+  panel.id = 'galloway-yield-stock';
+  panel.className = 'galloway-yield-stock';
+  host.prepend(panel);
+  return panel;
+}
+
+async function refreshGallowayProcessingStockPanel() {
+  const panel = ensureYieldStockPanel();
+  if (!panel) return;
+  const localLots = readYieldStock();
+  renderYieldStockLots(localLots);
+  if (!productionState.db) return;
+  try {
+    const snap = await getTenantCollection('inventory').where('source', '==', 'zerlegung_ausbeute').limit(40).get();
+    const remote = snap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        artikel: data.artikel || '',
+        menge: Number(data.menge) || 0,
+        kategorie: data.kategorie || '',
+        batchId: data.batchId || '',
+      };
+    }).filter((lot) => ['R I', 'R II', 'R III'].includes(lot.kategorie));
+    if (remote.length) {
+      rememberYieldStock(remote);
+      renderYieldStockLots(remote);
+    }
+  } catch (err) {
+    console.warn('[Galloway Ausbeute] Bestand konnte nicht geladen werden.', err);
+  }
+}
+
+async function upsertYieldInventoryLot(docId, payload) {
+  const ref = getTenantCollection('inventory').doc(docId);
+  let exists = false;
+  try {
+    const snap = await ref.get();
+    exists = Boolean(snap.exists);
+  } catch {
+    exists = false;
+  }
+  if (exists) {
+    await ref.update({
+      artikel: payload.artikel,
+      menge: payload.menge,
+      kategorie: payload.kategorie,
+      updatedAt: serverTimestampFallback(),
+    });
+    return;
+  }
+  await productionState.writeOrQueueFirestore({
+    collectionPath: getTenantCollectionPath('inventory'),
+    docId,
+    op: 'set',
+    onlineData: payload,
+    queueData: { ...payload, createdAt: new Date().toISOString() },
+    offlineMessage: 'Verarbeitungsfleisch wird nachträglich ins Magazin gebucht.',
+  });
+}
+
+async function upsertYieldProductionLot(docId, payload) {
+  const ref = getTenantCollection('produktion_chargen').doc(docId);
+  let exists = false;
+  try {
+    const snap = await ref.get();
+    exists = Boolean(snap.exists);
+  } catch {
+    exists = false;
+  }
+  if (!exists) {
+    await productionState.writeOrQueueFirestore({
+      collectionPath: getTenantCollectionPath('produktion_chargen'),
+      docId,
+      op: 'set',
+      onlineData: payload,
+      queueData: { ...payload, zeitstempel: new Date().toISOString() },
+      offlineMessage: 'Rohstoffcharge wird nachträglich synchronisiert.',
+    });
+    return;
+  }
+  try {
+    await ref.update({
+      produktionsmengeKg: payload.produktionsmengeKg,
+      status: 'verfuegbar',
+      zeitstempel: serverTimestampFallback(),
+    });
+  } catch (err) {
+    const code = String(err?.code || '');
+    if (!code.includes('permission-denied')) throw err;
+  }
+}
+
+export async function saveGallowayYieldToLogbook(report) {
+  const tenantId = requireProductionTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt');
+  const charge = String(report?.chargenNummer || '').trim();
+  if (!charge) throw new Error('Charge fehlt');
+  const chargeId = getSafeFirestoreId(charge).slice(0, 120);
+  const totals = report.totals || {};
+  const yieldPath = getTenantCollectionPath('zerlegung_ausbeute');
+  const yieldDoc = {
+    id: chargeId,
+    chargenNummer: charge,
+    ohrmarke: String(report.ohrmarke || ''),
+    passNr: String(report.ohrmarke || ''),
+    schlachtDatum: String(report.schlachtDatum || ''),
+    zerlegeDatum: String(report.zerlegeDatum || ''),
+    herkunft: String(report.herkunft || ''),
+    betriebsNummer: String(report.betriebsNummer || ''),
+    schlachtgewichtKaltKg: Number(report.schlachtgewichtKaltKg) || 0,
+    schlachtgewichtWarmKg: Number(report.schlachtgewichtWarmKg) || 0,
+    haelfteLinksKg: Number(report.haelfteLinksKg) || 0,
+    haelfteRechtsKg: Number(report.haelfteRechtsKg) || 0,
+    basisKg: Number(totals.basisKg) || 0,
+    kategorien: {
+      edelKg: Number(totals.edelKg) || 0,
+      bratenKg: Number(totals.bratenKg) || 0,
+      verarbeitungKg: Number(totals.verarbeitungKg) || 0,
+      knochenKg: Number(totals.knochenKg) || 0,
+      innereienKg: Number(totals.innereienKg) || 0,
+      fettKg: Number(totals.fettKg) || 0,
+      r1Kg: Number(totals.r1Kg) || 0,
+      r2Kg: Number(totals.r2Kg) || 0,
+      r3Kg: Number(totals.r3Kg) || 0,
+    },
+    quoten: {
+      edelPct: Number(totals.edelPct) || 0,
+      bratenPct: Number(totals.bratenPct) || 0,
+      verarbeitungPct: Number(totals.verarbeitungPct) || 0,
+      knochenAbfallPct: Number(totals.knochenAbfallPct) || 0,
+      verlustPct: Number(totals.verlustPct) || 0,
+      gesamtAusbeuteKg: Number(totals.gesamtKg) || 0,
+      verlustKg: Number(totals.verlustKg) || 0,
+    },
+    positionen: Array.isArray(report.positionen) ? report.positionen : [],
+    tenantId,
+    quelle: 'galloway-zerlegung',
+  };
+  await productionState.writeOrQueueFirestore({
+    collectionPath: yieldPath,
+    docId: chargeId,
+    op: 'set',
+    onlineData: { ...yieldDoc, updatedAt: serverTimestampFallback() },
+    queueData: { ...yieldDoc, updatedAt: new Date().toISOString() },
+    offlineMessage: 'Ausbeute-Protokoll wird nachträglich ins Chargenbuch geschrieben.',
+  });
+
+  const grades = [
+    { key: 'r1Kg', grade: 'R I', suffix: 'ri', label: 'Galloway R I Gulasch' },
+    { key: 'r2Kg', grade: 'R II', suffix: 'rii', label: 'Galloway R II Hackfleisch' },
+    { key: 'r3Kg', grade: 'R III', suffix: 'riii', label: 'Galloway R III Wurstfleisch' },
+  ];
+  const actor = productionState.getAuditActorName?.() || 'zerlegung';
+  const stockLots = [];
+  for (const grade of grades) {
+    const menge = Number(totals[grade.key]) || 0;
+    if (!(menge > 0)) continue;
+    const docId = yieldInventoryDocId(chargeId, grade.suffix);
+    const artikel = `${grade.label} · ${charge}`;
+    await upsertYieldInventoryLot(docId, {
+      artikel,
+      menge,
+      kategorie: grade.grade,
+      tenantId,
+      source: 'zerlegung_ausbeute',
+      batchId: chargeId,
+      createdBy: actor,
+    });
+    await upsertYieldProductionLot(docId, {
+      id: docId,
+      chargenNummer: docId,
+      rezeptId: 'galloway-zerlegung',
+      rezeptName: grade.label,
+      kategorie: 'Rohstoff',
+      produktionsmengeKg: menge,
+      gevoClass: grade.grade,
+      quelle: 'zerlegung_ausbeute',
+      elternCharge: chargeId,
+      ohrmarke: String(report.ohrmarke || ''),
+      status: 'verfuegbar',
+      tenantId,
+      zeitstempel: serverTimestampFallback(),
+    });
+    stockLots.push({ id: docId, artikel, menge, kategorie: grade.grade, batchId: chargeId });
+  }
+  rememberYieldStock(stockLots);
+  await refreshGallowayProcessingStockPanel();
+  return { chargeId, lots: stockLots.map((lot) => lot.id) };
+}
+
+window.saveGallowayYieldToLogbook = saveGallowayYieldToLogbook;
 
 export function activateBatchesTab() {
   productionState.activeTab = 'batches';

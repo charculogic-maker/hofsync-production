@@ -10189,6 +10189,7 @@ body.beef-labels-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px;
   border-radius: 14px;
@@ -10380,6 +10381,167 @@ body.beef-labels-open {
 .beef-print-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.beef-line-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.beef-kg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.beef-kg-btn,
+.beef-yield-save,
+.galloway-yield-stock-row {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+.beef-kg-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.beef-kg-input,
+.beef-yield-kg {
+  height: 44px;
+  width: 72px;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  background: #030712;
+  color: #fff;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+}
+
+.beef-yield-bar {
+  display: flex;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid #374151;
+  background: #111827;
+}
+
+.beef-yield-seg--edel { background: #fbbf24; }
+.beef-yield-seg--braten { background: #fb7185; }
+.beef-yield-seg--verarbeitung { background: #10b981; }
+.beef-yield-seg--knochen { background: #a8a29e; }
+.beef-yield-seg--verlust { background: #4b5563; }
+
+.beef-yield-legend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #d1d5db;
+}
+
+.beef-yield-pct {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #6ee7b7;
+}
+
+.beef-yield-drawer {
+  border: 1px solid #374151;
+  border-radius: 14px;
+  background: #0f172a;
+}
+
+.beef-yield-drawer > summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.beef-yield-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.beef-yield-protocol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.beef-yield-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 13px;
+  color: #d1d5db;
+}
+
+.beef-yield-row strong {
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.beef-yield-save {
+  width: 100%;
+  border: 1px solid #047857;
+  border-radius: 14px;
+  background: #022c22;
+  color: #d1fae5;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.galloway-yield-stock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.galloway-yield-stock-title,
+.galloway-yield-stock-empty {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.galloway-yield-stock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.galloway-yield-stock-row input {
+  width: 22px;
+  height: 22px;
 }
 
 #beef-labels-print-root {

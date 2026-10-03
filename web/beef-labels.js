@@ -280,6 +280,14 @@ export const BEEF_CUT_CATALOG = [
     reifung: 'Frischverarbeitung / Kutter / Kühlung',
     lagerung: 'Lag: ≤ 2 °C / -18 °C',
   },
+  {
+    id: 'abschnitt-r3-wurst',
+    kategorie: 'HACK',
+    bezeichnung: 'BIO-GALLOWAY R III WURSTFLEISCH',
+    teilstueckDetail: 'Sehnenreiches Verarbeitungsfleisch · Wurstküche',
+    reifung: 'Frischverarbeitung / Kutter / Kühlung',
+    lagerung: 'Lag: ≤ 2 °C / -18 °C',
+  },
 
   // —— Knochen & Suppe ——
   {
@@ -562,6 +570,198 @@ function saveState(payload) {
   }
 }
 
+const STANDARD_KG = {
+  'schulter-dickes-bugstueck': 3.2,
+  'schulter-flat-iron': 0.6,
+  'schulter-falsches-filet': 0.45,
+  'schulter-metzgerstueck': 0.3,
+  'schulter-schaufelbraten': 2.2,
+  'ruecken-filet-spitze': 0.45,
+  'ruecken-filet-mittel': 1.1,
+  'ruecken-filet-kopf': 0.55,
+  'ruecken-roastbeef': 3.5,
+  'ruecken-entrecote': 2.4,
+  'ruecken-cote-de-boeuf': 1.1,
+  'ruecken-t-bone-porterhouse': 0.9,
+  'lappen-flank': 0.9,
+  'lappen-skirt': 0.6,
+  'lappen-bavette': 0.7,
+  'lappen-spider': 0.35,
+  'lappen-brisket': 4.5,
+  'lappen-nierenzapfen': 0.7,
+  'keule-kugel-flach': 2.2,
+  'keule-kugel-rund': 2.4,
+  'keule-spiessfleisch': 0.8,
+  'keule-oberschale': 3.2,
+  'keule-oberschalendeckel': 1.1,
+  'keule-unterschale': 2.6,
+  'keule-semerrolle': 1.3,
+  'keule-hueftsteak': 1.6,
+  'keule-tafelspitz': 1.4,
+  'keule-buergermeister': 1.1,
+  'keule-wade': 1.8,
+  'abschnitt-r1-gulasch': 0.5,
+  'abschnitt-r2-hack': 0.5,
+  'abschnitt-r3-wurst': 0.5,
+  'beinscheibe-hinterhaxe': 1.6,
+  'beinscheibe-vorderhaxe': 1.4,
+  'knochen-brustkern': 2.8,
+  'knochen-querrippe': 2.2,
+  'knochen-markknochen': 0.4,
+  'knochen-suppenknochen': 0.6,
+  'knochen-ochsenschwanz': 1.3,
+  'innerei-zunge': 1.5,
+  'innerei-nierenzapfen': 0.7,
+  'innerei-leber': 2.2,
+  'innerei-herz': 1.6,
+  'barf-innereien-mix': 1,
+  'barf-pansen-pur': 2.5,
+};
+
+const EDEL_IDS = new Set([
+  'schulter-flat-iron', 'schulter-falsches-filet', 'schulter-metzgerstueck',
+  'ruecken-filet-spitze', 'ruecken-filet-mittel', 'ruecken-filet-kopf',
+  'ruecken-roastbeef', 'ruecken-entrecote', 'ruecken-cote-de-boeuf', 'ruecken-t-bone-porterhouse',
+  'lappen-flank', 'lappen-skirt', 'lappen-bavette', 'lappen-spider', 'lappen-nierenzapfen',
+]);
+
+const BRATEN_IDS = new Set([
+  'schulter-dickes-bugstueck', 'schulter-schaufelbraten', 'lappen-brisket',
+  'keule-kugel-flach', 'keule-kugel-rund', 'keule-spiessfleisch',
+  'keule-oberschale', 'keule-oberschalendeckel', 'keule-unterschale', 'keule-semerrolle',
+  'keule-hueftsteak', 'keule-tafelspitz', 'keule-buergermeister', 'keule-wade',
+]);
+
+function roundKg(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n * 1000) / 1000;
+}
+
+function parseKg(raw) {
+  const normalized = String(raw ?? '').trim().replace(',', '.');
+  if (!normalized) return 0;
+  return roundKg(Number.parseFloat(normalized));
+}
+
+function standardKgForCut(cutId) {
+  return STANDARD_KG[cutId] ?? 0.5;
+}
+
+function processingGradeOf(cutId, bezeichnung = '') {
+  const id = String(cutId || '').toLowerCase();
+  const name = String(bezeichnung || '').toUpperCase();
+  if (id === 'abschnitt-r3-wurst' || /\bR\s*III\b/.test(name) || name.includes('WURSTFLEISCH')) return 'R III';
+  if (id === 'abschnitt-r2-hack' || /\bR\s*II\b/.test(name) || name.includes('HACK')) return 'R II';
+  if (id === 'abschnitt-r1-gulasch' || /\bR\s*I\b/.test(name) || name.includes('GULASCH')) return 'R I';
+  return null;
+}
+
+function yieldBucketOf(cut) {
+  if (!cut) return 'fett';
+  if (EDEL_IDS.has(cut.id)) return 'edel';
+  if (BRATEN_IDS.has(cut.id)) return 'braten';
+  if (processingGradeOf(cut.id, cut.bezeichnung)) return 'verarbeitung';
+  if (cut.kategorie === 'KNOCHEN') return 'knochen';
+  if (cut.kategorie === 'INNEREIEN' || cut.kategorie === 'TIERNAHRUNG') return 'innereien';
+  if (cut.kategorie === 'HACK') return 'verarbeitung';
+  if (cut.kategorie === 'RUECKEN' || cut.kategorie === 'LAPPEN') return 'edel';
+  if (cut.kategorie === 'KEULE' || cut.kategorie === 'SCHULTER') return 'braten';
+  const name = String(cut.bezeichnung || '').toUpperCase();
+  if (/FETT|SEHNE|PARÜR|PARUR/.test(name)) return 'fett';
+  if (/KNOCHEN|HAXE/.test(name)) return 'knochen';
+  if (/LEBER|ZUNGE|HERZ|BARF|PANSEN/.test(name)) return 'innereien';
+  if (/FILET|STEAK|ENTREC|ROASTBEEF|FLANK|FLAT IRON|SPIDER/.test(name)) return 'edel';
+  return 'fett';
+}
+
+function slaughterBasisKg() {
+  if (state.schlachtgewichtKalt > 0) return state.schlachtgewichtKalt;
+  if (state.schlachtgewichtWarm > 0) return state.schlachtgewichtWarm;
+  const halves = roundKg(state.haelfteLinks) + roundKg(state.haelfteRechts);
+  return halves > 0 ? roundKg(halves) : 0;
+}
+
+function yieldPct(part, basis) {
+  if (!(basis > 0)) return 0;
+  return (part / basis) * 100;
+}
+
+function formatKgDe(value) {
+  return Number(value || 0).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function formatPctDe(value) {
+  return Number(value || 0).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function computeYield() {
+  let edelKg = 0;
+  let bratenKg = 0;
+  let knochenKg = 0;
+  let innereienKg = 0;
+  let fettFromCuts = 0;
+  let r1 = 0;
+  let r2 = 0;
+  let r3 = 0;
+  state.queue.forEach((item) => {
+    const cut = findCut(item.id);
+    const kg = roundKg(item.weightKg);
+    if (!cut || !(kg > 0)) return;
+    const bucket = yieldBucketOf(cut);
+    if (bucket === 'edel') edelKg += kg;
+    else if (bucket === 'braten') bratenKg += kg;
+    else if (bucket === 'knochen') knochenKg += kg;
+    else if (bucket === 'innereien') innereienKg += kg;
+    else if (bucket === 'fett') fettFromCuts += kg;
+    else {
+      const grade = processingGradeOf(cut.id, cut.bezeichnung) || 'R III';
+      if (grade === 'R I') r1 += kg;
+      else if (grade === 'R II') r2 += kg;
+      else r3 += kg;
+    }
+  });
+  const r1Kg = state.r1Override == null ? roundKg(r1) : roundKg(state.r1Override);
+  const r2Kg = state.r2Override == null ? roundKg(r2) : roundKg(state.r2Override);
+  const r3Kg = state.r3Override == null ? roundKg(r3) : roundKg(state.r3Override);
+  const verarbeitungKg = roundKg(r1Kg + r2Kg + r3Kg);
+  const fettKg = roundKg(state.fettKg + fettFromCuts);
+  const basisKg = slaughterBasisKg();
+  const gesamtKg = roundKg(edelKg + bratenKg + verarbeitungKg + knochenKg + innereienKg + fettKg);
+  const verlustKg = basisKg > 0 ? Math.round((basisKg - gesamtKg) * 1000) / 1000 : 0;
+  return {
+    edelKg: roundKg(edelKg),
+    bratenKg: roundKg(bratenKg),
+    verarbeitungKg,
+    knochenKg: roundKg(knochenKg),
+    innereienKg: roundKg(innereienKg),
+    fettKg,
+    r1Kg,
+    r2Kg,
+    r3Kg,
+    basisKg,
+    gesamtKg,
+    verlustKg,
+    edelPct: yieldPct(edelKg, basisKg),
+    bratenPct: yieldPct(bratenKg, basisKg),
+    verarbeitungPct: yieldPct(verarbeitungKg, basisKg),
+    knochenAbfallPct: yieldPct(knochenKg + fettKg, basisKg),
+    innereienPct: yieldPct(innereienKg, basisKg),
+    verlustPct: yieldPct(Math.max(0, verlustKg), basisKg),
+  };
+}
+
+function normalizeQueueItem(item) {
+  const id = String(item?.id || '');
+  const quantity = Math.max(0, Number(item?.quantity) || 0);
+  const weightManual = item?.weightManual === true;
+  const stored = Number(item?.weightKg);
+  const weightKg = weightManual && Number.isFinite(stored)
+    ? roundKg(stored)
+    : roundKg(quantity * standardKgForCut(id));
+  return { id, quantity, weightKg, weightManual };
+}
+
 const state = {
   chargenNummer: 'GAL-VV-2809',
   ohrmarke: 'DE 05 412 89012',
@@ -569,10 +769,18 @@ const state = {
   zerlegeDatum: todayDe(),
   herkunft: 'Geb./Gem./Geschl./Zerl.: DE',
   betriebsNummer: 'Stautenhof · StevesHof',
+  schlachtgewichtKalt: 285.5,
+  schlachtgewichtWarm: 0,
+  haelfteLinks: 0,
+  haelfteRechts: 0,
+  fettKg: 0,
+  r1Override: /** @type {number|null} */ (null),
+  r2Override: /** @type {number|null} */ (null),
+  r3Override: /** @type {number|null} */ (null),
   skipCount: 0,
   activeTab: /** @type {CutCategory} */ ('KEULE'),
-  /** @type {{ id: string, quantity: number }[]} */
-  queue: DEFAULT_QUEUE.map((q) => ({ ...q })),
+  /** @type {{ id: string, quantity: number, weightKg: number, weightManual: boolean }[]} */
+  queue: DEFAULT_QUEUE.map((q) => normalizeQueueItem(q)),
 };
 
 function hydrateState() {
@@ -585,6 +793,14 @@ function hydrateState() {
   if (typeof saved.zerlegeDatum === 'string') state.zerlegeDatum = saved.zerlegeDatum;
   if (typeof saved.herkunft === 'string') state.herkunft = saved.herkunft;
   if (typeof saved.betriebsNummer === 'string') state.betriebsNummer = saved.betriebsNummer;
+  if (Number.isFinite(Number(saved.schlachtgewichtKalt))) state.schlachtgewichtKalt = roundKg(saved.schlachtgewichtKalt);
+  if (Number.isFinite(Number(saved.schlachtgewichtWarm))) state.schlachtgewichtWarm = roundKg(saved.schlachtgewichtWarm);
+  if (Number.isFinite(Number(saved.haelfteLinks))) state.haelfteLinks = roundKg(saved.haelfteLinks);
+  if (Number.isFinite(Number(saved.haelfteRechts))) state.haelfteRechts = roundKg(saved.haelfteRechts);
+  if (Number.isFinite(Number(saved.fettKg))) state.fettKg = roundKg(saved.fettKg);
+  state.r1Override = saved.r1Override == null ? null : roundKg(saved.r1Override);
+  state.r2Override = saved.r2Override == null ? null : roundKg(saved.r2Override);
+  state.r3Override = saved.r3Override == null ? null : roundKg(saved.r3Override);
   if (Number.isFinite(Number(saved.skipCount))) {
     state.skipCount = Math.max(0, Math.min(23, Number(saved.skipCount)));
   }
@@ -593,10 +809,7 @@ function hydrateState() {
   }
   if (Array.isArray(saved.queue)) {
     state.queue = saved.queue
-      .map((item) => ({
-        id: String(item?.id || ''),
-        quantity: Math.max(0, Number(item?.quantity) || 0),
-      }))
+      .map((item) => normalizeQueueItem(item))
       .filter((item) => item.id && item.quantity > 0 && findCut(item.id));
   }
 }
@@ -609,6 +822,14 @@ function persist() {
     zerlegeDatum: state.zerlegeDatum,
     herkunft: state.herkunft,
     betriebsNummer: state.betriebsNummer,
+    schlachtgewichtKalt: state.schlachtgewichtKalt,
+    schlachtgewichtWarm: state.schlachtgewichtWarm,
+    haelfteLinks: state.haelfteLinks,
+    haelfteRechts: state.haelfteRechts,
+    fettKg: state.fettKg,
+    r1Override: state.r1Override,
+    r2Override: state.r2Override,
+    r3Override: state.r3Override,
     skipCount: state.skipCount,
     activeTab: state.activeTab,
     queue: state.queue,
@@ -633,11 +854,13 @@ function updateQuantity(cutId, delta) {
   const existing = state.queue.find((q) => q.id === cutId);
   if (!existing) {
     if (delta <= 0) return;
-    state.queue.push({ id: cutId, quantity: delta });
+    state.queue.push(normalizeQueueItem({ id: cutId, quantity: delta, weightManual: false }));
   } else {
     existing.quantity += delta;
     if (existing.quantity <= 0) {
       state.queue = state.queue.filter((q) => q.id !== cutId);
+    } else if (!existing.weightManual) {
+      existing.weightKg = roundKg(existing.quantity * standardKgForCut(cutId));
     }
   }
   persist();
@@ -776,21 +999,137 @@ function renderQueue(host) {
     .map((item) => {
       const cut = findCut(item.id);
       if (!cut) return '';
+      const kgShown = item.weightKg ? String(item.weightKg).replace('.', ',') : '';
       return `
         <div class="beef-queue-row" data-cut-id="${escapeHtml(item.id)}">
           <div class="beef-cut-info">
             <div class="beef-cut-name">${escapeHtml(cut.bezeichnung)}</div>
             <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
           </div>
-          <div class="beef-qty">
-            <button type="button" class="beef-qty-btn" data-delta="-1">−</button>
-            <span class="beef-qty-val">${item.quantity}</span>
-            <button type="button" class="beef-qty-btn beef-qty-btn--plus" data-delta="1">+</button>
+          <div class="beef-line-controls">
+            <div class="beef-qty">
+              <button type="button" class="beef-qty-btn" data-delta="-1">−</button>
+              <span class="beef-qty-val">${item.quantity}</span>
+              <button type="button" class="beef-qty-btn beef-qty-btn--plus" data-delta="1">+</button>
+            </div>
+            <div class="beef-kg">
+              <button type="button" class="beef-kg-btn" data-kg-delta="-0.1" aria-label="Gewicht verringern">−</button>
+              <input type="text" class="beef-kg-input" inputmode="decimal" data-kg-input="1" value="${escapeHtml(kgShown)}" placeholder="kg" aria-label="Gewicht ${escapeHtml(cut.bezeichnung)}">
+              <button type="button" class="beef-kg-btn" data-kg-delta="0.1" aria-label="Gewicht erhöhen">+</button>
+            </div>
           </div>
         </div>
       `;
     })
     .join('');
+}
+
+function setLineWeight(cutId, kg) {
+  const item = state.queue.find((entry) => entry.id === cutId);
+  if (!item) return;
+  item.weightKg = roundKg(kg);
+  item.weightManual = true;
+  persist();
+  renderYield();
+}
+
+function kgFieldValue(value) {
+  return value ? String(value).replace('.', ',') : '';
+}
+
+function setInputIfIdle(el, value) {
+  if (!el || document.activeElement === el) return;
+  if (el.value !== value) el.value = value;
+}
+
+function renderYield() {
+  const modal = document.getElementById('beef-labels-modal');
+  if (!modal) return;
+  const totals = computeYield();
+  const segments = [
+    { key: 'edel', label: 'Edelteile', pct: totals.edelPct },
+    { key: 'braten', label: 'Braten', pct: totals.bratenPct },
+    { key: 'verarbeitung', label: 'Verarbeitung', pct: totals.verarbeitungPct },
+    { key: 'knochen', label: 'Knochen', pct: totals.knochenAbfallPct },
+    { key: 'verlust', label: 'Verlust', pct: totals.verlustPct },
+  ];
+  const displayed = segments.reduce((sum, seg) => sum + Math.max(0, seg.pct), 0);
+  const bar = modal.querySelector('#beef-yield-bar');
+  if (bar) {
+    bar.innerHTML = segments.map((seg) => {
+      const width = displayed > 0 ? (Math.max(0, seg.pct) / displayed) * 100 : 20;
+      return `<span class="beef-yield-seg beef-yield-seg--${seg.key}" style="width:${width}%"></span>`;
+    }).join('');
+    bar.setAttribute('aria-label', segments.map((seg) => `${seg.label} ${formatPctDe(seg.pct)} Prozent`).join(', '));
+  }
+  const legend = modal.querySelector('#beef-yield-legend');
+  if (legend) {
+    legend.innerHTML = segments.map((seg) => `
+      <div><div>${seg.label}</div><div class="beef-yield-pct">${formatPctDe(seg.pct)}%</div></div>
+    `).join('');
+  }
+  const text = (id, value) => {
+    const el = modal.querySelector(id);
+    if (el) el.textContent = value;
+  };
+  text('#beef-yield-basis', `${formatKgDe(totals.basisKg)} kg`);
+  text('#beef-yield-edel', `${formatKgDe(totals.edelKg)} kg · ${formatPctDe(totals.edelPct)} %`);
+  text('#beef-yield-braten', `${formatKgDe(totals.bratenKg)} kg · ${formatPctDe(totals.bratenPct)} %`);
+  text('#beef-yield-verarbeitung', `${formatKgDe(totals.verarbeitungKg)} kg · ${formatPctDe(totals.verarbeitungPct)} %`);
+  text('#beef-yield-knochen', `${formatKgDe(totals.knochenKg)} kg`);
+  text('#beef-yield-innereien', `${formatKgDe(totals.innereienKg)} kg · ${formatPctDe(totals.innereienPct)} %`);
+  text('#beef-yield-gesamt', `${formatKgDe(totals.gesamtKg)} kg`);
+  text('#beef-yield-verlust', `${formatKgDe(totals.verlustKg)} kg · ${formatPctDe(totals.verlustPct)} %`);
+  text('#beef-yield-abfall', `${formatPctDe(totals.knochenAbfallPct)} %`);
+  setInputIfIdle(modal.querySelector('#beef-yield-r1'), kgFieldValue(totals.r1Kg));
+  setInputIfIdle(modal.querySelector('#beef-yield-r2'), kgFieldValue(totals.r2Kg));
+  setInputIfIdle(modal.querySelector('#beef-yield-r3'), kgFieldValue(totals.r3Kg));
+  setInputIfIdle(modal.querySelector('#beef-yield-fett'), kgFieldValue(state.fettKg));
+}
+
+async function saveYieldToLogbook() {
+  const charge = String(state.chargenNummer || '').trim();
+  if (!charge) {
+    window.showToast?.('Charge fehlt – bitte in den Stammdaten eintragen.', 'error');
+    return;
+  }
+  const save = window.saveGallowayYieldToLogbook;
+  if (typeof save !== 'function') {
+    window.showToast?.('Chargenbuch ist noch nicht bereit.', 'error');
+    return;
+  }
+  const totals = computeYield();
+  const btn = document.getElementById('beef-yield-save');
+  if (btn) btn.disabled = true;
+  try {
+    await save({
+      chargenNummer: charge,
+      ohrmarke: state.ohrmarke,
+      schlachtDatum: state.schlachtDatum,
+      zerlegeDatum: state.zerlegeDatum,
+      herkunft: state.herkunft,
+      betriebsNummer: state.betriebsNummer,
+      schlachtgewichtKaltKg: state.schlachtgewichtKalt,
+      schlachtgewichtWarmKg: state.schlachtgewichtWarm,
+      haelfteLinksKg: state.haelfteLinks,
+      haelfteRechtsKg: state.haelfteRechts,
+      totals,
+      positionen: state.queue.map((item) => {
+        const cut = findCut(item.id);
+        return {
+          id: item.id,
+          name: cut?.bezeichnung || item.id,
+          menge: item.quantity,
+          weightKg: item.weightKg,
+        };
+      }),
+    });
+    window.showToast?.(`Ausbeute für ${charge} im Chargenbuch gespeichert.`, 'success');
+  } catch (err) {
+    window.showToast?.(err?.message || 'Ausbeute konnte nicht gespeichert werden.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderModalBody() {
@@ -811,6 +1150,10 @@ function renderModalBody() {
   if (originEl && document.activeElement !== originEl) originEl.value = state.herkunft;
   if (plantEl && document.activeElement !== plantEl) plantEl.value = state.betriebsNummer;
   if (skipEl && document.activeElement !== skipEl) skipEl.value = String(state.skipCount);
+  setInputIfIdle(modal.querySelector('#beef-kalt'), kgFieldValue(state.schlachtgewichtKalt));
+  setInputIfIdle(modal.querySelector('#beef-warm'), kgFieldValue(state.schlachtgewichtWarm));
+  setInputIfIdle(modal.querySelector('#beef-haelfte-links'), kgFieldValue(state.haelfteLinks));
+  setInputIfIdle(modal.querySelector('#beef-haelfte-rechts'), kgFieldValue(state.haelfteRechts));
 
   const summaryCharge = modal.querySelector('#beef-stammdaten-summary');
   if (summaryCharge) {
@@ -840,6 +1183,7 @@ function renderModalBody() {
     printBtn.disabled = totalLabels() === 0;
     printBtn.textContent = `Drucken · ${sheetsNeeded()} Bogen`;
   }
+  renderYield();
 }
 
 function goToCutSelection() {
@@ -859,6 +1203,14 @@ function resetNewCharge() {
   state.skipCount = 0;
   state.chargenNummer = '';
   state.ohrmarke = '';
+  state.schlachtgewichtKalt = 0;
+  state.schlachtgewichtWarm = 0;
+  state.haelfteLinks = 0;
+  state.haelfteRechts = 0;
+  state.fettKg = 0;
+  state.r1Override = null;
+  state.r2Override = null;
+  state.r3Override = null;
   persist();
   const modal = document.getElementById('beef-labels-modal');
   const details = /** @type {HTMLDetailsElement|null} */ (modal?.querySelector('#beef-stammdaten'));
@@ -891,13 +1243,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'stammdaten-v4') return;
+  if (existing?.dataset.ux === 'yield-v1') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal';
-  modal.dataset.ux = 'stammdaten-v4';
+  modal.dataset.ux = 'yield-v1';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -931,8 +1283,20 @@ function ensureModal() {
           <label>Charge
             <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
           </label>
-          <label>Ohrmarke
+          <label>Ohrmarke / Pass-Nr
             <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Schlachtgewicht kalt (kg)
+            <input type="text" id="beef-kalt" class="input-text-touch" inputmode="decimal" placeholder="z. B. 285,5" autocomplete="off">
+          </label>
+          <label>Schlachtgewicht warm (kg)
+            <input type="text" id="beef-warm" class="input-text-touch" inputmode="decimal" placeholder="optional" autocomplete="off">
+          </label>
+          <label>Hälfte links (kg)
+            <input type="text" id="beef-haelfte-links" class="input-text-touch" inputmode="decimal" placeholder="optional" autocomplete="off">
+          </label>
+          <label>Hälfte rechts (kg)
+            <input type="text" id="beef-haelfte-rechts" class="input-text-touch" inputmode="decimal" placeholder="optional" autocomplete="off">
           </label>
           <label>Schlachtdatum
             <input type="text" id="beef-schlacht" class="input-text-touch" inputmode="numeric" autocomplete="off">
@@ -978,6 +1342,27 @@ function ensureModal() {
           <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
           <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen</span>
         </div>
+        <div class="beef-yield-bar" id="beef-yield-bar" role="img" aria-label="Ausbeute"></div>
+        <div class="beef-yield-legend" id="beef-yield-legend"></div>
+        <details class="beef-yield-drawer" id="beef-yield-drawer">
+          <summary>📊 Ausbeute-Protokoll anzeigen</summary>
+          <div class="beef-yield-protocol">
+            <div class="beef-yield-row"><span>Schlachtgewicht</span><strong id="beef-yield-basis">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Edelteile &amp; Steaks</span><strong id="beef-yield-edel">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Braten &amp; Keule</span><strong id="beef-yield-braten">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Verarbeitungsfleisch</span><strong id="beef-yield-verarbeitung">0,0 kg</strong></div>
+            <label class="beef-yield-row">R I Gulasch<input type="text" id="beef-yield-r1" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+            <label class="beef-yield-row">R II Hackfleisch<input type="text" id="beef-yield-r2" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+            <label class="beef-yield-row">R III Wurstfleisch<input type="text" id="beef-yield-r3" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+            <div class="beef-yield-row"><span>Knochen, Haxen &amp; Suppe</span><strong id="beef-yield-knochen">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Innereien &amp; BARF</span><strong id="beef-yield-innereien">0,0 kg</strong></div>
+            <label class="beef-yield-row">Abschnitte / Fett / Sehnen<input type="text" id="beef-yield-fett" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+            <div class="beef-yield-row"><span>Gesamt-Ausbeute</span><strong id="beef-yield-gesamt">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Zerlegeverlust / Tropfverlust</span><strong id="beef-yield-verlust">0,0 kg</strong></div>
+            <div class="beef-yield-row"><span>Knochen &amp; Abfall</span><strong id="beef-yield-abfall">0,0 %</strong></div>
+          </div>
+        </details>
+        <button type="button" class="beef-yield-save" id="beef-yield-save">💾 Ausbeute im Chargenbuch speichern</button>
         <button type="button" class="beef-print-btn" id="beef-print-btn">Drucken · 1 Bogen</button>
       </footer>
     </div>
@@ -987,6 +1372,9 @@ function ensureModal() {
 
   modal.querySelector('#beef-close-btn')?.addEventListener('click', closeModal);
   modal.querySelector('#beef-print-btn')?.addEventListener('click', handlePrint);
+  modal.querySelector('#beef-yield-save')?.addEventListener('click', () => {
+    saveYieldToLogbook();
+  });
   modal.querySelector('#beef-continue-btn')?.addEventListener('click', goToCutSelection);
   modal.querySelector('#beef-reset-btn')?.addEventListener('click', resetNewCharge);
   modal.querySelector('#beef-clear-btn')?.addEventListener('click', (event) => {
@@ -1039,6 +1427,34 @@ function ensureModal() {
   bindField('#beef-skip', 'skipCount', (raw) =>
     Math.max(0, Math.min(23, parseInt(String(raw), 10) || 0)),
   );
+  const bindKg = (id, key) => {
+    const el = modal.querySelector(id);
+    el?.addEventListener('input', () => {
+      state[key] = parseKg(/** @type {HTMLInputElement} */ (el).value);
+      persist();
+      renderYield();
+    });
+  };
+  bindKg('#beef-kalt', 'schlachtgewichtKalt');
+  bindKg('#beef-warm', 'schlachtgewichtWarm');
+  bindKg('#beef-haelfte-links', 'haelfteLinks');
+  bindKg('#beef-haelfte-rechts', 'haelfteRechts');
+  modal.querySelector('#beef-yield-fett')?.addEventListener('input', (event) => {
+    state.fettKg = parseKg(/** @type {HTMLInputElement} */ (event.target).value);
+    persist();
+    renderYield();
+  });
+  const bindGrade = (id, key) => {
+    modal.querySelector(id)?.addEventListener('input', (event) => {
+      const raw = /** @type {HTMLInputElement} */ (event.target).value.trim();
+      state[key] = raw ? parseKg(raw) : null;
+      persist();
+      renderYield();
+    });
+  };
+  bindGrade('#beef-yield-r1', 'r1Override');
+  bindGrade('#beef-yield-r2', 'r2Override');
+  bindGrade('#beef-yield-r3', 'r3Override');
 
   modal.addEventListener('click', (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
@@ -1046,13 +1462,33 @@ function ensureModal() {
       closeModal();
       return;
     }
+    const kgInput = target.closest('[data-kg-input]');
+    if (kgInput) return;
     const row = target.closest('[data-cut-id]');
+    const kgBtn = target.closest('[data-kg-delta]');
+    if (row && kgBtn) {
+      const cutId = row.getAttribute('data-cut-id');
+      const delta = Number(kgBtn.getAttribute('data-kg-delta'));
+      const item = state.queue.find((entry) => entry.id === cutId);
+      if (!cutId || !item || !delta) return;
+      setLineWeight(cutId, item.weightKg + delta);
+      renderModalBody();
+      return;
+    }
     const btn = target.closest('[data-delta]');
     if (!row || !btn) return;
     const cutId = row.getAttribute('data-cut-id');
     const delta = Number(btn.getAttribute('data-delta'));
     if (!cutId || !delta) return;
     updateQuantity(cutId, delta);
+  });
+  modal.addEventListener('input', (event) => {
+    const target = /** @type {HTMLElement} */ (event.target);
+    if (!target.matches?.('[data-kg-input]')) return;
+    const row = target.closest('[data-cut-id]');
+    const cutId = row?.getAttribute('data-cut-id');
+    if (!cutId) return;
+    setLineWeight(cutId, parseKg(/** @type {HTMLInputElement} */ (target).value));
   });
 }
 

@@ -1,7 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261002-mhd-archive-v1';
+const CACHE_NAME = 'charculogic-v20261003-galloway-yield-v1';
+
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
-const RELEASED_AT = '2026-10-02T05:30:00+02:00';
+const RELEASED_AT = '2026-10-03T09:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
