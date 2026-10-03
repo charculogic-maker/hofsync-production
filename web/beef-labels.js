@@ -1319,22 +1319,48 @@ function ensureModal() {
         </div>
       </details>
 
-      <div class="beef-labels-main" id="beef-labels-main">
-        <div class="beef-labels-catalog">
-          <div class="beef-tabs" role="tablist">${tabs}</div>
-          <div class="beef-custom-add">
-            <input type="text" id="beef-custom-name" class="input-text-touch" placeholder="Eigenes Teilstück eingeben…" autocomplete="off">
-            <button type="button" class="beef-custom-add-btn" id="beef-custom-add-btn">+ Hinzufügen</button>
+      <div class="beef-labels-stage" id="beef-labels-stage">
+        <div class="beef-labels-main" id="beef-labels-main">
+          <div class="beef-labels-catalog">
+            <div class="beef-tabs" role="tablist">${tabs}</div>
+            <div class="beef-custom-add">
+              <input type="text" id="beef-custom-name" class="input-text-touch" placeholder="Eigenes Teilstück eingeben…" autocomplete="off">
+              <button type="button" class="beef-custom-add-btn" id="beef-custom-add-btn">+ Hinzufügen</button>
+            </div>
+            <div id="beef-cut-list" class="beef-cut-list"></div>
           </div>
-          <div id="beef-cut-list" class="beef-cut-list"></div>
         </div>
-        <details class="beef-labels-basket" id="beef-basket-panel" open>
-          <summary class="beef-basket-head">
-            <span>Druckkorb <span id="beef-queue-count">0 Pos.</span></span>
-            <button type="button" class="beef-clear-btn" id="beef-clear-btn">Leeren</button>
-          </summary>
-          <div id="beef-queue-list" class="beef-queue-list"></div>
-        </details>
+        <aside class="beef-labels-side" id="beef-labels-side" aria-label="Druckkorb und Ausbeute">
+          <details class="beef-labels-basket" id="beef-basket-panel" open>
+            <summary class="beef-basket-head">
+              <span>Druckkorb <span id="beef-queue-count">0 Pos.</span></span>
+              <button type="button" class="beef-clear-btn" id="beef-clear-btn">Leeren</button>
+            </summary>
+            <div id="beef-queue-list" class="beef-queue-list"></div>
+          </details>
+          <div class="beef-yield-summary" id="beef-yield-summary">
+            <div class="beef-yield-bar" id="beef-yield-bar" role="img" aria-label="Ausbeute"></div>
+            <div class="beef-yield-legend" id="beef-yield-legend"></div>
+            <details class="beef-yield-drawer" id="beef-yield-drawer">
+              <summary>📊 Ausbeute-Protokoll anzeigen</summary>
+              <div class="beef-yield-protocol">
+                <div class="beef-yield-row"><span>Schlachtgewicht</span><strong id="beef-yield-basis">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Edelteile &amp; Steaks</span><strong id="beef-yield-edel">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Braten &amp; Keule</span><strong id="beef-yield-braten">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Verarbeitungsfleisch</span><strong id="beef-yield-verarbeitung">0,0 kg</strong></div>
+                <label class="beef-yield-row">R I Gulasch<input type="text" id="beef-yield-r1" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+                <label class="beef-yield-row">R II Hackfleisch<input type="text" id="beef-yield-r2" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+                <label class="beef-yield-row">R III Wurstfleisch<input type="text" id="beef-yield-r3" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+                <div class="beef-yield-row"><span>Knochen, Haxen &amp; Suppe</span><strong id="beef-yield-knochen">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Innereien &amp; BARF</span><strong id="beef-yield-innereien">0,0 kg</strong></div>
+                <label class="beef-yield-row">Abschnitte / Fett / Sehnen<input type="text" id="beef-yield-fett" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
+                <div class="beef-yield-row"><span>Gesamt-Ausbeute</span><strong id="beef-yield-gesamt">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Zerlegeverlust / Tropfverlust</span><strong id="beef-yield-verlust">0,0 kg</strong></div>
+                <div class="beef-yield-row"><span>Knochen &amp; Abfall</span><strong id="beef-yield-abfall">0,0 %</strong></div>
+              </div>
+            </details>
+          </div>
+        </aside>
       </div>
 
       <footer class="beef-labels-footer">
@@ -1342,26 +1368,6 @@ function ensureModal() {
           <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
           <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen</span>
         </div>
-        <div class="beef-yield-bar" id="beef-yield-bar" role="img" aria-label="Ausbeute"></div>
-        <div class="beef-yield-legend" id="beef-yield-legend"></div>
-        <details class="beef-yield-drawer" id="beef-yield-drawer">
-          <summary>📊 Ausbeute-Protokoll anzeigen</summary>
-          <div class="beef-yield-protocol">
-            <div class="beef-yield-row"><span>Schlachtgewicht</span><strong id="beef-yield-basis">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Edelteile &amp; Steaks</span><strong id="beef-yield-edel">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Braten &amp; Keule</span><strong id="beef-yield-braten">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Verarbeitungsfleisch</span><strong id="beef-yield-verarbeitung">0,0 kg</strong></div>
-            <label class="beef-yield-row">R I Gulasch<input type="text" id="beef-yield-r1" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
-            <label class="beef-yield-row">R II Hackfleisch<input type="text" id="beef-yield-r2" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
-            <label class="beef-yield-row">R III Wurstfleisch<input type="text" id="beef-yield-r3" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
-            <div class="beef-yield-row"><span>Knochen, Haxen &amp; Suppe</span><strong id="beef-yield-knochen">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Innereien &amp; BARF</span><strong id="beef-yield-innereien">0,0 kg</strong></div>
-            <label class="beef-yield-row">Abschnitte / Fett / Sehnen<input type="text" id="beef-yield-fett" class="beef-yield-kg" inputmode="decimal" placeholder="0,0"></label>
-            <div class="beef-yield-row"><span>Gesamt-Ausbeute</span><strong id="beef-yield-gesamt">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Zerlegeverlust / Tropfverlust</span><strong id="beef-yield-verlust">0,0 kg</strong></div>
-            <div class="beef-yield-row"><span>Knochen &amp; Abfall</span><strong id="beef-yield-abfall">0,0 %</strong></div>
-          </div>
-        </details>
         <button type="button" class="beef-yield-save" id="beef-yield-save">💾 Ausbeute im Chargenbuch speichern</button>
         <button type="button" class="beef-print-btn" id="beef-print-btn">Drucken · 1 Bogen</button>
       </footer>

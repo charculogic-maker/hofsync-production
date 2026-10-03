@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261003-galloway-yield-v1';
+const CACHE_NAME = 'charculogic-v20261003-responsive-landscape-v1';
 
 
 const CACHE_SCHEMA = 'p0-release-gate-sep2026';
