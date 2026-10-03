@@ -1,6 +1,6 @@
-const CACHE_NAME = 'charculogic-v20261003-responsive-landscape-v3';
+const CACHE_NAME = 'charculogic-v20261003-label-prefix-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-03T10:05:00+02:00';
+const RELEASED_AT = '2026-10-03T11:25:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

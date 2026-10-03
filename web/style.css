@@ -11436,11 +11436,8 @@ body.beef-labels-open {
   font-size: 14px;
   font-weight: 800;
   color: #f9fafb;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .beef-cut-detail,
@@ -11891,9 +11888,11 @@ body.beef-labels-open {
     font-size: 8.5pt;
     font-weight: 900;
     line-height: 1.1;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
   body.printing-beef-labels .avery-label-detail {

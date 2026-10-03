@@ -4,6 +4,9 @@
  */
 const STORAGE_KEY = 'hofsync.beefLabels.v1';
 const CUSTOM_CUTS_KEY = 'hofsync_custom_beef_cuts';
+const LABEL_PREFIX_KEY = 'zerlegung_label_prefix';
+const DEFAULT_LABEL_PREFIX = 'Bio-Galloway';
+const LEGACY_BREED_PREFIX = /^(?:bio[-\s]+galloway)\s+/i;
 
 /** @typedef {'SCHULTER'|'RUECKEN'|'LAPPEN'|'KEULE'|'HACK'|'KNOCHEN'|'INNEREIEN'|'TIERNAHRUNG'|'CUSTOM'} CutCategory */
 
@@ -26,7 +29,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'schulter-dickes-bugstueck',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY DICKES BUGSTÜCK',
+    bezeichnung: 'Dickes Bugstück',
     teilstueckDetail: 'Schulterbraten · Kerniger Rinderbraten & Sauerbraten',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -35,7 +38,7 @@ export const BEEF_CUT_CATALOG = [
     id: 'schulter-flat-iron',
     kategorie: 'SCHULTER',
     alsoIn: ['LAPPEN'],
-    bezeichnung: 'BIO-GALLOWAY FLAT IRON STEAK',
+    bezeichnung: 'Flat Iron Steak',
     teilstueckDetail: 'Schildstück entsehnt · Kurzbraten / Steak',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -43,7 +46,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'schulter-falsches-filet',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY FALSCHES FILET',
+    bezeichnung: 'Falsches Filet',
     teilstueckDetail: 'Schulterfilet · Zartes Kurzbratstück',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -51,7 +54,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'schulter-metzgerstueck',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY METZGERSTÜCK',
+    bezeichnung: 'Metzgerstück',
     teilstueckDetail: 'Teres Major · Kleines Schulterfilet',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -59,7 +62,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'schulter-schaufelbraten',
     kategorie: 'SCHULTER',
-    bezeichnung: 'BIO-GALLOWAY SCHAUFELBRATEN / SCHILDSTÜCK',
+    bezeichnung: 'Schaufelbraten / Schildstück',
     teilstueckDetail: 'Schmorbraten / Sieden · Schaufelbraten',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -69,7 +72,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-filet-spitze',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY FILETSPITZE',
+    bezeichnung: 'Filetspitze',
     teilstueckDetail: 'Filet Spitze · Tournedos / Medaillons',
     reifung: 'Zartreifung im Vakuum',
     lagerung: 'Lag: 0–2 °C',
@@ -77,7 +80,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-filet-mittel',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY FILETMITTEL',
+    bezeichnung: 'Filetmittel',
     teilstueckDetail: 'Filet Mittelstück · Chateaubriand',
     reifung: 'Zartreifung im Vakuum',
     lagerung: 'Lag: 0–2 °C',
@@ -85,7 +88,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-filet-kopf',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY FILETKOPF',
+    bezeichnung: 'Filetkopf',
     teilstueckDetail: 'Filet Kopf · Ragout / Fondue / Medaillons',
     reifung: 'Zartreifung im Vakuum',
     lagerung: 'Lag: 0–2 °C',
@@ -93,7 +96,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-roastbeef',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY ROASTBEEF',
+    bezeichnung: 'Roastbeef',
     teilstueckDetail: 'Rumpsteak ohne Kette',
     reifung: '14T Dry-Aged → Wet-Aging (max 6W)',
     lagerung: 'Lag: 0–2 °C',
@@ -101,7 +104,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-entrecote',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY ENTRECÔTE',
+    bezeichnung: 'Entrecôte',
     teilstueckDetail: 'Ribeye / Entrecôte ohne Knochen',
     reifung: '14T Dry-Aged → Wet-Aging',
     lagerung: 'Lag: 0–2 °C',
@@ -109,7 +112,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-cote-de-boeuf',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY CÔTE DE BOEUF',
+    bezeichnung: 'Côte de Boeuf',
     teilstueckDetail: 'Hohe Rippe mit Knochen · Prime Rib',
     reifung: 'Dry-Aged Knochenreife mind. 28T',
     lagerung: 'Lag: 0–2 °C',
@@ -117,7 +120,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'ruecken-t-bone-porterhouse',
     kategorie: 'RUECKEN',
-    bezeichnung: 'BIO-GALLOWAY T-BONE / PORTERHOUSE',
+    bezeichnung: 'T-Bone / Porterhouse',
     teilstueckDetail: 'Roastbeef & Filet am T-Knochen',
     reifung: 'Dry-Aged Knochenreife mind. 28T',
     lagerung: 'Lag: 0–2 °C',
@@ -127,7 +130,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-flank',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY FLANK STEAK',
+    bezeichnung: 'Flank Steak',
     teilstueckDetail: 'Flank · Dünnung / Bavette de Flanchet',
     reifung: 'Wet-Aging bis 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -135,7 +138,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-skirt',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY SKIRT STEAK',
+    bezeichnung: 'Skirt Steak',
     teilstueckDetail: 'Kronfleisch · Grill & Pfanne',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -143,7 +146,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-bavette',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY BAVETTE',
+    bezeichnung: 'Bavette',
     teilstueckDetail: 'Flap Meat · Saftiges Grillstück',
     reifung: 'Wet-Aging bis 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -151,7 +154,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-spider',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY SPIDER STEAK',
+    bezeichnung: 'Spider Steak',
     teilstueckDetail: 'Fledermaus / Kavalierhäutchen',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -159,7 +162,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-brisket',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY BRISKET',
+    bezeichnung: 'Brisket',
     teilstueckDetail: 'Rinderbrust · Smoker / Schmoren',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -167,7 +170,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'lappen-nierenzapfen',
     kategorie: 'LAPPEN',
-    bezeichnung: 'BIO-GALLOWAY NIERENZAPFEN',
+    bezeichnung: 'Nierenzapfen',
     teilstueckDetail: 'Onglet / Hanging Tender · Grill',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -177,7 +180,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-kugel-flach',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY FLACHE KUGEL',
+    bezeichnung: 'Flache Kugel',
     teilstueckDetail: 'Kugel flach · Schmorbraten & Fondue',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -185,7 +188,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-kugel-rund',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY RUNDE KUGEL',
+    bezeichnung: 'Runde Kugel',
     teilstueckDetail: 'Kugel rund · Runder Schmorbraten',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -193,7 +196,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-spiessfleisch',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY SPIESSFLEISCH',
+    bezeichnung: 'Spiessfleisch',
     teilstueckDetail: 'Magere Spieß-Abschnitte · Spieße / Fondue',
     reifung: 'Wet-Aging bis 14 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -201,7 +204,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-oberschale',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY OBERSCHALE',
+    bezeichnung: 'Oberschale',
     teilstueckDetail: 'Oberschale ohne Deckel · Rouladen & Minutensteaks',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -209,7 +212,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-oberschalendeckel',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY OBERSCHALENDECKEL',
+    bezeichnung: 'Oberschalendeckel',
     teilstueckDetail: 'Oberschalendeckel · Schmorbraten & Rouladen',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -217,7 +220,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-unterschale',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY UNTERSCHALE',
+    bezeichnung: 'Unterschale',
     teilstueckDetail: 'Schwanzstück · Klassischer Schmorbraten',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -225,7 +228,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-semerrolle',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY SEMERROLLE',
+    bezeichnung: 'Semerrolle',
     teilstueckDetail: 'Tafelrolle · Sauerbraten / Carpaccio',
     reifung: 'Wet-Aging bis 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -233,7 +236,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-hueftsteak',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY HÜFTSTEAK',
+    bezeichnung: 'Hüftsteak',
     teilstueckDetail: 'Hüfte / Blume · Feinfaseriges Steak',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -241,7 +244,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-tafelspitz',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY TAFELSPITZ',
+    bezeichnung: 'Tafelspitz',
     teilstueckDetail: 'Picanha mit Fettdeckel · Grill & Siedefleisch',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -249,7 +252,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-buergermeister',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY BÜRGERMEISTERSTÜCK',
+    bezeichnung: 'Bürgermeisterstück',
     teilstueckDetail: 'Tri-Tip · Kurzbrat- & Schmorstück',
     reifung: 'Wet-Aging 28 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -257,7 +260,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'keule-wade',
     kategorie: 'KEULE',
-    bezeichnung: 'BIO-GALLOWAY WADE',
+    bezeichnung: 'Wade',
     teilstueckDetail: 'Wadenfleisch / Hesse · Schmorbraten & Gulasch',
     reifung: 'Wet-Aging bis 21 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -267,7 +270,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'abschnitt-r1-gulasch',
     kategorie: 'HACK',
-    bezeichnung: 'BIO-GALLOWAY GULASCH',
+    bezeichnung: 'Gulasch',
     teilstueckDetail: 'R I Magerfleisch grob entsehnt · Saftgulasch',
     reifung: 'Wet-Aging bis 14 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -275,7 +278,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'abschnitt-r2-hack',
     kategorie: 'HACK',
-    bezeichnung: 'BIO-GALLOWAY R II MAGER',
+    bezeichnung: 'R II Mager',
     teilstueckDetail: 'Abschnitte · Rinderhack & Burger',
     reifung: 'Frischverarbeitung / Kutter / Kühlung',
     lagerung: 'Lag: ≤ 2 °C / -18 °C',
@@ -283,7 +286,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'abschnitt-r3-wurst',
     kategorie: 'HACK',
-    bezeichnung: 'BIO-GALLOWAY R III WURSTFLEISCH',
+    bezeichnung: 'R III Wurstfleisch',
     teilstueckDetail: 'Sehnenreiches Verarbeitungsfleisch · Wurstküche',
     reifung: 'Frischverarbeitung / Kutter / Kühlung',
     lagerung: 'Lag: ≤ 2 °C / -18 °C',
@@ -293,7 +296,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'beinscheibe-hinterhaxe',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY HINTERHAXE',
+    bezeichnung: 'Hinterhaxe',
     teilstueckDetail: 'Hintere Beinscheibe · Ossobuco',
     reifung: 'Frisch gekühlt / Schmorstück',
     lagerung: 'Lag: 0–2 °C',
@@ -301,7 +304,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'beinscheibe-vorderhaxe',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY VORDERHAXE',
+    bezeichnung: 'Vorderhaxe',
     teilstueckDetail: 'Vordere Beinscheibe · Suppenfleisch',
     reifung: 'Frisch gekühlt / Suppenschnitt',
     lagerung: 'Lag: 0–2 °C',
@@ -309,7 +312,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'knochen-brustkern',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY RINDERBRUST',
+    bezeichnung: 'Rinderbrust',
     teilstueckDetail: 'Brustkern mit Knochen · Siedefleisch',
     reifung: 'Frisch gekühlt',
     lagerung: 'Lag: 0–2 °C',
@@ -317,7 +320,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'knochen-querrippe',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY QUERRIPPE',
+    bezeichnung: 'Querrippe',
     teilstueckDetail: 'Spannrippe / Beinfleisch mit Knochen',
     reifung: 'Frisch gekühlt',
     lagerung: 'Lag: 0–2 °C',
@@ -325,7 +328,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'knochen-markknochen',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY MARKKNOCHEN',
+    bezeichnung: 'Markknochen',
     teilstueckDetail: 'Röhrenknochen in Scheiben · Suppenmark',
     reifung: 'Frisch geschnitten',
     lagerung: 'Lag: 0–2 °C / -18 °C',
@@ -333,7 +336,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'knochen-suppenknochen',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY SUPPENKNOCHEN',
+    bezeichnung: 'Suppenknochen',
     teilstueckDetail: 'Sand- & Fleischknochen für Rinderfond',
     reifung: 'Frisch gekühlt',
     lagerung: 'Lag: 0–2 °C / -18 °C',
@@ -341,7 +344,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'knochen-ochsenschwanz',
     kategorie: 'KNOCHEN',
-    bezeichnung: 'BIO-GALLOWAY OCHSENSCHWANZ',
+    bezeichnung: 'Ochsenschwanz',
     teilstueckDetail: 'Rinderschweif in Glieder · Gourmet-Sud',
     reifung: 'Wet-Aging bis 14 Tage',
     lagerung: 'Lag: 0–2 °C',
@@ -351,7 +354,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'innerei-zunge',
     kategorie: 'INNEREIEN',
-    bezeichnung: 'BIO-GALLOWAY RINDERZUNGE',
+    bezeichnung: 'Rinderzunge',
     teilstueckDetail: 'Geputzt · Zum Pökeln oder Sieden',
     reifung: 'Frisch verpackt · Vor Verzehr durcherhitzen',
     lagerung: 'Lag: ≤ 3 °C / -18 °C',
@@ -359,7 +362,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'innerei-nierenzapfen',
     kategorie: 'INNEREIEN',
-    bezeichnung: 'BIO-GALLOWAY NIERENZAPFEN',
+    bezeichnung: 'Nierenzapfen',
     teilstueckDetail: 'Onglet · Frischware Verkauf',
     reifung: 'Frisch gekühlt',
     lagerung: 'Lag: ≤ 3 °C / -18 °C',
@@ -367,7 +370,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'innerei-leber',
     kategorie: 'INNEREIEN',
-    bezeichnung: 'BIO-GALLOWAY RINDERLEBER',
+    bezeichnung: 'Rinderleber',
     teilstueckDetail: 'Frische Bio-Leber · Kurzbraten',
     reifung: 'Tagesfrisch · Sofortiger Verzehr',
     lagerung: 'Lag: ≤ 3 °C / -18 °C',
@@ -375,7 +378,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'innerei-herz',
     kategorie: 'INNEREIEN',
-    bezeichnung: 'BIO-GALLOWAY RINDERHERZ',
+    bezeichnung: 'Rinderherz',
     teilstueckDetail: 'Feinfaserig & mager · Schmorbraten & Ragout',
     reifung: 'Frisch pariert',
     lagerung: 'Lag: ≤ 3 °C / -18 °C',
@@ -385,7 +388,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'barf-innereien-mix',
     kategorie: 'TIERNAHRUNG',
-    bezeichnung: 'BIO-GALLOWAY BARF INNEREIEN-MIX',
+    bezeichnung: 'BARF Innereien-Mix',
     teilstueckDetail: 'Ergänzungsfuttermittel für Tiere – Nicht für den menschl. Verzehr · Lunge/Milz/Kutteln',
     reifung: 'Frisch / TK verpackt',
     lagerung: 'Lag: ≤ 3 °C / TK -18 °C',
@@ -393,7 +396,7 @@ export const BEEF_CUT_CATALOG = [
   {
     id: 'barf-pansen-pur',
     kategorie: 'TIERNAHRUNG',
-    bezeichnung: 'BIO-GALLOWAY PANSEN PUR',
+    bezeichnung: 'Pansen Pur',
     teilstueckDetail: 'Ergänzungsfuttermittel für Tiere – Nicht für den menschl. Verzehr · Pansen',
     reifung: 'Frisch / TK verpackt',
     lagerung: 'Lag: ≤ 3 °C / TK -18 °C',
@@ -463,7 +466,7 @@ function loadCustomCuts() {
       .map((entry) => ({
         id: String(entry?.id || ''),
         kategorie: /** @type {CutCategory} */ ('CUSTOM'),
-        bezeichnung: String(entry?.bezeichnung || '').trim(),
+        bezeichnung: cleanCutName(String(entry?.bezeichnung || '').trim()),
         teilstueckDetail: String(entry?.teilstueckDetail || 'Eigenes Teilstück · Custom'),
         reifung: String(entry?.reifung || 'Nach Betriebsvorgabe'),
         lagerung: String(entry?.lagerung || 'Lag: 0–2 °C'),
@@ -519,17 +522,81 @@ function slugifyCutName(name) {
     .slice(0, 40);
 }
 
+function titleCaseCutName(raw) {
+  const small = new Set(['de', 'von', 'und', 'am', 'im']);
+  const acronym = new Set(['barf', 'ii', 'iii']);
+  return String(raw || '')
+    .split(/(\s+|\/)/)
+    .map((token) => {
+      if (!token || /^\s+$/.test(token) || token === '/') return token;
+      return token.split('-').map((part) => {
+        const lower = part.toLocaleLowerCase('de-DE');
+        if (!part) return part;
+        if (small.has(lower)) return lower;
+        if (acronym.has(lower)) return part.toLocaleUpperCase('de-DE');
+        if (lower === 'r') return 'R';
+        return part.charAt(0).toLocaleUpperCase('de-DE') + part.slice(1).toLocaleLowerCase('de-DE');
+      }).join('-');
+    })
+    .join('');
+}
+
+function isAllCapsName(value) {
+  const letters = String(value || '').replace(/[^A-Za-zÄÖÜäöü]/g, '');
+  return letters.length > 0
+    && letters === letters.toLocaleUpperCase('de-DE')
+    && letters !== letters.toLocaleLowerCase('de-DE');
+}
+
+function stripBreedPrefix(name, prefix = '') {
+  let base = String(name || '').trim().replace(LEGACY_BREED_PREFIX, '').trim();
+  const current = String(prefix || '').trim();
+  if (current && base.toLocaleLowerCase('de-DE').startsWith(`${current.toLocaleLowerCase('de-DE')} `)) {
+    base = base.slice(current.length).trim();
+  }
+  return base;
+}
+
+function cleanCutName(name, prefix = '') {
+  const base = stripBreedPrefix(name, prefix);
+  return isAllCapsName(base) ? titleCaseCutName(base) : base;
+}
+
+function readStoredLabelPrefix() {
+  try {
+    const dedicated = localStorage.getItem(LABEL_PREFIX_KEY);
+    return typeof dedicated === 'string' ? dedicated.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredLabelPrefix(value) {
+  try {
+    localStorage.setItem(LABEL_PREFIX_KEY, String(value ?? ''));
+  } catch {
+    /* private mode */
+  }
+}
+
+function activeLabelPrefix() {
+  return String(state.etikettenPraefix || '').trim() || DEFAULT_LABEL_PREFIX;
+}
+
+function formatPrintName(baseName, prefix = activeLabelPrefix()) {
+  const current = String(prefix || '').trim() || DEFAULT_LABEL_PREFIX;
+  const base = stripBreedPrefix(baseName, current);
+  return base ? `${current} ${base}` : current;
+}
+
 function addCustomCut(rawName) {
-  const name = String(rawName || '').trim();
+  const name = cleanCutName(rawName, state.etikettenPraefix);
   if (!name) {
     window.showToast?.('Bitte Teilstück-Name eingeben.', 'error');
     return false;
   }
-  const bezeichnung = name.toUpperCase().startsWith('BIO-GALLOWAY')
-    ? name.toUpperCase()
-    : `BIO-GALLOWAY ${name.toUpperCase()}`;
   const exists = allCuts().some(
-    (c) => c.bezeichnung.toLowerCase() === bezeichnung.toLowerCase(),
+    (c) => cleanCutName(c.bezeichnung, state.etikettenPraefix).toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'),
   );
   if (exists) {
     window.showToast?.('Teilstück existiert bereits.', 'error');
@@ -539,7 +606,7 @@ function addCustomCut(rawName) {
   customCuts.push({
     id,
     kategorie: 'CUSTOM',
-    bezeichnung,
+    bezeichnung: name,
     teilstueckDetail: 'Eigenes Teilstück · Custom / Vorräte',
     reifung: 'Nach Betriebsvorgabe',
     lagerung: 'Lag: 0–2 °C',
@@ -548,7 +615,7 @@ function addCustomCut(rawName) {
   saveCustomCuts();
   state.activeTab = 'CUSTOM';
   updateQuantity(id, 1);
-  window.showToast?.(`${bezeichnung} gespeichert`, 'success');
+  window.showToast?.(`${formatPrintName(name)} gespeichert`, 'success');
   return true;
 }
 
@@ -769,6 +836,7 @@ const state = {
   zerlegeDatum: todayDe(),
   herkunft: 'Geb./Gem./Geschl./Zerl.: DE',
   betriebsNummer: 'Stautenhof · StevesHof',
+  etikettenPraefix: DEFAULT_LABEL_PREFIX,
   schlachtgewichtKalt: 285.5,
   schlachtgewichtWarm: 0,
   haelfteLinks: 0,
@@ -783,9 +851,16 @@ const state = {
   queue: DEFAULT_QUEUE.map((q) => normalizeQueueItem(q)),
 };
 
+function applyStoredLabelPrefix() {
+  const stored = readStoredLabelPrefix();
+  state.etikettenPraefix = stored || DEFAULT_LABEL_PREFIX;
+  if (!stored) writeStoredLabelPrefix(state.etikettenPraefix);
+}
+
 function hydrateState() {
   customCuts = loadCustomCuts();
   const saved = loadState();
+  applyStoredLabelPrefix();
   if (!saved || typeof saved !== 'object') return;
   if (typeof saved.chargenNummer === 'string') state.chargenNummer = saved.chargenNummer;
   if (typeof saved.ohrmarke === 'string') state.ohrmarke = saved.ohrmarke;
@@ -815,6 +890,7 @@ function hydrateState() {
 }
 
 function persist() {
+  writeStoredLabelPrefix(activeLabelPrefix());
   saveState({
     chargenNummer: state.chargenNummer,
     ohrmarke: state.ohrmarke,
@@ -822,6 +898,7 @@ function persist() {
     zerlegeDatum: state.zerlegeDatum,
     herkunft: state.herkunft,
     betriebsNummer: state.betriebsNummer,
+    etikettenPraefix: activeLabelPrefix(),
     schlachtgewichtKalt: state.schlachtgewichtKalt,
     schlachtgewichtWarm: state.schlachtgewichtWarm,
     haelfteLinks: state.haelfteLinks,
@@ -898,10 +975,10 @@ function buildPrintPagesHtml() {
         slots.push(`
           <div class="avery-label-card">
             <div class="avery-label-head">
-              <span>STEVESHOF · BIO-GALLOWAY</span>
+              <span>STEVESHOF</span>
               <span>Ch: ${escapeHtml(state.chargenNummer)}</span>
             </div>
-            <div class="avery-label-title">${escapeHtml(item.cut.bezeichnung)}</div>
+            <div class="avery-label-title">${escapeHtml(formatPrintName(item.cut.bezeichnung))}</div>
             <div class="avery-label-detail">${escapeHtml(item.cut.teilstueckDetail)}</div>
             <div class="avery-label-meta">
               <div>
@@ -975,7 +1052,7 @@ function renderCutList(host) {
       return `
         <div class="beef-cut-row" data-cut-id="${escapeHtml(cut.id)}">
           <div class="beef-cut-info">
-            <div class="beef-cut-name">${escapeHtml(cut.bezeichnung)}</div>
+            <div class="beef-cut-name">${escapeHtml(cleanCutName(cut.bezeichnung, state.etikettenPraefix))}</div>
             <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
             <div class="beef-cut-meta">${escapeHtml(cut.reifung)} · ${escapeHtml(cut.lagerung)}</div>
           </div>
@@ -1000,10 +1077,11 @@ function renderQueue(host) {
       const cut = findCut(item.id);
       if (!cut) return '';
       const kgShown = item.weightKg ? String(item.weightKg).replace('.', ',') : '';
+      const printName = formatPrintName(cut.bezeichnung);
       return `
         <div class="beef-queue-row" data-cut-id="${escapeHtml(item.id)}">
           <div class="beef-cut-info">
-            <div class="beef-cut-name">${escapeHtml(cut.bezeichnung)}</div>
+            <div class="beef-cut-name">${escapeHtml(printName)}</div>
             <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
           </div>
           <div class="beef-line-controls">
@@ -1014,7 +1092,7 @@ function renderQueue(host) {
             </div>
             <div class="beef-kg">
               <button type="button" class="beef-kg-btn" data-kg-delta="-0.1" aria-label="Gewicht verringern">−</button>
-              <input type="text" class="beef-kg-input" inputmode="decimal" data-kg-input="1" value="${escapeHtml(kgShown)}" placeholder="kg" aria-label="Gewicht ${escapeHtml(cut.bezeichnung)}">
+              <input type="text" class="beef-kg-input" inputmode="decimal" data-kg-input="1" value="${escapeHtml(kgShown)}" placeholder="kg" aria-label="Gewicht ${escapeHtml(printName)}">
               <button type="button" class="beef-kg-btn" data-kg-delta="0.1" aria-label="Gewicht erhöhen">+</button>
             </div>
           </div>
@@ -1118,7 +1196,7 @@ async function saveYieldToLogbook() {
         const cut = findCut(item.id);
         return {
           id: item.id,
-          name: cut?.bezeichnung || item.id,
+          name: cut ? formatPrintName(cut.bezeichnung) : item.id,
           menge: item.quantity,
           weightKg: item.weightKg,
         };
@@ -1137,6 +1215,7 @@ function renderModalBody() {
   if (!modal) return;
 
   const chargeEl = modal.querySelector('#beef-charge');
+  const prefixEl = modal.querySelector('#beef-prefix');
   const earEl = modal.querySelector('#beef-ohrmarke');
   const slaughterEl = modal.querySelector('#beef-schlacht');
   const cutDateEl = modal.querySelector('#beef-zerlege');
@@ -1144,6 +1223,7 @@ function renderModalBody() {
   const plantEl = modal.querySelector('#beef-betrieb');
   const skipEl = modal.querySelector('#beef-skip');
   if (chargeEl && document.activeElement !== chargeEl) chargeEl.value = state.chargenNummer;
+  if (prefixEl && document.activeElement !== prefixEl) prefixEl.value = state.etikettenPraefix;
   if (earEl && document.activeElement !== earEl) earEl.value = state.ohrmarke;
   if (slaughterEl && document.activeElement !== slaughterEl) slaughterEl.value = state.schlachtDatum;
   if (cutDateEl && document.activeElement !== cutDateEl) cutDateEl.value = state.zerlegeDatum;
@@ -1243,13 +1323,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'yield-v1') return;
+  if (existing?.dataset.ux === 'prefix-v1') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal';
-  modal.dataset.ux = 'yield-v1';
+  modal.dataset.ux = 'prefix-v1';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -1280,6 +1360,9 @@ function ensureModal() {
           <button type="button" class="beef-reset-btn" id="beef-reset-btn">Neue Charge / Reset</button>
         </div>
         <div class="beef-labels-settings">
+          <label>Rasse / Etiketten-Präfix
+            <input type="text" id="beef-prefix" class="input-text-touch" autocomplete="off" placeholder="Bio-Galloway">
+          </label>
           <label>Charge
             <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
           </label>
@@ -1421,10 +1504,11 @@ function ensureModal() {
       const raw = /** @type {HTMLInputElement} */ (el).value;
       state[key] = transform ? transform(raw) : raw;
       persist();
-      if (key === 'skipCount' || key === 'chargenNummer') renderModalBody();
+      if (key === 'skipCount' || key === 'chargenNummer' || key === 'etikettenPraefix') renderModalBody();
     });
   };
   bindField('#beef-charge', 'chargenNummer');
+  bindField('#beef-prefix', 'etikettenPraefix');
   bindField('#beef-ohrmarke', 'ohrmarke');
   bindField('#beef-schlacht', 'schlachtDatum');
   bindField('#beef-zerlege', 'zerlegeDatum');
