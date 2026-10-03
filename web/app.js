@@ -582,7 +582,7 @@ const PROFILE_TAB_ALIASES = {
 };
 
 const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
-const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
+const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
 const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
@@ -932,6 +932,7 @@ function applyProfileCapabilityTabFilter(branding = window.BRANDING) {
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') return;
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;
@@ -1800,6 +1801,12 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   };
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') {
+      const showOffice = isOfficeUser() && tabModuleMap.batches === true;
+      tab.hidden = !showOffice;
+      tab.style.display = showOffice ? '' : 'none';
+      return;
+    }
     if (ADMIN_HEADER_ONLY_TAB_IDS.has(tabId)) {
       tab.hidden = true;
       tab.style.display = 'none';
@@ -1935,6 +1942,7 @@ function applyRoleBasedUi(authSession) {
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') return;
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;
@@ -1987,6 +1995,7 @@ function applyRoleBasedUi(authSession) {
   updateMhdAdminSearchVisibility(isOffice);
   updateOfficeAccessLock();
   syncRecipeAdminFormVisibility();
+  window.syncFastOnboardingVisibility?.();
 }
 
 function setOfficeLoginError(message = '') {
@@ -3099,6 +3108,9 @@ if (employeeSessionBadge) {
 
 tabs.forEach(tab => {
   tab.addEventListener('click', async () => {
+    if (tab.id === 'nav-admin-dashboard' || tab.getAttribute('data-nav-admin') === 'dashboard') {
+      return;
+    }
     const targetTab = tab.getAttribute('data-tab');
     if (tab.hidden || tab.style.display === 'none') {
       return;

@@ -1020,11 +1020,26 @@ function ensurePrintRoot() {
   return root;
 }
 
-function handlePrint() {
-  if (totalLabels() === 0) {
-    window.showToast?.('Druckkorb ist leer.', 'error');
-    return;
-  }
+const AVERY_PRINT_CSS = `
+  @page { size: A4 portrait; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .avery-page-sheet { width: 210mm; height: 297mm; box-sizing: border-box; padding-top: 4.5mm; padding-bottom: 4.5mm; page-break-after: always; break-after: page; }
+  .avery-grid-3x8 { display: grid; grid-template-columns: repeat(3, 70mm); grid-template-rows: repeat(8, 36mm); width: 210mm; height: 288mm; position: relative; left: 1.5mm; }
+  .avery-label-card { box-sizing: border-box; width: 70mm; height: 36mm; padding: 1.8mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 0.15mm solid rgba(0,0,0,0.15); background: #fff; color: #000; }
+  .avery-grid-3x8 > :nth-child(3n + 1) { padding-left: 7.2mm; }
+  .avery-label-empty { visibility: hidden; }
+  .avery-label-head { display: flex; justify-content: space-between; border-bottom: 0.2mm solid #000; padding-bottom: 0.4mm; font-size: 6.5pt; font-weight: 700; }
+  .avery-label-title { font-size: 8.5pt; font-weight: 900; line-height: 1.1; }
+  .avery-label-detail { font-size: 6.5pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .avery-label-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm; border-top: 0.15mm solid #ddd; border-bottom: 0.15mm solid #ddd; padding: 0.4mm 0; font-size: 5.8pt; }
+  .avery-label-foot { display: flex; justify-content: space-between; align-items: flex-end; font-size: 6pt; }
+  .avery-strong { font-weight: 700; }
+  .avery-right { text-align: right; }
+  .avery-muted { color: #666; font-size: 5.5pt; margin-right: 1mm; }
+  .avery-weight { display: inline-block; min-width: 10mm; border-bottom: 0.2mm solid #888; text-align: center; font-weight: 700; }
+`;
+
+function printInPlace() {
   const root = ensurePrintRoot();
   root.innerHTML = buildPrintPagesHtml();
   document.body.classList.add('printing-beef-labels');
@@ -1033,8 +1048,44 @@ function handlePrint() {
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
-  window.setTimeout(() => window.print(), 50);
-  window.setTimeout(cleanup, 2000);
+  requestAnimationFrame(() => {
+    try {
+      window.print();
+    } catch (err) {
+      cleanup();
+      console.warn('[Galloway] Drucken fehlgeschlagen:', err);
+      window.showToast?.('Drucken konnte nicht gestartet werden.', 'error');
+    }
+  });
+}
+
+function handlePrint() {
+  if (totalLabels() === 0) {
+    window.showToast?.('Druckkorb ist leer.', 'error');
+    return;
+  }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Avery 3475</title><style>${AVERY_PRINT_CSS}</style></head><body>${buildPrintPagesHtml()}</body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const pdfUrl = URL.createObjectURL(blob);
+  const printWindow = window.open(pdfUrl, '_blank');
+  if (!printWindow) {
+    URL.revokeObjectURL(pdfUrl);
+    printInPlace();
+    return;
+  }
+  const trigger = () => {
+    try {
+      printWindow.focus();
+      printWindow.print();
+    } catch (err) {
+      console.warn('[Galloway] Druckfenster fehlgeschlagen:', err);
+      printInPlace();
+    }
+  };
+  printWindow.addEventListener('load', () => {
+    trigger();
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+  }, { once: true });
 }
 
 function renderCutList(host) {
@@ -1252,7 +1303,7 @@ function renderModalBody() {
 
   const totalEl = modal.querySelector('#beef-total-labels');
   const sheetsEl = modal.querySelector('#beef-sheets');
-  const printBtn = modal.querySelector('#beef-print-btn');
+  const printBtn = modal.querySelector('#btn-print-labels');
   const basketPill = modal.querySelector('#beef-basket-pill');
   const queueCount = modal.querySelector('#beef-queue-count');
   if (totalEl) totalEl.textContent = String(totalLabels());
@@ -1261,7 +1312,7 @@ function renderModalBody() {
   if (queueCount) queueCount.textContent = `${state.queue.length} Pos.`;
   if (printBtn) {
     printBtn.disabled = totalLabels() === 0;
-    printBtn.textContent = `Drucken · ${sheetsNeeded()} Bogen`;
+    printBtn.textContent = 'Drucken';
   }
   renderYield();
 }
@@ -1323,13 +1374,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'prefix-v1') return;
+  if (existing?.dataset.ux === 'layout-v2') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
-  modal.className = 'beef-labels-modal';
-  modal.dataset.ux = 'prefix-v1';
+  modal.className = 'beef-labels-modal galloway-modal';
+  modal.dataset.ux = 'layout-v2';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -1342,7 +1393,7 @@ function ensureModal() {
   ).join('');
 
   modal.innerHTML = `
-    <div class="beef-labels-sheet" role="document">
+    <div class="beef-labels-sheet modal-content" id="galloway-modal" role="document">
       <header class="beef-labels-header">
         <h2 id="beef-labels-title">Galloway Zerlegung</h2>
         <button type="button" class="beef-close-btn" id="beef-close-btn" aria-label="Schließen">
@@ -1451,8 +1502,8 @@ function ensureModal() {
           <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
           <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen</span>
         </div>
-        <button type="button" class="beef-yield-save" id="beef-yield-save">💾 Ausbeute im Chargenbuch speichern</button>
-        <button type="button" class="beef-print-btn" id="beef-print-btn">Drucken · 1 Bogen</button>
+        <button type="button" class="beef-yield-save" id="beef-yield-save">Ausbeute speichern</button>
+        <button type="button" class="beef-print-btn" id="btn-print-labels">Drucken</button>
       </footer>
     </div>
   `;
@@ -1460,7 +1511,11 @@ function ensureModal() {
   document.body.appendChild(modal);
 
   modal.querySelector('#beef-close-btn')?.addEventListener('click', closeModal);
-  modal.querySelector('#beef-print-btn')?.addEventListener('click', handlePrint);
+  modal.querySelector('#btn-print-labels')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handlePrint();
+  });
   modal.querySelector('#beef-yield-save')?.addEventListener('click', () => {
     saveYieldToLogbook();
   });

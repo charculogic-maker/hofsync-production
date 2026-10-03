@@ -2290,15 +2290,23 @@
                 <i>📖</i>
                 <span>Wissen</span>
               </button>
-              <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
-                <i>📋</i>
-                <span>Büro</span>
-              </button>
             </div>
           </div>
 
-          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Verwaltung">
-            <p class="app-nav-zone-label">Verwaltung</p>
+          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Büro und Dev-Dashboard">
+            <p class="app-nav-zone-label">Büro</p>
+            <button
+              type="button"
+              class="nav-item nav-item--admin"
+              id="tab-batches"
+              data-tab="batches"
+              data-nav-admin="batches"
+              hidden
+              style="display: none;"
+            >
+              <i>🏢</i>
+              <span>Büro &amp; Chargen</span>
+            </button>
             <a
               class="nav-item nav-item--admin"
               id="nav-admin-dashboard"
@@ -2306,7 +2314,7 @@
               data-nav-admin="dashboard"
             >
               <i>🛠️</i>
-              <span>Verwaltung</span>
+              <span>Dev-Dashboard</span>
             </a>
           </div>
         </nav>

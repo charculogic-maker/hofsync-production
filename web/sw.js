@@ -1,6 +1,6 @@
-const CACHE_NAME = 'charculogic-v20261003-label-prefix-v1';
+const CACHE_NAME = 'charculogic-v20261003-bugfixes-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-03T11:25:00+02:00';
+const RELEASED_AT = '2026-10-03T13:20:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -250,10 +250,11 @@ self.addEventListener('fetch', (event) => {
       fetch(shellRequest)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
+            const responseToCache = networkResponse.clone();
+            const responseToCacheRoot = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put('/index.html', clone);
-              cache.put('/', clone.clone());
+              cache.put('/index.html', responseToCache);
+              cache.put('/', responseToCacheRoot);
             });
           }
           return networkResponse;
@@ -295,8 +296,8 @@ self.addEventListener('fetch', (event) => {
       fetch(cleanRequest, { cache: 'no-store' })
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
           }
           return networkResponse;
         })
@@ -316,8 +317,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(cleanRequest).then((networkResponse) => {
         if (networkResponse && networkResponse.ok) {
-          const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
         }
         return networkResponse;
       }).catch(() =>
@@ -325,8 +326,8 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           return fetch(cleanRequest).then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
           }
           return networkResponse;
           }).catch(() => caches.match(cleanRequest));

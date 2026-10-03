@@ -40,50 +40,56 @@ function assertCompatAppCheckAvailable() {
  * App Check initialisieren – muss vor dem ersten httpsCallable-Aufruf abgeschlossen sein.
  * @returns {Promise<void>}
  */
+function isAppCheckNoise(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return /app-check|appcheck|recaptcha|timeout/.test(msg);
+}
+
 export function initAppCheckModule() {
   if (appCheckReadyPromise) return appCheckReadyPromise;
 
   appCheckReadyPromise = (async () => {
-    assertCompatAppCheckAvailable();
+    try {
+      assertCompatAppCheckAvailable();
 
-    const projectKey = resolveFirebaseProjectKey();
-    const siteKey = getAppCheckSiteKey(projectKey);
-    if (!siteKey) {
-      const msg = `[AppCheck] appCheckRecaptchaSiteKey fehlt oder ist Platzhalter für Profil "${projectKey}" in web/firebase-config.js.`;
-      console.error(msg);
+      const projectKey = resolveFirebaseProjectKey();
+      const siteKey = getAppCheckSiteKey(projectKey);
+      if (!siteKey) {
+        appCheckActivationFailed = true;
+        console.warn(`[AppCheck] Site Key fehlt für Profil "${projectKey}". App läuft mit lokalen Daten weiter.`);
+        return;
+      }
+
+      configureAppCheckDebugProvider();
+
+      const appCheck = firebase.appCheck();
+      appCheck.activate(
+        new firebase.appCheck.ReCaptchaV3Provider(siteKey),
+        true,
+      );
+
+      appCheckActivationFailed = false;
+      console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
+    } catch (err) {
       appCheckActivationFailed = true;
-      throw new Error(msg);
+      console.warn('[AppCheck] Aktivierung fehlgeschlagen. Vorschau/Offline nutzt gecachte Daten.', err);
     }
-
-    configureAppCheckDebugProvider();
-
-    const appCheck = firebase.appCheck();
-    appCheck.activate(
-      new firebase.appCheck.ReCaptchaV3Provider(siteKey),
-      true,
-    );
-
-    appCheckActivationFailed = false;
-    console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
-  })().catch((err) => {
-    appCheckActivationFailed = true;
-    appCheckReadyPromise = null;
-    console.error('[AppCheck] Aktivierung fehlgeschlagen:', err);
-    throw err;
-  });
+  })();
 
   return appCheckReadyPromise;
 }
 
-/** Wartet auf abgeschlossene App-Check-Initialisierung — lehnt ab wenn nie gestartet oder fehlgeschlagen. */
+/**
+ * Wartet auf App Check, blockiert die UI aber nicht.
+ * Fehlende reCAPTCHA-/Vorschau-Umgebung löst trotzdem auf, damit Firestore-Cache weiterläuft.
+ */
 export function waitForAppCheckReady() {
-  if (appCheckActivationFailed) {
-    return Promise.reject(new Error('[AppCheck] Initialisierung fehlgeschlagen — Callables gesperrt.'));
-  }
-  if (!appCheckReadyPromise) {
-    return Promise.reject(new Error('[AppCheck] initAppCheckModule() wurde noch nicht aufgerufen.'));
-  }
-  return appCheckReadyPromise;
+  if (!appCheckReadyPromise) return Promise.resolve();
+  return appCheckReadyPromise.catch((err) => {
+    if (!isAppCheckNoise(err)) {
+      console.warn('[AppCheck] Warten abgebrochen, lokale Daten bleiben nutzbar.', err);
+    }
+  });
 }
 
 export function isAppCheckInitialized() {

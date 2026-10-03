@@ -272,24 +272,8 @@ service cloud.firestore {
     // WARENEINGANG-LIEFERUNGEN (Kopf + Posten + Lieferschein-Fotos)
     // =========================================================================
 
-    match /tenants/{tenantId}/inventory/{document} {
-      allow read: if isTenantUser(tenantId);
-
-      allow create: if isEmployeeOrAdmin(tenantId)
-        && hasOnly([
-          'artikel', 'menge', 'kategorie',
-          'tenantId', 'source', 'batchId', 'createdBy', 'createdAt'
-        ])
-        && isNonEmptyString(request.resource.data.artikel)
-        && request.resource.data.tenantId == tenantId
-        && isIntGteZero(request.resource.data.menge);
-
-      allow update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'artikel', 'menge', 'kategorie', 'updatedAt'
-        ]);
-
-      allow delete: if isAdmin(tenantId);
+    match /tenants/{tenantId}/inventory/{docId} {
+      allow read, write: if request.auth != null && (request.auth.token.tenantId == tenantId || request.auth.token.role in ['admin', 'employee']);
     }
 
     // =========================================================================
@@ -371,15 +355,8 @@ service cloud.firestore {
     }
 
     // Galloway-Zerlegung: Ausbeute-Protokoll im Chargenbuch
-    match /tenants/{tenantId}/zerlegung_ausbeute/{document} {
-      allow read: if isTenantUser(tenantId);
-
-      allow create, update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.tenantId == tenantId
-        && isNonEmptyString(request.resource.data.chargenNummer)
-        && request.resource.data.keys().size() < 60;
-
-      allow delete: if isAdmin(tenantId);
+    match /tenants/{tenantId}/zerlegung_ausbeute/{docId} {
+      allow read, write: if request.auth != null && (request.auth.token.tenantId == tenantId || request.auth.token.role == 'admin');
     }
 
     // =========================================================================

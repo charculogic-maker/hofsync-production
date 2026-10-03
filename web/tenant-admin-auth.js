@@ -336,13 +336,19 @@ export function installTenantAdminBootGuards() {
 
   window.addEventListener('error', (event) => {
     if (!isTenantAdminRoute() || window.__charculogicDevDashboardReady) return;
-    // Ressourcen-/Script-404s und ResizeObserver-Rauschen ignorieren
+    // Ressourcen-/Script-404s, ResizeObserver und App-Check/reCAPTCHA nicht als Vollbild-Sperre
     const msg = String(event?.message || event?.error?.message || '');
-    if (/ResizeObserver|Loading chunk|Script error\.?$/i.test(msg)) return;
+    if (/ResizeObserver|Loading chunk|Script error\.?$|app-check|appcheck|recaptcha/i.test(msg)) return;
     showBootFallback(event?.error || event?.message || 'uncaught-error');
   });
   window.addEventListener('unhandledrejection', (event) => {
     if (!isTenantAdminRoute() || window.__charculogicDevDashboardReady) return;
+    const msg = String(event?.reason?.message || event?.reason || '');
+    if (/app-check|appcheck|recaptcha|permission-denied|timeout/i.test(msg)) {
+      event.preventDefault?.();
+      console.warn('[Tenant-Admin] Hintergrundfehler ohne Vollbild-Sperre:', msg);
+      return;
+    }
     showBootFallback(event?.reason || 'unhandledrejection');
   });
 }

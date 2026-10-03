@@ -1804,9 +1804,14 @@ function saveProductMaster(product) {
 }
 
 async function refreshSharedProductMaster() {
-  const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
-  if (!tenantId) return 0;
-  return hydrateProductMasterFromFirestore(tenantId);
+  try {
+    const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+    if (!tenantId) return 0;
+    return await hydrateProductMasterFromFirestore(tenantId);
+  } catch (err) {
+    console.warn('[CharcuLogic] Gemeinsame Artikeldaten übersprungen:', err);
+    return 0;
+  }
 }
 
 function saveVpeMaster(vpe) {

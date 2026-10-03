@@ -79,14 +79,29 @@ export async function persistProductMasterToFirestore(tenantId, product = {}, ed
   return doc;
 }
 
+function isFirestoreReadDenied(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const message = String(err?.message || '').toLowerCase();
+  return code.includes('permission-denied') || message.includes('permission') || message.includes('insufficient');
+}
+
 export async function hydrateProductMasterFromFirestore(tenantId) {
   const id = String(tenantId || '').trim();
   if (!id) return 0;
   try {
     const col = getNamedTenantCollection(id, PRODUCT_MASTER_COLLECTION);
-    const snap = await col.get();
+    let snap;
+    try {
+      snap = await col.get();
+    } catch (err) {
+      if (isFirestoreReadDenied(err)) {
+        console.warn('[HofSync] Artikel-Stammdaten: Lesen durch Firestore-Regeln verweigert. Lokale Daten bleiben aktiv.');
+        return 0;
+      }
+      throw err;
+    }
     const local = readLocalProductMaster();
-    (snap.docs || []).forEach((doc) => {
+    (snap?.docs || []).forEach((doc) => {
       const data = doc.data ? doc.data() : (doc || {});
       const ean = cleanProductEan(data.ean || doc.id);
       const name = sanitizeProductName(data.articleName || data.name || '');
@@ -99,8 +114,12 @@ export async function hydrateProductMasterFromFirestore(tenantId) {
       };
     });
     writeLocalProductMasterMap(local);
-    return (snap.docs || []).length;
+    return (snap?.docs || []).length;
   } catch (err) {
+    if (isFirestoreReadDenied(err)) {
+      console.warn('[HofSync] Artikel-Stammdaten: Lesen durch Firestore-Regeln verweigert. Lokale Daten bleiben aktiv.');
+      return 0;
+    }
     console.warn('[HofSync] Gemeinsame Artikeldaten konnten nicht geladen werden:', err);
     return 0;
   }

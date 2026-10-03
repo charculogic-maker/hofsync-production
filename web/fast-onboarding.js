@@ -1,10 +1,10 @@
 /**
  * Fast-Onboarding: Test-Mandant anlegen + Einladungs-Link (provisionDemoTenant).
- * Sichtbar für Plattform-Super-Admins (Büro / page-batches + Dev-Dashboard).
+ * Sichtbar für Büro-Admins (isOfficeUser) in #page-batches und im Dev-Dashboard.
  */
 import { createHttpsCallable } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
-import { isPlatformSuperAdmin } from './tenant-admin-auth.js';
+import { getAuthContext, isOfficeUser } from './auth.js';
 
 const MODULE_DEFS = [
   { key: 'mhdMonitor', label: 'MHD-Monitor' },
@@ -22,14 +22,6 @@ function getProvisionCallable() {
   if (!firebaseApi?.apps?.length) return null;
   provisionCallable = createHttpsCallable('provisionDemoTenant', { timeout: 60000 }, firebaseApi);
   return provisionCallable;
-}
-
-function currentUser() {
-  try {
-    return firebase?.auth?.()?.currentUser || null;
-  } catch {
-    return null;
-  }
 }
 
 function readModules(form) {
@@ -216,8 +208,7 @@ function bindForm(root) {
 }
 
 export function syncFastOnboardingVisibility() {
-  const user = currentUser();
-  const show = isPlatformSuperAdmin(user);
+  const show = isOfficeUser(getAuthContext());
   document.querySelectorAll('[data-fast-onboarding-card]').forEach((card) => {
     card.hidden = !show;
     if (show) bindForm(card);
@@ -233,6 +224,9 @@ export function initFastOnboarding() {
   } catch (_) {
     /* auth not ready */
   }
+  window.addEventListener('charculogic:auth-changed', () => {
+    syncFastOnboardingVisibility();
+  });
 }
 
 if (typeof window !== 'undefined') {
