@@ -505,8 +505,83 @@ function findCut(id) {
   return allCuts().find((c) => c.id === id) || null;
 }
 
+/** @typedef {'HV'|'VV'|'GK'} CarcassSegment */
+
+const VV_BRUST_IDS = new Set([
+  'beinscheibe-vorderhaxe',
+  'knochen-brustkern',
+  'knochen-querrippe',
+  'knochen-markknochen',
+  'knochen-suppenknochen',
+]);
+
+const SEGMENT_TABS = {
+  HV: ['KEULE', 'RUECKEN', 'LAPPEN', 'INNEREIEN'],
+  VV: ['SCHULTER', 'NACKEN', 'BRUST', 'LAPPEN'],
+  GK: TAB_ORDER.slice(),
+};
+
+const SEGMENT_TAB_LABELS = {
+  HV: {
+    KEULE: 'Keule & Hüfte',
+    RUECKEN: 'Rücken & Ribs',
+    LAPPEN: 'Lappen & Flank',
+    INNEREIEN: 'Innereien / BARF',
+  },
+  VV: {
+    SCHULTER: 'Schulter (Bug)',
+    NACKEN: 'Nacken & Kammer',
+    BRUST: 'Brust & Suppe',
+    LAPPEN: 'Lappen & Flank',
+  },
+};
+
+function detectSegmentFromCharge(charge) {
+  const text = String(charge || '').trim().toUpperCase();
+  if (text.startsWith('HV-') || text.startsWith('HV_')) return 'HV';
+  if (text.startsWith('VV-') || text.startsWith('VV_')) return 'VV';
+  return '';
+}
+
+function tabsForSegment(segment = state.segment) {
+  return SEGMENT_TABS[segment] || SEGMENT_TABS.GK;
+}
+
+function tabLabel(cat, segment = state.segment) {
+  if (segment !== 'GK' && SEGMENT_TAB_LABELS[segment]?.[cat]) {
+    return SEGMENT_TAB_LABELS[segment][cat];
+  }
+  return TAB_LABELS[cat] || cat;
+}
+
+function ensureActiveTab() {
+  const tabs = tabsForSegment();
+  if (!tabs.includes(state.activeTab)) {
+    state.activeTab = tabs[0];
+  }
+}
+
+function applyDetectedSegment(charge = state.chargenNummer) {
+  const detected = detectSegmentFromCharge(charge);
+  if (!detected || detected === state.segment) return false;
+  state.segment = detected;
+  ensureActiveTab();
+  return true;
+}
+
 function cutsForTab(tab) {
   if (tab === 'CUSTOM') return customCuts.slice();
+  if (tab === 'NACKEN') {
+    return allCuts().filter((cut) => /nacken|kamm|hals/i.test(`${cut.bezeichnung} ${cut.teilstueckDetail}`));
+  }
+  if (tab === 'BRUST') {
+    return BEEF_CUT_CATALOG.filter((cut) => VV_BRUST_IDS.has(cut.id));
+  }
+  if (tab === 'INNEREIEN' && state.segment === 'HV') {
+    return BEEF_CUT_CATALOG.filter(
+      (cut) => cut.kategorie === 'INNEREIEN' || cut.kategorie === 'TIERNAHRUNG',
+    );
+  }
   return BEEF_CUT_CATALOG.filter(
     (c) => c.kategorie === tab || (Array.isArray(c.alsoIn) && c.alsoIn.includes(tab)),
   );
@@ -613,7 +688,7 @@ function addCustomCut(rawName) {
     custom: true,
   });
   saveCustomCuts();
-  state.activeTab = 'CUSTOM';
+  if (state.segment === 'GK') state.activeTab = 'CUSTOM';
   updateQuantity(id, 1);
   window.showToast?.(`${formatPrintName(name)} gespeichert`, 'success');
   return true;
@@ -846,6 +921,7 @@ const state = {
   r2Override: /** @type {number|null} */ (null),
   r3Override: /** @type {number|null} */ (null),
   skipCount: 0,
+  segment: /** @type {CarcassSegment} */ ('GK'),
   activeTab: /** @type {CutCategory} */ ('KEULE'),
   /** @type {{ id: string, quantity: number, weightKg: number, weightManual: boolean }[]} */
   queue: DEFAULT_QUEUE.map((q) => normalizeQueueItem(q)),
@@ -879,9 +955,14 @@ function hydrateState() {
   if (Number.isFinite(Number(saved.skipCount))) {
     state.skipCount = Math.max(0, Math.min(23, Number(saved.skipCount)));
   }
-  if (TAB_ORDER.includes(saved.activeTab)) {
+  if (saved.segment === 'HV' || saved.segment === 'VV' || saved.segment === 'GK') {
+    state.segment = saved.segment;
+  }
+  if (TAB_ORDER.includes(saved.activeTab) || saved.activeTab === 'NACKEN' || saved.activeTab === 'BRUST') {
     state.activeTab = saved.activeTab;
   }
+  applyDetectedSegment(state.chargenNummer);
+  ensureActiveTab();
   if (Array.isArray(saved.queue)) {
     state.queue = saved.queue
       .map((item) => normalizeQueueItem(item))
@@ -908,6 +989,7 @@ function persist() {
     r2Override: state.r2Override,
     r3Override: state.r3Override,
     skipCount: state.skipCount,
+    segment: state.segment,
     activeTab: state.activeTab,
     queue: state.queue,
   });
@@ -1289,13 +1371,18 @@ function renderModalBody() {
 
   const summaryCharge = modal.querySelector('#beef-stammdaten-summary');
   if (summaryCharge) {
-    summaryCharge.textContent = `${state.chargenNummer || '—'} · Start Slot ${state.skipCount + 1}`;
+    summaryCharge.textContent = `${state.segment} · ${state.chargenNummer || '—'} · Start Slot ${state.skipCount + 1}`;
   }
+  const segmentEl = /** @type {HTMLSelectElement|null} */ (modal.querySelector('#beef-segment'));
+  if (segmentEl && document.activeElement !== segmentEl) segmentEl.value = state.segment;
 
-  modal.querySelectorAll('[data-beef-tab]').forEach((btn) => {
-    const cat = btn.getAttribute('data-beef-tab');
-    btn.classList.toggle('is-active', cat === state.activeTab);
-  });
+  const tabHost = modal.querySelector('.beef-tabs');
+  if (tabHost) {
+    ensureActiveTab();
+    tabHost.innerHTML = tabsForSegment().map((cat) => `
+      <button type="button" class="beef-tab${cat === state.activeTab ? ' is-active' : ''}" data-beef-tab="${cat}">${escapeHtml(tabLabel(cat))}</button>
+    `).join('');
+  }
 
   const cutList = modal.querySelector('#beef-cut-list');
   const queueList = modal.querySelector('#beef-queue-list');
@@ -1343,6 +1430,8 @@ function resetNewCharge() {
   state.r1Override = null;
   state.r2Override = null;
   state.r3Override = null;
+  state.segment = 'GK';
+  ensureActiveTab();
   persist();
   const modal = document.getElementById('beef-labels-modal');
   const details = /** @type {HTMLDetailsElement|null} */ (modal?.querySelector('#beef-stammdaten'));
@@ -1375,13 +1464,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'layout-v2') return;
+  if (existing?.dataset.ux === 'segment-v1') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal galloway-modal';
-  modal.dataset.ux = 'layout-v2';
+  modal.dataset.ux = 'segment-v1';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -1417,6 +1506,13 @@ function ensureModal() {
           </label>
           <label>Charge
             <input type="text" id="beef-charge" class="input-text-touch" autocomplete="off">
+          </label>
+          <label>Viertel
+            <select id="beef-segment" class="input-text-touch">
+              <option value="HV">HV – Hinterviertel</option>
+              <option value="VV">VV – Vorderviertel</option>
+              <option value="GK">GK – Ganzer Körper / Hälften</option>
+            </select>
           </label>
           <label>Ohrmarke / Pass-Nr
             <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off">
@@ -1546,12 +1642,13 @@ function ensureModal() {
     modal.querySelector('#beef-custom-add-btn')?.dispatchEvent(new Event('click'));
   });
 
-  modal.querySelectorAll('[data-beef-tab]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.activeTab = /** @type {CutCategory} */ (btn.getAttribute('data-beef-tab') || 'KEULE');
-      persist();
-      renderModalBody();
-    });
+  modal.querySelector('#beef-segment')?.addEventListener('change', (event) => {
+    const value = /** @type {HTMLSelectElement} */ (event.target).value;
+    if (value !== 'HV' && value !== 'VV' && value !== 'GK') return;
+    state.segment = value;
+    ensureActiveTab();
+    persist();
+    renderModalBody();
   });
 
   const bindField = (id, key, transform) => {
@@ -1560,7 +1657,11 @@ function ensureModal() {
       const raw = /** @type {HTMLInputElement} */ (el).value;
       state[key] = transform ? transform(raw) : raw;
       persist();
-      if (key === 'skipCount' || key === 'chargenNummer' || key === 'etikettenPraefix') renderModalBody();
+      if (key === 'chargenNummer') applyDetectedSegment(state.chargenNummer);
+      if (key === 'skipCount' || key === 'chargenNummer' || key === 'etikettenPraefix') {
+        ensureActiveTab();
+        renderModalBody();
+      }
     });
   };
   bindField('#beef-charge', 'chargenNummer');
@@ -1604,6 +1705,13 @@ function ensureModal() {
 
   modal.addEventListener('click', (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
+    const tabBtn = target.closest('[data-beef-tab]');
+    if (tabBtn && tabBtn.closest('.beef-tabs')) {
+      state.activeTab = /** @type {CutCategory} */ (tabBtn.getAttribute('data-beef-tab') || tabsForSegment()[0]);
+      persist();
+      renderModalBody();
+      return;
+    }
     if (target === modal) {
       closeModal();
       return;
