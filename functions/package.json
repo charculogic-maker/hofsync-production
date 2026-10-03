@@ -10,7 +10,8 @@
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions --non-interactive",
     "test": "vitest run --config vitest.config.mjs --configLoader runner",
-    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js tests/tenantAdminRbac.test.js tests/meatLabelNormalization.test.js tests/deliveryNoteHardening.test.js --config vitest.config.mjs --configLoader runner"
+    "test:security": "vitest run tests/security.test.js tests/appCheckCoverage.test.js tests/tenantAdminRbac.test.js tests/meatLabelNormalization.test.js tests/deliveryNoteHardening.test.js --config vitest.config.mjs --configLoader runner",
+    "verify:load": "node -e \"const t=Date.now(); const idx=require('./index.js'); const ms=Date.now()-t; console.log('load_ms='+ms); console.log(Object.keys(idx).join(',')); if(ms>=500){console.error('LOAD_TOO_SLOW'); process.exit(1)} process.exit(0);\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

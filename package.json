@@ -15,7 +15,8 @@
     "test:mhd-audit": "mocha test/mhd-audit.test.mjs",
     "test:datasheet": "mocha test/production-datasheet.test.mjs",
     "screenshots:modules": "node tools/capture-module-screenshots.mjs",
-    "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs"
+    "screenshots:steveshof": "node tools/capture-steveshof-screenshots.mjs",
+    "screenshots:landing-modules": "node scripts/capture-all-modules.js"
   },
   "dependencies": {
     "firebase": "^12.13.0",

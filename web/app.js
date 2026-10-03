@@ -33,7 +33,8 @@ import {
   requeueDeadPendingSyncs,
   reportCriticalError,
   resetPendingSyncRetries,
-  clearAllPendingSyncQueues,
+  clearAllPendingSyncQueues,,
+  removeQueuedMutation,
   savePendingSyncs,
   updateSyncIndicator,
   writeFirestoreDocOrQueue,
@@ -132,7 +133,7 @@ import {
   resolveFunctionsBaseUrl,
 } from './firebase-functions.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
-import { attachLocalFirebaseEmulators, isLocalFirebaseEmulatorHost } from './firebase-emulator.js';
+import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
   hasAnyAdminModuleEnabled,
   hasModule,
@@ -817,9 +818,55 @@ function syncAppShellLayout(pageId) {
       const sidebar = document.body.classList.contains('app-shell-sidebar');
       navBrand.setAttribute('aria-hidden', sidebar ? 'false' : 'true');
     }
+    syncSidebarFacilityUserCard();
   } catch (err) {
     console.warn('[CharcuLogic Layout] App-Shell-Layout fehlgeschlagen:', err);
   }
+}
+
+/**
+ * Sidebar-Topkarte: Betriebsname + aktuelle Person (Name / Initialen).
+ */
+function syncSidebarFacilityUserCard(employeeName = readActiveEmployee()) {
+  try {
+    const branding = window.BRANDING || {};
+    const facilityEl = document.getElementById('app-nav-facility-name');
+    if (facilityEl) {
+      facilityEl.textContent = branding.betriebsName || branding.displayName || 'Betriebs-Leitstand';
+    }
+
+    const nameEl = document.getElementById('app-nav-user-name');
+    const initialsEl = document.getElementById('app-nav-user-initials');
+    if (!nameEl && !initialsEl) return;
+
+    let resolved = String(employeeName || '').trim();
+    if (!resolved) {
+      try {
+        const authSession = getAuthContext() || {};
+        resolved = resolveFirebaseEmployeeName(authSession);
+        if (!resolved || resolved === 'Mitarbeiter') {
+          const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+          resolved = String(user?.displayName || user?.email?.split('@')[0] || '').trim();
+        }
+      } catch (_) { /* noop */ }
+    }
+
+    const display = resolved || 'Nicht angemeldet';
+    if (nameEl) nameEl.textContent = display;
+    if (initialsEl) initialsEl.textContent = initialsFromDisplayName(display);
+  } catch (err) {
+    console.warn('[CharcuLogic Layout] Sidebar-Nutzerkarte fehlgeschlagen:', err);
+  }
+}
+
+function initialsFromDisplayName(name = '') {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length || parts[0] === 'Nicht' || parts[0] === '–') return '–';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
 window.syncAppShellLayout = syncAppShellLayout;
@@ -1729,13 +1776,10 @@ function applyBranding() {
 
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute('content', primaryColor);
+
+  syncSidebarFacilityUserCard();
 }
 window.applyBranding = applyBranding;
-
-function isWurstkuecheEnabledForTenant(tenantId = '', branding = window.BRANDING || {}) {
-  const normalizedTenantId = String(tenantId || '').trim().toLowerCase();
-  return normalizedTenantId !== 'torfabrik' && branding.modules?.wurstkueche !== false;
-}
 
 window.applyModuleVisibility = applyModuleVisibility;
 
@@ -1910,7 +1954,12 @@ function applyRoleBasedUi(authSession) {
 
   ['btn-master-data', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.hidden = !isOffice;
+    if (!el) return;
+    if (id === 'btn-delivery-note-ai') {
+      el.hidden = !isOffice || window.BRANDING?.modules?.deliveryNoteAi !== true;
+      return;
+    }
+    el.hidden = !isOffice;
   });
 
   const saveMhdBar = document.getElementById('mhd-sticky-save-bar');
@@ -2111,9 +2160,10 @@ function initFirebase() {
   try {
     ensureFirebaseApp(firebase);
     assertFirebaseProjectIsolation(firebase);
-    if (isLocalFirebaseEmulatorHost()) {
-      attachLocalFirebaseEmulators(firebase);
-    }
+    // TEMP: Emulatoren deaktiviert — localhost spricht Live-Staging (Auth/Firestore).
+    // if (shouldUseFirebaseEmulators()) {
+    //   attachLocalFirebaseEmulators(firebase);
+    // }
     db = firebase.firestore();
     initTenantDb(db);
     if (typeof firebase.auth === 'function') {
@@ -2127,7 +2177,7 @@ function initFirebase() {
       console.warn('Firestore Persistence Error:', err.code);
     });
     firebaseReady = true;
-    const modeLabel = isLocalFirebaseEmulatorHost() ? 'Emulator' : 'Cloud';
+    const modeLabel = areLocalFirebaseEmulatorsAttached() ? 'Emulator' : 'Cloud';
     console.log(
       `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" `
       + `(${resolveFirebaseProjectKey()}, ${modeLabel}).`,
@@ -2358,10 +2408,16 @@ function setWrsWarning(warnings) {
 
 function renderWrsMetrics(result) {
   const totals = result?.totals || {};
+  const beffeImFe = totals.beffeImFeProzent;
+  const vk = totals.vkProKg;
   const values = {
     'wrs-total-cost': `${formatNumber(totals.totalCost)} EUR`,
-    'wrs-cost-per-kg': `${formatNumber(totals.costPerKg)} EUR`,
+    'wrs-cost-per-kg': totals.costPerKgFinished == null
+      ? '–'
+      : `${formatNumber(totals.costPerKgFinished)} EUR`,
     'wrs-beffe-percent': `${formatNumber(totals.beffeProzent)} %`,
+    'wrs-beffe-im-fe-percent': beffeImFe == null ? '–' : `${formatNumber(beffeImFe)} %`,
+    'wrs-vk-per-kg': vk == null ? '–' : `${formatNumber(vk)} EUR`,
     'wrs-fat-percent': `${formatNumber(totals.fettProzent)} %`,
     'wrs-water-percent': `${formatNumber(totals.wasserProzent)} %`,
   };
@@ -2394,6 +2450,17 @@ function renderWrsPacklist(result) {
   });
 }
 
+function readWrsCalcOptions() {
+  const maschinenverlustKg = Number(document.getElementById('wrs-machine-loss')?.value);
+  const garverlustPct = Number(document.getElementById('wrs-cook-loss')?.value);
+  const marginPct = Number(document.getElementById('wrs-margin-pct')?.value);
+  return {
+    maschinenverlustKg: Number.isFinite(maschinenverlustKg) ? maschinenverlustKg : 0,
+    garverlustPct: Number.isFinite(garverlustPct) ? garverlustPct : 0,
+    marginFrac: Number.isFinite(marginPct) ? marginPct / 100 : 0,
+  };
+}
+
 function calculateAndRenderWrs() {
   if (!wrsState.engine) return;
   const select = document.getElementById('recipe-select');
@@ -2403,7 +2470,7 @@ function calculateAndRenderWrs() {
   if (!recipeName) return;
 
   try {
-    const result = wrsState.engine.calculateCharge(recipeName, targetKg);
+    const result = wrsState.engine.calculateCharge(recipeName, targetKg, {}, readWrsCalcOptions());
     renderWrsMetrics(result);
     renderWrsPacklist(result);
     setWrsWarning(result.warnings);
@@ -2449,6 +2516,9 @@ async function initWrsModule() {
 
     document.getElementById('recipe-select')?.addEventListener('change', calculateAndRenderWrs);
     document.getElementById('target-weight')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-machine-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-cook-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-margin-pct')?.addEventListener('input', calculateAndRenderWrs);
     document.getElementById('btn-calculate-wrs')?.addEventListener('click', () => {
       playClickSound(900, 0.04, 0.12);
       calculateAndRenderWrs();
@@ -2736,15 +2806,20 @@ function readActiveEmployee() {
 }
 
 function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
-  if (!employeeSessionBadge || !employeeSessionName) return;
+  if (!employeeSessionBadge || !employeeSessionName) {
+    syncSidebarFacilityUserCard(employeeName);
+    return;
+  }
   if (!employeeName) {
     employeeSessionBadge.style.display = 'none';
     employeeSessionName.textContent = '';
+    syncSidebarFacilityUserCard('');
     return;
   }
   const firstName = String(employeeName).trim().split(/\s+/)[0] || employeeName;
   employeeSessionName.textContent = `👤 ${firstName}`;
   employeeSessionBadge.style.display = 'inline-flex';
+  syncSidebarFacilityUserCard(employeeName);
 }
 
 const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero', 'page-dev-dashboard']);
@@ -3285,6 +3360,27 @@ function formatQueueAge(ts) {
   return `${h}h ${m}m`;
 }
 
+function queueItemTitle(item) {
+  const data = item?.data || {};
+  return data.artikelName || data.name || data.produkt || item?._docId || 'ohne Namen';
+}
+
+function queueItemSubtitle(item) {
+  const data = item?.data || {};
+  const op = String(item?._op || 'update').toUpperCase();
+  const status = data.status || 'Update';
+  const collection = String(item?._collectionPath || 'ohne-pfad').split('/').filter(Boolean).pop() || 'ohne-pfad';
+  return `${op} · ${status} · ${collection}`;
+}
+
+function escapeQueueText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function showSyncQueueDialog() {
   const pending = getPendingSyncs();
   const dead = getDeadPendingSyncs();
@@ -3296,10 +3392,13 @@ function showSyncQueueDialog() {
 
   const pendingRows = pending.length
     ? pending.map((item) => `
-      <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
-        <div style="font-weight:700;font-size:12px;">${item._op || 'update'} · ${item._docId || 'ohne-id'}</div>
-        <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${item._attempts || 0}</div>
-        ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${item._lastError}${item._errorCode ? ` (${item._errorCode})` : ''}</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #e5e7eb;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;">${escapeQueueText(queueItemTitle(item))}</div>
+          <div style="font-size:11px;color:#4b5563;">${escapeQueueText(queueItemSubtitle(item))} · Alter ${formatQueueAge(item._queuedAt)}</div>
+          ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${escapeQueueText(item._lastError)}${item._errorCode ? ` (${escapeQueueText(item._errorCode)})` : ''}</div>` : ''}
+        </div>
+        <button type="button" class="sync-queue-drop" data-queue-id="${escapeQueueText(item._id || '')}" aria-label="Eintrag verwerfen" style="min-width:44px;min-height:44px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-size:18px;">🗑️</button>
       </div>
     `).join('')
     : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine wartenden Einträge.</div>';
@@ -3318,6 +3417,10 @@ function showSyncQueueDialog() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
         <h3 style="margin:0;font-size:16px;">Wartende Änderungen</h3>
         <button type="button" id="sync-queue-close" class="btn btn-secondary" style="min-height:36px;">Schließen</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" class="btn btn-primary" id="sync-queue-send-all" style="flex:1;min-height:44px;">🔄 Alle jetzt senden</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-drop-all" style="flex:1;min-height:44px;">⚠️ Alle verwerfen</button>
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Wartend (${pending.length})</div>
@@ -3340,6 +3443,28 @@ function showSyncQueueDialog() {
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) close();
   });
+  document.getElementById('sync-queue-send-all')?.addEventListener('click', async () => {
+    await flushPendingSyncs();
+    updateSyncIndicator();
+    close();
+    showToast('Übertragung angestoßen.', 'success');
+  });
+  document.getElementById('sync-queue-drop-all')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
+    savePendingSyncs([]);
+    updateSyncIndicator();
+    close();
+    showToast('Warteschlange geleert.', 'warning');
+  });
+  overlay.querySelectorAll('.sync-queue-drop').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.getAttribute('data-queue-id');
+      if (!id) return;
+      removeQueuedMutation(id);
+      updateSyncIndicator();
+      showSyncQueueDialog();
+    });
+  });
   document.getElementById('sync-queue-retry')?.addEventListener('click', async () => {
     const requeued = requeueDeadPendingSyncs();
     const reset = resetPendingSyncRetries();
@@ -3354,6 +3479,7 @@ function showSyncQueueDialog() {
     );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
     clearAllPendingSyncQueues();
     close();
     showToast('Wartende und fehlerhafte Einträge lokal verworfen.', 'warning');
@@ -3416,6 +3542,85 @@ try {
 let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
+/** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
+const APP_RELEASE_AT = '2026-09-23T16:46:00+02:00';
+const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
+const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
+
+function formatAppUpdateStamp(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function readStoredAppUpdateAt() {
+  try {
+    return localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberAppStand(releasedAt) {
+  if (!releasedAt) return;
+  try {
+    const previousStand = localStorage.getItem(APP_STAND_STORAGE_KEY) || '';
+    if (previousStand !== releasedAt) {
+      localStorage.setItem(APP_STAND_STORAGE_KEY, releasedAt);
+      const stored = localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY);
+      const storedMs = Date.parse(stored || '');
+      const releasedMs = Date.parse(releasedAt);
+      if (!Number.isFinite(storedMs) || (Number.isFinite(releasedMs) && releasedMs > storedMs)) {
+        localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, releasedAt);
+      }
+    }
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
+function resolveAppUpdateIso(swReleasedAt) {
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  const stored = readStoredAppUpdateAt();
+  const releasedMs = Date.parse(releasedAt);
+  const storedMs = Date.parse(stored || '');
+  if (Number.isFinite(storedMs) && Number.isFinite(releasedMs)) {
+    return storedMs >= releasedMs ? stored : releasedAt;
+  }
+  return stored || releasedAt;
+}
+
+function renderAppUpdateInfo(swReleasedAt) {
+  const textEl = document.getElementById('app-update-info-text');
+  if (!textEl) return;
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  rememberAppStand(releasedAt);
+  const stamp = formatAppUpdateStamp(resolveAppUpdateIso(releasedAt));
+  textEl.textContent = stamp
+    ? `Zuletzt aktualisiert: ${stamp}`
+    : 'Zuletzt aktualisiert: noch unbekannt';
+  const infoEl = document.getElementById('app-update-info');
+  if (infoEl) {
+    infoEl.title = `App-Stand ${formatAppUpdateStamp(releasedAt) || releasedAt}`;
+  }
+}
+
+function requestServiceWorkerVersion() {
+  if (!navigator.serviceWorker?.controller) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+    return;
+  }
+  try {
+    navigator.serviceWorker.controller.postMessage({ type: 'GET_SW_VERSION' });
+  } catch (_) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+  }
+}
+
 function showUpdateToast() {
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.add('is-visible');
@@ -3453,6 +3658,9 @@ async function activateWaitingServiceWorker() {
 
 async function refreshAppFromNetwork() {
   try {
+    try {
+      localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, new Date().toISOString());
+    } catch (_) { /* private mode / blocked storage */ }
     const registration = serviceWorkerRegistration
       || await navigator.serviceWorker?.getRegistration?.();
     await registration?.update?.();
@@ -3503,12 +3711,20 @@ document.getElementById('update-toast-btn')?.addEventListener('click', () => {
 document.getElementById('update-toast-dismiss')?.addEventListener('click', hideUpdateToast);
 document.getElementById('app-refresh-btn')?.addEventListener('click', () => applyUpdate(false));
 
+renderAppUpdateInfo(APP_RELEASE_AT);
+
 if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type !== 'SW_VERSION') return;
+    renderAppUpdateInfo(event.data.releasedAt || APP_RELEASE_AT);
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20260612-1405')
+    navigator.serviceWorker.register('./sw.js?v=20260929-mhd-clean')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
+        requestServiceWorkerVersion();
 
         if (reg.installing) {
           console.info('[CharcuLogic SW] Neuer SW wird installiert...');

@@ -4,10 +4,6 @@ const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const { isConfiguredParam, readSmtpConfig, readTwilioConfig } = require('./runtimeParams');
 
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
 function getNotificationConfig() {
   return {
     ...readSmtpConfig(),
@@ -16,6 +12,7 @@ function getNotificationConfig() {
 }
 
 function createSmtpTransport(config) {
+  const nodemailer = require('nodemailer');
   const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
   return nodemailer.createTransport({
     host: String(config.smtpHost || 'mail.agenturserver.de').trim(),
@@ -232,6 +229,7 @@ async function sendCustomerSms(signal, config, meta) {
   }
 
   try {
+    const twilio = require('twilio');
     const client = twilio(accountSid, authToken);
     await client.messages.create({
       to: toNumber,
@@ -271,47 +269,50 @@ async function dispatchCustomerSignal(signal, meta) {
   return Promise.all(tasks);
 }
 
+async function handleOrderReadySendSignal(event) {
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!before || !after) return null;
+  if (before.status === 'ready' || after.status !== 'ready') return null;
+
+  const tenantId = event.params.tenantId;
+  const orderId = event.params.orderId;
+  if (after.tenantId && after.tenantId !== tenantId) {
+    console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
+    return null;
+  }
+
+  const meta = { tenantId, orderId, customerName: after.customerName || null };
+  const signal = buildCustomerSignal(after);
+
+  console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
+    ...meta,
+    hasEmail: Boolean(signal.to.email),
+    hasPhone: Boolean(signal.to.phone),
+    finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
+    pickupWindow: formatPickupWindow(after.readyAt),
+  });
+
+  try {
+    const results = await dispatchCustomerSignal(signal, meta);
+    console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+  } catch (error) {
+    console.error('[KundenSignal] Unerwarteter Versandfehler', {
+      ...meta,
+      message: error?.message,
+    });
+  }
+
+  return null;
+}
+
+exports.handleOrderReadySendSignal = handleOrderReadySendSignal;
 exports.onOrderReadySendSignal = onDocumentUpdated(
   {
     document: 'tenants/{tenantId}/customerOrders/{orderId}',
     region: 'europe-west3',
   },
-  async (event) => {
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-    if (!before || !after) return null;
-    if (before.status === 'ready' || after.status !== 'ready') return null;
-
-    const tenantId = event.params.tenantId;
-    const orderId = event.params.orderId;
-    if (after.tenantId && after.tenantId !== tenantId) {
-      console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
-      return null;
-    }
-
-    const meta = { tenantId, orderId, customerName: after.customerName || null };
-    const signal = buildCustomerSignal(after);
-
-    console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-      ...meta,
-      hasEmail: Boolean(signal.to.email),
-      hasPhone: Boolean(signal.to.phone),
-      finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
-      pickupWindow: formatPickupWindow(after.readyAt),
-    });
-
-    try {
-      const results = await dispatchCustomerSignal(signal, meta);
-      console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
-    } catch (error) {
-      console.error('[KundenSignal] Unerwarteter Versandfehler', {
-        ...meta,
-        message: error?.message,
-      });
-    }
-
-    return null;
-  },
+  handleOrderReadySendSignal,
 );
 
 exports._test = {

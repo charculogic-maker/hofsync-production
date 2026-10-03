@@ -1,5 +1,6 @@
-const CACHE_NAME = 'charculogic-v20260916-supplier-aufschnitt';
+const CACHE_NAME = 'charculogic-v20261003-responsive-landscape-v2';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
+const RELEASED_AT = '2026-10-03T10:05:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -38,13 +39,16 @@ const CRITICAL_ASSETS = [
   '/production.js',
   '/production-datasheet.js',
   '/beffe_calc.js',
+  '/domain-core.js',
   '/cuts.js',
   '/sync.js',
   '/traceability.js',
   '/tenant-modules.js',
   '/dev-dashboard.js',
+  '/fast-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
+  '/beef-labels.js',
 ];
 
 const SCANNER_LIBS = [
@@ -91,9 +95,9 @@ self.addEventListener('install', (event) => {
         }
       }
 
+      await self.skipWaiting();
     })()
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -113,7 +117,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'GET_SW_VERSION') {
-    event.source?.postMessage({ type: 'SW_VERSION', cacheName: CACHE_NAME });
+    event.source?.postMessage({
+      type: 'SW_VERSION',
+      cacheName: CACHE_NAME,
+      cacheSchema: CACHE_SCHEMA,
+      releasedAt: RELEASED_AT,
+    });
   }
 
   if (event.data?.type === 'SKIP_WAITING') {
@@ -269,6 +278,11 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/auth.js')
     || pathname.endsWith('/auth-errors.js')
     || pathname.endsWith('/sw.js')
+    || pathname.endsWith('/sync.js')
+    || pathname.endsWith('/mhd.js')
+    || pathname.endsWith('/delivery-note.js')
+    || pathname.endsWith('/scanner.js')
+    || pathname.endsWith('/tenant-db.js')
   );
   if (isCoreModule) {
     const cleanRequest = new Request(url.pathname, {

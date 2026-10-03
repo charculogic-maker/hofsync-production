@@ -7,6 +7,24 @@ const REZEPTE_PATH = path.join(ROOT, 'data', 'beffe_rezepte.csv');
 const OUTPUT_DIR = path.join(ROOT, 'web', 'data');
 const OUTPUT_PATH = path.join(OUTPUT_DIR, 'beffe_data.json');
 
+function readExistingPayload() {
+  try {
+    return JSON.parse(fs.readFileSync(OUTPUT_PATH, 'utf8'));
+  } catch (_) {
+    return null;
+  }
+}
+
+function withoutGeneratedAt(payload = {}) {
+  const { generatedAt: _generatedAt, ...rest } = payload || {};
+  return rest;
+}
+
+function stablePayloadChanged(existingPayload, nextPayload) {
+  if (!existingPayload) return true;
+  return JSON.stringify(withoutGeneratedAt(existingPayload)) !== JSON.stringify(withoutGeneratedAt(nextPayload));
+}
+
 function parseCsv(csvData) {
   const text = String(csvData || '').replace(/^\uFEFF/, '');
   const records = [];
@@ -76,10 +94,14 @@ function parseRohstoffe(csvData) {
     if (!material) return;
 
     const kategorie = cleanText(row.Kategorie);
+    const beffe = parseNumber(row.BEFFE_Prozent);
+    const be = parseNumber(row.BE_Prozent);
     const item = {
       preis: parseNumber(row.Preis_kg),
       wasser: parseNumber(row.Wasser_Prozent),
-      beffe: parseNumber(row.BEFFE_Prozent),
+      beffe,
+      be,
+      fe: Math.round((beffe + be) * 10000) / 10000,
       fett: parseNumber(row.Fett_Prozent),
     };
 
@@ -133,20 +155,30 @@ function buildBeffeData() {
   const rezepteCsv = fs.readFileSync(REZEPTE_PATH, 'utf8');
   const { rohstoffe, rohstoffeByKategorie } = parseRohstoffe(rohstoffeCsv);
   const rezepte = parseRezepte(rezepteCsv);
+  const existingPayload = readExistingPayload();
 
   const payload = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: existingPayload?.generatedAt || new Date().toISOString(),
     rohstoffe,
     rohstoffeByKategorie,
     rezepte,
   };
+  if (stablePayloadChanged(existingPayload, payload)) {
+    payload.generatedAt = new Date().toISOString();
+  }
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(payload)}\n`, 'utf8');
+  const serialized = `${JSON.stringify(payload)}\n`;
+  const existingSerialized = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf8') : '';
+  if (existingSerialized !== serialized) {
+    fs.writeFileSync(OUTPUT_PATH, serialized, 'utf8');
+    console.log(`[BEFFE] ${path.relative(ROOT, OUTPUT_PATH)} geschrieben.`);
+  } else {
+    console.log(`[BEFFE] ${path.relative(ROOT, OUTPUT_PATH)} unverändert.`);
+  }
 
   console.log(`[BEFFE] ${Object.keys(rohstoffe).length} Rohstoffe exportiert.`);
   console.log(`[BEFFE] ${Object.keys(rezepte).length} aktive Rezepte exportiert.`);
-  console.log(`[BEFFE] ${path.relative(ROOT, OUTPUT_PATH)} geschrieben.`);
 }
 
 buildBeffeData();

@@ -1,6 +1,4 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
-import { isWhitelabelFirebaseHost } from './firebase-config.js';
-
 const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
   betriebsName: 'Ihr Betrieb',
   logoUrl: '/icon-192.png',
@@ -85,36 +83,10 @@ const TENANT_BRANDING = {
       haccp: false,
       orders: false,
       batches: true,
-      retterBox: true,
+      retterBox: false,
       chargenDoku: true,
       employeePin: false,
       employeeAuth: 'profile',
-    },
-  },
-  torfabrik: {
-    betriebsName: 'TorFabrik Krefeld',
-    appName: 'CenterLogic',
-    primaryColor: '#00A651',
-    primaryColorHover: '#008541',
-    darkHeaderBg: '#FFC20E',
-    textOnHeader: '#000000',
-    accentAlert: '#800020',
-    standardBereich: 'Theke',
-    modules: {
-      teamboard: true,
-      team: true,
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: true,
-      orders: true,
-      chargenDoku: true,
-      employeePin: true,
-      employeeAuth: 'pin',
     },
   },
   whitelabel_test: {
@@ -229,29 +201,6 @@ const TENANT_BRANDING = {
 };
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
-const TORFABRIK_TENANT_KEY = 'torfabrik';
-const WHITELABEL_DEFAULT_TENANT = 'whitelabel_test';
-
-/** Whitelabel-Test-Hosting → Mandant whitelabel_test, solange noch kein Login-Cache existiert. */
-const HOSTING_DEFAULT_TENANT = {
-  whitelabel: WHITELABEL_DEFAULT_TENANT,
-};
-function isLocalDevHost() {
-  const host = String(window.location?.hostname || '').toLowerCase();
-  return host === 'localhost' || host === '127.0.0.1';
-}
-
-function readDevFirebaseProjectOverride() {
-  if (!isLocalDevHost()) return null;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('firebase') || params.get('project');
-    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
-    const fromStorage = localStorage.getItem('charculogic_firebase_project');
-    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
-  } catch (_) { /* noop */ }
-  return null;
-}
 
 function readTenantFromQueryString() {
   try {
@@ -309,31 +258,14 @@ function readCachedTenantId() {
   }
 }
 function isWhitelabelHostingContext() {
-  const override = readDevFirebaseProjectOverride();
-  if (override === 'whitelabel') return true;
-  if (override === 'production') return false;
-  return isWhitelabelFirebaseHost();
+  return false;
 }
 
 function coerceTenantForHosting(tenantKey) {
-  const normalized = normalizeTenantKey(tenantKey);
-  if (!normalized) return '';
-  if (isWhitelabelHostingContext() && normalized === TORFABRIK_TENANT_KEY) {
-    console.warn(
-      '[CharcuLogic Branding] torfabrik auf Whitelabel-Host blockiert — fallback whitelabel_test.',
-    );
-    return WHITELABEL_DEFAULT_TENANT;
-  }
-  return normalized;
+  return normalizeTenantKey(tenantKey);
 }
 
 function resolveHostingDefaultTenant() {
-  if (isWhitelabelHostingContext()) {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
-  if (isLocalDevHost() && readDevFirebaseProjectOverride() === 'whitelabel') {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
   return '';
 }
 /** Reihenfolge: explizit → URL ?tenant= / ?tenantId= → Cache (nur bekannte) → Hosting-Vorgabe. */
@@ -356,17 +288,7 @@ function resolveBranding(tenantId) {
       + `tenantId="${key}". Bitte TENANT_BRANDING konfigurieren oder anmelden.`,
     );
   }
-  if (!key && isWhitelabelHostingContext()) {
-    const whitelabelFallback = lookupTenantBranding(WHITELABEL_DEFAULT_TENANT) || {};
-    return {
-      ...DEFAULT_BRANDING,
-      ...whitelabelFallback,
-      modules: {
-        ...DEFAULT_BRANDING.modules,
-        ...(whitelabelFallback.modules || {}),
-      },
-    };
-  }  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
+  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
     return window.BRANDING;
   }
   return {

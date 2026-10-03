@@ -53,13 +53,6 @@ const TENANT_TEAM_DEFAULTS = {
       aushilfe: { label: 'Aushilfe', members: ['Melanie', 'Efecan', 'Mimi'] },
     },
   },
-  torfabrik: {
-    employees: ['Stephan', 'Boris', 'Aushilfe'],
-    groups: {
-      center: { label: 'Center-Team', members: ['Stephan', 'Boris'] },
-      aushilfe: { label: 'Aushilfe', members: ['Aushilfe'] },
-    },
-  },
 };
 
 function getTenantTeamDefaults(tenantId = configState.tenantId) {

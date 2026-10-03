@@ -1,5 +1,6 @@
 /**
- * KI-Lieferschein-Scanner (TorFabrik) via Cloud Function parseDeliveryNote
+ * KI-Lieferschein-Scanner. Sichtbar nur bei branding.modules.deliveryNoteAi.
+ * Posten gehen in die generische MHD-Liste, nicht in eine mandantenspezifische Bestandssammlung.
  */
 
 import { getAuthContext } from './auth.js';
@@ -10,8 +11,6 @@ import {
   mapDeliveryUploadError,
   DeliveryUploadError,
 } from './delivery-upload.js';
-
-const TORFABRIK_TENANT_ID = 'torfabrik';
 
 const deliveryNoteState = {
   tenantId: '',
@@ -117,11 +116,15 @@ function showDeliveryNotePreview(items) {
   });
 }
 
+function isDeliveryNoteAiEnabled() {
+  return window.BRANDING?.modules?.deliveryNoteAi === true;
+}
+
 async function saveDeliveryNoteInventory(items) {
   if (deliveryNoteState.saveInFlight) return;
   const tenantId = deliveryNoteState.tenantId;
-  if (tenantId !== TORFABRIK_TENANT_ID) {
-    deliveryNoteState.showHUD('Nur TorFabrik', 'Bestand-Import ist für diesen Mandanten nicht freigeschaltet.', '!');
+  if (!isDeliveryNoteAiEnabled()) {
+    deliveryNoteState.showHUD('Nicht freigeschaltet', 'Lieferschein-Import ist für diesen Mandanten nicht aktiv.', '!');
     return;
   }
   if (!items.length) {
@@ -144,30 +147,42 @@ async function saveDeliveryNoteInventory(items) {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       const docId = `${batchId}_${i}`;
+      const nowIso = new Date().toISOString();
       const result = await writeFn({
-        collectionPath: 'inventory',
+        collectionPath: 'mhd_liste',
         docId,
         op: 'set',
         onlineData: {
-          artikel: item.artikel,
+          id: docId,
+          postenId: docId,
+          produkt: item.artikel,
+          name: item.artikel,
           menge: item.menge,
+          qty: item.menge,
           kategorie: item.kategorie,
-          tenantId,
+          status: 'aktiv',
           source: 'delivery-note-ai',
+          postentyp: 'wareneingang',
+          tenantId,
           batchId,
           createdBy: author,
-          createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.()
-            || new Date().toISOString(),
+          createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || nowIso,
         },
         queueData: {
-          artikel: item.artikel,
+          id: docId,
+          postenId: docId,
+          produkt: item.artikel,
+          name: item.artikel,
           menge: item.menge,
+          qty: item.menge,
           kategorie: item.kategorie,
-          tenantId,
+          status: 'aktiv',
           source: 'delivery-note-ai',
+          postentyp: 'wareneingang',
+          tenantId,
           batchId,
           createdBy: author,
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         },
         offlineMessage: 'Lieferschein-Posten werden nachgereicht.',
       });
@@ -179,7 +194,7 @@ async function saveDeliveryNoteInventory(items) {
       window.showToast?.(`${items.length} Lieferschein-Posten werden automatisch synchronisiert.`, 'warning');
       return;
     }
-    deliveryNoteState.showHUD('Gespeichert', `${items.length} Posten in inventory übernommen.`);
+    deliveryNoteState.showHUD('Gespeichert', `${items.length} Posten in die MHD-Liste übernommen.`);
     window.showToast?.(`${items.length} Lieferschein-Posten gespeichert.`, 'success');
   } catch (err) {
     console.error('[DeliveryNote] Speichern fehlgeschlagen:', err);
@@ -240,8 +255,8 @@ export function initDeliveryNoteScanner(options = {}) {
   deliveryNoteState.writeOrQueueFirestore = options.writeOrQueueFirestore || deliveryNoteState.writeOrQueueFirestore;
 
   const btn = document.getElementById('btn-delivery-note-ai');
-  const isTorfabrik = deliveryNoteState.tenantId === TORFABRIK_TENANT_ID;
-  if (btn) btn.hidden = !isTorfabrik;
+  const enabled = isDeliveryNoteAiEnabled();
+  if (btn) btn.hidden = !enabled;
 
-  if (isTorfabrik) bindDeliveryNoteUi();
+  if (enabled) bindDeliveryNoteUi();
 }

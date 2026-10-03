@@ -1,3 +1,5 @@
+import { calculateBeffe, calculateMeatComposition, gevoProfiles } from './domain-core.js';
+
 const MATERIAL_KEYS = [
   'S I', 'S II', 'S III', 'S IV Bauch', 'S V Bauch Fett', 'S V II Speck', 'S V III Kutterfett',
   'R I', 'R II', 'R III',
@@ -8,6 +10,128 @@ const MATERIAL_KEYS = [
 
 const SCHWEIN_CLASS_MATERIALS = ['S I', 'S II', 'S III', 'S IV Bauch'];
 const RIND_CLASS_MATERIALS = ['R I', 'R II', 'R III'];
+
+/** Relativbasis: gleiche Massebezüge wie FE / Bindegewebseiweiß. Unterhalb gilt „kein Fleisch“. */
+const FE_ZERO_EPSILON = 1e-9;
+
+/** HofSync-Materialname → GEVO-Klasse. Laborwerte bleiben am Rohstoff, der Kern rechnet. */
+const MATERIAL_CUT_ID = {
+  'S I': 'S_I',
+  'S II': 'S_II',
+  'S III': 'S_III',
+  'S IV Bauch': 'S_IV',
+  'S V Bauch Fett': 'S_V',
+  'S V II Speck': 'S_VII',
+  'S V III Kutterfett': 'S_VIII',
+  'R I': 'R_I',
+  'R II': 'R_II',
+  'R III': 'R_III',
+  'Leber': 'S_LEBER',
+  'Kopffleisch': 'S_VI',
+  'Einlage S I': 'S_I',
+  'Einlage S II': 'S_II',
+  'Einlage SIV Bauch': 'S_IV',
+  'Einlage Wamme': 'S_X',
+  'Einlage Speck': 'S_VII',
+};
+
+function compositionForAmount(material, amountKg, proteinPct, connectiveTissuePct) {
+  const cutId = MATERIAL_CUT_ID[material];
+  if (cutId && gevoProfiles[cutId]) {
+    return calculateMeatComposition([{
+      cutId,
+      weightKg: amountKg,
+      proteinAvgPct: proteinPct,
+      connectiveTissueAvgPct: connectiveTissuePct,
+    }]);
+  }
+  const meatProteinKg = amountKg * proteinPct / 100;
+  const connectiveTissueProteinKg = amountKg * connectiveTissuePct / 100;
+  return {
+    meatProteinKg,
+    connectiveTissueProteinKg,
+    ...calculateBeffe(meatProteinKg, connectiveTissueProteinKg),
+  };
+}
+
+/**
+ * BEFFE als Masseanteil des Erzeugnisses [% m/m].
+ * Campus-SSOT: BEFFE = Fleischeiweiß − Bindegewebsprotein (BEP).
+ */
+export function beffeProduktProzentMM(fleischEiweissPctMM, bindegewebsEiweissPctMM) {
+  const fe = Math.max(0, Number(fleischEiweissPctMM) || 0);
+  const connectiveTissue = Math.max(0, Number(bindegewebsEiweissPctMM) || 0);
+  return calculateBeffe(fe, connectiveTissue).beffeAbsoluteKg;
+}
+
+/**
+ * BEFFE im Fleischeiweiß [%] — Campus-SSOT-Formel:
+ * `((FE - BEP) / FE) * 100`
+ * Bei 0 g Fleisch / FE ≤ 0: `null` statt `NaN`.
+ */
+export function beffeImFePct(fleischEiweiss, bindegewebsEiweiss) {
+  const fe = Number(fleischEiweiss);
+  const connectiveTissue = Number(bindegewebsEiweiss);
+  if (!Number.isFinite(fe) || fe <= FE_ZERO_EPSILON) return null;
+  const connectiveTissueSafe = Number.isFinite(connectiveTissue) ? Math.max(0, connectiveTissue) : 0;
+  return calculateBeffe(fe, connectiveTissueSafe).beffeInMeatProteinPct;
+}
+
+/**
+ * Campus-Alias: BEFFE im FE = BEFFE / FE * 100, identisch zu `((FE - BEP) / FE) * 100`.
+ */
+export function beffeImFleischEiweissRelativPct(beFFEProzentMM, fleischEiweissPctMM) {
+  if (!Number.isFinite(Number(fleischEiweissPctMM)) || fleischEiweissPctMM <= FE_ZERO_EPSILON) return null;
+  return (Number(beFFEProzentMM) / fleischEiweissPctMM) * 100;
+}
+
+/**
+ * Verkaufspreis aus Selbstkosten und Ziel-Marge auf den VK.
+ * Campus-SSOT: `VK = SK / (1 - Marge)` mit Marge als Bruch (0.35 = 35 %).
+ * Unzulässige Marge (≥ 100 %) → `null`, damit nie `Infinity`/`NaN` entsteht.
+ */
+export function verkaufspreisFromSelbstkosten(selbstkosten, marginFrac) {
+  const sk = Number(selbstkosten);
+  const m = Number(marginFrac);
+  if (!Number.isFinite(sk) || sk < 0) return 0;
+  if (!Number.isFinite(m) || m >= 1) return null;
+  if (m <= 0) return sk;
+  return sk / (1 - m);
+}
+
+function resolveMarginFrac(options = {}) {
+  if (options.marginFrac != null && options.marginFrac !== '') {
+    const frac = Number(options.marginFrac);
+    if (Number.isFinite(frac)) return frac;
+  }
+  if (options.marginPct != null && options.marginPct !== '') {
+    const pct = Number(options.marginPct);
+    if (Number.isFinite(pct)) return pct / 100;
+  }
+  return 0;
+}
+
+/**
+ * Fertigmasse: absoluter Maschinenverlust (kg) und prozentualer Garverlust sind getrennt.
+ * `fertigKg = max(0, ansatzKg − maschinenverlustKg) * (1 − garverlustPct / 100)`
+ */
+export function finishedMassAfterLosses(ansatzKg, { maschinenverlustKg = 0, garverlustPct = 0 } = {}) {
+  const raw = Number(ansatzKg);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  const machineKg = Math.max(0, Number(maschinenverlustKg) || 0);
+  const afterMachine = Math.max(0, raw - machineKg);
+  const cookPct = Number(garverlustPct);
+  const cookFrac = Number.isFinite(cookPct) ? Math.min(1, Math.max(0, cookPct / 100)) : 0;
+  return afterMachine * (1 - cookFrac);
+}
+
+function resolveMaterialProtein(materialData = {}) {
+  const storedBeffe = Number(materialData.beffe) || 0;
+  const bep = Number(materialData.be ?? materialData.bep) || 0;
+  const fe = Number(materialData.fe) > 0 ? Number(materialData.fe) : storedBeffe + bep;
+  const beffe = beffeProduktProzentMM(fe, bep);
+  return { feProzent: fe, beProzent: bep, beffeProzent: beffe };
+}
 
 export class BeffeCalcEngine {
   constructor(preParsedJson = {}) {
@@ -47,7 +171,7 @@ export class BeffeCalcEngine {
     return this.rezepte[recipeName] || null;
   }
 
-  calculateCharge(recipeName, targetTotalKg, tagesPreise = {}) {
+  calculateCharge(recipeName, targetTotalKg, tagesPreise = {}, options = {}) {
     const recipe = this.getRecipe(recipeName);
     if (!recipe) {
       throw new Error(`Rezept nicht gefunden: ${recipeName}`);
@@ -66,8 +190,11 @@ export class BeffeCalcEngine {
     const scale = targetKg / baseTotalKg;
     let totalCost = 0;
     let totalBeffeKg = 0;
+    let totalFeKg = 0;
+    let totalBepKg = 0;
     let totalFatKg = 0;
     let totalWaterKg = 0;
+    let fleischG = 0;
 
     const ingredients = recipe.ingredients.map((ingredient) => {
       const categoryKey = `${ingredient.category || recipe.category}::${ingredient.material}`;
@@ -76,17 +203,25 @@ export class BeffeCalcEngine {
       const livePrices = Object.keys(tagesPreise).length ? tagesPreise : this.tagesPreise;
       const priceKg = resolvePrice(ingredient.material, livePrices, materialData.preis, ingredient.basePriceKg);
       const wasserProzent = materialData.wasser ?? 0;
-      const beffeProzent = materialData.beffe ?? 0;
       const fettProzent = materialData.fett ?? 0;
+      const { feProzent, beProzent, beffeProzent } = resolveMaterialProtein(materialData);
       const cost = amountKg * priceKg;
-      const beffeKg = amountKg * beffeProzent / 100;
+      const composition = compositionForAmount(ingredient.material, amountKg, feProzent, beProzent);
+      const feKg = composition.meatProteinKg;
+      const bepKg = composition.connectiveTissueProteinKg;
+      const beffeKg = composition.beffeAbsoluteKg;
       const fatKg = amountKg * fettProzent / 100;
       const waterKg = amountKg * wasserProzent / 100;
 
       totalCost += cost;
       totalBeffeKg += beffeKg;
+      totalFeKg += feKg;
+      totalBepKg += bepKg;
       totalFatKg += fatKg;
       totalWaterKg += waterKg;
+      if (feProzent > FE_ZERO_EPSILON || beffeProzent > FE_ZERO_EPSILON || beProzent > FE_ZERO_EPSILON) {
+        fleischG += amountKg * 1000;
+      }
 
       return {
         material: ingredient.material,
@@ -97,18 +232,41 @@ export class BeffeCalcEngine {
         cost,
         wasserProzent,
         beffeProzent,
+        feProzent,
+        beProzent,
         fettProzent,
       };
     });
+
+    const maschinenverlustKg = parseNumber(options.maschinenverlustKg);
+    const garverlustPct = parseNumber(options.garverlustPct);
+    const finishedKg = finishedMassAfterLosses(targetKg, { maschinenverlustKg, garverlustPct });
+    const costPerKg = totalCost / targetKg;
+    const costPerKgFinished = finishedKg > FE_ZERO_EPSILON ? totalCost / finishedKg : null;
+    const marginFrac = resolveMarginFrac(options);
+    const vkProKg = costPerKgFinished == null
+      ? null
+      : verkaufspreisFromSelbstkosten(costPerKgFinished, marginFrac);
 
     const totals = {
       totalKg: targetKg,
       baseTotalKg,
       totalCost,
-      costPerKg: totalCost / targetKg,
+      costPerKg,
       beffeProzent: totalBeffeKg / targetKg * 100,
+      feProzent: totalFeKg / targetKg * 100,
+      beProzent: totalBepKg / targetKg * 100,
+      beffeImFeProzent: fleischG <= FE_ZERO_EPSILON
+        ? null
+        : beffeImFePct(totalFeKg, totalBepKg),
       fettProzent: totalFatKg / targetKg * 100,
       wasserProzent: totalWaterKg / targetKg * 100,
+      fleischG,
+      maschinenverlustKg,
+      garverlustPct,
+      finishedKg,
+      costPerKgFinished,
+      vkProKg,
     };
 
     const warnings = createWarnings(recipe, totals);
@@ -288,8 +446,9 @@ export function pickLatestFleischpreiseDoc(docs = []) {
 }
 
 export function formatNumber(value, digits = 2) {
+  if (value == null) return '–';
   const number = Number(value);
-  if (!Number.isFinite(number)) return '0';
+  if (!Number.isFinite(number)) return '–';
   return new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

@@ -3,7 +3,7 @@
 <head>
   <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#28a745">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -66,6 +66,9 @@
     window.forceAppUpdate = async function forceAppUpdate() {
       if (window.__forceAppUpdateRunning) return;
       window.__forceAppUpdateRunning = true;
+      try {
+        localStorage.setItem('charculogic.lastAppUpdateAt', new Date().toISOString());
+      } catch (_) { /* private mode / blocked storage */ }
       const hardReload = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('appUpdate', String(Date.now()));
@@ -147,7 +150,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260725-chargendoku-header">
+  <link rel="stylesheet" href="/style.css?v=20261003-responsive-landscape-v1">
 </head>
 <body>
 
@@ -223,6 +226,10 @@
             <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
         </header>
+
+        <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
+          <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
+        </div>
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
@@ -571,6 +578,60 @@
                         <button type="submit" class="dev-dashboard-submit-btn">Betrieb anlegen</button>
                       </form>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-tenant-form-status" aria-live="polite"></p>
+                    </div>
+
+                    <div
+                      class="dev-dashboard-tenant-create fast-onboarding-card"
+                      data-fast-onboarding-card
+                      hidden
+                      aria-label="Interessenten-Zugang / Test-Mandant anlegen"
+                    >
+                      <h3 class="dev-dashboard-subsection-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</h3>
+                      <p class="dev-dashboard-intro">
+                        Sofort sauberen Test-Mandanten anlegen und 1-Klick-Einladungs-Link für Meisterschüler generieren.
+                      </p>
+                      <form class="fast-onboarding-form" data-fast-onboarding-form>
+                        <label class="dev-dashboard-field">
+                          <span>Betriebsname</span>
+                          <input name="companyName" type="text" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>Inhaber / Meister</span>
+                          <input name="adminName" type="text" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>E-Mail-Adresse</span>
+                          <input name="adminEmail" type="email" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
+                        </label>
+                        <fieldset class="dev-dashboard-permissions-fieldset fast-onboarding-modules">
+                          <legend>Modul-Freischaltung</legend>
+                          <div class="dev-dashboard-permissions-row">
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="mhdMonitor" checked><span>MHD-Monitor</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wareneingang" checked><span>Wareneingang &amp; KI-Lieferschein</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wurstkueche" checked><span>Wurstküche &amp; BEFFE-Kalkulation</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="haccp" checked><span>HACCP-Tageskontrollen</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="zerlegung" checked><span>Galloway-Zerlegung &amp; Avery 3475 Etiketten</span></label>
+                          </div>
+                        </fieldset>
+                        <button type="submit" class="dev-dashboard-submit-btn fast-onboarding-submit" data-fast-submit>
+                          <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                          <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
+                        </button>
+                      </form>
+                      <p class="dev-dashboard-employee-status" data-fast-onboarding-status hidden role="status"></p>
+                      <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                        <p class="dev-dashboard-intro">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                        <p class="dev-dashboard-intro" data-fast-onboarding-meta></p>
+                        <label class="dev-dashboard-field">
+                          <span>Einladungs-Link</span>
+                          <input type="text" data-fast-invite-link readonly>
+                        </label>
+                        <div class="fast-onboarding-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-copy-link>📋 Link kopieren</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-whatsapp>💬 Per WhatsApp senden</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-reset>🔄 Weiteren Mandanten anlegen</button>
+                        </div>
+                      </div>
                     </div>
 
                     <div class="dev-dashboard-table-wrap">
@@ -995,6 +1056,13 @@
                         <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>
+                    <button
+                      type="button"
+                      class="mhd-zero-qty-toggle"
+                      id="mhd-zero-qty-toggle"
+                      aria-pressed="false"
+                      hidden
+                    >👁️ 0er-Bestände anzeigen</button>
                   </div>
                   <div class="mhd-render-limit-hint mhd-toolbar-limit-hint hidden" id="mhd-toolbar-limit-hint" role="status" aria-live="polite"></div>
                 </div>
@@ -1116,7 +1184,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
+                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ oder MMJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -1156,6 +1224,11 @@
               <section class="receiving-section receiving-section--kopf receiving-section--metzgerei" aria-labelledby="we-kopf-title">
                 <h3 class="receiving-section-title" id="we-kopf-title">Temperatur &amp; Lieferschein</h3>
                 <div class="receiving-form-stack">
+                  <div class="beef-labels-trigger-wrap">
+                    <button type="button" class="btn btn-secondary beef-labels-open-btn" id="beef-labels-open-receiving">
+                      🥩 Galloway Zerlegung / Avery 3475
+                    </button>
+                  </div>
                   <label class="receiving-field" for="we-category">
                     <span>Waren-Kategorie</span>
                     <select id="we-category" class="gastro-input">
@@ -1324,8 +1397,8 @@
                     <input id="chargen-book-date" type="date">
                   </label>
                 </div>
-                <div class="dev-dashboard-table-wrap">
-                  <table class="dev-dashboard-table" id="chargen-book-table">
+                <div class="dev-dashboard-table-wrap chargen-spreadsheet-wrap">
+                  <table class="dev-dashboard-table chargen-spreadsheet" id="chargen-book-table">
                     <thead>
                       <tr>
                         <th scope="col">LOT</th>
@@ -1340,6 +1413,7 @@
                     <tbody id="chargen-book-body"></tbody>
                   </table>
                 </div>
+                <p class="chargen-spreadsheet-footer" id="chargen-book-footer" aria-live="polite">Zeige 0 von 0 Einträgen</p>
                 <div id="chargen-book-detail" class="dev-trace-detail" aria-live="polite">
                   <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
                 </div>
@@ -1351,6 +1425,11 @@
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
+            <div class="beef-labels-trigger-wrap beef-labels-trigger-wrap--kitchen">
+              <button type="button" class="btn btn-secondary beef-labels-open-btn" id="beef-labels-open-kitchen">
+                🥩 Galloway Zerlegung / Avery 3475
+              </button>
+            </div>
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
               <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
@@ -1419,6 +1498,18 @@
                     <span>Zielgewicht kg</span>
                     <input id="target-weight" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0.5" max="500" step="0.5" value="10">
                   </label>
+                  <label class="wrs-field" for="wrs-machine-loss">
+                    <span>Maschinenverlust kg</span>
+                    <input id="wrs-machine-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="50" step="0.05" value="0">
+                  </label>
+                  <label class="wrs-field" for="wrs-cook-loss">
+                    <span>Garverlust %</span>
+                    <input id="wrs-cook-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="80" step="0.5" value="0">
+                  </label>
+                  <label class="wrs-field" for="wrs-margin-pct">
+                    <span>Ziel-Marge % (auf VK)</span>
+                    <input id="wrs-margin-pct" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="75" step="1" value="35">
+                  </label>
                   <button type="button" class="btn btn-primary wrs-calc-btn" id="btn-calculate-wrs">Berechnen</button>
                 </div>
 
@@ -1436,6 +1527,14 @@
                   <div class="wrs-metric">
                     <span>BEFFE</span>
                     <strong id="wrs-beffe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>BEFFE im FE</span>
+                    <strong id="wrs-beffe-im-fe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>VK/kg</span>
+                    <strong id="wrs-vk-per-kg">-</strong>
                   </div>
                   <div class="wrs-metric">
                     <span>Fett</span>
@@ -1680,6 +1779,87 @@
             </div>
 
             <div id="office-access-content" class="office-access-content">
+            <section
+              class="batch-audit-card fast-onboarding-card"
+              id="fast-onboarding-card"
+              data-fast-onboarding-card
+              hidden
+              aria-label="Interessenten-Zugang / Test-Mandant anlegen"
+            >
+              <div class="batch-audit-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</div>
+              <p class="admin-leitstand-hint">
+                Legt einen sauberen Test-Mandanten an und erzeugt einen 1-Klick-Einladungs-Link für Meisterschüler / Interessenten.
+              </p>
+              <form class="fast-onboarding-form" data-fast-onboarding-form>
+                <label class="form-label" for="fast-onboarding-company">
+                  Betriebsname
+                  <input id="fast-onboarding-company" name="companyName" type="text" class="input-text-touch" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
+                </label>
+                <label class="form-label" for="fast-onboarding-admin-name">
+                  Inhaber / Meister
+                  <input id="fast-onboarding-admin-name" name="adminName" type="text" class="input-text-touch" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
+                </label>
+                <label class="form-label" for="fast-onboarding-admin-email">
+                  E-Mail-Adresse
+                  <input id="fast-onboarding-admin-email" name="adminEmail" type="email" class="input-text-touch" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
+                </label>
+                <fieldset class="fast-onboarding-modules">
+                  <legend>Modul-Freischaltung</legend>
+                  <label><input type="checkbox" data-fast-mod="mhdMonitor" checked> MHD-Monitor</label>
+                  <label><input type="checkbox" data-fast-mod="wareneingang" checked> Wareneingang &amp; KI-Lieferschein</label>
+                  <label><input type="checkbox" data-fast-mod="wurstkueche" checked> Wurstküche &amp; BEFFE-Kalkulation</label>
+                  <label><input type="checkbox" data-fast-mod="haccp" checked> HACCP-Tageskontrollen</label>
+                  <label><input type="checkbox" data-fast-mod="zerlegung" checked> Galloway-Zerlegung &amp; Avery 3475 Etiketten</label>
+                </fieldset>
+                <button type="submit" class="btn btn-primary fast-onboarding-submit" data-fast-submit>
+                  <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                  <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
+                </button>
+              </form>
+              <p class="fast-onboarding-status" data-fast-onboarding-status hidden role="status"></p>
+              <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                <p class="admin-leitstand-hint">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                <p class="admin-leitstand-hint" data-fast-onboarding-meta></p>
+                <label class="form-label" for="fast-onboarding-invite-link">
+                  Einladungs-Link
+                  <input id="fast-onboarding-invite-link" type="text" class="input-text-touch" data-fast-invite-link readonly>
+                </label>
+                <div class="fast-onboarding-actions">
+                  <button type="button" class="btn btn-secondary" data-fast-copy-link>
+                    📋 Link kopieren
+                  </button>
+                  <button type="button" class="btn btn-secondary" data-fast-whatsapp>
+                    💬 Per WhatsApp senden
+                  </button>
+                  <button type="button" class="btn btn-primary" data-fast-reset>
+                    🔄 Weiteren Mandanten anlegen
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section
+              class="batch-audit-card mhd-archive-card"
+              id="mhd-archive-card"
+              aria-label="0er-Bestände archivieren"
+            >
+              <div class="batch-audit-title">🧹 MHD-Bereinigung</div>
+              <p class="admin-leitstand-hint">
+                Verschiebt alte Null-Bestände (älter als 90 Tage) aus der aktiven MHD-Liste ins Archiv.
+              </p>
+              <button
+                type="button"
+                class="btn btn-secondary mhd-archive-btn"
+                id="mhd-archive-zero-btn"
+                data-mhd-archive-btn
+                style="width:100%;min-height:52px;"
+              >
+                <span class="mhd-archive-spinner" aria-hidden="true" hidden></span>
+                <span data-mhd-archive-label>🧹 Alte 0er-Bestände archivieren (&gt;90 Tage)</span>
+              </button>
+              <p class="admin-leitstand-hint" id="mhd-archive-status" data-mhd-archive-status hidden role="status"></p>
+            </section>
+
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 
@@ -2054,18 +2234,24 @@
         <!-- Navigation: Alltag (unten / Sidebar) + optional Verwaltung -->
         <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
           <div class="app-nav-brand" id="app-nav-brand" aria-hidden="true">
-            <img
-              class="tenant-header-logo app-nav-brand-logo"
-              id="app-nav-brand-logo"
-              src="/icon-192.png"
-              alt=""
-              width="40"
-              height="40"
-              decoding="async"
-            />
-            <div class="app-nav-brand-text">
-              <span class="app-nav-brand-name brand-betriebs-name">Betriebs-Leitstand</span>
-              <span class="app-nav-brand-hint">Laden-Alltag</span>
+            <div class="app-nav-facility-card" id="app-nav-facility-card">
+              <img
+                class="tenant-header-logo app-nav-brand-logo"
+                id="app-nav-brand-logo"
+                src="/icon-192.png"
+                alt=""
+                width="44"
+                height="44"
+                decoding="async"
+              />
+              <div class="app-nav-brand-text">
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">Betriebs-Leitstand</span>
+                <span class="app-nav-brand-hint">Laden-Alltag</span>
+              </div>
+            </div>
+            <div class="app-nav-user-card" id="app-nav-user-card" aria-label="Angemeldete Person">
+              <span class="app-nav-user-avatar" id="app-nav-user-initials" aria-hidden="true">–</span>
+              <span class="app-nav-user-name" id="app-nav-user-name">Nicht angemeldet</span>
             </div>
           </div>
 
@@ -2253,10 +2439,13 @@
           <div class="scanner-status-panel">
             <div id="scanner-status-text">Scanner wird vorbereitet...</div>
             <div class="scanner-manual-entry" id="scanner-manual-entry">
-              <input id="scanner-manual-barcode-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Barcode">
-              <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              <div class="scanner-manual-entry-row">
+                <input id="scanner-manual-barcode-input" inputmode="search" autocomplete="off" placeholder="EAN oder Name (z.B. Schedel)">
+                <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              </div>
+              <div id="scanner-manual-search-hits" class="manual-barcode-hits" hidden></div>
             </div>
-            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">Eintippen</button>
+            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">🔍 Manuelle Suche / EAN</button>
           </div>
         </div>
 
@@ -2379,6 +2568,8 @@
     </form>
   </template>
 
+  <script type="module" src="/fast-onboarding.js?v=20261002-fast-onboard-v1"></script>
+  <script type="module" src="/beef-labels.js?v=20261003-galloway-yield-v1"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
   <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
 </body>

@@ -1,9 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const admin = require('firebase-admin');
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+const admin = require('./firebaseAdmin');
 
 const DEFAULT_TEAM_GROUPS = {
   finn_stephie: { label: 'Finn & Stephie', members: ['Finn', 'Stephie'] },
@@ -33,50 +29,53 @@ function resolveTaskAudienceEmployees(task, config) {
   return employees;
 }
 
+async function handleNotifyTeamEntryCreated(event) {
+  const task = event.data?.data();
+  if (!task || task.status !== 'open') return null;
+
+  const tenantId = event.params.tenantId;
+  const author = String(task.author || '').trim();
+
+  const configSnap = await admin.firestore()
+    .doc(`tenants/${tenantId}/settings/teamDashboard`)
+    .get();
+  const config = configSnap.exists ? configSnap.data() : null;
+  const targets = resolveTaskAudienceEmployees(task, config)
+    .filter((name) => name && name !== author);
+  if (!targets.length) return null;
+
+  const tokensSnap = await admin.firestore()
+    .collection(`tenants/${tenantId}/pushTokens`)
+    .get();
+  const tokens = [];
+  tokensSnap.forEach((doc) => {
+    const data = doc.data();
+    if (data?.token && targets.includes(data.employeeName)) {
+      tokens.push(data.token);
+    }
+  });
+  if (!tokens.length) return null;
+
+  const kind = task.entryKind === 'info' ? 'Info' : 'Aufgabe';
+  try {
+    await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: `${kind}: ${task.title || 'Team-Nachricht'}`,
+        body: task.body ? String(task.body).slice(0, 180) : `Von ${author || 'Team'}`,
+      },
+    });
+  } catch (error) {
+    console.warn('[TeamPush] FCM Versand fehlgeschlagen:', error?.message || error);
+  }
+  return null;
+}
+
+exports.handleNotifyTeamEntryCreated = handleNotifyTeamEntryCreated;
 exports.notifyTeamEntryCreated = onDocumentCreated(
   {
     document: 'tenants/{tenantId}/tasks/{taskId}',
     region: 'europe-west3',
   },
-  async (event) => {
-    const task = event.data?.data();
-    if (!task || task.status !== 'open') return null;
-
-    const tenantId = event.params.tenantId;
-    const author = String(task.author || '').trim();
-
-    const configSnap = await admin.firestore()
-      .doc(`tenants/${tenantId}/settings/teamDashboard`)
-      .get();
-    const config = configSnap.exists ? configSnap.data() : null;
-    const targets = resolveTaskAudienceEmployees(task, config)
-      .filter((name) => name && name !== author);
-    if (!targets.length) return null;
-
-    const tokensSnap = await admin.firestore()
-      .collection(`tenants/${tenantId}/pushTokens`)
-      .get();
-    const tokens = [];
-    tokensSnap.forEach((doc) => {
-      const data = doc.data();
-      if (data?.token && targets.includes(data.employeeName)) {
-        tokens.push(data.token);
-      }
-    });
-    if (!tokens.length) return null;
-
-    const kind = task.entryKind === 'info' ? 'Info' : 'Aufgabe';
-    try {
-      await admin.messaging().sendEachForMulticast({
-        tokens,
-        notification: {
-          title: `${kind}: ${task.title || 'Team-Nachricht'}`,
-          body: task.body ? String(task.body).slice(0, 180) : `Von ${author || 'Team'}`,
-        },
-      });
-    } catch (error) {
-      console.warn('[TeamPush] FCM Versand fehlgeschlagen:', error?.message || error);
-    }
-    return null;
-  },
+  handleNotifyTeamEntryCreated,
 );

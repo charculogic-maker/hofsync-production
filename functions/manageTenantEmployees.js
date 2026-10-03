@@ -3,6 +3,7 @@ const admin = require('firebase-admin');
 const crypto = require('crypto');
 const adminDb = require('./adminDb');
 const { resolveAuthContext } = require('./authContext');
+const { isSuperAdmin } = require('./superAdmin');
 
 const REGION = 'europe-west3';
 
@@ -10,9 +11,6 @@ const CALLABLE_BASE_OPTIONS = {
   region: REGION,
   enforceAppCheck: true,
 };
-
-const SUPER_ADMIN_EMAIL = 'patrik@charculogic.de';
-const SUPER_ADMIN_UIDS = new Set(['VYwMy5IAlAR26pj8ZbFfc5PNdou2']);
 
 const EMPLOYEE_MODULE_KEYS = ['mhd', 'kitchen', 'buero'];
 
@@ -43,12 +41,6 @@ function defaultProfileNamesForTenant(tenantId) {
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
-}
-
-function isSuperAdmin(auth) {
-  const email = normalizeEmail(auth?.token?.email || auth?.email);
-  if (email === SUPER_ADMIN_EMAIL) return true;
-  return SUPER_ADMIN_UIDS.has(String(auth?.uid || '').trim());
 }
 
 function assertAdminAccess(auth, targetTenantId) {

@@ -261,6 +261,50 @@ export function clearAllPendingSyncQueues() {
   updateSyncIndicator();
 }
 
+export function removeQueuedMutation(id) {
+  const target = String(id || '');
+  if (!target) return false;
+  const next = getPendingSyncs().filter((item) => item._id !== target);
+  return savePendingSyncs(next);
+}
+
+function isMhdAuditPath(collectionPath) {
+  const value = String(collectionPath || '').trim();
+  return value === 'mhd_audit' || value.endsWith('mhd_audit');
+}
+
+function isMhdListePath(collectionPath) {
+  const leaf = String(collectionPath || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+  return leaf === 'mhd_liste';
+}
+
+/** Neuer Posten wird angelegt, bestehender Posten wird gemerged. Kein update() auf fehlende Dokumente. */
+function upsertMhdListeDoc(ref, payload, firebase, writeOp) {
+  const setPayload = { ...(payload || {}) };
+  if ((writeOp === 'set' || writeOp === 'create') && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return ref.set(setPayload, { merge: true });
+}
+
+/** Append-only Audit: kein Server-Get. set bei bekannter ID, sonst add. */
+async function writeMhdAuditDirect(db, firebase, collectionPath, docId, op, payload) {
+  const body = { ...(payload || {}) };
+  if (op !== 'delete' && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    body.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  if (op === 'delete') {
+    if (!docId) return;
+    await tenantFirestoreDocRef(db, collectionPath, docId).delete();
+    return;
+  }
+  if (!docId) {
+    await db.collection(collectionPath).add(body);
+    return;
+  }
+  await tenantFirestoreDocRef(db, collectionPath, docId).set(body);
+}
+
 export function savePendingSyncs(queue) {
   const key = pendingSyncsKey();
   if (!key) {
@@ -465,8 +509,8 @@ function isPermissionOrExistsError(err) {
 }
 
 export function isPermissionDeniedError(err) {
-  const code = String(err?.code || '').toLowerCase();
-  return code.includes('permission-denied') || code === 'permission-denied';
+  const code = String(err?.code || err?.message || '').toLowerCase();
+  return code.includes('permission-denied');
 }
 
 const permissionToastState = { lastAt: 0 };
@@ -582,9 +626,19 @@ export async function flushOnePendingSync(item) {
         ? sanitizeMhdListeSyncPayload(rawPayload)
         : rawPayload);
     const writeOp = (_op === 'create' && isTaskCollectionPath(collectionPath)) ? 'set' : _op;
+    if (isMhdAuditPath(collectionPath)) {
+      try {
+        await writeMhdAuditDirect(db, firebase, collectionPath, _docId, writeOp, payload);
+      } catch (err) {
+        console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', _docId, err);
+      }
+      return;
+    }
     try {
       if (writeOp === 'delete') {
         await ref.delete();
+      } else if (isMhdListePath(collectionPath)) {
+        await upsertMhdListeDoc(ref, payload, firebase, writeOp);
       } else if (writeOp === 'set') {
         const setPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -734,9 +788,16 @@ export async function writeFirestoreDocOrQueue({
         ? sanitizeMhdListeSyncPayload(onlineData)
         : onlineData);
     const writeOp = syncOp;
+    if (isMhdAuditPath(normalizedCollectionPath)) {
+      await withTimeout(writeMhdAuditDirect(db, firebase, normalizedCollectionPath, docId, writeOp, onlinePayload));
+      refreshSyncConnectivityUi();
+      return 'written';
+    }
     let writePromise;
     if (writeOp === 'delete') {
       writePromise = ref.delete();
+    } else if (isMhdListePath(normalizedCollectionPath)) {
+      writePromise = upsertMhdListeDoc(ref, onlinePayload, firebase, writeOp);
     } else if (writeOp === 'set') {
       const setPayload = { ...onlinePayload };
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -762,6 +823,10 @@ export async function writeFirestoreDocOrQueue({
     refreshSyncConnectivityUi();
     return 'written';
   } catch (err) {
+    if (isMhdAuditPath(normalizedCollectionPath)) {
+      console.warn('[CharcuLogic Sync] mhd_audit verworfen, Queue bleibt frei:', docId, err);
+      return 'skipped';
+    }
     if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return 'written';
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
@@ -802,12 +867,20 @@ export async function flushPendingSyncs() {
     const failed = [];
     for (const item of queue) {
       if (!isValidPendingSync(item)) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, new Error('Ungultiger Queue-Eintrag'));
+          continue;
+        }
         saveDeadPendingSync(item, new Error('Ungultiger Queue-Eintrag'));
         continue;
       }
       try {
         await flushOnePendingSync(item);
       } catch (err) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, err);
+          continue;
+        }
         if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
         console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
         const attempts = (item._attempts || 0) + 1;
