@@ -27,6 +27,9 @@ export const FIREBASE_PROJECTS = {
  * Sonst: 403 API_KEY_HTTP_REFERRER_BLOCKED (Login von Vercel schlägt fehl).
  */
 
+/** Cold-Start: Auth und Firestore-Persistenz dürfen so lange brauchen, bevor ein Config-Toast erscheint. */
+export const FIREBASE_BOOT_GRACE_MS = 3000;
+
 const SDK_CONFIG_KEYS = [
   'apiKey',
   'authDomain',

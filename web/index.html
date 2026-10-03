@@ -3,7 +3,7 @@
 <head>
   <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#28a745">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -115,8 +115,8 @@
         team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
         mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
         receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
-        chargenDoku: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
-        traceability: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
+        chargenDoku: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
+        traceability: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
         kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
         knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
       };
@@ -2276,7 +2276,7 @@
               </button>
               <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
                 <i>🏷️</i>
-                <span>Thekenbuch</span>
+                <span>Doku</span>
               </button>
               <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
                 <i>🥣</i>
@@ -2293,29 +2293,28 @@
             </div>
           </div>
 
-          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Büro und Dev-Dashboard">
-            <p class="app-nav-zone-label">Büro</p>
-            <button
-              type="button"
-              class="nav-item nav-item--admin"
-              id="tab-batches"
-              data-tab="batches"
-              data-nav-admin="batches"
-              hidden
-              style="display: none;"
-            >
-              <i>🏢</i>
-              <span>Büro &amp; Chargen</span>
-            </button>
-            <a
-              class="nav-item nav-item--admin"
-              id="nav-admin-dashboard"
-              href="/dev-dashboard"
-              data-nav-admin="dashboard"
-            >
-              <i>🛠️</i>
-              <span>Dev-Dashboard</span>
-            </a>
+          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Admin">
+            <div class="admin-nav-accordion" id="admin-nav-accordion">
+              <div class="admin-nav-popover" id="admin-nav-popover" hidden role="menu" aria-label="Admin-Menü">
+                <button type="button" class="admin-nav-option" id="tab-batches" data-tab="batches" role="menuitem">
+                  🏢 Büro &amp; Chargen
+                </button>
+                <a class="admin-nav-option" id="nav-admin-dashboard" href="/dev-dashboard" data-nav-admin="dashboard" role="menuitem">
+                  🛠️ Dev-Dashboard
+                </a>
+              </div>
+              <button
+                type="button"
+                class="admin-nav-trigger"
+                id="admin-nav-trigger"
+                aria-expanded="false"
+                aria-controls="admin-nav-popover"
+              >
+                <span aria-hidden="true">⚙️</span>
+                <span>Admin</span>
+                <span class="admin-nav-caret" aria-hidden="true">▴</span>
+              </button>
+            </div>
           </div>
         </nav>
 

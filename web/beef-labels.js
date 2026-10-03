@@ -1231,7 +1231,7 @@ async function saveYieldToLogbook() {
   const btn = document.getElementById('beef-yield-save');
   if (btn) btn.disabled = true;
   try {
-    await save({
+    const result = await save({
       chargenNummer: charge,
       ohrmarke: state.ohrmarke,
       schlachtDatum: state.schlachtDatum,
@@ -1253,7 +1253,8 @@ async function saveYieldToLogbook() {
         };
       }),
     });
-    window.showToast?.(`Ausbeute für ${charge} im Chargenbuch gespeichert.`, 'success');
+    if (result?.queued) return;
+    window.showToast?.('✅ Ausbeute gespeichert & Wurstfleisch (R I–R III) im Magazin eingebucht!', 'success');
   } catch (err) {
     window.showToast?.(err?.message || 'Ausbeute konnte nicht gespeichert werden.', 'error');
   } finally {

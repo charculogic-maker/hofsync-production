@@ -119,7 +119,7 @@ import {
   setGlobalTenantId,
   tenantIdsMatch,
 } from './tenant-db.js';
-import { resolveFirebaseConfig, resolveFirebaseProjectKey, toFirebaseSdkConfig } from './firebase-config.js';
+import { FIREBASE_BOOT_GRACE_MS, resolveFirebaseConfig, resolveFirebaseProjectKey, toFirebaseSdkConfig } from './firebase-config.js';
 import {
   assertFirebaseProjectIsolation,
   ensureFirebaseApp,
@@ -741,16 +741,75 @@ function hideAdminHeaderDropdown() {
   }
 }
 
+function closeAdminNavAccordion() {
+  const popover = document.getElementById('admin-nav-popover');
+  const trigger = document.getElementById('admin-nav-trigger');
+  if (popover) popover.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+}
+
+function bindAdminNavAccordion() {
+  const trigger = document.getElementById('admin-nav-trigger');
+  const popover = document.getElementById('admin-nav-popover');
+  const accordion = document.getElementById('admin-nav-accordion');
+  if (!trigger || !popover || !accordion || trigger.dataset.bound === '1') return;
+  trigger.dataset.bound = '1';
+
+  const placePopover = () => {
+    const rect = trigger.getBoundingClientRect();
+    const width = 240;
+    const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+    popover.style.position = 'fixed';
+    popover.style.left = `${left}px`;
+    popover.style.right = 'auto';
+    popover.style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`;
+    popover.style.top = 'auto';
+    popover.style.width = `${width}px`;
+    popover.style.zIndex = '1200';
+  };
+
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const willOpen = popover.hidden;
+    closeAdminNavAccordion();
+    if (!willOpen) return;
+    placePopover();
+    popover.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  });
+
+  popover.querySelector('#tab-batches')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeAdminNavAccordion();
+    window.showTab?.('batches');
+  });
+
+  popover.querySelector('#nav-admin-dashboard')?.addEventListener('click', () => {
+    closeAdminNavAccordion();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (popover.hidden) return;
+    if (accordion.contains(event.target)) return;
+    closeAdminNavAccordion();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAdminNavAccordion();
+  });
+}
+
 function syncAdminNavZone(authSession = getAuthContext()) {
   try {
     const zone = document.getElementById('app-nav-admin-zone');
     if (!zone) return;
+    bindAdminNavAccordion();
     const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
-    const isAdmin = isTenantAdmin(user, authSession)
-      || isPlatformSuperAdmin(user);
-    const show = hasAuthenticatedTenantContext(authSession) && isAdmin;
+    const show = hasAuthenticatedTenantContext(authSession) && isOfficeUser(authSession);
     zone.hidden = !show;
     zone.style.display = show ? '' : 'none';
+    if (!show) closeAdminNavAccordion();
     document.body.classList.toggle('has-admin-nav', show);
     document.body.classList.toggle('role-super-admin', isPlatformSuperAdmin(user));
   } catch (err) {
@@ -1682,6 +1741,7 @@ export {
 // ============================================================================
 
 function showToast(message, type = "success") {
+  if (isPrematureFirebaseConfigToast(message)) return;
   const toastType = ['success', 'warning', 'error'].includes(type) ? type : 'success';
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -2109,6 +2169,61 @@ const firebaseConfig = resolveFirebaseConfig();
 
 let db = null;
 let firebaseReady = false;
+let firebaseConfigToastAllowed = false;
+let firebasePersistencePromise = Promise.resolve();
+
+function isPrematureFirebaseConfigToast(message) {
+  if (firebaseConfigToastAllowed) return false;
+  return /firebase nicht konfiguriert/i.test(String(message || ''));
+}
+
+function isFirebaseConfigGraceOpen() {
+  return !firebaseConfigToastAllowed;
+}
+
+function showStartupLoading(visible) {
+  const existing = document.getElementById('startup-firebase-loading');
+  if (!visible) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const el = document.createElement('div');
+  el.id = 'startup-firebase-loading';
+  el.className = 'startup-firebase-loading';
+  el.setAttribute('role', 'status');
+  el.textContent = 'Betriebsdaten werden geladen…';
+  document.body.appendChild(el);
+}
+
+function waitForAuthBootstrap(timeoutMs = FIREBASE_BOOT_GRACE_MS) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') {
+        clearTimeout(timer);
+        finish();
+        return;
+      }
+      const unsubscribe = firebase.auth().onAuthStateChanged(() => {
+        unsubscribe();
+        clearTimeout(timer);
+        finish();
+      });
+    } catch {
+      clearTimeout(timer);
+      finish();
+    }
+  });
+}
+
+window.isFirebaseConfigGraceOpen = isFirebaseConfigGraceOpen;
 
 initSyncEngine({
   getDatabase: () => db,
@@ -2182,9 +2297,12 @@ function initFirebase() {
       getRegionalFunctions(firebase, FUNCTIONS_REGION);
       console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
     }
-    db.enablePersistence().catch((err) => {
-      console.warn('Firestore Persistence Error:', err.code);
-    });
+    firebasePersistencePromise = Promise.race([
+      db.enablePersistence().catch((err) => {
+        console.warn('Firestore Persistence Error:', err?.code || err);
+      }),
+      new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
+    ]);
     firebaseReady = true;
     const modeLabel = areLocalFirebaseEmulatorsAttached() ? 'Emulator' : 'Cloud';
     console.log(
@@ -2200,9 +2318,33 @@ function initFirebase() {
   }
 }
 
-function bootstrapFirebaseCore() {
-  const ok = initFirebase();
+async function bootstrapFirebaseCore() {
+  const loadingTimer = setTimeout(() => showStartupLoading(true), 350);
+  const started = Date.now();
+  let ok = false;
+  try {
+    ok = initFirebase();
+    if (ok) {
+      await Promise.race([
+        Promise.all([
+          firebasePersistencePromise,
+          waitForAuthBootstrap(FIREBASE_BOOT_GRACE_MS),
+        ]),
+        new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
+      ]);
+    } else {
+      const remaining = Math.max(0, FIREBASE_BOOT_GRACE_MS - (Date.now() - started));
+      await new Promise((resolve) => setTimeout(resolve, remaining));
+      ok = initFirebase();
+    }
+  } finally {
+    clearTimeout(loadingTimer);
+    showStartupLoading(false);
+    firebaseConfigToastAllowed = true;
+    window.dispatchEvent(new CustomEvent('charculogic:firebase-boot-settled'));
+  }
   if (!ok) {
+    showToast('Firebase nicht konfiguriert – bitte Verbindung prüfen.', 'error');
     throw new Error('Firebase-Core konnte nicht initialisiert werden.');
   }
   return true;
@@ -3164,7 +3306,7 @@ tabs.forEach(tab => {
       headerSubtitle.textContent = "Lieferung erfassen";
     } else if (targetTab === 'chargenDoku') {
       showPage('page-chargen-doku');
-      headerTitle.textContent = "Thekenbuch";
+      headerTitle.textContent = "Doku";
       headerSubtitle.textContent = "Chargen-Doku";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');

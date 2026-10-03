@@ -4308,7 +4308,11 @@ function renderMhdList() {
     updateMhdToolbarLimitHint(0);
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        ${isFirebaseReady() ? 'Keine MHD-Artikel in der Cloud. Scanne einen Barcode zum Einlernen.' : 'Firebase nicht konfiguriert – MHD-Daten können nicht geladen werden.'}
+        ${isFirebaseReady()
+          ? 'Keine MHD-Artikel in der Cloud. Scanne einen Barcode zum Einlernen.'
+          : (window.isFirebaseConfigGraceOpen?.()
+            ? 'Betriebsdaten werden geladen…'
+            : 'Firebase nicht konfiguriert – MHD-Daten können nicht geladen werden.')}
       </div>`;
     return;
   }
@@ -4457,105 +4461,16 @@ function armZeroQtyUndo(prod, previousQuantity) {
   });
 }
 
-// --- MHD-KARTEN SWIPE-GESTEN ---
+// MHD-Karten bleiben fest. Status nur über OK, Raus, Bearbeiten, Ausverkauft.
 function initMhdSwipeGestures() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
-  if (container.dataset.swipeBound === '1') return;
-  container.dataset.swipeBound = '1';
-
-  let activeCard = null;
-  let startX = 0;
-  let startY = 0;
-  let currentX = 0;
-  let isTracking = false;
-  const THRESHOLD = 100;
-
-  container.addEventListener('touchstart', (e) => {
-    const card = e.target.closest('.mhd-card');
-    if (!card || card.classList.contains('sold-out')) return;
-
-    activeCard = card;
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-    currentX = 0;
-    isTracking = false;
-    card.style.transition = 'none';
-  }, { passive: true });
-
-  container.addEventListener('touchmove', (e) => {
-    if (!activeCard) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
-
-    if (!isTracking && Math.abs(dy) > Math.abs(dx)) {
-      activeCard = null;
-      return;
-    }
-    isTracking = true;
-    e.preventDefault();
-
-    currentX = dx;
-    const clamped = Math.max(-200, Math.min(200, dx));
-    activeCard.style.transform = `translateX(${clamped}px)`;
-
-    let bg = activeCard.querySelector('.swipe-action-bg');
-    if (!bg) {
-      bg = document.createElement('div');
-      bg.className = 'swipe-action-bg';
-      activeCard.style.position = 'relative';
-      activeCard.insertBefore(bg, activeCard.firstChild);
-    }
-
-    if (clamped < -30) {
-      bg.textContent = 'Ausverkauft';
-      bg.className = 'swipe-action-bg swipe-bg--left';
-      bg.style.opacity = Math.min(1, Math.abs(clamped) / THRESHOLD);
-    } else if (clamped > 30) {
-      bg.textContent = 'Reduziert';
-      bg.className = 'swipe-action-bg swipe-bg--right';
-      bg.style.opacity = Math.min(1, clamped / THRESHOLD);
-    } else {
-      bg.style.opacity = 0;
-    }
-  }, { passive: false });
-
-  container.addEventListener('touchend', () => {
-    if (!activeCard) return;
-    const card = activeCard;
-    const id = card.id?.replace('mhd-card-', '');
-    activeCard = null;
-
-    if (currentX < -THRESHOLD && id) {
-      card.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-      card.style.transform = 'translateX(-110%)';
-      card.style.opacity = '0';
-      mhdState.playFeedbackSound('success');
-      setTimeout(() => {
-        setSoldOut(id);
-      }, 280);
-    } else if (currentX > THRESHOLD && id) {
-      card.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-      card.style.transform = 'translateX(110%)';
-      card.style.opacity = '0';
-      mhdState.playFeedbackSound('success');
-      setTimeout(() => {
-        markMhdAction(id, 'reduziert');
-      }, 280);
-    } else {
-      card.style.transition = 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-      card.style.transform = 'translateX(0)';
-      setTimeout(() => {
-        const bg = card.querySelector('.swipe-action-bg');
-        if (bg) bg.remove();
-        card.style.transition = '';
-        card.style.transform = '';
-      }, 260);
-    }
-  }, { passive: true });
+  container.dataset.swipeBound = 'disabled';
 }
+
+window.addEventListener('charculogic:firebase-boot-settled', () => {
+  if (document.getElementById('mhd-items-container')) renderMhdList();
+});
 
 async function saveMhdCardQty(id, newQty) {
   const prod = mhdState.products.find((p) => p.id === id);

@@ -168,6 +168,13 @@ body {
   width: 100%;
   height: 100%;
   min-height: 100%;
+  touch-action: manipulation;
+}
+
+button,
+.mhd-card,
+.btn {
+  touch-action: manipulation;
 }
 
 body {
@@ -747,19 +754,109 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
 }
 
 .app-nav-zone--admin {
+  position: relative;
   flex: 0 0 auto;
   flex-direction: row;
   display: flex;
   align-items: stretch;
-  justify-content: center;
+  justify-content: flex-end;
   height: 100%;
   border-left: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent-action) 18%, transparent) 0%,
-    rgba(255, 255, 255, 0.04) 100%
-  );
-  padding-inline: 2px;
+  background: transparent;
+  padding-inline: 4px;
+}
+
+.admin-nav-accordion {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.admin-nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 76px;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.admin-nav-caret {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.admin-nav-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  min-width: 220px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.admin-nav-popover[hidden] {
+  display: none !important;
+}
+
+.admin-nav-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f9fafb;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.admin-nav-option:active,
+.admin-nav-option:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.startup-firebase-loading {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 13000;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.88);
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  pointer-events: none;
 }
 
 .app-nav-zone--admin[hidden] {
@@ -768,7 +865,7 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
 
 /* RBAC: Verwaltungs-Zone nur mit Admin-Recht sichtbar */
 body:not(.has-admin-nav) .app-nav-zone--admin,
-body:not(.role-admin):not(.role-super-admin) .app-nav-zone--admin {
+body:not(.role-admin):not(.role-super-admin):not(.role-office) .app-nav-zone--admin {
   display: none !important;
 }
 
@@ -9151,12 +9248,18 @@ body.role-helper #team-subnav-orders {
     flex: 0 0 auto;
     flex-direction: column;
     align-items: stretch;
-    margin-top: 12px;
-    padding: 12px 8px 4px;
+    margin-top: auto;
+    padding: 8px 8px 4px;
     border-left: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
-    background: color-mix(in srgb, var(--accent-action) 14%, rgba(0, 0, 0, 0.22));
+    background: transparent;
+  }
+
+  body.app-shell-sidebar .admin-nav-trigger {
+    width: 100%;
+    height: 48px;
+    justify-content: flex-start;
   }
 
   body.app-shell-sidebar .app-nav-zone--admin .app-nav-zone-label {

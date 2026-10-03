@@ -1,6 +1,6 @@
-const CACHE_NAME = 'charculogic-v20261003-bugfixes-v1';
+const CACHE_NAME = 'charculogic-v20261003-bottom-bar-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-03T13:20:00+02:00';
+const RELEASED_AT = '2026-10-03T14:08:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -164,7 +164,7 @@ self.addEventListener('notificationclick', (event) => {
 
 const OFFLINE_FALLBACK_HTML = [
   '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">',
-  '<meta name="viewport" content="width=device-width,initial-scale=1">',
+  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">',
   '<title>HofSync</title>',
   '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;',
   'display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1a1a2e;color:#e0e0e0;',

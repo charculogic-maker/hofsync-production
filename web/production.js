@@ -17,6 +17,7 @@ import {
   openProductionDatasheetPrint,
 } from './production-datasheet.js';
 import { generateIngredientDeclaration } from './domain-core.js';
+import { flushPendingSyncs } from './sync.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
@@ -5819,29 +5820,39 @@ async function refreshGallowayProcessingStockPanel() {
   }
 }
 
-async function upsertYieldInventoryLot(docId, payload) {
-  const ref = getTenantCollection('inventory').doc(docId);
-  let exists = false;
-  try {
-    const snap = await ref.get();
-    exists = Boolean(snap.exists);
-  } catch {
-    exists = false;
+async function writeTenantDocOnlineOrQueue({
+  collectionName,
+  docId,
+  onlineData,
+  queueData,
+  offlineMessage,
+}) {
+  const collectionPath = getTenantCollectionPath(collectionName);
+  const online = typeof navigator === 'undefined' || navigator.onLine;
+  if (online && productionState.db && docId) {
+    try {
+      await getTenantCollection(collectionName).doc(docId).set(onlineData, { merge: true });
+      return 'written';
+    } catch (err) {
+      console.warn(`[Galloway] Direktes Schreiben in ${collectionName} fehlgeschlagen, Queue wird genutzt:`, err);
+    }
   }
-  if (exists) {
-    await ref.update({
-      artikel: payload.artikel,
-      menge: payload.menge,
-      kategorie: payload.kategorie,
-      updatedAt: serverTimestampFallback(),
-    });
-    return;
-  }
-  await productionState.writeOrQueueFirestore({
-    collectionPath: getTenantCollectionPath('inventory'),
+  const result = await productionState.writeOrQueueFirestore({
+    collectionPath,
     docId,
     op: 'set',
-    onlineData: payload,
+    onlineData,
+    queueData,
+    offlineMessage,
+  });
+  return result === 'written' ? 'written' : 'queued';
+}
+
+async function upsertYieldInventoryLot(docId, payload) {
+  return writeTenantDocOnlineOrQueue({
+    collectionName: 'inventory',
+    docId,
+    onlineData: { ...payload, updatedAt: serverTimestampFallback() },
     queueData: { ...payload, createdAt: new Date().toISOString() },
     offlineMessage: 'Verarbeitungsfleisch wird nachträglich ins Magazin gebucht.',
   });
@@ -5886,7 +5897,6 @@ export async function saveGallowayYieldToLogbook(report) {
   if (!charge) throw new Error('Charge fehlt');
   const chargeId = getSafeFirestoreId(charge).slice(0, 120);
   const totals = report.totals || {};
-  const yieldPath = getTenantCollectionPath('zerlegung_ausbeute');
   const yieldDoc = {
     id: chargeId,
     chargenNummer: charge,
@@ -5925,10 +5935,9 @@ export async function saveGallowayYieldToLogbook(report) {
     tenantId,
     quelle: 'galloway-zerlegung',
   };
-  await productionState.writeOrQueueFirestore({
-    collectionPath: yieldPath,
+  const yieldWrite = await writeTenantDocOnlineOrQueue({
+    collectionName: 'zerlegung_ausbeute',
     docId: chargeId,
-    op: 'set',
     onlineData: { ...yieldDoc, updatedAt: serverTimestampFallback() },
     queueData: { ...yieldDoc, updatedAt: new Date().toISOString() },
     offlineMessage: 'Ausbeute-Protokoll wird nachträglich ins Chargenbuch geschrieben.',
@@ -5974,7 +5983,18 @@ export async function saveGallowayYieldToLogbook(report) {
   }
   rememberYieldStock(stockLots);
   await refreshGallowayProcessingStockPanel();
-  return { chargeId, lots: stockLots.map((lot) => lot.id) };
+  if (typeof navigator === 'undefined' || navigator.onLine) {
+    try {
+      await flushPendingSyncs();
+    } catch (err) {
+      console.warn('[Galloway] Warteschlange konnte nicht geleert werden:', err);
+    }
+  }
+  return {
+    chargeId,
+    lots: stockLots.map((lot) => lot.id),
+    queued: yieldWrite !== 'written',
+  };
 }
 
 window.saveGallowayYieldToLogbook = saveGallowayYieldToLogbook;
