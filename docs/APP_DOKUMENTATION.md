@@ -188,6 +188,18 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - Fleischpreis-Update-Button nur für Büro-Admins
 - Modul deaktiviert für Mandant `torfabrik`
 
+#### Galloway-Zerlegung, Avery-Etiketten und Ausbeute (`web/beef-labels.js`)
+
+- Einstieg: Button **Galloway Zerlegung / Avery 3475** im Tab **Neu** und in **Prod.**
+- Etiketten: Avery Zweckform 3475, A4 hoch, 3 x 8 Nutzen, Standard-Prefix **Bio-Galloway**
+- Lokaler Arbeitskorb: `localStorage`-Keys `hofsync.beefLabels.v1`, `hofsync_custom_beef_cuts`, `zerlegung_label_prefix`
+- Stammdaten je Charge: Charge, Ohrmarke/Pass-Nr., Schlacht-/Zerlegedatum, Herkunft, Betrieb, Schlachtgewicht kalt/warm bzw. Hälften, Start-Slot auf bereits angebrochenem Bogen
+- Ausbeute: Teilstücke werden in Kategorien (Edelteile, Braten, Verarbeitung, Knochen, Innereien, Fett/Verlust) summiert; R I/R II/R III können manuell überschrieben werden
+- Speichern: `window.saveGallowayYieldToLogbook` → `saveGallowayYieldToLogbook()` in `web/production.js`
+- Persistenz (tenant-scoped): `zerlegung_ausbeute/{chargeId}`, `inventory/{galloway-<charge>-ri|rii|riii}`, `produktion_chargen/{sameDocId}`
+- Offline: Schreibvorgänge laufen über `writeOrQueueFirestore`; bei Offline-/Permission-Problemen werden Protokoll und Rohstoffchargen in die Sync-Queue gelegt
+- Folgefluss in Prod.: Das Panel **Verarbeitungsfleisch aus der Zerlegung** liest `inventory` mit `source == "zerlegung_ausbeute"` und bietet R I/R II/R III-Lose zur Auswahl für neue Produktionschargen an
+
 ### HACCP (`web/haccp.js`)
 
 Drei Bereiche über Modus-Leiste:
@@ -443,9 +455,10 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `mhd_liste` | MHD-Posten |
 | `wareneingang_lieferungen` | Lieferungen inkl. Fotos |
 | `stammdaten` | Artikelstammdaten |
-| `inventory` | KI-Lieferschein-Bestand (TorFabrik) |
+| `inventory` | KI-Lieferschein-Bestand (TorFabrik) und Galloway-Rohstofflose (`source: "zerlegung_ausbeute"`) |
 | `rezepte` | Rezepturen |
 | `produktion_chargen` | Produktionschargen |
+| `zerlegung_ausbeute` | Galloway-Ausbeuteprotokolle je Schlacht-/Zerlegecharge |
 | `fleischpreise` | Wochen-Fleischpreise (nur Functions schreiben) |
 | `haccp_geraete` | HACCP-Messpunkte/Geräte |
 | `haccp_logs` | HACCP-Protokolle (immutable) |
@@ -476,7 +489,7 @@ Pfad-Helfer im Client: `web/tenant-db.js` → `getTenantCollection(name)`.
 
 ## 12. Sicherheit (Kurzüberblick)
 
-- **Mandantenisolation:** Firestore Rules prüfen `request.auth.token.tenantId` gegen Pfad — kein Profil-Fallback für Schreibzugriffe
+- **Mandantenisolation:** Firestore Rules prüfen grundsätzlich `request.auth.token.tenantId` gegen Pfad — Details und aktuelle Caveats siehe `TECHNIK_BACKEND.md`
 - **App Check:** Pflicht für alle Callables (`parseDeliveryNote`, `verifyTerminalPin`, `triggerManualMeatPriceRun`)
 - **Helper:** read-only für operative Collections
 - **HACCP-Logs:** nach Create nicht änderbar/löschbar
