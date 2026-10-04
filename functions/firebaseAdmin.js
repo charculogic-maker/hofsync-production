@@ -3,7 +3,7 @@
  * Auth and Firestore receive that same instance. Never look it up
  * with getApp() after a different module initialized it.
  */
-const { initializeApp, getApps } = require('firebase-admin');
+const { initializeApp, getApps } = require('firebase-admin/app');
 
 const DEFAULT_APP_NAME = '[DEFAULT]';
 
