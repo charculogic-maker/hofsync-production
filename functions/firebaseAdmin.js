@@ -1,6 +1,6 @@
 /**
  * Namespaced Admin SDK facade for firebase-admin v14+ (modular-only).
- * Keeps existing call sites on admin.auth() / admin.firestore() / admin.messaging().
+ * Service modules load only after initializeApp(), never at require() time.
  */
 const {
   initializeApp,
@@ -11,14 +11,6 @@ const {
   refreshToken,
   deleteApp,
 } = require('firebase-admin/app');
-const {
-  getFirestore,
-  FieldValue,
-  Timestamp,
-} = require('firebase-admin/firestore');
-const { getAuth } = require('firebase-admin/auth');
-const { getMessaging } = require('firebase-admin/messaging');
-const { getStorage } = require('firebase-admin/storage');
 
 function ensureAdminApp(options) {
   if (!getApps().length) {
@@ -27,17 +19,53 @@ function ensureAdminApp(options) {
   return getApp();
 }
 
+function loadFirestoreLib() {
+  const lib = require('firebase-admin/firestore');
+  firestore.FieldValue = lib.FieldValue;
+  firestore.Timestamp = lib.Timestamp;
+  return lib;
+}
+
 function firestore(...args) {
   const app = ensureAdminApp();
+  const { getFirestore } = loadFirestoreLib();
   return args.length ? getFirestore(...args) : getFirestore(app);
 }
 
-firestore.FieldValue = FieldValue;
-firestore.Timestamp = Timestamp;
+function auth(...args) {
+  const app = ensureAdminApp();
+  const { getAuth } = require('firebase-admin/auth');
+  return args.length ? getAuth(...args) : getAuth(app);
+}
+
+function storage(...args) {
+  const app = ensureAdminApp();
+  const { getStorage } = require('firebase-admin/storage');
+  return args.length ? getStorage(...args) : getStorage(app);
+}
+
+function messaging(...args) {
+  const app = ensureAdminApp();
+  const { getMessaging } = require('firebase-admin/messaging');
+  return args.length ? getMessaging(...args) : getMessaging(app);
+}
+
+function getAdminAuth() {
+  if (!getApps().length) initializeApp();
+  return auth();
+}
+
+function getAdminDb() {
+  if (!getApps().length) initializeApp();
+  return firestore();
+}
 
 module.exports = {
   initializeApp: (options) => ensureAdminApp(options),
   ensureAdminApp,
+  ensureFirestoreStatics: loadFirestoreLib,
+  getAdminAuth,
+  getAdminDb,
   getApps,
   getApp,
   deleteApp,
@@ -47,17 +75,8 @@ module.exports = {
   get apps() {
     return getApps();
   },
-  auth(...args) {
-    const app = ensureAdminApp();
-    return args.length ? getAuth(...args) : getAuth(app);
-  },
+  auth,
   firestore,
-  storage(...args) {
-    const app = ensureAdminApp();
-    return args.length ? getStorage(...args) : getStorage(app);
-  },
-  messaging(...args) {
-    const app = ensureAdminApp();
-    return args.length ? getMessaging(...args) : getMessaging(app);
-  },
+  storage,
+  messaging,
 };

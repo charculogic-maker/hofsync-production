@@ -3,10 +3,31 @@
  * Callable: provisionDemoTenant
  */
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const admin = require('./firebaseAdmin');
-const adminDb = require('./adminDb');
 const { roleFromToken } = require('./authContext');
 const { isSuperAdminForDashboard } = require('./superAdmin');
+
+function loadAdmin() {
+  return require('./firebaseAdmin');
+}
+
+function getAdminAuth() {
+  const admin = loadAdmin();
+  if (!admin.apps.length) admin.initializeApp();
+  return admin.auth();
+}
+
+function getAdminDb() {
+  const admin = loadAdmin();
+  if (!admin.apps.length) admin.initializeApp();
+  return admin.firestore();
+}
+
+function getFieldValue() {
+  const admin = loadAdmin();
+  if (!admin.apps.length) admin.initializeApp();
+  if (typeof admin.ensureFirestoreStatics === 'function') admin.ensureFirestoreStatics();
+  return admin.firestore.FieldValue;
+}
 
 const REGION = 'europe-west3';
 
@@ -96,10 +117,10 @@ function buildEnabledModules(modules) {
 
 async function findOrCreateAuthUser({ email, adminName }) {
   try {
-    const existing = await admin.auth().getUserByEmail(email);
+    const existing = await getAdminAuth().getUserByEmail(email);
     if (adminName && existing.displayName !== adminName) {
       try {
-        await admin.auth().updateUser(existing.uid, { displayName: adminName });
+        await getAdminAuth().updateUser(existing.uid, { displayName: adminName });
       } catch (_) {
         /* non-fatal */
       }
@@ -112,7 +133,7 @@ async function findOrCreateAuthUser({ email, adminName }) {
   }
 
   try {
-    const userRecord = await admin.auth().createUser({
+    const userRecord = await getAdminAuth().createUser({
       email,
       displayName: adminName,
       emailVerified: false,
@@ -121,7 +142,7 @@ async function findOrCreateAuthUser({ email, adminName }) {
     return { userRecord, created: true };
   } catch (err) {
     if (err?.code === 'auth/email-already-exists') {
-      const existing = await admin.auth().getUserByEmail(email);
+      const existing = await getAdminAuth().getUserByEmail(email);
       return { userRecord: existing, created: false };
     }
     if (err?.code === 'auth/invalid-email') {
@@ -137,9 +158,8 @@ async function findOrCreateAuthUser({ email, adminName }) {
 }
 
 async function handleProvisionDemoTenant(request) {
-  if (!admin.apps.length) {
-    admin.initializeApp();
-  }
+  const admin = loadAdmin();
+  if (!admin.apps.length) admin.initializeApp();
   try {
     const auth = request?.auth;
     const data = request?.data || {};
@@ -180,7 +200,7 @@ async function provisionDemoTenantInner(auth, data) {
     );
   }
 
-  const tenantRef = adminDb.firestore().doc(`tenants/${tenantId}`);
+  const tenantRef = getAdminDb().doc(`tenants/${tenantId}`);
   const existingTenant = await tenantRef.get();
   if (existingTenant.exists) {
     throw new HttpsError(
@@ -201,7 +221,7 @@ async function provisionDemoTenantInner(auth, data) {
   };
 
   try {
-    await admin.auth().setCustomUserClaims(userRecord.uid, claims);
+    await getAdminAuth().setCustomUserClaims(userRecord.uid, claims);
   } catch (err) {
     console.error('[provisionDemoTenant] setCustomUserClaims failed:', err);
     throw new HttpsError(
@@ -212,7 +232,7 @@ async function provisionDemoTenantInner(auth, data) {
   }
 
   const enabledModules = buildEnabledModules(modules);
-  const now = adminDb.FieldValue.serverTimestamp();
+  const now = getFieldValue().serverTimestamp();
   const brandingPayload = {
     companyName,
     themeColor: '#1e293b',
@@ -224,7 +244,7 @@ async function provisionDemoTenantInner(auth, data) {
   };
 
   try {
-    const batch = adminDb.firestore().batch();
+    const batch = getAdminDb().batch();
     batch.set(tenantRef, {
       displayName: companyName,
       status: 'active',
@@ -236,7 +256,7 @@ async function provisionDemoTenantInner(auth, data) {
     });
     batch.set(tenantRef.collection('settings').doc('branding'), brandingPayload);
     batch.set(tenantRef.collection('settings').doc('modules'), modulesPayload);
-    batch.set(adminDb.firestore().doc(`users/${userRecord.uid}`), {
+    batch.set(getAdminDb().doc(`users/${userRecord.uid}`), {
       email: adminEmail,
       displayName: adminName,
       tenantId,
@@ -258,7 +278,7 @@ async function provisionDemoTenantInner(auth, data) {
 
   let inviteLink = '';
   try {
-    inviteLink = await admin.auth().generatePasswordResetLink(adminEmail, {
+    inviteLink = await getAdminAuth().generatePasswordResetLink(adminEmail, {
       url: continueUrl,
       handleCodeInApp: false,
     });
@@ -305,9 +325,8 @@ exports.provisionDemoTenant = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
+    const admin = loadAdmin();
+    if (!admin.apps.length) admin.initializeApp();
     const auth = request?.auth;
     const data = request?.data || {};
     return handleProvisionDemoTenant({ ...(request || {}), auth, data });

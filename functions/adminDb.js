@@ -23,10 +23,12 @@ if (global.__CRAFT_ADMINDB_MOCK__) {
     ensureApp,
     get FieldValue() {
       ensureApp();
+      if (typeof admin.ensureFirestoreStatics === 'function') admin.ensureFirestoreStatics();
       return admin.firestore.FieldValue;
     },
     get Timestamp() {
       ensureApp();
+      if (typeof admin.ensureFirestoreStatics === 'function') admin.ensureFirestoreStatics();
       return admin.firestore.Timestamp;
     },
   };
