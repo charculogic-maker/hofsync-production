@@ -1701,7 +1701,9 @@ async function awaitFirebaseAuthSignOut(options = {}) {
       if (!isFirebaseConfigValid(toFirebaseSdkConfig(firebaseConfig))) return;
       ensureFirebaseApp(firebase);
     }
-    await firebase.auth().signOut();
+    const authApp = window.firebaseApp || firebase.app();
+    const auth = typeof authApp.auth === 'function' ? authApp.auth() : firebase.auth(authApp);
+    await auth.signOut();
   } catch (err) {
     console.warn('[CharcuLogic Auth] Firebase signOut fehlgeschlagen:', err);
   }
@@ -2206,12 +2208,16 @@ function waitForAuthBootstrap(timeoutMs = FIREBASE_BOOT_GRACE_MS) {
     };
     const timer = setTimeout(finish, timeoutMs);
     try {
-      if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') {
+      const authApp = window.firebaseApp || (firebase.apps?.length ? firebase.app() : null);
+      const auth = authApp && typeof authApp.auth === 'function'
+        ? authApp.auth()
+        : (authApp && typeof firebase.auth === 'function' ? firebase.auth(authApp) : null);
+      if (!auth) {
         clearTimeout(timer);
         finish();
         return;
       }
-      const unsubscribe = firebase.auth().onAuthStateChanged(() => {
+      const unsubscribe = auth.onAuthStateChanged(() => {
         unsubscribe();
         clearTimeout(timer);
         finish();
@@ -2282,21 +2288,21 @@ function initFirebase() {
     return false;
   }
   try {
-    ensureFirebaseApp(firebase);
+    const app = ensureFirebaseApp(firebase);
     assertFirebaseProjectIsolation(firebase);
     // TEMP: Emulatoren deaktiviert — localhost spricht Live-Staging (Auth/Firestore).
     // if (shouldUseFirebaseEmulators()) {
     //   attachLocalFirebaseEmulators(firebase);
     // }
-    db = firebase.firestore();
+    db = typeof app.firestore === 'function' ? app.firestore() : firebase.firestore(app);
     initTenantDb(db);
-    if (typeof firebase.auth === 'function') {
-      firebase.auth();
+    if (typeof app.auth === 'function') {
+      app.auth();
+    } else if (typeof firebase.auth === 'function') {
+      firebase.auth(app);
     }
-    if (typeof firebase.functions === 'function') {
-      getRegionalFunctions(firebase, FUNCTIONS_REGION);
-      console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
-    }
+    getRegionalFunctions(firebase, FUNCTIONS_REGION);
+    console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
     firebasePersistencePromise = Promise.race([
       db.enablePersistence().catch((err) => {
         console.warn('Firestore Persistence Error:', err?.code || err);
@@ -2351,6 +2357,7 @@ async function bootstrapFirebaseCore() {
 }
 
 const firebaseCoreReadyPromise = Promise.resolve().then(() => bootstrapFirebaseCore());
+window.firebaseCoreReadyPromise = firebaseCoreReadyPromise;
 registerFirebaseCoreReady(firebaseCoreReadyPromise);
 
 async function waitForFirebaseCore() {

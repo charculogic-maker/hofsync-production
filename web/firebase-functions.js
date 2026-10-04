@@ -2,6 +2,7 @@
  * Cloud Functions – Region und Base-URL abhängig vom aktiven Firebase-Projekt.
  */
 import { resolveFirebaseConfig, resolveFirebaseProjectKey } from './firebase-config.js';
+import { getFirebaseApp } from './firebase-init.js';
 
 export const FUNCTIONS_REGION = 'europe-west3';
 
@@ -25,11 +26,11 @@ export function getRegionalFunctions(
   firebaseApi = typeof firebase !== 'undefined' ? firebase : null,
   region = FUNCTIONS_REGION,
 ) {
-  if (!firebaseApi?.apps?.length) {
+  const app = getFirebaseApp(firebaseApi);
+  if (!app) {
     throw new Error('Firebase App muss vor Functions-Aufrufen initialisiert sein.');
   }
   const expectedProjectId = resolveFunctionsProjectId();
-  const app = typeof firebaseApi.app === 'function' ? firebaseApi.app() : firebaseApi.apps[0];
   const activeProjectId = String(app?.options?.projectId || '').trim();
   if (activeProjectId && expectedProjectId && activeProjectId !== expectedProjectId) {
     console.warn(
@@ -41,10 +42,10 @@ export function getRegionalFunctions(
 
   const requestedRegion = String(region || FUNCTIONS_REGION).trim() || FUNCTIONS_REGION;
 
-  // Compat-Äquivalent zu getFunctions(getApp(), 'europe-west3'):
-  // firebase.app().functions('europe-west3'). firebase.functions(app) ohne Region
-  // fällt auf us-central1 zurück (stumme NOT_FOUND / CORS).
-  if (app && typeof app.functions === 'function') {
+  // Compat-Äquivalent zu getFunctions(app, 'europe-west3').
+  // Niemals firebase.functions() / getFunctions() ohne App — das löst
+  // "default Firebase app does not exist" aus.
+  if (typeof app.functions === 'function') {
     try {
       const fromApp = app.functions(requestedRegion);
       if (fromApp && typeof fromApp.httpsCallable === 'function') {
@@ -55,13 +56,15 @@ export function getRegionalFunctions(
     }
   }
 
-  if (typeof firebaseApi.functions === 'function') {
+  if (firebaseApi && typeof firebaseApi.functions === 'function') {
     try {
       const viaNamespace = firebaseApi.functions(app, requestedRegion);
       if (viaNamespace && typeof viaNamespace.httpsCallable === 'function') {
         return viaNamespace;
       }
-    } catch (_) { /* Namespace-Variante ohne explizite Region */ }
+    } catch (err) {
+      console.warn('[CharcuLogic Functions] firebase.functions(app, region) fehlgeschlagen:', requestedRegion, err);
+    }
   }
 
   throw new Error('Firebase Functions SDK fehlt (httpsCallable).');

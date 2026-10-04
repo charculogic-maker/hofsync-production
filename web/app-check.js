@@ -4,6 +4,7 @@
  */
 import { isLocalDevHost } from './dev-guards.js';
 import { getAppCheckSiteKey, resolveFirebaseProjectKey } from './firebase-config.js';
+import { getFirebaseApp } from './firebase-init.js';
 
 const DEBUG_TOKEN_STORAGE_KEY = 'charculogic_appcheck_debug_token';
 
@@ -27,13 +28,15 @@ export function configureAppCheckDebugProvider() {
   }
 }
 
-function assertCompatAppCheckAvailable() {
-  if (typeof firebase === 'undefined' || !firebase.apps?.length) {
+function appCheckForApp(app) {
+  if (!app) {
     throw new Error('[AppCheck] Firebase App muss vor App Check initialisiert sein.');
   }
-  if (typeof firebase.appCheck !== 'function') {
-    throw new Error('[AppCheck] firebase-app-check-compat.js fehlt in index.html.');
+  if (typeof app.appCheck === 'function') return app.appCheck();
+  if (typeof firebase !== 'undefined' && typeof firebase.appCheck === 'function') {
+    return firebase.appCheck(app);
   }
+  throw new Error('[AppCheck] firebase-app-check-compat.js fehlt in index.html.');
 }
 
 /**
@@ -82,7 +85,10 @@ export function initAppCheckModule() {
 
   appCheckReadyPromise = (async () => {
     try {
-      assertCompatAppCheckAvailable();
+      const app = getFirebaseApp();
+      if (!app) {
+        throw new Error('[AppCheck] Firebase App muss vor App Check initialisiert sein.');
+      }
 
       const projectKey = resolveFirebaseProjectKey();
       const siteKey = getAppCheckSiteKey(projectKey);
@@ -94,7 +100,7 @@ export function initAppCheckModule() {
 
       configureAppCheckDebugProvider();
 
-      const appCheck = firebase.appCheck();
+      const appCheck = appCheckForApp(app);
       appCheck.activate(
         new firebase.appCheck.ReCaptchaV3Provider(siteKey),
         true,

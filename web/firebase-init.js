@@ -106,7 +106,20 @@ export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' 
     firebaseApi.initializeApp(toFirebaseSdkConfig(resolveFirebaseConfig()));
     logProjectIsolation(firebaseApi);
   }
-  return firebaseApi.app();
+  const app = firebaseApi.app();
+  if (typeof window !== 'undefined') window.firebaseApp = app;
+  return app;
+}
+
+/** Bereits initialisierte Compat-App. Kein parameterloses getApp(). */
+export function getFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
+  if (typeof window !== 'undefined' && window.firebaseApp) return window.firebaseApp;
+  if (firebaseApi?.apps?.length && typeof firebaseApi.app === 'function') {
+    const app = firebaseApi.app();
+    if (typeof window !== 'undefined') window.firebaseApp = app;
+    return app;
+  }
+  return null;
 }
 
 export function logProjectIsolation(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {

@@ -2,7 +2,8 @@
  * Fast-Onboarding: Test-Mandant anlegen + Einladungs-Link (provisionDemoTenant).
  * Sichtbar für Büro-Admins (isOfficeUser) in #page-batches und im Dev-Dashboard.
  */
-import { createHttpsCallable, resolveFunctionsBaseUrl } from './firebase-functions.js';
+import { FUNCTIONS_REGION, resolveFunctionsBaseUrl } from './firebase-functions.js';
+import { getFirebaseApp } from './firebase-init.js';
 import { isAppCheckInitialized, isRecaptchaAppCheckError, waitForAppCheckReady } from './app-check.js';
 import { getAuthContext, isOfficeUser } from './auth.js';
 
@@ -16,19 +17,53 @@ const MODULE_DEFS = [
 
 let provisionCallable = null;
 
+async function whenFirebaseCoreReady() {
+  if (typeof window !== 'undefined' && window.firebaseCoreReadyPromise) {
+    await window.firebaseCoreReadyPromise;
+  }
+}
+
+function resolveOnboardingApp() {
+  const app = (typeof window !== 'undefined' && window.firebaseApp) || getFirebaseApp();
+  if (!app) {
+    throw new Error('Firebase App ist nicht initialisiert. Bitte neu laden.');
+  }
+  return app;
+}
+
+function functionsForApp(app) {
+  if (typeof app.functions === 'function') {
+    return app.functions(FUNCTIONS_REGION);
+  }
+  if (typeof firebase !== 'undefined' && typeof firebase.functions === 'function') {
+    return firebase.functions(app, FUNCTIONS_REGION);
+  }
+  throw new Error('Firebase Functions SDK fehlt (httpsCallable).');
+}
+
+function authForApp(app) {
+  if (typeof app.auth === 'function') return app.auth();
+  if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') return firebase.auth(app);
+  return null;
+}
+
 function getProvisionCallable() {
   if (provisionCallable) return provisionCallable;
-  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
-  if (!firebaseApi?.apps?.length) return null;
-  provisionCallable = createHttpsCallable('provisionDemoTenant', { timeout: 60000 }, firebaseApi);
+  const app = resolveOnboardingApp();
+  const functions = functionsForApp(app);
+  provisionCallable = functions.httpsCallable('provisionDemoTenant', { timeout: 60000 });
   return provisionCallable;
 }
 
 function readAppCheckService() {
   try {
-    if (typeof firebase === 'undefined' || typeof firebase.appCheck !== 'function') return null;
-    if (!firebase.apps?.length) return null;
-    return firebase.appCheck();
+    const app = (typeof window !== 'undefined' && window.firebaseApp) || getFirebaseApp();
+    if (!app) return null;
+    if (typeof app.appCheck === 'function') return app.appCheck();
+    if (typeof firebase !== 'undefined' && typeof firebase.appCheck === 'function') {
+      return firebase.appCheck(app);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -74,7 +109,8 @@ async function invokeProvisionCallable(payload) {
 }
 
 async function postProvisionWithoutAppCheck(payload) {
-  const user = typeof firebase !== 'undefined' ? firebase.auth?.().currentUser : null;
+  const app = resolveOnboardingApp();
+  const user = authForApp(app)?.currentUser || null;
   if (!user) {
     const err = new Error('Bitte zuerst anmelden.');
     err.code = 'functions/unauthenticated';
@@ -101,6 +137,7 @@ async function postProvisionWithoutAppCheck(payload) {
 }
 
 async function callProvisionDemoTenant(payload) {
+  await whenFirebaseCoreReady();
   try {
     await waitForAppCheckReady();
   } catch (err) {
@@ -259,6 +296,9 @@ function resetCard(root) {
 function bindForm(root) {
   if (!root || root.dataset.bound === '1') return;
   root.dataset.bound = '1';
+  if (typeof window !== 'undefined' && window.firebaseCoreReadyPromise) {
+    window.firebaseCoreReadyPromise.catch(() => {});
+  }
 
   const form = root.querySelector('[data-fast-onboarding-form]');
   if (!form) return;
@@ -280,6 +320,9 @@ function bindForm(root) {
     if (resultBox) resultBox.hidden = true;
 
     try {
+      if (window.firebaseCoreReadyPromise) {
+        await window.firebaseCoreReadyPromise;
+      }
       const response = await callProvisionDemoTenant({
         companyName,
         adminName,
@@ -344,14 +387,20 @@ export function syncFastOnboardingVisibility() {
   });
 }
 
-export function initFastOnboarding() {
+export async function initFastOnboarding() {
+  try {
+    await whenFirebaseCoreReady();
+  } catch (err) {
+    console.warn('[fast-onboarding] Firebase-Core nicht bereit:', err?.message || err);
+  }
   syncFastOnboardingVisibility();
   try {
-    firebase?.auth?.()?.onAuthStateChanged(() => {
+    const auth = authForApp(resolveOnboardingApp());
+    auth?.onAuthStateChanged(() => {
       syncFastOnboardingVisibility();
     });
-  } catch (_) {
-    /* auth not ready */
+  } catch (err) {
+    console.warn('[fast-onboarding] Auth-Listener übersprungen:', err?.message || err);
   }
   window.addEventListener('charculogic:auth-changed', () => {
     syncFastOnboardingVisibility();
