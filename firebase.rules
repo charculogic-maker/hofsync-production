@@ -273,7 +273,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/inventory/{docId} {
-      allow read, write: if request.auth != null && (request.auth.token.tenantId == tenantId || request.auth.token.role in ['admin', 'employee']);
+      allow read, write: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && (request.auth.token.role in ['admin', 'employee']);
     }
 
     // =========================================================================
@@ -356,7 +358,9 @@ service cloud.firestore {
 
     // Galloway-Zerlegung: Ausbeute-Protokoll im Chargenbuch
     match /tenants/{tenantId}/zerlegung_ausbeute/{docId} {
-      allow read, write: if request.auth != null && (request.auth.token.tenantId == tenantId || request.auth.token.role == 'admin');
+      allow read, write: if request.auth != null
+        && request.auth.token.tenantId == tenantId
+        && request.auth.token.role == 'admin';
     }
 
     // =========================================================================
