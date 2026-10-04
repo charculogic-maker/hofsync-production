@@ -190,7 +190,16 @@ lazyExport('provisionDemoTenant', () => callable(
     cors: true,
     enforceAppCheck: false,
   },
-  withAdmin(async (request) => require('./tenantAdmin').handleProvisionDemoTenant(request)),
+  // v2 onCall passes a single CallableRequest. Do not use the v1 (data, context) signature.
+  withAdmin(async (request) => {
+    const auth = request?.auth;
+    const data = request?.data || {};
+    return require('./tenantAdmin').handleProvisionDemoTenant({
+      ...(request || {}),
+      auth,
+      data,
+    });
+  }),
 ));
 
 lazyExport('triggerManualMeatPriceRun', () => callable(

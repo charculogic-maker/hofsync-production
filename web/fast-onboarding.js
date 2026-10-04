@@ -34,7 +34,7 @@ function readModules(form) {
 }
 
 function detailText(err) {
-  const details = err?.details;
+  const details = err?.details ?? err?.customData;
   if (typeof details === 'string') return details.trim();
   if (details && typeof details === 'object') {
     return String(details.reason || details.message || '').trim();

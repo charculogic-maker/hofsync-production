@@ -59,30 +59,24 @@ function normalizeModules(raw) {
 }
 
 /**
- * Platform admins only: token.role === 'admin' OR CharcuLogic super-admin.
- * Creating tenants is intentionally not available to shopfloor employees/helpers.
+ * Office admins (token.role === 'admin') and platform admins.
+ * Shopfloor employees and helpers cannot create tenants.
+ * v2 callable auth lives on request.auth — never a v1 (data, context) pair.
  */
 function assertProvisionAccess(auth) {
-  if (!auth?.uid) {
+  if (!auth) {
     throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
   }
-  const role = roleFromToken(auth.token || {});
-  const isAdminRole = role === 'admin';
-  const isSuper = isSuperAdminForDashboard(auth);
-  if (!isAdminRole && !isSuper) {
+  const token = auth.token || {};
+  const role = roleFromToken(token);
+  const isPlatformAdmin = token.isPlatformAdmin === true || isSuperAdminForDashboard(auth);
+  if (role !== 'admin' && token.role !== 'admin' && !isPlatformAdmin) {
     throw new HttpsError(
       'permission-denied',
-      'Nur Admins dürfen Demo-Mandanten anlegen.',
+      'Keine Berechtigung: Nur Admins dürfen Test-Mandanten anlegen.',
     );
   }
-  // Tenant-Admins of an existing shop must not spin up arbitrary new tenants.
-  if (!isSuper) {
-    throw new HttpsError(
-      'permission-denied',
-      'Demo-Mandanten dürfen nur von Plattform-Admins angelegt werden.',
-    );
-  }
-  return { uid: auth.uid, role: role || 'admin', isSuperAdmin: isSuper };
+  return { uid: auth.uid, role: role || 'admin', isSuperAdmin: isPlatformAdmin };
 }
 
 function buildEnabledModules(modules) {
@@ -144,22 +138,25 @@ async function findOrCreateAuthUser({ email, adminName }) {
 
 async function handleProvisionDemoTenant(request) {
   try {
-    return await provisionDemoTenantInner(request);
+    const auth = request?.auth;
+    const data = request?.data || {};
+    return await provisionDemoTenantInner(auth, data);
   } catch (err) {
+    console.error('[provisionDemoTenant Error]:', err);
     if (err instanceof HttpsError) throw err;
-    console.error('[provisionDemoTenant] failed:', err);
-    throw new HttpsError('internal', err?.message || 'Tenant provisioning failed.');
+    throw new HttpsError('internal', err?.message || 'Fehler beim Anlegen des Test-Mandanten.');
   }
 }
 
-async function provisionDemoTenantInner(request) {
-  const ctx = assertProvisionAccess(request.auth);
+async function provisionDemoTenantInner(auth, data) {
+  const ctx = assertProvisionAccess(auth);
+  const payload = data && typeof data === 'object' ? data : {};
 
-  const companyName = normalizeDisplayName(request.data?.companyName);
-  const adminEmail = normalizeEmail(request.data?.adminEmail);
-  const adminName = normalizeDisplayName(request.data?.adminName);
-  const modules = normalizeModules(request.data?.modules);
-  const continueUrl = String(request.data?.continueUrl || DEFAULT_CONTINUE_URL).trim()
+  const companyName = normalizeDisplayName(payload.companyName);
+  const adminEmail = normalizeEmail(payload.adminEmail);
+  const adminName = normalizeDisplayName(payload.adminName);
+  const modules = normalizeModules(payload.modules);
+  const continueUrl = String(payload.continueUrl || DEFAULT_CONTINUE_URL).trim()
     || DEFAULT_CONTINUE_URL;
 
   if (!companyName) {
@@ -305,12 +302,8 @@ exports.provisionDemoTenant = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    try {
-      return await handleProvisionDemoTenant(request);
-    } catch (err) {
-      if (err instanceof HttpsError) throw err;
-      console.error('[provisionDemoTenant] callable failed:', err);
-      throw new HttpsError('internal', err?.message || 'Tenant provisioning failed.');
-    }
+    const auth = request?.auth;
+    const data = request?.data || {};
+    return handleProvisionDemoTenant({ ...(request || {}), auth, data });
   },
 );
