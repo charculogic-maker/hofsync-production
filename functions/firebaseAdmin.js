@@ -1,22 +1,16 @@
 /**
- * Namespaced Admin SDK facade for firebase-admin v14+ (modular-only).
- * Service modules load only after initializeApp(), never at require() time.
+ * One Admin app for every service. initializeApp() returns the app;
+ * Auth and Firestore receive that same instance. Never look it up
+ * with getApp() after a different module initialized it.
  */
-const {
-  initializeApp,
-  getApps,
-  getApp,
-  applicationDefault,
-  cert,
-  refreshToken,
-  deleteApp,
-} = require('firebase-admin/app');
+const { initializeApp, getApps } = require('firebase-admin');
 
-function ensureAdminApp(options) {
-  if (!getApps().length) {
-    initializeApp(options);
-  }
-  return getApp();
+const DEFAULT_APP_NAME = '[DEFAULT]';
+
+function ensureAdminApp() {
+  const existing = getApps().find((app) => app.name === DEFAULT_APP_NAME);
+  if (existing) return existing;
+  return initializeApp();
 }
 
 function loadFirestoreLib() {
@@ -26,52 +20,46 @@ function loadFirestoreLib() {
   return lib;
 }
 
-function firestore(...args) {
+function getAdminDb() {
   const app = ensureAdminApp();
-  const { getFirestore } = loadFirestoreLib();
-  return args.length ? getFirestore(...args) : getFirestore(app);
-}
-
-function auth(...args) {
-  const app = ensureAdminApp();
-  const { getAuth } = require('firebase-admin/auth');
-  return args.length ? getAuth(...args) : getAuth(app);
-}
-
-function storage(...args) {
-  const app = ensureAdminApp();
-  const { getStorage } = require('firebase-admin/storage');
-  return args.length ? getStorage(...args) : getStorage(app);
-}
-
-function messaging(...args) {
-  const app = ensureAdminApp();
-  const { getMessaging } = require('firebase-admin/messaging');
-  return args.length ? getMessaging(...args) : getMessaging(app);
+  const db = loadFirestoreLib().getFirestore(app);
+  if (!db.app) db.app = app;
+  return db;
 }
 
 function getAdminAuth() {
-  if (!getApps().length) initializeApp();
-  return auth();
+  const app = ensureAdminApp();
+  const { getAuth } = require('firebase-admin/auth');
+  return getAuth(app);
 }
 
-function getAdminDb() {
-  if (!getApps().length) initializeApp();
-  return firestore();
+function firestore(...args) {
+  if (args.length) return loadFirestoreLib().getFirestore(...args);
+  return getAdminDb();
 }
 
-module.exports = {
-  initializeApp: (options) => ensureAdminApp(options),
+function auth(...args) {
+  const { getAuth } = require('firebase-admin/auth');
+  if (args.length) return getAuth(...args);
+  return getAdminAuth();
+}
+
+function storage(...args) {
+  const { getStorage } = require('firebase-admin/storage');
+  if (args.length) return getStorage(...args);
+  return getStorage(ensureAdminApp());
+}
+
+function messaging(...args) {
+  const { getMessaging } = require('firebase-admin/messaging');
+  if (args.length) return getMessaging(...args);
+  return getMessaging(ensureAdminApp());
+}
+
+const admin = {
+  initializeApp: () => ensureAdminApp(),
   ensureAdminApp,
   ensureFirestoreStatics: loadFirestoreLib,
-  getAdminAuth,
-  getAdminDb,
-  getApps,
-  getApp,
-  deleteApp,
-  applicationDefault,
-  cert,
-  refreshToken,
   get apps() {
     return getApps();
   },
@@ -80,3 +68,23 @@ module.exports = {
   storage,
   messaging,
 };
+
+module.exports = {
+  ensureAdminApp,
+  getAdminDb,
+  getAdminAuth,
+  ensureFirestoreStatics: loadFirestoreLib,
+  initializeApp: () => ensureAdminApp(),
+  auth,
+  firestore,
+  storage,
+  messaging,
+  admin,
+};
+
+Object.defineProperty(module.exports, 'apps', {
+  enumerable: true,
+  get() {
+    return getApps();
+  },
+});

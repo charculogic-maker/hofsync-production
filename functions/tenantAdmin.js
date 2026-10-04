@@ -5,29 +5,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { roleFromToken } = require('./authContext');
 const { isSuperAdminForDashboard } = require('./superAdmin');
-
-function loadAdmin() {
-  return require('./firebaseAdmin');
-}
-
-function getAdminAuth() {
-  const admin = loadAdmin();
-  if (!admin.apps.length) admin.initializeApp();
-  return admin.auth();
-}
-
-function getAdminDb() {
-  const admin = loadAdmin();
-  if (!admin.apps.length) admin.initializeApp();
-  return admin.firestore();
-}
-
-function getFieldValue() {
-  const admin = loadAdmin();
-  if (!admin.apps.length) admin.initializeApp();
-  if (typeof admin.ensureFirestoreStatics === 'function') admin.ensureFirestoreStatics();
-  return admin.firestore.FieldValue;
-}
+const { getAdminDb, getAdminAuth, firestore } = require('./firebaseAdmin');
 
 const REGION = 'europe-west3';
 
@@ -158,8 +136,6 @@ async function findOrCreateAuthUser({ email, adminName }) {
 }
 
 async function handleProvisionDemoTenant(request) {
-  const admin = loadAdmin();
-  if (!admin.apps.length) admin.initializeApp();
   try {
     const auth = request?.auth;
     const data = request?.data || {};
@@ -232,7 +208,7 @@ async function provisionDemoTenantInner(auth, data) {
   }
 
   const enabledModules = buildEnabledModules(modules);
-  const now = getFieldValue().serverTimestamp();
+  const now = firestore.FieldValue.serverTimestamp();
   const brandingPayload = {
     companyName,
     themeColor: '#1e293b',
@@ -325,8 +301,6 @@ exports.provisionDemoTenant = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    const admin = loadAdmin();
-    if (!admin.apps.length) admin.initializeApp();
     const auth = request?.auth;
     const data = request?.data || {};
     return handleProvisionDemoTenant({ ...(request || {}), auth, data });
