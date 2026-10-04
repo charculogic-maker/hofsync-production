@@ -66,9 +66,27 @@ describe('App Check coverage – Callable registration contract', () => {
     expect(APP_CHECK_CALLABLES).toHaveLength(8);
   });
 
-  test.each(APP_CHECK_CALLABLES)('$id configures enforceAppCheck: true', ({ file, anchor }) => {
-    const source = readFunctionSource(file);
-    assertCallableEnforcesAppCheck(source, anchor || file);
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant'))(
+    '$id configures enforceAppCheck: true',
+    ({ file, anchor }) => {
+      const source = readFunctionSource(file);
+      assertCallableEnforcesAppCheck(source, anchor || file);
+    },
+  );
+
+  test('provisionDemoTenant allows Vercel hosts without App Check enforcement', () => {
+    const source = readFunctionSource('tenantAdmin.js');
+    const block = onCallOptionsSlice(source, 'exports.provisionDemoTenant');
+    expect(block).toMatch(/cors:\s*true/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(block).not.toMatch(/enforceAppCheck:\s*true/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('provisionDemoTenant'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 600);
+    expect(exportBlock).toMatch(/cors:\s*true/);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
   });
 
   test('index.js exports every App-Check-protected callable', () => {

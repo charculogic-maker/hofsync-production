@@ -33,9 +33,23 @@ function readModules(form) {
   return modules;
 }
 
+function detailText(err) {
+  const details = err?.details;
+  if (typeof details === 'string') return details.trim();
+  if (details && typeof details === 'object') {
+    return String(details.reason || details.message || '').trim();
+  }
+  return '';
+}
+
+function isGenericInternal(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return !text || text === 'internal' || text === 'firebaseerror: internal';
+}
+
 function friendlyCallableError(err) {
   const code = String(err?.code || '').replace(/^functions\//, '');
-  const message = String(err?.message || err?.details?.reason || '').trim();
+  const message = [detailText(err), String(err?.message || '').trim()].find((part) => !isGenericInternal(part)) || '';
   if (code === 'permission-denied' || /permission|Admin|Plattform/i.test(message)) {
     return 'Keine Berechtigung: Nur Plattform-Admins dürfen Test-Mandanten anlegen.';
   }
@@ -48,7 +62,7 @@ function friendlyCallableError(err) {
   if (code === 'unauthenticated') {
     return 'Bitte zuerst anmelden.';
   }
-  return message || 'Test-Mandant konnte nicht angelegt werden.';
+  return message || 'Fehler beim Anlegen des Test-Mandanten';
 }
 
 async function copyText(text) {
@@ -169,7 +183,9 @@ function bindForm(root) {
       window.showToast?.(`Test-Mandant ${data.tenantId} bereit.`, 'success');
     } catch (err) {
       console.error('[fast-onboarding] provision failed:', err);
-      const msg = friendlyCallableError(err);
+      const payloadText = [detailText(err), String(err?.message || '').trim()]
+        .find((part) => !isGenericInternal(part));
+      const msg = payloadText || friendlyCallableError(err) || 'Fehler beim Anlegen des Test-Mandanten';
       setStatus(root, msg, 'error');
       window.showToast?.(msg, 'error');
     } finally {

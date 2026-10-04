@@ -10,11 +10,6 @@ const { isSuperAdminForDashboard } = require('./superAdmin');
 
 const REGION = 'europe-west3';
 
-const CALLABLE_BASE_OPTIONS = {
-  region: REGION,
-  enforceAppCheck: true,
-};
-
 const DEFAULT_CONTINUE_URL = 'https://hofsync-production.web.app/';
 
 const MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'cutting', 'haccp'];
@@ -148,6 +143,16 @@ async function findOrCreateAuthUser({ email, adminName }) {
 }
 
 async function handleProvisionDemoTenant(request) {
+  try {
+    return await provisionDemoTenantInner(request);
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    console.error('[provisionDemoTenant] failed:', err);
+    throw new HttpsError('internal', err?.message || 'Tenant provisioning failed.');
+  }
+}
+
+async function provisionDemoTenantInner(request) {
   const ctx = assertProvisionAccess(request.auth);
 
   const companyName = normalizeDisplayName(request.data?.companyName);
@@ -288,7 +293,24 @@ exports.normalizeModules = normalizeModules;
 exports.assertProvisionAccess = assertProvisionAccess;
 exports.handleProvisionDemoTenant = handleProvisionDemoTenant;
 exports.MODULE_KEYS = MODULE_KEYS;
+/**
+ * Vercel hosts (hofsync.vercel.app, craftfoodapp.vercel.app) mint reCAPTCHA
+ * tokens that App Check rejects, which the browser reports as a CORS 403.
+ * Auth stays required; App Check is not enforced on this callable.
+ */
 exports.provisionDemoTenant = onCall(
-  CALLABLE_BASE_OPTIONS,
-  handleProvisionDemoTenant,
+  {
+    region: REGION,
+    cors: true,
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    try {
+      return await handleProvisionDemoTenant(request);
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      console.error('[provisionDemoTenant] callable failed:', err);
+      throw new HttpsError('internal', err?.message || 'Tenant provisioning failed.');
+    }
+  },
 );

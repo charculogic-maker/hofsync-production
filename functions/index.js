@@ -183,7 +183,13 @@ lazyExport('manageTenantEmployees', () => callable(
 ));
 
 lazyExport('provisionDemoTenant', () => callable(
-  CALLABLE_BASE_OPTIONS,
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    // Vercel preview/prod hosts fail reCAPTCHA App Check; auth still required.
+    // cors: true allows https://hofsync.vercel.app and https://craftfoodapp.vercel.app.
+    cors: true,
+    enforceAppCheck: false,
+  },
   withAdmin(async (request) => require('./tenantAdmin').handleProvisionDemoTenant(request)),
 ));
 
