@@ -1,5 +1,4 @@
 const admin = require('firebase-admin');
-const { GoogleGenerativeAI, GoogleGenerativeAIFetchError } = require('@google/generative-ai');
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
 
