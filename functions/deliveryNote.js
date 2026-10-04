@@ -1,4 +1,6 @@
-const admin = require('firebase-admin');
+function getAdmin() {
+  return require('./firebaseAdmin');
+}
 const { HttpsError } = require('firebase-functions/v2/https');
 const { requireEmployeeAccess, resolveAuthContext } = require('./authContext');
 
@@ -150,7 +152,7 @@ async function loadImageFromStorage(tenantId, storagePath) {
   console.log('[parseDeliveryNote] Storage-Pfad verifiziert', { tenantId, storagePath: cleaned });
 
   try {
-    const bucket = admin.storage().bucket();
+    const bucket = getAdmin().storage().bucket();
     const file = bucket.file(cleaned);
     const [exists] = await file.exists();
     if (!exists) {
@@ -248,6 +250,10 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
 }
 
 async function handleParseDeliveryNote(request) {
+  const admin = getAdmin();
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   // Jeder angemeldete Mitarbeiter/Admin liest den Lieferschein für den
   // eigenen Mandanten ein. Die KI liefert nur die erkannten Posten zurück –
   // ein mandantenübergreifender Zugriff ist dadurch ausgeschlossen.

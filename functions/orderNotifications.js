@@ -1,5 +1,5 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const admin = require('firebase-admin');
+const { ensureAdminApp } = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const { isConfiguredParam, readSmtpConfig, readTwilioConfig } = require('./runtimeParams');
@@ -270,6 +270,7 @@ async function dispatchCustomerSignal(signal, meta) {
 }
 
 async function handleOrderReadySendSignal(event) {
+  ensureAdminApp();
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
   if (!before || !after) return null;

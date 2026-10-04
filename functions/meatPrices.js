@@ -6,6 +6,7 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const adminDb = require('./adminDb');
+const { ensureAdminApp } = require('./firebaseAdmin');
 const { cleanTenantId } = require('./authContext');
 const { randomUUID } = require('crypto');
 
@@ -480,6 +481,7 @@ const scheduledMeatPriceOptions = {
 };
 
 async function handleFetchWeeklyMeatPrices(event) {
+  ensureAdminApp();
   if (shouldSkipScheduledMeatPriceRun()) {
     console.log(
       '[fetchWeeklyMeatPrices] Scheduler übersprungen — Whitelabel-Testprojekt ohne Fleischpreis-Pipeline.',
@@ -502,6 +504,7 @@ async function handleFetchWeeklyMeatPrices(event) {
 }
 
 async function handleTriggerManualMeatPriceRun(request) {
+  ensureAdminApp();
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
   }

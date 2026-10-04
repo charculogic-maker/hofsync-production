@@ -1,5 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const crypto = require('crypto');
 const adminDb = require('./adminDb');
 const { resolveAuthContext } = require('./authContext');
@@ -453,6 +453,9 @@ function toHttpsError(err, context) {
 }
 
 async function handleManageTenantEmployees(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const action = String(request.data?.action || '').trim();
   const tenantId = String(request.data?.tenantId || '').trim();
 

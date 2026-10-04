@@ -1,4 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { ensureAdminApp } = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 const { isConfiguredParam, readSmtpConfig, DEFAULT_FROM_EMAIL } = require('./runtimeParams');
 
@@ -87,6 +88,7 @@ async function sendAuditMail(transport, from, to, subject, body) {
 }
 
 async function handleBulletinConfirmationAuditMail(event) {
+  ensureAdminApp();
   const data = event.data?.data();
   if (!data) return null;
 

@@ -4,6 +4,10 @@ if (global.__CRAFT_ADMINDB_MOCK__) {
   const admin = require('./firebaseAdmin');
 
   function ensureApp() {
+    if (typeof admin.ensureAdminApp === 'function') {
+      admin.ensureAdminApp();
+      return;
+    }
     if (!admin.apps.length) {
       admin.initializeApp();
     }

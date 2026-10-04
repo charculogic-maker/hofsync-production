@@ -381,6 +381,9 @@ async function parseMeatLabelImage(imageBase64, mimeType = 'image/jpeg') {
 }
 
 async function handleParseMeatLabel(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const callerContext = resolveAuthContext(request.auth);
   const tenantContext = requireEmployeeAccess(request.auth, callerContext.tenantId);
 

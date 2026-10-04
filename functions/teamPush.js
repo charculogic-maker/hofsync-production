@@ -30,6 +30,9 @@ function resolveTaskAudienceEmployees(task, config) {
 }
 
 async function handleNotifyTeamEntryCreated(event) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const task = event.data?.data();
   if (!task || task.status !== 'open') return null;
 

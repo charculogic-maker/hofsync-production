@@ -20,6 +20,9 @@ function normalizeDisplayName(value) {
 }
 
 async function handleCreateTenantEmployee(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const baseCtx = resolveAuthContext(request.auth);
   const requestedTenantId = String(request.data?.tenantId || '').trim();
   const ctx = assertAdminAccessForTenant(request.auth, requestedTenantId || baseCtx.tenantId);

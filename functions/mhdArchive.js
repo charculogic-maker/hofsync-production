@@ -3,6 +3,7 @@
  */
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const adminDb = require('./adminDb');
+const { ensureAdminApp } = require('./firebaseAdmin');
 const {
   cleanTenantId,
   roleFromToken,
@@ -197,11 +198,13 @@ async function listActiveTenantIds() {
 }
 
 async function handleArchiveZeroStockBatches(request) {
+  ensureAdminApp();
   const tenantId = resolveArchiveTenantId(request.auth, request.data || {});
   return archiveZeroStockBatchesForTenant(tenantId);
 }
 
 async function handleArchiveZeroStockBatchesScheduled() {
+  ensureAdminApp();
   const tenantIds = await listActiveTenantIds();
   const results = [];
   for (const tenantId of tenantIds) {

@@ -17,5 +17,9 @@ exports.parseDeliveryNote = onCall(
     timeoutSeconds: 120,
     memory: '1GiB',
   },
-  async (request) => require('./deliveryNote').handleParseDeliveryNote(request),
+  async (request) => {
+    const { ensureAdminApp } = require('./firebaseAdmin');
+    ensureAdminApp();
+    return require('./deliveryNote').handleParseDeliveryNote(request);
+  },
 );

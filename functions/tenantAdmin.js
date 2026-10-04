@@ -137,6 +137,9 @@ async function findOrCreateAuthUser({ email, adminName }) {
 }
 
 async function handleProvisionDemoTenant(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   try {
     const auth = request?.auth;
     const data = request?.data || {};
@@ -302,6 +305,9 @@ exports.provisionDemoTenant = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
     const auth = request?.auth;
     const data = request?.data || {};
     return handleProvisionDemoTenant({ ...(request || {}), auth, data });

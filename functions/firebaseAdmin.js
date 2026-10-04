@@ -18,23 +18,26 @@ const {
 } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
+const { getStorage } = require('firebase-admin/storage');
 
-function ensureApp(options) {
-  const apps = getApps();
-  if (apps.length) return getApp();
-  return initializeApp(options);
+function ensureAdminApp(options) {
+  if (!getApps().length) {
+    initializeApp(options);
+  }
+  return getApp();
 }
 
 function firestore(...args) {
-  ensureApp();
-  return getFirestore(...args);
+  const app = ensureAdminApp();
+  return args.length ? getFirestore(...args) : getFirestore(app);
 }
 
 firestore.FieldValue = FieldValue;
 firestore.Timestamp = Timestamp;
 
 module.exports = {
-  initializeApp: (options) => ensureApp(options),
+  initializeApp: (options) => ensureAdminApp(options),
+  ensureAdminApp,
   getApps,
   getApp,
   deleteApp,
@@ -45,12 +48,16 @@ module.exports = {
     return getApps();
   },
   auth(...args) {
-    ensureApp();
-    return getAuth(...args);
+    const app = ensureAdminApp();
+    return args.length ? getAuth(...args) : getAuth(app);
   },
   firestore,
+  storage(...args) {
+    const app = ensureAdminApp();
+    return args.length ? getStorage(...args) : getStorage(app);
+  },
   messaging(...args) {
-    ensureApp();
-    return getMessaging(...args);
+    const app = ensureAdminApp();
+    return args.length ? getMessaging(...args) : getMessaging(app);
   },
 };
