@@ -40,12 +40,44 @@ function assertCompatAppCheckAvailable() {
  * App Check initialisieren – muss vor dem ersten httpsCallable-Aufruf abgeschlossen sein.
  * @returns {Promise<void>}
  */
-function isAppCheckNoise(err) {
-  const msg = String(err?.message || err || '').toLowerCase();
-  return /app-check|appcheck|recaptcha|timeout/.test(msg);
+export function isRecaptchaAppCheckError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const message = String(err?.message || err || '').toLowerCase();
+  const stack = String(err?.stack || '').toLowerCase();
+  return code.includes('recaptcha')
+    || code.includes('app-check')
+    || code.includes('appcheck')
+    || /recaptcha|app-check|appcheck|use-before-activation/.test(`${message} ${stack}`);
 }
 
+function isAppCheckNoise(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return isRecaptchaAppCheckError(err) || /timeout/.test(msg);
+}
+
+function installRecaptchaRejectionGuard() {
+  if (typeof window === 'undefined' || window.__charculogicRecaptchaGuard) return;
+  window.__charculogicRecaptchaGuard = true;
+
+  const swallow = (event) => {
+    const reason = event?.reason ?? event?.error;
+    const filename = String(event?.filename || '');
+    const message = String(reason?.message || reason || event?.message || '');
+    const blob = `${message} ${filename} ${reason?.stack || ''} ${reason?.code || ''}`;
+    if (!isRecaptchaAppCheckError(reason) && !/recaptcha|app-check|appcheck/i.test(blob)) return;
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    console.warn('[AppCheck] reCAPTCHA-Fehler abgefangen, Auth und Netzwerk laufen weiter.', message || reason?.code || 'recaptcha');
+  };
+
+  window.addEventListener('unhandledrejection', swallow, true);
+  window.addEventListener('error', swallow, true);
+}
+
+installRecaptchaRejectionGuard();
+
 export function initAppCheckModule() {
+  installRecaptchaRejectionGuard();
   if (appCheckReadyPromise) return appCheckReadyPromise;
 
   appCheckReadyPromise = (async () => {
@@ -70,11 +102,25 @@ export function initAppCheckModule() {
 
       appCheckActivationFailed = false;
       console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
+
+      // Token-Fehler (Domain-Mismatch auf Vercel) dürfen die Init-Promise nicht verwerfen.
+      if (typeof appCheck.getToken === 'function') {
+        appCheck.getToken(false).catch((tokenErr) => {
+          appCheckActivationFailed = true;
+          console.warn(
+            '[AppCheck] reCAPTCHA-Token übersprungen.',
+            tokenErr?.code || tokenErr?.message || tokenErr,
+          );
+        });
+      }
     } catch (err) {
       appCheckActivationFailed = true;
-      console.warn('[AppCheck] Aktivierung fehlgeschlagen. Vorschau/Offline nutzt gecachte Daten.', err);
+      console.warn('[AppCheck] Aktivierung fehlgeschlagen. Vorschau/Offline nutzt gecachte Daten.', err?.code || err?.message || err);
     }
-  })();
+  })().catch((err) => {
+    appCheckActivationFailed = true;
+    console.warn('[AppCheck] Initialisierung abgefangen.', err?.code || err?.message || err);
+  });
 
   return appCheckReadyPromise;
 }

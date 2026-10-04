@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261003-hv-vv-filter-v1';
+const CACHE_NAME = 'charculogic-v20261004-onboarding-appcheck-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 const RELEASED_AT = '2026-10-03T16:20:00+02:00';
 

@@ -2,8 +2,8 @@
  * Fast-Onboarding: Test-Mandant anlegen + Einladungs-Link (provisionDemoTenant).
  * Sichtbar für Büro-Admins (isOfficeUser) in #page-batches und im Dev-Dashboard.
  */
-import { createHttpsCallable } from './firebase-functions.js';
-import { waitForAppCheckReady } from './app-check.js';
+import { createHttpsCallable, resolveFunctionsBaseUrl } from './firebase-functions.js';
+import { isAppCheckInitialized, isRecaptchaAppCheckError, waitForAppCheckReady } from './app-check.js';
 import { getAuthContext, isOfficeUser } from './auth.js';
 
 const MODULE_DEFS = [
@@ -22,6 +22,124 @@ function getProvisionCallable() {
   if (!firebaseApi?.apps?.length) return null;
   provisionCallable = createHttpsCallable('provisionDemoTenant', { timeout: 60000 }, firebaseApi);
   return provisionCallable;
+}
+
+function readAppCheckService() {
+  try {
+    if (typeof firebase === 'undefined' || typeof firebase.appCheck !== 'function') return null;
+    if (!firebase.apps?.length) return null;
+    return firebase.appCheck();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * httpsCallable holt selbst ein App-Check-Token und bricht bei recaptcha-error ab.
+ * Für provisionDemoTenant ist das Token optional: bei Fehler liefert getToken
+ * `{ error }`, damit der Functions-Client den Header weglässt.
+ */
+async function invokeProvisionCallable(payload) {
+  const callable = getProvisionCallable();
+  if (!callable) {
+    throw new Error('Cloud Functions nicht verfügbar. Bitte neu laden.');
+  }
+
+  const appCheck = readAppCheckService();
+  const originalGetToken = appCheck && typeof appCheck.getToken === 'function'
+    ? appCheck.getToken.bind(appCheck)
+    : null;
+
+  if (appCheck && originalGetToken) {
+    appCheck.getToken = async (...args) => {
+      try {
+        return await originalGetToken(...args);
+      } catch (err) {
+        if (!isRecaptchaAppCheckError(err)) throw err;
+        console.warn('[fast-onboarding] App Check Token übersprungen, Callable läuft ohne Token.');
+        return { token: '', error: err };
+      }
+    };
+  }
+
+  try {
+    return await callable(payload);
+  } catch (err) {
+    if (!isRecaptchaAppCheckError(err)) throw err;
+    console.warn('[fast-onboarding] Callable ohne App-Check-Token wiederholt.');
+    return postProvisionWithoutAppCheck(payload);
+  } finally {
+    if (appCheck && originalGetToken) appCheck.getToken = originalGetToken;
+  }
+}
+
+async function postProvisionWithoutAppCheck(payload) {
+  const user = typeof firebase !== 'undefined' ? firebase.auth?.().currentUser : null;
+  if (!user) {
+    const err = new Error('Bitte zuerst anmelden.');
+    err.code = 'functions/unauthenticated';
+    throw err;
+  }
+  const idToken = await user.getIdToken();
+  const response = await fetch(`${resolveFunctionsBaseUrl()}/provisionDemoTenant`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ data: payload }),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || json?.error) {
+    const status = String(json?.error?.status || '').toLowerCase().replace(/_/g, '-');
+    const err = new Error(json?.error?.message || 'Fehler beim Anlegen des Test-Mandanten');
+    err.code = status ? `functions/${status}` : 'functions/internal';
+    err.details = json?.error?.details;
+    throw err;
+  }
+  return { data: json?.data ?? json?.result };
+}
+
+async function callProvisionDemoTenant(payload) {
+  try {
+    await waitForAppCheckReady();
+  } catch (err) {
+    console.warn('[fast-onboarding] App Check nicht bereit, Callable startet trotzdem.', err?.code || err?.message || err);
+  }
+
+  if (!isAppCheckInitialized()) {
+    console.warn('[fast-onboarding] App Check nicht initialisiert, Callable startet ohne Token.');
+    return postProvisionWithoutAppCheck(payload);
+  }
+
+  const appCheck = readAppCheckService();
+  if (appCheck && typeof appCheck.getToken === 'function') {
+    const tokenPromise = appCheck.getToken(false);
+    tokenPromise.catch(() => {});
+    let timer;
+    try {
+      await Promise.race([
+        tokenPromise,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            const err = new Error('reCAPTCHA timeout');
+            err.code = 'app-check/recaptcha-error';
+            reject(err);
+          }, 4000);
+        }),
+      ]);
+    } catch (err) {
+      console.warn(
+        '[fast-onboarding] reCAPTCHA/App Check übersprungen, Callable startet ohne Token.',
+        err?.code || err?.message || err,
+      );
+      return postProvisionWithoutAppCheck(payload);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return invokeProvisionCallable(payload);
 }
 
 function readModules(form) {
@@ -162,12 +280,7 @@ function bindForm(root) {
     if (resultBox) resultBox.hidden = true;
 
     try {
-      await waitForAppCheckReady();
-      const callable = getProvisionCallable();
-      if (!callable) {
-        throw new Error('Cloud Functions nicht verfügbar. Bitte neu laden.');
-      }
-      const response = await callable({
+      const response = await callProvisionDemoTenant({
         companyName,
         adminName,
         adminEmail,
