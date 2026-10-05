@@ -18,6 +18,7 @@ import {
 } from './production-datasheet.js';
 import { generateIngredientDeclaration } from './domain-core.js';
 import { flushPendingSyncs } from './sync.js';
+import { initBeefLabels, openBeefLabelModal } from './beef-labels.js';
 
 const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
@@ -5684,6 +5685,13 @@ export function initProductionModule(databaseInstance, writeOrQueueFirestoreFunc
     initRecipeCreateForm();
     initProductionControls();
     productionState.initialized = true;
+  }
+
+  initBeefLabels();
+  const beefLabelButton = document.getElementById('btn-open-beef-labels');
+  if (beefLabelButton && beefLabelButton.dataset.beefBound !== '1') {
+    beefLabelButton.dataset.beefBound = '1';
+    beefLabelButton.addEventListener('click', () => openBeefLabelModal());
   }
 
   syncRecipeAdminFormVisibility();

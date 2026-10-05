@@ -401,7 +401,211 @@ export const BEEF_CUT_CATALOG = [
     reifung: 'Frisch / TK verpackt',
     lagerung: 'Lag: ≤ 3 °C / TK -18 °C',
   },
+  {
+    id: 'ruecken-filet-ganz',
+    kategorie: 'RUECKEN',
+    bezeichnung: 'Filet ganz',
+    teilstueckDetail: 'Lende · Zartestes Premiumstück',
+    reifung: 'Wet-Aging 35 Tage',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'ruecken-tomahawk',
+    kategorie: 'RUECKEN',
+    bezeichnung: 'Tomahawk',
+    teilstueckDetail: 'Ribeye am langen Rippenknochen',
+    reifung: 'Dry-Aged Knochenreife mind. 28T',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'ruecken-club-steak',
+    kategorie: 'RUECKEN',
+    bezeichnung: 'Club Steak',
+    teilstueckDetail: 'Entrecôte mit kurzem Knochen',
+    reifung: 'Dry-Aged Knochenreife mind. 28T',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'schulter-hohe-rippe',
+    kategorie: 'SCHULTER',
+    bezeichnung: 'Schmorbraten Hohe Rippe',
+    teilstueckDetail: 'Hohe Rippe · Schmorbraten',
+    reifung: 'Wet-Aging bis 21 Tage',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'schulter-schildstueck',
+    kategorie: 'SCHULTER',
+    bezeichnung: 'Schildstück ganz',
+    teilstueckDetail: 'Schaufel ganz · Schmoren / Sieden',
+    reifung: 'Wet-Aging bis 21 Tage',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'schulter-blattsteak',
+    kategorie: 'SCHULTER',
+    bezeichnung: 'Blattsteak',
+    teilstueckDetail: 'Schulterblatt · Kurzbraten',
+    reifung: 'Wet-Aging 21 Tage',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'knochen-short-ribs',
+    kategorie: 'KNOCHEN',
+    bezeichnung: 'Short Ribs',
+    teilstueckDetail: 'Kurze Rippe · Schmoren',
+    reifung: 'Wet-Aging bis 21 Tage',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'knochen-suppenfleisch-rippe',
+    kategorie: 'KNOCHEN',
+    alsoIn: ['LAPPEN'],
+    bezeichnung: 'Suppenfleisch Rippe',
+    teilstueckDetail: 'Rippe für Brühe und Siedefleisch',
+    reifung: 'Frisch gekühlt',
+    lagerung: 'Lag: 0–2 °C',
+  },
+  {
+    id: 'abschnitt-r4',
+    kategorie: 'HACK',
+    bezeichnung: 'R IV',
+    teilstueckDetail: 'Sehnenreiches Verarbeitungsfleisch',
+    reifung: 'Frischverarbeitung / Kutter',
+    lagerung: 'Lag: ≤ 2 °C',
+  },
+  {
+    id: 'abschnitt-r5',
+    kategorie: 'HACK',
+    bezeichnung: 'R V',
+    teilstueckDetail: 'Sehnenreiches Verarbeitungsfleisch',
+    reifung: 'Frischverarbeitung / Kutter',
+    lagerung: 'Lag: ≤ 2 °C',
+  },
+  {
+    id: 'abschnitt-trimmings',
+    kategorie: 'HACK',
+    bezeichnung: 'Trimmings',
+    teilstueckDetail: 'Zuschnitt und Abschnitte',
+    reifung: 'Frischverarbeitung',
+    lagerung: 'Lag: ≤ 2 °C',
+  },
+  {
+    id: 'innerei-niere',
+    kategorie: 'INNEREIEN',
+    bezeichnung: 'Niere',
+    teilstueckDetail: 'Rinderniere · Sofort kühlen',
+    reifung: 'Tagesfrisch',
+    lagerung: 'Lag: ≤ 3 °C',
+  },
+  {
+    id: 'innerei-backen',
+    kategorie: 'INNEREIEN',
+    bezeichnung: 'Backen',
+    teilstueckDetail: 'Rinderbacke · Schmorstück',
+    reifung: 'Wet-Aging bis 14 Tage',
+    lagerung: 'Lag: ≤ 3 °C',
+  },
 ];
+
+const LABEL_PROFILES = [
+  { id: 'PISTOLE', label: 'Ganze Pistole' },
+  { id: 'KEULE', label: 'Keule' },
+  { id: 'RUECKEN', label: 'Rücken' },
+  { id: 'BONE_IN', label: 'Bone-in' },
+  { id: 'VORDERVIERTEL', label: 'Vorderviertel' },
+  { id: 'SCHULTER', label: 'Schulter' },
+  { id: 'LAPPEN', label: 'Lappen' },
+  { id: 'INNEREIEN', label: 'Innereien' },
+];
+
+const PROFILE_MEMBERS = {
+  PISTOLE: [
+    'ruecken-filet-ganz', 'ruecken-roastbeef', 'ruecken-entrecote', 'keule-hueftsteak',
+    'keule-tafelspitz', 'keule-buergermeister', 'lappen-spider', 'keule-oberschale',
+    'keule-unterschale', 'keule-semerrolle', 'keule-kugel-rund', 'keule-kugel-flach',
+    'keule-wade', 'beinscheibe-hinterhaxe', 'knochen-markknochen',
+    'abschnitt-r1-gulasch', 'abschnitt-r2-hack', 'abschnitt-r3-wurst',
+    'abschnitt-r4', 'abschnitt-r5',
+  ],
+  KEULE: [
+    'keule-unterschale', 'keule-semerrolle', 'keule-kugel-rund', 'keule-kugel-flach',
+    'keule-hueftsteak', 'keule-tafelspitz', 'keule-buergermeister', 'lappen-spider',
+    'keule-wade', 'beinscheibe-hinterhaxe', 'knochen-markknochen', 'abschnitt-trimmings',
+  ],
+  RUECKEN: ['ruecken-filet-ganz', 'ruecken-roastbeef', 'ruecken-entrecote', 'abschnitt-trimmings'],
+  BONE_IN: [
+    'ruecken-tomahawk', 'ruecken-t-bone-porterhouse', 'ruecken-cote-de-boeuf',
+    'ruecken-club-steak', 'knochen-short-ribs', 'beinscheibe-hinterhaxe',
+    'knochen-markknochen', 'knochen-suppenknochen',
+  ],
+  VORDERVIERTEL: [
+    'schulter-hohe-rippe', 'schulter-dickes-bugstueck', 'schulter-flat-iron',
+    'schulter-schildstueck', 'schulter-blattsteak', 'schulter-falsches-filet',
+    'schulter-metzgerstueck', 'lappen-brisket', 'knochen-querrippe',
+    'beinscheibe-vorderhaxe', 'knochen-suppenknochen', 'abschnitt-trimmings',
+  ],
+  SCHULTER: [
+    'schulter-dickes-bugstueck', 'schulter-flat-iron', 'schulter-schildstueck',
+    'schulter-blattsteak', 'schulter-falsches-filet', 'schulter-metzgerstueck',
+    'beinscheibe-vorderhaxe', 'abschnitt-trimmings',
+  ],
+  LAPPEN: ['lappen-flank', 'lappen-skirt', 'knochen-suppenfleisch-rippe', 'abschnitt-r2-hack'],
+  INNEREIEN: [
+    'innerei-leber', 'innerei-zunge', 'innerei-herz', 'innerei-niere',
+    'innerei-backen', 'knochen-ochsenschwanz',
+  ],
+};
+
+const ART_NR = {
+  'ruecken-filet-ganz': '501',
+  'ruecken-roastbeef': '502',
+  'abschnitt-r2-hack': '503',
+  'beinscheibe-vorderhaxe': '503',
+  'abschnitt-r1-gulasch': '504',
+  'keule-oberschale': '505',
+  'schulter-dickes-bugstueck': '506',
+  'keule-unterschale': '507',
+  'keule-semerrolle': '507',
+  'keule-kugel-rund': '507',
+  'keule-tafelspitz': '508',
+  'keule-buergermeister': '509',
+  'schulter-falsches-filet': '510',
+  'knochen-suppenfleisch-rippe': '512',
+  'keule-hueftsteak': '513',
+  'ruecken-entrecote': '514',
+  'schulter-hohe-rippe': '515',
+  'schulter-flat-iron': '516',
+  'lappen-flank': '517',
+  'innerei-backen': '518',
+  'ruecken-cote-de-boeuf': '520',
+  'keule-wade': '521',
+  'lappen-skirt': '522',
+  'beinscheibe-hinterhaxe': '523',
+  'knochen-ochsenschwanz': '524',
+  'innerei-zunge': '525',
+  'innerei-leber': '526',
+  'innerei-herz': '527',
+  'knochen-suppenknochen': '528',
+  'knochen-markknochen': '529',
+  'abschnitt-r3-wurst': '530',
+  'keule-kugel-flach': '533',
+  'ruecken-tomahawk': '534',
+  'schulter-metzgerstueck': '538',
+  'schulter-blattsteak': '539',
+  'lappen-spider': '540',
+  'lappen-brisket': '541',
+  'schulter-schildstueck': '542',
+  'ruecken-t-bone-porterhouse': '548',
+  'ruecken-club-steak': '549',
+  'knochen-short-ribs': '401',
+  'knochen-querrippe': '401',
+  'innerei-niere': '400',
+  'abschnitt-r4': '449',
+  'abschnitt-r5': '449',
+};
+
+const TIER_COLORS = ['#1d4ed8', '#b45309', '#047857', '#be123c', '#6d28d9', '#0f766e', '#a16207', '#334155'];
 
 const TAB_ORDER = /** @type {CutCategory[]} */ ([
   'SCHULTER',
@@ -569,7 +773,16 @@ function applyDetectedSegment(charge = state.chargenNummer) {
   return true;
 }
 
+function artNrOf(cut) {
+  return ART_NR[cut?.id] || '';
+}
+
+function cutsForProfile(profile) {
+  return (PROFILE_MEMBERS[profile] || []).map((id) => findCut(id)).filter(Boolean);
+}
+
 function cutsForTab(tab) {
+  if (state.profile && PROFILE_MEMBERS[state.profile]) return cutsForProfile(state.profile);
   if (tab === 'CUSTOM') return customCuts.slice();
   if (tab === 'NACKEN') {
     return allCuts().filter((cut) => /nacken|kamm|hals/i.test(`${cut.bezeichnung} ${cut.teilstueckDetail}`));
@@ -758,6 +971,19 @@ const STANDARD_KG = {
   'innerei-herz': 1.6,
   'barf-innereien-mix': 1,
   'barf-pansen-pur': 2.5,
+  'ruecken-filet-ganz': 2.2,
+  'ruecken-tomahawk': 1.2,
+  'ruecken-club-steak': 0.45,
+  'schulter-hohe-rippe': 2.4,
+  'schulter-schildstueck': 2.2,
+  'schulter-blattsteak': 0.4,
+  'knochen-short-ribs': 1.2,
+  'knochen-suppenfleisch-rippe': 1.4,
+  'abschnitt-r4': 0.5,
+  'abschnitt-r5': 0.5,
+  'abschnitt-trimmings': 0.5,
+  'innerei-niere': 0.5,
+  'innerei-backen': 1.2,
 };
 
 const EDEL_IDS = new Set([
@@ -893,6 +1119,54 @@ function computeYield() {
   };
 }
 
+function deToIso(value) {
+  const match = String(value || '').trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return '';
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function cloneBatch(batch = {}) {
+  return {
+    schlachtBetrieb: String(batch.schlachtBetrieb || ''),
+    schlachtDatum: String(batch.schlachtDatum || ''),
+    zerlegeDatum: String(batch.zerlegeDatum || ''),
+    zerlegeDatumRaw: String(batch.zerlegeDatumRaw || ''),
+    ohrmarke: String(batch.ohrmarke || ''),
+    lot: String(batch.lot || ''),
+  };
+}
+
+function currentBatchSnapshot() {
+  const ohrmarke = String(state.ohrmarke || '').trim();
+  const zerlegeDatum = String(state.zerlegeDatum || '');
+  const raw = deToIso(zerlegeDatum);
+  const compactEar = ohrmarke.replace(/\s+/g, '');
+  const lot = String(state.chargenNummer || '').trim()
+    || `GAL-${compactEar || 'OHNE'}-${(raw || '00000000').replace(/-/g, '')}`;
+  return cloneBatch({
+    schlachtBetrieb: state.betriebsNummer || 'Bio-Schlachthof Stautenhof (Willich)',
+    schlachtDatum: state.schlachtDatum,
+    zerlegeDatum,
+    zerlegeDatumRaw: raw,
+    ohrmarke,
+    lot,
+  });
+}
+
+function batchKey(batch = {}) {
+  return [batch.ohrmarke, batch.schlachtDatum, batch.zerlegeDatum, batch.lot].join('|');
+}
+
+function tierIndexFor(ohrmarke) {
+  const ears = [];
+  state.queue.forEach((item) => {
+    const ear = item.batch?.ohrmarke || '';
+    if (!ears.includes(ear)) ears.push(ear);
+  });
+  const index = ears.indexOf(ohrmarke || '');
+  return index < 0 ? 0 : index;
+}
+
 function normalizeQueueItem(item) {
   const id = String(item?.id || '');
   const quantity = Math.max(0, Number(item?.quantity) || 0);
@@ -901,7 +1175,8 @@ function normalizeQueueItem(item) {
   const weightKg = weightManual && Number.isFinite(stored)
     ? roundKg(stored)
     : roundKg(quantity * standardKgForCut(id));
-  return { id, quantity, weightKg, weightManual };
+  const batch = item?.batch ? cloneBatch(item.batch) : currentBatchSnapshot();
+  return { id, quantity, weightKg, weightManual, batch };
 }
 
 const state = {
@@ -921,11 +1196,13 @@ const state = {
   r2Override: /** @type {number|null} */ (null),
   r3Override: /** @type {number|null} */ (null),
   skipCount: 0,
+  profile: 'PISTOLE',
   segment: /** @type {CarcassSegment} */ ('GK'),
   activeTab: /** @type {CutCategory} */ ('KEULE'),
-  /** @type {{ id: string, quantity: number, weightKg: number, weightManual: boolean }[]} */
-  queue: DEFAULT_QUEUE.map((q) => normalizeQueueItem(q)),
+  /** @type {{ id: string, quantity: number, weightKg: number, weightManual: boolean, batch: object }[]} */
+  queue: [],
 };
+state.queue = DEFAULT_QUEUE.map((q) => normalizeQueueItem(q));
 
 function applyStoredLabelPrefix() {
   const stored = readStoredLabelPrefix();
@@ -958,6 +1235,9 @@ function hydrateState() {
   if (saved.segment === 'HV' || saved.segment === 'VV' || saved.segment === 'GK') {
     state.segment = saved.segment;
   }
+  if (PROFILE_MEMBERS[saved.profile] || saved.profile === '') {
+    state.profile = saved.profile || '';
+  }
   if (TAB_ORDER.includes(saved.activeTab) || saved.activeTab === 'NACKEN' || saved.activeTab === 'BRUST') {
     state.activeTab = saved.activeTab;
   }
@@ -989,6 +1269,7 @@ function persist() {
     r2Override: state.r2Override,
     r3Override: state.r3Override,
     skipCount: state.skipCount,
+    profile: state.profile,
     segment: state.segment,
     activeTab: state.activeTab,
     queue: state.queue,
@@ -1004,20 +1285,25 @@ function sheetsNeeded() {
   return Math.ceil((n + state.skipCount) / 24) || 1;
 }
 
-function qtyOf(cutId) {
-  return state.queue.find((q) => q.id === cutId)?.quantity || 0;
+function qtyOf(cutId, batch = null) {
+  const key = batchKey(batch || currentBatchSnapshot());
+  return state.queue
+    .filter((entry) => entry.id === cutId && batchKey(entry.batch) === key)
+    .reduce((sum, entry) => sum + entry.quantity, 0);
 }
 
-function updateQuantity(cutId, delta) {
+function updateQuantity(cutId, delta, batch = null) {
   if (!findCut(cutId)) return;
-  const existing = state.queue.find((q) => q.id === cutId);
+  const snap = cloneBatch(batch || currentBatchSnapshot());
+  const key = batchKey(snap);
+  const existing = state.queue.find((entry) => entry.id === cutId && batchKey(entry.batch) === key);
   if (!existing) {
     if (delta <= 0) return;
-    state.queue.push(normalizeQueueItem({ id: cutId, quantity: delta, weightManual: false }));
+    state.queue.push(normalizeQueueItem({ id: cutId, quantity: delta, weightManual: false, batch: snap }));
   } else {
     existing.quantity += delta;
     if (existing.quantity <= 0) {
-      state.queue = state.queue.filter((q) => q.id !== cutId);
+      state.queue = state.queue.filter((entry) => !(entry.id === cutId && batchKey(entry.batch) === key));
     } else if (!existing.weightManual) {
       existing.weightKg = roundKg(existing.quantity * standardKgForCut(cutId));
     }
@@ -1026,14 +1312,39 @@ function updateQuantity(cutId, delta) {
   renderModalBody();
 }
 
+export function setStartSlot(slotNumber) {
+  const slot = Math.max(1, Math.min(24, Math.round(Number(slotNumber) || 1)));
+  state.skipCount = slot - 1;
+  persist();
+  renderModalBody();
+}
+
+export function fillRemainingWithHack() {
+  const placed = totalLabels() + state.skipCount;
+  const remainder = placed % 24;
+  const missing = placed === 0 ? 24 : (remainder === 0 ? 0 : 24 - remainder);
+  if (!missing) {
+    window.showToast?.('Der Bogen ist schon voll.', 'success');
+    return 0;
+  }
+  updateQuantity('abschnitt-r2-hack', missing);
+  window.showToast?.(`${missing}× R II Hack (Art. 503) aufgefüllt.`, 'success');
+  return missing;
+}
+
 function flattenedLabels() {
-  /** @type {{ cut: CutDefinition, itemIdx: number, totalOfCut: number }[]} */
+  /** @type {{ cut: CutDefinition, itemIdx: number, totalOfCut: number, batch: object }[]} */
   const out = [];
   state.queue.forEach((qItem) => {
     const cut = findCut(qItem.id);
     if (!cut) return;
     for (let i = 1; i <= qItem.quantity; i += 1) {
-      out.push({ cut, itemIdx: i, totalOfCut: qItem.quantity });
+      out.push({
+        cut,
+        itemIdx: i,
+        totalOfCut: qItem.quantity,
+        batch: qItem.batch || currentBatchSnapshot(),
+      });
     }
   });
   return out;
@@ -1054,21 +1365,23 @@ function buildPrintPagesHtml() {
       } else if (cursor < labels.length) {
         const item = labels[cursor];
         cursor += 1;
+        const artNr = artNrOf(item.cut);
+        const batch = item.batch || currentBatchSnapshot();
         slots.push(`
-          <div class="avery-label-card">
+          <div class="avery-label-card label-card">
             <div class="avery-label-head">
-              <span>STEVESHOF</span>
-              <span>Ch: ${escapeHtml(state.chargenNummer)}</span>
+              <span>STEVESHOF${artNr ? ` · Art. ${escapeHtml(artNr)}` : ''}</span>
+              <span>${escapeHtml(batch.ohrmarke || batch.lot)}</span>
             </div>
             <div class="avery-label-title">${escapeHtml(formatPrintName(item.cut.bezeichnung))}</div>
             <div class="avery-label-detail">${escapeHtml(item.cut.teilstueckDetail)}</div>
             <div class="avery-label-meta">
               <div>
-                <div class="avery-strong">${escapeHtml(state.herkunft)}</div>
-                <div>Zerl: ${escapeHtml(state.zerlegeDatum)}</div>
+                <div class="avery-strong">${escapeHtml(batch.schlachtBetrieb)}</div>
+                <div>Schl: ${escapeHtml(batch.schlachtDatum)} · Zerl: ${escapeHtml(batch.zerlegeDatum)}</div>
               </div>
               <div class="avery-right">
-                <div>${escapeHtml(state.betriebsNummer)}</div>
+                <div>${escapeHtml(batch.lot)}</div>
                 <div class="avery-strong">${escapeHtml(item.cut.lagerung)}</div>
               </div>
             </div>
@@ -1085,7 +1398,7 @@ function buildPrintPagesHtml() {
         slots.push('<div class="avery-label-empty"></div>');
       }
     }
-    pages.push(`<div class="avery-page-sheet"><div class="avery-grid-3x8">${slots.join('')}</div></div>`);
+    pages.push(`<div class="avery-page-sheet avery-sheet"><div class="avery-grid-3x8 avery-grid">${slots.join('')}</div></div>`);
     pageNum += 1;
   }
   return pages.join('');
@@ -1107,7 +1420,9 @@ const AVERY_PRINT_CSS = `
   html, body { margin: 0; padding: 0; background: #fff; }
   .avery-page-sheet { width: 210mm; height: 297mm; box-sizing: border-box; padding-top: 4.5mm; padding-bottom: 4.5mm; page-break-after: always; break-after: page; }
   .avery-grid-3x8 { display: grid; grid-template-columns: repeat(3, 70mm); grid-template-rows: repeat(8, 36mm); width: 210mm; height: 288mm; position: relative; left: 1.5mm; }
-  .avery-label-card { box-sizing: border-box; width: 70mm; height: 36mm; padding: 1.8mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 0.15mm solid rgba(0,0,0,0.15); background: #fff; color: #000; }
+  .avery-sheet { width: 210mm; height: 297mm; padding: 4.5mm 0; box-sizing: border-box; page-break-after: always; break-after: page; }
+  .avery-grid { display: grid; grid-template-columns: repeat(3, 70mm); grid-template-rows: repeat(8, 36mm); width: 210mm; height: 288mm; }
+  .avery-label-card, .label-card { box-sizing: border-box; width: 70mm; height: 36mm; padding: 1.8mm 2.8mm 1.5mm 2.8mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; border: 0.15mm solid rgba(0,0,0,0.15); background: #fff; color: #000; }
   .avery-grid-3x8 > :nth-child(3n + 1) { padding-left: 7.2mm; }
   .avery-label-empty { visibility: hidden; }
   .avery-label-head { display: flex; justify-content: space-between; border-bottom: 0.2mm solid #000; padding-bottom: 0.4mm; font-size: 6.5pt; font-weight: 700; }
@@ -1139,6 +1454,14 @@ function printInPlace() {
       window.showToast?.('Drucken konnte nicht gestartet werden.', 'error');
     }
   });
+}
+
+export function triggerPrint() {
+  if (totalLabels() === 0) {
+    window.showToast?.('Druckkorb ist leer.', 'error');
+    return;
+  }
+  printInPlace();
 }
 
 function handlePrint() {
@@ -1182,10 +1505,11 @@ function renderCutList(host) {
   host.innerHTML = cuts
     .map((cut) => {
       const qty = qtyOf(cut.id);
+      const artNr = artNrOf(cut);
       return `
         <div class="beef-cut-row" data-cut-id="${escapeHtml(cut.id)}">
           <div class="beef-cut-info">
-            <div class="beef-cut-name">${escapeHtml(cleanCutName(cut.bezeichnung, state.etikettenPraefix))}</div>
+            <div class="beef-cut-name">${artNr ? `<span class="beef-artnr">Art. ${escapeHtml(artNr)}</span> ` : ''}${escapeHtml(cleanCutName(cut.bezeichnung, state.etikettenPraefix))}</div>
             <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
             <div class="beef-cut-meta">${escapeHtml(cut.reifung)} · ${escapeHtml(cut.lagerung)}</div>
           </div>
@@ -1211,11 +1535,13 @@ function renderQueue(host) {
       if (!cut) return '';
       const kgShown = item.weightKg ? String(item.weightKg).replace('.', ',') : '';
       const printName = formatPrintName(cut.bezeichnung);
+      const artNr = artNrOf(cut);
+      const tier = tierIndexFor(item.batch?.ohrmarke);
       return `
-        <div class="beef-queue-row" data-cut-id="${escapeHtml(item.id)}">
+        <div class="beef-queue-row" data-cut-id="${escapeHtml(item.id)}" data-batch-key="${escapeHtml(batchKey(item.batch))}" style="box-shadow: inset 4px 0 ${TIER_COLORS[tier % TIER_COLORS.length]}">
           <div class="beef-cut-info">
-            <div class="beef-cut-name">${escapeHtml(printName)}</div>
-            <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
+            <div class="beef-cut-name">${artNr ? `<span class="beef-artnr">Art. ${escapeHtml(artNr)}</span> ` : ''}${escapeHtml(printName)}</div>
+            <div class="beef-cut-detail">${escapeHtml(item.batch?.ohrmarke || 'Ohne Ohrmarke')} · ${escapeHtml(item.batch?.lot || '')}</div>
           </div>
           <div class="beef-line-controls">
             <div class="beef-qty">
@@ -1235,8 +1561,8 @@ function renderQueue(host) {
     .join('');
 }
 
-function setLineWeight(cutId, kg) {
-  const item = state.queue.find((entry) => entry.id === cutId);
+function setLineWeight(cutId, kg, batchKeyValue = '') {
+  const item = state.queue.find((entry) => entry.id === cutId && (!batchKeyValue || batchKey(entry.batch) === batchKeyValue));
   if (!item) return;
   item.weightKg = roundKg(kg);
   item.weightManual = true;
@@ -1345,6 +1671,7 @@ async function saveYieldToLogbook() {
 }
 
 function renderModalBody() {
+  if (typeof document === 'undefined') return;
   const modal = document.getElementById('beef-labels-modal');
   if (!modal) return;
 
@@ -1400,7 +1727,27 @@ function renderModalBody() {
   if (queueCount) queueCount.textContent = `${state.queue.length} Pos.`;
   if (printBtn) {
     printBtn.disabled = totalLabels() === 0;
-    printBtn.textContent = 'Drucken';
+    printBtn.textContent = 'Bogen drucken';
+  }
+  const profileHost = modal.querySelector('#beef-profile-tiles');
+  if (profileHost) {
+    profileHost.innerHTML = LABEL_PROFILES.map((profile) => `
+      <button type="button" class="beef-profile-tile${profile.id === state.profile ? ' is-active' : ''}" data-beef-profile="${profile.id}">${escapeHtml(profile.label)}</button>
+    `).join('');
+  }
+  const slotHost = modal.querySelector('#beef-start-slots');
+  if (slotHost) {
+    const activeSlot = state.skipCount + 1;
+    slotHost.innerHTML = Array.from({ length: 24 }, (_, index) => {
+      const slot = index + 1;
+      return `<button type="button" class="beef-start-slot${slot === activeSlot ? ' is-active' : ''}" data-start-slot="${slot}" aria-label="Start-Slot ${slot}">${slot}</button>`;
+    }).join('');
+  }
+  const sheetFill = modal.querySelector('#beef-sheet-fill');
+  if (sheetFill) {
+    const placed = totalLabels() + state.skipCount;
+    const onSheet = placed === 0 ? 0 : (placed % 24 === 0 ? 24 : placed % 24);
+    sheetFill.textContent = `Bogen ${onSheet}/24`;
   }
   renderYield();
 }
@@ -1464,13 +1811,13 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'segment-v1') return;
+  if (existing?.dataset.ux === 'avery-profiles-v1') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal galloway-modal';
-  modal.dataset.ux = 'segment-v1';
+  modal.dataset.ux = 'avery-profiles-v1';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
@@ -1553,6 +1900,7 @@ function ensureModal() {
       <div class="beef-labels-stage" id="beef-labels-stage">
         <div class="beef-labels-main" id="beef-labels-main">
           <div class="beef-labels-catalog">
+            <div class="beef-profile-tiles" id="beef-profile-tiles"></div>
             <div class="beef-tabs" role="tablist">${tabs}</div>
             <div class="beef-custom-add">
               <input type="text" id="beef-custom-name" class="input-text-touch" placeholder="Eigenes Teilstück eingeben…" autocomplete="off">
@@ -1597,10 +1945,12 @@ function ensureModal() {
       <footer class="beef-labels-footer">
         <div class="beef-footer-meta">
           <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
-          <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen</span>
+          <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen · <span id="beef-sheet-fill">Bogen 0/24</span></span>
         </div>
+        <button type="button" class="beef-fill-hack" id="beef-fill-hack">Rest mit R II Hack füllen</button>
+        <div class="beef-start-slots" id="beef-start-slots" aria-label="Start-Slot 1 bis 24"></div>
         <button type="button" class="beef-yield-save" id="beef-yield-save">Ausbeute speichern</button>
-        <button type="button" class="beef-print-btn" id="btn-print-labels">Drucken</button>
+        <button type="button" class="beef-print-btn" id="btn-print-labels">Bogen drucken</button>
       </footer>
     </div>
   `;
@@ -1611,7 +1961,12 @@ function ensureModal() {
   modal.querySelector('#btn-print-labels')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    handlePrint();
+    triggerPrint();
+  });
+  modal.querySelector('#beef-fill-hack')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    fillRemainingWithHack();
   });
   modal.querySelector('#beef-yield-save')?.addEventListener('click', () => {
     saveYieldToLogbook();
@@ -1705,8 +2060,22 @@ function ensureModal() {
 
   modal.addEventListener('click', (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
+    const profileBtn = target.closest('[data-beef-profile]');
+    if (profileBtn) {
+      const next = profileBtn.getAttribute('data-beef-profile') || '';
+      state.profile = state.profile === next ? '' : next;
+      persist();
+      renderModalBody();
+      return;
+    }
+    const slotBtn = target.closest('[data-start-slot]');
+    if (slotBtn) {
+      setStartSlot(Number(slotBtn.getAttribute('data-start-slot')));
+      return;
+    }
     const tabBtn = target.closest('[data-beef-tab]');
     if (tabBtn && tabBtn.closest('.beef-tabs')) {
+      state.profile = '';
       state.activeTab = /** @type {CutCategory} */ (tabBtn.getAttribute('data-beef-tab') || tabsForSegment()[0]);
       persist();
       renderModalBody();
@@ -1723,9 +2092,10 @@ function ensureModal() {
     if (row && kgBtn) {
       const cutId = row.getAttribute('data-cut-id');
       const delta = Number(kgBtn.getAttribute('data-kg-delta'));
-      const item = state.queue.find((entry) => entry.id === cutId);
+      const explicitKey = row.getAttribute('data-batch-key') || '';
+      const item = state.queue.find((entry) => entry.id === cutId && (!explicitKey || batchKey(entry.batch) === explicitKey));
       if (!cutId || !item || !delta) return;
-      setLineWeight(cutId, item.weightKg + delta);
+      setLineWeight(cutId, item.weightKg + delta, explicitKey);
       renderModalBody();
       return;
     }
@@ -1734,7 +2104,11 @@ function ensureModal() {
     const cutId = row.getAttribute('data-cut-id');
     const delta = Number(btn.getAttribute('data-delta'));
     if (!cutId || !delta) return;
-    updateQuantity(cutId, delta);
+    const explicitKey = row.getAttribute('data-batch-key');
+    const batch = explicitKey
+      ? state.queue.find((entry) => entry.id === cutId && batchKey(entry.batch) === explicitKey)?.batch
+      : null;
+    updateQuantity(cutId, delta, batch);
   });
   modal.addEventListener('input', (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
@@ -1742,7 +2116,7 @@ function ensureModal() {
     const row = target.closest('[data-cut-id]');
     const cutId = row?.getAttribute('data-cut-id');
     if (!cutId) return;
-    setLineWeight(cutId, parseKg(/** @type {HTMLInputElement} */ (target).value));
+    setLineWeight(cutId, parseKg(/** @type {HTMLInputElement} */ (target).value), row.getAttribute('data-batch-key') || '');
   });
 }
 
@@ -1777,7 +2151,7 @@ function ensureTriggerButtons() {
     }
   }
 
-  if (kitchen && !document.getElementById('beef-labels-open-kitchen')) {
+  if (kitchen && !document.getElementById('btn-open-beef-labels') && !document.getElementById('beef-labels-open-kitchen')) {
     const btn = makeBtn('beef-labels-open-kitchen');
     const host = document.createElement('div');
     host.className = 'beef-labels-trigger-wrap beef-labels-trigger-wrap--kitchen';
@@ -1804,6 +2178,10 @@ export function openBeefLabelsModal() {
   openModal();
 }
 
+export function openBeefLabelModal() {
+  openBeefLabelsModal();
+}
+
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => initBeefLabels(), { once: true });
@@ -1814,3 +2192,7 @@ if (typeof document !== 'undefined') {
 
 window.initBeefLabels = initBeefLabels;
 window.openBeefLabelsModal = openBeefLabelsModal;
+window.openBeefLabelModal = openBeefLabelModal;
+window.fillRemainingWithHack = fillRemainingWithHack;
+window.setStartSlot = setStartSlot;
+window.triggerPrint = triggerPrint;

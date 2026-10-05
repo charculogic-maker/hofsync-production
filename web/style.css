@@ -11399,10 +11399,75 @@ body.role-firebase-auth #team-login-card {
   margin: 0 0 12px;
 }
 
-.beef-labels-open-btn {
+.beef-labels-open-btn,
+#btn-open-beef-labels {
   width: 100%;
   min-height: 52px;
+  font-size: 15px;
   font-weight: 800;
+}
+
+.beef-profile-tiles {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.beef-profile-tile,
+.beef-fill-hack,
+.beef-start-slot {
+  min-height: 52px;
+}
+
+.beef-profile-tile {
+  background: #fff;
+  border: 2px solid #d6d3d1;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 8px;
+}
+
+.beef-profile-tile.is-active,
+.beef-start-slot.is-active {
+  background: #7f1d1d;
+  border-color: #7f1d1d;
+  color: #fff;
+}
+
+.beef-fill-hack {
+  width: 100%;
+  font-weight: 800;
+}
+
+.beef-start-slots {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 8px 0;
+}
+
+.beef-start-slot {
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  font-weight: 800;
+  min-width: 44px;
+}
+
+.beef-artnr {
+  color: #7f1d1d;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 900px) {
+  .beef-profile-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .beef-start-slots {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
 }
 
 body.beef-labels-open {
@@ -12284,11 +12349,29 @@ body.beef-labels-open {
     left: 1.5mm;
   }
 
-  body.printing-beef-labels .avery-label-card {
+  body.printing-beef-labels .avery-sheet {
+    width: 210mm;
+    height: 297mm;
+    padding: 4.5mm 0;
+    box-sizing: border-box;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  body.printing-beef-labels .avery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 70mm);
+    grid-template-rows: repeat(8, 36mm);
+    width: 210mm;
+    height: 288mm;
+  }
+
+  body.printing-beef-labels .avery-label-card,
+  body.printing-beef-labels .label-card {
     box-sizing: border-box;
     width: 70mm;
     height: 36mm;
-    padding: 1.8mm;
+    padding: 1.8mm 2.8mm 1.5mm 2.8mm;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
