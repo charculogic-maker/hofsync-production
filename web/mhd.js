@@ -28,8 +28,8 @@ import {
   getMhdActionWindowUpperLimit,
   mapMhdActionKeyToStatus,
   resolveMhdActionKey,
-  shouldShowMhdPercentBadge,
 } from './mhd-rabatt.js';
+import { calculateDiscount, loadDiscountMatrix } from './discount-matrix.js';
 import {
   MHD_AUDIT_COLLECTION,
   buildMovementRecord,
@@ -3192,17 +3192,52 @@ function computeMhdAction(prod) {
   return getMhdActionStyle(key, category);
 }
 
+function readOriginalPrice(prod = {}) {
+  const raw = prod.preis ?? prod.vkPreis ?? prod.verkaufspreis ?? prod.price ?? prod.einzelpreis ?? prod.vk;
+  const number = typeof raw === 'string' ? Number(String(raw).trim().replace(',', '.')) : Number(raw);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function formatEuro(value) {
+  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
+}
+
 function getMhdCardAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
-  const key = resolveMhdActionKey(category, tage, prod);
-  const action = computeMhdAction(prod);
-
+  if (Number.isFinite(tage) && tage < 0) {
+    const key = 'tonne';
+    const action = getMhdActionStyle(key, category);
+    return {
+      ...action,
+      key,
+      showPercentBadge: false,
+      label: getMhdActionShortLabel(key, category),
+      discount: null,
+      price: null,
+    };
+  }
+  const price = readOriginalPrice(prod);
+  const discount = calculateDiscount(price ?? 0, tage, category, getGlobalTenantId());
+  if (discount.hasDiscount) {
+    return {
+      key: 'matrix',
+      label: discount.badgeText,
+      color: '#EF6C00',
+      bg: 'rgba(239, 108, 0, 0.14)',
+      showPercentBadge: true,
+      discount,
+      price,
+    };
+  }
   return {
-    ...action,
-    key,
-    showPercentBadge: shouldShowMhdPercentBadge(key),
-    label: getMhdActionShortLabel(key, category),
+    key: 'ok',
+    label: '',
+    color: '',
+    bg: '',
+    showPercentBadge: false,
+    discount,
+    price,
   };
 }
 
@@ -3939,10 +3974,13 @@ function formatRestlaufzeit(tage) {
 }
 
 function formatStevesHofDiscount(prod) {
-  const tage = getMhdResttage(prod);
-  const percent = stevesHofDiscountPercent(mhdProductName(prod), getProductCategory(prod), tage);
-  if (percent == null) return getMhdCardAction(prod).label;
-  return percent === 0 ? '0 %' : `-${percent} %`;
+  const discount = calculateDiscount(
+    readOriginalPrice(prod) ?? 0,
+    getMhdResttage(prod),
+    getProductCategory(prod),
+    getGlobalTenantId(),
+  );
+  return discount.hasDiscount ? `-${discount.discountPercent} %` : '—';
 }
 
 function parseStichprobeDate(raw) {
@@ -4249,12 +4287,19 @@ function buildMhdCardHtml(prod = {}) {
           ${escapeHtml(action.label)}
         </div>`
       : '';
+  const priceHtml = action.discount?.hasDiscount && action.price
+    ? `<div class="mhd-price-row">
+        <s class="mhd-price-original">${escapeHtml(formatEuro(action.price))}</s>
+        <strong class="mhd-price-discount">${escapeHtml(formatEuro(action.discount.discountedPrice))}</strong>
+      </div>`
+    : '';
   const stichprobeLink = batchCount >= 2
     ? `<button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
     : '';
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
       ${actionBadgeHtml ? `<div class="mhd-card-badge-row">${actionBadgeHtml}</div>` : ''}
+      ${priceHtml}
       ${stichprobeLink}
       <div class="mhd-card-header">
         <div class="mhd-card-heading">
@@ -7239,6 +7284,9 @@ function restoreMhdDraftFields() {
 export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
   await window.ensureInventoryProfileSessionForTab?.('mhd');
+  loadDiscountMatrix(getGlobalTenantId())
+    .then(() => renderMhdList())
+    .catch((err) => console.warn('[CharcuLogic Rabatt] Matrix-Refresh übersprungen:', err));
   applyMhdCategoryFilterOptions();
   if (mhdState.pendingCloudSync || mhdState.cloudSyncStatus === 'loading') {
     startMhdLiveSync();

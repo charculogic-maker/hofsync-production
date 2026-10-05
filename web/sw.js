@@ -1,6 +1,6 @@
-const CACHE_NAME = 'charculogic-v20261005-mobile-ux-v1';
+const CACHE_NAME = 'charculogic-v20261005-discount-matrix-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-05T16:10:00+02:00';
+const RELEASED_AT = '2026-10-05T18:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -29,6 +29,8 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/mhd.js',
   '/mhd-rabatt.js',
+  '/discount-matrix.js',
+  '/discount-matrix-ui.js',
   '/retter-box.js',
   '/date-input.js',
   '/delivery-note.js',

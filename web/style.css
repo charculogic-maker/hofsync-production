@@ -2141,6 +2141,75 @@ button:active, .btn:active {
   letter-spacing: 0.02em;
 }
 
+.mhd-price-row {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.mhd-price-original {
+  color: var(--text-muted, #6b6258);
+  font-size: 14px;
+}
+
+.mhd-price-discount {
+  color: #c2410c;
+  font-size: 18px;
+}
+
+.discount-matrix-category,
+.discount-matrix-rule label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.discount-matrix-category select,
+.discount-matrix-rule input {
+  min-height: 48px;
+  width: 100%;
+}
+
+.discount-matrix-rule {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin: 12px 0;
+}
+
+.discount-matrix-preview,
+.discount-matrix-delete,
+.discount-matrix-add,
+.discount-matrix-save {
+  min-height: 48px;
+}
+
+.discount-matrix-preview {
+  align-items: center;
+  background: rgba(239, 108, 0, 0.14);
+  border: 2px solid #ef6c00;
+  border-radius: 8px;
+  color: #ef6c00;
+  display: flex;
+  font-weight: 800;
+  justify-content: center;
+  padding: 8px;
+}
+
+.discount-matrix-delete,
+.discount-matrix-add,
+.discount-matrix-save {
+  width: 100%;
+}
+
+.discount-matrix-delete {
+  grid-column: 1 / -1;
+}
+
 .mhd-action-badge--regular {
   background: rgba(107, 114, 128, 0.08);
   border: 1px solid rgba(107, 114, 128, 0.22) !important;
