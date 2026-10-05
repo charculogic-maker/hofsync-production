@@ -133,7 +133,6 @@ let deliveryDraftsUnsubscribe = null;
 
 const DELIVERY_STATUS_DRAFT = 'DRAFT_PENDING';
 const DELIVERY_STATUS_COMPLETED = 'COMPLETED';
-const EIGENPRODUKTION_SUPPLIER = 'Eigene Produktion';
 const DEFAULT_FINALIZE_LABEL = '💾 Gesamte Lieferung abschließen';
 const DRAFT_FINALIZE_LABEL = '💾 Lieferung final abschließen';
 
@@ -2225,6 +2224,16 @@ function updateDeliveryItemProductUi() {
   if (resolvedName) resolvedName.textContent = displayName;
   unknownActions?.classList.toggle('hidden', !isUnknown || manualOpen);
   manualWrap?.classList.toggle('hidden', hasName || (isUnknown && !manualOpen));
+  syncHerstellerZusatzVisibility();
+}
+
+function syncHerstellerZusatzVisibility() {
+  const wrap = document.getElementById('we-hersteller-zusatz-wrap');
+  if (!wrap) return;
+  const code = cleanScannedBarcode(currentDeliveryItemBarcode || document.getElementById('we-ean')?.value || '');
+  const knownCatalogItem = Boolean(code && lookupScannedProduct(code)?.name);
+  wrap.classList.toggle('hidden', knownCatalogItem);
+  wrap.hidden = knownCatalogItem;
 }
 
 function applyBarcodeToDeliveryItemDraft(barcode) {
@@ -4201,14 +4210,12 @@ function buildMhdCardHtml(prod = {}) {
   const mhdDateEditButton = formatMhdDateForCardMeta(prod)
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
     : '';
-  const stammdatenEditButton = `<button type="button" class="mhd-date-edit-button mhd-stammdaten-edit-button" data-mhd-command="stammdaten" data-mhd-id="${prod.id}" aria-label="Artikel bearbeiten">✏️ Bearbeiten</button>`;
-  const categoryBadgeLabel = getCategoryBadgeLabel(prod);
+  const stammdatenEditButton = `<button type="button" class="mhd-date-edit-button mhd-stammdaten-edit-button" data-mhd-command="stammdaten" data-mhd-id="${prod.id}" aria-label="Artikel bearbeiten">Bearbeiten</button>`;
   const displayParts = resolveMhdProductDisplayParts(prod);
   const displayName = escapeHtml(displayParts.title);
   const grammageBadge = displayParts.grammageBadge
     ? `<span class="mhd-product-grammage-badge">${escapeHtml(displayParts.grammageBadge)}</span>`
     : '';
-  const categoryBadge = `<button type="button" class="mhd-category-badge mhd-category-badge--inline" data-mhd-command="category" data-mhd-id="${prod.id}" aria-label="Kategorie ändern: ${escapeHtml(categoryBadgeLabel)}" title="Kategorie ändern">${escapeHtml(categoryBadgeLabel)}</button>`;
   const duplicateCount = Number(prod._duplicateCount || 1);
   const duplicateBadge = duplicateCount > 1
     ? `<div class="mhd-duplicate-row">
@@ -4241,21 +4248,28 @@ function buildMhdCardHtml(prod = {}) {
       ? `<div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};">
           ${escapeHtml(action.label)}
         </div>`
-      : `<div class="mhd-action-badge mhd-action-badge--regular" aria-label="Kein Rabatt">
-          Regulär
-        </div>`;
+      : '';
+  const stichprobeLink = batchCount >= 2
+    ? `<button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
+    : '';
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
-      <div class="mhd-card-badge-row">
-        ${actionBadgeHtml}
-      </div>
-      <button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}" style="margin:0 0 8px;padding:2px 0;border:0;background:transparent;color:#666;font-size:13px;text-align:left;">🔍 Alle MHDs (${batchCount})</button>
+      ${actionBadgeHtml ? `<div class="mhd-card-badge-row">${actionBadgeHtml}</div>` : ''}
+      ${stichprobeLink}
       <div class="mhd-card-header">
-        <div class="mhd-product-info">
-          <span class="mhd-product-name">${displayName}${grammageBadge}${categoryBadge}</span>
-          ${duplicateBadge}
-          <span class="mhd-product-meta">${productMetaHtml}${mhdDateEditButton}${stammdatenEditButton}</span>
-          ${laterBadgeHtml}
+        <div class="mhd-card-heading">
+        <details class="mhd-card-tools">
+          <summary class="mhd-product-info">
+            <span class="mhd-product-name">${displayName}${grammageBadge}</span>
+            <span class="mhd-product-meta">${productMetaHtml}</span>
+            ${laterBadgeHtml}
+          </summary>
+          <div class="mhd-card-tools-panel">
+            ${mhdDateEditButton}
+            ${stammdatenEditButton}
+          </div>
+        </details>
+        ${duplicateBadge}
         </div>
         <button
           type="button"
@@ -6896,7 +6910,6 @@ function bindReceivingControls() {
   const categoryQuickSelect = document.getElementById('we-category-quick');
   const btnSaveDelivery = document.getElementById('we-save-delivery-btn');
   const btnSaveDraft = document.getElementById('we-save-draft-btn');
-  const btnEigenproduktion = document.getElementById('we-eigenproduktion-btn');
   const openDraftsList = document.getElementById('open-drafts-list');
   const btnAddItem = document.getElementById('we-add-item-btn');
   const btnPhoto = document.getElementById('we-photo-btn');
@@ -7018,14 +7031,6 @@ function bindReceivingControls() {
   if (btnSaveDraft && btnSaveDraft.dataset.mhdBound !== '1') {
     btnSaveDraft.dataset.mhdBound = '1';
     btnSaveDraft.addEventListener('click', () => saveDeliveryDraft());
-  }
-  if (btnEigenproduktion && btnEigenproduktion.dataset.mhdBound !== '1') {
-    btnEigenproduktion.dataset.mhdBound = '1';
-    btnEigenproduktion.addEventListener('click', () => {
-      applySupplierToForm(EIGENPRODUKTION_SUPPLIER);
-      updateReceivingSaveButtonState();
-      window.showToast?.('Lieferant: Eigene Produktion', 'success');
-    });
   }
   const supplierSelect = document.getElementById('we-supplier');
   if (supplierSelect && supplierSelect.dataset.mhdBound !== '1') {

@@ -1333,7 +1333,8 @@ button:active, .btn:active {
 }
 
 .mhd-completion-btn {
-  min-height: 40px;
+  min-width: 48px;
+  min-height: 48px;
   padding: 8px 10px;
   border-radius: 10px;
   border: 2px solid var(--surface-secondary, #E5E5EA);
@@ -2199,6 +2200,74 @@ button:active, .btn:active {
   flex: 1 1 auto;
 }
 
+.mhd-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mhd-card-tools {
+  min-width: 0;
+}
+
+.mhd-card-tools > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 48px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mhd-card-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mhd-card-tools > summary::after {
+  content: 'Mehr';
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.mhd-card-tools[open] > summary::after {
+  content: 'Weniger';
+}
+
+.mhd-card-tools-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mhd-card-tools-panel .mhd-date-edit-button {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.mhd-stichprobe-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+}
+
 .mhd-product-name {
   font-size: 16px;
   font-weight: 800;
@@ -2385,6 +2454,8 @@ button:active, .btn:active {
 .btn-stepper {
   width: var(--touch-target-size);
   height: var(--touch-target-size);
+  min-width: 48px;
+  min-height: 48px;
   border-radius: var(--border-radius-md);
   font-size: 22px;
   color: var(--text-dark);
@@ -2457,9 +2528,10 @@ button:active, .btn:active {
 }
 
 .mhd-card .btn-stepper {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
   flex-shrink: 0;
   font-size: 20px;
 }
@@ -2515,8 +2587,8 @@ button:active, .btn:active {
 }
 
 .btn-mhd-action {
-  min-width: 0;
-  min-height: 40px;
+  min-width: 48px;
+  min-height: 48px;
   padding: 0 8px;
   border: 0;
   border-radius: var(--border-radius-sm);
@@ -2608,6 +2680,67 @@ button:active, .btn:active {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+
+.wrs-loss-details {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--surface-secondary);
+}
+
+.wrs-loss-details > summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.wrs-loss-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wrs-loss-details-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.recipe-sop-phases {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-md);
+  background: var(--surface-color);
+}
+
+.recipe-sop-phases > summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-dark);
+}
+
+.recipe-sop-phases > summary::-webkit-details-marker {
+  display: none;
+}
+
+.recipe-sop-phases > .instructions-list {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.recipe-sop-notes {
+  margin: 0;
+  padding: 0;
 }
 
 .wrs-field {
@@ -3613,12 +3746,13 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .haccp-mode-tabs {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px;
   gap: 8px;
 }
 
 .haccp-mode-tab {
-  min-height: 42px;
+  min-width: 48px;
+  min-height: 48px;
   padding: 8px 6px;
   border-radius: var(--border-radius-sm);
   border: 2px solid var(--primary-alpha-18);
@@ -4024,6 +4158,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 }
 
 .receiving-mode-tab {
+  min-width: 48px;
   min-height: 48px;
   padding: 10px 8px;
   border: 3px solid #8E8E93;
@@ -4321,6 +4456,8 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 .we-item-row-remove {
   width: 44px;
   height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent-alert) 12%, transparent);
@@ -4364,7 +4501,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 
 .receiving-supplier-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: end;
 }
@@ -4637,6 +4774,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 .btn-receiving-tool {
+  min-width: 48px;
   min-height: 48px;
   background: var(--surface-color);
   color: var(--text-dark);
@@ -8695,7 +8833,8 @@ body.role-helper #team-subnav-orders {
 }
 
 .receiving-mode-tab {
-  min-height: 44px;
+  min-width: 48px;
+  min-height: 48px;
   border-width: 2px;
 }
 
@@ -8718,9 +8857,24 @@ body.role-helper #team-subnav-orders {
   font-size: 12px;
 }
 
+.btn-receiving-tool {
+  min-width: 48px;
+  min-height: 48px;
+}
+
 .receiving-stats,
 .batch-audit-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 768px) {
+  #page-receiving .receiving-vpe-stat {
+    display: none;
+  }
+
+  #page-receiving .receiving-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .batch-audit-grid > div {
@@ -8745,8 +8899,10 @@ body.role-helper #team-subnav-orders {
 }
 
 .we-item-row-remove {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .open-drafts-section {
@@ -8907,13 +9063,14 @@ body.role-helper #team-subnav-orders {
 
 .haccp-mode-tabs {
   gap: 6px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px;
 }
 
 .haccp-mode-tab {
-  min-height: 40px;
-  padding: 7px 5px;
-  font-size: 10px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 6px;
+  font-size: 12px;
 }
 
 .haccp-mode-tab-setup {

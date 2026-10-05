@@ -1095,7 +1095,6 @@
           <div class="page" id="page-receiving">
             <div class="haccp-card receiving-card">
               <div class="section-title">Wareneingang</div>
-              <p class="learn-mode-desc">Schnellerfassung für Posten im Alltag. Lieferant oben wählen; Metzgerei für Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).</p>
 
               <section class="receiving-section receiving-section--supplier-head" aria-labelledby="we-supplier-head-title">
                 <h3 class="receiving-section-title" id="we-supplier-head-title">Lieferant</h3>
@@ -1112,9 +1111,6 @@
                         <option value="Eigene Produktion">Eigene Produktion</option>
                       </select>
                     </label>
-                    <button type="button" class="btn btn-eigenproduktion" id="we-eigenproduktion-btn" title="Lieferant auf Eigene Produktion setzen">
-                      🏠 Eigenproduktion
-                    </button>
                   </div>
                   <label class="receiving-field hidden" id="we-supplier-custom-wrap" for="we-supplier-custom">
                     <span>Name bei Sonstige</span>
@@ -1170,7 +1166,7 @@
                     <span>Produktname</span>
                     <input type="text" id="we-product-name" class="gastro-input" placeholder="Produktname eingeben oder per Scan übernehmen…" autocomplete="off">
                   </label>
-                  <label class="receiving-field" for="we-hersteller-zusatz">
+                  <label class="receiving-field" id="we-hersteller-zusatz-wrap" for="we-hersteller-zusatz">
                     <span>Hersteller / Zusatz</span>
                     <input type="text" id="we-hersteller-zusatz" class="gastro-input" placeholder="z. B. Bauer Meier, im Glas, Frisch in Pack" autocomplete="off">
                   </label>
@@ -1205,7 +1201,7 @@
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>
               <div class="batch-audit-grid receiving-stats">
-                <div>
+                <div class="receiving-vpe-stat">
                   <span class="batch-audit-label">VPE-Stamm</span>
                   <strong id="receiving-vpe-count">-</strong>
                 </div>
@@ -1498,18 +1494,23 @@
                     <span>Zielgewicht kg</span>
                     <input id="target-weight" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0.5" max="500" step="0.5" value="10">
                   </label>
-                  <label class="wrs-field" for="wrs-machine-loss">
-                    <span>Maschinenverlust kg</span>
-                    <input id="wrs-machine-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="50" step="0.05" value="0">
-                  </label>
-                  <label class="wrs-field" for="wrs-cook-loss">
-                    <span>Garverlust %</span>
-                    <input id="wrs-cook-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="80" step="0.5" value="0">
-                  </label>
-                  <label class="wrs-field" for="wrs-margin-pct">
-                    <span>Ziel-Marge % (auf VK)</span>
-                    <input id="wrs-margin-pct" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="75" step="1" value="35">
-                  </label>
+                  <details class="wrs-loss-details">
+                    <summary>Verluste und Marge</summary>
+                    <div class="wrs-loss-details-body">
+                      <label class="wrs-field" for="wrs-machine-loss">
+                        <span>Maschinenverlust kg</span>
+                        <input id="wrs-machine-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="50" step="0.05" value="0">
+                      </label>
+                      <label class="wrs-field" for="wrs-cook-loss">
+                        <span>Garverlust %</span>
+                        <input id="wrs-cook-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="80" step="0.5" value="0">
+                      </label>
+                      <label class="wrs-field" for="wrs-margin-pct">
+                        <span>Ziel-Marge % (auf VK)</span>
+                        <input id="wrs-margin-pct" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="75" step="1" value="35">
+                      </label>
+                    </div>
+                  </details>
                   <button type="button" class="btn btn-primary wrs-calc-btn" id="btn-calculate-wrs">Berechnen</button>
                 </div>
 
@@ -1591,68 +1592,6 @@
               </button>
             </div>
 
-            <div class="haccp-card haccp-legacy-production-card">
-              <div class="section-title">Produktion dokumentieren</div>
-              <p class="learn-mode-desc">Charge, Kerntemperatur und pH-Wert nach der Herstellung festhalten.</p>
-
-              <div class="form-group">
-                <label class="form-label" for="haccp-batch">
-                  <span>Chargen-Nummer</span>
-                </label>
-                <div class="batch-input-grid">
-                  <input type="text" id="haccp-batch" class="input-text-touch" placeholder="z.B. CH-2026-0523" value="CH-2026-0523-A">
-                  <button class="btn btn-primary btn-batch-auto" id="btn-batch-generate">
-                    ⚡ Neu
-                  </button>
-                </div>
-              </div>
-
-              <details class="haccp-collapsible" id="haccp-measurements-panel">
-                <summary>Kerntemperatur &amp; pH-Wert</summary>
-                <div class="haccp-collapsible-body">
-                  <div class="form-group">
-                    <label class="form-label" for="haccp-temp">
-                      <span>Kerntemperatur (°C)</span>
-                      <span class="form-value-badge" id="temp-badge">75.0 °C</span>
-                    </label>
-                    <div class="haccp-slider-container">
-                      <input type="range" id="haccp-temp" class="touch-slider" min="-10.0" max="100.0" step="0.5" value="75.0">
-                      <div class="slider-limits">
-                        <span>❄️ -10°C</span>
-                        <span>🔥 Garziel &gt; 72°C</span>
-                        <span>💨 100°C</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label" for="haccp-ph">
-                      <span>pH-Wert Messung</span>
-                      <span class="form-value-badge" id="ph-badge">5.50</span>
-                    </label>
-                    <div class="haccp-slider-container">
-                      <input type="range" id="haccp-ph" class="touch-slider" min="4.00" max="7.00" step="0.05" value="5.50">
-                      <div class="slider-limits">
-                        <span>🔴 4.0 (Sauer)</span>
-                        <span>🟢 Optimal (5.2 - 5.8)</span>
-                        <span>🔴 7.0 (Alkalisch)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="haccp-status-box" id="haccp-alert-box">
-                    <div class="haccp-status-title" id="haccp-alert-title">Warnung</div>
-                    <div class="haccp-status-desc" id="haccp-alert-desc">Qualität außerhalb der Toleranz!</div>
-                  </div>
-                </div>
-              </details>
-
-              <div class="haccp-submit-bar">
-                <button class="btn btn-submit-haccp" id="btn-submit-haccp">
-                  📝 Protokoll eintragen
-                </button>
-              </div>
-            </div>
           </div>
 
           <!-- ============================================== -->
@@ -2123,9 +2062,8 @@
             </button>
           </div>
 
-          <!-- Statische SOP-Struktur – Texte werden per ID aus app.js befüllt -->
-          <div class="section-title">🥣 Handwerks-Anweisungen</div>
-          <div class="instructions-card">
+          <details class="recipe-sop-phases">
+            <summary>Handwerks-Anweisungen</summary>
             <ul class="instructions-list" id="detail-recipe-instructions">
               <li class="phase-sop-item" style="border-left:4px solid #2E7D32;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
                 <strong style="color:#2E7D32">Vorbereiten</strong><br>
@@ -2143,14 +2081,16 @@
                 <strong style="color:#E65100">Kontrolle &amp; Lagerung</strong><br>
                 <span id="recipe-phase-d-text" style="font-size:14px;line-height:1.4"></span>
               </li>
-              <li id="recipe-meister-tipp" class="meister-tipp-item" style="list-style:none;margin-top:12px;padding:10px;background:#eceff1;border-radius:8px;">
-                <strong>⭐ Meister-Tipp:</strong> <span id="recipe-meister-tipp-text"></span>
-              </li>
-              <li id="recipe-haltbarkeit" class="haltbar-item" style="list-style:none;margin-top:8px;padding:10px;background:#e8f5e9;border-radius:8px;">
-                <strong>⏱ Haltbarkeit:</strong> <span id="recipe-haltbarkeit-text"></span>
-              </li>
             </ul>
-          </div>
+          </details>
+          <ul class="instructions-list recipe-sop-notes">
+            <li id="recipe-meister-tipp" class="meister-tipp-item" style="list-style:none;margin-top:12px;padding:10px;background:#eceff1;border-radius:8px;">
+              <strong>Meister-Tipp:</strong> <span id="recipe-meister-tipp-text"></span>
+            </li>
+            <li id="recipe-haltbarkeit" class="haltbar-item" style="list-style:none;margin-top:8px;padding:10px;background:#e8f5e9;border-radius:8px;">
+              <strong>Haltbarkeit:</strong> <span id="recipe-haltbarkeit-text"></span>
+            </li>
+          </ul>
 
           <div class="section-title">Charge dokumentieren</div>
           <div class="production-log-card">
@@ -2186,13 +2126,13 @@
                 <label class="form-label" for="recipe-unit-large">
                   <span>Großkaliber / Stücke</span>
                 </label>
-                <input type="number" id="recipe-unit-large" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-large" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
               <div class="form-group">
                 <label class="form-label" for="recipe-unit-sb">
                   <span>SB-Packungen</span>
                 </label>
-                <input type="number" id="recipe-unit-sb" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-sb" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
             </div>
             <div class="batch-input-grid">
@@ -2200,13 +2140,13 @@
                 <label class="form-label" for="recipe-unit-loose">
                   <span>Lose Ware / Stück</span>
                 </label>
-                <input type="number" id="recipe-unit-loose" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-loose" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
               <div class="form-group">
                 <label class="form-label" for="recipe-unit-glass">
                   <span>Gläser / Dosen</span>
                 </label>
-                <input type="number" id="recipe-unit-glass" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-glass" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
             </div>
             <div class="form-group">

@@ -1,6 +1,6 @@
-const CACHE_NAME = 'charculogic-v20261004-firebase-app-instance-v1';
+const CACHE_NAME = 'charculogic-v20261005-mobile-ux-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-03T16:20:00+02:00';
+const RELEASED_AT = '2026-10-05T16:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

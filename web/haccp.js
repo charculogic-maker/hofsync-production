@@ -57,7 +57,6 @@ const FLY_PREVENTION_CLEANING_TASK = {
   name: 'Fliegengitter & UV-Insektenlampen geprüft',
 };
 
-const HACCP_DRAFT_KEY = 'charculogic.draft.haccp';
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 
 const HACCP_CLEANING_TEAM = [
@@ -160,41 +159,6 @@ const haccpState = {
   initialized: false,
 };
 
-function saveHaccpDraft() {
-  try {
-    const draft = {
-      ph: document.getElementById('haccp-ph')?.value || '',
-      temp: document.getElementById('haccp-temp')?.value || '',
-      batch: document.getElementById('haccp-batch')?.value || '',
-      savedAt: Date.now(),
-    };
-    localStorage.setItem(HACCP_DRAFT_KEY, JSON.stringify(draft));
-  } catch (_) { /* quota exceeded — silent */ }
-}
-
-function restoreHaccpDraft() {
-  try {
-    const raw = localStorage.getItem(HACCP_DRAFT_KEY);
-    if (!raw) return;
-    const draft = JSON.parse(raw);
-    if (Date.now() - (draft.savedAt || 0) > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(HACCP_DRAFT_KEY);
-      return;
-    }
-    const phEl = document.getElementById('haccp-ph');
-    const tempEl = document.getElementById('haccp-temp');
-    const batchEl = document.getElementById('haccp-batch');
-    if (phEl && draft.ph) phEl.value = draft.ph;
-    if (tempEl && draft.temp) tempEl.value = draft.temp;
-    if (batchEl && draft.batch) batchEl.value = draft.batch;
-    updateHACCPAlerts();
-  } catch (_) { /* corrupt draft — silent */ }
-}
-
-function clearHaccpDraft() {
-  try { localStorage.removeItem(HACCP_DRAFT_KEY); } catch (_) { /* noop */ }
-}
-
 function restoreCleaningPerson() {
   if (haccpState.cleaningDoneBy) return;
   try {
@@ -239,8 +203,6 @@ export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction,
   }
   document.documentElement.dataset.haccpModule = 'ready';
 
-  restoreHaccpDraft();
-  updateHACCPAlerts();
   renderHaccpOperatorSelector();
   renderHaccpDaily();
 }
@@ -254,7 +216,6 @@ export function startHaccpLiveSync() {
 }
 
 export function activateHaccpTab() {
-  updateHACCPAlerts();
   renderHaccpOperatorSelector();
   renderHaccpDaily();
 }
@@ -911,7 +872,6 @@ function restoreHaccpDraftFields() {
   const fieldIds = Array.from(container.querySelectorAll('input, textarea, select'))
     .map((el) => el.id)
     .filter(Boolean);
-  fieldIds.push('haccp-ph', 'haccp-temp', 'haccp-batch');
   haccpState.restoreDraftFields(fieldIds);
 }
 
@@ -1049,30 +1009,6 @@ function renderHaccpDaily() {
     bindRenderedHaccpActions(container);
     restoreHaccpDraftFields();
     return;
-
-    const devices = activeHaccpDevices('temperatur');
-    container.innerHTML = `
-      <div class="haccp-daily-intro">
-        <strong>Kühlstellen</strong>
-        <span>Wir tragen nur die fälligen Werte ein. Bei Abweichung notieren wir kurz die Maßnahme.</span>
-      </div>
-      <div class="haccp-task-list">
-        ${devices.length ? devices.map((device) => `
-          <div class="haccp-task-card">
-            <div class="haccp-task-title">${escapeHtml(device.name)}</div>
-            <div class="haccp-task-meta">${escapeHtml(device.bereich || '')} · Soll: ${device.sollMin ?? 'offen'} bis ${device.sollMax ?? 'offen'} ${escapeHtml(device.einheit || '°C')}</div>
-            <div class="haccp-task-actions">
-              <input id="temp-${safeDomId(device.id)}" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Messwert in ${escapeHtml(device.einheit || '°C')}">
-              <button class="btn btn-primary haccp-save-wide" type="button" data-haccp-save-temp="${escapeHtml(device.id)}">Speichern</button>
-            </div>
-            <input id="note-${safeDomId(device.id)}" class="input-text-touch" style="margin-top:8px;height:48px;font-size:14px;" placeholder="Maßnahme bei Abweichung">
-          </div>
-        `).join('') : '<div class="batch-empty-hint">Noch keine Kühlstellen eingerichtet.</div>'}
-      </div>
-    `;
-    bindRenderedHaccpActions(container);
-    restoreHaccpDraftFields();
-    return;
   }
 
   if (haccpState.mode === 'reinigung') {
@@ -1097,8 +1033,8 @@ function renderHaccpDaily() {
         <input id="haccp-device-area" class="input-text-touch" placeholder="Bereich">
       </div>
       <div class="batch-input-grid">
-        <input id="haccp-device-min" type="number" class="input-text-touch" step="0.1" placeholder="Soll min">
-        <input id="haccp-device-max" type="number" class="input-text-touch" step="0.1" placeholder="Soll max">
+        <input id="haccp-device-min" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Soll min">
+        <input id="haccp-device-max" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Soll max">
       </div>
       <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Einrichtung speichern</button>
       <div class="utility-list">
@@ -1173,112 +1109,7 @@ function bindStaticHaccpControls() {
     });
   });
 
-  const sliderPh = document.getElementById('haccp-ph');
-  const sliderTemp = document.getElementById('haccp-temp');
-  sliderPh?.addEventListener('input', () => {
-    haccpState.playClickSound(1000 + (parseFloat(sliderPh.value) * 100), 0.015, 0.05);
-    updateHACCPAlerts();
-    saveHaccpDraft();
-  });
-  sliderTemp?.addEventListener('input', () => {
-    haccpState.playClickSound(800 + (parseFloat(sliderTemp.value) * 4), 0.015, 0.05);
-    updateHACCPAlerts();
-    saveHaccpDraft();
-  });
-  document.getElementById('haccp-batch')?.addEventListener('input', saveHaccpDraft);
-
-  const btnBatchGen = document.getElementById('btn-batch-generate');
-  const inputBatch = document.getElementById('haccp-batch');
-  btnBatchGen?.addEventListener('click', () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const randomChar = chars.charAt(Math.floor(Math.random() * chars.length));
-    const now = new Date();
-    const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-    if (inputBatch) {
-      inputBatch.value = `CH-${dateStr}-${randomChar}`;
-      haccpState.showHUD("⚡ Generiert", `Kombination: ${inputBatch.value}`);
-    }
-    haccpState.playClickSound(1300, 0.04, 0.15);
-  });
-
-  document.getElementById('btn-submit-haccp')?.addEventListener('click', async () => {
-    haccpState.playClickSound(1100, 0.12, 0.25);
-    const ph = parseFloat(document.getElementById('haccp-ph')?.value);
-    const temperatur = parseFloat(document.getElementById('haccp-temp')?.value);
-    const chargenNummer = document.getElementById('haccp-batch')?.value.trim();
-    const doneBy = selectedHaccpPerson();
-    try {
-      const result = await saveHaccpLog({
-        logTyp: 'protokoll',
-        ph,
-        temperatur,
-        chargenNummer,
-        ...(HACCP_CLEANING_TEAM.includes(doneBy) ? { doneBy } : {}),
-      });
-      clearHaccpDraft();
-      haccpState.onFormSaved(['haccp-ph', 'haccp-temp', 'haccp-batch']);
-      if (result === 'queued') {
-        haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
-        return;
-      }
-      haccpState.showHUD("📝 HACCP erfasst", `Charge ${chargenNummer} dokumentiert.`);
-    } catch (err) {
-      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-      console.error('[CharcuLogic HACCP] Protokoll speichern fehlgeschlagen:', err);
-      haccpState.showHUD("Hat nicht geklappt", "Protokoll konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
-    }
-  });
-
   document.getElementById('btn-haccp-print')?.addEventListener('click', generateHaccpPrintView);
-}
-
-function updateHACCPAlerts() {
-  const sliderPh = document.getElementById('haccp-ph');
-  const sliderTemp = document.getElementById('haccp-temp');
-  const badgePh = document.getElementById('ph-badge');
-  const badgeTemp = document.getElementById('temp-badge');
-  const alertBox = document.getElementById('haccp-alert-box');
-  const alertTitle = document.getElementById('haccp-alert-title');
-  const alertDesc = document.getElementById('haccp-alert-desc');
-  if (!sliderPh || !sliderTemp || !badgePh || !badgeTemp || !alertBox || !alertTitle || !alertDesc) return;
-
-  const ph = parseFloat(sliderPh.value);
-  const temp = parseFloat(sliderTemp.value);
-
-  badgePh.textContent = ph.toFixed(2).replace('.', ',');
-  badgeTemp.textContent = `${temp.toFixed(1).replace('.', ',')} °C`;
-
-  let hasAlert = false;
-  let title = "";
-  let desc = "";
-  let isDanger = false;
-
-  if (ph < 5.30) {
-    hasAlert = true;
-    title = "🚨 pH-Wert Warnung (PSE-Fleisch)";
-    desc = "PSE-Gefahr! Der pH-Wert ist kritisch sauer. Fleisch verliert extrem viel Saft, wässrige Konsistenz. Ungeeignet für Brühwurst!";
-    isDanger = true;
-  } else if (ph > 6.20) {
-    hasAlert = true;
-    title = "🚨 pH-Wert Warnung (DFD-Fleisch)";
-    desc = "DFD-Gefahr! Fleisch ist klebrig, dunkel und besitzt verkürzte Haltbarkeit. Erhöhtes Risiko für Keimbildung!";
-    isDanger = true;
-  } else if (temp > 7.0 && temp < 72.0) {
-    hasAlert = true;
-    title = "⚠️ Temperatur Warnung (Warmbereich)";
-    desc = "Der Temperaturbereich liegt in der mikrobiellen Vermehrungszone. Kerntemperatur muss zügig gekühlt (<7°C) oder durchgegart (>72°C) werden!";
-  }
-
-  if (hasAlert) {
-    alertBox.classList.add('active');
-    alertBox.style.borderColor = isDanger ? 'var(--secondary-color)' : 'var(--warning-color)';
-    alertBox.style.backgroundColor = isDanger ? 'rgba(244, 67, 54, 0.08)' : 'rgba(239, 108, 0, 0.08)';
-    alertTitle.textContent = title;
-    alertTitle.style.color = isDanger ? 'var(--secondary-color)' : 'var(--warning-color)';
-    alertDesc.textContent = desc;
-  } else {
-    alertBox.classList.remove('active');
-  }
 }
 
 function logMomentMillis(entry) {
