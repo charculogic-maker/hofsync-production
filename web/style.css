@@ -4941,12 +4941,8 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   max-height: min(55vh, 420px);
 }
 
-.receiving-reconcile-launch {
-  grid-template-columns: 1fr;
-  margin: 12px 0 4px;
-}
-
-.receiving-reconcile-launch .btn-receiving-tool {
+#btn-delivery-reconcile-main {
+  grid-column: 1 / -1;
   width: 100%;
   min-height: 48px;
 }

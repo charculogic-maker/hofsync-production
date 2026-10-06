@@ -14,6 +14,7 @@ import {
   writeLocalProductMasterEntry,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
+import { bindDeliveryReconcileMain } from './delivery-reconciliation.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
@@ -7144,6 +7145,7 @@ function bindReceivingControls() {
   }
 }
 function bindOfficeInventoryToolButtons() {
+  bindDeliveryReconcileMain();
   const bindings = [
     ['btn-recent-receipts', showRecentReceipts],
     ['btn-office-recent-receipts', showRecentReceipts],

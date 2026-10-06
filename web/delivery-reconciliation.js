@@ -570,13 +570,19 @@ export function openParsedDeliveryBoard(payload) {
   return reconciliationState.positions;
 }
 
-async function handleReconcileFile(file) {
+export async function reconcileDeliveryNoteFromFile(file) {
   if (!file || reconciliationState.ocrInFlight) return;
   const upload = await import('./delivery-upload.js');
   if (!upload.isAllowedDeliveryFile(file)) {
     window.showToast?.(upload.mapDeliveryUploadError(new upload.DeliveryUploadError('unsupported-type', 'Unsupported')), 'warning');
     return;
   }
+  const firebase = typeof reconciliationState.getFirebase === 'function'
+    ? reconciliationState.getFirebase()
+    : null;
+  const user = await upload.ensureDeliveryNoteAuth(firebase);
+  if (!user) return;
+
   window.showToast?.('Lieferschein wird analysiert…', 'warning');
   try {
     reconciliationState.ocrInFlight = true;
@@ -609,8 +615,8 @@ async function handleReconcileFile(file) {
   }
 }
 
-function bindReconcileScan() {
-  const button = document.getElementById('btn-delivery-reconcile-scan');
+export function bindDeliveryReconcileMain() {
+  const button = document.getElementById('btn-delivery-reconcile-main');
   const input = document.getElementById('delivery-reconcile-file-input');
   if (!button || !input || button.dataset.reconcileScanBound === '1') return;
   button.dataset.reconcileScanBound = '1';
@@ -620,7 +626,7 @@ function bindReconcileScan() {
   });
   input.addEventListener('change', () => {
     const file = input.files?.[0];
-    if (file) handleReconcileFile(file);
+    if (file) reconcileDeliveryNoteFromFile(file);
   });
 }
 
@@ -639,5 +645,5 @@ export function initDeliveryReconciliation(options = {}) {
     : reconciliationState.adjustDraftQuantity;
   reconciliationState.getAuthor = typeof options.getAuthor === 'function' ? options.getAuthor : reconciliationState.getAuthor;
   reconciliationState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : reconciliationState.showHUD;
-  bindReconcileScan();
+  bindDeliveryReconcileMain();
 }

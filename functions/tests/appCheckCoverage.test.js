@@ -66,13 +66,29 @@ describe('App Check coverage – Callable registration contract', () => {
     expect(APP_CHECK_CALLABLES).toHaveLength(8);
   });
 
-  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant'))(
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote'))(
     '$id configures enforceAppCheck: true',
     ({ file, anchor }) => {
       const source = readFunctionSource(file);
       assertCallableEnforcesAppCheck(source, anchor || file);
     },
   );
+
+  test('parseDeliveryNote skips App Check and still requires Firebase Auth', () => {
+    const source = readFunctionSource('parseDeliveryNoteCallable.js');
+    const block = onCallOptionsSlice(source, 'exports.parseDeliveryNote');
+    expect(block).toMatch(/region:\s*REGION/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(block).not.toMatch(/enforceAppCheck:\s*true/);
+    expect(source).toMatch(/Keine aktive HofSync-Sitzung gefunden/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('parseDeliveryNote'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 700);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/assertDeliveryNoteCaller/);
+  });
 
   test('provisionDemoTenant allows Vercel hosts without App Check enforcement', () => {
     const source = readFunctionSource('tenantAdmin.js');

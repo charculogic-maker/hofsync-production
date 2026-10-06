@@ -143,11 +143,16 @@ function firestoreTrigger(eventType, options, handler) {
 lazyExport('parseDeliveryNote', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,
+    // hofsync.vercel.app scheitert an reCAPTCHA App Check; Firebase Auth bleibt Pflicht.
+    enforceAppCheck: false,
     secrets: ['GEMINI_API_KEY'],
     timeoutSeconds: 120,
     memory: '512MiB',
   },
-  withAdmin(async (request) => require('./deliveryNote').handleParseDeliveryNote(request)),
+  withAdmin(async (request) => {
+    require('./parseDeliveryNoteCallable').assertDeliveryNoteCaller(request);
+    return require('./deliveryNote').handleParseDeliveryNote(request);
+  }),
 ));
 
 lazyExport('parseMeatLabel', () => callable(
