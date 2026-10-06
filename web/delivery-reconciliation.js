@@ -149,20 +149,20 @@ function catchWeightKg(text) {
  * Die Gebindezahl wird damit nicht multipliziert. kg bleibt kg.
  */
 export function expandRetailQuantity(entry) {
-  const name = readText(entry?.rawName, entry?.name, entry?.artikel, entry?.produkt, entry?.product, entry?.bezeichnung);
+  const name = readText(entry?.rawName, entry?.n, entry?.name, entry?.artikel, entry?.produkt, entry?.product, entry?.bezeichnung);
   const inhalt = readText(entry?.inhalt, entry?.gebinde, entry?.pack, entry?.beschreibung, entry?.gesamt);
   const text = `${name} ${inhalt}`;
-  const unitRaw = readText(entry?.unit, entry?.einheit, entry?.mengeEinheit);
+  const unitRaw = readText(entry?.u, entry?.unit, entry?.einheit, entry?.mengeEinheit);
   const unitKey = unitRaw.toLowerCase();
   const declared = readNumber(entry?.totalQuantity, entry?.gesamtStueck);
   const fromText = statedPieceTotal(text);
   const stated = fromText || (Number.isFinite(declared) && declared > 0 ? declared : 0);
-  const billedRaw = readNumber(entry?.quantity, entry?.menge, entry?.qty);
+  const billedRaw = readNumber(entry?.q, entry?.quantity, entry?.menge, entry?.qty);
   const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
   const namedKg = catchWeightKg(text);
   const resolvedUnit = (unitKey === 'kg' || namedKg) ? 'kg' : 'Stk';
-  const unitPrice = readPrice(entry?.unitPrice, entry?.einzelpreis, entry?.preis, entry?.ekEinzel);
-  const totalPrice = readPrice(entry?.totalPrice, entry?.gesamtpreis, entry?.summe, entry?.zeilensumme);
+  const unitPrice = readPrice(entry?.p, entry?.unitPrice, entry?.einzelpreis, entry?.preis, entry?.ekEinzel);
+  const totalPrice = readPrice(entry?.t, entry?.totalPrice, entry?.gesamtpreis, entry?.summe, entry?.zeilensumme);
   if (unitPrice > 0 && totalPrice > 0) {
     const calculatedQty = totalPrice / unitPrice;
     const quantity = resolvedUnit === 'kg'
@@ -233,7 +233,7 @@ function nameScore(left, right) {
 function toParsedItem(entry, index) {
   const retail = expandRetailQuantity(entry);
   return {
-    rawName: readText(entry?.rawName, entry?.name, entry?.artikel, entry?.produkt, entry?.product),
+    rawName: readText(entry?.rawName, entry?.n, entry?.name, entry?.artikel, entry?.produkt, entry?.product),
     ean: eanKey(entry?.ean || entry?.barcode || entry?.artnr),
     quantity: retail.quantity,
     unit: retail.unit,

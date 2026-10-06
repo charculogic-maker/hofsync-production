@@ -407,7 +407,7 @@ export async function analyzeDeliveryNoteFile({
 
   const callable = createHttpsCallable(
     'parseDeliveryNote',
-    { timeout: callableTimeoutMs },
+    { timeout: Math.max(120000, Number(callableTimeoutMs) || 0) },
     firebase,
   );
   await waitForAppCheckReady();

@@ -89,6 +89,7 @@ describe('delivery-reconciliation', () => {
     });
     assert.equal(tomaten.quantity, 5.5);
     assert.equal(tomaten.unit, 'kg');
+    assert.equal(expandRetailQuantity({ n: 'Weidemilchjoghurt', q: 1, u: 'Stk', p: 1.52, t: 18.24 }).quantity, 12);
 
     const bananen = expandRetailQuantity({ name: '18.14 kg Bananen', menge: 1 });
     assert.equal(bananen.quantity, 18.14);

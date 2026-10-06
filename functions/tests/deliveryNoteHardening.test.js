@@ -10,6 +10,7 @@ let expandRetailLine;
 let extractJsonArray;
 let isNonStockLine;
 let applyPriceQuantity;
+let normalizeDeliveryLine;
 let planReconciledWrites;
 
 beforeAll(async () => {
@@ -24,6 +25,7 @@ beforeAll(async () => {
     extractJsonArray,
     isNonStockLine,
     applyPriceQuantity,
+    normalizeDeliveryLine,
   } = await import('../deliveryNote.js'));
   ({ planReconciledWrites } = await import('../parseDeliveryNoteCallable.js'));
 });
@@ -135,5 +137,10 @@ describe('parseDeliveryNote – VPE multiplier', () => {
     expect(applyPriceQuantity({
       artikel: 'Strauchtomaten', einheit: 'kg', unitPrice: 5.34, totalPrice: 29.37, menge: 1,
     }).quantity).toBe(5.5);
+    const compact = normalizeDeliveryLine({ n: 'Rohrohrzucker', q: 1, u: 'kg', p: 2.06, t: 12.36, ean: '400' }, 0);
+    expect(compact.artikel).toBe('Rohrohrzucker');
+    expect(compact.einheit).toBe('kg');
+    expect(compact.ean).toBe('400');
+    expect(applyPriceQuantity(compact).quantity).toBe(6);
   });
 });

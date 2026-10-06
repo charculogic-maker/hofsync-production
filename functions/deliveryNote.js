@@ -31,19 +31,11 @@ const EXT_TO_MIME = {
 };
 
 const DELIVERY_NOTE_PROMPT = [
-  'Du bist ein präziser OCR-Gastro-Parser.',
-  'Analysiere diesen Lieferschein (z.B. von Weiling, Metro oder Jakob Bayen).',
-  'Bei Weiling steht in der Spalte "Gesamt Stück / Gewicht" bereits die absolute Stückzahl der Position.',
-  '"3 x 175 g" bedeutet quantity 3, "20 x 1 l" bedeutet quantity 20, "10 x 230 g" bedeutet quantity 10.',
-  'Multipliziere die Gebinde-Menge NICHT mit dieser Stückzahl.',
-  'Fanggewichte wie "18,14 kg Bananen" bleiben quantity in kg.',
-  'Pfand, IFCO, Rollwagen, Logistikpauschale sowie Buttercroissant, Rosinenbrötchen und Müslibrötchen sind excluded true.',
-  'Lies einzelpreis und gesamtpreis als Zahlen ohne Währung. Die lieferbare Menge ist gesamtpreis / einzelpreis.',
-  'Bei Fanggewicht ist einheit "kg", sonst "Stk".',
-  'Antworte AUSSCHLIESSLICH mit einem validen JSON-Array im Format:',
-  '[{ "artikel": "...", "artikelnummer": "...", "quantity": 3, "einheit": "Stk", "einzelpreis": 1.52, "gesamtpreis": 18.24, "inhalt": "3 x 175 g", "excluded": false, "kategorie": "..." }].',
-  'quantity ist ein Vorwert. Der Server setzt die Menge aus gesamtpreis / einzelpreis.',
-  'Kein Markdown, kein Text drumherum, nur das nackte JSON-Array.',
+  'Lies jede Position dieser Rechnung.',
+  'Antworte nur mit einem kompakten JSON-Array, ohne Markdown und ohne weitere Schlüssel.',
+  '[{"n":"Name","q":10,"u":"Stk","p":1.83,"t":18.30,"ean":""}]',
+  'n=Name, q=Menge, u=Stk oder kg, p=Einzelpreis, t=Zeilensumme, ean=Ziffern.',
+  'u=kg nur bei Gewicht. Preise als Zahl. Steht eine Artikelnummer vor dem Namen, lass sie in n.',
 ].join(' ');
 
 const STATED_PIECE_RE = /(\d{1,4})\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:g|ml|l)\b/i;
@@ -71,11 +63,11 @@ function parsePrice(value) {
  * kg bleibt auf zwei Stellen, Stück wird gerundet.
  */
 function applyPriceQuantity(item) {
-  const unitPrice = parsePrice(item?.unitPrice ?? item?.einzelpreis ?? item?.preis ?? item?.ekEinzel);
-  const totalPrice = parsePrice(item?.totalPrice ?? item?.gesamtpreis ?? item?.summe ?? item?.zeilensumme);
+  const unitPrice = parsePrice(item?.unitPrice ?? item?.p ?? item?.einzelpreis ?? item?.preis ?? item?.ekEinzel);
+  const totalPrice = parsePrice(item?.totalPrice ?? item?.t ?? item?.gesamtpreis ?? item?.summe ?? item?.zeilensumme);
   if (!(unitPrice > 0) || !(totalPrice > 0)) return item;
   const calculatedQty = totalPrice / unitPrice;
-  const unit = String(item?.einheit || item?.unit || '').toLowerCase();
+  const unit = String(item?.einheit || item?.unit || item?.u || '').toLowerCase();
   const quantity = unit === 'kg'
     ? Math.round(calculatedQty * 100) / 100
     : Math.round(calculatedQty);
@@ -246,21 +238,21 @@ function extractJsonArray(responseText) {
 }
 
 function normalizeDeliveryLine(entry, index) {
-  const mengeRaw = entry?.menge ?? entry?.quantity ?? entry?.qty ?? 1;
+  const mengeRaw = entry?.q ?? entry?.menge ?? entry?.quantity ?? entry?.qty ?? 1;
   const menge = Number(String(mengeRaw).replace(',', '.'));
   const packMultiplier = Number(entry?.packMultiplier ?? entry?.multiplier);
   return {
-    artikel: String(entry?.artikel || entry?.name || entry?.produkt || entry?.bezeichnung || '').trim(),
+    artikel: String(entry?.n || entry?.artikel || entry?.name || entry?.produkt || entry?.bezeichnung || '').trim(),
     menge: Number.isFinite(menge) && menge > 0 ? menge : 1,
-    einheit: String(entry?.einheit || entry?.unit || '').trim(),
+    einheit: String(entry?.u || entry?.einheit || entry?.unit || '').trim(),
     inhalt: String(entry?.inhalt || entry?.gebinde || entry?.pack || '').trim(),
     packMultiplier: Number.isFinite(packMultiplier) ? packMultiplier : 0,
     totalQuantity: Number(String(entry?.totalQuantity ?? entry?.gesamtStueck ?? '').replace(',', '.')),
-    artikelnummer: String(entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
+    artikelnummer: String(entry?.a || entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
     kategorie: String(entry?.kategorie || entry?.category || '').trim(),
     ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
-    unitPrice: parsePrice(entry?.unitPrice ?? entry?.einzelpreis ?? entry?.preis ?? entry?.ekEinzel),
-    totalPrice: parsePrice(entry?.totalPrice ?? entry?.gesamtpreis ?? entry?.summe ?? entry?.zeilensumme),
+    unitPrice: parsePrice(entry?.p ?? entry?.unitPrice ?? entry?.einzelpreis ?? entry?.preis ?? entry?.ekEinzel),
+    totalPrice: parsePrice(entry?.t ?? entry?.totalPrice ?? entry?.gesamtpreis ?? entry?.summe ?? entry?.zeilensumme),
     excluded: entry?.excluded === true,
     _index: index,
   };
@@ -493,6 +485,7 @@ module.exports = {
   assertTenantStoragePath,
   applyPriceQuantity,
   expandRetailLine,
+  normalizeDeliveryLine,
   isNonStockLine,
   extractJsonArray,
   sanitizeGeminiResponseText,
