@@ -8,6 +8,7 @@ let normalizeMimeType;
 let ALLOWED_MIME_TYPES;
 let expandRetailLine;
 let extractJsonArray;
+let parseSafeJsonArray;
 let isNonStockLine;
 let applyPriceQuantity;
 let normalizeDeliveryLine;
@@ -23,6 +24,7 @@ beforeAll(async () => {
     ALLOWED_MIME_TYPES,
     expandRetailLine,
     extractJsonArray,
+    parseSafeJsonArray,
     isNonStockLine,
     applyPriceQuantity,
     normalizeDeliveryLine,
@@ -70,6 +72,18 @@ describe('parseDeliveryNote – MIME tolerance', () => {
     expect(ALLOWED_MIME_TYPES.has('image/heic')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('image/heif')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('application/pdf')).toBe(true);
+  });
+});
+
+describe('parseDeliveryNote – truncated JSON', () => {
+  test('keeps complete objects when the array is cut off', () => {
+    const raw = '[{"n":"Honig","q":6},{"n":"Joghurt","q":12},{"n":"Unvollstaend';
+    const parsed = parseSafeJsonArray(raw);
+    expect(parsed).toEqual([
+      { n: 'Honig', q: 6 },
+      { n: 'Joghurt', q: 12 },
+    ]);
+    expect(extractJsonArray(raw)).toHaveLength(2);
   });
 });
 

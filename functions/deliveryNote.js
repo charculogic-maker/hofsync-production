@@ -197,6 +197,27 @@ function asItemArray(value) {
   return null;
 }
 
+function parseSafeJsonArray(str) {
+  const source = String(str || '');
+  try {
+    return JSON.parse(source);
+  } catch (err) {
+    const lastObjEnd = source.lastIndexOf('}');
+    if (lastObjEnd !== -1) {
+      const repaired = `${source.slice(0, lastObjEnd + 1).replace(/,\s*$/, '')}]`;
+      const arrayStart = repaired.indexOf('[');
+      if (arrayStart !== -1) {
+        try {
+          return JSON.parse(repaired.slice(arrayStart));
+        } catch (_repairErr) {
+          // unvollständig und nicht reparierbar
+        }
+      }
+    }
+    throw err;
+  }
+}
+
 function extractJsonArray(responseText) {
   const cleanText = sanitizeGeminiResponseText(responseText);
   if (!cleanText) {
@@ -205,7 +226,7 @@ function extractJsonArray(responseText) {
 
   let parsed = null;
   try {
-    parsed = JSON.parse(cleanText);
+    parsed = parseSafeJsonArray(cleanText);
   } catch (_err) {
     parsed = null;
   }
@@ -222,7 +243,7 @@ function extractJsonArray(responseText) {
   }
 
   try {
-    parsed = JSON.parse(cleanText.slice(start, end + 1));
+    parsed = parseSafeJsonArray(cleanText.slice(start));
   } catch (err) {
     err.rawPreview = cleanText.slice(start, start + 240);
     throw err;
@@ -404,6 +425,7 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
     generationConfig: {
       temperature: 0.1,
       responseMimeType: 'application/json',
+      maxOutputTokens: 8192,
     },
   }, {
     timeout: 110000,
@@ -490,6 +512,7 @@ module.exports = {
   normalizeDeliveryLine,
   isNonStockLine,
   extractJsonArray,
+  parseSafeJsonArray,
   sanitizeGeminiResponseText,
   handleParseDeliveryNote,
   normalizeMimeType,

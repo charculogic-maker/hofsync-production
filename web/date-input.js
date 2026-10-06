@@ -184,7 +184,8 @@ export function initGermanDateInputs(root = document) {
     el.setAttribute('autocomplete', 'off');
     el.setAttribute('maxlength', '10');
     if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', 'TT.MM.JJJJ oder MMJJ');
-    el.setAttribute('pattern', '[0-9./-]{4,10}');
+    // HTML-pattern läuft mit dem v-Flag: Schrägstrich und Bindestrich müssen escaped sein.
+    el.setAttribute('pattern', '[0-9.\\/\\-]{4,10}');
 
     if (el.dataset.isoValue) {
       el.value = formatIsoToGerman(el.dataset.isoValue);

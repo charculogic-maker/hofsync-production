@@ -5621,6 +5621,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   gap: 10px;
 }
 
+.stammdaten-edit-list {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.stammdaten-edit-name,
+.stammdaten-rename-btn {
+  width: 100%;
+  min-height: 48px;
+}
+
 .utility-row {
   padding: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);

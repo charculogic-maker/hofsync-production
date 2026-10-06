@@ -41,6 +41,7 @@ import { readMhdCardUiSettings } from './admin-tenant-models.js';
 import {
   validateDeliveryUploadFile,
   isPdfMimeType,
+  ensureDeliveryNoteAuth,
 } from './delivery-upload.js';
 import { createHttpsCallable } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
@@ -5176,26 +5177,112 @@ async function updateRecentReceiptCategory(id) {
   }
 }
 
-function showMasterData() {
+async function collectStammdatenEntries() {
+  const local = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  const byId = new Map();
+  Object.entries(local).forEach(([id, entry]) => {
+    const name = String(entry?.name || entry?.articleName || '').trim();
+    if (!name) return;
+    byId.set(id, {
+      id,
+      name,
+      ean: String(entry?.barcode || entry?.ean || '').replace(/\D/g, ''),
+    });
+  });
+  try {
+    const snap = await getTenantCollection('stammdaten').limit(250).get();
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const name = String(data.name || data.artikel || '').trim();
+      if (!name) return;
+      const existing = byId.get(doc.id);
+      byId.set(doc.id, {
+        id: doc.id,
+        name: existing?.name || name,
+        ean: String(data.ean || data.barcode || existing?.ean || '').replace(/\D/g, ''),
+      });
+    });
+  } catch (err) {
+    console.warn('[HofSync] Stammdaten konnten nicht geladen werden:', err);
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+function renderStammdatenRow(entry) {
+  return `
+    <div class="utility-row stammdaten-edit-row" data-stammdaten-row data-stammdaten-id="${escapeHtml(entry.id)}" data-stammdaten-label="${escapeHtml(entry.name.toLowerCase())}">
+      <input type="text" class="input-text-touch stammdaten-edit-name" value="${escapeHtml(entry.name)}" aria-label="Name für ${escapeHtml(entry.name)}" autocomplete="off">
+      <div class="utility-row-meta">EAN ${escapeHtml(entry.ean || '–')}</div>
+      <button type="button" class="btn btn-primary stammdaten-rename-btn" data-stammdaten-save="${escapeHtml(entry.id)}">Umbenennen</button>
+    </div>
+  `;
+}
+
+async function renameStammdatenEntry(entry, nextName) {
+  const name = sanitizeProductName(nextName);
+  if (!name) {
+    window.showToast?.('Bitte einen Namen eintragen.', 'warning');
+    return;
+  }
+  const local = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  if (local[entry.id]) {
+    local[entry.id] = { ...local[entry.id], name, articleName: name };
+    writeLocalMaster(PRODUCT_MASTER_STORAGE_KEY, local);
+  }
+  if (entry.ean) {
+    writeLocalProductMasterEntry({ ean: entry.ean, barcode: entry.ean, name });
+  }
+  const firebaseApi = mhdState.getFirebase?.() || (typeof globalThis.firebase !== 'undefined' ? globalThis.firebase : null);
+  const user = await ensureDeliveryNoteAuth(firebaseApi);
+  if (!user) return;
+  const callable = createHttpsCallable('saveReconciledItems', { timeout: 60000 }, firebaseApi);
+  await callable({
+    items: [{
+      renameMaster: true,
+      masterData: { id: entry.id, name, ean: entry.ean || '' },
+    }],
+  });
+  entry.name = name;
+  window.showToast?.('Stammdatenname gespeichert.', 'success');
+}
+
+async function showMasterData() {
   if (!requireOfficeAccess('Stammdaten')) return;
-  const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
+  const entries = await collectStammdatenEntries();
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
-  const samples = Object.values(productMaster).slice(0, 8);
   showUtilityDialog('Stammdaten', `
-    <p class="learn-mode-desc">Lokale gelernte Stammdaten auf diesem Gerät plus geladene VPE-CSV.</p>
-    <div class="utility-list">
-      <div class="utility-row">
-        <div class="utility-row-title">Übersicht</div>
-        <div class="utility-row-meta">Gelernte Produkte: ${Object.keys(productMaster).length} · Gelernte VPEs: ${Object.keys(vpeMaster).length} · VPE-CSV: ${Object.keys(csvVpeMaster).length}</div>
-      </div>
-      ${samples.map((entry) => `
-        <div class="utility-row">
-          <div class="utility-row-title">${escapeHtml(entry.name || 'Produkt')}</div>
-          <div class="utility-row-meta">Barcode: ${escapeHtml(entry.barcode || '-')} · ${escapeHtml(entry.brand || '')}</div>
-        </div>
-      `).join('')}
+    <p class="learn-mode-desc">${entries.length} Artikel · ${Object.keys(vpeMaster).length} VPEs. Namen wie „Direkterfassung (Stephie)“ hier suchen und umbenennen.</p>
+    <label class="form-label" for="stammdaten-search">Suchen</label>
+    <input id="stammdaten-search" class="input-text-touch" type="search" placeholder="Name oder EAN" autocomplete="off">
+    <div class="utility-list stammdaten-edit-list" id="stammdaten-list">
+      ${entries.map(renderStammdatenRow).join('') || '<p class="learn-mode-desc">Keine Stammdaten vorhanden.</p>'}
     </div>
   `);
+  const list = document.getElementById('stammdaten-list');
+  document.getElementById('stammdaten-search')?.addEventListener('input', (event) => {
+    const query = String(event.target.value || '').trim().toLowerCase();
+    list?.querySelectorAll('[data-stammdaten-row]').forEach((row) => {
+      const label = `${row.dataset.stammdatenLabel || ''} ${row.dataset.stammdatenId || ''}`;
+      row.hidden = Boolean(query) && !label.includes(query);
+    });
+  });
+  list?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-stammdaten-save]');
+    if (!button) return;
+    const row = button.closest('[data-stammdaten-row]');
+    const entry = entries.find((item) => item.id === button.dataset.stammdatenSave);
+    if (!entry || !row) return;
+    button.disabled = true;
+    try {
+      await renameStammdatenEntry(entry, row.querySelector('.stammdaten-edit-name')?.value || '');
+      row.dataset.stammdatenLabel = entry.name.toLowerCase();
+    } catch (err) {
+      console.error('[HofSync] Stammdaten-Umbenennung fehlgeschlagen:', err);
+      window.showToast?.(err?.message || 'Name konnte nicht gespeichert werden.', 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 // "Änderungen speichern" Button — gebunden in bindMhdToolbar()

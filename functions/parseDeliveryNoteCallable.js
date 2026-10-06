@@ -93,6 +93,27 @@ function planReconciledWrites(items, tenantId) {
       });
       continue;
     }
+    if (item.renameMaster && item.masterData && typeof item.masterData === 'object') {
+      const masterName = clipText(item.masterData.name || item.masterData.artikel, 200);
+      if (!masterName) {
+        throw new HttpsError('invalid-argument', 'Stammdaten ohne Namen.');
+      }
+      const masterId = safeDocId(item.masterData.id);
+      writes.push({
+        collection: 'stammdaten',
+        id: masterId,
+        merge: true,
+        data: {
+          id: masterId,
+          name: masterName,
+          artikel: masterName,
+          ean: clipText(item.masterData.ean || item.masterData.barcode, 32).replace(/\D/g, '').slice(0, 14),
+          tenantId,
+          source: 'stammdaten-rename',
+        },
+      });
+      continue;
+    }
     const source = item.mhdData && typeof item.mhdData === 'object' ? item.mhdData : null;
     if (!source) continue;
     const name = clipText(source.name || source.produkt, 200);
