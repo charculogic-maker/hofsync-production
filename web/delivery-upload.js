@@ -26,6 +26,7 @@ const EXT_TO_MIME = {
 const COMPRESSIBLE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp']);
 
 const DELIVERY_PARSE_WAIT = '📄 Lieferschein wird analysiert (4 Seiten, ~70 Positionen)... Bitte ca. 25–35 Sek. Geduld.';
+const DELIVERY_PARSE_TIMEOUT_MS = 120000;
 
 export function showDeliveryParseProgress() {
   const existing = document.getElementById('delivery-parse-progress-overlay');
@@ -405,9 +406,10 @@ export async function analyzeDeliveryNoteFile({
     throw new DeliveryUploadError('generic', 'Lieferschein-Einlesen ist gerade nicht bereit.');
   }
 
+  const timeoutMs = Math.max(DELIVERY_PARSE_TIMEOUT_MS, Number(callableTimeoutMs) || 0);
   const callable = createHttpsCallable(
     'parseDeliveryNote',
-    { timeout: Math.max(120000, Number(callableTimeoutMs) || 0) },
+    { timeout: timeoutMs },
     firebase,
   );
   await waitForAppCheckReady();

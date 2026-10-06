@@ -31,7 +31,7 @@ const EXT_TO_MIME = {
 };
 
 const DELIVERY_NOTE_PROMPT = [
-  'Lies jede Position dieser Rechnung.',
+  'Ignore legal footers, privacy statements, bank accounts, and header boilerplate. Extract ONLY line item table rows to minimize output processing time.',
   'Antworte nur mit einem kompakten JSON-Array, ohne Markdown und ohne weitere Schlüssel.',
   '[{"n":"Name","q":10,"u":"Stk","p":1.83,"t":18.30,"ean":""}]',
   'n=Name, q=Menge, u=Stk oder kg, p=Einzelpreis, t=Zeilensumme, ean=Ziffern.',
@@ -405,6 +405,8 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
       temperature: 0.1,
       responseMimeType: 'application/json',
     },
+  }, {
+    timeout: 110000,
   });
 
   console.log('[parseDeliveryNote] OCR/KI-Extraktion gestartet', {
