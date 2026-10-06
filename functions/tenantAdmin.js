@@ -58,19 +58,18 @@ function normalizeModules(raw) {
 }
 
 /**
- * Office admins (token.role === 'admin') and platform admins.
- * Shopfloor employees and helpers cannot create tenants.
- * v2 callable auth lives on request.auth — never a v1 (data, context) pair.
+ * Nur Plattform-Admins dürfen neue Mandanten und Admin-Claims erzeugen.
+ * Tenant-Admins bleiben strikt auf ihren eigenen Betrieb beschränkt.
  */
 function assertProvisionAccess(auth) {
-  if (!auth) {
-    throw new HttpsError('permission-denied', 'Keine Admin-Berechtigung auf diesem Account.');
+  if (!auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
   }
   const token = auth.token || {};
   const role = roleFromToken(token);
   const isPlatformAdmin = token.isPlatformAdmin === true || isSuperAdminForDashboard(auth);
-  if (role !== 'admin' && token.role !== 'admin' && !isPlatformAdmin) {
-    throw new HttpsError('permission-denied', 'Keine Admin-Berechtigung auf diesem Account.');
+  if (!isPlatformAdmin) {
+    throw new HttpsError('permission-denied', 'Keine Berechtigung: Nur Plattform-Admins dürfen Test-Mandanten anlegen.');
   }
   return { uid: auth.uid, role: role || 'admin', isSuperAdmin: isPlatformAdmin };
 }
