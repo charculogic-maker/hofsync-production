@@ -11,6 +11,7 @@ import {
   mapDeliveryUploadError,
   DeliveryUploadError,
 } from './delivery-upload.js';
+import { openParsedDeliveryBoard } from './delivery-reconciliation.js';
 
 const deliveryNoteState = {
   tenantId: '',
@@ -219,7 +220,7 @@ async function handleDeliveryNoteFile(file) {
       window.showToast?.('Keine Artikel erkannt.', 'warning');
       return;
     }
-    showDeliveryNotePreview(items);
+    openParsedDeliveryBoard({ items });
   } catch (err) {
     console.error('[DeliveryNote] OCR fehlgeschlagen:', err);
     const toast = err instanceof DeliveryUploadError

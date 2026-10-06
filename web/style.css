@@ -4941,6 +4941,161 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   max-height: min(55vh, 420px);
 }
 
+.receiving-reconcile-launch {
+  grid-template-columns: 1fr;
+  margin: 12px 0 4px;
+}
+
+.receiving-reconcile-launch .btn-receiving-tool {
+  width: 100%;
+  min-height: 48px;
+}
+
+.delivery-reconciliation-card {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-color, #fff);
+  color: var(--text-dark, #1c1c1e);
+}
+
+.delivery-reconciliation-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.delivery-reconciliation-scroll {
+  overflow: auto;
+  max-height: min(58vh, 520px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.delivery-reconciliation-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--surface-color, #fff);
+  color: var(--text-dark, #1c1c1e);
+}
+
+.delivery-reconciliation-item-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.delivery-reconciliation-item-head strong {
+  font-size: 16px;
+}
+
+.delivery-reconciliation-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.delivery-reconciliation-meta-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted, #636366);
+}
+
+.delivery-reconciliation-item--perfect {
+  background: rgba(52, 199, 89, 0.16);
+  border-color: rgba(52, 199, 89, 0.55);
+}
+
+.delivery-reconciliation-item--mismatch {
+  background: rgba(255, 204, 0, 0.2);
+  border-color: rgba(214, 158, 0, 0.7);
+}
+
+.delivery-reconciliation-item--missing {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.delivery-reconciliation-item--unmapped {
+  background: rgba(142, 142, 147, 0.16);
+  border-color: rgba(142, 142, 147, 0.45);
+}
+
+.delivery-reconciliation-qty-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.delivery-reconciliation-qty {
+  min-height: 48px;
+  font-size: 18px;
+}
+
+.delivery-reconciliation-action {
+  min-height: 48px;
+  width: 100%;
+}
+
+.delivery-reconciliation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+[data-theme="dark"] .delivery-reconciliation-card,
+[data-theme="dark"] .delivery-reconciliation-item {
+  background: var(--surface-color);
+  color: var(--text-dark);
+}
+
+[data-theme="dark"] .delivery-reconciliation-header {
+  color: var(--text-dark);
+}
+
+[data-theme="dark"] .delivery-reconciliation-meta-line {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .delivery-reconciliation-item--perfect {
+  background: rgba(52, 199, 89, 0.22);
+}
+
+[data-theme="dark"] .delivery-reconciliation-item--mismatch {
+  background: rgba(255, 204, 0, 0.16);
+  color: var(--text-dark);
+}
+
+[data-theme="dark"] .delivery-reconciliation-item--missing {
+  background: rgba(255, 69, 58, 0.2);
+}
+
+[data-theme="dark"] .delivery-reconciliation-item--unmapped {
+  background: rgba(174, 174, 178, 0.16);
+}
+
+[data-theme="dark"] .delivery-reconciliation-qty,
+[data-theme="dark"] .delivery-reconciliation-action.btn-secondary {
+  background: var(--surface-color);
+  color: var(--text-dark);
+  border-color: var(--border-subtle);
+}
+
 .manual-barcode-fallback {
   display: none;
   margin: 14px 0 4px;

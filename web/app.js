@@ -57,6 +57,7 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
+  adjustCurrentDeliveryItemQuantity,
   getCurrentDeliveryItems,
   getMhdProducts,
   applyReceivingMetzgereiVisibility,
@@ -110,6 +111,7 @@ import { initGermanDateInputs } from './date-input.js';
 import { initDiscountMatrixUi } from './discount-matrix-ui.js';
 import { initDeliveryNoteScanner } from './delivery-note.js';
 import { initDeliveryParser } from './delivery-parser.js';
+import { initDeliveryReconciliation } from './delivery-reconciliation.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -4108,6 +4110,16 @@ async function bootstrapAuthenticatedApp() {
     writeOrQueueFirestore: writeFirestoreDocOrQueue,
     getHistory: getMhdProducts,
     getCurrentDeliveryItems,
+  });
+  initDeliveryReconciliation({
+    tenantId,
+    getFirebase: () => firebase,
+    showHUD,
+    writeOrQueueFirestore: writeFirestoreDocOrQueue,
+    getCurrentDeliveryItems,
+    getMhdProducts,
+    adjustDraftQuantity: adjustCurrentDeliveryItemQuantity,
+    getAuthor: () => (authSession?.email || getAuthContext()?.email || '').split('@')[0] || 'Team',
   });
 
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {

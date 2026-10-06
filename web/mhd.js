@@ -7367,9 +7367,24 @@ function getCurrentDeliveryItems() {
   return Array.isArray(currentDeliveryItems) ? currentDeliveryItems.slice() : [];
 }
 
+function adjustCurrentDeliveryItemQuantity(itemId, quantity) {
+  const qty = Number(quantity);
+  if (!itemId || !Number.isFinite(qty) || qty <= 0) return false;
+  const item = currentDeliveryItems.find((row) => row.id === itemId);
+  if (!item) return false;
+  const rounded = item.qtyUnit === 'Stk' ? Math.max(1, Math.round(qty)) : Math.round(qty * 100) / 100;
+  item.qtyValue = rounded;
+  item.qtyKg = rounded;
+  renderDeliveryItemsTable();
+  updateReceivingSaveButtonState();
+  persistDeliveryDraftToIndexedDB();
+  return true;
+}
+
 export {
   checkMhdAnomaly,
   finalizeDelivery,
+  adjustCurrentDeliveryItemQuantity,
   getCurrentDeliveryItems,
   importMhdBestandToCloud,
   loadMhdFromCloud,

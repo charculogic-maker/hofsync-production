@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261006-receiving-mhd-v2';
+const CACHE_NAME = 'charculogic-v20261006-delivery-reconcile-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 const RELEASED_AT = '2026-10-05T19:15:00+02:00';
 
@@ -37,6 +37,7 @@ const CRITICAL_ASSETS = [
   '/delivery-parser.js',
   '/delivery-upload.js',
   '/delivery-reconcile.js',
+  '/delivery-reconciliation.js',
   '/haccp.js',
   '/production.js',
   '/production-datasheet.js',
@@ -284,6 +285,8 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/sync.js')
     || pathname.endsWith('/mhd.js')
     || pathname.endsWith('/delivery-note.js')
+    || pathname.endsWith('/delivery-reconciliation.js')
+    || pathname.endsWith('/delivery-parser.js')
     || pathname.endsWith('/scanner.js')
     || pathname.endsWith('/tenant-db.js')
   );

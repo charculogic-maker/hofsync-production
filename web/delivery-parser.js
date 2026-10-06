@@ -21,6 +21,7 @@ import {
   showReconcileOverlay,
   removeReconcileOverlay,
 } from './delivery-reconcile.js';
+import { openParsedDeliveryBoard } from './delivery-reconciliation.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -527,7 +528,9 @@ async function handleDeliveryFile(file) {
       window.showToast?.('Wir konnten keine Artikel auf dem Lieferschein erkennen.', 'warning');
       return;
     }
-    showPreview(buildPreviewRows(items));
+    parserState.sollItems = items;
+    openParsedDeliveryBoard({ items });
+    applyReconcileButtonVisibility();
   } catch (err) {
     console.error('[DeliveryParser] Lieferschein-Einlesen fehlgeschlagen:', err);
     const toast = err instanceof DeliveryUploadError
