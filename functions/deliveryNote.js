@@ -38,9 +38,11 @@ const DELIVERY_NOTE_PROMPT = [
   'Multipliziere die Gebinde-Menge NICHT mit dieser Stückzahl.',
   'Fanggewichte wie "18,14 kg Bananen" bleiben quantity in kg.',
   'Pfand, IFCO, Rollwagen, Logistikpauschale sowie Buttercroissant, Rosinenbrötchen und Müslibrötchen sind excluded true.',
+  'Lies einzelpreis und gesamtpreis als Zahlen ohne Währung. Die lieferbare Menge ist gesamtpreis / einzelpreis.',
+  'Bei Fanggewicht ist einheit "kg", sonst "Stk".',
   'Antworte AUSSCHLIESSLICH mit einem validen JSON-Array im Format:',
-  '[{ "artikel": "...", "artikelnummer": "...", "quantity": 3, "einheit": "Stk", "inhalt": "3 x 175 g", "excluded": false, "kategorie": "..." }].',
-  'quantity ist die echte Gesamtstückzahl oder das Gewicht in kg.',
+  '[{ "artikel": "...", "artikelnummer": "...", "quantity": 3, "einheit": "Stk", "einzelpreis": 1.52, "gesamtpreis": 18.24, "inhalt": "3 x 175 g", "excluded": false, "kategorie": "..." }].',
+  'quantity ist ein Vorwert. Der Server setzt die Menge aus gesamtpreis / einzelpreis.',
   'Kein Markdown, kein Text drumherum, nur das nackte JSON-Array.',
 ].join(' ');
 
@@ -55,6 +57,39 @@ const EXCLUDED_NAME_KEYS = [
   'rosinenbroetchen',
   'mueslibroetchen',
 ];
+
+function parsePrice(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+  const cleaned = String(value ?? '').replace(/[€\s]/g, '').replace(',', '.');
+  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return NaN;
+  return Number(match[0]);
+}
+
+/**
+ * Weiling: Gesamtpreis / Einzelpreis ist die lieferbare Menge.
+ * kg bleibt auf zwei Stellen, Stück wird gerundet.
+ */
+function applyPriceQuantity(item) {
+  const unitPrice = parsePrice(item?.unitPrice ?? item?.einzelpreis ?? item?.preis ?? item?.ekEinzel);
+  const totalPrice = parsePrice(item?.totalPrice ?? item?.gesamtpreis ?? item?.summe ?? item?.zeilensumme);
+  if (!(unitPrice > 0) || !(totalPrice > 0)) return item;
+  const calculatedQty = totalPrice / unitPrice;
+  const unit = String(item?.einheit || item?.unit || '').toLowerCase();
+  const quantity = unit === 'kg'
+    ? Math.round(calculatedQty * 100) / 100
+    : Math.round(calculatedQty);
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 99999) return item;
+  return {
+    ...item,
+    menge: quantity,
+    quantity,
+    calculatedQuantity: quantity,
+    unitPrice,
+    totalPrice,
+    einheit: unit === 'kg' ? 'kg' : (item?.einheit || item?.unit || 'Stk'),
+  };
+}
 
 function statedPieceTotal(text) {
   const match = String(text || '').match(STATED_PIECE_RE);
@@ -224,6 +259,8 @@ function normalizeDeliveryLine(entry, index) {
     artikelnummer: String(entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
     kategorie: String(entry?.kategorie || entry?.category || '').trim(),
     ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
+    unitPrice: parsePrice(entry?.unitPrice ?? entry?.einzelpreis ?? entry?.preis ?? entry?.ekEinzel),
+    totalPrice: parsePrice(entry?.totalPrice ?? entry?.gesamtpreis ?? entry?.summe ?? entry?.zeilensumme),
     excluded: entry?.excluded === true,
     _index: index,
   };
@@ -242,7 +279,7 @@ function validateParsedItems(items) {
     throw new HttpsError('invalid-argument', 'Ungültige Artikelliste aus dem Lieferschein.');
   }
   return items.map((line, index) => {
-    const expanded = expandRetailLine(line);
+    const expanded = applyPriceQuantity(expandRetailLine(line));
     const artikel = String(expanded.artikel || '').trim().slice(0, 200);
     const kategorie = String(expanded.kategorie || line.kategorie || '').trim().slice(0, 80);
     const menge = Number(expanded.calculatedQuantity ?? expanded.menge);
@@ -264,6 +301,8 @@ function validateParsedItems(items) {
       ean: String(line.ean || '').replace(/\D/g, ''),
       artikelnummer: String(line.artikelnummer || expanded.artikelnummer || '').replace(/\D/g, ''),
       excluded: line.excluded === true || expanded.excluded === true || isNonStockLine({ ...line, ...expanded }),
+      unitPrice: Number.isFinite(expanded.unitPrice) ? expanded.unitPrice : null,
+      totalPrice: Number.isFinite(expanded.totalPrice) ? expanded.totalPrice : null,
     };
   });
 }
@@ -452,6 +491,7 @@ module.exports = {
   DELIVERY_NOTE_MODEL,
   ALLOWED_MIME_TYPES,
   assertTenantStoragePath,
+  applyPriceQuantity,
   expandRetailLine,
   isNonStockLine,
   extractJsonArray,

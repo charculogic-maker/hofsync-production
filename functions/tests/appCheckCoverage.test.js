@@ -12,6 +12,7 @@ const FUNCTIONS_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** @type {{ id: string, file: string, anchor?: string }[]} */
 const APP_CHECK_CALLABLES = [
   { id: 'parseDeliveryNote', file: 'parseDeliveryNoteCallable.js', anchor: 'exports.parseDeliveryNote' },
+  { id: 'saveReconciledItems', file: 'parseDeliveryNoteCallable.js', anchor: 'exports.saveReconciledItems' },
   { id: 'parseMeatLabel', file: 'parseMeatLabelCallable.js', anchor: 'exports.parseMeatLabel' },
   { id: 'verifyTerminalPin', file: 'verifyTerminalPinCallable.js', anchor: 'exports.verifyTerminalPin' },
   { id: 'triggerManualMeatPriceRun', file: 'meatPrices.js', anchor: 'triggerManualMeatPriceRun' },
@@ -63,10 +64,10 @@ describe('App Check coverage – Callable registration contract', () => {
       return sum + (matches?.length || 0);
     }, 0);
     expect(onCallCount).toBe(APP_CHECK_CALLABLES.length);
-    expect(APP_CHECK_CALLABLES).toHaveLength(8);
+    expect(APP_CHECK_CALLABLES).toHaveLength(9);
   });
 
-  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote'))(
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote' && entry.id !== 'saveReconciledItems'))(
     '$id configures enforceAppCheck: true',
     ({ file, anchor }) => {
       const source = readFunctionSource(file);
@@ -88,6 +89,23 @@ describe('App Check coverage – Callable registration contract', () => {
     const exportBlock = index.slice(exportAt, exportAt + 700);
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
     expect(exportBlock).toMatch(/assertDeliveryNoteCaller/);
+  });
+
+  test('saveReconciledItems skips App Check and writes only the signed-in tenant', () => {
+    const source = readFunctionSource('parseDeliveryNoteCallable.js');
+    const block = onCallOptionsSlice(source, 'exports.saveReconciledItems');
+    expect(block).toMatch(/region:\s*REGION/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(block).toMatch(/handleSaveReconciledItems/);
+    expect(source).toMatch(/assertDeliveryNoteCaller\(request\)/);
+    expect(source).not.toMatch(/StevesHof_Hauptbetrieb/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('saveReconciledItems'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 700);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/handleSaveReconciledItems/);
   });
 
   test('provisionDemoTenant allows Vercel hosts without App Check enforcement', () => {

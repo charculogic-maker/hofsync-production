@@ -78,6 +78,18 @@ describe('delivery-reconciliation', () => {
     assert.equal(saft.quantity, 20);
     assert.equal(saft.unit, 'Stk');
 
+    assert.equal(expandRetailQuantity({
+      name: 'Rohrohrzucker', menge: 1, unit: 'kg', unitPrice: 2.06, totalPrice: 12.36,
+    }).quantity, 6);
+    assert.equal(expandRetailQuantity({
+      name: 'Weidemilchjoghurt', menge: 1, unit: 'Stk', einzelpreis: 1.52, gesamtpreis: 18.24,
+    }).quantity, 12);
+    const tomaten = expandRetailQuantity({
+      name: 'Strauchtomaten', menge: 1, einheit: 'kg', unitPrice: 5.34, totalPrice: 29.37,
+    });
+    assert.equal(tomaten.quantity, 5.5);
+    assert.equal(tomaten.unit, 'kg');
+
     const bananen = expandRetailQuantity({ name: '18.14 kg Bananen', menge: 1 });
     assert.equal(bananen.quantity, 18.14);
     assert.equal(bananen.unit, 'kg');

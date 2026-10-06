@@ -9,6 +9,8 @@ let ALLOWED_MIME_TYPES;
 let expandRetailLine;
 let extractJsonArray;
 let isNonStockLine;
+let applyPriceQuantity;
+let planReconciledWrites;
 
 beforeAll(async () => {
   vi.mock('firebase-admin', () => ({
@@ -21,7 +23,9 @@ beforeAll(async () => {
     expandRetailLine,
     extractJsonArray,
     isNonStockLine,
+    applyPriceQuantity,
   } = await import('../deliveryNote.js'));
+  ({ planReconciledWrites } = await import('../parseDeliveryNoteCallable.js'));
 });
 
 describe('parseDeliveryNote – storage path isolation', () => {
@@ -81,6 +85,24 @@ describe('parseDeliveryNote – Gemini JSON fences', () => {
   });
 });
 
+describe('saveReconciledItems – tenant writes', () => {
+  test('plans mhd and master data only for the caller tenant', () => {
+    const writes = planReconciledWrites([
+      {
+        createMasterData: true,
+        mhdData: { id: 'ls_joghurt_1', name: 'Weidemilchjoghurt', menge: 12, einheit: 'Stk' },
+        masterData: { id: 'joghurt', name: 'Weidemilchjoghurt', einheit: 'Stk', unitPrice: 1.52 },
+      },
+      { excluded: true, mhdData: { id: 'ls_pfand', name: 'IFCO', menge: 2 } },
+    ], 'Hof_A');
+    expect(writes.map((write) => write.collection)).toEqual(['mhd_liste', 'stammdaten']);
+    expect(writes.every((write) => write.data.tenantId === 'Hof_A')).toBe(true);
+    expect(() => planReconciledWrites([
+      { mhdData: { id: '../other', name: 'X', menge: 1 } },
+    ], 'Hof_A')).toThrow(/Dokument-ID/);
+  });
+});
+
 describe('parseDeliveryNote – VPE multiplier', () => {
   test('turns inner packs into piece quantity and keeps catch weight', () => {
     expect(expandRetailLine({ artikel: 'Kartoffelknödel 10x230g', menge: 1 }).calculatedQuantity).toBe(10);
@@ -104,5 +126,14 @@ describe('parseDeliveryNote – VPE multiplier', () => {
     expect(isNonStockLine({ artikel: 'Rollwagen' })).toBe(true);
     expect(isNonStockLine({ artikel: 'Buttercroissant' })).toBe(true);
     expect(isNonStockLine({ artikel: 'Kartoffelknödel 10x230g' })).toBe(false);
+    expect(applyPriceQuantity({
+      artikel: 'Rohrohrzucker', einheit: 'kg', unitPrice: 2.06, totalPrice: 12.36, menge: 1,
+    }).quantity).toBe(6);
+    expect(applyPriceQuantity({
+      artikel: 'Weidemilchjoghurt', einheit: 'Stk', einzelpreis: 1.52, gesamtpreis: 18.24, menge: 1,
+    }).quantity).toBe(12);
+    expect(applyPriceQuantity({
+      artikel: 'Strauchtomaten', einheit: 'kg', unitPrice: 5.34, totalPrice: 29.37, menge: 1,
+    }).quantity).toBe(5.5);
   });
 });

@@ -144,6 +144,16 @@ function firestoreTrigger(eventType, options, handler) {
 
 // —— HTTPS Callables ——
 
+lazyExport('saveReconciledItems', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    enforceAppCheck: false,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  withAdmin(async (request) => require('./parseDeliveryNoteCallable').handleSaveReconciledItems(request)),
+));
+
 lazyExport('parseDeliveryNote', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,

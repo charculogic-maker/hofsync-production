@@ -2,6 +2,7 @@
  * Soll-Ist-Abgleich: Gemini-Lieferschein gegen gebuchte Wareneingänge
  * (`mhd_liste` / laufende Lieferung) und Stammdaten.
  */
+import { createHttpsCallable } from './firebase-functions.js';
 
 const QTY_EPSILON = 0.011;
 const NAME_MATCH_RATIO = 0.82;
@@ -106,6 +107,16 @@ function readNumber(...values) {
   return NaN;
 }
 
+function readPrice(...values) {
+  for (const value of values) {
+    if (value == null || value === '') continue;
+    const cleaned = String(value).replace(/[€\s]/g, '').replace(',', '.');
+    const parsed = Number(cleaned);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return NaN;
+}
+
 function readText(...values) {
   for (const value of values) {
     const text = String(value ?? '').trim();
@@ -149,6 +160,18 @@ export function expandRetailQuantity(entry) {
   const billedRaw = readNumber(entry?.quantity, entry?.menge, entry?.qty);
   const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
   const namedKg = catchWeightKg(text);
+  const resolvedUnit = (unitKey === 'kg' || namedKg) ? 'kg' : 'Stk';
+  const unitPrice = readPrice(entry?.unitPrice, entry?.einzelpreis, entry?.preis, entry?.ekEinzel);
+  const totalPrice = readPrice(entry?.totalPrice, entry?.gesamtpreis, entry?.summe, entry?.zeilensumme);
+  if (unitPrice > 0 && totalPrice > 0) {
+    const calculatedQty = totalPrice / unitPrice;
+    const quantity = resolvedUnit === 'kg'
+      ? Math.round(calculatedQty * 100) / 100
+      : Math.round(calculatedQty);
+    if (quantity > 0) {
+      return { quantity, unit: resolvedUnit, billedPacks, packMultiplier: 1 };
+    }
+  }
 
   if (stated && unitKey !== 'kg') {
     return { quantity: stated, unit: 'Stk', billedPacks, packMultiplier: 1 };
@@ -585,84 +608,94 @@ function articleSlug(name) {
   return slug || `artikel-${Date.now()}`;
 }
 
-async function writeDoc(collectionPath, docId, data, op = 'set') {
-  const writeFn = reconciliationState.writeOrQueueFirestore;
-  if (typeof writeFn !== 'function') {
-    throw new Error('Speichern ist nicht initialisiert.');
+async function callSaveReconciledItems(items) {
+  const upload = await import('./delivery-upload.js');
+  const firebase = typeof reconciliationState.getFirebase === 'function'
+    ? reconciliationState.getFirebase()
+    : null;
+  const user = await upload.ensureDeliveryNoteAuth(firebase);
+  if (!user) {
+    throw new Error('Bitte zuerst in HofSync anmelden.');
   }
-  return writeFn({
-    collectionPath,
-    docId,
-    op,
-    onlineData: data,
-    queueData: data,
-    offlineMessage: 'Lieferschein-Abgleich wird synchronisiert, sobald WLAN verfügbar ist.',
+  const callable = createHttpsCallable('saveReconciledItems', { timeout: 60000 }, firebase);
+  const result = await callable({
+    items,
+    deliveryMeta: {
+      supplier: reconciliationState.note?.supplier || '',
+      invoiceNumber: reconciliationState.note?.invoiceNumber || '',
+      date: reconciliationState.note?.date || '',
+    },
   });
+  return result?.data || { success: true, count: items.length };
 }
 
-async function bookPosition(position, index) {
-  if (!position || position.status === STATUS.EXCLUDED || position.sourceItem?.excluded) return;
+function planClientBook(position, index) {
+  if (!position || position.status === STATUS.EXCLUDED || position.sourceItem?.excluded) return null;
   const item = position.sourceItem;
   const docId = `ls_${articleSlug(item.rawName)}_${Date.now().toString(36)}_${index}`;
   const nowIso = new Date().toISOString();
   const author = reconciliationState.getAuthor() || 'Team';
-  const tenantId = reconciliationState.tenantId;
   const note = reconciliationState.note || {};
-  await writeDoc('mhd_liste', docId, {
-    id: docId,
-    postenId: docId,
+  const createMaster = position.status === STATUS.UNMAPPED;
+  const masterId = item.ean || articleSlug(item.rawName);
+  const masterPayload = {
+    id: masterId,
+    artikel: item.rawName,
+    name: item.rawName,
     ean: item.ean || '',
     barcode: item.ean || '',
-    produkt: item.rawName,
-    name: item.rawName,
-    menge: item.quantity,
-    qty: item.quantity,
-    eingangMenge: item.quantity,
-    mengeEinheit: item.unit,
     einheit: item.unit,
-    status: 'aktiv',
-    soldOut: false,
-    source: 'delivery-reconciliation',
-    postentyp: 'wareneingang',
+    unitPrice: Number.isFinite(item.unitPrice) ? item.unitPrice : '',
     lieferant: note.supplier || '',
-    tenantId,
-    wareneingangAt: nowIso,
-    erfassungsDatum: nowIso,
-    createdAt: nowIso,
     updatedAt: nowIso,
-    scannedBy: author,
-    kategorie: 'Wareneingang',
-  });
-
-  if (position.status === STATUS.UNMAPPED) {
-    const masterId = item.ean || articleSlug(item.rawName);
-    const masterPayload = {
-      id: masterId,
-      artikel: item.rawName,
-      name: item.rawName,
+  };
+  const requestItem = {
+    createMasterData: createMaster,
+    mhdData: {
+      id: docId,
       ean: item.ean || '',
-      barcode: item.ean || '',
+      produkt: item.rawName,
+      name: item.rawName,
+      menge: item.quantity,
+      qty: item.quantity,
       einheit: item.unit,
-      unitPrice: Number.isFinite(item.unitPrice) ? item.unitPrice : '',
+      mengeEinheit: item.unit,
       lieferant: note.supplier || '',
-      updatedAt: nowIso,
-    };
-    await writeDoc('stammdaten', masterId, masterPayload);
-    const local = readLocalMasterMap('charculogic.productMaster.v1');
-    local[masterId] = { ...masterPayload, source: 'delivery-reconciliation' };
-    writeLocalMasterMap('charculogic.productMaster.v1', local);
-    reconciliationState.sessionMasters.push({ id: masterId, name: item.rawName, ean: item.ean });
-  }
+      scannedBy: author,
+      wareneingangAt: nowIso,
+      erfassungsDatum: nowIso,
+    },
+  };
+  if (createMaster) requestItem.masterData = masterPayload;
+  return { docId, masterId, masterPayload, item, createMaster, requestItem };
+}
 
+function rememberBooked(plan) {
+  if (plan.createMaster) {
+    const local = readLocalMasterMap('charculogic.productMaster.v1');
+    local[plan.masterId] = { ...plan.masterPayload, source: 'delivery-reconciliation' };
+    writeLocalMasterMap('charculogic.productMaster.v1', local);
+    reconciliationState.sessionMasters.push({ id: plan.masterId, name: plan.item.rawName, ean: plan.item.ean });
+  }
   reconciliationState.sessionReceipts.push({
-    id: docId,
-    name: item.rawName,
-    produkt: item.rawName,
-    ean: item.ean,
-    menge: item.quantity,
-    qty: item.quantity,
-    einheit: item.unit,
+    id: plan.docId,
+    name: plan.item.rawName,
+    produkt: plan.item.rawName,
+    ean: plan.item.ean,
+    menge: plan.item.quantity,
+    qty: plan.item.quantity,
+    einheit: plan.item.unit,
   });
+}
+
+async function bookPositions(positions) {
+  const plans = positions
+    .map((position, index) => planClientBook(position, position.sourceItem?.index ?? index))
+    .filter(Boolean);
+  if (!plans.length) return 0;
+  await callSaveReconciledItems(plans.map((plan) => plan.requestItem));
+  plans.forEach(rememberBooked);
+  return plans.length;
 }
 
 async function correctPosition(position, index) {
@@ -677,14 +710,10 @@ async function correctPosition(position, index) {
   const draftAdjusted = typeof reconciliationState.adjustDraftQuantity === 'function'
     && reconciliationState.adjustDraftQuantity(entryId, quantity);
   if (!draftAdjusted && entryId) {
-    const nowIso = new Date().toISOString();
-    await writeDoc('mhd_liste', entryId, {
-      id: entryId,
-      menge: quantity,
-      qty: quantity,
-      eingangMenge: quantity,
-      updatedAt: nowIso,
-    }, 'update');
+    await callSaveReconciledItems([{
+      mhdId: entryId,
+      mhdUpdate: { menge: quantity, qty: quantity },
+    }]);
   }
   if (entryId) reconciliationState.quantityOverrides.set(entryId, quantity);
   position.sourceItem.quantity = quantity;
@@ -716,10 +745,8 @@ async function onBoardClick(event) {
   try {
     if (action === 'book-all') {
       const pending = missingPositions().filter((position) => position.status !== STATUS.EXCLUDED);
-      for (let i = 0; i < pending.length; i += 1) {
-        await bookPosition(pending[i], pending[i].sourceItem?.index ?? i);
-      }
-      window.showToast?.(`${pending.length} fehlende Positionen übernommen.`, 'success');
+      await bookPositions(pending);
+      window.showToast?.('Positionen & Stammdaten erfolgreich im Laden gebucht!', 'success');
     } else {
       const index = Number(button.dataset.reconcileIndex);
       const position = reconciliationState.positions[index];
@@ -728,11 +755,8 @@ async function onBoardClick(event) {
         await correctPosition(position, index);
         window.showToast?.('Menge auf den Belegwert gesetzt.', 'success');
       } else if (action === 'book') {
-        await bookPosition(position, index);
-        const label = position.status === STATUS.UNMAPPED
-          ? 'Stammdaten angelegt und Wareneingang gebucht.'
-          : 'Als Wareneingang gebucht.';
-        window.showToast?.(label, 'success');
+        await bookPositions([position]);
+        window.showToast?.('Positionen & Stammdaten erfolgreich im Laden gebucht!', 'success');
       }
     }
     refreshBoard();
