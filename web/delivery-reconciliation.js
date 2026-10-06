@@ -559,6 +559,17 @@ async function onBoardClick(event) {
   }
 }
 
+export function renderReconciliationModal(data) {
+  const payload = data && typeof data === 'object' ? data : {};
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  return openParsedDeliveryBoard({
+    supplier: payload.supplier || payload.lieferant,
+    invoiceNumber: payload.invoiceNumber || payload.belegnummer,
+    date: payload.date || payload.datum,
+    items,
+  });
+}
+
 export function openParsedDeliveryBoard(payload) {
   reconciliationState.note = normalizeNote(payload);
   reconciliationState.positions = reconcileDelivery(
@@ -583,7 +594,7 @@ export async function reconcileDeliveryNoteFromFile(file) {
   const user = await upload.ensureDeliveryNoteAuth(firebase);
   if (!user) return;
 
-  window.showToast?.('Lieferschein wird analysiert…', 'warning');
+  upload.showDeliveryParseProgress();
   try {
     reconciliationState.ocrInFlight = true;
     const result = await upload.analyzeDeliveryNoteFile({
@@ -591,27 +602,21 @@ export async function reconcileDeliveryNoteFromFile(file) {
       tenantId: reconciliationState.tenantId,
       getFirebase: reconciliationState.getFirebase,
     });
-    const raw = result?.raw || {};
-    const items = Array.isArray(raw.items) && raw.items.length ? raw.items : (result?.items || []);
-    if (!items.length) {
+    console.log('[DeliveryReconciliation] Response received:', result?.raw || result);
+    upload.hideDeliveryParseProgress();
+    const payload = result?.raw || { items: result?.items || [] };
+    if (!Array.isArray(payload.items) || !payload.items.length) {
       window.showToast?.('Keine Artikel erkannt.', 'warning');
       return;
     }
-    openParsedDeliveryBoard({
-      supplier: raw.supplier || raw.lieferant,
-      invoiceNumber: raw.invoiceNumber || raw.belegnummer,
-      date: raw.date || raw.datum,
-      items,
-    });
+    renderReconciliationModal(payload);
   } catch (err) {
-    console.error('[DeliveryReconciliation] OCR fehlgeschlagen:', err);
-    const upload = await import('./delivery-upload.js');
-    const toast = err instanceof upload.DeliveryUploadError
-      ? upload.mapDeliveryUploadError(err)
-      : (err?.message || 'Lieferschein konnte nicht gelesen werden.');
-    window.showToast?.(toast, 'error');
+    console.error('[DeliveryReconciliation] Failed:', err);
+    upload.hideDeliveryParseProgress();
+    upload.showOperatorToast(`Fehler beim Parsen: ${err?.message || 'Unbekannter Fehler'}`);
   } finally {
     reconciliationState.ocrInFlight = false;
+    upload.hideDeliveryParseProgress();
   }
 }
 

@@ -32,8 +32,12 @@ function withAdmin(handler) {
 function memoryMb(memory) {
   if (memory == null || memory === '') return null;
   if (typeof memory === 'number') return memory;
-  const match = String(memory).match(/^(\d+)/);
-  return match ? Number(match[1]) : null;
+  const match = String(memory).trim().match(/^(\d+(?:\.\d+)?)\s*(mi?b|gi?b)?$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = String(match[2] || 'mb').toLowerCase();
+  if (unit.startsWith('g')) return Math.round(amount * 1024);
+  return Math.round(amount);
 }
 
 function baseEndpoint(options) {
@@ -147,7 +151,7 @@ lazyExport('parseDeliveryNote', () => callable(
     enforceAppCheck: false,
     secrets: ['GEMINI_API_KEY'],
     timeoutSeconds: 120,
-    memory: '512MiB',
+    memory: '1GiB',
   },
   withAdmin(async (request) => {
     require('./parseDeliveryNoteCallable').assertDeliveryNoteCaller(request);

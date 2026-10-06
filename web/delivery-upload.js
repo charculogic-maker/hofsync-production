@@ -25,6 +25,28 @@ const EXT_TO_MIME = {
 
 const COMPRESSIBLE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp']);
 
+const DELIVERY_PARSE_WAIT = '📄 Lieferschein wird verarbeitet (4 Seiten)... Bitte ~15 Sek. warten.';
+
+export function showDeliveryParseProgress() {
+  const existing = document.getElementById('delivery-parse-progress-overlay');
+  if (!existing) showOperatorToast(DELIVERY_PARSE_WAIT);
+  existing?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'delivery-parse-progress-overlay';
+  overlay.className = 'learn-mode-overlay';
+  overlay.innerHTML = `
+    <div class="delivery-parser-loading-card" role="status" aria-live="polite">
+      <div class="delivery-parser-spinner" aria-hidden="true"></div>
+      <p class="delivery-parser-loading-text">${DELIVERY_PARSE_WAIT}</p>
+    </div>
+  `;
+  document.querySelector('.app-container')?.appendChild(overlay);
+}
+
+export function hideDeliveryParseProgress() {
+  document.getElementById('delivery-parse-progress-overlay')?.remove();
+}
+
 export function showOperatorToast(message) {
   const text = String(message || '').trim();
   if (!text) return;
@@ -389,6 +411,7 @@ export async function analyzeDeliveryNoteFile({
     firebase,
   );
   await waitForAppCheckReady();
+  showDeliveryParseProgress();
 
   try {
     console.info('[DeliveryUpload] parseDeliveryNote start', {
@@ -399,9 +422,7 @@ export async function analyzeDeliveryNoteFile({
       storagePath: upload.storagePath,
       mimeType: upload.mimeType,
     });
-    console.info('[DeliveryUpload] parseDeliveryNote fertig', {
-      itemCount: Array.isArray(result?.data?.items) ? result.data.items.length : 0,
-    });
+    console.log('[DeliveryReconciliation] Response received:', result?.data);
     return {
       items: Array.isArray(result?.data?.items) ? result.data.items : [],
       storagePath: upload.storagePath,
@@ -409,7 +430,7 @@ export async function analyzeDeliveryNoteFile({
       raw: result?.data || null,
     };
   } catch (err) {
-    console.error('[DeliveryUpload] parseDeliveryNote fehlgeschlagen:', err);
+    console.error('[DeliveryReconciliation] Failed:', err);
     const code = String(err?.code || '').toLowerCase();
     const raw = String(err?.message || '').toLowerCase();
     if (code.includes('unauthenticated') || raw.includes('unauthenticated')) {
@@ -429,5 +450,7 @@ export async function analyzeDeliveryNoteFile({
       throw new DeliveryUploadError('network', 'Network error', err);
     }
     throw err;
+  } finally {
+    hideDeliveryParseProgress();
   }
 }
