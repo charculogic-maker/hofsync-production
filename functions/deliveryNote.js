@@ -32,12 +32,94 @@ const EXT_TO_MIME = {
 
 const DELIVERY_NOTE_PROMPT = [
   'Du bist ein präziser OCR-Gastro-Parser.',
-  'Analysiere diesen Lieferschein (z.B. von Metro oder Jakob Bayen).',
-  'Extrahiere alle Artikel, deren Mengen und ordne sie den Kategorien zu.',
-  "Antworte AUSSCHLIESSLICH mit einem validen JSON-Array im Format:",
-  "[{ \"artikel\": \"...\", \"menge\": 2, \"kategorie\": \"...\" }].",
+  'Analysiere diesen Lieferschein (z.B. von Weiling, Metro oder Jakob Bayen).',
+  'Großhändler berechnen oft eine VPE/Gebinde, der Laden bucht Einzelstücke.',
+  'Lies die Gebindezahl als menge und den Innenpack aus der Beschreibung, z.B. "10x230g" oder "6x500g".',
+  'Fanggewichte wie "18,14 kg Bananen" bleiben Kilogramm, nicht in Stück umrechnen.',
+  'Antworte AUSSCHLIESSLICH mit einem validen JSON-Array im Format:',
+  '[{ "artikel": "...", "menge": 1, "einheit": "VPE", "packMultiplier": 10, "inhalt": "10x230g", "kategorie": "..." }].',
+  'packMultiplier ist die Zahl vor dem x bei Stückpackungen (10x230g -> 10). Bei reinem kg-Gewicht ist packMultiplier 1.',
   'Kein Markdown, kein Text drumherum, nur das nackte JSON-Array.',
 ].join(' ');
+
+const INNER_PACK_RE = /(\d{1,3})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(g|ml|l)\b/gi;
+
+function extractInnerPackMultiplier(text) {
+  const source = String(text || '');
+  const pattern = new RegExp(INNER_PACK_RE.source, 'gi');
+  let best = 0;
+  for (const match of source.matchAll(pattern)) {
+    const count = Number(match[1]);
+    if (!Number.isFinite(count) || count < 2 || count > 200) continue;
+    if (count > best) best = count;
+  }
+  return best;
+}
+
+function catchWeightKg(text) {
+  const source = String(text || '');
+  if (extractInnerPackMultiplier(source)) return null;
+  const match = source.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  if (!match) return null;
+  const kg = Number(String(match[1]).replace(',', '.'));
+  return Number.isFinite(kg) && kg > 0 ? kg : null;
+}
+
+/**
+ * VPE-Menge × Innenpack (10x230g) = Einzelstücke.
+ * Fanggewicht in kg bleibt unverändert.
+ */
+function expandRetailLine(entry) {
+  const artikel = String(entry?.artikel || entry?.name || entry?.produkt || '').trim();
+  const inhalt = String(entry?.inhalt || entry?.gebinde || entry?.pack || '').trim();
+  const text = `${artikel} ${inhalt}`;
+  const billedRaw = Number(String(entry?.menge ?? entry?.quantity ?? 1).replace(',', '.'));
+  const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
+  const unitKey = String(entry?.einheit || entry?.unit || '').trim().toLowerCase();
+  const explicit = Number(entry?.packMultiplier ?? entry?.multiplier);
+  const fromText = extractInnerPackMultiplier(text);
+  const namedKg = catchWeightKg(text);
+
+  if (unitKey === 'kg' || (namedKg && !fromText && !(Number.isFinite(explicit) && explicit >= 2))) {
+    const kg = unitKey === 'kg' ? billedPacks : namedKg;
+    return {
+      ...entry,
+      artikel,
+      menge: kg,
+      billedPacks,
+      packMultiplier: 1,
+      calculatedQuantity: kg,
+      einheit: 'kg',
+      inhalt,
+    };
+  }
+
+  const multiplier = Number.isFinite(explicit) && explicit >= 2 ? explicit : fromText;
+  if (multiplier >= 2) {
+    const calculatedQuantity = Math.round(billedPacks * multiplier * 1000) / 1000;
+    return {
+      ...entry,
+      artikel,
+      menge: calculatedQuantity,
+      billedPacks,
+      packMultiplier: multiplier,
+      calculatedQuantity,
+      einheit: 'Stk',
+      inhalt: inhalt || `${multiplier}x`,
+    };
+  }
+
+  return {
+    ...entry,
+    artikel,
+    menge: billedPacks,
+    billedPacks,
+    packMultiplier: 1,
+    calculatedQuantity: billedPacks,
+    einheit: String(entry?.einheit || entry?.unit || 'Stk').trim() || 'Stk',
+    inhalt,
+  };
+}
 
 function sanitizeGeminiResponseText(responseText) {
   return String(responseText || '')
@@ -74,11 +156,16 @@ function extractJsonArray(responseText) {
 
 function normalizeDeliveryLine(entry, index) {
   const mengeRaw = entry?.menge ?? entry?.quantity ?? entry?.qty ?? 1;
-  const menge = Number(mengeRaw);
+  const menge = Number(String(mengeRaw).replace(',', '.'));
+  const packMultiplier = Number(entry?.packMultiplier ?? entry?.multiplier);
   return {
-    artikel: String(entry?.artikel || entry?.name || entry?.produkt || '').trim(),
+    artikel: String(entry?.artikel || entry?.name || entry?.produkt || entry?.bezeichnung || '').trim(),
     menge: Number.isFinite(menge) && menge > 0 ? menge : 1,
+    einheit: String(entry?.einheit || entry?.unit || '').trim(),
+    inhalt: String(entry?.inhalt || entry?.gebinde || entry?.pack || '').trim(),
+    packMultiplier: Number.isFinite(packMultiplier) ? packMultiplier : 0,
     kategorie: String(entry?.kategorie || entry?.category || '').trim(),
+    ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
     _index: index,
   };
 }
@@ -92,20 +179,31 @@ function resolveGeminiApiKey() {
 }
 
 function validateParsedItems(items) {
-  if (!Array.isArray(items) || items.length === 0 || items.length > 80) {
+  if (!Array.isArray(items) || items.length === 0 || items.length > 200) {
     throw new HttpsError('invalid-argument', 'Ungültige Artikelliste aus dem Lieferschein.');
   }
   return items.map((line, index) => {
-    const artikel = String(line.artikel || '').trim().slice(0, 200);
-    const kategorie = String(line.kategorie || '').trim().slice(0, 80);
-    const menge = Number(line.menge);
+    const expanded = expandRetailLine(line);
+    const artikel = String(expanded.artikel || '').trim().slice(0, 200);
+    const kategorie = String(expanded.kategorie || line.kategorie || '').trim().slice(0, 80);
+    const menge = Number(expanded.calculatedQuantity ?? expanded.menge);
     if (!artikel) {
       throw new HttpsError('invalid-argument', `Artikel in Zeile ${index + 1} fehlt.`);
     }
     if (!Number.isFinite(menge) || menge <= 0 || menge > 99999) {
       throw new HttpsError('invalid-argument', `Ungültige Menge in Zeile ${index + 1}.`);
     }
-    return { artikel, menge, kategorie };
+    return {
+      artikel,
+      menge,
+      kategorie,
+      einheit: expanded.einheit || 'Stk',
+      billedPacks: expanded.billedPacks,
+      packMultiplier: expanded.packMultiplier,
+      calculatedQuantity: menge,
+      inhalt: expanded.inhalt || '',
+      ean: String(line.ean || '').replace(/\D/g, ''),
+    };
   });
 }
 
@@ -244,9 +342,7 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
     throw new HttpsError('invalid-argument', 'Keine Artikel auf dem Lieferschein erkannt.');
   }
 
-  return validateParsedItems(
-    parsed.map(({ artikel, menge, kategorie }) => ({ artikel, menge, kategorie })),
-  );
+  return validateParsedItems(parsed);
 }
 
 async function handleParseDeliveryNote(request) {
@@ -294,6 +390,8 @@ module.exports = {
   DELIVERY_NOTE_MODEL,
   ALLOWED_MIME_TYPES,
   assertTenantStoragePath,
+  expandRetailLine,
+  extractInnerPackMultiplier,
   handleParseDeliveryNote,
   normalizeMimeType,
   parseDeliveryNoteImage,

@@ -27,6 +27,7 @@ const reconciliationState = {
   sessionReceipts: [],
   sessionMasters: [],
   quantityOverrides: new Map(),
+  boardFilter: 'all',
   busy: false,
   ocrInFlight: false,
 };
@@ -100,6 +101,78 @@ function readText(...values) {
   return '';
 }
 
+const INNER_PACK_RE = /(\d{1,3})\s*[x×]\s*(?:\d+(?:[.,]\d+)?)\s*(?:g|ml|l)\b/gi;
+
+function extractInnerPackMultiplier(text) {
+  const pattern = new RegExp(INNER_PACK_RE.source, 'gi');
+  let best = 0;
+  for (const match of String(text || '').matchAll(pattern)) {
+    const count = Number(match[1]);
+    if (!Number.isFinite(count) || count < 2 || count > 200) continue;
+    if (count > best) best = count;
+  }
+  return best;
+}
+
+function catchWeightKg(text) {
+  const source = String(text || '');
+  if (extractInnerPackMultiplier(source)) return null;
+  const match = source.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  if (!match) return null;
+  const kg = Number(String(match[1]).replace(',', '.'));
+  return Number.isFinite(kg) && kg > 0 ? kg : null;
+}
+
+/**
+ * Gebinde × Innenpack (z. B. 1 VPE "10x230g") = Einzelstücke.
+ * Fanggewicht in kg bleibt das geparste Gewicht.
+ */
+export function expandRetailQuantity(entry) {
+  const name = readText(entry?.rawName, entry?.name, entry?.artikel, entry?.produkt, entry?.product, entry?.bezeichnung);
+  const inhalt = readText(entry?.inhalt, entry?.gebinde, entry?.pack, entry?.beschreibung);
+  const text = `${name} ${inhalt}`;
+  const unitRaw = readText(entry?.unit, entry?.einheit, entry?.mengeEinheit);
+  const unitKey = unitRaw.toLowerCase();
+  const explicit = readNumber(entry?.packMultiplier, entry?.multiplier);
+  const calculated = readNumber(entry?.calculatedQuantity);
+  const storedPacks = readNumber(entry?.billedPacks);
+  const billedRaw = readNumber(entry?.billedPacks, entry?.quantity, entry?.menge, entry?.qty);
+  const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
+
+  if (Number.isFinite(calculated) && calculated > 0 && Number.isFinite(storedPacks) && storedPacks > 0) {
+    return {
+      quantity: calculated,
+      unit: unitRaw || 'Stk',
+      billedPacks: storedPacks,
+      packMultiplier: Number.isFinite(explicit) && explicit > 0 ? explicit : 1,
+    };
+  }
+
+  const fromText = extractInnerPackMultiplier(text);
+  const namedKg = catchWeightKg(text);
+  if (unitKey === 'kg' || (namedKg && !fromText && !(explicit >= 2))) {
+    const kg = unitKey === 'kg' ? billedPacks : namedKg;
+    return { quantity: kg, unit: 'kg', billedPacks, packMultiplier: 1 };
+  }
+
+  const multiplier = Number.isFinite(explicit) && explicit >= 2 ? explicit : fromText;
+  if (multiplier >= 2) {
+    return {
+      quantity: Math.round(billedPacks * multiplier * 1000) / 1000,
+      unit: 'Stk',
+      billedPacks,
+      packMultiplier: multiplier,
+    };
+  }
+
+  return {
+    quantity: billedPacks,
+    unit: unitRaw || 'Stk',
+    billedPacks,
+    packMultiplier: 1,
+  };
+}
+
 function nameScore(left, right) {
   const a = normalizeArticleKey(left);
   const b = normalizeArticleKey(right);
@@ -115,12 +188,14 @@ function nameScore(left, right) {
 }
 
 function toParsedItem(entry, index) {
-  const quantity = readNumber(entry?.quantity, entry?.menge, entry?.qty);
+  const retail = expandRetailQuantity(entry);
   return {
     rawName: readText(entry?.rawName, entry?.name, entry?.artikel, entry?.produkt, entry?.product),
     ean: eanKey(entry?.ean || entry?.barcode || entry?.artnr),
-    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
-    unit: readText(entry?.unit, entry?.einheit, entry?.mengeEinheit) || 'Stk',
+    quantity: retail.quantity,
+    unit: retail.unit,
+    billedPacks: retail.billedPacks,
+    packMultiplier: retail.packMultiplier,
     unitPrice: readNumber(entry?.unitPrice, entry?.preis, entry?.ekEinzel),
     index,
   };
@@ -306,6 +381,11 @@ function renderPositionCard(position, index) {
   const name = position.sourceItem.rawName;
   const ean = position.sourceItem.ean ? `EAN ${position.sourceItem.ean}` : 'ohne EAN';
   const unit = position.unit || position.sourceItem.unit || 'Stk';
+  const packMultiplier = Number(position.sourceItem.packMultiplier) || 1;
+  const billedPacks = position.sourceItem.billedPacks;
+  const packLine = packMultiplier > 1
+    ? ` · ${formatAmount(billedPacks, 'VPE')} × ${packMultiplier} = ${formatAmount(position.sourceItem.quantity, 'Stk')}`
+    : '';
   let badge = '';
   let tone = 'unmapped';
   let action = '';
@@ -339,7 +419,7 @@ function renderPositionCard(position, index) {
         <strong>${escapeHtml(name)}</strong>
         <span class="delivery-reconciliation-badge">${escapeHtml(badge)}</span>
       </div>
-      <p class="delivery-reconciliation-meta-line">${escapeHtml(ean)} · ${escapeHtml(formatAmount(position.sourceItem.quantity, unit))}</p>
+      <p class="delivery-reconciliation-meta-line">${escapeHtml(ean)} · ${escapeHtml(formatAmount(position.sourceItem.quantity, unit))}${escapeHtml(packLine)}</p>
       ${action}
     </article>
   `;
@@ -351,6 +431,30 @@ function missingPositions() {
   ));
 }
 
+function boardFilterCounts(positions) {
+  const counts = { all: positions.length, issues: 0, match: 0, neu: 0 };
+  positions.forEach((position) => {
+    if (position.status === STATUS.PERFECT_MATCH) counts.match += 1;
+    else if (position.status === STATUS.UNMAPPED) counts.neu += 1;
+    else counts.issues += 1;
+  });
+  return counts;
+}
+
+function matchesBoardFilter(position) {
+  const filter = reconciliationState.boardFilter || 'all';
+  if (filter === 'match') return position.status === STATUS.PERFECT_MATCH;
+  if (filter === 'neu') return position.status === STATUS.UNMAPPED;
+  if (filter === 'issues') {
+    return position.status === STATUS.QTY_MISMATCH || position.status === STATUS.NOT_RECORDED;
+  }
+  return true;
+}
+
+function renderFilterButton(id, label, count, active) {
+  return `<button type="button" class="delivery-reconciliation-filter${active ? ' is-active' : ''}" data-reconcile-filter="${id}" aria-pressed="${active ? 'true' : 'false'}">${label} (${count})</button>`;
+}
+
 export function removeReconciliationBoard() {
   document.getElementById('delivery-reconciliation-overlay')?.remove();
 }
@@ -360,17 +464,32 @@ function renderBoard() {
   if (!note) return;
   const host = document.getElementById('delivery-reconciliation-overlay');
   const missing = missingPositions();
+  const counts = boardFilterCounts(reconciliationState.positions);
+  const activeFilter = reconciliationState.boardFilter || 'all';
+  const cards = reconciliationState.positions
+    .map((position, index) => ({ position, index }))
+    .filter(({ position }) => matchesBoardFilter(position))
+    .map(({ position, index }) => renderPositionCard(position, index))
+    .join('');
   const body = `
     <div class="learn-mode-card delivery-reconciliation-card" role="dialog" aria-modal="true" aria-labelledby="delivery-reconciliation-title">
-      <div class="learn-mode-title" id="delivery-reconciliation-title">Soll-Ist Abgleich Board</div>
-      <p class="delivery-reconciliation-header">
-        <span>${escapeHtml(note.supplier)}</span>
-        <span>${escapeHtml(note.date)}</span>
-        <span>${note.items.length} Positionen</span>
-        ${note.invoiceNumber ? `<span>Beleg ${escapeHtml(note.invoiceNumber)}</span>` : ''}
-      </p>
+      <div class="delivery-reconciliation-head">
+        <div class="learn-mode-title" id="delivery-reconciliation-title">Soll-Ist Abgleich Board</div>
+        <p class="delivery-reconciliation-header">
+          <span>${escapeHtml(note.supplier)}</span>
+          <span>${escapeHtml(note.date)}</span>
+          <span>${note.items.length} Positionen</span>
+          ${note.invoiceNumber ? `<span>Beleg ${escapeHtml(note.invoiceNumber)}</span>` : ''}
+        </p>
+        <div class="delivery-reconciliation-filters" role="tablist" aria-label="Statusfilter">
+          ${renderFilterButton('all', 'Alle', counts.all, activeFilter === 'all')}
+          ${renderFilterButton('issues', '🔴 Abweichung / Fehlt', counts.issues, activeFilter === 'issues')}
+          ${renderFilterButton('match', '🟢 Match', counts.match, activeFilter === 'match')}
+          ${renderFilterButton('neu', '⚪ Neu', counts.neu, activeFilter === 'neu')}
+        </div>
+      </div>
       <div class="delivery-reconciliation-scroll">
-        ${reconciliationState.positions.map(renderPositionCard).join('')}
+        ${cards || '<p class="delivery-reconciliation-empty">Keine Positionen in dieser Ansicht.</p>'}
       </div>
       <div class="learn-mode-actions delivery-reconciliation-actions">
         ${missing.length
@@ -517,6 +636,12 @@ async function correctPosition(position, index) {
 }
 
 async function onBoardClick(event) {
+  const filterBtn = event.target.closest('[data-reconcile-filter]');
+  if (filterBtn) {
+    reconciliationState.boardFilter = filterBtn.dataset.reconcileFilter || 'all';
+    renderBoard();
+    return;
+  }
   const button = event.target.closest('[data-reconcile-action]');
   if (!button || reconciliationState.busy) return;
   const action = button.dataset.reconcileAction;
@@ -571,6 +696,7 @@ export function renderReconciliationModal(data) {
 }
 
 export function openParsedDeliveryBoard(payload) {
+  reconciliationState.boardFilter = 'all';
   reconciliationState.note = normalizeNote(payload);
   reconciliationState.positions = reconcileDelivery(
     reconciliationState.note.items,

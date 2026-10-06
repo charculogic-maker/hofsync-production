@@ -6,6 +6,7 @@ import { describe, test, expect, beforeAll, vi } from 'vitest';
 let assertTenantStoragePath;
 let normalizeMimeType;
 let ALLOWED_MIME_TYPES;
+let expandRetailLine;
 
 beforeAll(async () => {
   vi.mock('firebase-admin', () => ({
@@ -15,6 +16,7 @@ beforeAll(async () => {
     assertTenantStoragePath,
     normalizeMimeType,
     ALLOWED_MIME_TYPES,
+    expandRetailLine,
   } = await import('../deliveryNote.js'));
 });
 
@@ -58,5 +60,26 @@ describe('parseDeliveryNote – MIME tolerance', () => {
     expect(ALLOWED_MIME_TYPES.has('image/heic')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('image/heif')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('application/pdf')).toBe(true);
+  });
+});
+
+describe('parseDeliveryNote – VPE multiplier', () => {
+  test('turns inner packs into piece quantity and keeps catch weight', () => {
+    expect(expandRetailLine({ artikel: 'Kartoffelknödel 10x230g', menge: 1 }).calculatedQuantity).toBe(10);
+    expect(expandRetailLine({ artikel: 'Familienhonig', inhalt: '6x500g', menge: 1, einheit: 'VPE' })).toMatchObject({
+      calculatedQuantity: 6,
+      einheit: 'Stk',
+      packMultiplier: 6,
+    });
+    expect(expandRetailLine({ artikel: 'Fruchtaufstrich 3x175g', menge: 2 }).calculatedQuantity).toBe(6);
+    expect(expandRetailLine({ artikel: '18.14 kg Bananen', menge: 1 })).toMatchObject({
+      calculatedQuantity: 18.14,
+      einheit: 'kg',
+      packMultiplier: 1,
+    });
+    expect(expandRetailLine({ artikel: 'Bananen', menge: 18.14, einheit: 'kg' })).toMatchObject({
+      calculatedQuantity: 18.14,
+      einheit: 'kg',
+    });
   });
 });

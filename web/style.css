@@ -4948,13 +4948,23 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 .delivery-reconciliation-card {
-  width: min(560px, 100%);
-  max-height: 90vh;
+  width: 100%;
+  max-width: 480px;
+  max-height: 92vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  margin-inline: auto;
   background: var(--surface-color, #fff);
   color: var(--text-dark, #1c1c1e);
+}
+
+.delivery-reconciliation-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  background: var(--surface-color, #fff);
 }
 
 .delivery-reconciliation-header {
@@ -4966,13 +4976,47 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   font-weight: 800;
 }
 
+.delivery-reconciliation-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.delivery-reconciliation-filter {
+  min-height: 48px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.delivery-reconciliation-filter.is-active {
+  background: var(--text-dark, #1c1c1e);
+  color: var(--surface-color, #fff);
+  border-color: transparent;
+}
+
 .delivery-reconciliation-scroll {
-  overflow: auto;
-  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  max-height: 68vh;
+  padding-right: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.delivery-reconciliation-empty {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted, #636366);
 }
 
 .delivery-reconciliation-item {
@@ -5049,12 +5093,20 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 .delivery-reconciliation-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-top: 8px;
+  background: var(--surface-color, #fff);
 }
 
 [data-theme="dark"] .delivery-reconciliation-card,
+[data-theme="dark"] .delivery-reconciliation-head,
+[data-theme="dark"] .delivery-reconciliation-actions,
 [data-theme="dark"] .delivery-reconciliation-item {
   background: var(--surface-color);
   color: var(--text-dark);
@@ -5514,6 +5566,30 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border-radius: var(--border-radius-lg);
   padding: 20px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.learn-mode-card.delivery-reconciliation-card {
+  width: 100%;
+  max-width: 480px;
+  max-height: 92vh;
+  overflow: hidden;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .learn-mode-card.delivery-reconciliation-card {
+    width: 92%;
+    max-width: 1050px;
+  }
+
+  .delivery-reconciliation-scroll {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    gap: 12px;
+    max-height: 68vh;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
 }
 
 .utility-list {

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const mod = await import(pathToFileURL(path.resolve('web/delivery-reconciliation.js')).href);
-const { reconcileDelivery, normalizeArticleKey, levenshtein } = mod;
+const { reconcileDelivery, normalizeArticleKey, levenshtein, expandRetailQuantity } = mod;
 
 const sampleNote = {
   supplier: 'Metro',
@@ -57,6 +57,59 @@ describe('delivery-reconciliation', () => {
     assert.equal(byName['Neues Spezialsalz'].status, 'UNMAPPED');
     assert.equal(byName['Neues Spezialsalz'].matchedMasterId, null);
     assert.equal(byName['Neues Spezialsalz'].matchedEntryId, null);
+  });
+
+  it('expands VPE inner packs to retail pieces and keeps catch weight in kg', () => {
+    const knoedel = expandRetailQuantity({ name: 'Kartoffelknödel 10x230g', menge: 1 });
+    assert.equal(knoedel.quantity, 10);
+    assert.equal(knoedel.unit, 'Stk');
+    assert.equal(knoedel.packMultiplier, 10);
+
+    const honig = expandRetailQuantity({ artikel: 'Familienhonig', inhalt: '6x500g', menge: 1, einheit: 'VPE' });
+    assert.equal(honig.quantity, 6);
+    assert.equal(honig.unit, 'Stk');
+
+    const aufstrich = expandRetailQuantity({ name: 'Fruchtaufstrich 3x175g', quantity: 2, unit: 'VPE' });
+    assert.equal(aufstrich.quantity, 6);
+    assert.equal(aufstrich.packMultiplier, 3);
+
+    const bananen = expandRetailQuantity({ name: '18.14 kg Bananen', menge: 1 });
+    assert.equal(bananen.quantity, 18.14);
+    assert.equal(bananen.unit, 'kg');
+    assert.equal(bananen.packMultiplier, 1);
+
+    const bananenParsed = expandRetailQuantity({ name: 'Bananen', quantity: 18.14, unit: 'kg' });
+    assert.equal(bananenParsed.quantity, 18.14);
+    assert.equal(bananenParsed.unit, 'kg');
+
+    const alreadyExpanded = expandRetailQuantity({
+      artikel: 'Kartoffelknödel 10x230g',
+      menge: 10,
+      billedPacks: 1,
+      packMultiplier: 10,
+      calculatedQuantity: 10,
+      einheit: 'Stk',
+    });
+    assert.equal(alreadyExpanded.quantity, 10);
+
+    const recorded = [
+      { id: 'mhd-knoedel', produkt: 'Kartoffelknödel', menge: 10, einheit: 'Stk' },
+      { id: 'mhd-banane', produkt: 'Bananen', menge: 18.14, einheit: 'kg' },
+    ];
+    const rows = reconcileDelivery(
+      [
+        { name: 'Kartoffelknödel 10x230g', menge: 1 },
+        { name: 'Bananen', quantity: 18.14, unit: 'kg' },
+      ],
+      recorded,
+      [],
+    );
+    assert.equal(rows[0].status, 'PERFECT_MATCH');
+    assert.equal(rows[0].sourceItem.quantity, 10);
+    assert.equal(rows[0].sourceItem.unit, 'Stk');
+    assert.equal(rows[1].status, 'PERFECT_MATCH');
+    assert.equal(rows[1].sourceItem.quantity, 18.14);
+    assert.equal(rows[1].sourceItem.unit, 'kg');
   });
 
   it('matches by fuzzy name when the EAN is missing', () => {
