@@ -5,7 +5,8 @@
 import { FUNCTIONS_REGION, resolveFunctionsBaseUrl } from './firebase-functions.js';
 import { getFirebaseApp } from './firebase-init.js';
 import { isAppCheckInitialized, isRecaptchaAppCheckError, waitForAppCheckReady } from './app-check.js';
-import { getAuthContext, isOfficeUser } from './auth.js';
+import { getAuthContext } from './auth.js';
+import { isPlatformSuperAdmin } from './tenant-admin-auth.js';
 
 const MODULE_DEFS = [
   { key: 'mhdMonitor', label: 'MHD-Monitor' },
@@ -380,7 +381,8 @@ function bindForm(root) {
 }
 
 export function syncFastOnboardingVisibility() {
-  const show = isOfficeUser(getAuthContext());
+  const session = getAuthContext();
+  const show = isPlatformSuperAdmin(session?.user || session);
   document.querySelectorAll('[data-fast-onboarding-card]').forEach((card) => {
     card.hidden = !show;
     if (show) bindForm(card);

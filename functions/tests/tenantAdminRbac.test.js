@@ -289,14 +289,17 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(caught.code).toBe('permission-denied');
   });
 
-  test('provisionDemoTenant allows office admin callers', async () => {
+  test('provisionDemoTenant rejects tenant-admin callers', async () => {
     const { assertProvisionAccess } = await import('../tenantAdmin.js');
-    const ctx = assertProvisionAccess(
-      authAs({ uid: 'admin-a', tenantId: TENANT_A, role: 'admin', email: 'admin@steveshof.de' }),
-    );
-    expect(ctx.uid).toBe('admin-a');
-    expect(ctx.role).toBe('admin');
-    expect(ctx.isSuperAdmin).toBe(false);
+    try {
+      assertProvisionAccess(
+        authAs({ uid: 'admin-a', tenantId: TENANT_A, role: 'admin', email: 'admin@steveshof.de' }),
+      );
+      throw new Error('expected permission-denied');
+    } catch (err) {
+      expect(err.code).toBe('permission-denied');
+      expect(String(err.message)).toMatch(/Plattform-Admins/);
+    }
   });
 
   test('assertProvisionAccess allows platform super-admin', async () => {
