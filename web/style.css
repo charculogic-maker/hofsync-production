@@ -5002,6 +5002,23 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border-color: transparent;
 }
 
+.delivery-reconciliation-exclude {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.delivery-reconciliation-exclude input {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
 .delivery-reconciliation-scroll {
   overflow-y: auto;
   max-height: 68vh;
@@ -5072,6 +5089,12 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 .delivery-reconciliation-item--unmapped {
   background: rgba(142, 142, 147, 0.16);
   border-color: rgba(142, 142, 147, 0.45);
+}
+
+.delivery-reconciliation-item--excluded {
+  background: rgba(142, 142, 147, 0.08);
+  border-color: rgba(142, 142, 147, 0.35);
+  border-style: dashed;
 }
 
 .delivery-reconciliation-qty-label {

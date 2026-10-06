@@ -33,32 +33,65 @@ const EXT_TO_MIME = {
 const DELIVERY_NOTE_PROMPT = [
   'Du bist ein präziser OCR-Gastro-Parser.',
   'Analysiere diesen Lieferschein (z.B. von Weiling, Metro oder Jakob Bayen).',
-  'Großhändler berechnen oft eine VPE/Gebinde, der Laden bucht Einzelstücke.',
-  'Lies die Gebindezahl als menge und den Innenpack aus der Beschreibung, z.B. "10x230g" oder "6x500g".',
-  'Fanggewichte wie "18,14 kg Bananen" bleiben Kilogramm, nicht in Stück umrechnen.',
+  'Bei Weiling steht in der Spalte "Gesamt Stück / Gewicht" bereits die absolute Stückzahl der Position.',
+  '"3 x 175 g" bedeutet quantity 3, "20 x 1 l" bedeutet quantity 20, "10 x 230 g" bedeutet quantity 10.',
+  'Multipliziere die Gebinde-Menge NICHT mit dieser Stückzahl.',
+  'Fanggewichte wie "18,14 kg Bananen" bleiben quantity in kg.',
+  'Pfand, IFCO, Rollwagen, Logistikpauschale sowie Buttercroissant, Rosinenbrötchen und Müslibrötchen sind excluded true.',
   'Antworte AUSSCHLIESSLICH mit einem validen JSON-Array im Format:',
-  '[{ "artikel": "...", "menge": 1, "einheit": "VPE", "packMultiplier": 10, "inhalt": "10x230g", "kategorie": "..." }].',
-  'packMultiplier ist die Zahl vor dem x bei Stückpackungen (10x230g -> 10). Bei reinem kg-Gewicht ist packMultiplier 1.',
+  '[{ "artikel": "...", "artikelnummer": "...", "quantity": 3, "einheit": "Stk", "inhalt": "3 x 175 g", "excluded": false, "kategorie": "..." }].',
+  'quantity ist die echte Gesamtstückzahl oder das Gewicht in kg.',
   'Kein Markdown, kein Text drumherum, nur das nackte JSON-Array.',
 ].join(' ');
 
-const INNER_PACK_RE = /(\d{1,3})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(g|ml|l)\b/gi;
+const STATED_PIECE_RE = /(\d{1,4})\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:g|ml|l)\b/i;
+const EXCLUDED_ARTICLE_NUMBERS = new Set(['99166', '99050', '99270', '99100', '99500', '987003']);
+const EXCLUDED_NAME_KEYS = [
+  'ifco',
+  'pfand',
+  'rollwagen',
+  'logistikpauschale',
+  'buttercroissant',
+  'rosinenbroetchen',
+  'mueslibroetchen',
+];
 
-function extractInnerPackMultiplier(text) {
-  const source = String(text || '');
-  const pattern = new RegExp(INNER_PACK_RE.source, 'gi');
-  let best = 0;
-  for (const match of source.matchAll(pattern)) {
-    const count = Number(match[1]);
-    if (!Number.isFinite(count) || count < 2 || count > 200) continue;
-    if (count > best) best = count;
-  }
-  return best;
+function statedPieceTotal(text) {
+  const match = String(text || '').match(STATED_PIECE_RE);
+  if (!match) return 0;
+  const count = Number(match[1]);
+  if (!Number.isFinite(count) || count < 1 || count > 9999) return 0;
+  return count;
+}
+
+function normalizeNameKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss');
+}
+
+function isNonStockLine(entry) {
+  const numbers = [
+    entry?.artikelnummer,
+    entry?.artnr,
+    entry?.artikelNr,
+    entry?.sku,
+    entry?.itemNumber,
+    entry?.nummer,
+  ].map((value) => String(value || '').replace(/\D/g, '')).filter(Boolean);
+  const blob = `${entry?.artikel || ''} ${entry?.name || ''} ${entry?.inhalt || ''} ${entry?.bezeichnung || ''}`;
+  for (const match of blob.matchAll(/\b(\d{5,6})\b/g)) numbers.push(match[1]);
+  if (numbers.some((value) => EXCLUDED_ARTICLE_NUMBERS.has(value))) return true;
+  const key = normalizeNameKey(blob);
+  return EXCLUDED_NAME_KEYS.some((word) => key.includes(word));
 }
 
 function catchWeightKg(text) {
   const source = String(text || '');
-  if (extractInnerPackMultiplier(source)) return null;
+  if (statedPieceTotal(source)) return null;
   const match = source.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
   if (!match) return null;
   const kg = Number(String(match[1]).replace(',', '.'));
@@ -66,21 +99,36 @@ function catchWeightKg(text) {
 }
 
 /**
- * VPE-Menge × Innenpack (10x230g) = Einzelstücke.
+ * "Gesamt Stück / Gewicht" nennt die Endmenge ("3 x 175 g" = 3 Stk).
+ * Diese Zahl wird nicht mit der Gebinde-Menge multipliziert.
  * Fanggewicht in kg bleibt unverändert.
  */
 function expandRetailLine(entry) {
   const artikel = String(entry?.artikel || entry?.name || entry?.produkt || '').trim();
-  const inhalt = String(entry?.inhalt || entry?.gebinde || entry?.pack || '').trim();
-  const text = `${artikel} ${inhalt}`;
+  const inhalt = String(entry?.inhalt || entry?.gebinde || entry?.pack || entry?.gesamt || '').trim();
+  const text = `${artikel} ${inhalt} ${entry?.beschreibung || ''}`;
   const billedRaw = Number(String(entry?.menge ?? entry?.quantity ?? 1).replace(',', '.'));
   const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
   const unitKey = String(entry?.einheit || entry?.unit || '').trim().toLowerCase();
-  const explicit = Number(entry?.packMultiplier ?? entry?.multiplier);
-  const fromText = extractInnerPackMultiplier(text);
+  const declared = Number(String(entry?.totalQuantity ?? entry?.gesamtStueck ?? '').replace(',', '.'));
+  const fromText = statedPieceTotal(text);
+  const stated = fromText || (Number.isFinite(declared) && declared > 0 ? declared : 0);
   const namedKg = catchWeightKg(text);
 
-  if (unitKey === 'kg' || (namedKg && !fromText && !(Number.isFinite(explicit) && explicit >= 2))) {
+  if (stated && unitKey !== 'kg') {
+    return {
+      ...entry,
+      artikel,
+      menge: stated,
+      billedPacks,
+      packMultiplier: 1,
+      calculatedQuantity: stated,
+      einheit: 'Stk',
+      inhalt,
+    };
+  }
+
+  if (unitKey === 'kg' || namedKg) {
     const kg = unitKey === 'kg' ? billedPacks : namedKg;
     return {
       ...entry,
@@ -91,21 +139,6 @@ function expandRetailLine(entry) {
       calculatedQuantity: kg,
       einheit: 'kg',
       inhalt,
-    };
-  }
-
-  const multiplier = Number.isFinite(explicit) && explicit >= 2 ? explicit : fromText;
-  if (multiplier >= 2) {
-    const calculatedQuantity = Math.round(billedPacks * multiplier * 1000) / 1000;
-    return {
-      ...entry,
-      artikel,
-      menge: calculatedQuantity,
-      billedPacks,
-      packMultiplier: multiplier,
-      calculatedQuantity,
-      einheit: 'Stk',
-      inhalt: inhalt || `${multiplier}x`,
     };
   }
 
@@ -187,8 +220,11 @@ function normalizeDeliveryLine(entry, index) {
     einheit: String(entry?.einheit || entry?.unit || '').trim(),
     inhalt: String(entry?.inhalt || entry?.gebinde || entry?.pack || '').trim(),
     packMultiplier: Number.isFinite(packMultiplier) ? packMultiplier : 0,
+    totalQuantity: Number(String(entry?.totalQuantity ?? entry?.gesamtStueck ?? '').replace(',', '.')),
+    artikelnummer: String(entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
     kategorie: String(entry?.kategorie || entry?.category || '').trim(),
     ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
+    excluded: entry?.excluded === true,
     _index: index,
   };
 }
@@ -226,6 +262,8 @@ function validateParsedItems(items) {
       calculatedQuantity: menge,
       inhalt: expanded.inhalt || '',
       ean: String(line.ean || '').replace(/\D/g, ''),
+      artikelnummer: String(line.artikelnummer || expanded.artikelnummer || '').replace(/\D/g, ''),
+      excluded: line.excluded === true || expanded.excluded === true || isNonStockLine({ ...line, ...expanded }),
     };
   });
 }
@@ -415,7 +453,7 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   assertTenantStoragePath,
   expandRetailLine,
-  extractInnerPackMultiplier,
+  isNonStockLine,
   extractJsonArray,
   sanitizeGeminiResponseText,
   handleParseDeliveryNote,

@@ -12,7 +12,19 @@ const STATUS = {
   QTY_MISMATCH: 'QTY_MISMATCH',
   NOT_RECORDED: 'NOT_RECORDED',
   UNMAPPED: 'UNMAPPED',
+  EXCLUDED: 'EXCLUDED',
 };
+
+const EXCLUDED_ARTICLE_NUMBERS = new Set(['99166', '99050', '99270', '99100', '99500', '987003']);
+const EXCLUDED_NAME_KEYS = [
+  'ifco',
+  'pfand',
+  'rollwagen',
+  'logistikpauschale',
+  'buttercroissant',
+  'rosinenbroetchen',
+  'mueslibroetchen',
+];
 
 const reconciliationState = {
   tenantId: '',
@@ -28,6 +40,7 @@ const reconciliationState = {
   sessionMasters: [],
   quantityOverrides: new Map(),
   boardFilter: 'all',
+  hideExcluded: true,
   busy: false,
   ocrInFlight: false,
 };
@@ -101,22 +114,19 @@ function readText(...values) {
   return '';
 }
 
-const INNER_PACK_RE = /(\d{1,3})\s*[x×]\s*(?:\d+(?:[.,]\d+)?)\s*(?:g|ml|l)\b/gi;
+const STATED_PIECE_RE = /(\d{1,4})\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:g|ml|l)\b/i;
 
-function extractInnerPackMultiplier(text) {
-  const pattern = new RegExp(INNER_PACK_RE.source, 'gi');
-  let best = 0;
-  for (const match of String(text || '').matchAll(pattern)) {
-    const count = Number(match[1]);
-    if (!Number.isFinite(count) || count < 2 || count > 200) continue;
-    if (count > best) best = count;
-  }
-  return best;
+function statedPieceTotal(text) {
+  const match = String(text || '').match(STATED_PIECE_RE);
+  if (!match) return 0;
+  const count = Number(match[1]);
+  if (!Number.isFinite(count) || count < 1 || count > 9999) return 0;
+  return count;
 }
 
 function catchWeightKg(text) {
   const source = String(text || '');
-  if (extractInnerPackMultiplier(source)) return null;
+  if (statedPieceTotal(source)) return null;
   const match = source.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
   if (!match) return null;
   const kg = Number(String(match[1]).replace(',', '.'));
@@ -124,45 +134,29 @@ function catchWeightKg(text) {
 }
 
 /**
- * Gebinde × Innenpack (z. B. 1 VPE "10x230g") = Einzelstücke.
- * Fanggewicht in kg bleibt das geparste Gewicht.
+ * Weiling-Spalte "Gesamt Stück / Gewicht": "3 x 175 g" ist schon 3 Stück.
+ * Die Gebindezahl wird damit nicht multipliziert. kg bleibt kg.
  */
 export function expandRetailQuantity(entry) {
   const name = readText(entry?.rawName, entry?.name, entry?.artikel, entry?.produkt, entry?.product, entry?.bezeichnung);
-  const inhalt = readText(entry?.inhalt, entry?.gebinde, entry?.pack, entry?.beschreibung);
+  const inhalt = readText(entry?.inhalt, entry?.gebinde, entry?.pack, entry?.beschreibung, entry?.gesamt);
   const text = `${name} ${inhalt}`;
   const unitRaw = readText(entry?.unit, entry?.einheit, entry?.mengeEinheit);
   const unitKey = unitRaw.toLowerCase();
-  const explicit = readNumber(entry?.packMultiplier, entry?.multiplier);
-  const calculated = readNumber(entry?.calculatedQuantity);
-  const storedPacks = readNumber(entry?.billedPacks);
-  const billedRaw = readNumber(entry?.billedPacks, entry?.quantity, entry?.menge, entry?.qty);
+  const declared = readNumber(entry?.totalQuantity, entry?.gesamtStueck);
+  const fromText = statedPieceTotal(text);
+  const stated = fromText || (Number.isFinite(declared) && declared > 0 ? declared : 0);
+  const billedRaw = readNumber(entry?.quantity, entry?.menge, entry?.qty);
   const billedPacks = Number.isFinite(billedRaw) && billedRaw > 0 ? billedRaw : 1;
+  const namedKg = catchWeightKg(text);
 
-  if (Number.isFinite(calculated) && calculated > 0 && Number.isFinite(storedPacks) && storedPacks > 0) {
-    return {
-      quantity: calculated,
-      unit: unitRaw || 'Stk',
-      billedPacks: storedPacks,
-      packMultiplier: Number.isFinite(explicit) && explicit > 0 ? explicit : 1,
-    };
+  if (stated && unitKey !== 'kg') {
+    return { quantity: stated, unit: 'Stk', billedPacks, packMultiplier: 1 };
   }
 
-  const fromText = extractInnerPackMultiplier(text);
-  const namedKg = catchWeightKg(text);
-  if (unitKey === 'kg' || (namedKg && !fromText && !(explicit >= 2))) {
+  if (unitKey === 'kg' || namedKg) {
     const kg = unitKey === 'kg' ? billedPacks : namedKg;
     return { quantity: kg, unit: 'kg', billedPacks, packMultiplier: 1 };
-  }
-
-  const multiplier = Number.isFinite(explicit) && explicit >= 2 ? explicit : fromText;
-  if (multiplier >= 2) {
-    return {
-      quantity: Math.round(billedPacks * multiplier * 1000) / 1000,
-      unit: 'Stk',
-      billedPacks,
-      packMultiplier: multiplier,
-    };
   }
 
   return {
@@ -171,6 +165,32 @@ export function expandRetailQuantity(entry) {
     billedPacks,
     packMultiplier: 1,
   };
+}
+
+export function isExcludedInventoryItem(entry) {
+  if (entry?.excluded === true || entry?.sourceItem?.excluded === true) return true;
+  const numbers = [
+    entry?.artikelnummer,
+    entry?.artnr,
+    entry?.artikelNr,
+    entry?.articleNumber,
+    entry?.sku,
+    entry?.itemNumber,
+    entry?.nummer,
+    entry?.sourceItem?.articleNumber,
+  ].map((value) => String(value || '').replace(/\D/g, '')).filter(Boolean);
+  const blob = [
+    entry?.rawName,
+    entry?.name,
+    entry?.artikel,
+    entry?.produkt,
+    entry?.inhalt,
+    entry?.sourceItem?.rawName,
+  ].filter(Boolean).join(' ');
+  for (const match of blob.matchAll(/\b(\d{5,6})\b/g)) numbers.push(match[1]);
+  if (numbers.some((value) => EXCLUDED_ARTICLE_NUMBERS.has(value))) return true;
+  const key = normalizeArticleKey(blob);
+  return EXCLUDED_NAME_KEYS.some((word) => key.includes(word));
 }
 
 function nameScore(left, right) {
@@ -196,6 +216,8 @@ function toParsedItem(entry, index) {
     unit: retail.unit,
     billedPacks: retail.billedPacks,
     packMultiplier: retail.packMultiplier,
+    articleNumber: digitsOnly(readText(entry?.artikelnummer, entry?.artnr, entry?.artikelNr, entry?.sku, entry?.itemNumber)),
+    excluded: isExcludedInventoryItem(entry),
     unitPrice: readNumber(entry?.unitPrice, entry?.preis, entry?.ekEinzel),
     index,
   };
@@ -276,6 +298,17 @@ export function reconcileDelivery(parsedItems, recordedEntries, masterData) {
   const used = new Set();
 
   return parsed.map((item) => {
+    if (item.excluded || isExcludedInventoryItem(item)) {
+      return {
+        sourceItem: item,
+        matchedMasterId: null,
+        matchedEntryId: null,
+        status: STATUS.EXCLUDED,
+        deltaQuantity: 0,
+        recordedQuantity: 0,
+        unit: item.unit,
+      };
+    }
     const hit = bestRecordedMatch(item, recorded, used);
     const master = bestMasterMatch(item, masters);
     if (!hit) {
@@ -383,7 +416,13 @@ function renderPositionCard(position, index) {
   const unit = position.unit || position.sourceItem.unit || 'Stk';
   const packMultiplier = Number(position.sourceItem.packMultiplier) || 1;
   const billedPacks = position.sourceItem.billedPacks;
-  const packLine = packMultiplier > 1
+  const pieceUnit = String(unit).toLowerCase() !== 'kg';
+  const qtyAttrs = pieceUnit
+    ? 'inputmode="numeric" min="1" step="1"'
+    : 'inputmode="decimal" min="0.01" step="0.01"';
+  const showsPackMath = packMultiplier > 1
+    && Math.abs((Number(billedPacks) * packMultiplier) - Number(position.sourceItem.quantity)) < QTY_EPSILON;
+  const packLine = showsPackMath
     ? ` · ${formatAmount(billedPacks, 'VPE')} × ${packMultiplier} = ${formatAmount(position.sourceItem.quantity, 'Stk')}`
     : '';
   let badge = '';
@@ -399,10 +438,14 @@ function renderPositionCard(position, index) {
     action = `
       <label class="delivery-reconciliation-qty-label">
         <span>Menge laut Beleg</span>
-        <input type="number" class="gastro-input delivery-reconciliation-qty" data-reconcile-index="${index}" inputmode="decimal" min="0.01" step="any" value="${escapeHtml(position.sourceItem.quantity)}">
+        <input type="number" class="gastro-input delivery-reconciliation-qty" data-reconcile-index="${index}" ${qtyAttrs} value="${escapeHtml(position.sourceItem.quantity)}">
       </label>
       <button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="correct" data-reconcile-index="${index}">Menge korrigieren</button>
     `;
+  } else if (position.status === STATUS.EXCLUDED) {
+    tone = 'excluded';
+    badge = 'Pfand / Durchlauf - Nicht verbucht';
+    action = '';
   } else if (position.status === STATUS.NOT_RECORDED) {
     tone = 'missing';
     badge = 'Fehlt im Laden';
@@ -427,21 +470,27 @@ function renderPositionCard(position, index) {
 
 function missingPositions() {
   return reconciliationState.positions.filter((position) => (
-    position.status === STATUS.NOT_RECORDED || position.status === STATUS.UNMAPPED
+    position.status !== STATUS.EXCLUDED
+    && (position.status === STATUS.NOT_RECORDED || position.status === STATUS.UNMAPPED)
   ));
 }
 
 function boardFilterCounts(positions) {
   const counts = { all: positions.length, issues: 0, match: 0, neu: 0 };
   positions.forEach((position) => {
+    if (position.status === STATUS.EXCLUDED) return;
     if (position.status === STATUS.PERFECT_MATCH) counts.match += 1;
     else if (position.status === STATUS.UNMAPPED) counts.neu += 1;
     else counts.issues += 1;
   });
+  counts.all = positions.length - positions.filter((position) => position.status === STATUS.EXCLUDED).length;
   return counts;
 }
 
 function matchesBoardFilter(position) {
+  if (position.status === STATUS.EXCLUDED) {
+    return !reconciliationState.hideExcluded && (reconciliationState.boardFilter || 'all') === 'all';
+  }
   const filter = reconciliationState.boardFilter || 'all';
   if (filter === 'match') return position.status === STATUS.PERFECT_MATCH;
   if (filter === 'neu') return position.status === STATUS.UNMAPPED;
@@ -465,6 +514,7 @@ function renderBoard() {
   const host = document.getElementById('delivery-reconciliation-overlay');
   const missing = missingPositions();
   const counts = boardFilterCounts(reconciliationState.positions);
+  const excludedCount = reconciliationState.positions.filter((position) => position.status === STATUS.EXCLUDED).length;
   const activeFilter = reconciliationState.boardFilter || 'all';
   const cards = reconciliationState.positions
     .map((position, index) => ({ position, index }))
@@ -487,6 +537,10 @@ function renderBoard() {
           ${renderFilterButton('match', '🟢 Match', counts.match, activeFilter === 'match')}
           ${renderFilterButton('neu', '⚪ Neu', counts.neu, activeFilter === 'neu')}
         </div>
+        <label class="delivery-reconciliation-exclude" data-reconcile-toggle="hide-excluded">
+          <input type="checkbox" ${reconciliationState.hideExcluded ? 'checked' : ''} tabindex="-1">
+          Pfand &amp; Durchlauf-Artikel ausblenden${excludedCount ? ` (${excludedCount})` : ''}
+        </label>
       </div>
       <div class="delivery-reconciliation-scroll">
         ${cards || '<p class="delivery-reconciliation-empty">Keine Positionen in dieser Ansicht.</p>'}
@@ -547,6 +601,7 @@ async function writeDoc(collectionPath, docId, data, op = 'set') {
 }
 
 async function bookPosition(position, index) {
+  if (!position || position.status === STATUS.EXCLUDED || position.sourceItem?.excluded) return;
   const item = position.sourceItem;
   const docId = `ls_${articleSlug(item.rawName)}_${Date.now().toString(36)}_${index}`;
   const nowIso = new Date().toISOString();
@@ -636,6 +691,13 @@ async function correctPosition(position, index) {
 }
 
 async function onBoardClick(event) {
+  const excludeToggle = event.target.closest('[data-reconcile-toggle="hide-excluded"]');
+  if (excludeToggle) {
+    event.preventDefault();
+    reconciliationState.hideExcluded = !reconciliationState.hideExcluded;
+    renderBoard();
+    return;
+  }
   const filterBtn = event.target.closest('[data-reconcile-filter]');
   if (filterBtn) {
     reconciliationState.boardFilter = filterBtn.dataset.reconcileFilter || 'all';
@@ -653,9 +715,9 @@ async function onBoardClick(event) {
   button.disabled = true;
   try {
     if (action === 'book-all') {
-      const pending = missingPositions();
+      const pending = missingPositions().filter((position) => position.status !== STATUS.EXCLUDED);
       for (let i = 0; i < pending.length; i += 1) {
-        await bookPosition(pending[i], i);
+        await bookPosition(pending[i], pending[i].sourceItem?.index ?? i);
       }
       window.showToast?.(`${pending.length} fehlende Positionen übernommen.`, 'success');
     } else {
@@ -697,6 +759,7 @@ export function renderReconciliationModal(data) {
 
 export function openParsedDeliveryBoard(payload) {
   reconciliationState.boardFilter = 'all';
+  reconciliationState.hideExcluded = true;
   reconciliationState.note = normalizeNote(payload);
   reconciliationState.positions = reconcileDelivery(
     reconciliationState.note.items,

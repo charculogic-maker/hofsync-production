@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const mod = await import(pathToFileURL(path.resolve('web/delivery-reconciliation.js')).href);
-const { reconcileDelivery, normalizeArticleKey, levenshtein, expandRetailQuantity } = mod;
+const { reconcileDelivery, normalizeArticleKey, levenshtein, expandRetailQuantity, isExcludedInventoryItem } = mod;
 
 const sampleNote = {
   supplier: 'Metro',
@@ -63,15 +63,20 @@ describe('delivery-reconciliation', () => {
     const knoedel = expandRetailQuantity({ name: 'Kartoffelknödel 10x230g', menge: 1 });
     assert.equal(knoedel.quantity, 10);
     assert.equal(knoedel.unit, 'Stk');
-    assert.equal(knoedel.packMultiplier, 10);
 
     const honig = expandRetailQuantity({ artikel: 'Familienhonig', inhalt: '6x500g', menge: 1, einheit: 'VPE' });
     assert.equal(honig.quantity, 6);
     assert.equal(honig.unit, 'Stk');
 
-    const aufstrich = expandRetailQuantity({ name: 'Fruchtaufstrich 3x175g', quantity: 2, unit: 'VPE' });
-    assert.equal(aufstrich.quantity, 6);
-    assert.equal(aufstrich.packMultiplier, 3);
+    const aufstrich = expandRetailQuantity({ name: 'Fruchtaufstrich', inhalt: '3 x 175 g', menge: 3, einheit: 'VPE' });
+    assert.equal(aufstrich.quantity, 3);
+
+    const doubled = expandRetailQuantity({ name: 'Fruchtaufstrich 3x175g', quantity: 3, packMultiplier: 3 });
+    assert.equal(doubled.quantity, 3);
+
+    const saft = expandRetailQuantity({ name: 'Apfelsaft', inhalt: '20 x 1 l', menge: 2 });
+    assert.equal(saft.quantity, 20);
+    assert.equal(saft.unit, 'Stk');
 
     const bananen = expandRetailQuantity({ name: '18.14 kg Bananen', menge: 1 });
     assert.equal(bananen.quantity, 18.14);
@@ -120,5 +125,30 @@ describe('delivery-reconciliation', () => {
     );
     assert.equal(rows[0].status, 'PERFECT_MATCH');
     assert.equal(rows[0].matchedEntryId, 'we-1');
+  });
+
+  it('marks pfand and bake-off lines as excluded and keeps them out of booking', () => {
+    assert.equal(isExcludedInventoryItem({ name: 'IFCO Klappbox', artikelnummer: '99166' }), true);
+    assert.equal(isExcludedInventoryItem({ artikel: 'Logistikpauschale' }), true);
+    assert.equal(isExcludedInventoryItem({ name: 'Buttercroissant' }), true);
+    assert.equal(isExcludedInventoryItem({ name: 'Rosinenbrötchen' }), true);
+    assert.equal(isExcludedInventoryItem({ name: 'Bio Vollmilch' }), false);
+
+    const rows = reconcileDelivery(
+      [
+        { name: 'IFCO Mehrweg', artnr: '99050', menge: 4 },
+        { name: 'Müslibrötchen', menge: 12 },
+        { name: 'Haferdrink Barista', quantity: 4, unit: 'Stk' },
+      ],
+      [],
+      [{ id: 'stamm-hafer', name: 'Haferdrink Barista' }],
+    );
+    assert.equal(rows[0].status, 'EXCLUDED');
+    assert.equal(rows[0].matchedMasterId, null);
+    assert.equal(rows[1].status, 'EXCLUDED');
+    assert.equal(rows[2].status, 'NOT_RECORDED');
+    const bookable = rows.filter((row) => row.status === 'NOT_RECORDED' || row.status === 'UNMAPPED');
+    assert.equal(bookable.length, 1);
+    assert.equal(bookable[0].sourceItem.rawName, 'Haferdrink Barista');
   });
 });

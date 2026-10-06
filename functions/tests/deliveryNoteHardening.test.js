@@ -8,6 +8,7 @@ let normalizeMimeType;
 let ALLOWED_MIME_TYPES;
 let expandRetailLine;
 let extractJsonArray;
+let isNonStockLine;
 
 beforeAll(async () => {
   vi.mock('firebase-admin', () => ({
@@ -19,6 +20,7 @@ beforeAll(async () => {
     ALLOWED_MIME_TYPES,
     expandRetailLine,
     extractJsonArray,
+    isNonStockLine,
   } = await import('../deliveryNote.js'));
 });
 
@@ -85,9 +87,10 @@ describe('parseDeliveryNote – VPE multiplier', () => {
     expect(expandRetailLine({ artikel: 'Familienhonig', inhalt: '6x500g', menge: 1, einheit: 'VPE' })).toMatchObject({
       calculatedQuantity: 6,
       einheit: 'Stk',
-      packMultiplier: 6,
     });
-    expect(expandRetailLine({ artikel: 'Fruchtaufstrich 3x175g', menge: 2 }).calculatedQuantity).toBe(6);
+    expect(expandRetailLine({ artikel: 'Fruchtaufstrich', inhalt: '3 x 175 g', menge: 3 }).calculatedQuantity).toBe(3);
+    expect(expandRetailLine({ artikel: 'Fruchtaufstrich 3x175g', menge: 3, packMultiplier: 3 }).calculatedQuantity).toBe(3);
+    expect(expandRetailLine({ artikel: 'Apfelsaft', inhalt: '20 x 1 l', menge: 2 }).calculatedQuantity).toBe(20);
     expect(expandRetailLine({ artikel: '18.14 kg Bananen', menge: 1 })).toMatchObject({
       calculatedQuantity: 18.14,
       einheit: 'kg',
@@ -97,5 +100,9 @@ describe('parseDeliveryNote – VPE multiplier', () => {
       calculatedQuantity: 18.14,
       einheit: 'kg',
     });
+    expect(isNonStockLine({ artikel: 'IFCO Klappbox', artikelnummer: '99166' })).toBe(true);
+    expect(isNonStockLine({ artikel: 'Rollwagen' })).toBe(true);
+    expect(isNonStockLine({ artikel: 'Buttercroissant' })).toBe(true);
+    expect(isNonStockLine({ artikel: 'Kartoffelknödel 10x230g' })).toBe(false);
   });
 });
