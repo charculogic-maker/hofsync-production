@@ -1,6 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
-import { formatIsoToGerman, initGermanDateInputs, readGermanDateField, setGermanDateField, resolveMonthEndMhd } from './date-input.js';
+import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
+import { flushPendingSyncs, getPendingSyncs } from './sync.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -2293,6 +2294,10 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
 
   updateDeliveryItemProductUi();
   setReceivingMode('schnell');
+  if (info?.name && eanEl) {
+    eanEl.value = '';
+    eanEl.focus();
+  }
   return true;
 }
 
@@ -3202,9 +3207,14 @@ function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
 }
 
+function articleLabel(prod = {}) {
+  return String(prod.artikelName || prod.name || prod.produkt || prod.bezeichnung || '');
+}
+
 function getMhdCardAction(prod) {
   const tage = getMhdResttage(prod);
   const category = getProductCategory(prod);
+  const articleName = articleLabel(prod);
   if (Number.isFinite(tage) && tage < 0) {
     const key = 'tonne';
     const action = getMhdActionStyle(key, category);
@@ -3218,7 +3228,7 @@ function getMhdCardAction(prod) {
     };
   }
   const price = readOriginalPrice(prod);
-  const discount = calculateDiscount(price ?? 0, tage, category, getGlobalTenantId());
+  const discount = calculateDiscount(price ?? 0, tage, category, getGlobalTenantId(), articleName);
   if (discount.hasDiscount) {
     return {
       key: 'matrix',
@@ -3979,6 +3989,7 @@ function formatStevesHofDiscount(prod) {
     getMhdResttage(prod),
     getProductCategory(prod),
     getGlobalTenantId(),
+    articleLabel(prod),
   );
   return discount.hasDiscount ? `-${discount.discountPercent} %` : '—';
 }
@@ -4278,28 +4289,23 @@ function buildMhdCardHtml(prod = {}) {
     ? 'mhd-action-row mhd-action-row--pair'
     : 'mhd-action-row';
   const showPercentBadge = action.showPercentBadge === true;
-  const actionBadgeHtml = showPercentBadge
-    ? `<div class="mhd-action-badge mhd-action-badge--percent" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};">
-          ${escapeHtml(action.label)}
-        </div>`
+  const stickerPercent = Number(action.discount?.discountPercent) || 0;
+  const stickerHtml = showPercentBadge
+    ? `<span class="mhd-sticker-badge mhd-sticker-${stickerPercent}">🏷️ -${stickerPercent} % Aufkleber</span>`
+    : '';
+  const actionBadgeHtml = stickerHtml
+    ? stickerHtml
     : action.key === 'tonne' || action.key === 'pruefen'
       ? `<div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};">
           ${escapeHtml(action.label)}
         </div>`
       : '';
-  const priceHtml = action.discount?.hasDiscount && action.price
-    ? `<div class="mhd-price-row">
-        <s class="mhd-price-original">${escapeHtml(formatEuro(action.price))}</s>
-        <strong class="mhd-price-discount">${escapeHtml(formatEuro(action.discount.discountedPrice))}</strong>
-      </div>`
-    : '';
   const stichprobeLink = batchCount >= 2
     ? `<button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
     : '';
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
       ${actionBadgeHtml ? `<div class="mhd-card-badge-row">${actionBadgeHtml}</div>` : ''}
-      ${priceHtml}
       ${stichprobeLink}
       <div class="mhd-card-header">
         <div class="mhd-card-heading">
@@ -5330,6 +5336,7 @@ function isCameraBlockedForPwa() {
 }
 
 function ensureManualBarcodeFallback() {
+  if (document.getElementById('we-ean')) return;
   const scanButton = document.getElementById('btn-receiving-scan') || document.getElementById('btn-open-scanner');
   if (!scanButton || document.getElementById('mhd-manual-barcode-fallback')) return;
 
@@ -5405,7 +5412,11 @@ function applyReceivingArticleHit(hit) {
   }
   updateDeliveryItemProductUi();
   setReceivingMode('schnell');
-  document.getElementById('we-mhd')?.focus();
+  const eanEl = document.getElementById('we-ean');
+  const manualSearch = document.getElementById('manual-barcode-input');
+  if (manualSearch) manualSearch.value = '';
+  if (eanEl) eanEl.value = '';
+  (eanEl || document.getElementById('we-mhd'))?.focus();
 }
 
 function submitManualBarcodeFrom(inputEl) {
@@ -5690,16 +5701,7 @@ function isoDateToDotted(value = '') {
 }
 
 function normalizeDateInputToIso(value = '') {
-  const raw = String(value).trim();
-  if (!raw) return '';
-  if (isIsoDateLike(raw)) return isoDateToDotted(raw) ? raw : '';
-  if (isDottedDateLike(raw)) return dottedDateToIso(raw);
-  const digitsOnly = raw.replace(/\D/g, '');
-  if (digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(raw)) {
-    const monthEnd = resolveMonthEndMhd(raw);
-    if (monthEnd) return monthEnd;
-  }
-  return '';
+  return parseGermanDateToIso(value) || '';
 }
 
 function normalizeDateInputToDotted(value = '') {
@@ -6020,6 +6022,7 @@ function clearDeliveryItemFields() {
   manualWrap?.classList.remove('is-manual-open');
   applyLastReceivingHeadCategory();
   updateDeliveryItemProductUi();
+  eanEl?.focus();
 }
 
 async function addDeliveryItem() {
@@ -6763,7 +6766,7 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    const deliveryResult = await mhdState.writeOrQueueFirestore({
+    await mhdState.writeOrQueueFirestore({
       collectionPath: deliveryPath,
       docId: deliveryId,
       op: 'set',
@@ -6813,18 +6816,29 @@ async function finalizeDelivery() {
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
       return;
     }
-    const hasQueuedWrites = deliveryResult === 'queued'
-      || mhdResults.some((result) => result.status === 'fulfilled' && result.value === 'queued');
-
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
-    if (hasQueuedWrites) {
-      renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten lokal vorgemerkt` });
-      window.showToast?.('Lieferung wird automatisch synchronisiert, sobald WLAN verfügbar ist.', 'warning');
+    const itemCount = deliveryBundle.itemCount;
+    if (navigator.onLine) {
+      try {
+        await flushPendingSyncs();
+      } catch (err) {
+        console.warn('[CharcuLogic Wareneingang] Auto-Sync nach Lieferung fehlgeschlagen:', err);
+      }
+      const remaining = getPendingSyncs().length;
+      if (remaining > 0) {
+        window.showSyncQueueDialog?.();
+        renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten gebucht, ${remaining} warten auf Sync` });
+        window.showToast?.(`Lieferung gebucht. ${remaining} Posten konnten nicht synchronisiert werden.`, 'warning');
+        return;
+      }
+      renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten gebucht` });
+      window.showToast?.(`Lieferung gebucht & ${itemCount} Posten synchronisiert`, 'success');
       return;
     }
-    renderReceivingStatus({ status: `Lieferung mit ${deliveryBundle.itemCount} Posten gebucht` });
-    window.showToast?.('Gesamte Lieferung erfolgreich gebucht!', 'success');
+    window.showSyncQueueDialog?.();
+    renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten lokal vorgemerkt` });
+    window.showToast?.('Lieferung lokal vorgemerkt. Sync startet, sobald Netz da ist.', 'warning');
   } catch (err) {
     finalizeFailed = true;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
@@ -6975,7 +6989,7 @@ function bindReceivingControls() {
     updateManualBarcodeFallback();
     if (isCameraBlockedForPwa()) {
       setScannerStatus('Kamera nicht verfuegbar. Barcode manuell eintippen.');
-      fallbackManualBarcodeInput?.focus();
+      (eanInput || fallbackManualBarcodeInput)?.focus();
       return;
     }
     try {
@@ -6984,7 +6998,7 @@ function bindReceivingControls() {
       window.isCameraAvailable = false;
       console.warn('[CharcuLogic Scanner] Kamera-Start im MHD-Modul abgefangen:', err);
       updateManualBarcodeFallback();
-      fallbackManualBarcodeInput?.focus();
+      (eanInput || fallbackManualBarcodeInput)?.focus();
     }
   };
   updateReceivingSaveButtonState();

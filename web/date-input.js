@@ -62,11 +62,32 @@ export function parseGermanDateToIso(value = '') {
   if (COMPACT_DATE_RE.test(raw)) {
     return parseGermanDateToIso(`${raw.slice(0, 2)}.${raw.slice(2, 4)}.${raw.slice(4, 8)}`);
   }
+  // Tippfehler der Zifferntastatur: 052028 wird zu 05.20.28 → Mai 2028, Ultimo.
+  const keypadTypo = /^(\d{1,2})[.\-/]20[.\-/](\d{2})$/.exec(raw);
+  if (keypadTypo) {
+    const monthEnd = resolveMonthEndMhd(`${keypadTypo[1].padStart(2, '0')}20${keypadTypo[2]}`);
+    if (monthEnd) return monthEnd;
+  }
   // Ultimo nur bei reinem Monatsformat, nicht bei „31.03.2028“.
   const digitsOnly = raw.replace(/\D/g, '');
-  if (digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(raw)) {
+  if (digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(raw) || (digitsOnly.length === 6 && raw === digitsOnly)) {
     const monthEnd = resolveMonthEndMhd(raw);
     if (monthEnd) return monthEnd;
+  }
+  const shortYear = /^(\d{2})[.\-/](\d{2})[.\-/](\d{2})$/.exec(raw);
+  if (shortYear) {
+    const day = Number.parseInt(shortYear[1], 10);
+    const month = Number.parseInt(shortYear[2], 10);
+    const year = 2000 + Number.parseInt(shortYear[3], 10);
+    if (!isValidDateParts(year, month, day)) return '';
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  if (digitsOnly.length === 6 && raw === digitsOnly) {
+    const day = Number.parseInt(digitsOnly.slice(0, 2), 10);
+    const month = Number.parseInt(digitsOnly.slice(2, 4), 10);
+    const year = 2000 + Number.parseInt(digitsOnly.slice(4, 6), 10);
+    if (!isValidDateParts(year, month, day)) return '';
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
   if (!DOTTED_DATE_RE.test(raw)) return '';
   const [dayStr, monthStr, yearStr] = raw.split('.');
@@ -113,8 +134,11 @@ function normalizeGermanDateField(el) {
     return;
   }
   const digitsOnly = trimmed.replace(/\D/g, '');
-  // Nur bei reinem MMJJ oder MM-YYYY: Ultimo. Nicht bei TT.MM…-Zwischenständen.
-  const monthEndCandidate = digitsOnly.length === 4 || /^(\d{1,2})[.\-/](\d{2,4})$/.test(trimmed);
+  // Ultimo bei MMJJ, MM-YYYY und dem Tippfehler MM.20.JJ. Nicht bei TT.MM…-Zwischenständen.
+  const monthEndCandidate = digitsOnly.length === 4
+    || (digitsOnly.length === 6 && trimmed === digitsOnly)
+    || /^(\d{1,2})[.\-/]20[.\-/](\d{2})$/.test(trimmed)
+    || /^(\d{1,2})[.\-/](\d{2,4})$/.test(trimmed);
   const monthEnd = monthEndCandidate ? resolveMonthEndMhd(trimmed) : '';
   const iso = monthEnd || parseGermanDateToIso(trimmed);
   if (!iso) {
@@ -160,7 +184,7 @@ export function initGermanDateInputs(root = document) {
     el.setAttribute('autocomplete', 'off');
     el.setAttribute('maxlength', '10');
     if (!el.getAttribute('placeholder')) el.setAttribute('placeholder', 'TT.MM.JJJJ oder MMJJ');
-    if (!el.getAttribute('pattern')) el.setAttribute('pattern', '[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}');
+    el.setAttribute('pattern', '[0-9./\\-]{4,10}');
 
     if (el.dataset.isoValue) {
       el.value = formatIsoToGerman(el.dataset.isoValue);

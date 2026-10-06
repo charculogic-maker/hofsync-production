@@ -58,6 +58,11 @@ function isAppCheckNoise(err) {
   return isRecaptchaAppCheckError(err) || /timeout/.test(msg);
 }
 
+function isVercelHost() {
+  if (typeof window === 'undefined') return false;
+  return String(window.location.hostname || '').toLowerCase().endsWith('.vercel.app');
+}
+
 function installRecaptchaRejectionGuard() {
   if (typeof window === 'undefined' || window.__charculogicRecaptchaGuard) return;
   window.__charculogicRecaptchaGuard = true;
@@ -95,6 +100,13 @@ export function initAppCheckModule() {
       if (!siteKey) {
         appCheckActivationFailed = true;
         console.warn(`[AppCheck] Site Key fehlt für Profil "${projectKey}". App läuft mit lokalen Daten weiter.`);
+        return;
+      }
+
+      // reCAPTCHA v3 lehnt *.vercel.app ab und @firebase/app-check loggt das als roten Fehler.
+      if (isVercelHost()) {
+        appCheckActivationFailed = true;
+        console.info('[AppCheck] Auf dieser Vercel-Domain aus. Firestore und Anmeldung laufen ohne reCAPTCHA-Token.');
         return;
       }
 

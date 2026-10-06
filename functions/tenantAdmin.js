@@ -64,16 +64,13 @@ function normalizeModules(raw) {
  */
 function assertProvisionAccess(auth) {
   if (!auth) {
-    throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
+    throw new HttpsError('permission-denied', 'Keine Admin-Berechtigung auf diesem Account.');
   }
   const token = auth.token || {};
   const role = roleFromToken(token);
   const isPlatformAdmin = token.isPlatformAdmin === true || isSuperAdminForDashboard(auth);
   if (role !== 'admin' && token.role !== 'admin' && !isPlatformAdmin) {
-    throw new HttpsError(
-      'permission-denied',
-      'Keine Berechtigung: Nur Admins dürfen Test-Mandanten anlegen.',
-    );
+    throw new HttpsError('permission-denied', 'Keine Admin-Berechtigung auf diesem Account.');
   }
   return { uid: auth.uid, role: role || 'admin', isSuperAdmin: isPlatformAdmin };
 }
@@ -141,9 +138,13 @@ async function handleProvisionDemoTenant(request) {
     const data = request?.data || {};
     return await provisionDemoTenantInner(auth, data);
   } catch (err) {
-    console.error('[provisionDemoTenant Error]:', err);
+    console.error('[PROVISION_FAIL_TRACE]', err);
     if (err instanceof HttpsError) throw err;
-    throw new HttpsError('internal', err?.message || 'Fehler beim Anlegen des Test-Mandanten.');
+    throw new HttpsError(
+      'internal',
+      err?.message || 'Provisioning failed',
+      { code: err?.code, details: err?.stack },
+    );
   }
 }
 
@@ -158,6 +159,11 @@ async function provisionDemoTenantInner(auth, data) {
   const continueUrl = String(payload.continueUrl || DEFAULT_CONTINUE_URL).trim()
     || DEFAULT_CONTINUE_URL;
 
+  console.log('[provisionDemoTenant] Step 1: validating payload', {
+    companyName,
+    adminName,
+    adminEmail,
+  });
   if (!companyName) {
     throw new HttpsError('invalid-argument', 'Betriebsname ist erforderlich.');
   }
@@ -185,9 +191,14 @@ async function provisionDemoTenantInner(auth, data) {
     );
   }
 
+  console.log('[provisionDemoTenant] Step 2: creating or fetching Auth user', adminEmail);
   const { userRecord, created: userCreated } = await findOrCreateAuthUser({
     email: adminEmail,
     adminName,
+  });
+  console.log('[provisionDemoTenant] Step 2 result', {
+    uid: userRecord.uid,
+    created: userCreated,
   });
 
   const claims = {
@@ -196,6 +207,7 @@ async function provisionDemoTenantInner(auth, data) {
     isAdmin: true,
   };
 
+  console.log('[provisionDemoTenant] Step 3: setting custom claims', userRecord.uid);
   try {
     await getAdminAuth().setCustomUserClaims(userRecord.uid, claims);
   } catch (err) {
@@ -219,6 +231,8 @@ async function provisionDemoTenantInner(auth, data) {
     updatedAt: now,
   };
 
+  console.log('[provisionDemoTenant] Step 4: writing tenants/' + tenantId);
+  console.log('[provisionDemoTenant] Step 5: seeding modules and branding');
   try {
     const batch = getAdminDb().batch();
     batch.set(tenantRef, {

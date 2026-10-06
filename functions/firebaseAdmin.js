@@ -3,14 +3,26 @@
  * Auth and Firestore receive that same instance. Never look it up
  * with getApp() after a different module initialized it.
  */
-const { initializeApp, getApps } = require('firebase-admin');
+const adminSdk = require('firebase-admin');
 
 const DEFAULT_APP_NAME = '[DEFAULT]';
 
+/**
+ * Production installs firebase-admin 13.x (namespace: admin.apps, no getApps).
+ * Local node_modules may be 14.x (modular getApps, no admin.apps).
+ * Cloud Functions also creates a named app "__FIREBASE_FUNCTIONS_SDK__",
+ * so "any app exists" is not the same as "[DEFAULT] exists".
+ */
+function listedApps() {
+  if (typeof adminSdk.getApps === 'function') return adminSdk.getApps();
+  if (Array.isArray(adminSdk.apps)) return adminSdk.apps;
+  return [];
+}
+
 function ensureAdminApp() {
-  const existing = getApps().find((app) => app.name === DEFAULT_APP_NAME);
+  const existing = listedApps().find((app) => app && app.name === DEFAULT_APP_NAME);
   if (existing) return existing;
-  return initializeApp();
+  return adminSdk.initializeApp();
 }
 
 function loadFirestoreLib() {
@@ -61,7 +73,7 @@ const admin = {
   ensureAdminApp,
   ensureFirestoreStatics: loadFirestoreLib,
   get apps() {
-    return getApps();
+    return listedApps();
   },
   auth,
   firestore,
@@ -85,6 +97,6 @@ module.exports = {
 Object.defineProperty(module.exports, 'apps', {
   enumerable: true,
   get() {
-    return getApps();
+    return listedApps();
   },
 });

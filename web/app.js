@@ -3648,6 +3648,7 @@ function showSyncQueueDialog() {
   });
 }
 
+window.showSyncQueueDialog = showSyncQueueDialog;
 document.getElementById('sync-indicator')?.addEventListener('click', showSyncQueueDialog);
 
 // --- BARCODE-SCANNER// --- BARCODE-SCANNER (Kamera + Lernmodus) ---

@@ -10,9 +10,34 @@ export const DISCOUNT_MATRIX_DOC_ID = 'discount_matrix';
 export const DISCOUNT_CATEGORY_OPTIONS = Object.freeze([
   { id: '', label: 'Standard (Alle Warengruppen)' },
   { id: 'MoPro & Kühlware', label: 'MoPro & Kühlware' },
+  { id: 'Milch', label: 'Milch (StevesHof Sonderstaffel)' },
   { id: 'Fleisch', label: 'Fleisch' },
   { id: 'Trockenware', label: 'Trockenware' },
 ]);
+
+export function stickerBadgeText(percent) {
+  return `🏷️ -${percent} % Aufkleber`;
+}
+
+export function defaultMilkRules() {
+  return [
+    { daysRemainingMax: 0, discountPercent: 20, badgeText: stickerBadgeText(20) },
+    { daysRemainingMax: 1, discountPercent: 10, badgeText: stickerBadgeText(10) },
+  ];
+}
+
+function foldText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Kategorie „Milch“ oder Artikelname mit Milch / Frischmilch / Vollmilch / Rohmilch. */
+export function isMilkArticle(category = '', articleName = '') {
+  const pattern = /frischmilch|vollmilch|rohmilch|(^|[^a-z])milch([^a-z]|$)/;
+  return pattern.test(foldText(category)) || pattern.test(foldText(articleName));
+}
 
 const memoryCache = new Map();
 
@@ -28,12 +53,14 @@ export function getDefaultDiscountMatrix() {
   return {
     enabled: true,
     defaultRules: [
-      { daysRemainingMax: 0, discountPercent: 50, badgeText: '-50 %' },
-      { daysRemainingMax: 1, discountPercent: 30, badgeText: '-30 %' },
-      { daysRemainingMax: 2, discountPercent: 20, badgeText: '-20 %' },
-      { daysRemainingMax: 3, discountPercent: 10, badgeText: '-10 %' },
+      { daysRemainingMax: 0, discountPercent: 50, badgeText: stickerBadgeText(50) },
+      { daysRemainingMax: 1, discountPercent: 30, badgeText: stickerBadgeText(30) },
+      { daysRemainingMax: 2, discountPercent: 20, badgeText: stickerBadgeText(20) },
+      { daysRemainingMax: 3, discountPercent: 10, badgeText: stickerBadgeText(10) },
     ],
-    categoryOverrides: {},
+    categoryOverrides: {
+      Milch: defaultMilkRules(),
+    },
     rounding: 'commercial_cent',
     updatedAt: '',
     updatedBy: '',
@@ -52,7 +79,7 @@ function normalizeRule(rule = {}) {
   const discountPercent = finiteNumber(rule.discountPercent);
   if (daysRemainingMax == null || discountPercent == null) return null;
   const percent = Math.min(100, Math.max(0, Math.round(discountPercent)));
-  const badgeText = String(rule.badgeText || '').trim() || `-${percent} %`;
+  const badgeText = stickerBadgeText(percent);
   return {
     daysRemainingMax: Math.round(daysRemainingMax),
     discountPercent: percent,
@@ -89,6 +116,7 @@ export function normalizeDiscountMatrix(raw = {}) {
     const normalized = normalizeRules(rules);
     if (name && normalized.length) overrides[name] = normalized;
   });
+  if (!overrides.Milch) overrides.Milch = defaultMilkRules();
   const defaultRules = Array.isArray(raw?.defaultRules)
     ? normalizeRules(raw.defaultRules)
     : fallback.defaultRules;
@@ -159,13 +187,19 @@ function resolveOverrideKey(category = '') {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
+  if (/frischmilch|vollmilch|rohmilch|(^|[^a-z])milch([^a-z]|$)/.test(text)) return 'Milch';
   if (/fleisch|wurst|aufschnitt/.test(text)) return 'Fleisch';
   if (/trocken|konserve|gewuerz|getraenk|\btk\b|tiefk/.test(text)) return 'Trockenware';
   if (/mopro|kuh?l|kae?se|molke/.test(text)) return 'MoPro & Kühlware';
   return '';
 }
 
-function rulesForCategory(matrix, category) {
+function rulesForCategory(matrix, category, articleName = '') {
+  if (isMilkArticle(category, articleName)) {
+    const milk = matrix.categoryOverrides?.Milch;
+    if (Array.isArray(milk) && milk.length) return milk;
+    return defaultMilkRules();
+  }
   const key = resolveOverrideKey(category);
   const override = key ? matrix.categoryOverrides?.[key] : null;
   if (Array.isArray(override) && override.length) return override;
@@ -185,7 +219,7 @@ export function roundCommercialCent(value) {
   return (sign * Math.round(Math.abs(number) * 100)) / 100;
 }
 
-export function calculateDiscount(originalPrice, daysRemaining, category, tenantId = '') {
+export function calculateDiscount(originalPrice, daysRemaining, category, tenantId = '', articleName = '') {
   const empty = {
     hasDiscount: false,
     discountPercent: 0,
@@ -196,7 +230,7 @@ export function calculateDiscount(originalPrice, daysRemaining, category, tenant
   if (!Number.isFinite(days) || days < 0) return empty;
   const matrix = getActiveDiscountMatrix(tenantId);
   if (matrix.enabled === false) return empty;
-  const rule = pickStrictestRule(rulesForCategory(matrix, category), days);
+  const rule = pickStrictestRule(rulesForCategory(matrix, category, articleName), days);
   if (!rule || rule.discountPercent <= 0) return empty;
   const price = finiteNumber(originalPrice);
   const discountedPrice = price == null
@@ -206,7 +240,7 @@ export function calculateDiscount(originalPrice, daysRemaining, category, tenant
     hasDiscount: true,
     discountPercent: rule.discountPercent,
     discountedPrice,
-    badgeText: rule.badgeText || `-${rule.discountPercent} %`,
+    badgeText: stickerBadgeText(rule.discountPercent),
   };
 }
 

@@ -18,10 +18,7 @@ let adminReady;
 
 function ensureAdminApp() {
   if (adminReady) return;
-  const admin = require('./firebaseAdmin');
-  if (!admin.apps.length) {
-    admin.initializeApp();
-  }
+  require('./firebaseAdmin').ensureAdminApp();
   adminReady = true;
 }
 

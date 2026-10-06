@@ -38,7 +38,7 @@ function storeRules(rules, key = activeCategory) {
     .map((rule) => ({
       daysRemainingMax: Number(rule.daysRemainingMax),
       discountPercent: Number(rule.discountPercent),
-      badgeText: `-${Number(rule.discountPercent) || 0} %`,
+      badgeText: `🏷️ -${Number(rule.discountPercent) || 0} % Aufkleber`,
     }))
     .filter((rule) => Number.isFinite(rule.daysRemainingMax) && Number.isFinite(rule.discountPercent))
     .sort((left, right) => left.daysRemainingMax - right.daysRemainingMax);
@@ -81,7 +81,7 @@ function renderRules() {
           <span>Rabatt in %</span>
           <input data-discount-percent type="number" inputmode="decimal" min="0" max="100" step="1" value="${escapeHtml(rule.discountPercent)}" aria-label="Rabatt in Prozent">
         </label>
-        <div class="discount-matrix-preview" aria-label="Badge-Vorschau">-${escapeHtml(rule.discountPercent)} %</div>
+        <div class="discount-matrix-preview" aria-label="Badge-Vorschau">🏷️ -${escapeHtml(rule.discountPercent)} % Aufkleber</div>
         <button type="button" class="discount-matrix-delete" data-discount-delete="${index}" aria-label="Stufe löschen">Löschen</button>
       </div>
     `).join('')
@@ -159,7 +159,7 @@ function bindMatrixCard() {
     if (event.target.matches('[data-discount-percent]')) {
       const preview = event.target.closest('[data-discount-rule]')?.querySelector('.discount-matrix-preview');
       const percent = Math.min(100, Math.max(0, Math.round(Number(event.target.value) || 0)));
-      if (preview) preview.textContent = `-${percent} %`;
+      if (preview) preview.textContent = `🏷️ -${percent} % Aufkleber`;
     }
   });
   card.addEventListener('click', (event) => {
