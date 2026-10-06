@@ -25,7 +25,7 @@ const EXT_TO_MIME = {
 
 const COMPRESSIBLE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp']);
 
-const DELIVERY_PARSE_WAIT = '📄 Lieferschein wird verarbeitet (4 Seiten)... Bitte ~15 Sek. warten.';
+const DELIVERY_PARSE_WAIT = '📄 Lieferschein wird analysiert (4 Seiten, ~70 Positionen)... Bitte ca. 25–35 Sek. Geduld.';
 
 export function showDeliveryParseProgress() {
   const existing = document.getElementById('delivery-parse-progress-overlay');

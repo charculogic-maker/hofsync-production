@@ -727,6 +727,7 @@ export async function reconcileDeliveryNoteFromFile(file) {
       file,
       tenantId: reconciliationState.tenantId,
       getFirebase: reconciliationState.getFirebase,
+      callableTimeoutMs: 120000,
     });
     console.log('[DeliveryReconciliation] Response received:', result?.raw || result);
     upload.hideDeliveryParseProgress();
@@ -739,7 +740,11 @@ export async function reconcileDeliveryNoteFromFile(file) {
   } catch (err) {
     console.error('[DeliveryReconciliation] Failed:', err);
     upload.hideDeliveryParseProgress();
-    upload.showOperatorToast(`Fehler beim Parsen: ${err?.message || 'Unbekannter Fehler'}`);
+    const details = typeof err?.details === 'string' ? err.details.trim() : '';
+    const message = String(err?.message || '').trim();
+    const internalCode = /^(KI timeout|Network error|Storage upload failed|Unsupported)$/i.test(message);
+    const detail = details || (message && !internalCode ? message : '') || upload.mapDeliveryUploadError(err) || 'Unbekannter Fehler';
+    upload.showOperatorToast(`Parsing abgebrochen: ${detail}`);
   } finally {
     reconciliationState.ocrInFlight = false;
     upload.hideDeliveryParseProgress();

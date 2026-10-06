@@ -7,6 +7,7 @@ let assertTenantStoragePath;
 let normalizeMimeType;
 let ALLOWED_MIME_TYPES;
 let expandRetailLine;
+let extractJsonArray;
 
 beforeAll(async () => {
   vi.mock('firebase-admin', () => ({
@@ -17,6 +18,7 @@ beforeAll(async () => {
     normalizeMimeType,
     ALLOWED_MIME_TYPES,
     expandRetailLine,
+    extractJsonArray,
   } = await import('../deliveryNote.js'));
 });
 
@@ -60,6 +62,20 @@ describe('parseDeliveryNote – MIME tolerance', () => {
     expect(ALLOWED_MIME_TYPES.has('image/heic')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('image/heif')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('application/pdf')).toBe(true);
+  });
+});
+
+describe('parseDeliveryNote – Gemini JSON fences', () => {
+  test('parses a markdown-wrapped JSON array', () => {
+    const raw = '```json\n[{"artikel":"Kartoffelknödel 10x230g","menge":1}]\n```';
+    expect(extractJsonArray(raw)).toEqual([
+      { artikel: 'Kartoffelknödel 10x230g', menge: 1 },
+    ]);
+  });
+
+  test('parses JSON when prose surrounds the array', () => {
+    const raw = 'Hier die Positionen:\n[{"artikel":"Bananen","menge":18.14,"einheit":"kg"}]\nDanke.';
+    expect(extractJsonArray(raw)[0].artikel).toBe('Bananen');
   });
 });
 

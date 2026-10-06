@@ -122,10 +122,19 @@ function expandRetailLine(entry) {
 }
 
 function sanitizeGeminiResponseText(responseText) {
-  return String(responseText || '')
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
+  let rawText = String(responseText || '').replace(/^\uFEFF/, '').trim();
+  rawText = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+  rawText = rawText.replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+  return rawText;
+}
+
+function asItemArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return null;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.artikel)) return value.artikel;
+  if (value.artikel || value.name || value.produkt) return [value];
+  return null;
 }
 
 function extractJsonArray(responseText) {
@@ -134,24 +143,38 @@ function extractJsonArray(responseText) {
     throw new Error('Gemini lieferte eine leere Antwort.');
   }
 
+  let parsed = null;
   try {
-    const parsed = JSON.parse(cleanText);
-    if (Array.isArray(parsed)) return parsed;
+    parsed = JSON.parse(cleanText);
   } catch (_err) {
-    // continue with bracket extraction
+    parsed = null;
   }
+
+  const direct = asItemArray(parsed);
+  if (direct) return direct;
 
   const start = cleanText.indexOf('[');
   const end = cleanText.lastIndexOf(']');
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error('Kein JSON-Array in der Gemini-Antwort gefunden.');
+    const err = new SyntaxError('Kein JSON-Array in der Gemini-Antwort gefunden.');
+    err.rawPreview = cleanText.slice(0, 240);
+    throw err;
   }
 
-  const parsed = JSON.parse(cleanText.slice(start, end + 1));
-  if (!Array.isArray(parsed)) {
-    throw new Error('Gemini-Antwort ist kein JSON-Array.');
+  try {
+    parsed = JSON.parse(cleanText.slice(start, end + 1));
+  } catch (err) {
+    err.rawPreview = cleanText.slice(start, start + 240);
+    throw err;
   }
-  return parsed;
+
+  const items = asItemArray(parsed);
+  if (!items) {
+    const err = new SyntaxError('Gemini-Antwort ist kein JSON-Array.');
+    err.rawPreview = cleanText.slice(0, 240);
+    throw err;
+  }
+  return items;
 }
 
 function normalizeDeliveryLine(entry, index) {
@@ -309,7 +332,10 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
   const ai = new GoogleGenerativeAI(apiKey);
   const model = ai.getGenerativeModel({
     model: DELIVERY_NOTE_MODEL,
-    generationConfig: { temperature: 0.1 },
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+    },
   });
 
   console.log('[parseDeliveryNote] OCR/KI-Extraktion gestartet', {
@@ -318,25 +344,23 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
     base64Length: imageBase64?.length || 0,
   });
 
-  let result;
+  let parsed;
   try {
-    result = await model.generateContent([
+    const result = await model.generateContent([
       { text: DELIVERY_NOTE_PROMPT },
       { inlineData: { mimeType, data: imageBase64 } },
     ]);
-  } catch (error) {
-    console.error('[parseDeliveryNote] Gemini-Fehler:', {
-      message: error?.message,
-      status: error?.status,
-      isFetchError: error instanceof GoogleGenerativeAIFetchError,
-    });
+    const responseText = result?.response?.text?.() || '';
+    parsed = extractJsonArray(responseText)
+      .map(normalizeDeliveryLine)
+      .filter((line) => line.artikel);
+  } catch (err) {
+    console.error('[parseDeliveryNote] Gemini Error:', err);
+    if (err instanceof GoogleGenerativeAIFetchError) {
+      console.error('[parseDeliveryNote] Gemini Error status:', err.status);
+    }
     throw new HttpsError('internal', 'Lieferschein konnte nicht analysiert werden.');
   }
-
-  const responseText = result?.response?.text?.() || '';
-  const parsed = extractJsonArray(responseText)
-    .map(normalizeDeliveryLine)
-    .filter((line) => line.artikel);
 
   if (!parsed.length) {
     throw new HttpsError('invalid-argument', 'Keine Artikel auf dem Lieferschein erkannt.');
@@ -392,6 +416,8 @@ module.exports = {
   assertTenantStoragePath,
   expandRetailLine,
   extractInnerPackMultiplier,
+  extractJsonArray,
+  sanitizeGeminiResponseText,
   handleParseDeliveryNote,
   normalizeMimeType,
   parseDeliveryNoteImage,
