@@ -114,12 +114,71 @@ const RECEIVING_FORM_IDS = [
 ];
 
 const SUPPLIER_SELECT_SONSTIGE = '__sonstige__';
-const KNOWN_SUPPLIER_OPTIONS = Object.freeze([
-  'Weiling',
-  'Naturverbund',
-  'Stautenhof',
-  'Eigene Produktion',
+const NEUTRAL_SUPPLIER_OPTIONS = Object.freeze([
+  'Eigener Wareneingang',
+  'Großhandel',
+  'Lieferant 1',
 ]);
+
+function currentSupplierOptions() {
+  const fromSettings = typeof window.getTenantSupplierNames === 'function'
+    ? window.getTenantSupplierNames()
+    : [];
+  return Array.isArray(fromSettings) && fromSettings.length
+    ? fromSettings
+    : [...NEUTRAL_SUPPLIER_OPTIONS];
+}
+
+function renderSupplierSelect(selectEl) {
+  if (!selectEl) return;
+  const previous = selectEl.value;
+  const emptyLabel = '-- Lieferant wählen --';
+  selectEl.replaceChildren();
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = emptyLabel;
+  selectEl.appendChild(empty);
+  currentSupplierOptions().forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    selectEl.appendChild(option);
+  });
+  const other = document.createElement('option');
+  other.value = SUPPLIER_SELECT_SONSTIGE;
+  other.textContent = 'Sonstige';
+  selectEl.appendChild(other);
+  if ([...selectEl.options].some((option) => option.value === previous)) {
+    selectEl.value = previous;
+  }
+}
+
+function renderSupplierPickGrid() {
+  const grid = document.getElementById('supplier-pick-grid');
+  if (!grid) return;
+  grid.replaceChildren();
+  currentSupplierOptions().forEach((name) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-primary supplier-pick-option';
+    button.dataset.supplierPick = name;
+    button.textContent = name;
+    grid.appendChild(button);
+  });
+  const other = document.createElement('button');
+  other.type = 'button';
+  other.className = 'btn btn-secondary supplier-pick-option';
+  other.dataset.supplierPick = SUPPLIER_SELECT_SONSTIGE;
+  other.textContent = 'Sonstige';
+  grid.appendChild(other);
+}
+
+function renderSupplierControls() {
+  renderSupplierSelect(document.getElementById('we-supplier'));
+  renderSupplierPickGrid();
+}
+
+window.addEventListener('charculogic:tenant-settings', () => renderSupplierControls());
 
 let currentDeliveryItemBarcode = '';
 let currentDeliveryItemProduct = '';
@@ -2507,7 +2566,7 @@ function showLegacyLearnModeDialog(ean) {
       </label>
       <label class="learn-mode-label">
         Marke / Erzeuger
-        <input type="text" id="learn-product-brand" class="input-text-touch" placeholder="z.B. StevesHof">
+        <input type="text" id="learn-product-brand" class="input-text-touch" placeholder="z.B. Hofmarke">
       </label>
       <div class="learn-mode-actions">
         <button type="button" class="btn btn-learn-submit" id="btn-learn-save">Artikel lernen &amp; einbuchen</button>
@@ -2532,7 +2591,7 @@ function showLegacyLearnModeDialog(ean) {
     if (!beginReceivingSaveButtonLock(btnLearnSave)) return;
 
     const name = sanitizeProductName(inputName?.value.trim());
-    const brand = sanitizeProductName(inputBrand?.value.trim() || 'StevesHof');
+    const brand = sanitizeProductName(inputBrand?.value.trim() || '');
 
     if (!name) {
       inputName?.focus();
@@ -2620,7 +2679,7 @@ function showLearnModeDialog(ean) {
       </label>
       <label class="learn-mode-label">
         Hersteller / Marke
-        <input type="text" id="learn-product-brand" class="input-text-touch" placeholder="z.B. StevesHof">
+        <input type="text" id="learn-product-brand" class="input-text-touch" placeholder="z.B. Hofmarke">
       </label>
       <label class="learn-mode-label">
         Menge / Bestand
@@ -3985,7 +4044,7 @@ function formatRestlaufzeit(tage) {
   return `in ${tage} Tagen`;
 }
 
-function formatStevesHofDiscount(prod) {
+function formatShelfDiscount(prod) {
   const discount = calculateDiscount(
     readOriginalPrice(prod) ?? 0,
     getMhdResttage(prod),
@@ -4112,7 +4171,7 @@ function buildStichprobeBatchRow(entry, expandedId = null) {
         aria-controls="stichprobe-controls-${escapeHtml(id)}"
       >
         <div class="utility-row-title">${escapeHtml(dateLabel)}</div>
-        <div class="utility-row-meta">${escapeHtml(formatRestlaufzeit(getMhdResttage(entry)))} · ${escapeHtml(qtyLabel)} Stück · Rabatt ${escapeHtml(formatStevesHofDiscount(entry))}</div>
+        <div class="utility-row-meta">${escapeHtml(formatRestlaufzeit(getMhdResttage(entry)))} · ${escapeHtml(qtyLabel)} Stück · Rabatt ${escapeHtml(formatShelfDiscount(entry))}</div>
       </button>
       <div
         class="stichprobe-batch-controls"
@@ -5251,7 +5310,7 @@ async function showMasterData() {
   const entries = await collectStammdatenEntries();
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
   showUtilityDialog('Stammdaten', `
-    <p class="learn-mode-desc">${entries.length} Artikel · ${Object.keys(vpeMaster).length} VPEs. Namen wie „Direkterfassung (Stephie)“ hier suchen und umbenennen.</p>
+    <p class="learn-mode-desc">${entries.length} Artikel · ${Object.keys(vpeMaster).length} VPEs. Namen wie „Direkterfassung (Schicht)“ hier suchen und umbenennen.</p>
     <label class="form-label" for="stammdaten-search">Suchen</label>
     <input id="stammdaten-search" class="input-text-touch" type="search" placeholder="Name oder EAN" autocomplete="off">
     <div class="utility-list stammdaten-edit-list" id="stammdaten-list">
@@ -5373,7 +5432,7 @@ function bindMhdCardActions() {
     }
     if (command === 'action') {
       const actionStatus = button.dataset.mhdActionStatus;
-      // StevesHof: Küche/Retter-Box sind absichtlich nicht in der UI – alte Calls ignorieren.
+      // Küche/Retter-Box folgen dem Modul-Flag – alte Calls ohne Modul ignorieren.
       if (actionStatus === 'kueche' || actionStatus === 'retterbox') return;
       markMhdAction(id, actionStatus);
       return;
@@ -5618,7 +5677,7 @@ function applySupplierToForm(supplierName = '') {
     return;
   }
 
-  if (KNOWN_SUPPLIER_OPTIONS.includes(name)) {
+  if (currentSupplierOptions().includes(name)) {
     selectEl.value = name;
     if (customEl) customEl.value = '';
   } else {
@@ -7181,6 +7240,7 @@ function bindReceivingControls() {
     btnSaveDraft.dataset.mhdBound = '1';
     btnSaveDraft.addEventListener('click', () => saveDeliveryDraft());
   }
+  renderSupplierControls();
   const supplierSelect = document.getElementById('we-supplier');
   if (supplierSelect && supplierSelect.dataset.mhdBound !== '1') {
     supplierSelect.dataset.mhdBound = '1';

@@ -9,6 +9,7 @@
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { getTenantCollection } from './tenant-db.js';
+import { hasModule } from './tenant-modules.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -51,13 +52,8 @@ const parserState = {
   tenantId: '',
 };
 
-function isDeliveryParserVisible(_tenantId, _email) {
-  // Freigeschaltet für alle Mandanten mit Wareneingang (inkl. StevesHof Laden-iPhone).
-  return true;
-}
-
-function isTorfabrikTenant(tenantId) {
-  return String(tenantId || '').trim().toLowerCase() === 'torfabrik';
+function isDeliveryParserVisible() {
+  return hasModule('deliveryParser');
 }
 
 // ---------------------------------------------------------------------------
@@ -547,7 +543,6 @@ function applyFeatureVisibility() {
   const uploadBtn = document.getElementById('btn-delivery-parser');
   if (uploadBtn) uploadBtn.hidden = !parserState.featureEnabled;
 
-  // Scan-Button: StevesHof & Co. über diesen Parser; TorFabrik nutzt delivery-note.js.
   if (parserState.ownsScanButton) {
     const scanBtn = document.getElementById('btn-delivery-note-ai');
     if (scanBtn) scanBtn.hidden = !parserState.featureEnabled;
@@ -611,8 +606,8 @@ export function initDeliveryParser(options = {}) {
     ? options.getCurrentDeliveryItems
     : parserState.getCurrentDeliveryItems;
   parserState.tenantId = options.tenantId || '';
-  parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
-  parserState.ownsScanButton = !isTorfabrikTenant(parserState.tenantId);
+  parserState.featureEnabled = isDeliveryParserVisible();
+  parserState.ownsScanButton = hasModule('deliveryParser');
 
   bindUi();
   applyFeatureVisibility();

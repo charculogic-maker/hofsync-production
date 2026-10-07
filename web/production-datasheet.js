@@ -294,7 +294,7 @@ export function classifyIngredient(ing) {
 
   const allergenHit = ALLERGEN_LOOKUP.find((entry) => entry.match.test(hay));
   const additiveHit = ADDITIVE_LOOKUP.find((entry) => entry.match.test(hay));
-  const organic = /bio|\*/.test(hay) || /galloway|steveshof/.test(hay);
+  const organic = /bio|\*/.test(hay) || /galloway/.test(hay);
   const allergen = Boolean(ing?.allergen || ing?.Allergen || allergenHit);
 
   if (isWaterLike(hay)) {
@@ -454,7 +454,7 @@ function inferMeatClass(hay, name, fallback) {
 }
 
 function inferSpiceSupplier(hay) {
-  if (/(eigen|hof|steveshof)/.test(hay)) return 'Eigenproduktion';
+  if (/(eigen|hof)/.test(hay)) return 'Eigenproduktion';
   return 'Zukauf';
 }
 
@@ -705,8 +705,8 @@ function resolveCreatedBy(options = {}) {
   return String(
     options.createdBy
     || (typeof window !== 'undefined' ? window.BRANDING?.betriebsName : '')
-    || 'StevesHof Hofladen',
-  ).trim() || 'StevesHof Hofladen';
+    || 'Mein Hofladen / Metzgerei',
+  ).trim() || 'Mein Hofladen / Metzgerei';
 }
 
 function resolveBrand(options = {}) {

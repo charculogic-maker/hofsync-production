@@ -145,6 +145,7 @@ import {
   loadTenantEnabledModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
+import { getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
 import {
   initDevDashboard,
   isDevDashboardRoute,
@@ -174,8 +175,6 @@ if (EMERGENCY_LOGOUT_REQUESTED) {
   void handleEmergencyLogoutParam();
 }
 
-const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
-const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
@@ -196,10 +195,9 @@ const AUTH_LOCAL_STORAGE_MARKERS = [
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
-const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
-
 function isEmployeePinRequired(branding = window.BRANDING) {
   if (isFirebaseRoleAuth(branding)) return false;
+  if (getTerminalSettings().bypassPin === true) return false;
   return branding?.modules?.employeePin !== false;
 }
 
@@ -235,8 +233,7 @@ function isTeamSessionName(employeeName, branding = window.BRANDING) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return true;
   const normalized = cleanName.toLowerCase();
-  if (LEGACY_TEAM_SESSION_MARKERS.includes(normalized)) return true;
-  if (normalized.startsWith('team ')) return true;
+  if (normalized.startsWith('team ') || normalized.endsWith('-team') || normalized.endsWith(' team')) return true;
   return cleanName === resolveTeamSessionName(branding);
 }
 
@@ -345,7 +342,6 @@ function rememberProfileGuestName(name) {
 function getSortedProfilePickerEmployees() {
   const blocked = new Set([
     PROFILE_OTHER_LABEL.toLowerCase(),
-    ...LEGACY_TEAM_SESSION_MARKERS,
     resolveTeamSessionName().toLowerCase(),
   ]);
   return getTeamEmployees()
@@ -1289,11 +1285,9 @@ function openProfileEmployeePicker(options = {}) {
 }
 
 function resolveTerminalAuthEmail(branding = window.BRANDING) {
-  const fromBranding = String(branding?.terminalAuth?.email || '').trim();
-  if (fromBranding) return fromBranding;
-  const tenantId = getGlobalTenantId() || window.resolveEffectiveTenantId?.() || '';
-  if (isSteveshofTenantId(tenantId)) return STEVESHOF_TERMINAL_EMAIL;
-  return '';
+  const fromSettings = String(getTerminalSettings().terminalUser || '').trim();
+  if (fromSettings) return fromSettings;
+  return String(branding?.terminalAuth?.email || '').trim();
 }
 
 async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
@@ -1596,7 +1590,7 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
     if (teamLoginCard) teamLoginCard.hidden = true;
     return configureTeamSessionWithoutPin(branding);
   }
-  if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== 'steveshof') {
+  if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== '1') {
     teamLoginCard.hidden = false;
   }
   return readActiveEmployee();
@@ -1730,10 +1724,6 @@ window.isFirestorePermissionDeniedError = isFirestorePermissionDeniedError;
 window.hasActiveFirebaseAuthUser = hasActiveFirebaseAuthUser;
 window.resetAuthStateOnPermissionDenied = resetAuthStateOnPermissionDenied;
 window.tenantIdsMatch = tenantIdsMatch;
-
-function isSteveshofTenantId(tenantId = '') {
-  return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
-}
 
 export {
   getGlobalTenantId,
@@ -2961,7 +2951,7 @@ function activeEmployeeStorageKey() {
 
 function updateHeaderLogoutVisibility(activeTab) {
   if (!headerLogoutBtn) return;
-  const isFixedTerminal = document.documentElement.dataset.fixedTerminal === 'steveshof';
+  const isFixedTerminal = document.documentElement.dataset.fixedTerminal === '1';
   if (isFirebaseRoleAuth()) {
     headerLogoutBtn.style.display = !isFixedTerminal ? 'inline-block' : 'none';
     return;
@@ -3203,41 +3193,29 @@ function resolveEarlyTenantId() {
 }
 
 function applyEarlyTenantShell() {
-  const tenantKey = resolveEarlyTenantId() || normalizeTenantId(STEVESHOF_TENANT_ID);
-  if (!isSteveshofTenantId(tenantKey)) return;
-  const firestoreTenantId = STEVESHOF_TENANT_ID;
+  const tenantKey = resolveEarlyTenantId();
+  if (!tenantKey) return;
   if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding(firestoreTenantId);
+    window.applyResolvedBranding(tenantKey);
   } else {
     applyBranding();
   }
-  setGlobalTenantId(firestoreTenantId);
   applyModuleVisibility(window.BRANDING);
-  applyRoleBasedUi({
-    tenantId: firestoreTenantId,
-    role: 'employee',
-    isAdmin: false,
-    isHelper: false,
-  });
-  configureSteveshofTerminalSession({
-    tenantId: firestoreTenantId,
-    email: STEVESHOF_TERMINAL_EMAIL,
-  });
-  purgeInvalidProfileSession(window.BRANDING);
-  showPreferredStartTab();
 }
 
-function isSteveshofTerminalSession(authSession) {
-  return tenantIdsMatch(authSession?.tenantId, STEVESHOF_TENANT_ID)
-    && String(authSession?.email || '').trim().toLowerCase() === STEVESHOF_TERMINAL_EMAIL;
-}
-
-function configureSteveshofTerminalSession(authSession) {
-  if (!isSteveshofTerminalSession(authSession)) return '';
-  document.documentElement.dataset.fixedTerminal = 'steveshof';
+function applyFixedTerminalSettings(settings = getTerminalSettings()) {
+  if (settings?.isFixedTerminal === true) {
+    document.documentElement.dataset.fixedTerminal = '1';
+  } else {
+    delete document.documentElement.dataset.fixedTerminal;
+  }
+  if (settings?.bypassPin === true && window.BRANDING?.modules) {
+    window.BRANDING.modules.employeePin = false;
+  }
+  const operator = String(settings?.defaultOperatorName || '').trim();
+  if (operator && window.BRANDING) window.BRANDING.defaultOperatorName = operator;
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
-  return readActiveEmployee();
 }
 
 window.addEventListener('charculogic:active-employee-changed', (event) => {
@@ -4035,6 +4013,8 @@ async function bootstrapAuthenticatedApp() {
   }
   setGlobalTenantId(authSession.tenantId);
   await loadTenantEnabledModules(db, authSession.tenantId);
+  await loadTenantShopSettings(db, authSession.tenantId);
+  applyFixedTerminalSettings();
   applyModuleVisibility(window.BRANDING);
 
   bindTenantModuleConfigListener(authSession.tenantId);
@@ -4050,11 +4030,14 @@ async function bootstrapAuthenticatedApp() {
     if (!enforceTenantAdminRouteOrLeave(nextSession)) return;
     if (nextSession?.tenantId) {
       setGlobalTenantId(nextSession.tenantId);
-      void loadTenantEnabledModules(db, nextSession.tenantId).then(() => {
-        applyModuleVisibility(window.BRANDING);
-        bindTenantModuleConfigListener(nextSession.tenantId);
-        ensureActiveTabAllowed();
-      });
+      void loadTenantEnabledModules(db, nextSession.tenantId)
+        .then(() => loadTenantShopSettings(db, nextSession.tenantId))
+        .then(() => {
+          applyFixedTerminalSettings();
+          applyModuleVisibility(window.BRANDING);
+          bindTenantModuleConfigListener(nextSession.tenantId);
+          ensureActiveTabAllowed();
+        });
     }
     if (typeof window.applyResolvedBranding === 'function') {
       window.applyResolvedBranding(nextSession?.tenantId);
@@ -4067,7 +4050,7 @@ async function bootstrapAuthenticatedApp() {
     ensureActiveTabAllowed();
     startTenantLiveDataListeners();
   });
-  configureSteveshofTerminalSession(authSession);
+  applyFixedTerminalSettings();
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
   const terminalEmployeeName = readActiveEmployee();
@@ -4191,7 +4174,7 @@ async function bootstrapAuthenticatedApp() {
     syncFirebaseEmployeeSession(authSession);
   }
 
-  if (tenantIdsMatch(authSession.tenantId, STEVESHOF_TENANT_ID)) {
+  if (getTerminalSettings().isFixedTerminal) {
     showPreferredStartTab();
   }
   updateSyncIndicator();

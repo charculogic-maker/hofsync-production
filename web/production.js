@@ -4,7 +4,6 @@ import {
   getGlobalTenantId,
   getTenantCollection,
   getTenantCollectionPath,
-  tenantIdsMatch,
 } from './tenant-db.js';
 import {
   DEFAULT_MACHINE_PARK,
@@ -19,7 +18,6 @@ import {
 import { generateIngredientDeclaration } from './domain-core.js';
 import { flushPendingSyncs } from './sync.js';
 
-const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
 const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
 const EIGENPRODUKTION_SOURCE = 'eigenproduktion';
 
@@ -53,11 +51,7 @@ const productionState = {
 };
 
 function shouldUseBratwurstMasterlist() {
-  const brandingFlag = window.BRANDING?.modules?.bratwurstMasterlist;
-  if (brandingFlag === true) return true;
-  if (brandingFlag === false) return false;
-  const tenantId = getGlobalTenantId() || String(productionState.tenantId || '').trim();
-  return tenantIdsMatch(tenantId, STEVESHOF_TENANT_ID);
+  return window.BRANDING?.modules?.bratwurstMasterlist === true;
 }
 
 function isProductionAdmin() {
@@ -3329,7 +3323,7 @@ const bratwurstRecipes = [
   },
   {
     "id": "alt_Schwein-Mettwurst",
-    "name": "StevesHof Mettwurst_alt",
+    "name": "Mettwurst_alt",
     "kat": "Rohwurst",
     "kaliber": "",
     "basis_g": "10.000,00",
@@ -5008,7 +5002,7 @@ function calculateIngredients() {
   let activeRecipe = cloudRecipe;
   let dataSource = 'cloud';
 
-  // SKELETT-FALLE KORREKTUR (nur StevesHof-Masterliste):
+  // SKELETT-FALLE: lokale Masterliste nur, wenn das Modul bratwurstMasterlist aktiv ist.
   // Wenn Cloud fehlt oder weniger renderbare Zutaten als die Masterliste hat -> lokale Vollversion nutzen.
   if (shouldUseBratwurstMasterlist()
     && (!activeRecipe || cloudRenderableCount === 0 || localRenderableCount > cloudRenderableCount)) {
@@ -5522,7 +5516,7 @@ function refreshProductionDatasheetState() {
       cutterType: recipe.cutterType || recipe.maschinen?.kutter,
       fillerType: recipe.fillerType || recipe.maschinen?.fueller,
       kpis: recipe.kpis || undefined,
-      createdBy: window.BRANDING?.betriebsName || 'StevesHof Hofladen',
+      createdBy: window.BRANDING?.betriebsName || 'Mein Hofladen / Metzgerei',
       accentColor: window.BRANDING?.primaryColor,
       logoUrl: window.BRANDING?.logoUrl,
       measuredPh: Number.isFinite(measuredPh) ? measuredPh : undefined,

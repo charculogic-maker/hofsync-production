@@ -171,13 +171,51 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
+    function isTeamDashboardSettings() {
+      return request.resource.data.keys().hasOnly([
+        'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy'
+      ]);
+    }
+
+    function isProfileSettings(docId) {
+      return docId == 'profile'
+        && request.resource.data.keys().hasOnly([
+          'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
+          'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
+          'tenantId', 'updatedAt', 'updatedBy'
+        ]);
+    }
+
+    function isTerminalSettings(docId) {
+      return docId == 'terminal'
+        && request.resource.data.keys().hasOnly([
+          'isFixedTerminal', 'bypassPin', 'defaultOperatorName', 'terminalUser',
+          'fixedTerminalEnabled', 'requirePin',
+          'tenantId', 'updatedAt', 'updatedBy'
+        ])
+        && (!('isFixedTerminal' in request.resource.data) || request.resource.data.isFixedTerminal is bool)
+        && (!('bypassPin' in request.resource.data) || request.resource.data.bypassPin is bool);
+    }
+
+    function isSupplierSettings(docId) {
+      return docId == 'suppliers'
+        && request.resource.data.keys().hasOnly([
+          'names', 'suppliers', 'tenantId', 'updatedAt', 'updatedBy'
+        ])
+        && (!('names' in request.resource.data) || request.resource.data.names is list)
+        && (!('suppliers' in request.resource.data) || request.resource.data.suppliers is list);
+    }
+
     match /tenants/{tenantId}/settings/{document} {
       allow read: if isTenantUser(tenantId);
       allow create, update: if isAdmin(tenantId)
         && request.resource.data.tenantId == tenantId
-        && request.resource.data.keys().hasOnly([
-          'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy'
-        ]);
+        && (
+          isTeamDashboardSettings()
+          || isProfileSettings(document)
+          || isTerminalSettings(document)
+          || isSupplierSettings(document)
+        );
       allow delete: if isAdmin(tenantId);
     }
 

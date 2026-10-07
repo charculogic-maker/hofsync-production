@@ -722,11 +722,8 @@
                       <span>Mitarbeiter</span>
                       <select id="dev-dashboard-report-actor" aria-label="Nach Mitarbeiter filtern">
                         <option value="">Alle</option>
-                        <option value="Paddy">Paddy</option>
-                        <option value="Stephie">Stephie</option>
-                        <option value="Bettina">Bettina</option>
-                        <option value="Nicole">Nicole</option>
-                        <option value="Heiko">Heiko</option>
+                        <option value="Mitarbeiter 1">Mitarbeiter 1</option>
+                        <option value="Mitarbeiter 2">Mitarbeiter 2</option>
                       </select>
                     </label>
                     <label class="dev-dashboard-field" for="dev-dashboard-report-action">
@@ -1105,11 +1102,10 @@
                       <span>Lieferant</span>
                       <select id="we-supplier" class="gastro-input" autocomplete="organization">
                         <option value="">-- Lieferant wählen --</option>
-                        <option value="Weiling">Weiling</option>
-                        <option value="Naturverbund">Naturverbund</option>
-                        <option value="Stautenhof">Stautenhof</option>
+                        <option value="Eigener Wareneingang">Eigener Wareneingang</option>
+                        <option value="Großhandel">Großhandel</option>
+                        <option value="Lieferant 1">Lieferant 1</option>
                         <option value="__sonstige__">Sonstige</option>
-                        <option value="Eigene Produktion">Eigene Produktion</option>
                       </select>
                     </label>
                   </div>
@@ -1894,6 +1890,8 @@
                   <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
                   <div id="team-config-groups" class="team-config-groups"></div>
                   <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
+                  <label class="form-label" for="tenant-suppliers">Lieferanten (eine Zeile pro Name)</label>
+                  <textarea id="tenant-suppliers" class="bulletin-message-input" rows="3" placeholder="Eigener Wareneingang&#10;Großhandel"></textarea>
                   <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
                   <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
                   <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
@@ -2273,9 +2271,9 @@
             <div class="supplier-pick-title" id="supplier-pick-title">Bitte Lieferant wählen</div>
             <p class="supplier-pick-desc" id="supplier-pick-desc">Ohne Lieferant können wir die Lieferung nicht abschließen.</p>
             <div class="supplier-pick-grid" id="supplier-pick-grid" role="group" aria-label="Lieferanten">
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Weiling">Weiling</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Naturverbund">Naturverbund</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Stautenhof">Stautenhof</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Eigener Wareneingang">Eigener Wareneingang</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Großhandel">Großhandel</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Lieferant 1">Lieferant 1</button>
               <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstige</button>
             </div>
             <label class="receiving-field hidden" id="supplier-pick-custom-wrap" for="supplier-pick-custom">

@@ -21,47 +21,20 @@ const TEAM_CONFIG_DOC_ID = 'teamDashboard';
 const PUSH_ENABLED_KEY = 'charculogic_push_enabled';
 const PUSH_VAPID_KEY = 'charculogic_fcm_vapid_key';
 
-const DEFAULT_EMPLOYEES = ['Stephie', 'Finn', 'Nicole', 'Bettina', 'Heiko', 'Paddy'];
+const DEFAULT_EMPLOYEES = ['Mitarbeiter 1', 'Mitarbeiter 2'];
 const DEFAULT_GROUPS = {
-  finn_stephie: { label: 'Finn & Stephie', members: ['Finn', 'Stephie'] },
-  metzgerei: { label: 'Metzgerei', members: ['Nicole', 'Bettina', 'Heiko', 'Paddy'] },
-  laden: { label: 'Hofladen / Theke', members: ['Stephie', 'Finn', 'Paddy'] },
+  theke: { label: 'Theke', members: ['Mitarbeiter 1'] },
+  produktion: { label: 'Produktion', members: ['Mitarbeiter 2'] },
 };
 
-const STEVESHOF_EMPLOYEES = [
-  'Bettina',
-  'Efecan',
-  'Finn',
-  'Heiko',
-  'Melanie',
-  'Mimi',
-  'Nicole',
-  'Paddy',
-  'Stephie',
-];
-
-const TENANT_TEAM_DEFAULTS = {
-  steveshof_hauptbetrieb: {
-    employees: [...STEVESHOF_EMPLOYEES],
-    groups: {
-      finn_stephie: { label: 'Finn & Stephie', members: ['Finn', 'Stephie'] },
-      metzgerei: { label: 'Metzgerei', members: ['Nicole', 'Bettina', 'Heiko', 'Paddy'] },
-      laden: {
-        label: 'Hofladen / Theke',
-        members: ['Stephie', 'Finn', 'Paddy', 'Melanie', 'Efecan', 'Mimi'],
-      },
-      aushilfe: { label: 'Aushilfe', members: ['Melanie', 'Efecan', 'Mimi'] },
-    },
-  },
-};
-
-function getTenantTeamDefaults(tenantId = configState.tenantId) {
-  const key = typeof tenantId === 'string' ? tenantId.trim().toLowerCase() : '';
-  if (TENANT_TEAM_DEFAULTS[key]) {
-    const entry = TENANT_TEAM_DEFAULTS[key];
+function getTenantTeamDefaults() {
+  const fromProfile = window.__tenantDefaultTeam;
+  if (Array.isArray(fromProfile) && fromProfile.length) {
     return {
-      employees: [...entry.employees],
-      groups: JSON.parse(JSON.stringify(entry.groups)),
+      employees: [...fromProfile],
+      groups: {
+        team: { label: 'Team', members: [...fromProfile] },
+      },
     };
   }
   return {
@@ -201,8 +174,11 @@ function mergeEmployeeLists(primary = [], secondary = []) {
 
 function normalizeConfig(data) {
   const tenantDefaults = getTenantTeamDefaults();
-  let employees = Array.isArray(data?.employees)
-    ? mergeEmployeeLists(data.employees, tenantDefaults.employees)
+  const storedEmployees = Array.isArray(data?.employees)
+    ? data.employees.map((name) => String(name).trim()).filter(Boolean)
+    : [];
+  let employees = storedEmployees.length
+    ? mergeEmployeeLists(storedEmployees, [])
     : [...tenantDefaults.employees];
   const rawGroups = data?.groups && typeof data.groups === 'object' ? data.groups : {};
   const groups = {};
@@ -293,7 +269,7 @@ function buildGroupRowHtml(id, group = { label: '', members: [] }) {
       <label class="form-label">Anzeigename</label>
       <input type="text" name="group-label" class="input-text-touch" value="${escapeHtml(group.label || '')}" placeholder="Metzgerei">
       <label class="form-label">Mitglieder (kommagetrennt)</label>
-      <input type="text" name="group-members" class="input-text-touch" value="${escapeHtml((group.members || []).join(', '))}" placeholder="Nicole, Bettina, …">
+      <input type="text" name="group-members" class="input-text-touch" value="${escapeHtml((group.members || []).join(', '))}" placeholder="Mitarbeiter 1, Mitarbeiter 2">
       <button type="button" class="btn btn-secondary btn-compact" data-remove-group-row>Gruppe entfernen</button>
     </div>
   `;
@@ -334,6 +310,44 @@ function loadVapidToAdminInput() {
   if (input && !input.value) input.value = getStoredVapidKey();
 }
 
+function fillSupplierAdminField() {
+  const input = document.getElementById('tenant-suppliers');
+  if (!input || input.dataset.editing === '1') return;
+  const names = typeof window.getTenantSupplierNames === 'function'
+    ? window.getTenantSupplierNames()
+    : [];
+  if (names.length) input.value = names.join('\n');
+}
+
+async function saveSuppliersFromAdmin() {
+  if (!configState.tenantId) return;
+  if (!document.getElementById('tenant-suppliers')) return;
+  const names = String(document.getElementById('tenant-suppliers')?.value || '')
+    .split(/[\n,;]+/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (!names.length) return;
+  const firebase = configState.getFirebase();
+  const payload = {
+    names,
+    tenantId: configState.tenantId,
+    updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
+    updatedBy: getActiveEmployeeNameLocal() || 'Admin',
+  };
+  await writeFirestoreDocOrQueue({
+    collectionPath: 'settings',
+    docId: 'suppliers',
+    op: 'set',
+    onlineData: payload,
+    queueData: { ...payload, updatedAt: new Date().toISOString() },
+    offlineMessage: 'Lieferanten werden synchronisiert.',
+  });
+  window.getTenantSupplierNames = () => [...names];
+  window.dispatchEvent(new CustomEvent('charculogic:tenant-settings', {
+    detail: { suppliers: names },
+  }));
+}
+
 async function saveTeamConfigFromAdmin() {
   verifyAdminAction(async () => {
     saveVapidFromAdminInput();
@@ -365,6 +379,7 @@ async function saveTeamConfigFromAdmin() {
         queueData: { ...payload, updatedAt: new Date().toISOString() },
         offlineMessage: 'Team-Konfiguration wird synchronisiert.',
       });
+      await saveSuppliersFromAdmin();
       window.showToast?.('Team-Konfiguration gespeichert.', 'success');
     } catch (err) {
       console.error('[TeamConfig] Speichern fehlgeschlagen:', err);
@@ -406,6 +421,11 @@ function bindAdminTeamConfigPanel() {
   });
 
   document.getElementById('team-config-save-btn')?.addEventListener('click', () => saveTeamConfigFromAdmin());
+  const supplierInput = document.getElementById('tenant-suppliers');
+  supplierInput?.addEventListener('focusin', () => { supplierInput.dataset.editing = '1'; });
+  supplierInput?.addEventListener('focusout', () => { delete supplierInput.dataset.editing; });
+  fillSupplierAdminField();
+  window.addEventListener('charculogic:tenant-settings', fillSupplierAdminField);
   loadVapidToAdminInput();
 
   const groupsHost = document.getElementById('team-config-groups');

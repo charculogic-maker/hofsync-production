@@ -1,4 +1,5 @@
 import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
+import { getTeamEmployees } from './team-config.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   readScopedLocalStorageValue,
@@ -59,19 +60,12 @@ const FLY_PREVENTION_CLEANING_TASK = {
 
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 
-const HACCP_CLEANING_TEAM = [
-  'Bettina',
-  'Efecan',
-  'Finn',
-  'Heiko',
-  'Melanie',
-  'Mimi',
-  'Nicole',
-  'Paddy',
-  'Stephie',
-  'Thomas',
-  'Aushilfe (andere)',
-];
+function getCleaningTeam() {
+  const fromTeam = getTeamEmployees()
+    .map((name) => String(name || '').trim())
+    .filter(Boolean);
+  return fromTeam.length ? fromTeam : ['Mitarbeiter 1', 'Mitarbeiter 2'];
+}
 
 const HACCP_TEMPERATURE_GROUPS = [
   {
@@ -165,12 +159,12 @@ function restoreCleaningPerson() {
     const stored = localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
       || readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId())
       || '';
-    haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(stored) ? stored : '';
+    haccpState.cleaningDoneBy = getCleaningTeam().includes(stored) ? stored : '';
   } catch (_) { /* noop */ }
 }
 
 function rememberCleaningPerson(name) {
-  haccpState.cleaningDoneBy = HACCP_CLEANING_TEAM.includes(name) ? name : '';
+  haccpState.cleaningDoneBy = getCleaningTeam().includes(name) ? name : '';
   try {
     if (haccpState.cleaningDoneBy) {
       localStorage.setItem(HACCP_CLEANING_PERSON_KEY, haccpState.cleaningDoneBy);
@@ -478,7 +472,7 @@ function isTemperatureTooWarm(value, warnAbove) {
 
 function requireHaccpDoneBy() {
   const doneBy = String(selectedHaccpPerson() || '').trim();
-  if (!doneBy || doneBy === 'Name auswählen' || !HACCP_CLEANING_TEAM.includes(doneBy)) {
+  if (!doneBy || doneBy === 'Name auswählen' || !getCleaningTeam().includes(doneBy)) {
     haccpState.showHUD('Hinweis', 'Bitte wähle zuerst oben aus, wer die Prüfung durchgeführt hat!', '!');
     return '';
   }
@@ -882,7 +876,7 @@ function renderHaccpPersonPicker() {
       <label class="haccp-cleaning-person-label" for="haccp-cleaning-person">Wer trägt gerade ein?</label>
       <select id="haccp-cleaning-person" class="input-text-touch haccp-cleaning-select" aria-label="Name auswählen">
         <option value="">Name auswählen</option>
-        ${HACCP_CLEANING_TEAM.map((name) => `<option value="${escapeHtml(name)}"${selected === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
+        ${getCleaningTeam().map((name) => `<option value="${escapeHtml(name)}"${selected === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
       </select>
     </div>
   `;

@@ -1542,9 +1542,7 @@ function bindDevDashboardBackButton() {
 
 let createEmployeeCallable = null;
 let manageEmployeesCallable = null;
-const STEVESHOF_PROFILE_FALLBACK_NAMES = [
-  'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
-];
+const GENERIC_PROFILE_FALLBACK_NAMES = ['Mitarbeiter 1', 'Mitarbeiter 2'];
 
 function getCreateEmployeeCallable() {
   if (createEmployeeCallable) return createEmployeeCallable;
@@ -1618,8 +1616,8 @@ async function loadEmployeeProfileFallback(tenantId, db) {
       console.warn('[Dev-Dashboard] Fallback Team-Profil-Store:', err);
     }
   }
-  if (!collected.length && tenantId === 'StevesHof_Hauptbetrieb') {
-    collected.push(...namesToProfileEmployees(STEVESHOF_PROFILE_FALLBACK_NAMES, tenantId));
+  if (!collected.length && tenantId) {
+    collected.push(...namesToProfileEmployees(GENERIC_PROFILE_FALLBACK_NAMES, tenantId));
   }
   const byName = new Map();
   collected.forEach((entry) => {

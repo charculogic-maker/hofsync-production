@@ -155,7 +155,7 @@ function catchWeightKg(text) {
 }
 
 /**
- * Weiling-Spalte "Gesamt Stück / Gewicht": "3 x 175 g" ist schon 3 Stück.
+ * Spalte "Gesamt Stück / Gewicht": "3 x 175 g" ist schon 3 Stück.
  * Die Gebindezahl wird damit nicht multipliziert. kg bleibt kg.
  */
 export function expandRetailQuantity(entry) {

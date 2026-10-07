@@ -10,7 +10,7 @@ export const DISCOUNT_MATRIX_DOC_ID = 'discount_matrix';
 export const DISCOUNT_CATEGORY_OPTIONS = Object.freeze([
   { id: '', label: 'Standard (Alle Warengruppen)' },
   { id: 'MoPro & Kühlware', label: 'MoPro & Kühlware' },
-  { id: 'Milch', label: 'Milch (StevesHof Sonderstaffel)' },
+  { id: 'Milch', label: 'Milch (Sonderstaffel)' },
   { id: 'Fleisch', label: 'Fleisch' },
   { id: 'Trockenware', label: 'Trockenware' },
 ]);
