@@ -54,12 +54,18 @@ service cloud.firestore {
         );
     }
 
-    function hasWurstkuecheModule(tenantId) {
-      return tenantId != 'torfabrik';
+    function isTenantAdmin(tenantId) {
+      return isAdmin(tenantId);
     }
 
-    function hasRetterBoxModule(tenantId) {
-      return tenantId == 'StevesHof_Hauptbetrieb';
+    function hasModule(tenantId, moduleKey) {
+      let tenantPath = /databases/$(database)/documents/tenants/$(tenantId);
+      return exists(tenantPath)
+        && get(tenantPath).data.keys().hasAny(['enabledModules'])
+        && (
+          get(tenantPath).data.enabledModules[moduleKey] == true
+          || (moduleKey == 'wurstkueche' && get(tenantPath).data.enabledModules.kitchen == true)
+        );
     }
 
     // Legacy alias – tenant access requires matching Custom Claim tenantId
@@ -129,15 +135,18 @@ service cloud.firestore {
         && request.resource.data.displayName.size() <= 120
         && request.resource.data.status in ['active', 'inactive'];
       allow update: if isPlatformDevAdmin()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['enabledModules', 'status', 'updatedAt'])
-        && (!('enabledModules' in request.resource.data.diff(resource.data).affectedKeys())
-            || request.resource.data.enabledModules is map)
+             .hasOnly(['status', 'updatedAt'])
         && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
             || request.resource.data.status in ['active', 'inactive']);
-      allow update: if isAdmin(tenantId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enabledModules', 'updatedAt'])
-        && request.resource.data.enabledModules is map;
+      allow update: if isTenantAdmin(tenantId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName', 'updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 120;
       allow delete: if isPlatformDevAdmin();
     }
 
@@ -322,10 +331,10 @@ service cloud.firestore {
 
     match /tenants/{tenantId}/retter_boxen/{document} {
       allow read: if isTenantUser(tenantId)
-        && hasRetterBoxModule(tenantId);
+        && hasModule(tenantId, 'retterBox');
 
       allow create, update: if isEmployeeOrAdmin(tenantId)
-        && hasRetterBoxModule(tenantId)
+        && hasModule(tenantId, 'retterBox')
         && hasOnly([
           'id', 'title', 'date', 'status',
           'items', 'itemCount',
@@ -342,7 +351,7 @@ service cloud.firestore {
         && isIntGteZero(request.resource.data.itemCount);
 
       allow delete: if isAdmin(tenantId)
-        && hasRetterBoxModule(tenantId);
+        && hasModule(tenantId, 'retterBox');
     }
 
     match /tenants/{tenantId}/delivery_note_drafts/{draftId} {
@@ -373,9 +382,9 @@ service cloud.firestore {
 
     match /tenants/{tenantId}/rezepte/{document} {
       allow read: if isTenantUser(tenantId)
-        && hasWurstkuecheModule(tenantId);
+        && hasModule(tenantId, 'wurstkueche');
       allow write: if isAdmin(tenantId)
-        && hasWurstkuecheModule(tenantId);
+        && hasModule(tenantId, 'wurstkueche');
     }
 
     // =========================================================================
@@ -393,9 +402,9 @@ service cloud.firestore {
 
     match /tenants/{tenantId}/produktion_chargen/{document} {
       allow read, create: if isEmployeeOrAdmin(tenantId)
-        && hasWurstkuecheModule(tenantId);
+        && hasModule(tenantId, 'wurstkueche');
       allow update, delete: if isAdmin(tenantId)
-        && hasWurstkuecheModule(tenantId);
+        && hasModule(tenantId, 'wurstkueche');
     }
 
     // Galloway-Zerlegung: Ausbeute-Protokoll im Chargenbuch
@@ -775,20 +784,26 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // SYSTEM ERRORS – Zentrales Error-Reporting (append-only Telemetrie)
+    // SYSTEM ERRORS – mandantenisoliert, append-only, ohne Personenklartext
     // =========================================================================
 
     match /system_errors/{document} {
-      allow read, update, delete: if false;
+      allow read, write: if false;
+    }
 
+    match /tenants/{tenantId}/system_errors/{errorId} {
       allow create: if request.auth != null
-        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.auth.token.tenantId == tenantId
+        && request.resource.data.tenantId == tenantId
         && request.resource.data.keys().hasAll(['tenantId', 'errorCode', 'message', 'timestamp'])
-        && request.resource.data.keys().hasOnly(['tenantId', 'errorCode', 'message', 'timestamp', 'userId', 'context'])
+        && request.resource.data.keys().hasOnly(['tenantId', 'errorCode', 'message', 'timestamp', 'context'])
         && request.resource.data.errorCode is string
         && request.resource.data.message is string
         && request.resource.data.message.size() < 1000
         && request.resource.data.timestamp == request.time;
+
+      allow read: if isTenantAdmin(tenantId);
+      allow update, delete: if false;
     }
 
     // =========================================================================

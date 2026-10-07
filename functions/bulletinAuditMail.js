@@ -1,9 +1,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { ensureAdminApp } = require('./firebaseAdmin');
+const { ensureAdminApp, getAdminDb } = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
-const { isConfiguredParam, readSmtpConfig, DEFAULT_FROM_EMAIL } = require('./runtimeParams');
-
-const OFFICE_EMAIL = DEFAULT_FROM_EMAIL;
+const { isConfiguredParam, readSmtpConfig } = require('./runtimeParams');
 
 function getSmtpConfig() {
   return readSmtpConfig();
@@ -24,9 +22,13 @@ function createSmtpTransport(config) {
   });
 }
 
-function resolveFromAddress(config) {
-  const fromEmail = String(config.fromEmail || config.smtpUser || '').trim();
-  return fromEmail ? { address: fromEmail, name: 'StevesHof Hofladen' } : null;
+function resolveFromAddress(config, profile = {}) {
+  const fromEmail = String(
+    profile.supportEmail || profile.terminalUser || config.fromEmail || config.smtpUser || process.env.FROM_EMAIL || '',
+  ).trim();
+  if (!fromEmail || !fromEmail.includes('@') || fromEmail.toLowerCase() === 'unset') return null;
+  const name = String(profile.betriebsName || profile.name || 'HofSync').trim() || 'HofSync';
+  return { address: fromEmail, name };
 }
 
 function formatAuditTimestamp(value) {
@@ -101,8 +103,10 @@ async function handleBulletinConfirmationAuditMail(event) {
   const config = getSmtpConfig();
   const smtpUser = String(config.smtpUser || '').trim();
   const smtpPass = String(config.smtpPass || '');
-  const from = resolveFromAddress(config);
-  if (!smtpUser || !smtpPass || !from) {
+  const profileSnap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
+  const profile = profileSnap.exists ? (profileSnap.data() || {}) : {};
+  const from = resolveFromAddress(config, profile);
+  if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
     console.warn('[BulletinAudit] SMTP nicht konfiguriert — Audit-Mail übersprungen', { tenantId });
     return null;
   }
@@ -112,9 +116,10 @@ async function handleBulletinConfirmationAuditMail(event) {
   const subject = `Audit: Nachricht des Tages bestätigt — ${employeeName}`;
   const body = buildAuditEmailBody(data, tenantId);
   const transport = createSmtpTransport(config);
+  const officeEmail = String(profile.supportEmail || config.fromEmail || process.env.FROM_EMAIL || '').trim();
 
   const destinations = [
-    { label: 'office', address: OFFICE_EMAIL },
+    { label: 'office', address: officeEmail.includes('@') ? officeEmail : '' },
     { label: 'employee', address: employeeEmail },
   ].filter((entry) => entry.address);
 
@@ -150,59 +155,5 @@ exports.onBulletinConfirmationAuditMail = onDocumentCreated(
     document: 'tenants/{tenantId}/bulletinConfirmations/{confirmationId}',
     region: 'europe-west3',
   },
-  async (event) => {
-    const data = event.data?.data();
-    if (!data) return null;
-
-    const tenantId = event.params.tenantId;
-    if (data.tenantId && data.tenantId !== tenantId) {
-      console.warn('[BulletinAudit] Tenant-Abgleich fehlgeschlagen', { tenantId, docTenant: data.tenantId });
-      return null;
-    }
-
-    const config = getSmtpConfig();
-    const smtpUser = String(config.smtpUser || '').trim();
-    const smtpPass = String(config.smtpPass || '');
-    const from = resolveFromAddress(config);
-    if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
-      console.warn('[BulletinAudit] SMTP nicht konfiguriert — Audit-Mail übersprungen', { tenantId });
-      return null;
-    }
-
-    const employeeName = String(data.employeeName || '').trim() || 'Mitarbeiter/in';
-    const employeeEmail = String(data.profileEmail || '').trim();
-    const subject = `Audit: Nachricht des Tages bestätigt — ${employeeName}`;
-    const body = buildAuditEmailBody(data, tenantId);
-    const transport = createSmtpTransport(config);
-
-    const destinations = [
-      { label: 'office', address: OFFICE_EMAIL },
-      { label: 'employee', address: employeeEmail },
-    ].filter((entry) => entry.address);
-
-    if (!destinations.length) {
-      console.warn('[BulletinAudit] Keine Zieladresse hinterlegt', { tenantId, employeeName });
-      return null;
-    }
-
-    const results = await Promise.all(
-      destinations.map(async ({ label, address }) => {
-        try {
-          await sendAuditMail(transport, from, address, subject, body);
-          console.log('[BulletinAudit] Audit-Mail versendet', { tenantId, label, address });
-          return { label, sent: true };
-        } catch (error) {
-          console.error('[BulletinAudit] SMTP-Fehler', {
-            tenantId,
-            label,
-            address,
-            message: error?.message,
-          });
-          return { label, sent: false, error: error?.message || 'send_failed' };
-        }
-      }),
-    );
-
-    return results;
-  },
+  handleBulletinConfirmationAuditMail,
 );

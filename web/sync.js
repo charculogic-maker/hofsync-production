@@ -1,5 +1,5 @@
 import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
-import { logAndMapOperatorError } from './operator-errors.js';
+import { logAndMapOperatorError, redactTelemetryMessage } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
 const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
@@ -428,7 +428,10 @@ function mapTelemetryErrorCode(entry) {
 }
 
 function buildTelemetryMessage(entry) {
-  return String(entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler').slice(0, 999);
+  return redactTelemetryMessage(
+    entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler',
+    entry,
+  );
 }
 
 function buildTelemetryContext(entry) {
@@ -448,7 +451,6 @@ function buildSystemErrorDocument(entry, firebase) {
     message: buildTelemetryMessage(entry),
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
   };
-  if (entry?.userId) doc.userId = String(entry.userId).slice(0, 128);
   const context = buildTelemetryContext(entry);
   if (context) doc.context = context;
   return doc;
@@ -478,7 +480,7 @@ export async function flushErrorTelemetry() {
           remaining.push(entry);
           continue;
         }
-        await db.collection('system_errors').add(payload);
+        await db.collection('tenants').doc(payload.tenantId).collection('system_errors').add(payload);
       } catch (writeErr) {
         console.warn('[CharcuLogic Telemetrie] system_errors Schreiben fehlgeschlagen:', writeErr);
         remaining.push(entry);

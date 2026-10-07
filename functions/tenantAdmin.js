@@ -76,17 +76,20 @@ function assertProvisionAccess(auth) {
 }
 
 function buildEnabledModules(modules) {
+  const kitchen = modules.kitchen === true || modules.wurstkueche === true;
   return {
-    start: false,
-    team: false,
+    start: modules.start === true,
+    team: modules.team === true,
     mhd: modules.mhd === true,
     receiving: modules.receiving === true,
-    kitchen: modules.kitchen === true,
+    kitchen,
+    wurstkueche: kitchen,
     haccp: modules.haccp === true,
-    knowledge: false,
-    buero: true,
-    chargenDoku: modules.cutting === true,
+    knowledge: modules.knowledge === true,
+    buero: modules.buero === true,
+    chargenDoku: modules.cutting === true || modules.chargenDoku === true,
     cutting: modules.cutting === true,
+    retterBox: modules.retterBox === true,
   };
 }
 
@@ -239,7 +242,7 @@ async function provisionDemoTenantInner(auth, data) {
       displayName: companyName,
       status: 'active',
       enabledModules,
-      demo: true,
+      demo: payload.demo === true,
       provisionedBy: ctx.uid,
       createdAt: now,
       updatedAt: now,
@@ -251,7 +254,11 @@ async function provisionDemoTenantInner(auth, data) {
       displayName: adminName,
       tenantId,
       role: 'admin',
-      allowedModules: { mhd: true, kitchen: true, buero: true },
+      allowedModules: {
+        mhd: modules.mhd === true,
+        kitchen: modules.kitchen === true || modules.wurstkueche === true,
+        buero: modules.buero === true,
+      },
       createdAt: now,
       createdBy: ctx.uid,
       demoProvisioned: true,

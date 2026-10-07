@@ -1,5 +1,5 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { ensureAdminApp } = require('./firebaseAdmin');
+const { ensureAdminApp, getAdminDb } = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const { isConfiguredParam, readSmtpConfig, readTwilioConfig } = require('./runtimeParams');
@@ -26,11 +26,32 @@ function createSmtpTransport(config) {
   });
 }
 
-function resolveFromAddress(config) {
-  const fromEmail = String(config.fromEmail || config.smtpUser || '').trim();
-  return fromEmail
-    ? { address: fromEmail, name: 'StevesHof' }
-    : null;
+function shopLabel(profile = {}) {
+  return String(profile.betriebsName || profile.name || 'Hofladen').trim() || 'Hofladen';
+}
+
+function configuredEmail(...candidates) {
+  return candidates
+    .map((value) => String(value || '').trim())
+    .find((value) => value.includes('@') && value.toLowerCase() !== 'unset')
+    || '';
+}
+
+function resolveFromAddress(config, profile = {}) {
+  const fromEmail = configuredEmail(
+    profile.supportEmail,
+    profile.terminalUser,
+    process.env.FROM_EMAIL,
+    config?.fromEmail,
+    config?.smtpUser,
+  );
+  return fromEmail ? { address: fromEmail, name: shopLabel(profile) } : null;
+}
+
+async function loadTenantProfile(tenantId) {
+  if (!tenantId) return {};
+  const snap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
+  return snap.exists ? (snap.data() || {}) : {};
 }
 
 function parseQuantityValue(value) {
@@ -122,27 +143,36 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function buildCustomerSignal(order) {
+function operatorLabel(order = {}) {
+  const name = String(
+    order.packedBy || order.readyBy || order.preparedBy || order.updatedBy || '',
+  ).trim();
+  return name || 'Das Team';
+}
+
+function buildCustomerSignal(order, profile = {}) {
   const customerName = String(order?.customerName || 'lieber Hofladen-Gast').trim();
   const pickupWindow = formatPickupWindow(order?.readyAt);
   const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
+  const shop = shopLabel(profile);
+  const operator = operatorLabel(order);
   const message = [
     `Hallo ${customerName}, dein Genuss-Paket ist fertig gepackt!`,
-    'Thomas aus der Metzgerei hat alles frisch vorbereitet.',
+    `${operator} hat alles frisch vorbereitet.`,
     `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
     `Du kannst es ab ${pickupWindow} abholen.`,
     'Wir freuen uns auf dich!',
-    'Dein StevesHof-Team.',
+    `Dein ${shop}-Team.`,
   ].join(' ');
 
   const htmlMessage = [
     `<p>Hallo ${escapeHtml(customerName)},</p>`,
     '<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>',
-    '<p>Thomas aus der Metzgerei hat alles frisch vorbereitet.</p>',
+    `<p>${escapeHtml(operator)} hat alles frisch vorbereitet.</p>`,
     `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
     `<p>Du kannst es ab ${escapeHtml(pickupWindow)} abholen.</p>`,
     '<p>Wir freuen uns auf dich!</p>',
-    '<p>Dein StevesHof-Team.</p>',
+    `<p>Dein ${escapeHtml(shop)}-Team.</p>`,
   ].join('\n');
 
   return {
@@ -177,7 +207,7 @@ async function sendCustomerEmail(signal, config, meta) {
 
   const smtpUser = String(config.smtpUser || '').trim();
   const smtpPass = String(config.smtpPass || '');
-  const from = resolveFromAddress(config);
+  const from = resolveFromAddress(config, meta?.profile || {});
   if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
     console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', meta);
     return { channel: 'email', skipped: true, reason: 'not_configured' };
@@ -283,8 +313,9 @@ async function handleOrderReadySendSignal(event) {
     return null;
   }
 
-  const meta = { tenantId, orderId, customerName: after.customerName || null };
-  const signal = buildCustomerSignal(after);
+  const profile = await loadTenantProfile(tenantId);
+  const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
+  const signal = buildCustomerSignal(after, profile);
 
   console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
     ...meta,
