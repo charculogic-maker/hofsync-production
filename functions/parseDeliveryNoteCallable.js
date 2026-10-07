@@ -47,6 +47,7 @@ function assertDeliveryNoteCaller(request) {
 exports.assertDeliveryNoteCaller = assertDeliveryNoteCaller;
 
 function handleProcessDeliveryNoteDraft(event) {
+  // parseDeliveryNoteImage setzt maxOutputTokens auf 8192 und liest alle PDF-Seiten.
   return require('./deliveryNote').handleProcessDeliveryNoteDraft(event);
 }
 

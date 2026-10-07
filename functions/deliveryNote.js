@@ -30,7 +30,14 @@ const EXT_TO_MIME = {
   webp: 'image/webp',
 };
 
+const DELIVERY_NOTE_GENERATION_CONFIG = {
+  temperature: 0.1,
+  responseMimeType: 'application/json',
+  maxOutputTokens: 8192,
+};
+
 const DELIVERY_NOTE_PROMPT = [
+  'THIS DOCUMENT CONTAINS MULTIPLE PAGES (e.g. Page 1 of 4, Page 2 of 4...). You MUST process ALL pages from start to finish and extract every single line item across all pages into the JSON array.',
   'Ignore legal footers, privacy statements, bank accounts, and header boilerplate. Extract ONLY line item table rows to minimize output processing time.',
   'Antworte nur mit einem kompakten JSON-Array, ohne Markdown und ohne weitere Schlüssel.',
   '[{"n":"Name","q":10,"u":"Stk","p":1.83,"t":18.30,"ean":""}]',
@@ -448,11 +455,7 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
   const ai = new GoogleGenerativeAI(apiKey);
   const model = ai.getGenerativeModel({
     model: DELIVERY_NOTE_MODEL,
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: 'application/json',
-      maxOutputTokens: 8192,
-    },
+    generationConfig: DELIVERY_NOTE_GENERATION_CONFIG,
   }, {
     timeout: 110000,
   });
@@ -508,7 +511,10 @@ async function handleProcessDeliveryNoteDraft(event) {
 
   try {
     const loaded = await loadImageFromStorage(tenantId, data.storagePath);
-    const parsed = await parseDeliveryNoteImage(loaded.imageBase64, loaded.mimeType || data.mimeType);
+    const parsed = await parseDeliveryNoteImage(
+      loaded.imageBase64,
+      loaded.mimeType || data.mimeType,
+    );
     const items = JSON.parse(JSON.stringify(parsed.items || []));
     await ref.set({
       status: 'completed',

@@ -2808,17 +2808,21 @@ document.getElementById('app-content')?.addEventListener('input', (e) => {
 }, { passive: true });
 
 // Web Audio API für Taktiles Feedback (Haptik).
-// Der Kontext entsteht erst nach der ersten Geste, sonst blockt der Browser Autoplay.
+// Kein AudioContext beim Laden der Datei — nur nach click, pointerdown oder keydown.
 let audioCtx = null;
-let audioUnlocked = false;
+
+function getAudioContext() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
 
 function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
   try {
-    const activeCtx = ensureAudioContext();
-    if (!activeCtx) return;
-    if (activeCtx.state === 'suspended') {
-      activeCtx.resume();
-    }
+    const activeCtx = audioCtx;
+    if (!activeCtx || activeCtx.state !== 'running') return;
 
     const osc = activeCtx.createOscillator();
     const gain = activeCtx.createGain();
@@ -2840,20 +2844,9 @@ function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
   }
 }
 
-function ensureAudioContext() {
-  if (!audioUnlocked) return null;
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  return audioCtx;
-}
-
-function unlockAudioFromGesture() {
-  audioUnlocked = true;
+function resumeAudioFromGesture() {
   try {
-    const ctx = ensureAudioContext();
-    if (ctx?.state === 'suspended') ctx.resume();
+    getAudioContext();
   } catch (err) {
     console.warn('[CharcuLogic Audio] Unlock fehlgeschlagen:', err);
   }
@@ -2863,16 +2856,17 @@ function bindLazyAudioUnlock() {
   const host = document.body;
   if (!host || host.dataset.audioUnlockBound === '1') return;
   host.dataset.audioUnlockBound = '1';
-  host.addEventListener('pointerdown', unlockAudioFromGesture, { once: true, passive: true });
-  host.addEventListener('click', unlockAudioFromGesture, { once: true });
+  host.addEventListener('pointerdown', resumeAudioFromGesture, true);
+  host.addEventListener('click', resumeAudioFromGesture, true);
+  document.addEventListener('keydown', resumeAudioFromGesture, true);
 }
 
 bindLazyAudioUnlock();
 
 function playFeedbackSound(type) {
   try {
-    const ctx = ensureAudioContext();
-    if (!ctx) return;
+    const ctx = audioCtx;
+    if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
 
     if (type === 'success') {

@@ -542,6 +542,20 @@ export function removeReconciliationBoard() {
   document.getElementById('delivery-reconciliation-overlay')?.remove();
 }
 
+function renderEmptyBoardHint(excludedCount) {
+  const total = reconciliationState.positions.length;
+  const filter = reconciliationState.boardFilter || 'all';
+  const hiddenByCheckbox = reconciliationState.hideExcluded
+    && filter === 'all'
+    && total > 0
+    && excludedCount > 0
+    && excludedCount === total;
+  if (hiddenByCheckbox) {
+    return `<p class="delivery-reconciliation-empty">${excludedCount} Pfand- / Durchlauf-Positionen ausgeblendet. Deaktiviere die Checkbox oben, um sie anzuzeigen.</p>`;
+  }
+  return '<p class="delivery-reconciliation-empty">Keine Positionen in dieser Ansicht.</p>';
+}
+
 function renderBoard() {
   const note = reconciliationState.note;
   if (!note) return;
@@ -578,7 +592,7 @@ function renderBoard() {
         </label>
       </div>
       <div class="delivery-reconciliation-scroll">
-        ${cards || '<p class="delivery-reconciliation-empty">Keine Positionen in dieser Ansicht.</p>'}
+        ${cards || renderEmptyBoardHint(excludedCount)}
       </div>
       <div class="learn-mode-actions delivery-reconciliation-actions">
         ${missing.length
