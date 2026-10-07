@@ -223,6 +223,25 @@ exports.saveReconciledItems = onCall(
   async (request) => handleSaveReconciledItems(request),
 );
 
+exports.reprocessDeliveryNoteDraft = onCall(
+  {
+    region: REGION,
+    enforceAppCheck: false,
+    secrets: ['GEMINI_API_KEY'],
+    timeoutSeconds: 120,
+    memory: '1GiB',
+  },
+  async (request) => {
+    const caller = assertDeliveryNoteCaller(request);
+    const { ensureAdminApp } = require('./firebaseAdmin');
+    ensureAdminApp();
+    return require('./deliveryNote').handleReprocessDeliveryNoteDraft({
+      tenantId: caller.tenantId,
+      draftId: request?.data?.draftId,
+    });
+  },
+);
+
 exports.parseDeliveryNote = onCall(
   {
     region: REGION,

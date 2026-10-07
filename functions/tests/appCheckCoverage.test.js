@@ -12,6 +12,7 @@ const FUNCTIONS_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** @type {{ id: string, file: string, anchor?: string }[]} */
 const APP_CHECK_CALLABLES = [
   { id: 'parseDeliveryNote', file: 'parseDeliveryNoteCallable.js', anchor: 'exports.parseDeliveryNote' },
+  { id: 'reprocessDeliveryNoteDraft', file: 'parseDeliveryNoteCallable.js', anchor: 'exports.reprocessDeliveryNoteDraft' },
   { id: 'saveReconciledItems', file: 'parseDeliveryNoteCallable.js', anchor: 'exports.saveReconciledItems' },
   { id: 'parseMeatLabel', file: 'parseMeatLabelCallable.js', anchor: 'exports.parseMeatLabel' },
   { id: 'verifyTerminalPin', file: 'verifyTerminalPinCallable.js', anchor: 'exports.verifyTerminalPin' },
@@ -64,10 +65,10 @@ describe('App Check coverage – Callable registration contract', () => {
       return sum + (matches?.length || 0);
     }, 0);
     expect(onCallCount).toBe(APP_CHECK_CALLABLES.length);
-    expect(APP_CHECK_CALLABLES).toHaveLength(9);
+    expect(APP_CHECK_CALLABLES).toHaveLength(10);
   });
 
-  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote' && entry.id !== 'saveReconciledItems'))(
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote' && entry.id !== 'reprocessDeliveryNoteDraft' && entry.id !== 'saveReconciledItems'))(
     '$id configures enforceAppCheck: true',
     ({ file, anchor }) => {
       const source = readFunctionSource(file);
@@ -89,6 +90,24 @@ describe('App Check coverage – Callable registration contract', () => {
     const exportBlock = index.slice(exportAt, exportAt + 700);
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
     expect(exportBlock).toMatch(/assertDeliveryNoteCaller/);
+  });
+
+  test('reprocessDeliveryNoteDraft skips App Check and stays inside the signed-in tenant', () => {
+    const source = readFunctionSource('parseDeliveryNoteCallable.js');
+    const block = onCallOptionsSlice(source, 'exports.reprocessDeliveryNoteDraft');
+    expect(block).toMatch(/region:\s*REGION/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(block).toMatch(/handleReprocessDeliveryNoteDraft/);
+    expect(block).toMatch(/assertDeliveryNoteCaller\(request\)/);
+    expect(source).not.toMatch(/StevesHof_Hauptbetrieb/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('reprocessDeliveryNoteDraft'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 800);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/assertDeliveryNoteCaller/);
+    expect(exportBlock).not.toMatch(/onDocumentUpdated/);
   });
 
   test('saveReconciledItems skips App Check and writes only the signed-in tenant', () => {

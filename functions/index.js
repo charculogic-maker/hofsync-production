@@ -286,19 +286,21 @@ lazyExport('processDeliveryNoteDraft', () => firestoreTrigger(
   },
 ));
 
-lazyExport('reprocessDeliveryNoteDraft', () => firestoreTrigger(
-  'google.cloud.firestore.document.v1.updated',
+lazyExport('reprocessDeliveryNoteDraft', () => callable(
   {
-    document: 'tenants/{tenantId}/delivery_note_drafts/{draftId}',
-    region: REGION,
+    ...CALLABLE_BASE_OPTIONS,
+    enforceAppCheck: false,
     secrets: ['GEMINI_API_KEY'],
     timeoutSeconds: 120,
     memory: '1GiB',
   },
-  async (event) => {
-    ensureAdminApp();
-    return require('./parseDeliveryNoteCallable').handleProcessDeliveryNoteDraft(event);
-  },
+  withAdmin(async (request) => {
+    const caller = require('./parseDeliveryNoteCallable').assertDeliveryNoteCaller(request);
+    return require('./deliveryNote').handleReprocessDeliveryNoteDraft({
+      tenantId: caller.tenantId,
+      draftId: request?.data?.draftId,
+    });
+  }),
 ));
 
 lazyExport('notifyTeamEntryCreated', () => firestoreTrigger(

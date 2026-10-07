@@ -508,19 +508,13 @@ function readDraftEvent(event) {
   return { before: null, after: null };
 }
 
-async function handleProcessDeliveryNoteDraft(event) {
-  const tenantId = String(event?.params?.tenantId || '').trim();
-  const draftId = String(event?.params?.draftId || '').trim();
-  const { before, after: data } = readDraftEvent(event);
-  if (!tenantId || !draftId || !data || data.status !== 'processing') return null;
-  if (before?.status === 'processing') return null;
-  if (data.tenantId && data.tenantId !== tenantId) return null;
+function draftRef(tenantId, draftId) {
+  return getAdmin().firestore().doc(`tenants/${tenantId}/delivery_note_drafts/${draftId}`);
+}
 
-  const admin = getAdmin();
-  const db = admin.firestore();
-  const ref = db.doc(`tenants/${tenantId}/delivery_note_drafts/${draftId}`);
+async function runDraftParse(tenantId, draftId, data) {
+  const ref = draftRef(tenantId, draftId);
   const FieldValue = require('firebase-admin/firestore').FieldValue;
-
   try {
     const loaded = await loadImageFromStorage(tenantId, data.storagePath);
     const parsed = await parseDeliveryNoteImage(
@@ -528,11 +522,12 @@ async function handleProcessDeliveryNoteDraft(event) {
       loaded.mimeType || data.mimeType,
     );
     const items = JSON.parse(JSON.stringify(parsed.items || []));
+    const deliveryDate = parsed.deliveryDate || data.deliveryDate || '';
     await ref.set({
       status: 'completed',
       items,
       itemCount: items.length,
-      deliveryDate: parsed.deliveryDate || data.deliveryDate || '',
+      deliveryDate,
       completedAt: FieldValue.serverTimestamp(),
       error: '',
     }, { merge: true });
@@ -540,16 +535,70 @@ async function handleProcessDeliveryNoteDraft(event) {
       tenantId,
       draftId,
       itemCount: items.length,
-      deliveryDate: parsed.deliveryDate || data.deliveryDate || '',
+      deliveryDate,
     });
-    return { status: 'completed', itemCount: items.length };
+    return { status: 'completed', items, itemCount: items.length, deliveryDate };
   } catch (err) {
     console.error('[processDeliveryNoteDraft] Analyse fehlgeschlagen:', err);
     await ref.set({
       status: 'failed',
       error: String(err?.message || 'Analyse fehlgeschlagen.').slice(0, 300),
     }, { merge: true });
+    throw err;
+  }
+}
+
+async function handleProcessDeliveryNoteDraft(event) {
+  const tenantId = String(event?.params?.tenantId || '').trim();
+  const draftId = String(event?.params?.draftId || '').trim();
+  const { before, after: data } = readDraftEvent(event);
+  if (!tenantId || !draftId || !data || data.status !== 'processing') return null;
+  if (before?.status === 'processing') return null;
+  if (data.tenantId && data.tenantId !== tenantId) return null;
+  try {
+    return await runDraftParse(tenantId, draftId, data);
+  } catch (err) {
     return { status: 'failed' };
+  }
+}
+
+function assertDraftId(value) {
+  const id = String(value || '').trim();
+  if (!id || id.length > 180 || /[/\\]/.test(id) || id.includes('..') || id.startsWith('.')) {
+    throw new HttpsError('invalid-argument', 'Ungültige Entwurf-ID.');
+  }
+  return id;
+}
+
+async function handleReprocessDeliveryNoteDraft({ tenantId, draftId }) {
+  const cleanTenant = String(tenantId || '').trim();
+  const cleanDraftId = assertDraftId(draftId);
+  if (!cleanTenant) {
+    throw new HttpsError('permission-denied', 'Mandant fehlt.');
+  }
+  const ref = draftRef(cleanTenant, cleanDraftId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError('not-found', 'Entwurf nicht gefunden.');
+  }
+  const data = snap.data() || {};
+  if (data.tenantId && data.tenantId !== cleanTenant) {
+    throw new HttpsError('permission-denied', 'Entwurf gehört zu einem anderen Mandanten.');
+  }
+  if (!data.storagePath) {
+    throw new HttpsError('failed-precondition', 'Keine gespeicherte Datei am Entwurf.');
+  }
+  await ref.set({
+    status: 'processing',
+    error: '',
+    items: [],
+    itemCount: 0,
+  }, { merge: true });
+  try {
+    return await runDraftParse(cleanTenant, cleanDraftId, data);
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    throw new HttpsError('internal', 'Lieferschein konnte nicht erneut analysiert werden.');
   }
 }
 
@@ -608,6 +657,7 @@ module.exports = {
   parseSafeJsonArray,
   splitDeliveryDate,
   handleProcessDeliveryNoteDraft,
+  handleReprocessDeliveryNoteDraft,
   sanitizeGeminiResponseText,
   handleParseDeliveryNote,
   normalizeMimeType,

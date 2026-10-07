@@ -308,33 +308,7 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/delivery_note_drafts/{draftId} {
-      allow read: if isTenantUser(tenantId);
-
-      allow create: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.keys().hasOnly([
-          'id', 'status', 'storagePath', 'mimeType', 'fileName',
-          'tenantId', 'deliveryDate', 'itemCount', 'items', 'createdAt'
-        ])
-        && request.resource.data.status == 'processing'
-        && request.resource.data.tenantId == tenantId
-        && request.resource.data.itemCount == 0
-        && request.resource.data.items is list
-        && request.resource.data.items.size() == 0
-        && isNonEmptyString(request.resource.data.storagePath)
-        && isNonEmptyString(request.resource.data.deliveryDate)
-        && isNonEmptyString(request.resource.data.mimeType);
-
-      allow update: if isEmployeeOrAdmin(tenantId)
-        && resource.data.status in ['completed', 'failed']
-        && request.resource.data.status == 'processing'
-        && request.resource.data.storagePath == resource.data.storagePath
-        && request.resource.data.tenantId == resource.data.tenantId
-        && request.resource.data.itemCount == 0
-        && request.resource.data.items is list
-        && request.resource.data.items.size() == 0
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'error', 'items', 'itemCount']);
-
-      allow delete: if false;
+      allow read, create, update, delete: if request.auth != null && request.auth.token.tenantId == tenantId;
     }
 
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
