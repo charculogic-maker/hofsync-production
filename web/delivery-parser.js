@@ -22,7 +22,7 @@ import {
   showReconcileOverlay,
   removeReconcileOverlay,
 } from './delivery-reconcile.js';
-import { openParsedDeliveryBoard } from './delivery-reconciliation.js';
+import { loadCatalogEanIndex, lookupCatalogEan, openParsedDeliveryBoard } from './delivery-reconciliation.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -194,6 +194,8 @@ function normalizeParsedItems(items) {
       artikel: String(entry?.artikel || entry?.name || '').trim(),
       menge: Number.isFinite(menge) && menge > 0 ? menge : 1,
       kategorie: String(entry?.kategorie || entry?.category || '').trim(),
+      artikelnummer: String(entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
+      ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
     };
   }).filter((row) => row.artikel);
 }
@@ -439,6 +441,8 @@ async function schreibeMhdPosten(row, author, nowIso) {
     eingangMenge: row.menge,
     kategorie: mhdKategorie,
     soldOut: false,
+    ean: row.ean || '',
+    barcode: row.ean || '',
     source: 'wareneingang-lieferschein',
     postentyp: 'wareneingang',
     wareneingangAt: nowIso,
@@ -481,7 +485,13 @@ async function bucheLieferungEin(rows) {
   try {
     parserState.saveInFlight = true;
     let hatWartende = false;
+    const catalog = await loadCatalogEanIndex();
     for (const row of rows) {
+      row.ean = lookupCatalogEan(catalog, {
+        name: row.artikel,
+        articleNumber: row.artikelnummer,
+        ean: row.ean,
+      });
       await erhoeheBestand(row, author, nowIso);
       const result = await schreibeMhdPosten(row, author, nowIso);
       if (result === 'queued') hatWartende = true;

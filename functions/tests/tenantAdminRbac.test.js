@@ -269,6 +269,14 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(slugifyTenantId('  Bio-Hof Müller  ')).toBe('bio_hof_mueller');
   });
 
+  test('listPlatformTenants rejects a shop employee', async () => {
+    const { handleListPlatformTenants } = await import('../tenantAdmin.js');
+    await expect(handleListPlatformTenants({
+      auth: authAs({ tenantId: TENANT_A, role: 'employee', email: 'employee@example.de' }),
+      data: {},
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
   test('provisionDemoTenant rejects employee caller', async () => {
     const { handleProvisionDemoTenant } = await import('../tenantAdmin.js');
     let caught = null;

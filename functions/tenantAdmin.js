@@ -741,6 +741,38 @@ async function provisionNewCustomerTenantInner({
   };
 }
 
+function assertPlatformTenantReader(auth) {
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
+  }
+  const token = auth.token || {};
+  const email = String(token.email || '').trim().toLowerCase();
+  if (email === 'patrik@charculogic.de' || token.superAdmin === true || isSuperAdminForDashboard(auth)) {
+    return { uid: auth.uid };
+  }
+  throw new HttpsError('permission-denied', 'Die Betriebsliste ist nur für die Plattform-Verwaltung sichtbar.');
+}
+
+async function handleListPlatformTenants(request) {
+  assertPlatformTenantReader(request?.auth);
+  const snap = await getAdminDb().collection('tenants').get();
+  const tenants = snap.docs.map((doc) => {
+    const data = doc.data() || {};
+    const name = String(data.displayName || data.name || data.betriebsName || doc.id).trim() || doc.id;
+    const inactive = data.status === 'inactive' || data.active === false;
+    return {
+      id: doc.id,
+      name,
+      tier: String(data.tier || ''),
+      status: inactive ? 'inactive' : 'active',
+      enabledModules: data.enabledModules && typeof data.enabledModules === 'object'
+        ? data.enabledModules
+        : {},
+    };
+  }).sort((left, right) => left.id.localeCompare(right.id, 'de'));
+  return { tenants };
+}
+
 async function handleProvisionNewCustomerTenant(request) {
   const ctx = assertSuperAdmin(request?.auth);
   const data = request?.data && typeof request.data === 'object' ? request.data : {};
@@ -759,6 +791,7 @@ exports.normalizeModules = normalizeModules;
 exports.assertProvisionAccess = assertProvisionAccess;
 exports.handleProvisionDemoTenant = handleProvisionDemoTenant;
 exports.handleSetTenantModules = handleSetTenantModules;
+exports.handleListPlatformTenants = handleListPlatformTenants;
 exports.handleProvisionNewCustomerTenant = handleProvisionNewCustomerTenant;
 exports.provisionNewCustomerTenantInner = provisionNewCustomerTenantInner;
 exports.deactivateTenantForBilling = deactivateTenantForBilling;

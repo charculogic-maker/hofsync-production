@@ -14,7 +14,7 @@ import {
   writeLocalProductMasterEntry,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
-import { bindDeliveryReconcileMain } from './delivery-reconciliation.js';
+import { bindDeliveryReconcileMain, loadCatalogEanIndex, lookupCatalogEan } from './delivery-reconciliation.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
@@ -6924,8 +6924,15 @@ async function finalizeDelivery() {
       offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
     });
 
+    const catalog = await loadCatalogEanIndex();
     const mhdWrites = currentDeliveryItems.map(async (item) => {
-      const record = buildMhdRecordFromDeliveryItem(item, head, deliveryId, mhdItemStatus, meisterOverrideReason);
+      const matchedEan = lookupCatalogEan(catalog, {
+        name: item.product,
+        articleNumber: item.artikelnummer || item.articleNumber || '',
+        ean: item.barcode,
+      });
+      const line = matchedEan ? { ...item, barcode: matchedEan } : item;
+      const record = buildMhdRecordFromDeliveryItem(line, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
       const writeOp = record._mhdWriteOp || 'set';
       const qtyFrom = Number(record._qtyFrom);

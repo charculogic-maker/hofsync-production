@@ -9,6 +9,7 @@ function normalizeEmail(value) {
 function isSuperAdmin(auth) {
   const email = normalizeEmail(auth?.token?.email || auth?.email);
   if (email === SUPER_ADMIN_EMAIL) return true;
+  if (auth?.token?.superAdmin === true) return true;
   return SUPER_ADMIN_UIDS.has(String(auth?.uid || '').trim());
 }
 

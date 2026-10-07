@@ -1260,6 +1260,15 @@ function renderSingleTenantPanel(tenantId, data = {}) {
 }
 
 let setTenantModulesCallable = null;
+let listPlatformTenantsCallable = null;
+
+function getListPlatformTenantsCallable() {
+  if (listPlatformTenantsCallable) return listPlatformTenantsCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  listPlatformTenantsCallable = createHttpsCallable('listPlatformTenants', undefined, firebaseApi, FUNCTIONS_REGION);
+  return listPlatformTenantsCallable;
+}
 
 function getSetTenantModulesCallable() {
   if (setTenantModulesCallable) return setTenantModulesCallable;
@@ -2082,7 +2091,8 @@ function bindTenantSelector(dashboardStateRef, tenants) {
     });
   };
 
-  if (activeId) {
+  (Array.isArray(tenants) ? tenants : []).forEach(pushTenant);
+  if (activeId && !seen.has(activeId)) {
     pushTenant({
       id: activeId,
       data: {
@@ -2094,7 +2104,6 @@ function bindTenantSelector(dashboardStateRef, tenants) {
       },
     });
   }
-  (Array.isArray(tenants) ? tenants : []).forEach(pushTenant);
 
   select.innerHTML = merged
     .slice()
@@ -2114,6 +2123,16 @@ function bindTenantSelector(dashboardStateRef, tenants) {
   }
   dashboardStateRef.tenantCatalog = merged;
   dashboardStateRef.selectedTenantId = String(select.value || activeId || '').trim();
+  const selectedNow = merged.find((item) => item.id === dashboardStateRef.selectedTenantId);
+  if (selectedNow?.data) {
+    dashboardStateRef.tenantDisplayName = String(
+      selectedNow.data.displayName || dashboardStateRef.tenantDisplayName || selectedNow.id,
+    ).trim();
+    dashboardStateRef.tenantStatus = selectedNow.data.status === 'inactive' ? 'inactive' : 'active';
+    if (selectedNow.data.enabledModules && typeof selectedNow.data.enabledModules === 'object') {
+      dashboardStateRef.tenantModules = { ...selectedNow.data.enabledModules };
+    }
+  }
 
   if (wrap) {
     wrap.hidden = !dashboardStateRef.selectedTenantId;
@@ -2237,37 +2256,65 @@ function bindDevDashboardTabs() {
   });
 }
 
+function platformTenantRows(entries) {
+  return (Array.isArray(entries) ? entries : []).map((entry) => ({
+    id: String(entry?.id || '').trim(),
+    data: {
+      displayName: String(entry?.name || entry?.id || '').trim(),
+      tier: String(entry?.tier || ''),
+      status: entry?.status === 'inactive' ? 'inactive' : 'active',
+      enabledModules: entry?.enabledModules && typeof entry.enabledModules === 'object'
+        ? entry.enabledModules
+        : {},
+    },
+  })).filter((entry) => entry.id);
+}
+
+async function loadTenantsList(statusEl) {
+  const unavailable = 'Die Betriebsliste ist für diesen Zugang nicht verfügbar. Der aktuelle Betrieb bleibt ausgewählt.';
+  const callable = getListPlatformTenantsCallable();
+  if (!callable) {
+    renderTenantTable([], { emptyMessage: unavailable });
+    bindTenantSelector(dashboardState, []);
+    return;
+  }
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({});
+    const tenants = platformTenantRows(result?.data?.tenants);
+    renderTenantTable(tenants, {
+      emptyMessage: tenants.length ? '' : EMPTY_TENANTS_MESSAGE,
+    });
+    bindTenantSelector(dashboardState, tenants);
+    fillSettingsForm(dashboardState);
+    renderOverviewCards(dashboardState);
+    void refreshEmployeeTable(dashboardState);
+    if (statusEl && tenants.length && dashboardState.isSuperAdmin) {
+      const currentLabel = dashboardState.tenantDisplayName || dashboardState.selectedTenantId;
+      statusEl.textContent = currentLabel
+        ? `Angemeldet · ${currentLabel}`
+        : `${tenants.length} Betrieb${tenants.length === 1 ? '' : 'e'} geladen`;
+    }
+  } catch (err) {
+    console.error('[Dev-Dashboard] Mandanten-Liste (Plattform) fehlgeschlagen:', err);
+    const emptyMessage = isPermissionDeniedError(err)
+      ? unavailable
+      : 'Betriebe konnten gerade nicht geladen werden.';
+    renderTenantTable([], { emptyMessage });
+    bindTenantSelector(dashboardState, []);
+    if (statusEl && dashboardState.selectedTenantId) {
+      statusEl.textContent = `Angemeldet als ${dashboardState.actorEmail || 'Admin'} · ${
+        dashboardState.tenantDisplayName || dashboardState.selectedTenantId
+      }`;
+    }
+  }
+}
+
 function subscribeAllTenants(db, statusEl) {
   if (tenantsUnsubscribe) tenantsUnsubscribe();
-  tenantsUnsubscribe = db.collection('tenants').onSnapshot(
-    (snap) => {
-      const tenants = snap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
-      renderTenantTable(tenants, {
-        emptyMessage: tenants.length ? '' : EMPTY_TENANTS_MESSAGE,
-      });
-      bindTenantSelector(dashboardState, tenants);
-      if (statusEl && tenants.length && dashboardState.isSuperAdmin) {
-        const currentLabel = dashboardState.tenantDisplayName || dashboardState.selectedTenantId;
-        statusEl.textContent = currentLabel
-          ? `Angemeldet · ${currentLabel}`
-          : `${tenants.length} Betrieb${tenants.length === 1 ? '' : 'e'} geladen`;
-      }
-    },
-    (err) => {
-      console.error('[Dev-Dashboard] Mandanten-Liste (Plattform) fehlgeschlagen:', err);
-      const emptyMessage = isPermissionDeniedError(err)
-        ? 'Die Betriebsliste ist für diesen Zugang nicht verfügbar. Der aktuelle Betrieb bleibt ausgewählt.'
-        : 'Betriebe konnten gerade nicht geladen werden.';
-      renderTenantTable([], { emptyMessage });
-      bindTenantSelector(dashboardState, []);
-      if (statusEl && dashboardState.selectedTenantId) {
-        statusEl.textContent = `Angemeldet als ${dashboardState.actorEmail || 'Admin'} · ${
-          dashboardState.tenantDisplayName || dashboardState.selectedTenantId
-        }`;
-      }
-    },
-  );
-  return tenantsUnsubscribe;
+  tenantsUnsubscribe = null;
+  void loadTenantsList(statusEl);
+  return () => {};
 }
 
 function subscribeSingleTenant(db, tenantId, statusEl) {

@@ -3,6 +3,7 @@
  * (`mhd_liste` / laufende Lieferung) und Stammdaten.
  */
 import { createHttpsCallable } from './firebase-functions.js';
+import { getTenantCollection } from './tenant-db.js';
 import {
   formatIsoToGerman,
   initGermanDateInputs,
@@ -105,7 +106,87 @@ function digitsOnly(value) {
 
 function eanKey(value) {
   const digits = digitsOnly(value);
-  return digits.length >= 8 ? digits : '';
+  return digits.length >= 8 && digits.length <= 14 ? digits : '';
+}
+
+const SUPPLIER_ARTICLE_KEYS = [
+  'artikelnummer',
+  'artnr',
+  'artikelNr',
+  'sku',
+  'itemNumber',
+  'lieferantenArtNr',
+  'supplierArticleNumber',
+  'articleNumber',
+  'nummer',
+];
+
+function foldCatalogName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function consumerEan(value) {
+  const digits = digitsOnly(value);
+  return digits.length >= 8 && digits.length <= 14 ? digits : '';
+}
+
+/**
+ * Liefert die Verbraucher-EAN aus den Stammdaten, wenn die Rechnung nur
+ * eine Lieferanten-Artikelnummer oder den Titel nennt.
+ */
+export function lookupCatalogEan(index, { name = '', articleNumber = '', ean = '' } = {}) {
+  const direct = consumerEan(ean);
+  if (direct) return direct;
+  if (!index) return '';
+  const rawDigits = digitsOnly(ean);
+  const article = digitsOnly(articleNumber)
+    || (rawDigits.length >= 4 && rawDigits.length <= 8 ? rawDigits : '');
+  if (article && index.byArticle?.has(article)) return index.byArticle.get(article);
+  const folded = foldCatalogName(name);
+  if (folded && index.byName?.has(folded)) return index.byName.get(folded);
+  return '';
+}
+
+export async function loadCatalogEanIndex() {
+  const byArticle = new Map();
+  const byName = new Map();
+  const ambiguousNames = new Set();
+  try {
+    const snap = await getTenantCollection('stammdaten').limit(400).get();
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const ean = consumerEan(data.ean || data.barcode || (consumerEan(doc.id) ? doc.id : ''));
+      if (!ean) return;
+      SUPPLIER_ARTICLE_KEYS.forEach((key) => {
+        const article = digitsOnly(data[key]);
+        if (article.length >= 4 && article.length <= 8 && article !== ean) {
+          byArticle.set(article, ean);
+        }
+      });
+      const labels = [data.name, data.artikel, data.articleName];
+      labels.join(' ').match(/\b(\d{5,8})\b/g)?.forEach((token) => {
+        if (token !== ean) byArticle.set(token, ean);
+      });
+      labels.forEach((label) => {
+        const folded = foldCatalogName(label);
+        if (!folded) return;
+        if (byName.has(folded) && byName.get(folded) !== ean) {
+          ambiguousNames.add(folded);
+          return;
+        }
+        byName.set(folded, ean);
+      });
+    });
+  } catch (err) {
+    console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
+  }
+  ambiguousNames.forEach((folded) => byName.delete(folded));
+  return { byArticle, byName };
 }
 
 function readNumber(...values) {
@@ -762,6 +843,24 @@ async function bookPositions(positions) {
     .map((position, index) => planClientBook(position, position.sourceItem?.index ?? index))
     .filter(Boolean);
   if (!plans.length) return 0;
+  const catalog = await loadCatalogEanIndex();
+  plans.forEach((plan) => {
+    const matched = lookupCatalogEan(catalog, {
+      name: plan.item?.rawName,
+      articleNumber: plan.item?.articleNumber,
+      ean: plan.item?.ean,
+    });
+    if (!matched) return;
+    plan.item.ean = matched;
+    if (plan.requestItem?.mhdData) {
+      plan.requestItem.mhdData.ean = matched;
+      plan.requestItem.mhdData.barcode = matched;
+    }
+    if (plan.masterPayload) {
+      plan.masterPayload.ean = matched;
+      plan.masterPayload.barcode = matched;
+    }
+  });
   await callSaveReconciledItems(plans.map((plan) => plan.requestItem));
   plans.forEach(rememberBooked);
   return plans.length;

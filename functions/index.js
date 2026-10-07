@@ -214,6 +214,15 @@ lazyExport('manageTenantEmployees', () => callable(
   withAdmin(async (request) => require('./manageTenantEmployees').handleManageTenantEmployees(request)),
 ));
 
+lazyExport('listPlatformTenants', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    cors: true,
+    enforceAppCheck: false,
+  },
+  withAdmin(async (request) => require('./tenantAdmin').handleListPlatformTenants(request)),
+));
+
 lazyExport('setTenantModules', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,
