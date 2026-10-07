@@ -48,6 +48,9 @@ const reconciliationState = {
   quantityOverrides: new Map(),
   boardFilter: 'all',
   hideExcluded: true,
+  draftId: '',
+  storagePath: '',
+  reparseInFlight: false,
   busy: false,
   ocrInFlight: false,
 };
@@ -539,6 +542,8 @@ function renderFilterButton(id, label, count, active) {
 }
 
 export function removeReconciliationBoard() {
+  stopReparseWatch();
+  reconciliationState.reparseInFlight = false;
   document.getElementById('delivery-reconciliation-overlay')?.remove();
 }
 
@@ -572,7 +577,10 @@ function renderBoard() {
   const body = `
     <div class="learn-mode-card delivery-reconciliation-card" role="dialog" aria-modal="true" aria-labelledby="delivery-reconciliation-title">
       <div class="delivery-reconciliation-head">
-        <div class="learn-mode-title" id="delivery-reconciliation-title">Soll-Ist Abgleich Board</div>
+        <div class="delivery-reconciliation-title-row">
+          <div class="learn-mode-title" id="delivery-reconciliation-title">Soll-Ist Abgleich Board</div>
+          ${reconciliationState.draftId ? `<button type="button" class="btn btn-secondary delivery-reconciliation-reparse" data-reconcile-action="reparse" ${reconciliationState.reparseInFlight ? 'disabled' : ''}>🔄 Beleg neu analysieren</button>` : ''}
+        </div>
         <p class="delivery-reconciliation-header">
           <span>${escapeHtml(note.supplier)}</span>
           <span>${escapeHtml(note.date)}</span>
@@ -766,6 +774,17 @@ async function onBoardClick(event) {
     removeReconciliationBoard();
     return;
   }
+  if (action === 'reparse') {
+    try {
+      await reparseCurrentDraft();
+    } catch (err) {
+      console.error('[DeliveryReconciliation] Neuanalyse fehlgeschlagen:', err);
+      reconciliationState.reparseInFlight = false;
+      if (document.getElementById('delivery-reconciliation-overlay')) renderBoard();
+      window.showToast?.(err?.message || 'Beleg konnte nicht neu analysiert werden.', 'error');
+    }
+    return;
+  }
   reconciliationState.busy = true;
   button.disabled = true;
   try {
@@ -800,6 +819,8 @@ export function renderReconciliationModal(data) {
   const payload = data && typeof data === 'object' ? data : {};
   const items = Array.isArray(payload.items) ? payload.items : [];
   return openParsedDeliveryBoard({
+    draftId: payload.draftId || '',
+    storagePath: payload.storagePath || '',
     supplier: payload.supplier || payload.lieferant,
     invoiceNumber: payload.invoiceNumber || payload.belegnummer,
     date: payload.date || payload.datum,
@@ -808,6 +829,8 @@ export function renderReconciliationModal(data) {
 }
 
 export function openParsedDeliveryBoard(payload) {
+  reconciliationState.draftId = payload?.draftId || '';
+  reconciliationState.storagePath = payload?.storagePath || '';
   reconciliationState.boardFilter = 'all';
   reconciliationState.hideExcluded = true;
   reconciliationState.note = normalizeNote(payload);
@@ -911,9 +934,97 @@ export function openDeliveryNoteDraft(draft) {
     return;
   }
   renderReconciliationModal({
+    draftId: draft.id,
+    storagePath: draft.storagePath || '',
     supplier: draft.supplier || draft.lieferant,
     date: formatIsoToGerman(draft.deliveryDate) || draft.deliveryDate,
     items,
+  });
+}
+
+let reparseUnsubscribe = null;
+let reparseSettle = null;
+
+function detachReparseListener() {
+  if (reparseUnsubscribe) {
+    reparseUnsubscribe();
+    reparseUnsubscribe = null;
+  }
+}
+
+function stopReparseWatch() {
+  detachReparseListener();
+  if (reparseSettle) {
+    const settle = reparseSettle;
+    reparseSettle = null;
+    settle();
+  }
+}
+
+async function reparseCurrentDraft() {
+  const draftId = String(reconciliationState.draftId || '').trim();
+  const tenantId = String(reconciliationState.tenantId || '').trim();
+  const firebase = typeof reconciliationState.getFirebase === 'function'
+    ? reconciliationState.getFirebase()
+    : null;
+  if (!draftId || !tenantId || !firebase?.firestore) {
+    window.showToast?.('Dieser Beleg hat keine gespeicherte Datei.', 'warning');
+    return;
+  }
+  const ref = firebase.firestore()
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('delivery_note_drafts')
+    .doc(draftId);
+  reconciliationState.reparseInFlight = true;
+  renderBoard();
+  stopReparseWatch();
+  await ref.update({
+    status: 'processing',
+    error: '',
+    items: [],
+    itemCount: 0,
+  });
+  window.showToast?.('Beleg wird neu analysiert. Das kann eine Minute dauern.', 'info');
+  let sawProcessing = false;
+  await new Promise((resolve, reject) => {
+    reparseSettle = resolve;
+    reparseUnsubscribe = ref.onSnapshot((snapshot) => {
+      const data = snapshot.data() || {};
+      if (data.status === 'processing') {
+        sawProcessing = true;
+        return;
+      }
+      if (!sawProcessing) return;
+      detachReparseListener();
+      const finish = reparseSettle;
+      reparseSettle = null;
+      reconciliationState.reparseInFlight = false;
+      if (!document.getElementById('delivery-reconciliation-overlay')) {
+        finish?.();
+        return;
+      }
+      if (data.status === 'failed') {
+        reject(new Error(data.error || 'Analyse fehlgeschlagen.'));
+        return;
+      }
+      const items = Array.isArray(data.items) ? data.items : [];
+      reconciliationState.storagePath = data.storagePath || reconciliationState.storagePath;
+      reconciliationState.note = normalizeNote({
+        supplier: reconciliationState.note?.supplier,
+        date: formatIsoToGerman(data.deliveryDate) || data.deliveryDate || reconciliationState.note?.date,
+        items,
+      });
+      reconciliationState.boardFilter = 'all';
+      refreshBoard();
+      window.showToast?.(`${items.length} Positionen aus allen Seiten übernommen.`, 'success');
+      finish?.();
+    }, (err) => {
+      detachReparseListener();
+      reparseSettle = null;
+      reconciliationState.reparseInFlight = false;
+      reject(err);
+    });
   });
 }
 

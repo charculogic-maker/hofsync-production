@@ -4972,6 +4972,18 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   background: var(--surface-color, #fff);
 }
 
+.delivery-reconciliation-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.delivery-reconciliation-reparse {
+  min-height: 48px;
+}
+
 .delivery-reconciliation-header {
   display: flex;
   flex-wrap: wrap;

@@ -37,7 +37,7 @@ const DELIVERY_NOTE_GENERATION_CONFIG = {
 };
 
 const DELIVERY_NOTE_PROMPT = [
-  'THIS DOCUMENT CONTAINS MULTIPLE PAGES (e.g. Page 1 of 4, Page 2 of 4...). You MUST process ALL pages from start to finish and extract every single line item across all pages into the JSON array.',
+  'This is a 4-page B2B wholesale invoice. Extract EVERY line item from ALL pages (Page 1 through Page 4). Do NOT stop after page 1.',
   'Ignore legal footers, privacy statements, bank accounts, and header boilerplate. Extract ONLY line item table rows to minimize output processing time.',
   'Antworte nur mit einem kompakten JSON-Array, ohne Markdown und ohne weitere Schlüssel.',
   '[{"n":"Name","q":10,"u":"Stk","p":1.83,"t":18.30,"ean":""}]',
@@ -496,12 +496,24 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
   };
 }
 
+function readDraftEvent(event) {
+  const payload = event?.data;
+  if (payload && typeof payload.after?.data === 'function') {
+    const before = typeof payload.before?.data === 'function' ? payload.before.data() : null;
+    return { before, after: payload.after.data() };
+  }
+  if (payload && typeof payload.data === 'function') {
+    return { before: null, after: payload.data() };
+  }
+  return { before: null, after: null };
+}
+
 async function handleProcessDeliveryNoteDraft(event) {
   const tenantId = String(event?.params?.tenantId || '').trim();
   const draftId = String(event?.params?.draftId || '').trim();
-  const snapshot = event?.data;
-  const data = typeof snapshot?.data === 'function' ? snapshot.data() : null;
+  const { before, after: data } = readDraftEvent(event);
   if (!tenantId || !draftId || !data || data.status !== 'processing') return null;
+  if (before?.status === 'processing') return null;
   if (data.tenantId && data.tenantId !== tenantId) return null;
 
   const admin = getAdmin();

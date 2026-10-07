@@ -2808,7 +2808,8 @@ document.getElementById('app-content')?.addEventListener('input', (e) => {
 }, { passive: true });
 
 // Web Audio API für Taktiles Feedback (Haptik).
-// Kein AudioContext beim Laden der Datei — nur nach click, pointerdown oder keydown.
+// Beim Start, bei DOM-Updates und bei der Entwurfswiederherstellung bleibt der Kontext unberührt.
+window.userInteracted = false;
 let audioCtx = null;
 
 function getAudioContext() {
@@ -2819,7 +2820,17 @@ function getAudioContext() {
   return audioCtx;
 }
 
+function markUserInteracted() {
+  window.userInteracted = true;
+  try {
+    getAudioContext();
+  } catch (err) {
+    console.warn('[CharcuLogic Audio] Unlock fehlgeschlagen:', err);
+  }
+}
+
 function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
+  if (!window.userInteracted) return;
   try {
     const activeCtx = audioCtx;
     if (!activeCtx || activeCtx.state !== 'running') return;
@@ -2844,26 +2855,18 @@ function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
   }
 }
 
-function resumeAudioFromGesture() {
-  try {
-    getAudioContext();
-  } catch (err) {
-    console.warn('[CharcuLogic Audio] Unlock fehlgeschlagen:', err);
-  }
-}
-
 function bindLazyAudioUnlock() {
   const host = document.body;
   if (!host || host.dataset.audioUnlockBound === '1') return;
   host.dataset.audioUnlockBound = '1';
-  host.addEventListener('pointerdown', resumeAudioFromGesture, true);
-  host.addEventListener('click', resumeAudioFromGesture, true);
-  document.addEventListener('keydown', resumeAudioFromGesture, true);
+  host.addEventListener('pointerdown', markUserInteracted);
+  host.addEventListener('click', markUserInteracted);
 }
 
 bindLazyAudioUnlock();
 
 function playFeedbackSound(type) {
+  if (!window.userInteracted) return;
   try {
     const ctx = audioCtx;
     if (!ctx || ctx.state !== 'running') return;

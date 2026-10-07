@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261007-delivery-multipage-v1';
+const CACHE_NAME = 'charculogic-v20261007-delivery-reparse-v1';
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 const RELEASED_AT = '2026-10-05T19:15:00+02:00';
 
