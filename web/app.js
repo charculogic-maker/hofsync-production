@@ -2781,19 +2781,24 @@ function snapshotFormFields() {
 function restoreDraftFields(fieldIds) {
   const draft = readDraftStore();
   if (!draft) return 0;
+  draftAudioLocked = true;
   let restored = 0;
-  const idsToCheck = fieldIds || Object.keys(draft.fields);
-  for (const key of idsToCheck) {
-    const entry = draft.fields[key];
-    if (!entry) continue;
-    const el = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
-    if (!el) continue;
-    if (entry.t === 'checkbox' || entry.t === 'radio') {
-      el.checked = !!entry.v;
-    } else {
-      el.value = entry.v ?? '';
+  try {
+    const idsToCheck = fieldIds || Object.keys(draft.fields);
+    for (const key of idsToCheck) {
+      const entry = draft.fields[key];
+      if (!entry) continue;
+      const el = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+      if (!el) continue;
+      if (entry.t === 'checkbox' || entry.t === 'radio') {
+        el.checked = !!entry.v;
+      } else {
+        el.value = entry.v ?? '';
+      }
+      restored++;
     }
-    restored++;
+  } finally {
+    draftAudioLocked = false;
   }
   if (restored > 0) {
     isUiDirty = true;
@@ -2811,8 +2816,10 @@ document.getElementById('app-content')?.addEventListener('input', (e) => {
 // Beim Start, bei DOM-Updates und bei der Entwurfswiederherstellung bleibt der Kontext unberührt.
 window.userInteracted = false;
 let audioCtx = null;
+let draftAudioLocked = false;
 
 function getAudioContext() {
+  if (draftAudioLocked || !window.userInteracted) return null;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return null;
   if (!audioCtx) audioCtx = new AudioCtx();
@@ -2820,7 +2827,9 @@ function getAudioContext() {
   return audioCtx;
 }
 
-function markUserInteracted() {
+function markUserInteracted(event) {
+  if (draftAudioLocked) return;
+  if (event && event.isTrusted === false) return;
   window.userInteracted = true;
   try {
     getAudioContext();
@@ -2830,7 +2839,7 @@ function markUserInteracted() {
 }
 
 function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
-  if (!window.userInteracted) return;
+  if (draftAudioLocked || !window.userInteracted) return;
   try {
     const activeCtx = audioCtx;
     if (!activeCtx || activeCtx.state !== 'running') return;
@@ -2866,7 +2875,7 @@ function bindLazyAudioUnlock() {
 bindLazyAudioUnlock();
 
 function playFeedbackSound(type) {
-  if (!window.userInteracted) return;
+  if (draftAudioLocked || !window.userInteracted) return;
   try {
     const ctx = audioCtx;
     if (!ctx || ctx.state !== 'running') return;

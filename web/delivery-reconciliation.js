@@ -51,6 +51,7 @@ const reconciliationState = {
   draftId: '',
   storagePath: '',
   reparseInFlight: false,
+  newItemSelection: new Map(),
   busy: false,
   ocrInFlight: false,
 };
@@ -485,7 +486,14 @@ function renderPositionCard(position, index) {
   } else {
     tone = 'unmapped';
     badge = 'Neu';
-    action = `<button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="book" data-reconcile-index="${index}">In Stammdaten anlegen &amp; buchen</button>`;
+    const selected = isNewItemSelected(position) ? 'checked' : '';
+    action = `
+      <label class="delivery-reconciliation-select">
+        <input type="checkbox" class="new-item-checkbox" data-new-item-key="${escapeHtml(newItemKey(position))}" ${selected}>
+        <span>Für Stammdaten auswählen</span>
+      </label>
+      <button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="book" data-reconcile-index="${index}">In Stammdaten anlegen &amp; buchen</button>
+    `;
   }
 
   return `
@@ -498,6 +506,25 @@ function renderPositionCard(position, index) {
       ${action}
     </article>
   `;
+}
+
+function newItemKey(position) {
+  const item = position?.sourceItem || {};
+  return `${item.ean || ''}|${item.rawName || ''}|${item.quantity || ''}`;
+}
+
+function isNewItemSelected(position) {
+  const key = newItemKey(position);
+  if (!reconciliationState.newItemSelection.has(key)) return true;
+  return reconciliationState.newItemSelection.get(key) === true;
+}
+
+function newPositions() {
+  return reconciliationState.positions.filter((position) => position.status === STATUS.UNMAPPED);
+}
+
+function selectedNewPositions() {
+  return newPositions().filter((position) => isNewItemSelected(position));
 }
 
 function missingPositions() {
@@ -568,11 +595,21 @@ function renderBoard() {
   const counts = boardFilterCounts(reconciliationState.positions);
   const excludedCount = reconciliationState.positions.filter((position) => position.status === STATUS.EXCLUDED).length;
   const activeFilter = reconciliationState.boardFilter || 'all';
+  const neuActive = activeFilter === 'neu';
+  const selectedNew = selectedNewPositions();
   const cards = reconciliationState.positions
     .map((position, index) => ({ position, index }))
     .filter(({ position }) => matchesBoardFilter(position))
     .map(({ position, index }) => renderPositionCard(position, index))
     .join('');
+  const newSelectionHeader = neuActive && newPositions().length
+    ? '<button type="button" class="btn btn-secondary delivery-reconciliation-select-all" data-reconcile-action="toggle-new-selection">Alle auswählen / abwählen</button>'
+    : '';
+  const primaryAction = neuActive
+    ? `<button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="book-selected-new" ${selectedNew.length ? '' : 'disabled'}>MARKIERTE POSITIONEN (${selectedNew.length}) IN STAMMDATEN ANLEGEN &amp; BUCHEN</button>`
+    : (missing.length
+      ? '<button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="book-all">Alle fehlenden Positionen übernehmen</button>'
+      : '');
   const body = `
     <div class="learn-mode-card delivery-reconciliation-card" role="dialog" aria-modal="true" aria-labelledby="delivery-reconciliation-title">
       <div class="delivery-reconciliation-head">
@@ -599,12 +636,11 @@ function renderBoard() {
         </label>
       </div>
       <div class="delivery-reconciliation-scroll">
+        ${newSelectionHeader}
         ${cards || renderEmptyBoardHint(excludedCount)}
       </div>
       <div class="learn-mode-actions delivery-reconciliation-actions">
-        ${missing.length
-          ? `<button type="button" class="btn btn-primary delivery-reconciliation-action" data-reconcile-action="book-all">Alle fehlenden Positionen übernehmen</button>`
-          : ''}
+        ${primaryAction}
         <button type="button" class="btn btn-secondary delivery-reconciliation-action" data-reconcile-action="close">Schließen</button>
       </div>
     </div>
@@ -766,11 +802,34 @@ async function onBoardClick(event) {
     renderBoard();
     return;
   }
+  const newItemCheckbox = event.target.classList?.contains('new-item-checkbox')
+    ? event.target
+    : event.target.closest?.('.delivery-reconciliation-select')?.querySelector('.new-item-checkbox');
+  if (newItemCheckbox) {
+    const key = newItemCheckbox.dataset.newItemKey || '';
+    reconciliationState.newItemSelection.set(key, newItemCheckbox.checked);
+    const bulkButton = document.querySelector('[data-reconcile-action="book-selected-new"]');
+    if (bulkButton) {
+      const count = selectedNewPositions().length;
+      bulkButton.textContent = `MARKIERTE POSITIONEN (${count}) IN STAMMDATEN ANLEGEN & BUCHEN`;
+      bulkButton.disabled = count === 0;
+    }
+    return;
+  }
   const button = event.target.closest('[data-reconcile-action]');
   if (!button || reconciliationState.busy) return;
   const action = button.dataset.reconcileAction;
   if (action === 'close') {
     removeReconciliationBoard();
+    return;
+  }
+  if (action === 'toggle-new-selection') {
+    const neu = newPositions();
+    const selectAll = !neu.every((position) => isNewItemSelected(position));
+    neu.forEach((position) => {
+      reconciliationState.newItemSelection.set(newItemKey(position), selectAll);
+    });
+    renderBoard();
     return;
   }
   if (action === 'reparse') {
@@ -787,7 +846,15 @@ async function onBoardClick(event) {
   reconciliationState.busy = true;
   button.disabled = true;
   try {
-    if (action === 'book-all') {
+    if (action === 'book-selected-new') {
+      const selected = selectedNewPositions();
+      if (!selected.length) {
+        window.showToast?.('Bitte mindestens eine neue Position markieren.', 'warning');
+        return;
+      }
+      await bookPositions(selected);
+      window.showToast?.('Positionen & Stammdaten erfolgreich im Laden gebucht!', 'success');
+    } else if (action === 'book-all') {
       const pending = missingPositions().filter((position) => position.status !== STATUS.EXCLUDED);
       await bookPositions(pending);
       window.showToast?.('Positionen & Stammdaten erfolgreich im Laden gebucht!', 'success');
@@ -832,6 +899,7 @@ export function openParsedDeliveryBoard(payload) {
   reconciliationState.storagePath = payload?.storagePath || '';
   reconciliationState.boardFilter = 'all';
   reconciliationState.hideExcluded = true;
+  reconciliationState.newItemSelection = new Map();
   reconciliationState.note = normalizeNote(payload);
   reconciliationState.positions = reconcileDelivery(
     reconciliationState.note.items,

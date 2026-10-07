@@ -4980,8 +4980,23 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   gap: 8px;
 }
 
-.delivery-reconciliation-reparse {
+.delivery-reconciliation-reparse,
+.delivery-reconciliation-select-all,
+.delivery-reconciliation-select {
   min-height: 48px;
+}
+
+.delivery-reconciliation-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font-weight: 700;
+}
+
+.new-item-checkbox {
+  width: 28px;
+  height: 28px;
 }
 
 .delivery-reconciliation-header {
