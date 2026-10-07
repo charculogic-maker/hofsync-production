@@ -12131,9 +12131,101 @@ body.beef-labels-open {
   overflow: hidden;
 }
 
+.beef-lot-panel {
+  padding-top: 12px;
+  background: #0f172a;
+  border-bottom: 1px solid #1f2937;
+  flex-shrink: 0;
+}
+
+.beef-section-title {
+  margin: 0;
+  padding: 12px 14px 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f9fafb;
+}
+
+.beef-lot-panel .beef-section-title {
+  padding-bottom: 10px;
+}
+
+.beef-sheet-instruction {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fbbf24;
+}
+
+.beef-cut-sheet {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #93c5fd;
+}
+
+.beef-cut-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.beef-commit-btn {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: #7f1d1d;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.beef-label-previews {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 10px 12px 0;
+}
+
+.beef-label-preview-card {
+  background: #fff;
+  color: #111827;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-height: 72px;
+}
+
+.beef-label-preview-head,
+.beef-label-preview-line,
+.beef-label-preview-age {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.beef-label-preview-title {
+  margin: 2px 0;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.beef-label-preview-age {
+  font-weight: 800;
+}
+
 .beef-tabs {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
   background: #030712;
@@ -12187,16 +12279,18 @@ body.beef-labels-open {
 }
 
 .beef-tab {
-  flex: 0 0 auto;
+  flex: 1 1 160px;
   border: none;
-  border-radius: 999px;
-  min-height: 44px;
-  padding: 0 16px;
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 8px 12px;
   background: #1f2937;
   color: #d1d5db;
   font-size: 13px;
   font-weight: 700;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -12229,6 +12323,11 @@ body.beef-labels-open {
   border-radius: 14px;
   background: #030712;
   border: 1px solid #1f2937;
+}
+
+.beef-cut-row {
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .beef-cut-info {
@@ -12585,7 +12684,37 @@ body.beef-labels-open {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0mm !important;
+    margin: 0;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .print-instruction-header,
+  .sheet-info-bar,
+  .no-print,
+  .modal-header,
+  .beef-labels-modal,
+  .beef-labels-header,
+  .beef-labels-footer,
+  .beef-lot-panel,
+  .beef-label-previews,
+  .beef-stammdaten {
+    display: none !important;
+  }
+
+  body.printing-beef-labels header,
+  body.printing-beef-labels nav,
+  body.printing-beef-labels .btn,
+  body.printing-beef-labels .modal-header,
+  body.printing-beef-labels .print-instruction-header,
+  body.printing-beef-labels .sheet-info-bar,
+  body.printing-beef-labels .no-print {
+    display: none !important;
   }
 
   body.printing-beef-labels {

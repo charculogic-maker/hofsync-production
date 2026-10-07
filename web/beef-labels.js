@@ -740,6 +740,97 @@ const SEGMENT_TAB_LABELS = {
   },
 };
 
+/** Warengruppe 0460 · Viertel statt anatomischer Baugruppenliste. */
+const QUARTER_TABS = [
+  { id: 'VV', label: '🥩 Vorderviertel (VV) · 2W' },
+  { id: 'HV', label: '🥩 Hinterviertel (HV) · 4W' },
+  { id: 'FRISCH', label: '🔪 Frisch / Sonderentnahme' },
+  { id: 'INNEREIEN', label: '🫀 Innereien, Knochen & BARF' },
+];
+
+const QUARTER_TAB_ORDER = QUARTER_TABS.map((tab) => tab.id);
+
+/**
+ * @type {Record<string, { id: string, name: string, detail: string, aging: string }[]>}
+ */
+const QUARTER_CUTS = {
+  VV: [
+    { id: 'ruecken-entrecote', name: 'Entrecôte / Rib Eye', detail: 'Ribeye ohne Knochen', aging: 'Wet Aging 2 Wochen' },
+    { id: 'knochen-querrippe', name: 'Querrippe', detail: 'Spannrippe / Beinfleisch mit Knochen', aging: 'Wet Aging 2 Wochen' },
+    { id: 'schulter-hohe-rippe', name: 'Hohe Rippe', detail: 'Schmorbraten aus der Hohen Rippe', aging: 'Wet Aging 2 Wochen' },
+    { id: 'schulter-schaufelbraten', name: 'Schaufelstück', detail: 'Schaufel / Schildstück · Schmoren', aging: 'Wet Aging 2 Wochen' },
+    { id: 'schulter-falsches-filet', name: 'Falsches Filet', detail: 'Schulterfilet · Kurzbraten', aging: 'Wet Aging 2 Wochen' },
+    { id: 'knochen-brustkern', name: 'Rinderbrust', detail: 'Brustkern · Siedefleisch', aging: 'Wet Aging 2 Wochen' },
+    { id: 'beinscheibe-vorderhaxe', name: 'Beinscheibe (Vorderhesse)', detail: 'Vordere Hesse · Suppenfleisch', aging: 'Wet Aging 2 Wochen' },
+    { id: 'abschnitt-r2-hack', name: 'Hackfleisch', detail: 'R II · Hack & Burger', aging: 'Wet Aging 2 Wochen' },
+    { id: 'abschnitt-r1-gulasch', name: 'Gulasch', detail: 'R I Magerfleisch · Saftgulasch', aging: 'Wet Aging 2 Wochen' },
+  ],
+  HV: [
+    { id: 'ruecken-roastbeef', name: 'Rumpsteak', detail: 'Roastbeef ohne Kette', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-hueftsteak', name: 'Hüftsteak', detail: 'Hüfte / Blume', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-tafelspitz', name: 'Tafelspitz', detail: 'Picanha mit Fettdeckel', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-oberschale', name: 'Oberschale', detail: 'Oberschale ohne Deckel', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-unterschale', name: 'Unterschale', detail: 'Schwanzstück', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-semerrolle', name: 'Semerrolle', detail: 'Tafelrolle', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-kugel-rund', name: 'Runde Kugel / Nuss', detail: 'Kugel rund', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-kugel-flach', name: 'Flache Kugel', detail: 'Kugel flach', aging: 'Dry Aging 4 Wochen' },
+    { id: 'lappen-spider', name: 'Spidersteak', detail: 'Fledermaus / Kavalierhäutchen', aging: 'Dry Aging 4 Wochen' },
+    { id: 'keule-buergermeister', name: 'Bürgermeisterstück', detail: 'Tri-Tip', aging: 'Dry Aging 4 Wochen' },
+    { id: 'beinscheibe-hinterhaxe', name: 'Beinscheibe (Hinterhesse)', detail: 'Hintere Hesse · Ossobuco', aging: 'Dry Aging 4 Wochen' },
+  ],
+  FRISCH: [
+    { id: 'lappen-skirt', name: 'Skirt Steak / Bauchlappen', detail: 'Tag 0 · Frisch von der Anlieferung', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'ruecken-filet-ganz', name: 'Filet ganz', detail: 'Aus dem Hinterviertel · nach 2 Wochen', aging: 'Wet Aging 2 Wochen' },
+    { id: 'ruecken-filet-mittel', name: 'Filetsteaks', detail: 'Filet Mittelstück · nach 2 Wochen', aging: 'Wet Aging 2 Wochen' },
+    { id: 'lappen-nierenzapfen', name: 'Onglet / Nierenzapfen', detail: 'Hanging Tender · Sonderentnahme', aging: 'Frisch verpackt - Tag 0' },
+  ],
+  INNEREIEN: [
+    { id: 'innerei-zunge', name: 'Zunge', detail: 'Rinderzunge · geputzt', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'innerei-herz', name: 'Herz', detail: 'Rinderherz', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'innerei-leber', name: 'Leber', detail: 'Rinderleber · tagesfrisch', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'innerei-niere', name: 'Nieren', detail: 'Rinderniere · sofort kühlen', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'innerei-backen', name: 'Rinderbäckchen', detail: 'Backe · Schmorstück', aging: 'Wet Aging 2 Wochen' },
+    { id: 'knochen-markknochen', name: 'Markknochen gesägt', detail: 'Röhrenknochen in Scheiben', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'knochen-suppenknochen', name: 'Suppenknochen', detail: 'Fondknochen', aging: 'Frisch verpackt - Tag 0' },
+    { id: 'barf-innereien-mix', name: 'BARF-Zuschnitt (Lunge/Milz/Schlund)', detail: 'Ergänzungsfuttermittel – nicht für den menschlichen Verzehr', aging: 'Frisch verpackt - Tag 0' },
+  ],
+};
+
+const QUARTER_BY_ID = {};
+Object.values(QUARTER_CUTS).forEach((list) => {
+  list.forEach((entry) => {
+    if (!QUARTER_BY_ID[entry.id]) QUARTER_BY_ID[entry.id] = entry;
+  });
+});
+
+function normalizeQuarterTab(tab) {
+  if (QUARTER_TAB_ORDER.includes(tab)) return tab;
+  if (tab === 'SCHULTER' || tab === 'NACKEN' || tab === 'BRUST' || tab === 'HACK') return 'VV';
+  if (tab === 'KEULE' || tab === 'RUECKEN') return 'HV';
+  if (tab === 'LAPPEN') return 'FRISCH';
+  if (tab === 'KNOCHEN' || tab === 'TIERNAHRUNG' || tab === 'CUSTOM' || tab === 'INNEREIEN') return 'INNEREIEN';
+  return 'VV';
+}
+
+function quarterEntryOf(cutId) {
+  return QUARTER_BY_ID[cutId] || null;
+}
+
+function presentationOf(cut) {
+  const entry = quarterEntryOf(cut?.id);
+  return {
+    name: entry?.name || cut?.bezeichnung || '',
+    detail: entry?.detail || cut?.teilstueckDetail || '',
+    aging: entry?.aging || cut?.reifung || '',
+  };
+}
+
+function reifungForLabel(cut, batch = null) {
+  const override = String(batch?.reifehinweis ?? state.reifehinweis ?? '').trim();
+  if (override) return override;
+  return presentationOf(cut).aging;
+}
+
 function detectSegmentFromCharge(charge) {
   const text = String(charge || '').trim().toUpperCase();
   if (text.startsWith('HV-') || text.startsWith('HV_')) return 'HV';
@@ -759,16 +850,14 @@ function tabLabel(cat, segment = state.segment) {
 }
 
 function ensureActiveTab() {
-  const tabs = tabsForSegment();
-  if (!tabs.includes(state.activeTab)) {
-    state.activeTab = tabs[0];
-  }
+  state.activeTab = normalizeQuarterTab(state.activeTab);
 }
 
 function applyDetectedSegment(charge = state.chargenNummer) {
   const detected = detectSegmentFromCharge(charge);
   if (!detected || detected === state.segment) return false;
   state.segment = detected;
+  if (detected === 'HV' || detected === 'VV') state.activeTab = detected;
   ensureActiveTab();
   return true;
 }
@@ -782,6 +871,23 @@ function cutsForProfile(profile) {
 }
 
 function cutsForTab(tab) {
+  const quarter = QUARTER_CUTS[tab];
+  if (quarter) {
+    const mapped = quarter
+      .map((entry) => {
+        const cut = findCut(entry.id);
+        if (!cut) return null;
+        return {
+          ...cut,
+          bezeichnung: entry.name,
+          teilstueckDetail: entry.detail,
+          reifung: entry.aging,
+        };
+      })
+      .filter(Boolean);
+    const extras = customCuts.filter((cut) => !mapped.some((item) => item.id === cut.id));
+    return [...mapped, ...extras];
+  }
   if (state.profile && PROFILE_MEMBERS[state.profile]) return cutsForProfile(state.profile);
   if (tab === 'CUSTOM') return customCuts.slice();
   if (tab === 'NACKEN') {
@@ -901,7 +1007,6 @@ function addCustomCut(rawName) {
     custom: true,
   });
   saveCustomCuts();
-  if (state.segment === 'GK') state.activeTab = 'CUSTOM';
   updateQuantity(id, 1);
   window.showToast?.(`${formatPrintName(name)} gespeichert`, 'success');
   return true;
@@ -1133,6 +1238,7 @@ function cloneBatch(batch = {}) {
     zerlegeDatumRaw: String(batch.zerlegeDatumRaw || ''),
     ohrmarke: String(batch.ohrmarke || ''),
     lot: String(batch.lot || ''),
+    reifehinweis: String(batch.reifehinweis || ''),
   };
 }
 
@@ -1150,11 +1256,56 @@ function currentBatchSnapshot() {
     zerlegeDatumRaw: raw,
     ohrmarke,
     lot,
+    reifehinweis: String(state.reifehinweis || '').trim(),
   });
 }
 
 function batchKey(batch = {}) {
   return [batch.ohrmarke, batch.schlachtDatum, batch.zerlegeDatum, batch.lot].join('|');
+}
+
+function applyActiveLotToQueue() {
+  const snap = currentBatchSnapshot();
+  state.queue.forEach((item) => {
+    item.batch = cloneBatch(snap);
+  });
+}
+
+/** Staged quantity per cut, before it is written onto the print sheet. */
+const pendingQty = {};
+
+function stagedQty(cutId) {
+  if (Object.prototype.hasOwnProperty.call(pendingQty, cutId)) return pendingQty[cutId];
+  return qtyOf(cutId);
+}
+
+function adjustPending(cutId, delta) {
+  if (!findCut(cutId)) return;
+  pendingQty[cutId] = Math.max(0, stagedQty(cutId) + delta);
+  renderModalBody();
+}
+
+function commitCutToSheet(cutId) {
+  if (!findCut(cutId)) return;
+  applyActiveLotToQueue();
+  const target = stagedQty(cutId);
+  const current = qtyOf(cutId);
+  if (target === 0 && current === 0) {
+    pendingQty[cutId] = 1;
+    updateQuantity(cutId, 1);
+    window.showToast?.('1 Etikett auf den Druck-Bogen übernommen.', 'success');
+    return;
+  }
+  const delta = target - current;
+  delete pendingQty[cutId];
+  if (delta !== 0) {
+    updateQuantity(cutId, delta);
+    window.showToast?.('Auf den Druck-Bogen übernommen.', 'success');
+  } else {
+    persist();
+    renderModalBody();
+    window.showToast?.('Menge steht bereits auf dem Druck-Bogen.', 'success');
+  }
 }
 
 function tierIndexFor(ohrmarke) {
@@ -1187,6 +1338,7 @@ const state = {
   herkunft: 'Geb./Gem./Geschl./Zerl.: DE',
   betriebsNummer: 'Stautenhof · StevesHof',
   etikettenPraefix: DEFAULT_LABEL_PREFIX,
+  reifehinweis: '',
   schlachtgewichtKalt: 285.5,
   schlachtgewichtWarm: 0,
   haelfteLinks: 0,
@@ -1196,9 +1348,9 @@ const state = {
   r2Override: /** @type {number|null} */ (null),
   r3Override: /** @type {number|null} */ (null),
   skipCount: 0,
-  profile: 'PISTOLE',
+  profile: '',
   segment: /** @type {CarcassSegment} */ ('GK'),
-  activeTab: /** @type {CutCategory} */ ('KEULE'),
+  activeTab: 'VV',
   /** @type {{ id: string, quantity: number, weightKg: number, weightManual: boolean, batch: object }[]} */
   queue: [],
 };
@@ -1219,6 +1371,7 @@ function hydrateState() {
   if (typeof saved.ohrmarke === 'string') state.ohrmarke = saved.ohrmarke;
   if (typeof saved.schlachtDatum === 'string') state.schlachtDatum = saved.schlachtDatum;
   if (typeof saved.zerlegeDatum === 'string') state.zerlegeDatum = saved.zerlegeDatum;
+  if (typeof saved.reifehinweis === 'string') state.reifehinweis = saved.reifehinweis;
   if (typeof saved.herkunft === 'string') state.herkunft = saved.herkunft;
   if (typeof saved.betriebsNummer === 'string') state.betriebsNummer = saved.betriebsNummer;
   if (Number.isFinite(Number(saved.schlachtgewichtKalt))) state.schlachtgewichtKalt = roundKg(saved.schlachtgewichtKalt);
@@ -1238,9 +1391,7 @@ function hydrateState() {
   if (PROFILE_MEMBERS[saved.profile] || saved.profile === '') {
     state.profile = saved.profile || '';
   }
-  if (TAB_ORDER.includes(saved.activeTab) || saved.activeTab === 'NACKEN' || saved.activeTab === 'BRUST') {
-    state.activeTab = saved.activeTab;
-  }
+  if (typeof saved.activeTab === 'string') state.activeTab = saved.activeTab;
   applyDetectedSegment(state.chargenNummer);
   ensureActiveTab();
   if (Array.isArray(saved.queue)) {
@@ -1248,6 +1399,7 @@ function hydrateState() {
       .map((item) => normalizeQueueItem(item))
       .filter((item) => item.id && item.quantity > 0 && findCut(item.id));
   }
+  applyActiveLotToQueue();
 }
 
 function persist() {
@@ -1257,6 +1409,7 @@ function persist() {
     ohrmarke: state.ohrmarke,
     schlachtDatum: state.schlachtDatum,
     zerlegeDatum: state.zerlegeDatum,
+    reifehinweis: state.reifehinweis,
     herkunft: state.herkunft,
     betriebsNummer: state.betriebsNummer,
     etikettenPraefix: activeLabelPrefix(),
@@ -1351,7 +1504,9 @@ function flattenedLabels() {
 }
 
 function buildPrintPagesHtml() {
+  applyActiveLotToQueue();
   const labels = flattenedLabels();
+  const batch = currentBatchSnapshot();
   let cursor = 0;
   let pageNum = 1;
   const pages = [];
@@ -1366,15 +1521,15 @@ function buildPrintPagesHtml() {
         const item = labels[cursor];
         cursor += 1;
         const artNr = artNrOf(item.cut);
-        const batch = item.batch || currentBatchSnapshot();
+        const pres = presentationOf(item.cut);
         slots.push(`
           <div class="avery-label-card label-card">
             <div class="avery-label-head">
               <span>STEVESHOF${artNr ? ` · Art. ${escapeHtml(artNr)}` : ''}</span>
               <span>${escapeHtml(batch.ohrmarke || batch.lot)}</span>
             </div>
-            <div class="avery-label-title">${escapeHtml(formatPrintName(item.cut.bezeichnung))}</div>
-            <div class="avery-label-detail">${escapeHtml(item.cut.teilstueckDetail)}</div>
+            <div class="avery-label-title">${escapeHtml(formatPrintName(pres.name))}</div>
+            <div class="avery-label-detail">${escapeHtml(pres.detail)}</div>
             <div class="avery-label-meta">
               <div>
                 <div class="avery-strong">${escapeHtml(batch.schlachtBetrieb)}</div>
@@ -1386,7 +1541,7 @@ function buildPrintPagesHtml() {
               </div>
             </div>
             <div class="avery-label-foot">
-              <div class="avery-strong avery-truncate">${escapeHtml(item.cut.reifung)}</div>
+              <div class="avery-strong avery-truncate">${escapeHtml(reifungForLabel(item.cut, batch))}</div>
               <div class="avery-right">
                 <span class="avery-muted">(${item.itemIdx}/${item.totalOfCut})</span>
                 <span class="avery-weight">____ kg</span>
@@ -1417,7 +1572,8 @@ function ensurePrintRoot() {
 
 const AVERY_PRINT_CSS = `
   @page { size: A4 portrait; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .print-instruction-header, .sheet-info-bar, .no-print, .modal-header, .btn, header, nav { display: none !important; }
   .avery-page-sheet { width: 210mm; height: 297mm; box-sizing: border-box; padding-top: 4.5mm; padding-bottom: 4.5mm; page-break-after: always; break-after: page; }
   .avery-grid-3x8 { display: grid; grid-template-columns: repeat(3, 70mm); grid-template-rows: repeat(8, 36mm); width: 210mm; height: 288mm; position: relative; left: 1.5mm; }
   .avery-sheet { width: 210mm; height: 297mm; padding: 4.5mm 0; box-sizing: border-box; page-break-after: always; break-after: page; }
@@ -1496,32 +1652,63 @@ function handlePrint() {
 function renderCutList(host) {
   const cuts = cutsForTab(state.activeTab);
   if (cuts.length === 0) {
-    host.innerHTML =
-      state.activeTab === 'CUSTOM'
-        ? '<div class="beef-queue-empty">Noch keine eigenen Teilstücke – oben hinzufügen.</div>'
-        : '<div class="beef-queue-empty">Keine Teilstücke in dieser Baugruppe.</div>';
+    host.innerHTML = '<div class="beef-queue-empty">Keine Teilstücke in dieser Warengruppe.</div>';
     return;
   }
+  const batch = currentBatchSnapshot();
   host.innerHTML = cuts
     .map((cut) => {
-      const qty = qtyOf(cut.id);
+      const qty = stagedQty(cut.id);
+      const onSheet = qtyOf(cut.id);
       const artNr = artNrOf(cut);
+      const pres = presentationOf(cut);
+      const aging = reifungForLabel(cut, batch);
       return `
         <div class="beef-cut-row" data-cut-id="${escapeHtml(cut.id)}">
           <div class="beef-cut-info">
-            <div class="beef-cut-name">${artNr ? `<span class="beef-artnr">Art. ${escapeHtml(artNr)}</span> ` : ''}${escapeHtml(cleanCutName(cut.bezeichnung, state.etikettenPraefix))}</div>
-            <div class="beef-cut-detail">${escapeHtml(cut.teilstueckDetail)}</div>
-            <div class="beef-cut-meta">${escapeHtml(cut.reifung)} · ${escapeHtml(cut.lagerung)}</div>
+            <div class="beef-cut-name">${artNr ? `<span class="beef-artnr">Art. ${escapeHtml(artNr)}</span> ` : ''}${escapeHtml(formatPrintName(pres.name))}</div>
+            <div class="beef-cut-detail">${escapeHtml(pres.detail)}</div>
+            <div class="beef-cut-meta">${escapeHtml(batch.ohrmarke || 'Ohne Ohrmarke')} · Schl ${escapeHtml(batch.schlachtDatum || '—')} · Zerl ${escapeHtml(batch.zerlegeDatum || '—')}</div>
+            <div class="beef-cut-meta">${escapeHtml(aging)} · ${escapeHtml(cut.lagerung)}</div>
+            <div class="beef-cut-sheet">${onSheet} auf dem Bogen</div>
           </div>
-          <div class="beef-qty">
-            <button type="button" class="beef-qty-btn" data-delta="-1" ${qty === 0 ? 'disabled' : ''}>−</button>
-            <span class="beef-qty-val">${qty}</span>
-            <button type="button" class="beef-qty-btn beef-qty-btn--plus" data-delta="1">+</button>
+          <div class="beef-cut-actions">
+            <div class="beef-qty">
+              <button type="button" class="beef-qty-btn" data-pending-delta="-1" aria-label="Menge verringern" ${qty === 0 ? 'disabled' : ''}>−</button>
+              <span class="beef-qty-val">${qty}</span>
+              <button type="button" class="beef-qty-btn beef-qty-btn--plus" data-pending-delta="1" aria-label="Menge erhöhen">+</button>
+            </div>
+            <button type="button" class="beef-commit-btn" data-commit-sheet="1">🖨️ Auf Druck-Bogen übernehmen</button>
           </div>
         </div>
       `;
     })
     .join('');
+}
+
+function renderLabelPreviews(host) {
+  const labels = flattenedLabels();
+  const batch = currentBatchSnapshot();
+  if (labels.length === 0) {
+    host.innerHTML = '<div class="beef-queue-empty">Etiketten-Vorschau folgt, sobald Teilstücke auf dem Bogen stehen.</div>';
+    return;
+  }
+  const shown = labels.slice(0, 12);
+  host.innerHTML = shown.map((item) => {
+    const pres = presentationOf(item.cut);
+    const artNr = artNrOf(item.cut);
+    return `
+      <article class="beef-label-preview-card label-card">
+        <div class="beef-label-preview-head">
+          <span>STEVESHOF${artNr ? ` · Art. ${escapeHtml(artNr)}` : ''}</span>
+          <span>${escapeHtml(batch.ohrmarke || 'Ohne Ohrmarke')}</span>
+        </div>
+        <div class="beef-label-preview-title">${escapeHtml(formatPrintName(pres.name))}</div>
+        <div class="beef-label-preview-line">Schl: ${escapeHtml(batch.schlachtDatum || '—')} · Zerl: ${escapeHtml(batch.zerlegeDatum || '—')}</div>
+        <div class="beef-label-preview-age">${escapeHtml(reifungForLabel(item.cut, batch))}</div>
+      </article>
+    `;
+  }).join('') + (labels.length > 12 ? `<div class="beef-queue-empty">+ ${labels.length - 12} weitere Etiketten</div>` : '');
 }
 
 function renderQueue(host) {
@@ -1534,14 +1721,16 @@ function renderQueue(host) {
       const cut = findCut(item.id);
       if (!cut) return '';
       const kgShown = item.weightKg ? String(item.weightKg).replace('.', ',') : '';
-      const printName = formatPrintName(cut.bezeichnung);
+      const pres = presentationOf(cut);
+      const printName = formatPrintName(pres.name);
       const artNr = artNrOf(cut);
-      const tier = tierIndexFor(item.batch?.ohrmarke);
+      const batch = currentBatchSnapshot();
+      const tier = tierIndexFor(batch.ohrmarke);
       return `
         <div class="beef-queue-row" data-cut-id="${escapeHtml(item.id)}" data-batch-key="${escapeHtml(batchKey(item.batch))}" style="box-shadow: inset 4px 0 ${TIER_COLORS[tier % TIER_COLORS.length]}">
           <div class="beef-cut-info">
             <div class="beef-cut-name">${artNr ? `<span class="beef-artnr">Art. ${escapeHtml(artNr)}</span> ` : ''}${escapeHtml(printName)}</div>
-            <div class="beef-cut-detail">${escapeHtml(item.batch?.ohrmarke || 'Ohne Ohrmarke')} · ${escapeHtml(item.batch?.lot || '')}</div>
+            <div class="beef-cut-detail">${escapeHtml(batch.ohrmarke || 'Ohne Ohrmarke')} · ${escapeHtml(reifungForLabel(cut, batch))}</div>
           </div>
           <div class="beef-line-controls">
             <div class="beef-qty">
@@ -1680,6 +1869,7 @@ function renderModalBody() {
   const earEl = modal.querySelector('#beef-ohrmarke');
   const slaughterEl = modal.querySelector('#beef-schlacht');
   const cutDateEl = modal.querySelector('#beef-zerlege');
+  const reifeEl = modal.querySelector('#beef-reife');
   const originEl = modal.querySelector('#beef-herkunft');
   const plantEl = modal.querySelector('#beef-betrieb');
   const skipEl = modal.querySelector('#beef-skip');
@@ -1688,6 +1878,7 @@ function renderModalBody() {
   if (earEl && document.activeElement !== earEl) earEl.value = state.ohrmarke;
   if (slaughterEl && document.activeElement !== slaughterEl) slaughterEl.value = state.schlachtDatum;
   if (cutDateEl && document.activeElement !== cutDateEl) cutDateEl.value = state.zerlegeDatum;
+  if (reifeEl && document.activeElement !== reifeEl) reifeEl.value = state.reifehinweis;
   if (originEl && document.activeElement !== originEl) originEl.value = state.herkunft;
   if (plantEl && document.activeElement !== plantEl) plantEl.value = state.betriebsNummer;
   if (skipEl && document.activeElement !== skipEl) skipEl.value = String(state.skipCount);
@@ -1706,15 +1897,17 @@ function renderModalBody() {
   const tabHost = modal.querySelector('.beef-tabs');
   if (tabHost) {
     ensureActiveTab();
-    tabHost.innerHTML = tabsForSegment().map((cat) => `
-      <button type="button" class="beef-tab${cat === state.activeTab ? ' is-active' : ''}" data-beef-tab="${cat}">${escapeHtml(tabLabel(cat))}</button>
+    tabHost.innerHTML = QUARTER_TABS.map((tab) => `
+      <button type="button" class="beef-tab${tab.id === state.activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.id === state.activeTab ? 'true' : 'false'}" data-beef-tab="${tab.id}">${escapeHtml(tab.label)}</button>
     `).join('');
   }
 
   const cutList = modal.querySelector('#beef-cut-list');
   const queueList = modal.querySelector('#beef-queue-list');
+  const previewHost = modal.querySelector('#beef-label-previews');
   if (cutList) renderCutList(cutList);
   if (queueList) renderQueue(queueList);
+  if (previewHost) renderLabelPreviews(previewHost);
 
   const totalEl = modal.querySelector('#beef-total-labels');
   const sheetsEl = modal.querySelector('#beef-sheets');
@@ -1749,6 +1942,12 @@ function renderModalBody() {
     const onSheet = placed === 0 ? 0 : (placed % 24 === 0 ? 24 : placed % 24);
     sheetFill.textContent = `Bogen ${onSheet}/24`;
   }
+  const sheetInstruction = modal.querySelector('#beef-sheet-instruction');
+  if (sheetInstruction) {
+    const placed = totalLabels() + state.skipCount;
+    const onSheet = placed === 0 ? 0 : (placed % 24 === 0 ? 24 : placed % 24);
+    sheetInstruction.textContent = `Bogen-Anweisung: ${onSheet}/24 Marken belegt`;
+  }
   renderYield();
 }
 
@@ -1778,6 +1977,11 @@ function resetNewCharge() {
   state.r2Override = null;
   state.r3Override = null;
   state.segment = 'GK';
+  state.reifehinweis = '';
+  state.activeTab = 'VV';
+  Object.keys(pendingQty).forEach((key) => {
+    delete pendingQty[key];
+  });
   ensureActiveTab();
   persist();
   const modal = document.getElementById('beef-labels-modal');
@@ -1811,35 +2015,48 @@ function closeModal() {
 
 function ensureModal() {
   const existing = document.getElementById('beef-labels-modal');
-  if (existing?.dataset.ux === 'avery-profiles-v1') return;
+  if (existing?.dataset.ux === 'avery-quarters-v2') return;
   existing?.remove();
 
   const modal = document.createElement('div');
   modal.id = 'beef-labels-modal';
   modal.className = 'beef-labels-modal galloway-modal';
-  modal.dataset.ux = 'avery-profiles-v1';
+  modal.dataset.ux = 'avery-quarters-v2';
   modal.hidden = true;
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-hidden', 'true');
   modal.setAttribute('aria-labelledby', 'beef-labels-title');
 
-  const tabs = TAB_ORDER.map(
-    (cat) =>
-      `<button type="button" class="beef-tab" data-beef-tab="${cat}">${TAB_LABELS[cat]}</button>`,
-  ).join('');
-
   modal.innerHTML = `
     <div class="beef-labels-sheet modal-content" id="galloway-modal" role="document">
-      <header class="beef-labels-header">
+      <header class="beef-labels-header modal-header no-print">
         <h2 id="beef-labels-title">Galloway Zerlegung</h2>
-        <button type="button" class="beef-close-btn" id="beef-close-btn" aria-label="Schließen">
+        <button type="button" class="beef-close-btn no-print" id="beef-close-btn" aria-label="Schließen">
           <span aria-hidden="true">✕</span>
           <span>Schließen</span>
         </button>
       </header>
 
-      <details class="beef-stammdaten" id="beef-stammdaten">
+      <section class="beef-lot-panel no-print" aria-labelledby="beef-lot-title">
+        <h3 id="beef-lot-title" class="beef-section-title">1. Aktive Tier-Daten</h3>
+        <div class="beef-labels-settings">
+          <label>Ohrmarke / Tier-ID
+            <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off" placeholder="DE 05 412 89012">
+          </label>
+          <label>Schlachtdatum
+            <input type="text" id="beef-schlacht" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="28.09.2026">
+          </label>
+          <label>Zerlegedatum / Verpacktdatum
+            <input type="text" id="beef-zerlege" class="input-text-touch" inputmode="numeric" autocomplete="off" placeholder="${todayDe()}">
+          </label>
+          <label>Reifehinweis / Text
+            <input type="text" id="beef-reife" class="input-text-touch" autocomplete="off" placeholder="Wet Aging 2 Wochen">
+          </label>
+        </div>
+      </section>
+
+      <details class="beef-stammdaten no-print" id="beef-stammdaten">
         <summary>
           <span>Stammdaten</span>
           <span class="beef-stammdaten-preview" id="beef-stammdaten-summary">—</span>
@@ -1861,9 +2078,6 @@ function ensureModal() {
               <option value="GK">GK – Ganzer Körper / Hälften</option>
             </select>
           </label>
-          <label>Ohrmarke / Pass-Nr
-            <input type="text" id="beef-ohrmarke" class="input-text-touch" autocomplete="off">
-          </label>
           <label>Schlachtgewicht kalt (kg)
             <input type="text" id="beef-kalt" class="input-text-touch" inputmode="decimal" placeholder="z. B. 285,5" autocomplete="off">
           </label>
@@ -1875,12 +2089,6 @@ function ensureModal() {
           </label>
           <label>Hälfte rechts (kg)
             <input type="text" id="beef-haelfte-rechts" class="input-text-touch" inputmode="decimal" placeholder="optional" autocomplete="off">
-          </label>
-          <label>Schlachtdatum
-            <input type="text" id="beef-schlacht" class="input-text-touch" inputmode="numeric" autocomplete="off">
-          </label>
-          <label>Zerlege-Datum
-            <input type="text" id="beef-zerlege" class="input-text-touch" inputmode="numeric" autocomplete="off">
           </label>
           <label>Herkunft
             <input type="text" id="beef-herkunft" class="input-text-touch" autocomplete="off">
@@ -1900,8 +2108,8 @@ function ensureModal() {
       <div class="beef-labels-stage" id="beef-labels-stage">
         <div class="beef-labels-main" id="beef-labels-main">
           <div class="beef-labels-catalog">
-            <div class="beef-profile-tiles" id="beef-profile-tiles"></div>
-            <div class="beef-tabs" role="tablist">${tabs}</div>
+            <h3 class="beef-section-title">2. Warengruppe 0460</h3>
+            <div class="beef-tabs" role="tablist" aria-label="Viertel und Sonderentnahme"></div>
             <div class="beef-custom-add">
               <input type="text" id="beef-custom-name" class="input-text-touch" placeholder="Eigenes Teilstück eingeben…" autocomplete="off">
               <button type="button" class="beef-custom-add-btn" id="beef-custom-add-btn">+ Hinzufügen</button>
@@ -1909,7 +2117,8 @@ function ensureModal() {
             <div id="beef-cut-list" class="beef-cut-list"></div>
           </div>
         </div>
-        <aside class="beef-labels-side" id="beef-labels-side" aria-label="Druckkorb und Ausbeute">
+        <aside class="beef-labels-side no-print" id="beef-labels-side" aria-label="Druckkorb und Ausbeute">
+          <div class="beef-label-previews no-print" id="beef-label-previews" aria-label="Etiketten-Vorschau"></div>
           <details class="beef-labels-basket" id="beef-basket-panel" open>
             <summary class="beef-basket-head">
               <span>Druckkorb <span id="beef-queue-count">0 Pos.</span></span>
@@ -1942,11 +2151,12 @@ function ensureModal() {
         </aside>
       </div>
 
-      <footer class="beef-labels-footer">
+      <footer class="beef-labels-footer print-instruction-header sheet-info-bar no-print">
         <div class="beef-footer-meta">
           <span class="beef-basket-pill" id="beef-basket-pill">0 Etiketten</span>
           <span class="beef-footer-sheets"><strong id="beef-total-labels">0</strong> Stk · <strong id="beef-sheets">1</strong> Bogen · <span id="beef-sheet-fill">Bogen 0/24</span></span>
         </div>
+        <p class="beef-sheet-instruction" id="beef-sheet-instruction">Bogen-Anweisung: 0/24 Marken belegt</p>
         <button type="button" class="beef-fill-hack" id="beef-fill-hack">Rest mit R II Hack füllen</button>
         <div class="beef-start-slots" id="beef-start-slots" aria-label="Start-Slot 1 bis 24"></div>
         <button type="button" class="beef-yield-save" id="beef-yield-save">Ausbeute speichern</button>
@@ -2001,6 +2211,7 @@ function ensureModal() {
     const value = /** @type {HTMLSelectElement} */ (event.target).value;
     if (value !== 'HV' && value !== 'VV' && value !== 'GK') return;
     state.segment = value;
+    if (value === 'HV' || value === 'VV') state.activeTab = value;
     ensureActiveTab();
     persist();
     renderModalBody();
@@ -2011,12 +2222,13 @@ function ensureModal() {
     el?.addEventListener('input', () => {
       const raw = /** @type {HTMLInputElement} */ (el).value;
       state[key] = transform ? transform(raw) : raw;
-      persist();
       if (key === 'chargenNummer') applyDetectedSegment(state.chargenNummer);
-      if (key === 'skipCount' || key === 'chargenNummer' || key === 'etikettenPraefix') {
-        ensureActiveTab();
-        renderModalBody();
+      if (key === 'ohrmarke' || key === 'schlachtDatum' || key === 'zerlegeDatum' || key === 'reifehinweis' || key === 'chargenNummer') {
+        applyActiveLotToQueue();
       }
+      persist();
+      ensureActiveTab();
+      renderModalBody();
     });
   };
   bindField('#beef-charge', 'chargenNummer');
@@ -2024,6 +2236,7 @@ function ensureModal() {
   bindField('#beef-ohrmarke', 'ohrmarke');
   bindField('#beef-schlacht', 'schlachtDatum');
   bindField('#beef-zerlege', 'zerlegeDatum');
+  bindField('#beef-reife', 'reifehinweis');
   bindField('#beef-herkunft', 'herkunft');
   bindField('#beef-betrieb', 'betriebsNummer');
   bindField('#beef-skip', 'skipCount', (raw) =>
@@ -2076,9 +2289,23 @@ function ensureModal() {
     const tabBtn = target.closest('[data-beef-tab]');
     if (tabBtn && tabBtn.closest('.beef-tabs')) {
       state.profile = '';
-      state.activeTab = /** @type {CutCategory} */ (tabBtn.getAttribute('data-beef-tab') || tabsForSegment()[0]);
+      state.activeTab = normalizeQuarterTab(tabBtn.getAttribute('data-beef-tab') || 'VV');
       persist();
       renderModalBody();
+      return;
+    }
+    const row = target.closest('[data-cut-id]');
+    const pendingBtn = target.closest('[data-pending-delta]');
+    if (row && pendingBtn) {
+      const cutId = row.getAttribute('data-cut-id');
+      const delta = Number(pendingBtn.getAttribute('data-pending-delta'));
+      if (cutId && delta) adjustPending(cutId, delta);
+      return;
+    }
+    const commitBtn = target.closest('[data-commit-sheet]');
+    if (commitBtn) {
+      const cutId = commitBtn.closest('[data-cut-id]')?.getAttribute('data-cut-id');
+      if (cutId) commitCutToSheet(cutId);
       return;
     }
     if (target === modal) {
@@ -2087,7 +2314,6 @@ function ensureModal() {
     }
     const kgInput = target.closest('[data-kg-input]');
     if (kgInput) return;
-    const row = target.closest('[data-cut-id]');
     const kgBtn = target.closest('[data-kg-delta]');
     if (row && kgBtn) {
       const cutId = row.getAttribute('data-cut-id');
