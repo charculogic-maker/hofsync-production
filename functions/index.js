@@ -72,6 +72,22 @@ function lazyExport(exportName, build) {
   });
 }
 
+function http(options, handler) {
+  let impl;
+  const func = (req, res) => {
+    if (!impl) impl = require('firebase-functions/v2/https').onRequest(options, handler);
+    return impl(req, res);
+  };
+  func.run = handler;
+  func.__endpoint = {
+    ...baseEndpoint(options),
+    httpsTrigger: {
+      invoker: ['public'],
+    },
+  };
+  return func;
+}
+
 function callable(options, handler) {
   let impl;
   const func = (req, res) => {
@@ -196,6 +212,40 @@ lazyExport('createTenantEmployee', () => callable(
 lazyExport('manageTenantEmployees', () => callable(
   CALLABLE_BASE_OPTIONS,
   withAdmin(async (request) => require('./manageTenantEmployees').handleManageTenantEmployees(request)),
+));
+
+lazyExport('setTenantModules', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    // Gleiche Vercel-Hosts wie provisionDemoTenant: reCAPTCHA App Check scheitert dort.
+    // Auth und Super-Admin-Prüfung bleiben Pflicht.
+    cors: true,
+    enforceAppCheck: false,
+  },
+  withAdmin(async (request) => require('./tenantAdmin').handleSetTenantModules(request)),
+));
+
+lazyExport('provisionNewCustomerTenant', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    cors: true,
+    enforceAppCheck: false,
+    timeoutSeconds: 60,
+  },
+  withAdmin(async (request) => require('./tenantAdmin').handleProvisionNewCustomerTenant(request)),
+));
+
+lazyExport('billingWebhook', () => http(
+  {
+    region: REGION,
+    invoker: 'public',
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (req, res) => {
+    ensureAdminApp();
+    return require('./billingWebhook').handleBillingWebhook(req, res);
+  },
 ));
 
 lazyExport('provisionDemoTenant', () => callable(

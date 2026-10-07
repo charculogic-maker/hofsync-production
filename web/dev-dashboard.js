@@ -1259,20 +1259,32 @@ function renderSingleTenantPanel(tenantId, data = {}) {
   syncMhdCardUiToggleInputs(tenantId);
 }
 
+let setTenantModulesCallable = null;
+
+function getSetTenantModulesCallable() {
+  if (setTenantModulesCallable) return setTenantModulesCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  setTenantModulesCallable = createHttpsCallable('setTenantModules', undefined, firebaseApi, FUNCTIONS_REGION);
+  return setTenantModulesCallable;
+}
+
 async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
-  const ref = db.collection('tenants').doc(tenantId);
-  const snap = await ref.get();
+  const callable = getSetTenantModulesCallable();
+  if (!callable) {
+    throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
+  }
+  const snap = await db.collection('tenants').doc(tenantId).get();
   const current = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
     ? { ...snap.data().enabledModules }
     : {};
   current[moduleKey] = enabled;
   if (moduleKey === 'chargenDoku') {
-    // Legacy-Key bereinigen, damit Plattform-Metriken nur chargenDoku zählen
     delete current.traceability;
   }
-  await ref.update({
+  await callable({
+    targetTenantId: tenantId,
     enabledModules: current,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   });
 }
 
@@ -1372,6 +1384,7 @@ function bindTenantToggleHandlers(db, statusEl) {
         'change',
       );
       if (statusEl) statusEl.textContent = `Gespeichert: ${tenantId} · ${MODULE_LABELS[moduleKey] || moduleKey}`;
+      window.showToast?.('Module für Mandant erfolgreich aktualisiert.', 'success');
     } catch (err) {
       input.checked = previous;
       console.error('[Dev-Dashboard] Modul-Toggle fehlgeschlagen:', err);
