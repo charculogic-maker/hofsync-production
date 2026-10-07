@@ -160,6 +160,35 @@ describe('Vector 6 – Tenant Admin RBAC (Callables)', () => {
     expect(['unauthenticated', 'permission-denied']).toContain(caught.code);
   });
 
+  test('assertAdminAccessForTenant allows patrik@charculogic.de on any tenant', async () => {
+    const { assertAdminAccessForTenant } = await import('../manageTenantEmployees.js');
+    const ctx = assertAdminAccessForTenant(
+      authAs({
+        uid: 'patrik-login',
+        tenantId: TENANT_A,
+        role: 'admin',
+        email: 'patrik@charculogic.de',
+      }),
+      'biohof_mueller',
+    );
+    expect(ctx.isSuperAdmin).toBe(true);
+    expect(ctx.tenantId).toBe('biohof_mueller');
+  });
+
+  test('assertAdminAccessForTenant allows superAdmin claim on any tenant', async () => {
+    const { assertAdminAccessForTenant } = await import('../manageTenantEmployees.js');
+    const auth = authAs({
+      uid: 'claim-admin',
+      tenantId: TENANT_A,
+      role: 'employee',
+      email: 'ops@example.de',
+    });
+    auth.token.superAdmin = true;
+    const ctx = assertAdminAccessForTenant(auth, 'biohof_mueller');
+    expect(ctx.isSuperAdmin).toBe(true);
+    expect(ctx.tenantId).toBe('biohof_mueller');
+  });
+
   test('assertAdminAccessForTenant allows platform super-admin without tenant claim', async () => {
     const { assertAdminAccessForTenant } = await import('../manageTenantEmployees.js');
     const ctx = assertAdminAccessForTenant(

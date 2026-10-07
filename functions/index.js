@@ -210,7 +210,13 @@ lazyExport('createTenantEmployee', () => callable(
 ));
 
 lazyExport('manageTenantEmployees', () => callable(
-  CALLABLE_BASE_OPTIONS,
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    // hofsync-charculogic.vercel.app scheitert an reCAPTCHA App Check; der Browser
+    // meldet das als CORS-Fehler. Auth und die Super-Admin-Prüfung bleiben Pflicht.
+    cors: true,
+    enforceAppCheck: false,
+  },
   withAdmin(async (request) => require('./manageTenantEmployees').handleManageTenantEmployees(request)),
 ));
 

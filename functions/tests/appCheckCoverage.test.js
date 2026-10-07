@@ -68,7 +68,7 @@ describe('App Check coverage – Callable registration contract', () => {
     expect(APP_CHECK_CALLABLES).toHaveLength(10);
   });
 
-  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'parseDeliveryNote' && entry.id !== 'reprocessDeliveryNoteDraft' && entry.id !== 'saveReconciledItems'))(
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'manageTenantEmployees' && entry.id !== 'parseDeliveryNote' && entry.id !== 'reprocessDeliveryNoteDraft' && entry.id !== 'saveReconciledItems'))(
     '$id configures enforceAppCheck: true',
     ({ file, anchor }) => {
       const source = readFunctionSource(file);
@@ -125,6 +125,22 @@ describe('App Check coverage – Callable registration contract', () => {
     const exportBlock = index.slice(exportAt, exportAt + 700);
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
     expect(exportBlock).toMatch(/handleSaveReconciledItems/);
+  });
+
+  test('manageTenantEmployees allows Vercel hosts and still requires auth', () => {
+    const source = readFunctionSource('manageTenantEmployees.js');
+    const block = onCallOptionsSlice(source, 'exports.manageTenantEmployees');
+    expect(block).toMatch(/cors:\s*true/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(source).toMatch(/Anmeldung erforderlich/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('manageTenantEmployees'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 700);
+    expect(exportBlock).toMatch(/cors:\s*true/);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/handleManageTenantEmployees/);
   });
 
   test('provisionDemoTenant allows Vercel hosts without App Check enforcement', () => {

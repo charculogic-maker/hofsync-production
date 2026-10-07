@@ -52,7 +52,7 @@ function assertAdminAccess(auth, targetTenantId) {
     throw new HttpsError('invalid-argument', 'Mandant (tenantId) fehlt.');
   }
 
-  // Plattform-Super-Admin zuerst: Claim tenantId ist optional, Ziel-Mandant kommt aus dem Payload.
+  // patrik@charculogic.de, Claim superAdmin oder Plattform-UID: jeder tenantId aus dem Payload.
   if (isSuperAdmin(auth)) {
     return {
       uid: auth.uid,
@@ -494,7 +494,11 @@ async function handleManageTenantEmployees(request) {
 
 exports.handleManageTenantEmployees = handleManageTenantEmployees;
 exports.manageTenantEmployees = onCall(
-  CALLABLE_BASE_OPTIONS,
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    cors: true,
+    enforceAppCheck: false,
+  },
   handleManageTenantEmployees,
 );
 
