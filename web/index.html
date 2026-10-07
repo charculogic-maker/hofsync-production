@@ -151,7 +151,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261007-galloway-print-quarters-v1">
+  <link rel="stylesheet" href="/style.css?v=20261007-drop-beef-label-modal-v1">
 </head>
 <body>
 
@@ -1218,11 +1218,6 @@
               <section class="receiving-section receiving-section--kopf receiving-section--metzgerei" aria-labelledby="we-kopf-title">
                 <h3 class="receiving-section-title" id="we-kopf-title">Temperatur &amp; Lieferschein</h3>
                 <div class="receiving-form-stack">
-                  <div class="beef-labels-trigger-wrap">
-                    <button type="button" class="btn btn-secondary beef-labels-open-btn" id="beef-labels-open-receiving">
-                      🥩 Galloway Zerlegung / Avery 3475
-                    </button>
-                  </div>
                   <label class="receiving-field" for="we-category">
                     <span>Waren-Kategorie</span>
                     <select id="we-category" class="gastro-input">
@@ -1424,9 +1419,6 @@
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
-            <div class="beef-labels-trigger-wrap beef-labels-trigger-wrap--kitchen">
-              <button id="btn-open-beef-labels" class="btn btn-primary beef-labels-open-btn" type="button" style="min-height: 52px; width: 100%; font-size: 15px; font-weight: 800; margin-bottom: 16px;">🥩 Galloway Zerlege-Erfassung &amp; Reife-Etiketten (Avery 3475)</button>
-            </div>
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
               <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
@@ -2530,7 +2522,6 @@
   </template>
 
   <script type="module" src="/fast-onboarding.js?v=20261002-fast-onboard-v1"></script>
-  <script type="module" src="/beef-labels.js?v=20261007-galloway-print-quarters-v1"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
   <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
 </body>
