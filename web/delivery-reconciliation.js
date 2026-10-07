@@ -3,6 +3,12 @@
  * (`mhd_liste` / laufende Lieferung) und Stammdaten.
  */
 import { createHttpsCallable } from './firebase-functions.js';
+import {
+  formatIsoToGerman,
+  initGermanDateInputs,
+  parseGermanDateToIso,
+  setGermanDateField,
+} from './date-input.js';
 
 const QTY_EPSILON = 0.011;
 const NAME_MATCH_RATIO = 0.82;
@@ -499,22 +505,27 @@ function missingPositions() {
 }
 
 function boardFilterCounts(positions) {
-  const counts = { all: positions.length, issues: 0, match: 0, neu: 0 };
+  const counts = { all: positions.length, issues: 0, match: 0, neu: 0, excluded: 0 };
   positions.forEach((position) => {
-    if (position.status === STATUS.EXCLUDED) return;
+    if (position.status === STATUS.EXCLUDED) {
+      counts.excluded += 1;
+      return;
+    }
     if (position.status === STATUS.PERFECT_MATCH) counts.match += 1;
     else if (position.status === STATUS.UNMAPPED) counts.neu += 1;
     else counts.issues += 1;
   });
-  counts.all = positions.length - positions.filter((position) => position.status === STATUS.EXCLUDED).length;
+  counts.all = positions.length - counts.excluded;
   return counts;
 }
 
 function matchesBoardFilter(position) {
-  if (position.status === STATUS.EXCLUDED) {
-    return !reconciliationState.hideExcluded && (reconciliationState.boardFilter || 'all') === 'all';
-  }
   const filter = reconciliationState.boardFilter || 'all';
+  if (position.status === STATUS.EXCLUDED) {
+    if (filter === 'excluded') return true;
+    return !reconciliationState.hideExcluded && filter === 'all';
+  }
+  if (filter === 'excluded') return false;
   if (filter === 'match') return position.status === STATUS.PERFECT_MATCH;
   if (filter === 'neu') return position.status === STATUS.UNMAPPED;
   if (filter === 'issues') {
@@ -559,6 +570,7 @@ function renderBoard() {
           ${renderFilterButton('issues', '🔴 Abweichung / Fehlt', counts.issues, activeFilter === 'issues')}
           ${renderFilterButton('match', '🟢 Match', counts.match, activeFilter === 'match')}
           ${renderFilterButton('neu', '⚪ Neu', counts.neu, activeFilter === 'neu')}
+          ${renderFilterButton('excluded', 'Pfand / Durchlauf', counts.excluded, activeFilter === 'excluded')}
         </div>
         <label class="delivery-reconciliation-exclude" data-reconcile-toggle="hide-excluded">
           <input type="checkbox" ${reconciliationState.hideExcluded ? 'checked' : ''} tabindex="-1">
@@ -807,35 +819,141 @@ export async function reconcileDeliveryNoteFromFile(file) {
   const user = await upload.ensureDeliveryNoteAuth(firebase);
   if (!user) return;
 
-  upload.showDeliveryParseProgress();
   try {
     reconciliationState.ocrInFlight = true;
-    const result = await upload.analyzeDeliveryNoteFile({
+    await upload.enqueueDeliveryNoteAnalysis({
       file,
       tenantId: reconciliationState.tenantId,
       getFirebase: reconciliationState.getFirebase,
-      callableTimeoutMs: 120000,
     });
-    console.log('[DeliveryReconciliation] Response received:', result?.raw || result);
-    upload.hideDeliveryParseProgress();
-    const payload = result?.raw || { items: result?.items || [] };
-    if (!Array.isArray(payload.items) || !payload.items.length) {
-      window.showToast?.('Keine Artikel erkannt.', 'warning');
-      return;
-    }
-    renderReconciliationModal(payload);
+    watchDeliveryNoteDrafts();
   } catch (err) {
     console.error('[DeliveryReconciliation] Failed:', err);
-    upload.hideDeliveryParseProgress();
     const details = typeof err?.details === 'string' ? err.details.trim() : '';
     const message = String(err?.message || '').trim();
     const internalCode = /^(KI timeout|Network error|Storage upload failed|Unsupported)$/i.test(message);
     const detail = details || (message && !internalCode ? message : '') || upload.mapDeliveryUploadError(err) || 'Unbekannter Fehler';
-    upload.showOperatorToast(`Parsing abgebrochen: ${detail}`);
+    upload.showOperatorToast(`Speichern abgebrochen: ${detail}`);
   } finally {
     reconciliationState.ocrInFlight = false;
     upload.hideDeliveryParseProgress();
   }
+}
+
+let deliveryDraftUnsubscribe = null;
+const deliveryDraftsById = new Map();
+
+function todayIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function selectedDraftDateIso() {
+  const el = document.getElementById('delivery-note-draft-date');
+  if (!el) return todayIsoDate();
+  return el.dataset.isoValue || parseGermanDateToIso(el.value) || todayIsoDate();
+}
+
+function draftStatusLabel(draft) {
+  if (draft.status === 'processing') return 'Analyse läuft';
+  if (draft.status === 'failed') return draft.error || 'Analyse fehlgeschlagen';
+  const count = Number(draft.itemCount) || (Array.isArray(draft.items) ? draft.items.length : 0);
+  return `${count} Positionen`;
+}
+
+function renderDeliveryNoteDraftList(drafts) {
+  const list = document.getElementById('delivery-note-draft-list');
+  if (!list) return;
+  deliveryDraftsById.clear();
+  if (!drafts.length) {
+    list.innerHTML = '<div class="open-drafts-empty">Keine Lieferschein-Entwürfe an diesem Tag.</div>';
+    return;
+  }
+  list.innerHTML = drafts.map((draft) => {
+    deliveryDraftsById.set(draft.id, draft);
+    const dateLabel = formatIsoToGerman(draft.deliveryDate) || draft.deliveryDate || '';
+    return `
+      <button type="button" class="open-draft-card delivery-note-draft-card" data-delivery-draft-id="${escapeHtml(draft.id)}">
+        <div class="open-draft-card-title">${escapeHtml(draft.fileName || 'Lieferschein')}</div>
+        <div class="open-draft-card-meta">${escapeHtml(dateLabel)} · ${escapeHtml(draftStatusLabel(draft))}</div>
+      </button>
+    `;
+  }).join('');
+}
+
+export function openDeliveryNoteDraft(draft) {
+  if (!draft) return;
+  if (draft.status === 'processing') {
+    window.showToast?.('Analyse läuft noch im Hintergrund.', 'info');
+    return;
+  }
+  if (draft.status === 'failed') {
+    window.showToast?.(draft.error || 'Analyse fehlgeschlagen.', 'error');
+    return;
+  }
+  const items = Array.isArray(draft.items) ? draft.items : [];
+  if (!items.length) {
+    window.showToast?.('Keine Artikel im Entwurf.', 'warning');
+    return;
+  }
+  renderReconciliationModal({
+    supplier: draft.supplier || draft.lieferant,
+    date: formatIsoToGerman(draft.deliveryDate) || draft.deliveryDate,
+    items,
+  });
+}
+
+function watchDeliveryNoteDrafts() {
+  const list = document.getElementById('delivery-note-draft-list');
+  const firebase = typeof reconciliationState.getFirebase === 'function'
+    ? reconciliationState.getFirebase()
+    : null;
+  const tenantId = String(reconciliationState.tenantId || '').trim();
+  const deliveryDate = selectedDraftDateIso();
+  if (deliveryDraftUnsubscribe) {
+    deliveryDraftUnsubscribe();
+    deliveryDraftUnsubscribe = null;
+  }
+  if (!list || !firebase?.firestore || !tenantId || !deliveryDate) {
+    if (list) list.innerHTML = '<div class="open-drafts-empty">Belegdatum wählen, sobald der Laden verbunden ist.</div>';
+    return;
+  }
+  deliveryDraftUnsubscribe = firebase.firestore()
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('delivery_note_drafts')
+    .where('deliveryDate', '==', deliveryDate)
+    .onSnapshot((snapshot) => {
+      const drafts = snapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => String(b.createdAt?.seconds || '').localeCompare(String(a.createdAt?.seconds || '')));
+      renderDeliveryNoteDraftList(drafts);
+    }, (err) => {
+      console.error('[DeliveryReconciliation] Entwürfe konnten nicht geladen werden:', err);
+      list.innerHTML = '<div class="open-drafts-empty">Entwürfe sind gerade nicht lesbar.</div>';
+    });
+}
+
+function bindDeliveryNoteDraftBrowser() {
+  const input = document.getElementById('delivery-note-draft-date');
+  const list = document.getElementById('delivery-note-draft-list');
+  if (!input || !list || input.dataset.draftBrowserBound === '1') return;
+  input.dataset.draftBrowserBound = '1';
+  initGermanDateInputs(input.parentElement || document);
+  setGermanDateField(input, todayIsoDate());
+  input.addEventListener('change', () => watchDeliveryNoteDrafts());
+  input.addEventListener('blur', () => watchDeliveryNoteDrafts());
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delivery-draft-id]');
+    if (!button) return;
+    openDeliveryNoteDraft(deliveryDraftsById.get(button.dataset.deliveryDraftId));
+  });
+  window.addEventListener('hofsync:delivery-draft-queued', (event) => {
+    const queuedDate = event.detail?.deliveryDate;
+    if (queuedDate) setGermanDateField(input, queuedDate);
+    watchDeliveryNoteDrafts();
+  });
+  watchDeliveryNoteDrafts();
 }
 
 export function bindDeliveryReconcileMain() {
@@ -869,4 +987,5 @@ export function initDeliveryReconciliation(options = {}) {
   reconciliationState.getAuthor = typeof options.getAuthor === 'function' ? options.getAuthor : reconciliationState.getAuthor;
   reconciliationState.showHUD = typeof options.showHUD === 'function' ? options.showHUD : reconciliationState.showHUD;
   bindDeliveryReconcileMain();
+  bindDeliveryNoteDraftBrowser();
 }

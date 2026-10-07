@@ -35,6 +35,7 @@ const DELIVERY_NOTE_PROMPT = [
   'Antworte nur mit einem kompakten JSON-Array, ohne Markdown und ohne weitere Schlüssel.',
   '[{"n":"Name","q":10,"u":"Stk","p":1.83,"t":18.30,"ean":""}]',
   'n=Name, q=Menge, u=Stk oder kg, p=Einzelpreis, t=Zeilensumme, ean=Ziffern.',
+  'Wenn das Belegdatum sichtbar ist, setze als erstes Array-Element nur {"d":"YYYY-MM-DD"}.',
   'u=kg nur bei Gewicht. Preise als Zahl. Steht eine Artikelnummer vor dem Namen, lass sie in n.',
 ].join(' ');
 
@@ -49,6 +50,31 @@ const EXCLUDED_NAME_KEYS = [
   'rosinenbroetchen',
   'mueslibroetchen',
 ];
+
+function toIsoDate(value) {
+  const raw = String(value || '').trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dotted = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(raw);
+  if (dotted) return `${dotted[3]}-${dotted[2]}-${dotted[1]}`;
+  return '';
+}
+
+/** Trennt ein optionales Datumsobjekt vom Positionsarray. */
+function splitDeliveryDate(lines) {
+  const items = [];
+  let deliveryDate = '';
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const name = String(line?.n || line?.name || line?.artikel || line?.bezeichnung || '').trim();
+    const date = toIsoDate(line?.d || line?.datum || line?.deliveryDate || line?.lieferdatum);
+    if (date && !name) {
+      deliveryDate = deliveryDate || date;
+      continue;
+    }
+    items.push(line);
+  }
+  return { deliveryDate, items };
+}
 
 function parsePrice(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
@@ -444,9 +470,11 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
       { inlineData: { mimeType, data: imageBase64 } },
     ]);
     const responseText = result?.response?.text?.() || '';
-    parsed = extractJsonArray(responseText)
-      .map(normalizeDeliveryLine)
-      .filter((line) => line.artikel);
+    const split = splitDeliveryDate(extractJsonArray(responseText));
+    parsed = {
+      deliveryDate: split.deliveryDate,
+      lines: split.items.map(normalizeDeliveryLine).filter((line) => line.artikel),
+    };
   } catch (err) {
     console.error('[parseDeliveryNote] Gemini Error:', err);
     if (err instanceof GoogleGenerativeAIFetchError) {
@@ -455,11 +483,56 @@ async function parseDeliveryNoteImage(imageBase64, mimeType = 'image/jpeg') {
     throw new HttpsError('internal', 'Lieferschein konnte nicht analysiert werden.');
   }
 
-  if (!parsed.length) {
+  if (!parsed.lines.length) {
     throw new HttpsError('invalid-argument', 'Keine Artikel auf dem Lieferschein erkannt.');
   }
 
-  return validateParsedItems(parsed);
+  return {
+    items: validateParsedItems(parsed.lines),
+    deliveryDate: parsed.deliveryDate || '',
+  };
+}
+
+async function handleProcessDeliveryNoteDraft(event) {
+  const tenantId = String(event?.params?.tenantId || '').trim();
+  const draftId = String(event?.params?.draftId || '').trim();
+  const snapshot = event?.data;
+  const data = typeof snapshot?.data === 'function' ? snapshot.data() : null;
+  if (!tenantId || !draftId || !data || data.status !== 'processing') return null;
+  if (data.tenantId && data.tenantId !== tenantId) return null;
+
+  const admin = getAdmin();
+  const db = admin.firestore();
+  const ref = db.doc(`tenants/${tenantId}/delivery_note_drafts/${draftId}`);
+  const FieldValue = require('firebase-admin/firestore').FieldValue;
+
+  try {
+    const loaded = await loadImageFromStorage(tenantId, data.storagePath);
+    const parsed = await parseDeliveryNoteImage(loaded.imageBase64, loaded.mimeType || data.mimeType);
+    const items = JSON.parse(JSON.stringify(parsed.items || []));
+    await ref.set({
+      status: 'completed',
+      items,
+      itemCount: items.length,
+      deliveryDate: parsed.deliveryDate || data.deliveryDate || '',
+      completedAt: FieldValue.serverTimestamp(),
+      error: '',
+    }, { merge: true });
+    console.log('[processDeliveryNoteDraft] Entwurf fertig', {
+      tenantId,
+      draftId,
+      itemCount: items.length,
+      deliveryDate: parsed.deliveryDate || data.deliveryDate || '',
+    });
+    return { status: 'completed', itemCount: items.length };
+  } catch (err) {
+    console.error('[processDeliveryNoteDraft] Analyse fehlgeschlagen:', err);
+    await ref.set({
+      status: 'failed',
+      error: String(err?.message || 'Analyse fehlgeschlagen.').slice(0, 300),
+    }, { merge: true });
+    return { status: 'failed' };
+  }
 }
 
 async function handleParseDeliveryNote(request) {
@@ -485,9 +558,11 @@ async function handleParseDeliveryNote(request) {
     tenantContext.tenantId,
   );
 
-  const items = await parseDeliveryNoteImage(imageBase64, mimeType);
+  const parsed = await parseDeliveryNoteImage(imageBase64, mimeType);
+  const items = parsed.items || [];
   const response = {
     items,
+    deliveryDate: parsed.deliveryDate || '',
     model: DELIVERY_NOTE_MODEL,
     tenantId: tenantContext.tenantId,
     previewOnly: true,
@@ -513,6 +588,8 @@ module.exports = {
   isNonStockLine,
   extractJsonArray,
   parseSafeJsonArray,
+  splitDeliveryDate,
+  handleProcessDeliveryNoteDraft,
   sanitizeGeminiResponseText,
   handleParseDeliveryNote,
   normalizeMimeType,

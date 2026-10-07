@@ -46,6 +46,12 @@ function assertDeliveryNoteCaller(request) {
 
 exports.assertDeliveryNoteCaller = assertDeliveryNoteCaller;
 
+function handleProcessDeliveryNoteDraft(event) {
+  return require('./deliveryNote').handleProcessDeliveryNoteDraft(event);
+}
+
+exports.handleProcessDeliveryNoteDraft = handleProcessDeliveryNoteDraft;
+
 const MAX_SAVE_ITEMS = 200;
 
 function safeDocId(value) {

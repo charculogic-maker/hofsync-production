@@ -3,6 +3,7 @@
 <head>
   <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#28a745">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -146,7 +147,7 @@
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
@@ -1258,7 +1259,12 @@
               </div>
 
               <section class="receiving-section open-drafts-section open-drafts-section--footer" id="open-drafts-section" aria-labelledby="open-drafts-title">
-                <h3 class="receiving-section-title" id="open-drafts-title">📋 Offene Lieferungen zur Nachbearbeitung</h3>
+                <h3 class="receiving-section-title" id="open-drafts-title">📋 Offene Entwürfe zur Nachbearbeitung</h3>
+                <label class="receiving-field" for="delivery-note-draft-date">
+                  <span>Belegdatum</span>
+                  <input id="delivery-note-draft-date" class="gastro-input input-date-de delivery-note-draft-date" type="text" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9.\/\-]{4,10}" placeholder="TT.MM.JJJJ" aria-label="Belegdatum der offenen Entwürfe">
+                </label>
+                <div id="delivery-note-draft-list" class="open-drafts-list" aria-live="polite"></div>
                 <div id="open-drafts-list" class="open-drafts-list" aria-live="polite">
                   <div class="open-drafts-empty">Keine offenen Entwürfe – alles nachgetragen.</div>
                 </div>

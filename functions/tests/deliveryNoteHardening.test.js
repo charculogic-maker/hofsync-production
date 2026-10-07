@@ -9,6 +9,7 @@ let ALLOWED_MIME_TYPES;
 let expandRetailLine;
 let extractJsonArray;
 let parseSafeJsonArray;
+let splitDeliveryDate;
 let isNonStockLine;
 let applyPriceQuantity;
 let normalizeDeliveryLine;
@@ -25,6 +26,7 @@ beforeAll(async () => {
     expandRetailLine,
     extractJsonArray,
     parseSafeJsonArray,
+    splitDeliveryDate,
     isNonStockLine,
     applyPriceQuantity,
     normalizeDeliveryLine,
@@ -72,6 +74,17 @@ describe('parseDeliveryNote – MIME tolerance', () => {
     expect(ALLOWED_MIME_TYPES.has('image/heic')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('image/heif')).toBe(true);
     expect(ALLOWED_MIME_TYPES.has('application/pdf')).toBe(true);
+  });
+});
+
+describe('parseDeliveryNote – delivery date header', () => {
+  test('keeps the invoice date and the line items', () => {
+    const split = splitDeliveryDate([
+      { d: '2026-10-06' },
+      { n: 'Honig', q: 6 },
+    ]);
+    expect(split.deliveryDate).toBe('2026-10-06');
+    expect(split.items).toEqual([{ n: 'Honig', q: 6 }]);
   });
 });
 

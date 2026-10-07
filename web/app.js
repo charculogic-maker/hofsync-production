@@ -126,6 +126,7 @@ import { FIREBASE_BOOT_GRACE_MS, resolveFirebaseConfig, resolveFirebaseProjectKe
 import {
   assertFirebaseProjectIsolation,
   ensureFirebaseApp,
+  ensureFirestorePersistentCache,
   handleEmergencyLogoutParam,
   isEmergencyLogoutRequested,
 } from './firebase-init.js';
@@ -2280,7 +2281,7 @@ async function handleAuthUrlResetIfRequested() {
   return true;
 }
 
-function initFirebase() {
+async function initFirebase() {
   if (firebaseReady && db) return true;
   if (typeof firebase === 'undefined') {
     console.error('[CharcuLogic Firebase] Firebase SDK nicht geladen. Prüfe die Script-Tags in index.html.');
@@ -2297,6 +2298,7 @@ function initFirebase() {
     // if (shouldUseFirebaseEmulators()) {
     //   attachLocalFirebaseEmulators(firebase);
     // }
+    const cacheMode = await ensureFirestorePersistentCache(app, firebase);
     db = typeof app.firestore === 'function' ? app.firestore() : firebase.firestore(app);
     initTenantDb(db);
     if (typeof app.auth === 'function') {
@@ -2306,12 +2308,16 @@ function initFirebase() {
     }
     getRegionalFunctions(firebase, FUNCTIONS_REGION);
     console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
-    firebasePersistencePromise = Promise.race([
-      db.enablePersistence().catch((err) => {
-        console.warn('Firestore Persistence Error:', err?.code || err);
-      }),
-      new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
-    ]);
+    if (cacheMode === 'persistentLocalCache') {
+      firebasePersistencePromise = Promise.resolve();
+    } else {
+      firebasePersistencePromise = Promise.race([
+        db.enablePersistence().catch((err) => {
+          console.warn('Firestore Persistence Error:', err?.code || err);
+        }),
+        new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
+      ]);
+    }
     firebaseReady = true;
     const modeLabel = areLocalFirebaseEmulatorsAttached() ? 'Emulator' : 'Cloud';
     console.log(
@@ -2332,7 +2338,7 @@ async function bootstrapFirebaseCore() {
   const started = Date.now();
   let ok = false;
   try {
-    ok = initFirebase();
+    ok = await initFirebase();
     if (ok) {
       await Promise.race([
         Promise.all([
@@ -2344,7 +2350,7 @@ async function bootstrapFirebaseCore() {
     } else {
       const remaining = Math.max(0, FIREBASE_BOOT_GRACE_MS - (Date.now() - started));
       await new Promise((resolve) => setTimeout(resolve, remaining));
-      ok = initFirebase();
+      ok = await initFirebase();
     }
   } finally {
     clearTimeout(loadingTimer);
@@ -2801,41 +2807,41 @@ document.getElementById('app-content')?.addEventListener('input', (e) => {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') markDirty();
 }, { passive: true });
 
-// Web Audio API für Taktiles Feedback (Haptik)
+// Web Audio API für Taktiles Feedback (Haptik).
+// Der Kontext entsteht erst nach der ersten Geste, sonst blockt der Browser Autoplay.
 let audioCtx = null;
+let audioUnlocked = false;
 
 function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
   try {
-    // Initialisiere AudioContext beim ersten Klick
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+    const activeCtx = ensureAudioContext();
+    if (!activeCtx) return;
+    if (activeCtx.state === 'suspended') {
+      activeCtx.resume();
     }
 
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const osc = activeCtx.createOscillator();
+    const gain = activeCtx.createGain();
     
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(activeCtx.destination);
     
     // Kurzer, knackiger "Klick"-Ton
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(frequency, activeCtx.currentTime);
     
-    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    gain.gain.setValueAtTime(volume, activeCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, activeCtx.currentTime + duration);
     
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + duration + 0.02);
+    osc.start(activeCtx.currentTime);
+    osc.stop(activeCtx.currentTime + duration + 0.02);
   } catch (e) {
     console.warn("Audio Haptik fehlgeschlagen: ", e);
   }
 }
 
 function ensureAudioContext() {
+  if (!audioUnlocked) return null;
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
@@ -2843,28 +2849,30 @@ function ensureAudioContext() {
   return audioCtx;
 }
 
-// iOS/Safari: AudioContext nach erster User-Interaktion freischalten
-document.addEventListener('click', function unlockAudio() {
-  ensureAudioContext();
-  document.removeEventListener('click', unlockAudio);
-}, { once: true });
-
-async function unlockAudioForIos() {
+function unlockAudioFromGesture() {
+  audioUnlocked = true;
   try {
     const ctx = ensureAudioContext();
-    if (ctx?.state === 'suspended') await ctx.resume();
+    if (ctx?.state === 'suspended') ctx.resume();
   } catch (err) {
     console.warn('[CharcuLogic Audio] Unlock fehlgeschlagen:', err);
   }
 }
 
-['pointerdown', 'touchstart'].forEach((eventName) => {
-  document.addEventListener(eventName, unlockAudioForIos, { once: true, passive: true });
-});
+function bindLazyAudioUnlock() {
+  const host = document.body;
+  if (!host || host.dataset.audioUnlockBound === '1') return;
+  host.dataset.audioUnlockBound = '1';
+  host.addEventListener('pointerdown', unlockAudioFromGesture, { once: true, passive: true });
+  host.addEventListener('click', unlockAudioFromGesture, { once: true });
+}
+
+bindLazyAudioUnlock();
 
 function playFeedbackSound(type) {
   try {
     const ctx = ensureAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
     if (type === 'success') {

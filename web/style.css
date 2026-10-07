@@ -4697,6 +4697,11 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   gap: 10px;
 }
 
+.delivery-note-draft-date {
+  width: 100%;
+  min-height: 48px;
+}
+
 .open-drafts-empty {
   padding: 14px 12px;
   border-radius: var(--border-radius-sm);

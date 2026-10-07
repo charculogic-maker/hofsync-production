@@ -6559,7 +6559,9 @@ export function applyReceivingMetzgereiVisibility(branding = window.BRANDING || 
       metzPanel.classList.add('hidden');
     }
     if (draftBtn) draftBtn.hidden = !enabled;
-    if (openDrafts) openDrafts.hidden = !enabled;
+    if (openDrafts) openDrafts.hidden = false;
+    const photoDrafts = document.getElementById('open-drafts-list');
+    if (photoDrafts) photoDrafts.hidden = !enabled;
 
     if (desc) {
       desc.textContent = enabled

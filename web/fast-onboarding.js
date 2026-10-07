@@ -387,20 +387,46 @@ export function syncFastOnboardingVisibility() {
   });
 }
 
-export async function initFastOnboarding() {
+function firebaseAppCount() {
   try {
-    await whenFirebaseCoreReady();
-  } catch (err) {
-    console.warn('[fast-onboarding] Firebase-Core nicht bereit:', err?.message || err);
+    const modularGetApps = globalThis.firebase?.INTERNAL?.modularAPIs?.getApps;
+    if (typeof modularGetApps === 'function') {
+      const apps = modularGetApps();
+      if (Array.isArray(apps) && apps.length > 0) return apps.length;
+    }
+  } catch (_) { /* compat-App zählt über firebase.apps */ }
+  if (typeof firebase !== 'undefined' && Array.isArray(firebase.apps)) return firebase.apps.length;
+  return 0;
+}
+
+async function waitForInitializedFirebaseApp(timeoutMs = 8000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (typeof window !== 'undefined' && window.firebaseCoreReadyPromise) {
+      try {
+        await window.firebaseCoreReadyPromise;
+      } catch (_) { /* Core meldet den Fehler selbst */ }
+    }
+    if (firebaseAppCount() > 0) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
+  return firebaseAppCount() > 0;
+}
+
+export async function initFastOnboarding() {
+  const ready = await waitForInitializedFirebaseApp();
   syncFastOnboardingVisibility();
-  try {
-    const auth = authForApp(resolveOnboardingApp());
-    auth?.onAuthStateChanged(() => {
-      syncFastOnboardingVisibility();
-    });
-  } catch (err) {
-    console.warn('[fast-onboarding] Auth-Listener übersprungen:', err?.message || err);
+  if (!ready) {
+    console.warn('[fast-onboarding] Auth-Listener übersprungen: Firebase-App ist noch nicht initialisiert.');
+  } else {
+    try {
+      const auth = authForApp(resolveOnboardingApp());
+      auth?.onAuthStateChanged(() => {
+        syncFastOnboardingVisibility();
+      });
+    } catch (err) {
+      console.warn('[fast-onboarding] Auth-Listener übersprungen:', err?.message || err);
+    }
   }
   window.addEventListener('charculogic:auth-changed', () => {
     syncFastOnboardingVisibility();

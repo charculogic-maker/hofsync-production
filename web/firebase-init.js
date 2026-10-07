@@ -111,6 +111,35 @@ export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' 
   return app;
 }
 
+/**
+ * Firestore v10+: IndexedDB-Cache über persistentLocalCache statt
+ * enableIndexedDbPersistence. Schlägt der Abruf fehl, bleibt der bisherige
+ * Compat-Pfad in app.js der Fallback.
+ */
+export async function ensureFirestorePersistentCache(app, firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
+  if (!app) return 'unavailable';
+  if (app.__hofsyncPersistentCache === 'persistentLocalCache') return 'persistentLocalCache';
+  try {
+    const modular = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
+    if (typeof modular.initializeFirestore !== 'function'
+      || typeof modular.persistentLocalCache !== 'function'
+      || typeof modular.persistentMultipleTabManager !== 'function') {
+      return 'fallback';
+    }
+    modular.initializeFirestore(app, {
+      localCache: modular.persistentLocalCache({
+        tabManager: modular.persistentMultipleTabManager(),
+      }),
+    });
+    app.__hofsyncPersistentCache = 'persistentLocalCache';
+    return 'persistentLocalCache';
+  } catch (err) {
+    console.warn('[CharcuLogic Firebase] persistentLocalCache nicht gesetzt:', err?.message || err);
+    if (firebaseApi) return 'fallback';
+    return 'fallback';
+  }
+}
+
 /** Bereits initialisierte Compat-App. Kein parameterloses getApp(). */
 export function getFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
   if (typeof window !== 'undefined' && window.firebaseApp) return window.firebaseApp;

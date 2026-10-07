@@ -384,6 +384,72 @@ export async function uploadDeliveryNoteToStorage({
   };
 }
 
+function todayIsoDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function createDeliveryDraftId() {
+  const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10);
+  return `dn_${Date.now().toString(36)}_${randomPart}`;
+}
+
+/**
+ * Speichert die Datei und legt einen Entwurf mit status=processing an.
+ * Die Cloud Function analysiert danach im Hintergrund.
+ */
+export async function enqueueDeliveryNoteAnalysis({
+  file,
+  tenantId,
+  getFirebase,
+} = {}) {
+  assertOnline();
+  const firebase = typeof getFirebase === 'function' ? getFirebase() : null;
+  const user = await ensureDeliveryNoteAuth(firebase);
+  if (!user) {
+    throw new DeliveryUploadError('unauthenticated', 'Bitte zuerst in HofSync anmelden.');
+  }
+  if (!firebase?.firestore) {
+    throw new DeliveryUploadError('generic', 'Lieferschein-Speicher ist gerade nicht bereit.');
+  }
+
+  showDeliveryParseProgress();
+  try {
+    const upload = await uploadDeliveryNoteToStorage({ file, tenantId, getFirebase });
+    const draftId = createDeliveryDraftId();
+    const deliveryDate = todayIsoDate();
+    const cleanTenant = upload.tenantId;
+    await firebase.firestore()
+      .collection('tenants')
+      .doc(cleanTenant)
+      .collection('delivery_note_drafts')
+      .doc(draftId)
+      .set({
+        id: draftId,
+        status: 'processing',
+        storagePath: upload.storagePath,
+        mimeType: upload.mimeType,
+        fileName: String(file?.name || 'lieferschein').slice(0, 180),
+        tenantId: cleanTenant,
+        deliveryDate,
+        itemCount: 0,
+        items: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    window.showToast?.('📄 Lieferschein gespeichert! Analyse läuft im Hintergrund.', 'success');
+    window.dispatchEvent(new CustomEvent('hofsync:delivery-draft-queued', {
+      detail: { draftId, deliveryDate, tenantId: cleanTenant },
+    }));
+    return { draftId, deliveryDate, storagePath: upload.storagePath };
+  } finally {
+    hideDeliveryParseProgress();
+  }
+}
+
 /**
  * Upload + Callable parseDeliveryNote (nur Storage-Pfad, kein Base64).
  */
