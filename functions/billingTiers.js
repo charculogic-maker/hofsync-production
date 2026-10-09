@@ -191,15 +191,18 @@ function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now()) {
   const key = String(secret || '').trim();
   const signature = String(header || '').trim();
   if (!key || key.toLowerCase() === 'unset' || !signature) return false;
-  const parts = {};
+  const timestamps = [];
+  const signatures = [];
   signature.split(',').forEach((piece) => {
     const index = piece.indexOf('=');
     if (index <= 0) return;
-    parts[piece.slice(0, index).trim()] = piece.slice(index + 1).trim();
+    const name = piece.slice(0, index).trim();
+    const value = piece.slice(index + 1).trim();
+    if (name === 't' && value) timestamps.push(value);
+    if (name === 'v1' && value) signatures.push(value);
   });
-  const timestamp = parts.t;
-  const v1 = parts.v1;
-  if (!timestamp || !v1 || !/^\d+$/.test(timestamp)) return false;
+  const timestamp = timestamps[0] || '';
+  if (!timestamp || !signatures.length || !/^\d+$/.test(timestamp)) return false;
   const age = Math.abs(Number(nowMs) - Number(timestamp) * 1000);
   if (!Number.isFinite(age) || age > SIGNATURE_TOLERANCE_MS) return false;
   const payload = Buffer.concat([
@@ -207,7 +210,7 @@ function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now()) {
     rawBuffer(rawBody),
   ]);
   const expected = crypto.createHmac('sha256', key).update(payload).digest('hex');
-  return timingSafeEqualText(expected, v1);
+  return signatures.some((candidate) => timingSafeEqualText(expected, candidate));
 }
 
 function verifyLemonSignature(rawBody, header, secret) {
@@ -222,6 +225,54 @@ function firstText(...values) {
   return values.map((value) => String(value || '').trim()).find(Boolean) || '';
 }
 
+const PUBLIC_MAIL_HOSTS = new Set([
+  'gmail', 'googlemail', 'gmx', 'web', 'icloud', 'me', 'outlook', 'hotmail',
+  'live', 'yahoo', 't-online', 'posteo', 'mailbox', 'freenet', 'aol',
+]);
+
+function sanitizeCompanyName(value) {
+  return String(value || '')
+    .replace(/[^a-zA-Z0-9äöüÄÖÜß\s_-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function companyNameFromEmail(email) {
+  const host = String(email || '').split('@')[1]?.split('.')[0] || '';
+  if (!host || PUBLIC_MAIL_HOSTS.has(host.toLowerCase())) return '';
+  return host
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function resolveCompanyName({ metadataName, customerName, email }) {
+  const cleaned = sanitizeCompanyName(firstText(
+    metadataName,
+    customerName,
+    companyNameFromEmail(email),
+    'Neukunde',
+  ));
+  return cleaned || 'Neukunde';
+}
+
+function tierFromAmount(amount) {
+  const cents = Number(amount);
+  if (cents === 3900) return 'mhd_retter';
+  if (cents === 7900) return 'hofladen_komplett';
+  if (cents === 14900) return 'metzgerei_pro';
+  return '';
+}
+
+function resolveStripeTier(object, metadataTier) {
+  return firstText(
+    tierFromText(metadataTier),
+    tierFromAmount(object?.amount_total),
+    tierFromAmount(object?.amount_subtotal),
+  );
+}
+
 function parseBillingEvent(provider, payload = {}) {
   const event = payload && typeof payload === 'object' ? payload : {};
   if (provider === 'stripe') {
@@ -234,17 +285,19 @@ function parseBillingEvent(provider, payload = {}) {
       metadata.adminEmail,
       metadata.email,
     ).toLowerCase();
-    const companyName = firstText(
-      metadata.companyName,
-      metadata.company_name,
-      object.customer_details?.name,
-    );
-    const tier = tierFromText(firstText(
+    const companyName = resolveCompanyName({
+      metadataName: firstText(metadata.companyName, metadata.company_name),
+      customerName: object.customer_details?.name,
+      email,
+    });
+    const namedTier = firstText(
       metadata.tier,
       metadata.plan,
       metadata.price_lookup_key,
       object.display_items?.[0]?.name,
-    ));
+    );
+    const tier = resolveStripeTier(object, namedTier)
+      || (type === 'checkout.session.completed' ? 'mhd_retter' : '');
     const base = {
       provider,
       eventId: firstText(event.id),

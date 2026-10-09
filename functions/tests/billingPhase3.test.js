@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { readFileSync } from 'fs';
 import { describe, expect, test } from 'vitest';
 import {
   applyModulePatch,
@@ -81,9 +82,18 @@ describe('Phase 3 webhook signatures', () => {
     const header = `t=${timestamp},v1=${digest}`;
     const now = 1700000000 * 1000;
     expect(verifyStripeSignature(body, header, secret, now)).toBe(true);
+    expect(verifyStripeSignature(body, `t=${timestamp},v1=deadbeef,v1=${digest}`, secret, now)).toBe(true);
     expect(verifyStripeSignature(body, header, 'other-secret', now)).toBe(false);
     expect(verifyStripeSignature(body, header, secret, now + 10 * 60 * 1000)).toBe(false);
     expect(verifyStripeSignature(body, header, '', now)).toBe(false);
+  });
+
+  test('billingWebhook mounts STRIPE_WEBHOOK_SECRET from Secret Manager', () => {
+    const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+    const at = source.indexOf("lazyExport('billingWebhook'");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const block = source.slice(at, at + 600);
+    expect(block).toMatch(/secrets:\s*\[[^\]]*['"]STRIPE_WEBHOOK_SECRET['"]/);
   });
 
   test('accepts a Lemon Squeezy HMAC of the raw body', () => {
@@ -120,6 +130,48 @@ describe('Phase 3 webhook signatures', () => {
     });
     expect(cancelled.action).toBe('cancel');
     expect(cancelled.subscriptionId).toBe('sub_1');
+  });
+
+  test('checkout without metadata uses the mail domain and the paid amount', () => {
+    const checkout = parseBillingEvent('stripe', {
+      id: 'evt_link',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test_a1HIs7PqeRDHwZfHxqRq6O2ggLVh5RP7HOImBiXrgkWZCprWW7gnSzu6sP',
+          customer_email: 'meister@biohof-sonnenschein.de',
+          customer_details: { email: 'meister@biohof-sonnenschein.de', name: '' },
+          metadata: {},
+          amount_total: 3900,
+        },
+      },
+    });
+    expect(checkout.action).toBe('provision');
+    expect(checkout.companyName).toBe('Biohof Sonnenschein');
+    expect(checkout.tier).toBe('mhd_retter');
+    expect(parseBillingEvent('stripe', {
+      type: 'checkout.session.completed',
+      data: { object: { customer_email: 'a@hof.de', metadata: {}, amount_total: 7900 } },
+    }).tier).toBe('hofladen_komplett');
+    expect(parseBillingEvent('stripe', {
+      type: 'checkout.session.completed',
+      data: { object: { customer_email: 'a@hof.de', metadata: {}, amount_subtotal: 14900 } },
+    }).tier).toBe('metzgerei_pro');
+    expect(parseBillingEvent('stripe', {
+      type: 'checkout.session.completed',
+      data: { object: { customer_email: 'meister@gmail.com', metadata: {} } },
+    }).companyName).toBe('Neukunde');
+    expect(parseBillingEvent('stripe', {
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer_email: 'meister@biohof-sonnenschein.de',
+          customer_details: { name: 'Hof "Sonnenschein"!' },
+          metadata: {},
+          amount_total: 3900,
+        },
+      },
+    }).companyName).toBe('Hof Sonnenschein');
   });
 
   test('maps Lemon Squeezy subscription events from the product name', () => {

@@ -256,6 +256,9 @@ lazyExport('billingWebhook', () => http(
     invoker: 'public',
     timeoutSeconds: 60,
     memory: '256MiB',
+    // Secret Manager version is unused until the function declares it.
+    // Without this binding every Stripe call fails as invalid_signature.
+    secrets: ['STRIPE_WEBHOOK_SECRET'],
   },
   async (req, res) => {
     ensureAdminApp();

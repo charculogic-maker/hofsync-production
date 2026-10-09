@@ -104,10 +104,8 @@ async function handleBillingWebhook(req, res) {
       res.status(400).json({ ok: false, error: 'missing_email' });
       return;
     }
-    if (!event.tier) {
-      res.status(400).json({ ok: false, error: 'missing_tier' });
-      return;
-    }
+    if (!event.companyName) event.companyName = 'Neukunde';
+    if (!event.tier) event.tier = 'mhd_retter';
   }
 
   const duplicate = await rememberBillingEvent(event);
@@ -140,6 +138,7 @@ async function handleBillingWebhook(req, res) {
       ok: true,
       action: 'provision',
       tenantId: result.tenantId,
+      tier: event.tier,
       created: result.created === true,
       emailed: result.emailed === true,
     });
