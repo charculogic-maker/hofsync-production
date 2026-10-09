@@ -278,6 +278,15 @@
                   type="button"
                   class="dev-dashboard-tab"
                   role="tab"
+                  id="dev-dashboard-tab-settings"
+                  data-dev-tab="settings"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-settings"
+                >Mein Betrieb</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
                   id="dev-dashboard-tab-users"
                   data-dev-tab="users"
                   aria-selected="false"
@@ -287,11 +296,12 @@
                   type="button"
                   class="dev-dashboard-tab"
                   role="tab"
-                  id="dev-dashboard-tab-settings"
-                  data-dev-tab="settings"
+                  id="dev-dashboard-tab-platform"
+                  data-dev-tab="platform"
                   aria-selected="false"
-                  aria-controls="dev-dashboard-view-settings"
-                >Einstellungen</button>
+                  aria-controls="dev-dashboard-view-platform"
+                  hidden
+                >Plattform &amp; Mandanten</button>
                 <button
                   type="button"
                   class="dev-dashboard-tab"
@@ -333,7 +343,7 @@
                   </div>
                   <div class="dev-dashboard-overview-actions">
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="users">Zur Nutzerverwaltung</button>
-                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu den Einstellungen</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu meinem Betrieb</button>
                   </div>
                 </section>
               </div>
@@ -443,9 +453,9 @@
               <div id="dev-dashboard-view-settings" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-settings" hidden>
                 <div class="dev-dashboard-grid">
                   <section class="dev-dashboard-panel" aria-label="Betriebseinstellungen">
-                    <h2 class="dev-dashboard-section-title">Betriebseinstellungen</h2>
+                    <h2 class="dev-dashboard-section-title">Mein Betrieb</h2>
                     <p class="dev-dashboard-intro">
-                      Firmenname und Logo für die Anzeige in unserer App. Modul-Freischaltungen gelten sofort auf allen Laden-iPhones.
+                      Firmenname, Logo und freigeschaltete Module für den ausgewählten Betrieb.
                     </p>
                     <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
                       <label class="dev-dashboard-field" for="dev-dashboard-settings-name">
@@ -463,6 +473,38 @@
                           <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
                         </div>
                       </div>
+                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
+                        <legend>Modul-Freischaltung</legend>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
+                          MHD-Monitor, Wareneingang, Wurstküche, HACCP, Teamboard sowie Büro und Chargen.
+                        </p>
+                        <div class="dev-dashboard-permissions-row">
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="mhd">
+                            <span>MHD-Monitor</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="receiving">
+                            <span>Wareneingang</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="kitchen">
+                            <span>Wurstküche &amp; Rezepte</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="haccp">
+                            <span>HACCP</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="start">
+                            <span>Teamboard</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="buero">
+                            <span>Büro &amp; Chargen</span>
+                          </label>
+                        </div>
+                      </fieldset>
                       <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>MHD-Karten-Aktionen</legend>
                         <p class="dev-dashboard-intro">
@@ -487,19 +529,23 @@
                           </label>
                         </div>
                       </fieldset>
-                      <button type="submit" class="dev-dashboard-submit-btn">Einstellungen speichern</button>
+                      <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
                   </section>
+                </div>
+              </div>
 
+              <div id="dev-dashboard-view-platform" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-platform" hidden>
+                <div class="dev-dashboard-grid">
                   <section
                     class="dev-dashboard-panel dev-dashboard-panel--global"
                     id="dev-dashboard-global-panel"
                     aria-label="Alle Betriebe"
                   >
-                    <h2 class="dev-dashboard-section-title">Betriebe (Plattform)</h2>
+                    <h2 class="dev-dashboard-section-title">Plattform &amp; Mandanten</h2>
                     <p class="dev-dashboard-intro">
-                      Module pro Betrieb aktivieren oder deaktivieren. Änderungen gelten sofort für alle Geräte.
+                      Neuen Betrieb anlegen, einen Interessenten-Zugang erzeugen und Module je Mandant schalten.
                     </p>
 
                     <div class="dev-dashboard-tenant-create">
@@ -650,42 +696,6 @@
                     </div>
                   </section>
 
-                  <section
-                    class="dev-dashboard-panel dev-dashboard-panel--single"
-                    id="dev-dashboard-single-panel"
-                    hidden
-                    aria-label="Eigener Betrieb"
-                  >
-                    <h2 class="dev-dashboard-section-title">Module für unseren Betrieb</h2>
-                    <p class="dev-dashboard-intro">
-                      Module für unseren Betrieb aktivieren oder deaktivieren. Darunter steuern wir die MHD-Karten-Buttons Küche und Box.
-                    </p>
-                    <div id="dev-dashboard-single-tenant" class="dev-dashboard-single-tenant-wrap"></div>
-                    <fieldset class="dev-dashboard-permissions-fieldset dev-dashboard-mhd-ui-fieldset">
-                      <legend>MHD-Karten-Aktionen</legend>
-                      <p class="dev-dashboard-intro">
-                        Buttons <strong>Küche</strong> und <strong>Box</strong> in der MHD-Karte (lokal auf diesem Gerät, Standard: aus).
-                      </p>
-                      <div class="dev-dashboard-toggles" id="dev-dashboard-mhd-card-toggles-modules">
-                        <label class="dev-dashboard-toggle" title="Küche-Button in der MHD-Karte">
-                          <input
-                            id="dev-dashboard-mhd-show-kitchen-modules"
-                            type="checkbox"
-                            data-mhd-ui-key="mhd_show_kitchen"
-                          >
-                          <span>Küche-Button</span>
-                        </label>
-                        <label class="dev-dashboard-toggle" title="Box-Button in der MHD-Karte">
-                          <input
-                            id="dev-dashboard-mhd-show-box-modules"
-                            type="checkbox"
-                            data-mhd-ui-key="mhd_show_box"
-                          >
-                          <span>Box-Button</span>
-                        </label>
-                      </div>
-                    </fieldset>
-                  </section>
                 </div>
               </div>
 
