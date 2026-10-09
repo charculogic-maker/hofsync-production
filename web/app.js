@@ -128,6 +128,7 @@ import {
   ensureFirebaseApp,
   ensureFirestorePersistentCache,
   handleEmergencyLogoutParam,
+  installSecretLogoutGestures,
   isEmergencyLogoutRequested,
 } from './firebase-init.js';
 import {
@@ -174,6 +175,7 @@ const EMERGENCY_LOGOUT_REQUESTED = isEmergencyLogoutRequested();
 if (EMERGENCY_LOGOUT_REQUESTED) {
   void handleEmergencyLogoutParam();
 }
+installSecretLogoutGestures();
 
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);

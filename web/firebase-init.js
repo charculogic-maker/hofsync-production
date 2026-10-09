@@ -98,6 +98,68 @@ export async function handleEmergencyLogoutParam() {
   return true;
 }
 
+const SECRET_LOGO_SELECTOR = [
+  '.brand-logo',
+  '#cldc-logo',
+  '#tenant-header-logo',
+  '#dev-dashboard-tenant-logo',
+  '#app-nav-brand-logo',
+  '.app-badge',
+].join(', ');
+
+/**
+ * Sitzung beenden, lokale Mandanten-Caches leeren und neu laden.
+ * Der Reload zeigt die Login-Maske, sobald kein Firebase-User mehr da ist.
+ */
+export async function signOutAndShowLogin() {
+  if (typeof window === 'undefined') return;
+  if (window.__charculogicSecretSignOut) return;
+  window.__charculogicSecretSignOut = true;
+
+  try {
+    const { logoutTenant } = await import('./auth.js');
+    await logoutTenant({ clearPersistence: true });
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Abmelden fehlgeschlagen:', err);
+    try {
+      const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+      if (firebaseApi?.apps?.length && typeof firebaseApi.auth === 'function') {
+        await firebaseApi.auth().signOut();
+      }
+    } catch (_) { /* Reload zeigt trotzdem die Login-Maske. */ }
+  }
+
+  clearLocalSessionCache();
+  window.location.reload();
+}
+
+/** Dreifachklick aufs Logo und Strg+Alt+L. Mehrfachaufruf bleibt einmalig. */
+export function installSecretLogoutGestures() {
+  if (typeof document === 'undefined') return;
+  if (window.__charculogicSecretLogoutGestures) return;
+  window.__charculogicSecretLogoutGestures = true;
+
+  let clicks = [];
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest(SECRET_LOGO_SELECTOR)) return;
+    const now = Date.now();
+    clicks = clicks.filter((stamp) => now - stamp <= 1500);
+    clicks.push(now);
+    if (clicks.length < 3) return;
+    clicks = [];
+    if (!window.confirm('Möchtest du dich wirklich abmelden?')) return;
+    void signOutAndShowLogin();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (!event.ctrlKey || !event.altKey) return;
+    if (String(event.key || '').toLowerCase() !== 'l') return;
+    event.preventDefault();
+    void signOutAndShowLogin();
+  });
+}
+
 export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
   if (!firebaseApi) {
     throw new Error('[CharcuLogic Firebase] Firebase SDK nicht geladen.');

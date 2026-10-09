@@ -10392,6 +10392,8 @@ body.dev-dashboard-view[hidden] {
   margin: 0;
   font-size: 0.82rem;
   color: var(--text-muted, #64748b);
+  cursor: pointer;
+  opacity: 0.8;
 }
 
 .dev-dashboard-table-wrap {

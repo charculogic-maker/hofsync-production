@@ -1,4 +1,5 @@
-const CACHE_NAME = 'charculogic-v20261009-dashboard-tabs-v1';
+const CACHE_NAME = 'charculogic-v20261009-secret-signout-v1';
+
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
 const RELEASED_AT = '2026-10-05T19:15:00+02:00';
 

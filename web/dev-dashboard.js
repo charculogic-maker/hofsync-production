@@ -5,7 +5,12 @@
 import { isTenantModuleEnabled, TENANT_MODULE_KEYS } from './tenant-modules.js';
 import { createHttpsCallable, getRegionalFunctions, FUNCTIONS_REGION } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
-import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
+import {
+  handleEmergencyLogoutParam,
+  installSecretLogoutGestures,
+  isEmergencyLogoutRequested,
+  signOutAndShowLogin,
+} from './firebase-init.js';
 import {
   appendTenantAuditEvent,
   AUDIT_STORAGE_SCOPE_HINT,
@@ -1106,15 +1111,28 @@ const EMPLOYEE_MODULE_LABELS = {
 };
 
 async function signOutFromDashboard() {
-  try {
-    const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
-    if (firebaseApi?.apps?.length && typeof firebaseApi.auth === 'function') {
-      await firebaseApi.auth().signOut();
-    }
-  } catch (err) {
-    console.warn('[Dev-Dashboard] SignOut fehlgeschlagen:', err);
-  }
+  await signOutAndShowLogin();
 }
+
+function bindDashboardStatusSignOut() {
+  const statusEl = document.getElementById('dev-dashboard-status');
+  if (!statusEl || statusEl.dataset.secretSignOut === '1') return;
+  statusEl.dataset.secretSignOut = '1';
+  statusEl.title = 'Angemeldet';
+  statusEl.addEventListener('click', () => {
+    const email = String(
+      dashboardState.actorEmail
+      || (typeof firebase !== 'undefined' && firebase.auth?.().currentUser?.email)
+      || '',
+    ).trim();
+    const question = email ? `Abmelden von ${email}?` : 'Möchtest du dich wirklich abmelden?';
+    if (!window.confirm(question)) return;
+    void signOutAndShowLogin();
+  });
+}
+
+installSecretLogoutGestures();
+bindDashboardStatusSignOut();
 
 /**
  * @param {'login'|'forbidden'} reason
@@ -2538,6 +2556,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
       if (settingsDraft.displayName) dashboardState.tenantDisplayName = settingsDraft.displayName;
     }
 
+    bindDashboardStatusSignOut();
     bindDevDashboardBackButton();
     bindDevDashboardTabs();
     bindOverviewJumpLinks();
