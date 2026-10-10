@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
+> **Stand:** Oktober 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade), SaaS-Billing/Provisioning und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -219,7 +219,83 @@ Roh-Fehlerdetails bleiben in `console.error`; Operatoren sehen über `web/operat
 
 Laufzeit: **Node 22**, `firebase-functions` v2, `firebase-admin`. Exporte in `functions/index.js`.
 
-### 4.1 Fleischpreis-Automation (`fetchWeeklyMeatPrices` + `triggerManualMeatPriceRun`)
+### 4.1 SaaS-Billing, Tarifmodule & Provisioning
+
+Der Billing-Pfad ist die technische Grundlage für Zero-Touch-Neukunden und Modul-Freischaltung im Plattformbetrieb.
+
+| Codepfad | Verantwortung |
+|----------|---------------|
+| `functions/billingTiers.js` | Tarifmatrix, Modul-Aliase, Stripe-/Lemon-Signaturprüfung, Event-Normalisierung |
+| `functions/billingWebhook.js` | Öffentlicher HTTP-Webhook, Signatur-Gate, Idempotenz, Provisioning/Cancellation-Routing |
+| `functions/tenantAdmin.js` | Mandant anlegen/reaktivieren, Auth-Claims setzen, Baseline-Daten seeden, Module patchen |
+| `functions/tests/billingPhase3.test.js` | Tarif-, Signatur-, Event-Mapping- und Callable-Guard-Tests |
+
+#### Tarife und Modulflags
+
+Gültige Tarif-IDs (`TIER_IDS`):
+
+| Tarif | Geöffnete Hauptmodule |
+|-------|-----------------------|
+| `mhd_retter` | MHD-Monitor, Wareneingang, Retter-Box |
+| `hofladen_komplett` | Start/Team/Bestellungen, MHD, Wareneingang, Retter-Box, HACCP, Büro |
+| `metzgerei_pro` | Alle bekannten Modulflags inkl. Wurstküche, Chargen/Zerlegung, Rezeptaudit |
+
+`expandModuleFlags()` schreibt interne Keys und UI-/Rules-Aliase gemeinsam. Beispiele: `kitchen` setzt auch `wurstkueche`/`rezepte`, `receiving` setzt `wareneingang`/`deliveryParser`, `chargenDoku` setzt `cutting`. Moduländerungen über `setTenantModules` laufen durch `applyModulePatch()` und lehnen unbekannte Keys oder nicht-boolesche Werte ab.
+
+#### Webhook-Vertrag
+
+- **Endpoint:** `billingWebhook` (Gen2 HTTP, Region `europe-west3`, öffentlich erreichbar; URL: `https://europe-west3-<PROJECT_ID>.cloudfunctions.net/billingWebhook`).
+- **Methode:** nur `POST`; andere Methoden → `405`.
+- **Signatur:** Stripe über Header `stripe-signature` und Secret `STRIPE_WEBHOOK_SECRET` mit 5-Minuten-Toleranz. Fehlendes/`unset` Secret oder falsche Signatur → `401 invalid_signature`, bevor Firestore oder Auth berührt werden.
+- **Idempotenz:** verarbeitete Events bekommen eine Sperre in der Root-Collection `billingEvents/{provider}_{eventId}`. Duplikate antworten `200 { duplicate: true }`; bei Verarbeitungsfehler wird die Sperre wieder gelöscht, damit Stripe erneut zustellen kann.
+- **Stripe-Events:** `checkout.session.completed` provisioniert; `customer.subscription.deleted` deaktiviert; andere Events werden mit `200 { ignored: true }` quittiert.
+- **Payment-Link-Fallback:** Fehlen Checkout-Metadaten, leitet `parseBillingEvent()` den Betriebsnamen aus `customer_details.name` oder der Mail-Domain ab und erkennt Tarife über Beträge: `3900` → `mhd_retter`, `7900` → `hofladen_komplett`, `14900` → `metzgerei_pro`.
+- **Lemon Squeezy:** Parser und HMAC-Verifikation existieren, aber der deployte Export bindet aktuell nur `STRIPE_WEBHOOK_SECRET`. Vor produktiver Lemon-Nutzung `LEMON_SQUEEZY_WEBHOOK_SECRET` in `functions/index.js` als Secret deklarieren und deployen.
+
+#### Provisioning-Ablauf
+
+`provisionNewCustomerTenantInner()` ist der gemeinsame Kern für den Billing-Webhook und die Super-Admin-Callable `provisionNewCustomerTenant`:
+
+1. `companyName`, `adminEmail`, `tier` validieren; `tenantId` aus dem Betriebsnamen slugifizieren (`ä` → `ae`, Leerzeichen → `_`, max. 64 Zeichen).
+2. `enabledModules = modulesForTier(tier)` berechnen.
+3. Bestehender Mandant mit derselben Billing-Admin-Mail wird reaktiviert/aktualisiert (`active: true`, `status: active`, neuer Tarif und Billing-IDs). Gleiche `tenantId` mit fremder Admin-Mail → `already-exists`.
+4. Auth-User anlegen oder wiederverwenden. Hat der User bereits einen anderen `tenantId`-Claim, wird abgebrochen.
+5. Custom Claims setzen: `{ tenantId, role: 'admin', isAdmin: true }`.
+6. Mandant seeden:
+   - `tenants/{tenantId}` mit `displayName`, `status`, `active`, `tier`, `enabledModules`, `billing`.
+   - `settings/profile`, `settings/terminal`, `settings/suppliers`, `settings/categories`, `settings/discount_matrix`.
+   - Baseline-HACCP-Geräte in `haccp_geraete`.
+   - Globales `users/{uid}`-Profil mit `tenantId` und `role: admin`.
+7. Passwort-Reset-Link erzeugen; Willkommensmail wird nur gesendet, wenn SMTP-Konfiguration vollständig gesetzt ist.
+8. Audit-Eintrag unter `tenants/{tenantId}/system_errors` mit `BILLING_PROVISION` schreiben.
+
+Kündigungen laufen über `deactivateTenantForBilling()`: Suche nach `billing.subscriptionId`, danach `billing.adminEmail`; bei Treffer `active: false`, `status: inactive`, alle Modulflags auf `false`, Audit `BILLING_CANCEL`. Der Mandant und seine Betriebsdaten bleiben erhalten.
+
+#### Operative Checks
+
+```bash
+cd functions
+npm run test -- tests/billingPhase3.test.js
+```
+
+Vor dem ersten produktiven Stripe-Test:
+
+```bash
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
+firebase deploy --only functions:billingWebhook
+```
+
+Typische Fehlerbilder:
+
+| Symptom | Ursache | Maßnahme |
+|---------|---------|----------|
+| `401 invalid_signature` | Secret fehlt/ist `unset`, falscher Header oder Raw Body verändert | Secret setzen, Stripe-Webhook mit unverändertem Body zustellen lassen |
+| `400 missing_email` | Checkout enthält keine Admin-Mail | Stripe Payment Link/Checkout so konfigurieren, dass `customer_email` oder `customer_details.email` gesetzt ist |
+| `400 invalid_payload` | Tarif nicht erkannt | `metadata.tier` setzen oder Betrag auf einen bekannten Tarifbetrag prüfen |
+| `409 tenant_exists` | Slug aus Betriebsname existiert mit anderer Admin-Mail | Betriebsnamen anpassen oder Mandant manuell prüfen |
+| `200 duplicate: true` | Stripe hat ein bereits verarbeitetes Event erneut zugestellt | Kein Eingriff nötig; bei gewünschtem Replay `billingEvents/{provider}_{eventId}` nur nach bewusster Prüfung entfernen |
+
+### 4.2 Fleischpreis-Automation (`fetchWeeklyMeatPrices` + `triggerManualMeatPriceRun`)
 
 Implementierung: `functions/meatPrices.js` (gemeinsame Pipeline `executeMeatPriceRun`).
 
@@ -267,7 +343,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 - **Markup:** `web/index.html` → `#kitchen-wrs-panel` / `#wrs-meat-price-update-btn` (neben `#wrs-status-pill`).
 - **Logik:** `web/app.js` → `bindWrsMeatPriceUpdateButton()`, Callable `triggerManualMeatPriceRun` (Region `europe-west3`, App Check Pflicht via `waitForAppCheckReady()`).
 - **Sichtbarkeit:** Nur bei Custom Claims `role === 'admin'` → `#wrs-meat-price-update-btn` mit `style.display = 'inline-block'` (`refreshWrsMeatPriceAdminButton()` nach Login und in `applyRoleBasedUi`).
-- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.6**.
+- **UX:** Native `confirm()` vor dem Lauf; Button deaktiviert, Label „Lädt Preise…“ (~60–120 s); Erfolg → Toast „Marktpreise erfolgreich aktualisiert!“ + `subscribeFleischpreise()`; Fehler → roter Toast mit Details. Monitoring-Alerts: **§4.7**.
 
 #### Frontend – Wareneingang-Hilfen (Tab **Neu**)
 
@@ -281,7 +357,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 
 Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte Eingänge**.
 
-### 4.2 `notifyTeamEntryCreated` – Push bei neuer Team-Aufgabe
+### 4.3 `notifyTeamEntryCreated` – Push bei neuer Team-Aufgabe
 
 - **Typ:** Firestore-Trigger (`onDocumentCreated`) auf `tenants/{tenantId}/tasks/{taskId}`, Region `europe-west3`.
 - **Ablauf** (`functions/teamPush.js`):
@@ -290,15 +366,15 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+### 4.4 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
-- **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
+- **App Check:** aktuell `enforceAppCheck: false`, weil Vercel-Hosts mit reCAPTCHA App Check scheitern; Firebase Auth + Tenant/Rollenprüfung bleiben Pflicht.
 - **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
 - **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
 
-### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
+### 4.4a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash` (Override `GEMINI_MEAT_LABEL_MODEL`).
 - **App Check:** `enforceAppCheck: true`.
@@ -307,7 +383,7 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Payload:** `imageBase64` / `imageBytes` (+ `mimeType`) oder mandantentreuer `storagePath` unter `tenants/{tenantId}/…`.
 - **Antwort:** strukturiertes Label (LOT, Identitätskennzeichen, Öko-Kontrollstelle/Verband, Tierart, Herkunft); Failsafe → manuelle Eingabe in der PWA.
 
-### 4.4 `verifyTerminalPin` – Terminal-PIN-Prüfung
+### 4.5 `verifyTerminalPin` – Terminal-PIN-Prüfung
 
 - **Typ:** Callable HTTPS, Region `europe-west3`.
 - **App Check:** `enforceAppCheck: true`.
@@ -315,11 +391,13 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Modi:** `employee` (Name + PIN), `resolve` (PIN → Name), `meister` (Meister-Freigabe).
 - **Schutz:** PBKDF2-Hash, Lockout nach 5 Fehlversuchen (15 min).
 
-### 4.5 Firebase App Check — Pflicht & Gateway-Schutz
+### 4.6 Firebase App Check — Pflicht & Gateway-Schutz
 
-App Check (reCAPTCHA v3) ist **produktiv verpflichtend** — sowohl im Frontend als auch als Gateway vor sensiblen Callables. Anfragen ohne gültiges App-Check-Token werden abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
+App Check (reCAPTCHA v3) ist produktiv für die PWA konfiguriert und bleibt der Standard für sensible Callables. Anfragen ohne gültiges App-Check-Token werden bei geschützten Callables abgewiesen, **bevor** Business-Logik (Gemini, PIN-Hashing, Fleischpreis-Pipeline) ausgeführt wird.
 
-**Backend (`enforceAppCheck: true`):** `parseDeliveryNote`, `parseMeatLabel`, `verifyTerminalPin`, `triggerManualMeatPriceRun`.
+**Backend (`enforceAppCheck: true`):** `parseMeatLabel`, `verifyTerminalPin`, `triggerManualMeatPriceRun`, `createTenantEmployee`, `archiveZeroStockBatches`.
+
+**Bewusste Ausnahmen (`enforceAppCheck: false`):** `parseDeliveryNote`, `reprocessDeliveryNoteDraft`, `saveReconciledItems`, `manageTenantEmployees`, `listPlatformTenants`, `setTenantModules`, `provisionNewCustomerTenant`, `provisionDemoTenant`. Diese Pfade bleiben über Firebase Auth, Rollen-/Super-Admin-Prüfungen und Tenant-Guards geschützt; die Ausnahme existiert, weil produktive Vercel-Hosts reCAPTCHA-App-Check-Token nicht zuverlässig akzeptieren. Bei neuen oder geänderten Ausnahmen `functions/index.js` und die Coverage in `functions/tests/appCheckCoverage.test.js` mitprüfen.
 
 **Frontend:** `web/app-check.js` nutzt das **Compat SDK** (aligned mit `firebase-app.js` v10.8.x — kein paralleler modularer Import). Initialisierung direkt nach `initFirebase()` in `bootstrapAuthenticatedApp()`, **vor** Auth und dem ersten `httpsCallable`.
 
@@ -360,7 +438,7 @@ Damit ist ein Deploy ohne gültige Keys sofort erkennbar, statt still fehlende B
 
 **Deploy-Reihenfolge:** App-Check-Provider in Console aktivieren → Site Keys pflegen → `npm run build` → Hosting + Rules + Functions deployen → Debug-Tokens für Entwickler/CI registrieren.
 
-### 4.6 GCP Cloud Monitoring & Alerting Setup
+### 4.7 GCP Cloud Monitoring & Alerting Setup
 
 Automatisierte Benachrichtigung, wenn der Fleischpreis-Engine-Lauf fehlschlägt (Gemini, Validierung, Firestore). Einrichtung im Firebase-/GCP-Projekt (z. B. `hofsync-production`).
 
@@ -406,7 +484,7 @@ Nach Erstellung in der Console **Notification Channels** an die Policy binden.
 - Absence-Alert Mittwochs 08:00–09:00 `Europe/Berlin`: kein Log `Firestore geschrieben` von `fetchWeeklyMeatPrices`.
 - Filter `[GEMINI_DETAILED_ERROR]` als Frühwarnung.
 
-### 4.7 Lokales Testen
+### 4.8 Lokales Testen
 
 ```bash
 cd functions
@@ -546,5 +624,5 @@ Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `te
 1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback in Storage perspektivisch entfernen).
 2. **App Check Enforcement** in Firebase Console für alle Zielressourcen aktivieren, sobald Site Keys in allen Umgebungen live sind.
 3. **Rules- + Security-Tests in CI** — `npm run test:rules` (JDK 21+) und `npm run test:functions:security` in Pipeline verankern.
-4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.6 in Produktion anlegen (`alert-policy.json` als Vorlage).
+4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.7 in Produktion anlegen (`alert-policy.json` als Vorlage).
 5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.
