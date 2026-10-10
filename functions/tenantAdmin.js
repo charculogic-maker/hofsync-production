@@ -65,8 +65,8 @@ function normalizeModules(raw) {
 }
 
 /**
- * Office admins (token.role === 'admin') and platform admins.
- * Shopfloor employees and helpers cannot create tenants.
+ * Tenant creation is platform-wide. Shop tenant admins must stay scoped to
+ * their own tenant and may not create tenants or reassign Auth claims.
  * v2 callable auth lives on request.auth — never a v1 (data, context) pair.
  */
 function assertProvisionAccess(auth) {
@@ -76,7 +76,7 @@ function assertProvisionAccess(auth) {
   const token = auth.token || {};
   const role = roleFromToken(token);
   const isPlatformAdmin = token.isPlatformAdmin === true || isSuperAdminForDashboard(auth);
-  if (role !== 'admin' && token.role !== 'admin' && !isPlatformAdmin) {
+  if (!isPlatformAdmin) {
     throw new HttpsError('permission-denied', 'Keine Admin-Berechtigung auf diesem Account.');
   }
   return { uid: auth.uid, role: role || 'admin', isSuperAdmin: isPlatformAdmin };
