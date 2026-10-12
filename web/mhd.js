@@ -351,6 +351,8 @@ const mhdState = {
   unsubscribe: null,
   unsubscribeZero: null,
   expandedStichprobeBatchId: null,
+  /** @type {Set<string>} Artikel-Keys (ean:/name:) mit aufgeklapptem Multi-MHD-Akkordeon */
+  expandedMultiMhdIds: new Set(),
   writeOrQueueFirestore: async () => { throw new Error('MHD Sync-Engine ist nicht initialisiert.'); },
   addPendingSync: () => {},
   playFeedbackSound: () => {},
@@ -3170,6 +3172,82 @@ function formatMhdBadgeDate(prod) {
   return `${d}.${m}.${y}`;
 }
 
+function resolveMhdArticleExpandKey(prodOrId) {
+  const prod = prodOrId && typeof prodOrId === 'object'
+    ? prodOrId
+    : (mhdState.products || []).find((entry) => entry.id === prodOrId);
+  if (!prod) {
+    const fallbackId = String(prodOrId || '');
+    return fallbackId ? `id:${fallbackId}` : '';
+  }
+  const ean = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  if (ean) return `ean:${ean}`;
+  const name = normalizeArticleName(prod.artikelName || prod.name || prod.produkt);
+  if (name) return `name:${name}`;
+  return prod.id ? `id:${prod.id}` : '';
+}
+
+function isMultiMhdAccordionExpanded(prodOrId) {
+  const key = resolveMhdArticleExpandKey(prodOrId);
+  if (!key || !(mhdState.expandedMultiMhdIds instanceof Set)) return false;
+  return mhdState.expandedMultiMhdIds.has(key);
+}
+
+function toggleMultiMhdAccordion(prodOrId) {
+  const key = resolveMhdArticleExpandKey(prodOrId);
+  if (!key) return false;
+  if (!(mhdState.expandedMultiMhdIds instanceof Set)) {
+    mhdState.expandedMultiMhdIds = new Set();
+  }
+  if (mhdState.expandedMultiMhdIds.has(key)) {
+    mhdState.expandedMultiMhdIds.delete(key);
+  } else {
+    mhdState.expandedMultiMhdIds.add(key);
+  }
+  renderMhdList();
+  return true;
+}
+
+/** Verhindert Doppel-Toggle wenn iOS sowohl pointerdown als auch click feuert. */
+let mhdMultiBatchToggleHandledByPointer = false;
+let mhdMultiBatchToggleHandledTimer = null;
+
+function handleMultiMhdAccordionToggleEvent(event, { fromPointer = false } = {}) {
+  const button = event.target?.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]');
+  if (!button) return false;
+  const id = button.getAttribute('data-mhd-id') || button.dataset?.mhdId;
+  if (!id) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  button.classList.add('is-pressed');
+
+  if (fromPointer) {
+    mhdMultiBatchToggleHandledByPointer = true;
+    if (mhdMultiBatchToggleHandledTimer != null) {
+      window.clearTimeout(mhdMultiBatchToggleHandledTimer);
+    }
+    mhdMultiBatchToggleHandledTimer = window.setTimeout(() => {
+      mhdMultiBatchToggleHandledByPointer = false;
+      mhdMultiBatchToggleHandledTimer = null;
+    }, 450);
+    toggleMultiMhdAccordion(id);
+    return true;
+  }
+
+  if (mhdMultiBatchToggleHandledByPointer) {
+    mhdMultiBatchToggleHandledByPointer = false;
+    if (mhdMultiBatchToggleHandledTimer != null) {
+      window.clearTimeout(mhdMultiBatchToggleHandledTimer);
+      mhdMultiBatchToggleHandledTimer = null;
+    }
+    return true;
+  }
+
+  toggleMultiMhdAccordion(id);
+  return true;
+}
+
 function buildLaterMhdBadgeHtml(prod) {
   const later = getLaterBatchesForItem(prod);
   if (!later.length) return '';
@@ -3179,7 +3257,76 @@ function buildLaterMhdBadgeHtml(prod) {
   const countLabel = count === 1
     ? '+1 weiteres MHD im System'
     : `+${count} weitere MHDs im System`;
-  return `<div class="mhd-multi-batch-badge" role="status">📦 ${countLabel} (nächstes: ${escapeHtml(nextLabel)})</div>`;
+  const expanded = isMultiMhdAccordionExpanded(prod);
+  const panelId = `mhd-multi-batch-panel-${prod.id}`;
+  return `
+    <button
+      type="button"
+      class="mhd-multi-batch-badge${expanded ? ' is-expanded' : ''}"
+      data-mhd-command="toggle-multi-batch"
+      data-mhd-id="${escapeHtml(prod.id)}"
+      aria-expanded="${expanded ? 'true' : 'false'}"
+      aria-controls="${escapeHtml(panelId)}"
+    >
+      <span class="mhd-multi-batch-badge-text">📦 ${countLabel} (nächstes: ${escapeHtml(nextLabel)})</span>
+      <span class="mhd-multi-batch-chevron" aria-hidden="true">${expanded ? '▲' : '▼'}</span>
+    </button>`;
+}
+
+function buildLaterMhdAccordionRowHtml(batch) {
+  const id = String(batch.id || '');
+  const resttage = getMhdResttage(batch);
+  const action = getMhdCardAction(batch);
+  const qty = mhdItemQuantity(batch);
+  const isZeroDay = resttage === 0;
+  const dateLabel = formatMhdBadgeDate(batch);
+  const badgeLabel = Number.isFinite(resttage) ? `${resttage} Tage` : '–';
+  const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
+  const qtyLabel = formatMhdQtyBadgeValue(qty);
+  return `
+    <div class="mhd-multi-batch-row mhd-accordion-row" data-mhd-multi-batch-row="${escapeHtml(id)}">
+      <div class="mhd-multi-batch-row-head">
+        <div class="mhd-multi-batch-row-date">${escapeHtml(dateLabel)}</div>
+        <span class="mhd-badge mhd-multi-batch-days"${badgeStyle}>${escapeHtml(badgeLabel)}</span>
+      </div>
+      <div class="mhd-multi-batch-row-controls">
+        <button
+          type="button"
+          class="mhd-qty-badge mhd-multi-batch-qty"
+          data-mhd-command="qty-edit"
+          data-mhd-id="${escapeHtml(id)}"
+          aria-label="Menge ${escapeHtml(qtyLabel)}, tippen zum Ändern"
+        >
+          <span class="mhd-qty-badge-label">Menge</span>
+          <span class="mhd-qty-badge-value" data-mhd-qty-id="${escapeHtml(id)}">${escapeHtml(qtyLabel)}</span>
+        </button>
+        <div class="mhd-multi-batch-row-actions">
+          <button type="button" class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${escapeHtml(id)}" data-mhd-action-status="geprueft">✓ OK</button>
+          <button type="button" class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${escapeHtml(id)}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
+          <button type="button" class="btn btn-soldout mhd-multi-batch-soldout" data-mhd-command="soldout" data-mhd-id="${escapeHtml(id)}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
+            <span aria-hidden="true">🗑️</span> Ausverkauft
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildLaterMhdAccordionHtml(prod) {
+  if (!isMultiMhdAccordionExpanded(prod)) return '';
+  const later = getLaterBatchesForItem(prod);
+  const panelId = `mhd-multi-batch-panel-${prod.id}`;
+  const body = later.length
+    ? later.map((batch) => buildLaterMhdAccordionRowHtml(batch)).join('')
+    : `<div class="mhd-accordion-empty" role="status">Keine weiteren MHDs im Bestand gefunden.</div>`;
+  return `
+    <div
+      class="mhd-multi-batch-accordion mhd-accordion-list"
+      id="${escapeHtml(panelId)}"
+      role="region"
+      aria-label="Weitere MHDs für ${escapeHtml(resolveMhdProductDisplayParts(prod).title || 'Artikel')}"
+    >
+      ${body}
+    </div>`;
 }
 
 function formatMhdDateForCardMeta(prod = {}) {
@@ -4426,6 +4573,7 @@ function buildMhdCardHtml(prod = {}) {
     : '';
   const batchCount = getBatchesForArticle(prod).length;
   const laterBadgeHtml = isZeroQty ? '' : buildLaterMhdBadgeHtml(prod);
+  const laterAccordionHtml = isZeroQty ? '' : buildLaterMhdAccordionHtml(prod);
   const zeroRestoreHtml = isZeroQty
     ? `<button type="button" class="btn btn-secondary mhd-restore-zero-btn" data-mhd-command="restore-zero" data-mhd-id="${escapeHtml(prod.id)}">↩️ Wiederherstellen / +</button>`
     : '';
@@ -4458,7 +4606,6 @@ function buildMhdCardHtml(prod = {}) {
           <summary class="mhd-product-info">
             <span class="mhd-product-name">${displayName}${grammageBadge}</span>
             <span class="mhd-product-meta">${productMetaHtml}</span>
-            ${laterBadgeHtml}
           </summary>
           <div class="mhd-card-tools-panel">
             ${mhdDateEditButton}
@@ -4502,6 +4649,8 @@ function buildMhdCardHtml(prod = {}) {
         ${kitchenAction}
         ${retterBoxAction}
       </div>
+      ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}</div>` : ''}
+      ${laterAccordionHtml}
     </div>
   `;
 }
@@ -4867,7 +5016,11 @@ function openMhdQtyNumpad(id) {
   if (currentQty <= 0) return;
 
   const displayParts = resolveMhdProductDisplayParts(prod);
-  const productName = displayParts.title || prod.name || prod.produkt || 'Artikel';
+  const baseName = displayParts.title || prod.name || prod.produkt || 'Artikel';
+  const mhdDateLabel = formatMhdBadgeDate(prod);
+  const productName = mhdDateLabel && mhdDateLabel !== '–'
+    ? `${baseName} · MHD ${mhdDateLabel}`
+    : baseName;
 
   closeMhdQtyNumpad();
   mhdQtyNumpadState = {
@@ -5714,8 +5867,22 @@ function bindMhdCardActions() {
     target?.closest?.('#mhd-items-container, #mhd-admin-search-results'),
   );
 
+  // iOS Safari: pointerdown + click, damit Tipps auf dem Multi-MHD-Badge sicher ankommen.
+  page.addEventListener('pointerdown', (event) => {
+    if (!isMhdListTarget(event.target)) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
+      return;
+    }
+    handleMultiMhdAccordionToggleEvent(event, { fromPointer: true });
+  }, { passive: false });
+
   page.addEventListener('click', (event) => {
     if (!isMhdListTarget(event.target)) return;
+    if (event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
+      handleMultiMhdAccordionToggleEvent(event, { fromPointer: false });
+      return;
+    }
     const daysBadge = event.target.closest('[data-mhd-days-badge]');
     if (daysBadge) {
       event.preventDefault();
