@@ -1,12 +1,8 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const admin = require('firebase-admin');
+const { ensureAdminApp, getAdminDb } = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
 const { isConfiguredParam, readSmtpConfig, readTwilioConfig } = require('./runtimeParams');
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
 
 function getNotificationConfig() {
   return {
@@ -16,6 +12,7 @@ function getNotificationConfig() {
 }
 
 function createSmtpTransport(config) {
+  const nodemailer = require('nodemailer');
   const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
   return nodemailer.createTransport({
     host: String(config.smtpHost || 'mail.agenturserver.de').trim(),
@@ -29,11 +26,32 @@ function createSmtpTransport(config) {
   });
 }
 
-function resolveFromAddress(config) {
-  const fromEmail = String(config.fromEmail || config.smtpUser || '').trim();
-  return fromEmail
-    ? { address: fromEmail, name: 'StevesHof' }
-    : null;
+function shopLabel(profile = {}) {
+  return String(profile.betriebsName || profile.name || 'Hofladen').trim() || 'Hofladen';
+}
+
+function configuredEmail(...candidates) {
+  return candidates
+    .map((value) => String(value || '').trim())
+    .find((value) => value.includes('@') && value.toLowerCase() !== 'unset')
+    || '';
+}
+
+function resolveFromAddress(config, profile = {}) {
+  const fromEmail = configuredEmail(
+    profile.supportEmail,
+    profile.terminalUser,
+    process.env.FROM_EMAIL,
+    config?.fromEmail,
+    config?.smtpUser,
+  );
+  return fromEmail ? { address: fromEmail, name: shopLabel(profile) } : null;
+}
+
+async function loadTenantProfile(tenantId) {
+  if (!tenantId) return {};
+  const snap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
+  return snap.exists ? (snap.data() || {}) : {};
 }
 
 function parseQuantityValue(value) {
@@ -125,27 +143,36 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function buildCustomerSignal(order) {
+function operatorLabel(order = {}) {
+  const name = String(
+    order.packedBy || order.readyBy || order.preparedBy || order.updatedBy || '',
+  ).trim();
+  return name || 'Das Team';
+}
+
+function buildCustomerSignal(order, profile = {}) {
   const customerName = String(order?.customerName || 'lieber Hofladen-Gast').trim();
   const pickupWindow = formatPickupWindow(order?.readyAt);
   const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
+  const shop = shopLabel(profile);
+  const operator = operatorLabel(order);
   const message = [
     `Hallo ${customerName}, dein Genuss-Paket ist fertig gepackt!`,
-    'Thomas aus der Metzgerei hat alles frisch vorbereitet.',
+    `${operator} hat alles frisch vorbereitet.`,
     `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
     `Du kannst es ab ${pickupWindow} abholen.`,
     'Wir freuen uns auf dich!',
-    'Dein StevesHof-Team.',
+    `Dein ${shop}-Team.`,
   ].join(' ');
 
   const htmlMessage = [
     `<p>Hallo ${escapeHtml(customerName)},</p>`,
     '<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>',
-    '<p>Thomas aus der Metzgerei hat alles frisch vorbereitet.</p>',
+    `<p>${escapeHtml(operator)} hat alles frisch vorbereitet.</p>`,
     `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
     `<p>Du kannst es ab ${escapeHtml(pickupWindow)} abholen.</p>`,
     '<p>Wir freuen uns auf dich!</p>',
-    '<p>Dein StevesHof-Team.</p>',
+    `<p>Dein ${escapeHtml(shop)}-Team.</p>`,
   ].join('\n');
 
   return {
@@ -180,7 +207,7 @@ async function sendCustomerEmail(signal, config, meta) {
 
   const smtpUser = String(config.smtpUser || '').trim();
   const smtpPass = String(config.smtpPass || '');
-  const from = resolveFromAddress(config);
+  const from = resolveFromAddress(config, meta?.profile || {});
   if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
     console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', meta);
     return { channel: 'email', skipped: true, reason: 'not_configured' };
@@ -232,6 +259,7 @@ async function sendCustomerSms(signal, config, meta) {
   }
 
   try {
+    const twilio = require('twilio');
     const client = twilio(accountSid, authToken);
     await client.messages.create({
       to: toNumber,
@@ -271,47 +299,52 @@ async function dispatchCustomerSignal(signal, meta) {
   return Promise.all(tasks);
 }
 
+async function handleOrderReadySendSignal(event) {
+  ensureAdminApp();
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!before || !after) return null;
+  if (before.status === 'ready' || after.status !== 'ready') return null;
+
+  const tenantId = event.params.tenantId;
+  const orderId = event.params.orderId;
+  if (after.tenantId && after.tenantId !== tenantId) {
+    console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
+    return null;
+  }
+
+  const profile = await loadTenantProfile(tenantId);
+  const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
+  const signal = buildCustomerSignal(after, profile);
+
+  console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
+    ...meta,
+    hasEmail: Boolean(signal.to.email),
+    hasPhone: Boolean(signal.to.phone),
+    finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
+    pickupWindow: formatPickupWindow(after.readyAt),
+  });
+
+  try {
+    const results = await dispatchCustomerSignal(signal, meta);
+    console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+  } catch (error) {
+    console.error('[KundenSignal] Unerwarteter Versandfehler', {
+      ...meta,
+      message: error?.message,
+    });
+  }
+
+  return null;
+}
+
+exports.handleOrderReadySendSignal = handleOrderReadySendSignal;
 exports.onOrderReadySendSignal = onDocumentUpdated(
   {
     document: 'tenants/{tenantId}/customerOrders/{orderId}',
     region: 'europe-west3',
   },
-  async (event) => {
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-    if (!before || !after) return null;
-    if (before.status === 'ready' || after.status !== 'ready') return null;
-
-    const tenantId = event.params.tenantId;
-    const orderId = event.params.orderId;
-    if (after.tenantId && after.tenantId !== tenantId) {
-      console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
-      return null;
-    }
-
-    const meta = { tenantId, orderId, customerName: after.customerName || null };
-    const signal = buildCustomerSignal(after);
-
-    console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-      ...meta,
-      hasEmail: Boolean(signal.to.email),
-      hasPhone: Boolean(signal.to.phone),
-      finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
-      pickupWindow: formatPickupWindow(after.readyAt),
-    });
-
-    try {
-      const results = await dispatchCustomerSignal(signal, meta);
-      console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
-    } catch (error) {
-      console.error('[KundenSignal] Unerwarteter Versandfehler', {
-        ...meta,
-        message: error?.message,
-      });
-    }
-
-    return null;
-  },
+  handleOrderReadySendSignal,
 );
 
 exports._test = {

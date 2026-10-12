@@ -85,3 +85,25 @@ export function logAndMapOperatorError(error, context = '') {
   console.error(`[CharcuLogic OperatorError${context ? ` · ${context}` : ''}]`, error);
   return mapOperatorError(error, context);
 }
+
+const TELEMETRY_NAME_KEYS = [
+  'employeeName',
+  'scannedBy',
+  'actorName',
+  'displayName',
+  'preparedBy',
+  'updatedBy',
+  'defaultOperatorName',
+];
+
+/** Fehlertext für system_errors: keine Mailadressen, keine mitgeschickten Klarnamen. */
+export function redactTelemetryMessage(value, entry = {}) {
+  let text = String(value || '');
+  TELEMETRY_NAME_KEYS.forEach((key) => {
+    const name = String(entry?.[key] || '').trim();
+    if (name.length >= 3) text = text.split(name).join('[person]');
+  });
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+    .slice(0, 999);
+}

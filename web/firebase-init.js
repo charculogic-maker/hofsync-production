@@ -98,6 +98,68 @@ export async function handleEmergencyLogoutParam() {
   return true;
 }
 
+const SECRET_LOGO_SELECTOR = [
+  '.brand-logo',
+  '#cldc-logo',
+  '#tenant-header-logo',
+  '#dev-dashboard-tenant-logo',
+  '#app-nav-brand-logo',
+  '.app-badge',
+].join(', ');
+
+/**
+ * Sitzung beenden, lokale Mandanten-Caches leeren und neu laden.
+ * Der Reload zeigt die Login-Maske, sobald kein Firebase-User mehr da ist.
+ */
+export async function signOutAndShowLogin() {
+  if (typeof window === 'undefined') return;
+  if (window.__charculogicSecretSignOut) return;
+  window.__charculogicSecretSignOut = true;
+
+  try {
+    const { logoutTenant } = await import('./auth.js');
+    await logoutTenant({ clearPersistence: true });
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Abmelden fehlgeschlagen:', err);
+    try {
+      const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+      if (firebaseApi?.apps?.length && typeof firebaseApi.auth === 'function') {
+        await firebaseApi.auth().signOut();
+      }
+    } catch (_) { /* Reload zeigt trotzdem die Login-Maske. */ }
+  }
+
+  clearLocalSessionCache();
+  window.location.reload();
+}
+
+/** Dreifachklick aufs Logo und Strg+Alt+L. Mehrfachaufruf bleibt einmalig. */
+export function installSecretLogoutGestures() {
+  if (typeof document === 'undefined') return;
+  if (window.__charculogicSecretLogoutGestures) return;
+  window.__charculogicSecretLogoutGestures = true;
+
+  let clicks = [];
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest(SECRET_LOGO_SELECTOR)) return;
+    const now = Date.now();
+    clicks = clicks.filter((stamp) => now - stamp <= 1500);
+    clicks.push(now);
+    if (clicks.length < 3) return;
+    clicks = [];
+    if (!window.confirm('Möchtest du dich wirklich abmelden?')) return;
+    void signOutAndShowLogin();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (!event.ctrlKey || !event.altKey) return;
+    if (String(event.key || '').toLowerCase() !== 'l') return;
+    event.preventDefault();
+    void signOutAndShowLogin();
+  });
+}
+
 export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
   if (!firebaseApi) {
     throw new Error('[CharcuLogic Firebase] Firebase SDK nicht geladen.');
@@ -106,7 +168,49 @@ export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' 
     firebaseApi.initializeApp(toFirebaseSdkConfig(resolveFirebaseConfig()));
     logProjectIsolation(firebaseApi);
   }
-  return firebaseApi.app();
+  const app = firebaseApi.app();
+  if (typeof window !== 'undefined') window.firebaseApp = app;
+  return app;
+}
+
+/**
+ * Firestore v10+: IndexedDB-Cache über persistentLocalCache statt
+ * enableIndexedDbPersistence. Schlägt der Abruf fehl, bleibt der bisherige
+ * Compat-Pfad in app.js der Fallback.
+ */
+export async function ensureFirestorePersistentCache(app, firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
+  if (!app) return 'unavailable';
+  if (app.__hofsyncPersistentCache === 'persistentLocalCache') return 'persistentLocalCache';
+  try {
+    const modular = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
+    if (typeof modular.initializeFirestore !== 'function'
+      || typeof modular.persistentLocalCache !== 'function'
+      || typeof modular.persistentMultipleTabManager !== 'function') {
+      return 'fallback';
+    }
+    modular.initializeFirestore(app, {
+      localCache: modular.persistentLocalCache({
+        tabManager: modular.persistentMultipleTabManager(),
+      }),
+    });
+    app.__hofsyncPersistentCache = 'persistentLocalCache';
+    return 'persistentLocalCache';
+  } catch (err) {
+    console.warn('[CharcuLogic Firebase] persistentLocalCache nicht gesetzt:', err?.message || err);
+    if (firebaseApi) return 'fallback';
+    return 'fallback';
+  }
+}
+
+/** Bereits initialisierte Compat-App. Kein parameterloses getApp(). */
+export function getFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
+  if (typeof window !== 'undefined' && window.firebaseApp) return window.firebaseApp;
+  if (firebaseApi?.apps?.length && typeof firebaseApi.app === 'function') {
+    const app = firebaseApi.app();
+    if (typeof window !== 'undefined') window.firebaseApp = app;
+    return app;
+  }
+  return null;
 }
 
 export function logProjectIsolation(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {

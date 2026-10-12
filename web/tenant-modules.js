@@ -88,7 +88,15 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
     case 'receiving':
       return modules.wareneingang !== false;
     case 'kitchen':
+    case 'wurstkueche':
       return modules.wurstkueche !== false;
+    case 'retterBox':
+      return modules.retterBox === true;
+    case 'deliveryParser':
+      if (enabled && typeof enabled === 'object' && 'deliveryParser' in enabled) {
+        return enabled.deliveryParser === true;
+      }
+      return modules.deliveryParser !== false;
     case 'haccp':
       return modules.haccp !== false;
     case 'knowledge':

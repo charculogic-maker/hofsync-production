@@ -180,11 +180,13 @@ export function clearAdminFallbackUI(options = {}) {
  * @param {{ email?: string, uid?: string }|null|undefined} user
  * @returns {boolean}
  */
-export function isPlatformSuperAdmin(user) {
-  const email = String(user?.email || '').trim().toLowerCase();
+export function isPlatformSuperAdmin(user, authContext = null) {
+  const email = String(user?.email || authContext?.email || '').trim().toLowerCase();
   if (email && email === PLATFORM_SUPER_ADMIN_EMAIL) return true;
-  const uid = String(user?.uid || '').trim();
-  return Boolean(uid && PLATFORM_SUPER_ADMIN_UIDS.includes(uid));
+  const uid = String(user?.uid || authContext?.uid || '').trim();
+  if (uid && PLATFORM_SUPER_ADMIN_UIDS.includes(uid)) return true;
+  const claims = authContext?.claims || user?.claims || {};
+  return claims.superAdmin === true;
 }
 
 /**
@@ -195,7 +197,7 @@ export function isPlatformSuperAdmin(user) {
  */
 export function isTenantAdmin(user, authContext = null) {
   if (authContext?.role === TENANT_ADMIN_ROLE || authContext?.isAdmin === true) return true;
-  return isPlatformSuperAdmin(user);
+  return isPlatformSuperAdmin(user, authContext);
 }
 
 /**
@@ -224,7 +226,7 @@ export function useTenantAdminAuth({
     let isSuperAdmin = false;
     try {
       allowed = !needsLogin && isTenantAdmin(user, authContext);
-      isSuperAdmin = isPlatformSuperAdmin(user);
+      isSuperAdmin = isPlatformSuperAdmin(user, authContext);
     } catch (err) {
       console.error('[Tenant-Admin] Rollenprüfung fehlgeschlagen:', err);
       if (renderFallback && isTenantAdminRoute()) {
@@ -336,13 +338,19 @@ export function installTenantAdminBootGuards() {
 
   window.addEventListener('error', (event) => {
     if (!isTenantAdminRoute() || window.__charculogicDevDashboardReady) return;
-    // Ressourcen-/Script-404s und ResizeObserver-Rauschen ignorieren
+    // Ressourcen-/Script-404s, ResizeObserver und App-Check/reCAPTCHA nicht als Vollbild-Sperre
     const msg = String(event?.message || event?.error?.message || '');
-    if (/ResizeObserver|Loading chunk|Script error\.?$/i.test(msg)) return;
+    if (/ResizeObserver|Loading chunk|Script error\.?$|app-check|appcheck|recaptcha/i.test(msg)) return;
     showBootFallback(event?.error || event?.message || 'uncaught-error');
   });
   window.addEventListener('unhandledrejection', (event) => {
     if (!isTenantAdminRoute() || window.__charculogicDevDashboardReady) return;
+    const msg = String(event?.reason?.message || event?.reason || '');
+    if (/app-check|appcheck|recaptcha|permission-denied|timeout/i.test(msg)) {
+      event.preventDefault?.();
+      console.warn('[Tenant-Admin] Hintergrundfehler ohne Vollbild-Sperre:', msg);
+      return;
+    }
     showBootFallback(event?.reason || 'unhandledrejection');
   });
 }

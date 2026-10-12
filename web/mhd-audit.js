@@ -31,7 +31,7 @@ export const MOVEMENT_FILTER_OPTIONS = [
   { value: 'raus', label: 'Ausverkauft' },
 ];
 
-export const STEVESHOF_SHOP_NAMES = ['Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko'];
+export const GENERIC_SHOP_NAMES = ['Mitarbeiter 1', 'Mitarbeiter 2'];
 
 export function berlinTodayIso(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -273,14 +273,14 @@ export function normalizeActorName(value) {
 }
 
 export function buildShopNameOptions(extraNames = []) {
-  const names = [...STEVESHOF_SHOP_NAMES];
+  const names = [];
   extraNames.forEach((name) => {
     const cleaned = String(name || '').trim();
     if (cleaned && !names.some((entry) => entry.toLowerCase() === cleaned.toLowerCase())) {
       names.push(cleaned);
     }
   });
-  return names;
+  return names.length ? names : [...GENERIC_SHOP_NAMES];
 }
 
 export function matchesActorFilter(actorName, filterName) {

@@ -25,9 +25,66 @@ const EXT_TO_MIME = {
 
 const COMPRESSIBLE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp']);
 
+const DELIVERY_PARSE_WAIT = '📄 Lieferschein wird analysiert (4 Seiten, ~70 Positionen)... Bitte ca. 25–35 Sek. Geduld.';
+const DELIVERY_PARSE_TIMEOUT_MS = 120000;
+
+export function showDeliveryParseProgress() {
+  const existing = document.getElementById('delivery-parse-progress-overlay');
+  if (!existing) showOperatorToast(DELIVERY_PARSE_WAIT);
+  existing?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'delivery-parse-progress-overlay';
+  overlay.className = 'learn-mode-overlay';
+  overlay.innerHTML = `
+    <div class="delivery-parser-loading-card" role="status" aria-live="polite">
+      <div class="delivery-parser-spinner" aria-hidden="true"></div>
+      <p class="delivery-parser-loading-text">${DELIVERY_PARSE_WAIT}</p>
+    </div>
+  `;
+  document.querySelector('.app-container')?.appendChild(overlay);
+}
+
+export function hideDeliveryParseProgress() {
+  document.getElementById('delivery-parse-progress-overlay')?.remove();
+}
+
+export function showOperatorToast(message) {
+  const text = String(message || '').trim();
+  if (!text) return;
+  window.showToast?.(text, 'warning');
+}
+
+/**
+ * Wartet, bis Firebase Auth die Sitzung kennt, und holt einen frischen ID-Token.
+ * Ohne User gibt es keinen Callable-Aufruf.
+ */
+export async function ensureDeliveryNoteAuth(firebase) {
+  const auth = typeof firebase?.auth === 'function' ? firebase.auth() : null;
+  if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+    showOperatorToast('Bitte zuerst in HofSync anmelden.');
+    return null;
+  }
+  if (!auth.currentUser) {
+    await new Promise((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        unsubscribe();
+        resolve(user);
+      });
+    });
+  }
+  if (!auth.currentUser) {
+    showOperatorToast('Bitte zuerst in HofSync anmelden.');
+    return null;
+  }
+  if (typeof auth.currentUser.getIdToken === 'function') {
+    await auth.currentUser.getIdToken(true);
+  }
+  return auth.currentUser;
+}
+
 export class DeliveryUploadError extends Error {
   /**
-   * @param {'file-too-large'|'unsupported-type'|'network'|'timeout'|'offline'|'generic'} kind
+   * @param {'file-too-large'|'unsupported-type'|'network'|'timeout'|'offline'|'generic'|'unauthenticated'} kind
    * @param {string} message
    * @param {unknown} [cause]
    */
@@ -185,6 +242,8 @@ export function mapDeliveryUploadError(error) {
         return 'Das Laden-iPhone hat kurz die Verbindung verloren. Bitte versuche es noch einmal.';
       case 'timeout':
         return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
+      case 'unauthenticated':
+        return 'Bitte zuerst in HofSync anmelden.';
       default:
         return error.message || 'Lieferschein konnte gerade nicht verarbeitet werden. Bitte manuell erfassen.';
     }
@@ -193,6 +252,9 @@ export function mapDeliveryUploadError(error) {
   const code = String(error?.code || '').toLowerCase();
   const raw = String(error?.message || error || '').toLowerCase();
 
+  if (code.includes('unauthenticated') || raw.includes('unauthenticated') || raw.includes('keine aktive hofsync-sitzung')) {
+    return 'Bitte zuerst in HofSync anmelden.';
+  }
   if (code.includes('deadline-exceeded') || raw.includes('timeout') || raw.includes('deadline')) {
     return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
   }
@@ -322,6 +384,72 @@ export async function uploadDeliveryNoteToStorage({
   };
 }
 
+function todayIsoDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function createDeliveryDraftId() {
+  const randomPart = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10);
+  return `dn_${Date.now().toString(36)}_${randomPart}`;
+}
+
+/**
+ * Speichert die Datei und legt einen Entwurf mit status=processing an.
+ * Die Cloud Function analysiert danach im Hintergrund.
+ */
+export async function enqueueDeliveryNoteAnalysis({
+  file,
+  tenantId,
+  getFirebase,
+} = {}) {
+  assertOnline();
+  const firebase = typeof getFirebase === 'function' ? getFirebase() : null;
+  const user = await ensureDeliveryNoteAuth(firebase);
+  if (!user) {
+    throw new DeliveryUploadError('unauthenticated', 'Bitte zuerst in HofSync anmelden.');
+  }
+  if (!firebase?.firestore) {
+    throw new DeliveryUploadError('generic', 'Lieferschein-Speicher ist gerade nicht bereit.');
+  }
+
+  showDeliveryParseProgress();
+  try {
+    const upload = await uploadDeliveryNoteToStorage({ file, tenantId, getFirebase });
+    const draftId = createDeliveryDraftId();
+    const deliveryDate = todayIsoDate();
+    const cleanTenant = upload.tenantId;
+    await firebase.firestore()
+      .collection('tenants')
+      .doc(cleanTenant)
+      .collection('delivery_note_drafts')
+      .doc(draftId)
+      .set({
+        id: draftId,
+        status: 'processing',
+        storagePath: upload.storagePath,
+        mimeType: upload.mimeType,
+        fileName: String(file?.name || 'lieferschein').slice(0, 180),
+        tenantId: cleanTenant,
+        deliveryDate,
+        itemCount: 0,
+        items: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    window.showToast?.('📄 Lieferschein gespeichert! Analyse läuft im Hintergrund.', 'success');
+    window.dispatchEvent(new CustomEvent('hofsync:delivery-draft-queued', {
+      detail: { draftId, deliveryDate, tenantId: cleanTenant },
+    }));
+    return { draftId, deliveryDate, storagePath: upload.storagePath };
+  } finally {
+    hideDeliveryParseProgress();
+  }
+}
+
 /**
  * Upload + Callable parseDeliveryNote (nur Storage-Pfad, kein Base64).
  */
@@ -333,18 +461,25 @@ export async function analyzeDeliveryNoteFile({
 } = {}) {
   assertOnline();
 
-  const upload = await uploadDeliveryNoteToStorage({ file, tenantId, getFirebase });
   const firebase = typeof getFirebase === 'function' ? getFirebase() : null;
+  const user = await ensureDeliveryNoteAuth(firebase);
+  if (!user) {
+    throw new DeliveryUploadError('unauthenticated', 'Bitte zuerst in HofSync anmelden.');
+  }
+
+  const upload = await uploadDeliveryNoteToStorage({ file, tenantId, getFirebase });
   if (!firebase?.app && !firebase?.functions) {
     throw new DeliveryUploadError('generic', 'Lieferschein-Einlesen ist gerade nicht bereit.');
   }
 
+  const timeoutMs = Math.max(DELIVERY_PARSE_TIMEOUT_MS, Number(callableTimeoutMs) || 0);
   const callable = createHttpsCallable(
     'parseDeliveryNote',
-    { timeout: callableTimeoutMs },
+    { timeout: timeoutMs },
     firebase,
   );
   await waitForAppCheckReady();
+  showDeliveryParseProgress();
 
   try {
     console.info('[DeliveryUpload] parseDeliveryNote start', {
@@ -355,9 +490,7 @@ export async function analyzeDeliveryNoteFile({
       storagePath: upload.storagePath,
       mimeType: upload.mimeType,
     });
-    console.info('[DeliveryUpload] parseDeliveryNote fertig', {
-      itemCount: Array.isArray(result?.data?.items) ? result.data.items.length : 0,
-    });
+    console.log('[DeliveryReconciliation] Response received:', result?.data);
     return {
       items: Array.isArray(result?.data?.items) ? result.data.items : [],
       storagePath: upload.storagePath,
@@ -365,9 +498,13 @@ export async function analyzeDeliveryNoteFile({
       raw: result?.data || null,
     };
   } catch (err) {
-    console.error('[DeliveryUpload] parseDeliveryNote fehlgeschlagen:', err);
+    console.error('[DeliveryReconciliation] Failed:', err);
     const code = String(err?.code || '').toLowerCase();
     const raw = String(err?.message || '').toLowerCase();
+    if (code.includes('unauthenticated') || raw.includes('unauthenticated')) {
+      showOperatorToast('Bitte zuerst in HofSync anmelden.');
+      throw new DeliveryUploadError('unauthenticated', 'Bitte zuerst in HofSync anmelden.', err);
+    }
     if (code.includes('deadline-exceeded') || raw.includes('timeout') || raw.includes('deadline')) {
       throw new DeliveryUploadError('timeout', 'KI timeout', err);
     }
@@ -381,5 +518,7 @@ export async function analyzeDeliveryNoteFile({
       throw new DeliveryUploadError('network', 'Network error', err);
     }
     throw err;
+  } finally {
+    hideDeliveryParseProgress();
   }
 }

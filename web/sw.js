@@ -1,5 +1,7 @@
-const CACHE_NAME = 'charculogic-v20260916-supplier-aufschnitt';
+const CACHE_NAME = 'charculogic-v20261012-mhd-qty-stepper-v1';
+
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
+const RELEASED_AT = '2026-10-05T19:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -28,21 +30,26 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/mhd.js',
   '/mhd-rabatt.js',
+  '/discount-matrix.js',
+  '/discount-matrix-ui.js',
   '/retter-box.js',
   '/date-input.js',
   '/delivery-note.js',
   '/delivery-parser.js',
   '/delivery-upload.js',
   '/delivery-reconcile.js',
+  '/delivery-reconciliation.js',
   '/haccp.js',
   '/production.js',
   '/production-datasheet.js',
   '/beffe_calc.js',
+  '/domain-core.js',
   '/cuts.js',
   '/sync.js',
   '/traceability.js',
   '/tenant-modules.js',
   '/dev-dashboard.js',
+  '/fast-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
 ];
@@ -91,9 +98,9 @@ self.addEventListener('install', (event) => {
         }
       }
 
+      await self.skipWaiting();
     })()
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -113,7 +120,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'GET_SW_VERSION') {
-    event.source?.postMessage({ type: 'SW_VERSION', cacheName: CACHE_NAME });
+    event.source?.postMessage({
+      type: 'SW_VERSION',
+      cacheName: CACHE_NAME,
+      cacheSchema: CACHE_SCHEMA,
+      releasedAt: RELEASED_AT,
+    });
   }
 
   if (event.data?.type === 'SKIP_WAITING') {
@@ -155,7 +167,7 @@ self.addEventListener('notificationclick', (event) => {
 
 const OFFLINE_FALLBACK_HTML = [
   '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">',
-  '<meta name="viewport" content="width=device-width,initial-scale=1">',
+  '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">',
   '<title>HofSync</title>',
   '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;',
   'display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1a1a2e;color:#e0e0e0;',
@@ -241,10 +253,11 @@ self.addEventListener('fetch', (event) => {
       fetch(shellRequest)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
+            const responseToCache = networkResponse.clone();
+            const responseToCacheRoot = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put('/index.html', clone);
-              cache.put('/', clone.clone());
+              cache.put('/index.html', responseToCache);
+              cache.put('/', responseToCacheRoot);
             });
           }
           return networkResponse;
@@ -269,6 +282,14 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/auth.js')
     || pathname.endsWith('/auth-errors.js')
     || pathname.endsWith('/sw.js')
+    || pathname.endsWith('/sync.js')
+    || pathname.endsWith('/mhd.js')
+    || pathname.endsWith('/delivery-note.js')
+    || pathname.endsWith('/delivery-reconciliation.js')
+    || pathname.endsWith('/delivery-upload.js')
+    || pathname.endsWith('/delivery-parser.js')
+    || pathname.endsWith('/scanner.js')
+    || pathname.endsWith('/tenant-db.js')
   );
   if (isCoreModule) {
     const cleanRequest = new Request(url.pathname, {
@@ -281,8 +302,8 @@ self.addEventListener('fetch', (event) => {
       fetch(cleanRequest, { cache: 'no-store' })
         .then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
           }
           return networkResponse;
         })
@@ -302,8 +323,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(cleanRequest).then((networkResponse) => {
         if (networkResponse && networkResponse.ok) {
-          const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
         }
         return networkResponse;
       }).catch(() =>
@@ -311,8 +332,8 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           return fetch(cleanRequest).then((networkResponse) => {
           if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, clone));
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(cleanRequest, responseToCache));
           }
           return networkResponse;
           }).catch(() => caches.match(cleanRequest));

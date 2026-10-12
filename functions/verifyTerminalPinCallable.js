@@ -1,5 +1,6 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const adminDb = require('./adminDb');
+const { ensureAdminApp } = require('./firebaseAdmin');
 const { verifyPinRecord, verifyPinWithTimingPadding } = require('./pinHash');
 const { cleanTenantId, resolveAuthContext } = require('./authContext');
 
@@ -85,6 +86,7 @@ function findMeisterByPin(credentials, pin) {
 }
 
 async function handleVerifyTerminalPin(request) {
+  ensureAdminApp();
   const ctx = await resolveAuthContext(request.auth);
   if (!ctx.tenantId) {
     throw new HttpsError('permission-denied', 'Kein Mandant für dieses Konto hinterlegt.');

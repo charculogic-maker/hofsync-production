@@ -1,5 +1,5 @@
 import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
-import { logAndMapOperatorError } from './operator-errors.js';
+import { logAndMapOperatorError, redactTelemetryMessage } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
 /** Dead-letter / sync_errors buffer (tenant-scoped). */
@@ -304,6 +304,50 @@ export function clearAllPendingSyncQueues() {
   updateSyncIndicator();
 }
 
+export function removeQueuedMutation(id) {
+  const target = String(id || '');
+  if (!target) return false;
+  const next = getPendingSyncs().filter((item) => item._id !== target);
+  return savePendingSyncs(next);
+}
+
+function isMhdAuditPath(collectionPath) {
+  const value = String(collectionPath || '').trim();
+  return value === 'mhd_audit' || value.endsWith('mhd_audit');
+}
+
+function isMhdListePath(collectionPath) {
+  const leaf = String(collectionPath || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+  return leaf === 'mhd_liste';
+}
+
+/** Neuer Posten wird angelegt, bestehender Posten wird gemerged. Kein update() auf fehlende Dokumente. */
+function upsertMhdListeDoc(ref, payload, firebase, writeOp) {
+  const setPayload = { ...(payload || {}) };
+  if ((writeOp === 'set' || writeOp === 'create') && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return ref.set(setPayload, { merge: true });
+}
+
+/** Append-only Audit: kein Server-Get. set bei bekannter ID, sonst add. */
+async function writeMhdAuditDirect(db, firebase, collectionPath, docId, op, payload) {
+  const body = { ...(payload || {}) };
+  if (op !== 'delete' && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    body.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  if (op === 'delete') {
+    if (!docId) return;
+    await tenantFirestoreDocRef(db, collectionPath, docId).delete();
+    return;
+  }
+  if (!docId) {
+    await db.collection(collectionPath).add(body);
+    return;
+  }
+  await tenantFirestoreDocRef(db, collectionPath, docId).set(body);
+}
+
 export function savePendingSyncs(queue) {
   const key = pendingSyncsKey();
   if (!key) {
@@ -430,7 +474,10 @@ function mapTelemetryErrorCode(entry) {
 }
 
 function buildTelemetryMessage(entry) {
-  return String(entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler').slice(0, 999);
+  return redactTelemetryMessage(
+    entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler',
+    entry,
+  );
 }
 
 function buildTelemetryContext(entry) {
@@ -450,7 +497,6 @@ function buildSystemErrorDocument(entry, firebase) {
     message: buildTelemetryMessage(entry),
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
   };
-  if (entry?.userId) doc.userId = String(entry.userId).slice(0, 128);
   const context = buildTelemetryContext(entry);
   if (context) doc.context = context;
   return doc;
@@ -480,7 +526,7 @@ export async function flushErrorTelemetry() {
           remaining.push(entry);
           continue;
         }
-        await db.collection('system_errors').add(payload);
+        await db.collection('tenants').doc(payload.tenantId).collection('system_errors').add(payload);
       } catch (writeErr) {
         console.warn('[CharcuLogic Telemetrie] system_errors Schreiben fehlgeschlagen:', writeErr);
         remaining.push(entry);
@@ -532,8 +578,8 @@ export function isFatalSyncError(err) {
 }
 
 export function isPermissionDeniedError(err) {
-  const code = String(err?.code || '').toLowerCase();
-  return code.includes('permission-denied') || code === 'permission-denied';
+  const code = String(err?.code || err?.message || '').toLowerCase();
+  return code.includes('permission-denied');
 }
 
 const permissionToastState = { lastAt: 0 };
@@ -649,7 +695,7 @@ export async function flushOnePendingSync(item) {
         : rawPayload);
     const writeOp = (_op === 'create' && isTaskCollectionPath(collectionPath)) ? 'set' : _op;
 
-    // Write-only collection append (e.g. mhd_audit) — never pre-read / GET.
+    // Write-only collection append (e.g. mhd_audit via op:'add') — never pre-read / GET.
     if (writeOp === 'add') {
       try {
         const addPayload = { ...payload };
@@ -664,6 +710,16 @@ export async function flushOnePendingSync(item) {
       return;
     }
 
+    // Main: append-only audit helper (docId optional); swallow failures so audit never blocks the queue.
+    if (isMhdAuditPath(collectionPath)) {
+      try {
+        await writeMhdAuditDirect(db, firebase, collectionPath, _docId, writeOp, payload);
+      } catch (err) {
+        console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', _docId, err);
+      }
+      return;
+    }
+
     const ref = tenantFirestoreDocRef(db, _collectionPath, _docId);
     try {
       if (writeOp === 'delete') {
@@ -674,6 +730,8 @@ export async function flushOnePendingSync(item) {
           if (isNotFoundError(delErr)) return;
           throw delErr;
         }
+      } else if (isMhdListePath(collectionPath)) {
+        await upsertMhdListeDoc(ref, payload, firebase, writeOp);
       } else if (writeOp === 'set') {
         const setPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -688,6 +746,7 @@ export async function flushOnePendingSync(item) {
         await ref.create(createPayload);
       } else {
         // Upsert: recreate missing docs instead of blocking on NOT_FOUND.
+        // Intent note: main still used update() for non-mhd_liste; this branch keeps universal upsert.
         await ref.set(payload, { merge: true });
       }
     } catch (err) {
@@ -839,10 +898,16 @@ export async function writeFirestoreDocOrQueue({
       }
       // Write-only append — no pre-read/GET before audit / collection logs.
       writePromise = db.collection(normalizedCollectionPath).add(addPayload);
+    } else if (isMhdAuditPath(normalizedCollectionPath)) {
+      await withTimeout(writeMhdAuditDirect(db, firebase, normalizedCollectionPath, docId, writeOp, onlinePayload));
+      refreshSyncConnectivityUi();
+      return 'written';
     } else {
       const ref = tenantFirestoreDocRef(db, collectionPath, docId);
       if (writeOp === 'delete') {
         writePromise = ref.delete();
+      } else if (isMhdListePath(normalizedCollectionPath)) {
+        writePromise = upsertMhdListeDoc(ref, onlinePayload, firebase, writeOp);
       } else if (writeOp === 'set') {
         const setPayload = { ...onlinePayload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -857,6 +922,7 @@ export async function writeFirestoreDocOrQueue({
         writePromise = ref.create(createPayload);
       } else {
         // Upsert via set+merge so missing server docs recreate instead of NOT_FOUND.
+        // Intent note: main still used update() for non-mhd_liste; this branch keeps universal upsert.
         writePromise = ref.set(onlinePayload, { merge: true });
       }
     }
@@ -870,6 +936,10 @@ export async function writeFirestoreDocOrQueue({
     refreshSyncConnectivityUi();
     return 'written';
   } catch (err) {
+    if (isMhdAuditPath(normalizedCollectionPath)) {
+      console.warn('[CharcuLogic Sync] mhd_audit verworfen, Queue bleibt frei:', docId, err);
+      return 'skipped';
+    }
     if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return 'written';
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
@@ -911,6 +981,10 @@ export async function flushPendingSyncs() {
     let deadLetterCount = 0;
     for (const item of queue) {
       if (!isValidPendingSync(item)) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, new Error('Ungultiger Queue-Eintrag'));
+          continue;
+        }
         saveDeadPendingSync(item, new Error('Ungultiger Queue-Eintrag'));
         deadLetterCount += 1;
         continue;
@@ -918,6 +992,10 @@ export async function flushPendingSyncs() {
       try {
         await flushOnePendingSync(item);
       } catch (err) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, err);
+          continue;
+        }
         if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
         console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
         const attempts = getRetryCount(item) + 1;

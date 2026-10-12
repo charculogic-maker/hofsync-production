@@ -73,9 +73,9 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 
   const ok =
-    supplierOptions.some((o) => o.value === 'Weiling')
-    && supplierOptions.some((o) => o.value === 'Naturverbund')
-    && supplierOptions.some((o) => o.value === 'Stautenhof')
+    supplierOptions.some((o) => o.value === 'Eigener Wareneingang')
+    && supplierOptions.some((o) => o.value === 'Großhandel')
+    && supplierOptions.some((o) => o.value === 'Lieferant 1')
     && supplierOptions.some((o) => o.value === '__sonstige__')
     && acceptParser === 'application/pdf,image/*'
     && acceptNote === 'application/pdf,image/*'

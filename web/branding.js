@@ -1,12 +1,10 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
-import { isWhitelabelFirebaseHost } from './firebase-config.js';
-
-const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
-  betriebsName: 'Ihr Betrieb',
+const DEFAULT_BRANDING = {  appName: 'HofSync',
+  betriebsName: 'Mein Hofladen / Metzgerei',
   logoUrl: '/icon-192.png',
-  primaryColor: '#64748b',
-  primaryColorHover: '#475569',
-  darkHeaderBg: '#334155',
+  primaryColor: '#0284c7',
+  primaryColorHover: '#0369a1',
+  darkHeaderBg: '#0c4a6e',
   textOnHeader: '#ffffff',
   accentAlert: '#dc3545',
   lightBg: '#f1f5f9',
@@ -29,229 +27,13 @@ const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
     chargenDoku: true,
     employeePin: true,
     employeeAuth: 'pin',
+    deliveryParser: true,
   },
 };
 
-const TENANT_BRANDING = {
-  steveshof_hauptbetrieb: {
-    betriebsName: 'StevesHof Hofladen',
-    terminalAuth: {
-      email: 'bestellung@steveshof-hofladen.de',
-    },
-    profileCapabilities: {
-      Melanie: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: true,
-        email: 'melanie@steveshof-hofladen.de',
-      },
-      Bettina: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: true,
-        email: 'bettina@steveshof-hofladen.de',
-      },
-      Heiko: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: false,
-        email: 'heiko@steveshof-hofladen.de',
-      },
-      Ernst: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: false,
-        email: 'ernst@steveshof-hofladen.de',
-      },
-      Paddy: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku', 'haccp', 'knowledge', 'wissen'],
-        kitchenReadOnly: false,
-      },
-    },
-    appName: 'CharcuLogic',
-    primaryColor: '#5D4037',
-    primaryColorHover: '#4E342E',
-    darkHeaderBg: '#3E2723',
-    textOnHeader: '#ffffff',
-    accentAlert: '#EA580C',
-    standardBereich: 'Laden / Verkauf',
-    modules: {
-      teamboard: false,
-      team: false,
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: true,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: true,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'profile',
-    },
-  },
-  torfabrik: {
-    betriebsName: 'TorFabrik Krefeld',
-    appName: 'CenterLogic',
-    primaryColor: '#00A651',
-    primaryColorHover: '#008541',
-    darkHeaderBg: '#FFC20E',
-    textOnHeader: '#000000',
-    accentAlert: '#800020',
-    standardBereich: 'Theke',
-    modules: {
-      teamboard: true,
-      team: true,
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: true,
-      orders: true,
-      chargenDoku: true,
-      employeePin: true,
-      employeeAuth: 'pin',
-    },
-  },
-  whitelabel_test: {
-    betriebsName: 'Whitelabel Testbetrieb',
-    appName: 'CharcuLogic Test',
-    primaryColor: '#2563eb',
-    primaryColorHover: '#1d4ed8',
-    darkHeaderBg: '#1e3a5f',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Test-Theke',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  home_leitstand: {
-    betriebsName: 'Home Leitstand',
-    appName: 'CharcuLogic Home',
-    primaryColor: '#7c3aed',
-    primaryColorHover: '#6d28d9',
-    darkHeaderBg: '#4c1d95',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Heimküche',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  ap23: {
-    betriebsName: 'AP23',
-    appName: 'AP23',
-    brandingClass: 'theme-blue',
-    primaryColor: '#2563eb',
-    primaryColorHover: '#1d4ed8',
-    darkHeaderBg: '#1e3a5f',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Heimküche',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  superbiomarkt: {
-    betriebsName: 'SuperBioMarkt – Bedientheke',
-    appName: 'CharcuLogic',
-    primaryColor: '#8A1529',
-    primaryColorHover: '#6F1121',
-    darkHeaderBg: '#5C0E1B',
-    textOnHeader: '#ffffff',
-    accentAlert: '#B91C1C',
-    standardBereich: 'Fleischtheke / Bedienung',
-    modules: {
-      teamboard: false,
-      team: false,
-      mhdMonitor: false,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: false,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: true,
-      employeeAuth: 'pin',
-    },
-  },
-};
+const TENANT_BRANDING = {};
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
-const TORFABRIK_TENANT_KEY = 'torfabrik';
-const WHITELABEL_DEFAULT_TENANT = 'whitelabel_test';
-
-/** Whitelabel-Test-Hosting → Mandant whitelabel_test, solange noch kein Login-Cache existiert. */
-const HOSTING_DEFAULT_TENANT = {
-  whitelabel: WHITELABEL_DEFAULT_TENANT,
-};
-function isLocalDevHost() {
-  const host = String(window.location?.hostname || '').toLowerCase();
-  return host === 'localhost' || host === '127.0.0.1';
-}
-
-function readDevFirebaseProjectOverride() {
-  if (!isLocalDevHost()) return null;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('firebase') || params.get('project');
-    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
-    const fromStorage = localStorage.getItem('charculogic_firebase_project');
-    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
-  } catch (_) { /* noop */ }
-  return null;
-}
 
 function readTenantFromQueryString() {
   try {
@@ -297,46 +79,23 @@ function hasDistinctTenantBranding(branding) {
 
 function readCachedTenantId() {
   try {
-    const cached = coerceTenantForHosting(localStorage.getItem(CACHED_TENANT_ID_KEY));
-    if (!cached) return '';
-    if (lookupTenantBranding(cached)) return cached;
-    console.warn(
-      `[CharcuLogic Branding] Unbekannte gecachte tenantId="${cached}" ignoriert — nutze URL- oder Hosting-Vorgabe.`,
-    );
-    return '';
+    return coerceTenantForHosting(localStorage.getItem(CACHED_TENANT_ID_KEY)) || '';
   } catch (_) {
     return '';
   }
 }
 function isWhitelabelHostingContext() {
-  const override = readDevFirebaseProjectOverride();
-  if (override === 'whitelabel') return true;
-  if (override === 'production') return false;
-  return isWhitelabelFirebaseHost();
+  return false;
 }
 
 function coerceTenantForHosting(tenantKey) {
-  const normalized = normalizeTenantKey(tenantKey);
-  if (!normalized) return '';
-  if (isWhitelabelHostingContext() && normalized === TORFABRIK_TENANT_KEY) {
-    console.warn(
-      '[CharcuLogic Branding] torfabrik auf Whitelabel-Host blockiert — fallback whitelabel_test.',
-    );
-    return WHITELABEL_DEFAULT_TENANT;
-  }
-  return normalized;
+  return normalizeTenantKey(tenantKey);
 }
 
 function resolveHostingDefaultTenant() {
-  if (isWhitelabelHostingContext()) {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
-  if (isLocalDevHost() && readDevFirebaseProjectOverride() === 'whitelabel') {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
   return '';
 }
-/** Reihenfolge: explizit → URL ?tenant= / ?tenantId= → Cache (nur bekannte) → Hosting-Vorgabe. */
+/** Reihenfolge: explizit → URL ?tenant= / ?tenantId= → Cache → Hosting-Vorgabe. */
 function resolveEffectiveTenantId(explicitTenantId) {
   const resolved = (
     normalizeTenantKey(explicitTenantId) ||
@@ -350,23 +109,7 @@ function resolveEffectiveTenantId(explicitTenantId) {
 function resolveBranding(tenantId) {
   const key = resolveEffectiveTenantId(tenantId);
   const tenantOverrides = lookupTenantBranding(key);
-  if (key && !tenantOverrides) {
-    console.warn(
-      '[CharcuLogic Branding] Kein Mandanten-Profil gefunden — neutrale White-Label-Vorlage aktiv. '
-      + `tenantId="${key}". Bitte TENANT_BRANDING konfigurieren oder anmelden.`,
-    );
-  }
-  if (!key && isWhitelabelHostingContext()) {
-    const whitelabelFallback = lookupTenantBranding(WHITELABEL_DEFAULT_TENANT) || {};
-    return {
-      ...DEFAULT_BRANDING,
-      ...whitelabelFallback,
-      modules: {
-        ...DEFAULT_BRANDING.modules,
-        ...(whitelabelFallback.modules || {}),
-      },
-    };
-  }  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
+  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
     return window.BRANDING;
   }
   return {
@@ -384,6 +127,24 @@ function applyResolvedBranding(tenantId) {
   if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }
+  initPwaManifestFromBranding(window.BRANDING);
+}
+
+function applyTenantProfile(profile, terminal) {
+  const current = window.BRANDING || resolveBranding();
+  const next = { ...current, modules: { ...(current.modules || {}) } };
+  if (profile?.betriebsName) next.betriebsName = profile.betriebsName;
+  if (profile?.appName) next.appName = profile.appName;
+  if (profile?.primaryColor) next.primaryColor = profile.primaryColor;
+  if (profile?.primaryColorHover) next.primaryColorHover = profile.primaryColorHover;
+  if (profile?.darkHeaderBg) next.darkHeaderBg = profile.darkHeaderBg;
+  if (profile?.logoUrl) next.logoUrl = profile.logoUrl;
+  if (profile?.standardBereich) next.standardBereich = profile.standardBereich;
+  const terminalUser = String(terminal?.terminalUser || profile?.terminalUser || '').trim();
+  if (terminalUser) next.terminalAuth = { email: terminalUser };
+  if (terminal?.bypassPin === true) next.modules.employeePin = false;
+  window.BRANDING = next;
+  if (typeof window.applyBranding === 'function') window.applyBranding();
   initPwaManifestFromBranding(window.BRANDING);
 }
 
@@ -421,5 +182,6 @@ window.resolveEffectiveTenantId = resolveEffectiveTenantId;
 window.resolveHostingDefaultTenant = resolveHostingDefaultTenant;
 window.isWhitelabelHostingContext = isWhitelabelHostingContext;
 window.applyResolvedBranding = applyResolvedBranding;
+window.applyTenantProfile = applyTenantProfile;
 window.BRANDING = resolveBranding();
 initPwaManifestFromBranding(window.BRANDING);

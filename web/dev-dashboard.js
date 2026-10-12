@@ -2,10 +2,15 @@
  * Enterprise Dev-Dashboard – /dev-dashboard
  * Super-Admin: alle Mandanten | Mandanten-Admin: nur eigener Mandant
  */
-import { TENANT_MODULE_KEYS } from './tenant-modules.js';
+import { isTenantModuleEnabled, TENANT_MODULE_KEYS } from './tenant-modules.js';
 import { createHttpsCallable, getRegionalFunctions, FUNCTIONS_REGION } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
-import { handleEmergencyLogoutParam, isEmergencyLogoutRequested } from './firebase-init.js';
+import {
+  handleEmergencyLogoutParam,
+  installSecretLogoutGestures,
+  isEmergencyLogoutRequested,
+  signOutAndShowLogin,
+} from './firebase-init.js';
 import {
   appendTenantAuditEvent,
   AUDIT_STORAGE_SCOPE_HINT,
@@ -115,8 +120,27 @@ const DEV_DASHBOARD_TABS = new Set([
   'overview',
   'users',
   'settings',
+  'platform',
   'audit',
 ]);
+
+const GENERIC_BETRIEB_NAME = 'Mein Hofladen / Metzgerei';
+
+const TIER_LABELS = {
+  mhd_retter: 'MHD-Retter',
+  hofladen_komplett: 'Hofladen komplett',
+  metzgerei_pro: 'Metzgerei Pro',
+};
+
+/** Sichtbare Schalter in „Mein Betrieb“. Aliase schreibt setTenantModules selbst mit. */
+const BETRIEB_MODULE_CONTROLS = [
+  { key: 'mhd', label: 'MHD-Monitor', readKeys: ['mhd', 'mhdMonitor'] },
+  { key: 'receiving', label: 'Wareneingang', readKeys: ['receiving', 'wareneingang'] },
+  { key: 'kitchen', label: 'Wurstküche & Rezepte', readKeys: ['kitchen', 'wurstkueche', 'rezepte'] },
+  { key: 'haccp', label: 'HACCP', readKeys: ['haccp'] },
+  { key: 'start', label: 'Teamboard', readKeys: ['start', 'teamboard'] },
+  { key: 'buero', label: 'Büro & Chargen', readKeys: ['buero', 'batches', 'chargenDoku'], writeKeys: ['chargenDoku'] },
+];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -163,10 +187,58 @@ function renderOverviewCards(dashboardStateRef = dashboardState) {
   setText('dev-kpi-modules', `${modulesSummary.enabled}/${modulesSummary.total || TENANT_MODULE_KEYS.length}`);
   setText('dev-kpi-modules-hint', 'Freigeschaltete Bereiche');
   setText('dev-kpi-status', status);
-  setText(
-    'dev-kpi-status-hint',
-    dashboardStateRef.tenantDisplayName || dashboardStateRef.selectedTenantId || 'Betrieb',
-  );
+  setText('dev-kpi-status-hint', TIER_LABELS[dashboardStateRef.tenantTier] || 'Tarif');
+}
+
+function tenantLabelFromData(data = {}, fallbackId = '') {
+  return String(data.displayName || data.name || data.betriebsName || fallbackId || '').trim();
+}
+
+function preferredBetriebName(dashboardStateRef) {
+  const live = String(dashboardStateRef.tenantDisplayName || '').trim();
+  const draft = String(readTenantSettingsDraft(dashboardStateRef.selectedTenantId).displayName || '').trim();
+  const fallback = String(window.BRANDING?.betriebsName || '').trim();
+  if (live && live !== GENERIC_BETRIEB_NAME) return live;
+  if (draft && draft !== GENERIC_BETRIEB_NAME) return draft;
+  return live || draft || fallback;
+}
+
+function betriebModuleChecked(enabledModules, control) {
+  const mods = enabledModules && typeof enabledModules === 'object' ? enabledModules : {};
+  if (!Object.keys(mods).length) return isTenantModuleEnabled(control.key);
+  const present = control.readKeys.filter((key) => Object.prototype.hasOwnProperty.call(mods, key));
+  if (!present.length) return false;
+  return present.some((key) => mods[key] === true);
+}
+
+function fillBetriebModuleToggles(dashboardStateRef = dashboardState) {
+  const mods = dashboardStateRef.tenantModules;
+  const hint = document.getElementById('dev-dashboard-betrieb-modules-hint');
+  BETRIEB_MODULE_CONTROLS.forEach((control) => {
+    const input = document.querySelector(`[data-betrieb-module="${control.key}"]`);
+    if (!(input instanceof HTMLInputElement)) return;
+    input.checked = betriebModuleChecked(mods, control);
+    input.disabled = !dashboardStateRef.isSuperAdmin;
+  });
+  if (hint) {
+    hint.textContent = dashboardStateRef.isSuperAdmin
+      ? 'Gilt für den ausgewählten Betrieb. Ein leeres Modul-Feld nutzt die Standard-Freischaltung.'
+      : 'Die Freischaltung siehst du hier. Änderungen nimmt die Plattform-Verwaltung vor.';
+  }
+}
+
+function readBetriebModulePatch() {
+  const patch = {};
+  BETRIEB_MODULE_CONTROLS.forEach((control) => {
+    const input = document.querySelector(`[data-betrieb-module="${control.key}"]`);
+    if (!(input instanceof HTMLInputElement) || input.disabled) return;
+    const on = input.checked === true;
+    patch[control.key] = on;
+    (control.writeKeys || []).forEach((key) => {
+      patch[key] = on;
+    });
+  });
+  return patch;
 }
 
 function renderAuditTable(tenantId = dashboardState.selectedTenantId) {
@@ -783,16 +855,49 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
 
   const draft = readTenantSettingsDraft(dashboardStateRef.selectedTenantId);
   const branding = window.BRANDING || {};
-  nameInput.value = draft.displayName
-    || dashboardStateRef.tenantDisplayName
-    || branding.betriebsName
-    || '';
+  nameInput.value = preferredBetriebName(dashboardStateRef);
   logoInput.value = draft.logoUrl
     || branding.logoUrl
     || branding.logo
     || '/icon-192.png';
   syncMhdCardUiToggleInputs(dashboardStateRef.selectedTenantId);
+  fillBetriebModuleToggles(dashboardStateRef);
   applySettingsPreview();
+}
+
+async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, modulePatch) {
+  if (!db || !tenantId) return;
+  const tenantRef = db.collection('tenants').doc(tenantId);
+  const payload = { displayName };
+  const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : null;
+  if (stamp) payload.updatedAt = stamp;
+  if (typeof tenantRef.update === 'function') {
+    await tenantRef.update(payload);
+  }
+  const settingsCollection = typeof tenantRef.collection === 'function'
+    ? tenantRef.collection('settings')
+    : null;
+  if (settingsCollection && typeof settingsCollection.doc === 'function') {
+    const profilePayload = {
+      betriebsName: displayName,
+      logoUrl,
+      tenantId,
+    };
+    if (stamp) profilePayload.updatedAt = stamp;
+    await settingsCollection.doc('profile').set(profilePayload, { merge: true });
+  }
+  const moduleKeys = Object.keys(modulePatch || {});
+  if (!moduleKeys.length || !dashboardState.isSuperAdmin) return;
+  const callable = getSetTenantModulesCallable();
+  if (!callable) {
+    throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
+  }
+  await callable({
+    targetTenantId: tenantId,
+    enabledModules: modulePatch,
+  });
 }
 
 function applyBrandingFromSettingsDraft(tenantId, draft) {
@@ -901,8 +1006,25 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
       window.refreshMhdMonitorCards();
     }
     recordAudit('settings', `Betriebseinstellungen gespeichert (${displayName})`, 'change');
-    setSettingsFormStatus('Einstellungen gespeichert (Anzeige auf diesem Gerät).', 'success');
+    setSettingsFormStatus('Einstellungen gespeichert.', 'success');
     window.showToast?.('Betriebseinstellungen gespeichert.', 'success');
+    const modulePatch = readBetriebModulePatch();
+    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, modulePatch)
+      .then(() => {
+        if (Object.keys(modulePatch).length) {
+          dashboardStateRef.tenantModules = {
+            ...(dashboardStateRef.tenantModules || {}),
+            ...modulePatch,
+          };
+          renderOverviewCards(dashboardStateRef);
+        }
+        setSettingsFormStatus('Betrieb gespeichert.', 'success');
+      })
+      .catch((err) => {
+        console.error('[Dev-Dashboard] Betrieb speichern fehlgeschlagen:', err);
+        setSettingsFormStatus('Lokal gespeichert. Übernahme in den Betrieb fehlgeschlagen.', 'error');
+        window.showToast?.('Der Betrieb konnte nicht vollständig gespeichert werden.', 'error');
+      });
   });
 }
 
@@ -989,15 +1111,28 @@ const EMPLOYEE_MODULE_LABELS = {
 };
 
 async function signOutFromDashboard() {
-  try {
-    const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
-    if (firebaseApi?.apps?.length && typeof firebaseApi.auth === 'function') {
-      await firebaseApi.auth().signOut();
-    }
-  } catch (err) {
-    console.warn('[Dev-Dashboard] SignOut fehlgeschlagen:', err);
-  }
+  await signOutAndShowLogin();
 }
+
+function bindDashboardStatusSignOut() {
+  const statusEl = document.getElementById('dev-dashboard-status');
+  if (!statusEl || statusEl.dataset.secretSignOut === '1') return;
+  statusEl.dataset.secretSignOut = '1';
+  statusEl.title = 'Angemeldet';
+  statusEl.addEventListener('click', () => {
+    const email = String(
+      dashboardState.actorEmail
+      || (typeof firebase !== 'undefined' && firebase.auth?.().currentUser?.email)
+      || '',
+    ).trim();
+    const question = email ? `Abmelden von ${email}?` : 'Möchtest du dich wirklich abmelden?';
+    if (!window.confirm(question)) return;
+    void signOutAndShowLogin();
+  });
+}
+
+installSecretLogoutGestures();
+bindDashboardStatusSignOut();
 
 /**
  * @param {'login'|'forbidden'} reason
@@ -1169,7 +1304,7 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
   const enabled = data.enabledModules && typeof data.enabledModules === 'object'
     ? data.enabledModules
     : {};
-  const displayName = String(data.displayName || tenantId).trim();
+  const displayName = tenantLabelFromData(data, tenantId);
   const isActive = data.status !== 'inactive';
   const statusValue = isActive ? 'active' : 'inactive';
   const toggles = TENANT_MODULE_KEYS.map((key) => {
@@ -1259,20 +1394,41 @@ function renderSingleTenantPanel(tenantId, data = {}) {
   syncMhdCardUiToggleInputs(tenantId);
 }
 
+let setTenantModulesCallable = null;
+let listPlatformTenantsCallable = null;
+
+function getListPlatformTenantsCallable() {
+  if (listPlatformTenantsCallable) return listPlatformTenantsCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  listPlatformTenantsCallable = createHttpsCallable('listPlatformTenants', undefined, firebaseApi, FUNCTIONS_REGION);
+  return listPlatformTenantsCallable;
+}
+
+function getSetTenantModulesCallable() {
+  if (setTenantModulesCallable) return setTenantModulesCallable;
+  const firebaseApi = typeof firebase !== 'undefined' ? firebase : null;
+  if (!firebaseApi?.apps?.length) return null;
+  setTenantModulesCallable = createHttpsCallable('setTenantModules', undefined, firebaseApi, FUNCTIONS_REGION);
+  return setTenantModulesCallable;
+}
+
 async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
-  const ref = db.collection('tenants').doc(tenantId);
-  const snap = await ref.get();
+  const callable = getSetTenantModulesCallable();
+  if (!callable) {
+    throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
+  }
+  const snap = await db.collection('tenants').doc(tenantId).get();
   const current = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
     ? { ...snap.data().enabledModules }
     : {};
   current[moduleKey] = enabled;
   if (moduleKey === 'chargenDoku') {
-    // Legacy-Key bereinigen, damit Plattform-Metriken nur chargenDoku zählen
     delete current.traceability;
   }
-  await ref.update({
+  await callable({
+    targetTenantId: tenantId,
     enabledModules: current,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   });
 }
 
@@ -1372,6 +1528,7 @@ function bindTenantToggleHandlers(db, statusEl) {
         'change',
       );
       if (statusEl) statusEl.textContent = `Gespeichert: ${tenantId} · ${MODULE_LABELS[moduleKey] || moduleKey}`;
+      window.showToast?.('Module für Mandant erfolgreich aktualisiert.', 'success');
     } catch (err) {
       input.checked = previous;
       console.error('[Dev-Dashboard] Modul-Toggle fehlgeschlagen:', err);
@@ -1542,9 +1699,7 @@ function bindDevDashboardBackButton() {
 
 let createEmployeeCallable = null;
 let manageEmployeesCallable = null;
-const STEVESHOF_PROFILE_FALLBACK_NAMES = [
-  'Bettina', 'Efecan', 'Finn', 'Heiko', 'Melanie', 'Mimi', 'Nicole', 'Paddy', 'Stephie',
-];
+const GENERIC_PROFILE_FALLBACK_NAMES = ['Mitarbeiter 1', 'Mitarbeiter 2'];
 
 function getCreateEmployeeCallable() {
   if (createEmployeeCallable) return createEmployeeCallable;
@@ -1618,8 +1773,8 @@ async function loadEmployeeProfileFallback(tenantId, db) {
       console.warn('[Dev-Dashboard] Fallback Team-Profil-Store:', err);
     }
   }
-  if (!collected.length && tenantId === 'StevesHof_Hauptbetrieb') {
-    collected.push(...namesToProfileEmployees(STEVESHOF_PROFILE_FALLBACK_NAMES, tenantId));
+  if (!collected.length && tenantId) {
+    collected.push(...namesToProfileEmployees(GENERIC_PROFILE_FALLBACK_NAMES, tenantId));
   }
   const byName = new Map();
   collected.forEach((entry) => {
@@ -2071,7 +2226,8 @@ function bindTenantSelector(dashboardStateRef, tenants) {
     });
   };
 
-  if (activeId) {
+  (Array.isArray(tenants) ? tenants : []).forEach(pushTenant);
+  if (activeId && !seen.has(activeId)) {
     pushTenant({
       id: activeId,
       data: {
@@ -2083,7 +2239,6 @@ function bindTenantSelector(dashboardStateRef, tenants) {
       },
     });
   }
-  (Array.isArray(tenants) ? tenants : []).forEach(pushTenant);
 
   select.innerHTML = merged
     .slice()
@@ -2103,6 +2258,18 @@ function bindTenantSelector(dashboardStateRef, tenants) {
   }
   dashboardStateRef.tenantCatalog = merged;
   dashboardStateRef.selectedTenantId = String(select.value || activeId || '').trim();
+  const selectedNow = merged.find((item) => item.id === dashboardStateRef.selectedTenantId);
+  if (selectedNow?.data) {
+    dashboardStateRef.tenantDisplayName = tenantLabelFromData(
+      selectedNow.data,
+      selectedNow.id,
+    ) || dashboardStateRef.tenantDisplayName;
+    dashboardStateRef.tenantTier = String(selectedNow.data.tier || dashboardStateRef.tenantTier || '').trim();
+    dashboardStateRef.tenantStatus = selectedNow.data.status === 'inactive' ? 'inactive' : 'active';
+    if (selectedNow.data.enabledModules && typeof selectedNow.data.enabledModules === 'object') {
+      dashboardStateRef.tenantModules = { ...selectedNow.data.enabledModules };
+    }
+  }
 
   if (wrap) {
     wrap.hidden = !dashboardStateRef.selectedTenantId;
@@ -2117,7 +2284,8 @@ function bindTenantSelector(dashboardStateRef, tenants) {
   select.addEventListener('change', () => {
     dashboardStateRef.selectedTenantId = select.value;
     const selected = (dashboardStateRef.tenantCatalog || []).find((item) => item.id === select.value);
-    dashboardStateRef.tenantDisplayName = String(selected?.data?.displayName || select.value).trim();
+    dashboardStateRef.tenantDisplayName = tenantLabelFromData(selected?.data, select.value);
+    dashboardStateRef.tenantTier = String(selected?.data?.tier || '').trim();
     dashboardStateRef.tenantStatus = selected?.data?.status === 'inactive' ? 'inactive' : 'active';
     dashboardStateRef.tenantModules = selected?.data?.enabledModules && typeof selected.data.enabledModules === 'object'
       ? { ...selected.data.enabledModules }
@@ -2131,7 +2299,7 @@ function bindTenantSelector(dashboardStateRef, tenants) {
 
 function applyDashboardVisibility(dashboardStateRef) {
   const globalPanel = document.getElementById('dev-dashboard-global-panel');
-  const singlePanel = document.getElementById('dev-dashboard-single-panel');
+  const platformTab = document.getElementById('dev-dashboard-tab-platform');
   const tenantSelectWrap = document.getElementById('dev-dashboard-tenant-select-wrap');
   const tenantSelect = document.getElementById('dev-dashboard-tenant-select');
   const roleBadge = document.getElementById('dev-dashboard-role-badge');
@@ -2141,11 +2309,14 @@ function applyDashboardVisibility(dashboardStateRef) {
     roleBadge.dataset.role = dashboardStateRef.isSuperAdmin ? 'super' : 'tenant';
   }
 
+  if (platformTab) {
+    platformTab.hidden = !dashboardStateRef.isSuperAdmin;
+  }
   if (globalPanel) {
     globalPanel.hidden = !dashboardStateRef.isSuperAdmin;
   }
-  if (singlePanel) {
-    singlePanel.hidden = dashboardStateRef.isSuperAdmin;
+  if (!dashboardStateRef.isSuperAdmin && dashboardStateRef.activeTab === 'platform') {
+    dashboardStateRef.activeTab = 'overview';
   }
   if (tenantSelectWrap) {
     tenantSelectWrap.hidden = !dashboardStateRef.selectedTenantId;
@@ -2153,6 +2324,7 @@ function applyDashboardVisibility(dashboardStateRef) {
   if (tenantSelect) {
     tenantSelect.disabled = !dashboardStateRef.isSuperAdmin && Boolean(dashboardStateRef.selectedTenantId);
   }
+  fillBetriebModuleToggles(dashboardStateRef);
 }
 
 let tenantsUnsubscribe = null;
@@ -2166,6 +2338,7 @@ const dashboardState = {
   tenantCatalog: [],
   tenantModules: {},
   tenantDisplayName: '',
+  tenantTier: '',
   tenantStatus: 'active',
   userQuery: '',
   userRoleFilter: 'all',
@@ -2182,7 +2355,8 @@ if (typeof window !== 'undefined') {
 }
 
 function setDevDashboardTab(tabKey = 'overview') {
-  const nextTab = DEV_DASHBOARD_TABS.has(tabKey) ? tabKey : 'overview';
+  let nextTab = DEV_DASHBOARD_TABS.has(tabKey) ? tabKey : 'overview';
+  if (nextTab === 'platform' && !dashboardState.isSuperAdmin) nextTab = 'overview';
   dashboardState.activeTab = nextTab;
 
   document.querySelectorAll('.dev-dashboard-tab').forEach((btn) => {
@@ -2226,37 +2400,68 @@ function bindDevDashboardTabs() {
   });
 }
 
+function platformTenantRows(entries) {
+  return (Array.isArray(entries) ? entries : []).map((entry) => ({
+    id: String(entry?.id || '').trim(),
+    data: {
+      displayName: tenantLabelFromData(
+        { displayName: entry?.name, name: entry?.betriebsName },
+        entry?.id,
+      ),
+      tier: String(entry?.tier || ''),
+      status: entry?.status === 'inactive' ? 'inactive' : 'active',
+      enabledModules: entry?.enabledModules && typeof entry.enabledModules === 'object'
+        ? entry.enabledModules
+        : {},
+    },
+  })).filter((entry) => entry.id);
+}
+
+async function loadTenantsList(statusEl) {
+  const unavailable = 'Die Betriebsliste ist für diesen Zugang nicht verfügbar. Der aktuelle Betrieb bleibt ausgewählt.';
+  const callable = getListPlatformTenantsCallable();
+  if (!callable) {
+    renderTenantTable([], { emptyMessage: unavailable });
+    bindTenantSelector(dashboardState, []);
+    return;
+  }
+  try {
+    await waitForAppCheckReady();
+    const result = await callable({});
+    const tenants = platformTenantRows(result?.data?.tenants);
+    renderTenantTable(tenants, {
+      emptyMessage: tenants.length ? '' : EMPTY_TENANTS_MESSAGE,
+    });
+    bindTenantSelector(dashboardState, tenants);
+    fillSettingsForm(dashboardState);
+    renderOverviewCards(dashboardState);
+    void refreshEmployeeTable(dashboardState);
+    if (statusEl && tenants.length && dashboardState.isSuperAdmin) {
+      const currentLabel = dashboardState.tenantDisplayName || dashboardState.selectedTenantId;
+      statusEl.textContent = currentLabel
+        ? `Angemeldet · ${currentLabel}`
+        : `${tenants.length} Betrieb${tenants.length === 1 ? '' : 'e'} geladen`;
+    }
+  } catch (err) {
+    console.error('[Dev-Dashboard] Mandanten-Liste (Plattform) fehlgeschlagen:', err);
+    const emptyMessage = isPermissionDeniedError(err)
+      ? unavailable
+      : 'Betriebe konnten gerade nicht geladen werden.';
+    renderTenantTable([], { emptyMessage });
+    bindTenantSelector(dashboardState, []);
+    if (statusEl && dashboardState.selectedTenantId) {
+      statusEl.textContent = `Angemeldet als ${dashboardState.actorEmail || 'Admin'} · ${
+        dashboardState.tenantDisplayName || dashboardState.selectedTenantId
+      }`;
+    }
+  }
+}
+
 function subscribeAllTenants(db, statusEl) {
   if (tenantsUnsubscribe) tenantsUnsubscribe();
-  tenantsUnsubscribe = db.collection('tenants').onSnapshot(
-    (snap) => {
-      const tenants = snap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
-      renderTenantTable(tenants, {
-        emptyMessage: tenants.length ? '' : EMPTY_TENANTS_MESSAGE,
-      });
-      bindTenantSelector(dashboardState, tenants);
-      if (statusEl && tenants.length && dashboardState.isSuperAdmin) {
-        const currentLabel = dashboardState.tenantDisplayName || dashboardState.selectedTenantId;
-        statusEl.textContent = currentLabel
-          ? `Angemeldet · ${currentLabel}`
-          : `${tenants.length} Betrieb${tenants.length === 1 ? '' : 'e'} geladen`;
-      }
-    },
-    (err) => {
-      console.error('[Dev-Dashboard] Mandanten-Liste (Plattform) fehlgeschlagen:', err);
-      const emptyMessage = isPermissionDeniedError(err)
-        ? 'Die Betriebsliste ist für diesen Zugang nicht verfügbar. Der aktuelle Betrieb bleibt ausgewählt.'
-        : 'Betriebe konnten gerade nicht geladen werden.';
-      renderTenantTable([], { emptyMessage });
-      bindTenantSelector(dashboardState, []);
-      if (statusEl && dashboardState.selectedTenantId) {
-        statusEl.textContent = `Angemeldet als ${dashboardState.actorEmail || 'Admin'} · ${
-          dashboardState.tenantDisplayName || dashboardState.selectedTenantId
-        }`;
-      }
-    },
-  );
-  return tenantsUnsubscribe;
+  tenantsUnsubscribe = null;
+  void loadTenantsList(statusEl);
+  return () => {};
 }
 
 function subscribeSingleTenant(db, tenantId, statusEl) {
@@ -2266,12 +2471,12 @@ function subscribeSingleTenant(db, tenantId, statusEl) {
   singleTenantUnsubscribe = db.collection('tenants').doc(tenantId).onSnapshot(
     (snap) => {
       const data = snap.data() || {};
-      dashboardState.tenantDisplayName = String(data.displayName || tenantId).trim();
+      dashboardState.tenantDisplayName = tenantLabelFromData(data, tenantId);
+      dashboardState.tenantTier = String(data.tier || '').trim();
       dashboardState.tenantStatus = data.status === 'inactive' ? 'inactive' : 'active';
       dashboardState.tenantModules = data.enabledModules && typeof data.enabledModules === 'object'
         ? { ...data.enabledModules }
         : {};
-      renderSingleTenantPanel(tenantId, data);
       renderOverviewCards(dashboardState);
       if (dashboardState.activeTab === 'settings') fillSettingsForm(dashboardState);
       if (statusEl) statusEl.textContent = `Betrieb: ${dashboardState.tenantDisplayName}`;
@@ -2351,6 +2556,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
       if (settingsDraft.displayName) dashboardState.tenantDisplayName = settingsDraft.displayName;
     }
 
+    bindDashboardStatusSignOut();
     bindDevDashboardBackButton();
     bindDevDashboardTabs();
     bindOverviewJumpLinks();

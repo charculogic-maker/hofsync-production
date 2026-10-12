@@ -4,6 +4,7 @@
  */
 import { isLocalDevHost } from './dev-guards.js';
 import { getAppCheckSiteKey, resolveFirebaseProjectKey } from './firebase-config.js';
+import { getFirebaseApp } from './firebase-init.js';
 
 const DEBUG_TOKEN_STORAGE_KEY = 'charculogic_appcheck_debug_token';
 
@@ -27,63 +28,132 @@ export function configureAppCheckDebugProvider() {
   }
 }
 
-function assertCompatAppCheckAvailable() {
-  if (typeof firebase === 'undefined' || !firebase.apps?.length) {
+function appCheckForApp(app) {
+  if (!app) {
     throw new Error('[AppCheck] Firebase App muss vor App Check initialisiert sein.');
   }
-  if (typeof firebase.appCheck !== 'function') {
-    throw new Error('[AppCheck] firebase-app-check-compat.js fehlt in index.html.');
+  if (typeof app.appCheck === 'function') return app.appCheck();
+  if (typeof firebase !== 'undefined' && typeof firebase.appCheck === 'function') {
+    return firebase.appCheck(app);
   }
+  throw new Error('[AppCheck] firebase-app-check-compat.js fehlt in index.html.');
 }
 
 /**
  * App Check initialisieren – muss vor dem ersten httpsCallable-Aufruf abgeschlossen sein.
  * @returns {Promise<void>}
  */
+export function isRecaptchaAppCheckError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  const message = String(err?.message || err || '').toLowerCase();
+  const stack = String(err?.stack || '').toLowerCase();
+  return code.includes('recaptcha')
+    || code.includes('app-check')
+    || code.includes('appcheck')
+    || /recaptcha|app-check|appcheck|use-before-activation/.test(`${message} ${stack}`);
+}
+
+function isAppCheckNoise(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return isRecaptchaAppCheckError(err) || /timeout/.test(msg);
+}
+
+function isVercelHost() {
+  if (typeof window === 'undefined') return false;
+  return String(window.location.hostname || '').toLowerCase().endsWith('.vercel.app');
+}
+
+function installRecaptchaRejectionGuard() {
+  if (typeof window === 'undefined' || window.__charculogicRecaptchaGuard) return;
+  window.__charculogicRecaptchaGuard = true;
+
+  const swallow = (event) => {
+    const reason = event?.reason ?? event?.error;
+    const filename = String(event?.filename || '');
+    const message = String(reason?.message || reason || event?.message || '');
+    const blob = `${message} ${filename} ${reason?.stack || ''} ${reason?.code || ''}`;
+    if (!isRecaptchaAppCheckError(reason) && !/recaptcha|app-check|appcheck/i.test(blob)) return;
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    console.warn('[AppCheck] reCAPTCHA-Fehler abgefangen, Auth und Netzwerk laufen weiter.', message || reason?.code || 'recaptcha');
+  };
+
+  window.addEventListener('unhandledrejection', swallow, true);
+  window.addEventListener('error', swallow, true);
+}
+
+installRecaptchaRejectionGuard();
+
 export function initAppCheckModule() {
+  installRecaptchaRejectionGuard();
   if (appCheckReadyPromise) return appCheckReadyPromise;
 
   appCheckReadyPromise = (async () => {
-    assertCompatAppCheckAvailable();
+    try {
+      const app = getFirebaseApp();
+      if (!app) {
+        throw new Error('[AppCheck] Firebase App muss vor App Check initialisiert sein.');
+      }
 
-    const projectKey = resolveFirebaseProjectKey();
-    const siteKey = getAppCheckSiteKey(projectKey);
-    if (!siteKey) {
-      const msg = `[AppCheck] appCheckRecaptchaSiteKey fehlt oder ist Platzhalter für Profil "${projectKey}" in web/firebase-config.js.`;
-      console.error(msg);
+      const projectKey = resolveFirebaseProjectKey();
+      const siteKey = getAppCheckSiteKey(projectKey);
+      if (!siteKey) {
+        appCheckActivationFailed = true;
+        console.warn(`[AppCheck] Site Key fehlt für Profil "${projectKey}". App läuft mit lokalen Daten weiter.`);
+        return;
+      }
+
+      // reCAPTCHA v3 lehnt *.vercel.app ab und @firebase/app-check loggt das als roten Fehler.
+      if (isVercelHost()) {
+        appCheckActivationFailed = true;
+        console.info('[AppCheck] Auf dieser Vercel-Domain aus. Firestore und Anmeldung laufen ohne reCAPTCHA-Token.');
+        return;
+      }
+
+      configureAppCheckDebugProvider();
+
+      const appCheck = appCheckForApp(app);
+      appCheck.activate(
+        new firebase.appCheck.ReCaptchaV3Provider(siteKey),
+        true,
+      );
+
+      appCheckActivationFailed = false;
+      console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
+
+      // Token-Fehler (Domain-Mismatch auf Vercel) dürfen die Init-Promise nicht verwerfen.
+      if (typeof appCheck.getToken === 'function') {
+        appCheck.getToken(false).catch((tokenErr) => {
+          appCheckActivationFailed = true;
+          console.warn(
+            '[AppCheck] reCAPTCHA-Token übersprungen.',
+            tokenErr?.code || tokenErr?.message || tokenErr,
+          );
+        });
+      }
+    } catch (err) {
       appCheckActivationFailed = true;
-      throw new Error(msg);
+      console.warn('[AppCheck] Aktivierung fehlgeschlagen. Vorschau/Offline nutzt gecachte Daten.', err?.code || err?.message || err);
     }
-
-    configureAppCheckDebugProvider();
-
-    const appCheck = firebase.appCheck();
-    appCheck.activate(
-      new firebase.appCheck.ReCaptchaV3Provider(siteKey),
-      true,
-    );
-
-    appCheckActivationFailed = false;
-    console.info(`[AppCheck] Initialisiert (${projectKey}, reCAPTCHA v3, profilgebundener Site Key).`);
   })().catch((err) => {
     appCheckActivationFailed = true;
-    appCheckReadyPromise = null;
-    console.error('[AppCheck] Aktivierung fehlgeschlagen:', err);
-    throw err;
+    console.warn('[AppCheck] Initialisierung abgefangen.', err?.code || err?.message || err);
   });
 
   return appCheckReadyPromise;
 }
 
-/** Wartet auf abgeschlossene App-Check-Initialisierung — lehnt ab wenn nie gestartet oder fehlgeschlagen. */
+/**
+ * Wartet auf App Check, blockiert die UI aber nicht.
+ * Fehlende reCAPTCHA-/Vorschau-Umgebung löst trotzdem auf, damit Firestore-Cache weiterläuft.
+ */
 export function waitForAppCheckReady() {
-  if (appCheckActivationFailed) {
-    return Promise.reject(new Error('[AppCheck] Initialisierung fehlgeschlagen — Callables gesperrt.'));
-  }
-  if (!appCheckReadyPromise) {
-    return Promise.reject(new Error('[AppCheck] initAppCheckModule() wurde noch nicht aufgerufen.'));
-  }
-  return appCheckReadyPromise;
+  if (!appCheckReadyPromise) return Promise.resolve();
+  return appCheckReadyPromise.catch((err) => {
+    if (!isAppCheckNoise(err)) {
+      console.warn('[AppCheck] Warten abgebrochen, lokale Daten bleiben nutzbar.', err);
+    }
+  });
 }
 
 export function isAppCheckInitialized() {

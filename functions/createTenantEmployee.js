@@ -1,5 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const adminDb = require('./adminDb');
 const { resolveAuthContext } = require('./authContext');
 const { normalizeAllowedModules, assertAdminAccessForTenant } = require('./manageTenantEmployees');
@@ -20,6 +20,9 @@ function normalizeDisplayName(value) {
 }
 
 async function handleCreateTenantEmployee(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const baseCtx = resolveAuthContext(request.auth);
   const requestedTenantId = String(request.data?.tenantId || '').trim();
   const ctx = assertAdminAccessForTenant(request.auth, requestedTenantId || baseCtx.tenantId);

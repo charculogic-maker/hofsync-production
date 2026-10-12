@@ -743,7 +743,7 @@ const CUT_GLOSSARY = [
     aliases: ['Nitritpökelsalz', 'NPS', 'grau', 'Verfärbung', 'ehrliche Wurst', 'ohne Chemie', 'Speisesalz', 'Umrötung'],
     muscles: [],
     human: '',
-    use: "Reines Muskelfleisch wird beim Erhitzen von Natur aus graubraun. Die Fleischindustrie nutzt Nitritpökelsalz (NPS), um Fleisch künstlich rosa zu färben ('Umrötung'). Auf dem StevesHof verzichten wir komplett auf NPS und salzen traditionell mit reinem Speisesalz. Unsere Brüh- und Kochwürste (wie Fleischwurst oder Leberwurst) haben deshalb eine natürliche, handwerkliche Grau-Beige-Färbung. Ein Beweis für puren Geschmack ohne chemische Farbstoffe!",
+    use: "Reines Muskelfleisch wird beim Erhitzen von Natur aus graubraun. Die Fleischindustrie nutzt Nitritpökelsalz (NPS), um Fleisch künstlich rosa zu färben ('Umrötung'). Im Betrieb verzichten wir komplett auf NPS und salzen traditionell mit reinem Speisesalz. Unsere Brüh- und Kochwürste (wie Fleischwurst oder Leberwurst) haben deshalb eine natürliche, handwerkliche Grau-Beige-Färbung. Ein Beweis für puren Geschmack ohne chemische Farbstoffe!",
     note: '',
   },
   {
@@ -779,7 +779,7 @@ const CUT_GLOSSARY = [
     aliases: ['Warmfleisch', 'ATP', 'Phosphat-Ersatz', 'Ohne Chemie', 'schlachtfrisch'],
     muscles: [],
     human: '',
-    use: 'Die absolute Königsdisziplin, die wir am StevesHof nutzen! Direkt nach der Schlachtung (Zeitfenster 2-4 Stunden) ist das körpereigene Phosphat (ATP) im Muskel voll aktiv. Das Fleisch hat eine enorme, natürliche Wasserbindungskapazität. Wer warmes Fleisch schlachtfrisch verarbeitet, benötigt keinerlei zugesetzte, künstliche Phosphate für eine perfekte, saftige Brühwurst.',
+    use: 'Die absolute Königsdisziplin, die wir im Betrieb nutzen! Direkt nach der Schlachtung (Zeitfenster 2-4 Stunden) ist das körpereigene Phosphat (ATP) im Muskel voll aktiv. Das Fleisch hat eine enorme, natürliche Wasserbindungskapazität. Wer warmes Fleisch schlachtfrisch verarbeitet, benötigt keinerlei zugesetzte, künstliche Phosphate für eine perfekte, saftige Brühwurst.',
     note: '',
   },
   {
@@ -983,7 +983,7 @@ const CUT_GLOSSARY = [
     aliases: ['Grillverbot', 'Nitrosamine', 'Bratwurst', 'Grau', 'Ohne NPS', 'Grillen'],
     muscles: [],
     human: '',
-    use: 'Wird Nitritpökelsalz (NPS) über 130°C erhitzt (Pfanne/Grill), reagiert das Nitrit mit Fleisch-Aminen zu stark krebserregenden Nitrosaminen! Da wir am StevesHof konsequent mit reinem Speise-/Meersalz arbeiten, besteht bei uns null Risiko. Dass unsere Bratwurst auf dem Grill natürlich grau-braun wird, ist das ehrlichste biologische Gütesiegel für deine Gesundheit!',
+    use: 'Wird Nitritpökelsalz (NPS) über 130°C erhitzt (Pfanne/Grill), reagiert das Nitrit mit Fleisch-Aminen zu stark krebserregenden Nitrosaminen! Da wir im Betrieb konsequent mit reinem Speise-/Meersalz arbeiten, besteht bei uns null Risiko. Dass unsere Bratwurst auf dem Grill natürlich grau-braun wird, ist das ehrlichste biologische Gütesiegel für deine Gesundheit!',
     note: '',
   },
   {
@@ -995,7 +995,7 @@ const CUT_GLOSSARY = [
     aliases: ['Phosphat', 'Kutterhilfsmittel', 'Totenstarre', 'ATP', 'Chemie', 'ohne Chemie'],
     muscles: [],
     human: '',
-    use: 'Die Industrie nutzt künstliche Phosphate (Kutterhilfsmittel), um die verhakten Muskelfasern nach der Totenstarre künstlich wieder aufzulösen, damit das Fleisch Wasser bindet. Wir am StevesHof verzichten vollständig auf diese Chemie! Durch unsere ultraschnelle Warmfleisch-Verarbeitung nutzen wir das noch zelleigene, natürliche ATP für die perfekte Bindung.',
+    use: 'Die Industrie nutzt künstliche Phosphate (Kutterhilfsmittel), um die verhakten Muskelfasern nach der Totenstarre künstlich wieder aufzulösen, damit das Fleisch Wasser bindet. Wir im Betrieb verzichten vollständig auf diese Chemie! Durch unsere ultraschnelle Warmfleisch-Verarbeitung nutzen wir das noch zelleigene, natürliche ATP für die perfekte Bindung.',
     note: '',
   },
   {

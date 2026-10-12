@@ -634,7 +634,32 @@ function formatDateTimeDe(value) {
 }
 
 function statusLabel(status) {
-  return status === 'archived' ? 'Archiviert' : 'Aktiv in Theke';
+  if (status === 'archived') return 'Archiviert';
+  if (status === 'reprint' || status === 'nachdruck') return 'Nachdruck';
+  return 'Erfolgreich';
+}
+
+function bookStatusMeta(record = {}) {
+  const raw = String(record.status || '').trim().toLowerCase();
+  const isReprint = record.reprint === true
+    || record.isReprint === true
+    || raw === 'reprint'
+    || raw === 'nachdruck';
+  if (raw === 'archived') {
+    return { key: 'archived', label: 'Archiviert' };
+  }
+  if (isReprint) {
+    return { key: 'reprint', label: 'Nachdruck' };
+  }
+  return { key: 'success', label: 'Erfolgreich' };
+}
+
+function updateChargenBookFooter(shownCount, totalCount) {
+  const footer = bookEl('chargen-book-footer');
+  if (!footer) return;
+  const shown = Number(shownCount) || 0;
+  const total = Number(totalCount) || 0;
+  footer.textContent = `Zeige ${shown} von ${total} Einträgen`;
 }
 
 function filteredAdminRecords() {
@@ -725,7 +750,7 @@ function renderAdminDetail(record) {
           <div><dt>Charge / LOT</dt><dd>${escapeHtml(record.lotNumber || '–')}</dd></div>
           <div><dt>Identitätskennzeichen</dt><dd>${escapeHtml(record.healthMark || '–')}</dd></div>
           <div><dt>Tierart</dt><dd>${escapeHtml(animalTypeLabel(record.animalType))}</dd></div>
-          <div><dt>Status</dt><dd>${escapeHtml(statusLabel(record.status))}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(bookStatusMeta(record).label)}</dd></div>
           <div><dt>Erfasst am</dt><dd>${escapeHtml(formatDateTimeDe(record.createdAt))}</dd></div>
           <div><dt>Erfasst von (User-ID)</dt><dd><code>${escapeHtml(record.createdBy || '–')}</code></dd></div>
         </dl>
@@ -746,22 +771,25 @@ function renderAdminTable() {
   const body = bookEl('chargen-book-body');
   if (!body) return;
   const rows = filteredAdminRecords();
+  const total = Array.isArray(traceState.adminRecords) ? traceState.adminRecords.length : 0;
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Keine Einträge für diese Suche.</td></tr>';
+    updateChargenBookFooter(0, total);
     return;
   }
   body.innerHTML = rows.map((record) => {
     const active = record.status !== 'archived';
     const selected = record.id === traceState.selectedRecordId;
+    const badge = bookStatusMeta(record);
     return `
       <tr class="dev-trace-row${selected ? ' is-selected' : ''}" data-record-id="${escapeHtml(record.id)}">
-        <td><button type="button" class="dev-trace-lot-btn" data-open-detail="${escapeHtml(record.id)}">${escapeHtml(record.lotNumber || '–')}</button></td>
+        <td><button type="button" class="dev-trace-lot-btn chargen-mono" data-open-detail="${escapeHtml(record.id)}">${escapeHtml(record.lotNumber || '–')}</button></td>
         <td>${escapeHtml(animalTypeLabel(record.animalType))}</td>
-        <td>${escapeHtml(formatDateTimeDe(record.createdAt))}</td>
-        <td>${escapeHtml(record.healthMark || '–')}</td>
+        <td class="chargen-mono">${escapeHtml(formatDateTimeDe(record.createdAt))}</td>
+        <td class="chargen-mono">${escapeHtml(record.healthMark || '–')}</td>
         <td>${formatOrganicControlBodyCell(record)}</td>
         <td>
-          <span class="dev-trace-status-pill" data-status="${active ? 'active' : 'archived'}">${escapeHtml(statusLabel(record.status))}</span>
+          <span class="chargen-status-badge" data-status="${escapeHtml(badge.key)}">${escapeHtml(badge.label)}</span>
         </td>
         <td>
           <button
@@ -774,6 +802,7 @@ function renderAdminTable() {
       </tr>
     `;
   }).join('');
+  updateChargenBookFooter(rows.length, total);
 }
 
 async function toggleRecordStatus(recordId, nextStatus) {
@@ -903,6 +932,7 @@ export function startChargenDokuBookView(tenantId) {
       body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Thekenbuch ist für diesen Zugang nicht freigeschaltet.</td></tr>';
     }
     if (statusEl) statusEl.textContent = 'Kein Zugriff';
+    updateChargenBookFooter(0, 0);
     stopChargenDokuBookView();
     return;
   }
@@ -911,6 +941,7 @@ export function startChargenDokuBookView(tenantId) {
     if (body) {
       body.innerHTML = '<tr><td colspan="7" class="dev-dashboard-empty-msg">Betrieb fehlt – Thekenbuch kann nicht geladen werden.</td></tr>';
     }
+    updateChargenBookFooter(0, 0);
     return;
   }
 

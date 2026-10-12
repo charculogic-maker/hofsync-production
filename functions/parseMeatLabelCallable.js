@@ -17,5 +17,9 @@ exports.parseMeatLabel = onCall(
     timeoutSeconds: 120,
     memory: '512MiB',
   },
-  async (request) => require('./meatLabel').handleParseMeatLabel(request),
+  async (request) => {
+    const { ensureAdminApp } = require('./firebaseAdmin');
+    ensureAdminApp();
+    return require('./meatLabel').handleParseMeatLabel(request);
+  },
 );

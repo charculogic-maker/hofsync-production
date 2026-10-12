@@ -9,6 +9,7 @@
 import { getAuthContext } from './auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { getTenantCollection } from './tenant-db.js';
+import { hasModule } from './tenant-modules.js';
 import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
 import {
   analyzeDeliveryNoteFile,
@@ -21,6 +22,7 @@ import {
   showReconcileOverlay,
   removeReconcileOverlay,
 } from './delivery-reconcile.js';
+import { loadCatalogEanIndex, lookupCatalogEan, openParsedDeliveryBoard } from './delivery-reconciliation.js';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
@@ -50,13 +52,8 @@ const parserState = {
   tenantId: '',
 };
 
-function isDeliveryParserVisible(_tenantId, _email) {
-  // Freigeschaltet für alle Mandanten mit Wareneingang (inkl. StevesHof Laden-iPhone).
-  return true;
-}
-
-function isTorfabrikTenant(tenantId) {
-  return String(tenantId || '').trim().toLowerCase() === 'torfabrik';
+function isDeliveryParserVisible() {
+  return hasModule('deliveryParser');
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +194,8 @@ function normalizeParsedItems(items) {
       artikel: String(entry?.artikel || entry?.name || '').trim(),
       menge: Number.isFinite(menge) && menge > 0 ? menge : 1,
       kategorie: String(entry?.kategorie || entry?.category || '').trim(),
+      artikelnummer: String(entry?.artikelnummer || entry?.artnr || entry?.artikelNr || entry?.sku || '').trim(),
+      ean: String(entry?.ean || entry?.barcode || '').replace(/\D/g, ''),
     };
   }).filter((row) => row.artikel);
 }
@@ -442,6 +441,8 @@ async function schreibeMhdPosten(row, author, nowIso) {
     eingangMenge: row.menge,
     kategorie: mhdKategorie,
     soldOut: false,
+    ean: row.ean || '',
+    barcode: row.ean || '',
     source: 'wareneingang-lieferschein',
     postentyp: 'wareneingang',
     wareneingangAt: nowIso,
@@ -484,7 +485,13 @@ async function bucheLieferungEin(rows) {
   try {
     parserState.saveInFlight = true;
     let hatWartende = false;
+    const catalog = await loadCatalogEanIndex();
     for (const row of rows) {
+      row.ean = lookupCatalogEan(catalog, {
+        name: row.artikel,
+        articleNumber: row.artikelnummer,
+        ean: row.ean,
+      });
       await erhoeheBestand(row, author, nowIso);
       const result = await schreibeMhdPosten(row, author, nowIso);
       if (result === 'queued') hatWartende = true;
@@ -527,7 +534,9 @@ async function handleDeliveryFile(file) {
       window.showToast?.('Wir konnten keine Artikel auf dem Lieferschein erkennen.', 'warning');
       return;
     }
-    showPreview(buildPreviewRows(items));
+    parserState.sollItems = items;
+    openParsedDeliveryBoard({ items });
+    applyReconcileButtonVisibility();
   } catch (err) {
     console.error('[DeliveryParser] Lieferschein-Einlesen fehlgeschlagen:', err);
     const toast = err instanceof DeliveryUploadError
@@ -544,7 +553,6 @@ function applyFeatureVisibility() {
   const uploadBtn = document.getElementById('btn-delivery-parser');
   if (uploadBtn) uploadBtn.hidden = !parserState.featureEnabled;
 
-  // Scan-Button: StevesHof & Co. über diesen Parser; TorFabrik nutzt delivery-note.js.
   if (parserState.ownsScanButton) {
     const scanBtn = document.getElementById('btn-delivery-note-ai');
     if (scanBtn) scanBtn.hidden = !parserState.featureEnabled;
@@ -608,8 +616,8 @@ export function initDeliveryParser(options = {}) {
     ? options.getCurrentDeliveryItems
     : parserState.getCurrentDeliveryItems;
   parserState.tenantId = options.tenantId || '';
-  parserState.featureEnabled = isDeliveryParserVisible(options.tenantId, options.email);
-  parserState.ownsScanButton = !isTorfabrikTenant(parserState.tenantId);
+  parserState.featureEnabled = isDeliveryParserVisible();
+  parserState.ownsScanButton = hasModule('deliveryParser');
 
   bindUi();
   applyFeatureVisibility();
