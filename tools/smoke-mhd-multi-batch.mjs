@@ -15,46 +15,48 @@ function assertIncludes(haystack, needle, label) {
   assert.ok(haystack.includes(needle), `${label}: erwartet "${needle}"`);
 }
 
-// 1) Interaktives Badge + Chevron + Toggle
+// 1) Interaktives Badge + Chevron + iOS Touch-Handler
+assertIncludes(mhdSrc, 'type="button"', 'Button type');
+assertIncludes(mhdSrc, 'mhd-multi-batch-badge${expanded ? \' is-expanded\' : \'\'}', 'Badge Button Klasse');
 assertIncludes(mhdSrc, 'data-mhd-command="toggle-multi-batch"', 'Toggle-Command');
-assertIncludes(mhdSrc, 'toggleMultiMhdAccordion', 'Toggle Helper');
+assertIncludes(mhdSrc, 'handleMultiMhdAccordionToggleEvent', 'iOS Toggle Handler');
+assertIncludes(mhdSrc, "addEventListener('pointerdown'", 'pointerdown Binding');
+assertIncludes(mhdSrc, 'fromPointer: true', 'pointerdown Pfad');
+assertIncludes(mhdSrc, 'fromPointer: false', 'click Pfad');
 assertIncludes(mhdSrc, 'mhd-multi-batch-chevron', 'Chevron Markup');
 assertIncludes(mhdSrc, 'expandedMultiMhdIds', 'Expand-State');
-assertIncludes(mhdSrc, 'resolveMhdArticleExpandKey', 'Artikel-Key für Nachrücken');
 
-// 2) Akkordeon mit voller Aktionsfähigkeit
+// 2) Akkordeon mit voller Aktionsfähigkeit + Leerhinweis
 assertIncludes(mhdSrc, 'buildLaterMhdAccordionHtml', 'Akkordeon Builder');
-assertIncludes(mhdSrc, 'buildLaterMhdAccordionRowHtml', 'Akkordeon-Zeile');
-assertIncludes(mhdSrc, 'mhd-multi-batch-accordion', 'Akkordeon Klasse');
-assertIncludes(mhdSrc, 'mhd-multi-batch-row', 'Zeilen Klasse');
+assertIncludes(mhdSrc, 'mhd-accordion-list', 'mhd-accordion-list Klasse');
+assertIncludes(mhdSrc, 'mhd-accordion-empty', 'Leerhinweis');
+assertIncludes(mhdSrc, 'Keine weiteren MHDs im Bestand gefunden.', 'Leertext');
 assertIncludes(mhdSrc, 'data-mhd-command="qty-edit"', 'Mengen-Tap öffnet Numpad');
 assertIncludes(mhdSrc, 'data-mhd-action-status="geprueft"', 'OK-Aktion');
 assertIncludes(mhdSrc, 'data-mhd-action-status="rausgenommen"', 'Raus-Aktion');
 assertIncludes(mhdSrc, 'data-mhd-command="soldout"', 'Ausverkauft-Aktion');
 
-// 3) CSS
-assertIncludes(cssSrc, '.mhd-multi-batch-wrap', 'Wrap Styles');
-assertIncludes(cssSrc, '.mhd-multi-batch-badge.is-expanded', 'Expanded Badge');
-assertIncludes(cssSrc, '.mhd-multi-batch-accordion', 'Accordion Styles');
-assertIncludes(cssSrc, '.mhd-multi-batch-row-actions', 'Aktions-Grid');
-assertIncludes(cssSrc, '.mhd-multi-batch-chevron', 'Chevron Styles');
+// 3) CSS Touch + Feedback
+assertIncludes(cssSrc, 'cursor: pointer', 'cursor pointer');
+assertIncludes(cssSrc, '-webkit-tap-highlight-color: rgba(0, 0, 0, 0.1)', 'iOS Tap Highlight');
+assertIncludes(cssSrc, 'touch-action: manipulation', 'touch-action');
+assertIncludes(cssSrc, '.mhd-multi-batch-badge:active', 'Active Feedback');
+assertIncludes(cssSrc, '.mhd-accordion-list', 'Accordion List Styles');
+assertIncludes(cssSrc, '.mhd-accordion-empty', 'Empty Styles');
+assertIncludes(cssSrc, 'order: 5', 'Badge Wrap Order');
+assertIncludes(cssSrc, 'order: 6', 'Accordion Order');
 
 // 4) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261012-multi-mhd-accordion-v1'/,
+  /CACHE_NAME = 'charculogic-v20261012-multi-mhd-accordion-v2'/,
   'SW Cache-Version',
 );
 
-// 5) Badge ist Button (nicht nur status-div)
-assert.match(
-  mhdSrc,
-  /class="mhd-multi-batch-badge\$\{expanded \? ' is-expanded' : ''\}"/,
-  'Badge als Button mit Expand-Klasse',
-);
+// 5) Kein statisches Div-Badge
 assert.ok(
   !mhdSrc.includes('<div class="mhd-multi-batch-badge" role="status">'),
   'statisches Badge-Div entfernt',
 );
 
-console.log('OK smoke-mhd-multi-batch: Multi-MHD-Akkordeon Verträge erfüllt.');
+console.log('OK smoke-mhd-multi-batch: Multi-MHD-Akkordeon iOS Touch Verträge erfüllt.');

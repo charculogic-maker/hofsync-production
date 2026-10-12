@@ -3195,7 +3195,7 @@ function isMultiMhdAccordionExpanded(prodOrId) {
 
 function toggleMultiMhdAccordion(prodOrId) {
   const key = resolveMhdArticleExpandKey(prodOrId);
-  if (!key) return;
+  if (!key) return false;
   if (!(mhdState.expandedMultiMhdIds instanceof Set)) {
     mhdState.expandedMultiMhdIds = new Set();
   }
@@ -3205,6 +3205,47 @@ function toggleMultiMhdAccordion(prodOrId) {
     mhdState.expandedMultiMhdIds.add(key);
   }
   renderMhdList();
+  return true;
+}
+
+/** Verhindert Doppel-Toggle wenn iOS sowohl pointerdown als auch click feuert. */
+let mhdMultiBatchToggleHandledByPointer = false;
+let mhdMultiBatchToggleHandledTimer = null;
+
+function handleMultiMhdAccordionToggleEvent(event, { fromPointer = false } = {}) {
+  const button = event.target?.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]');
+  if (!button) return false;
+  const id = button.getAttribute('data-mhd-id') || button.dataset?.mhdId;
+  if (!id) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  button.classList.add('is-pressed');
+
+  if (fromPointer) {
+    mhdMultiBatchToggleHandledByPointer = true;
+    if (mhdMultiBatchToggleHandledTimer != null) {
+      window.clearTimeout(mhdMultiBatchToggleHandledTimer);
+    }
+    mhdMultiBatchToggleHandledTimer = window.setTimeout(() => {
+      mhdMultiBatchToggleHandledByPointer = false;
+      mhdMultiBatchToggleHandledTimer = null;
+    }, 450);
+    toggleMultiMhdAccordion(id);
+    return true;
+  }
+
+  if (mhdMultiBatchToggleHandledByPointer) {
+    mhdMultiBatchToggleHandledByPointer = false;
+    if (mhdMultiBatchToggleHandledTimer != null) {
+      window.clearTimeout(mhdMultiBatchToggleHandledTimer);
+      mhdMultiBatchToggleHandledTimer = null;
+    }
+    return true;
+  }
+
+  toggleMultiMhdAccordion(id);
+  return true;
 }
 
 function buildLaterMhdBadgeHtml(prod) {
@@ -3243,9 +3284,9 @@ function buildLaterMhdAccordionRowHtml(batch) {
   const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
   const qtyLabel = formatMhdQtyBadgeValue(qty);
   return `
-    <div class="mhd-multi-batch-row" data-mhd-multi-batch-row="${escapeHtml(id)}">
+    <div class="mhd-multi-batch-row mhd-accordion-row" data-mhd-multi-batch-row="${escapeHtml(id)}">
       <div class="mhd-multi-batch-row-head">
-        <div class="mhd-multi-batch-row-date">MHD ${escapeHtml(dateLabel)}</div>
+        <div class="mhd-multi-batch-row-date">${escapeHtml(dateLabel)}</div>
         <span class="mhd-badge mhd-multi-batch-days"${badgeStyle}>${escapeHtml(badgeLabel)}</span>
       </div>
       <div class="mhd-multi-batch-row-controls">
@@ -3271,17 +3312,20 @@ function buildLaterMhdAccordionRowHtml(batch) {
 }
 
 function buildLaterMhdAccordionHtml(prod) {
+  if (!isMultiMhdAccordionExpanded(prod)) return '';
   const later = getLaterBatchesForItem(prod);
-  if (!later.length || !isMultiMhdAccordionExpanded(prod)) return '';
   const panelId = `mhd-multi-batch-panel-${prod.id}`;
+  const body = later.length
+    ? later.map((batch) => buildLaterMhdAccordionRowHtml(batch)).join('')
+    : `<div class="mhd-accordion-empty" role="status">Keine weiteren MHDs im Bestand gefunden.</div>`;
   return `
     <div
-      class="mhd-multi-batch-accordion"
+      class="mhd-multi-batch-accordion mhd-accordion-list"
       id="${escapeHtml(panelId)}"
       role="region"
       aria-label="Weitere MHDs für ${escapeHtml(resolveMhdProductDisplayParts(prod).title || 'Artikel')}"
     >
-      ${later.map((batch) => buildLaterMhdAccordionRowHtml(batch)).join('')}
+      ${body}
     </div>`;
 }
 
@@ -4605,7 +4649,8 @@ function buildMhdCardHtml(prod = {}) {
         ${kitchenAction}
         ${retterBoxAction}
       </div>
-      ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}${laterAccordionHtml}</div>` : ''}
+      ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}</div>` : ''}
+      ${laterAccordionHtml}
     </div>
   `;
 }
@@ -5822,8 +5867,22 @@ function bindMhdCardActions() {
     target?.closest?.('#mhd-items-container, #mhd-admin-search-results'),
   );
 
+  // iOS Safari: pointerdown + click, damit Tipps auf dem Multi-MHD-Badge sicher ankommen.
+  page.addEventListener('pointerdown', (event) => {
+    if (!isMhdListTarget(event.target)) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
+      return;
+    }
+    handleMultiMhdAccordionToggleEvent(event, { fromPointer: true });
+  }, { passive: false });
+
   page.addEventListener('click', (event) => {
     if (!isMhdListTarget(event.target)) return;
+    if (event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
+      handleMultiMhdAccordionToggleEvent(event, { fromPointer: false });
+      return;
+    }
     const daysBadge = event.target.closest('[data-mhd-days-badge]');
     if (daysBadge) {
       event.preventDefault();
@@ -5835,12 +5894,6 @@ function bindMhdCardActions() {
     if (!button) return;
     const id = button.dataset.mhdId;
     const command = button.dataset.mhdCommand;
-    if (command === 'toggle-multi-batch') {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleMultiMhdAccordion(id);
-      return;
-    }
     if (command === 'qty-edit') {
       event.preventDefault();
       openMhdQtyNumpad(id);

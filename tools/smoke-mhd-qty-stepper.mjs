@@ -45,7 +45,7 @@ assertIncludes(cssSrc, '.mhd-qty-numpad-grid', 'Numpad Grid');
 assertIncludes(cssSrc, 'html.mhd-qty-numpad-open', 'Body-Lock bei offenem Numpad');
 
 // 4) SW Cache-Invalidierung
-assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261012-multi-mhd-accordion-v1'/, 'SW Cache-Version');
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261012-multi-mhd-accordion-v2'/, 'SW Cache-Version');
 
 // 5) Numpad-Draft-Logik (gespiegelt)
 function applyKey(draft, currentQty, key) {

@@ -2005,20 +2005,26 @@ button:active, .btn:active {
 
 .mhd-multi-batch-wrap {
   order: 5;
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+  width: 100%;
 }
 
 .mhd-multi-batch-badge {
+  appearance: none;
+  -webkit-appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   width: 100%;
+  min-height: 48px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: #ecfdf5;
   border: 1px solid #6ee7b7;
@@ -2028,17 +2034,29 @@ button:active, .btn:active {
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
 }
 
-.mhd-multi-batch-badge:active {
-  transform: scale(0.99);
+.mhd-multi-batch-badge:active,
+.mhd-multi-batch-badge.is-pressed {
+  background: #a7f3d0;
+  border-color: #059669;
+  color: #064e3b;
 }
 
 .mhd-multi-batch-badge.is-expanded {
   background: #d1fae5;
   border-color: #34d399;
+}
+
+.mhd-multi-batch-badge.is-expanded:active,
+.mhd-multi-batch-badge.is-expanded.is-pressed {
+  background: #6ee7b7;
+  border-color: #047857;
 }
 
 .mhd-multi-batch-badge-text {
@@ -2048,12 +2066,24 @@ button:active, .btn:active {
 
 .mhd-multi-batch-chevron {
   flex-shrink: 0;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
+  background: rgba(6, 95, 70, 0.1);
+  font-size: 14px;
+  font-weight: 900;
   line-height: 1;
-  opacity: 0.85;
+  color: #065f46;
 }
 
-.mhd-multi-batch-accordion {
+.mhd-multi-batch-accordion,
+.mhd-accordion-list {
+  order: 6;
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2061,9 +2091,22 @@ button:active, .btn:active {
   border-radius: 12px;
   background: color-mix(in srgb, #ecfdf5 55%, #ffffff);
   border: 1px solid #a7f3d0;
+  width: 100%;
 }
 
-.mhd-multi-batch-row {
+.mhd-accordion-empty {
+  padding: 14px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.mhd-multi-batch-row,
+.mhd-accordion-row {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2071,6 +2114,7 @@ button:active, .btn:active {
   border-radius: 10px;
   background: #ffffff;
   border: 1px solid #d1fae5;
+  box-shadow: 0 1px 2px rgba(6, 95, 70, 0.06);
 }
 
 .mhd-multi-batch-row-head {
@@ -6455,13 +6499,30 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   color: #a7f3d0;
 }
 
+[data-theme="dark"] .mhd-multi-batch-badge:active,
+[data-theme="dark"] .mhd-multi-batch-badge.is-pressed {
+  background: color-mix(in srgb, #34d399 40%, var(--surface-color));
+}
+
 [data-theme="dark"] .mhd-multi-batch-badge.is-expanded {
   background: color-mix(in srgb, #34d399 28%, var(--surface-color));
 }
 
-[data-theme="dark"] .mhd-multi-batch-accordion {
+[data-theme="dark"] .mhd-multi-batch-chevron {
+  background: rgba(167, 243, 208, 0.16);
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .mhd-multi-batch-accordion,
+[data-theme="dark"] .mhd-accordion-list {
   background: color-mix(in srgb, #34d399 12%, var(--surface-color));
   border-color: color-mix(in srgb, #34d399 35%, var(--border-subtle));
+}
+
+[data-theme="dark"] .mhd-accordion-empty {
+  background: color-mix(in srgb, #fdba74 18%, var(--surface-color));
+  border-color: color-mix(in srgb, #fdba74 45%, var(--border-subtle));
+  color: #fdba74;
 }
 
 [data-theme="dark"] .mhd-multi-batch-row {
