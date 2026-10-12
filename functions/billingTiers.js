@@ -247,11 +247,25 @@ function companyNameFromEmail(email) {
     .join(' ');
 }
 
+function customerLabelFromEmail(email) {
+  const [local = '', domain = ''] = String(email || '').split('@');
+  const host = domain.split('.')[0] || '';
+  const parts = [
+    'Neukunde',
+    ...local.split(/[._+\-\s]+/),
+    PUBLIC_MAIL_HOSTS.has(host.toLowerCase()) ? host : '',
+  ].filter(Boolean);
+  return parts
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 function resolveCompanyName({ metadataName, customerName, email }) {
   const cleaned = sanitizeCompanyName(firstText(
     metadataName,
     customerName,
     companyNameFromEmail(email),
+    customerLabelFromEmail(email),
     'Neukunde',
   ));
   return cleaned || 'Neukunde';

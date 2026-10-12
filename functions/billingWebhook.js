@@ -104,7 +104,7 @@ async function handleBillingWebhook(req, res) {
       res.status(400).json({ ok: false, error: 'missing_email' });
       return;
     }
-    if (!event.companyName) event.companyName = 'Neukunde';
+    if (!event.companyName) event.companyName = event.email.split('@')[0];
     if (!event.tier) event.tier = 'mhd_retter';
   }
 
