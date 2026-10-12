@@ -69,6 +69,7 @@ import {
   startMhdLiveSync,
   syncMhdSaveBarKeyboardOffset,
   bindMhdSaveBarViewportSync,
+  closeMhdQtyNumpad,
   updateMhdAdminSearchVisibility,
 } from './mhd.js';
 import {
@@ -3288,6 +3289,7 @@ tabs.forEach(tab => {
       }
     }
     AppState.activeTab = targetTab;
+    closeMhdQtyNumpad();
 
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
     playClickSound(800, 0.05, 0.15);
