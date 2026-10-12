@@ -857,12 +857,56 @@ function mergeCloudProductsWithPendingChanges(cloudProducts = []) {
   return [...mergedById.values()];
 }
 
+/**
+ * Hält den MHD-Speicher-Balken oberhalb der virtuellen iOS-Tastatur.
+ * Nutzt visualViewport; ohne Tastatur bleibt das CSS-Default (Nav + safe-area).
+ */
+function syncMhdSaveBarKeyboardOffset() {
+  const root = document.documentElement;
+  const vv = window.visualViewport;
+  if (!vv) {
+    root.style.removeProperty('--mhd-save-bar-bottom');
+    root.style.setProperty('--mhd-keyboard-inset', '0px');
+    root.classList.remove('mhd-keyboard-open');
+    return;
+  }
+
+  const coveredByChrome = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+  const keyboardOpen = coveredByChrome > 48;
+  root.style.setProperty('--mhd-keyboard-inset', `${Math.round(coveredByChrome)}px`);
+
+  if (keyboardOpen) {
+    // Bottom-Nav steckt hinter der Tastatur — Balken direkt darüber platzieren.
+    root.style.setProperty('--mhd-save-bar-bottom', `${Math.round(coveredByChrome + 10)}px`);
+    root.classList.add('mhd-keyboard-open');
+  } else {
+    // Property entfernen → CSS-Fallbacks (Mobil: Nav+safe-area, Desktop-Sidebar: 12px)
+    root.style.removeProperty('--mhd-save-bar-bottom');
+    root.classList.remove('mhd-keyboard-open');
+  }
+}
+
+function bindMhdSaveBarViewportSync() {
+  if (typeof window === 'undefined' || window.__mhdSaveBarViewportBound) return;
+  window.__mhdSaveBarViewportBound = true;
+  const sync = () => syncMhdSaveBarKeyboardOffset();
+  sync();
+  window.addEventListener('resize', sync, { passive: true });
+  window.visualViewport?.addEventListener('resize', sync, { passive: true });
+  window.visualViewport?.addEventListener('scroll', sync, { passive: true });
+  window.addEventListener('orientationchange', () => {
+    window.setTimeout(sync, 120);
+  }, { passive: true });
+}
+
 function ensureMhdStickySaveBarFixed() {
   const bar = document.getElementById('mhd-sticky-save-bar');
   const host = document.querySelector('.app-container');
   if (!bar || !host) return;
 
   bar.classList.add('mhd-sticky-save-bar');
+  bindMhdSaveBarViewportSync();
+  syncMhdSaveBarKeyboardOffset();
 
   const scrollHost = document.getElementById('app-content');
   if (scrollHost?.contains(bar)) {
@@ -875,9 +919,31 @@ function ensureMhdStickySaveBarFixed() {
   }
 }
 
-function stageMhdChange(id, updates = {}) {
+/**
+ * Lokales Patch der Mengen-Anzeige ohne Full-List-Render.
+ * Ermöglicht flüssiges Mehrfach-Tippen auf +/- an der Frischetheke.
+ */
+function patchMhdCardQtyDom(id, qty) {
+  const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(String(id))
+    : String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const input = document.querySelector(`.mhd-qty-input[data-mhd-qty-id="${safeId}"]`);
+  if (!input) return false;
+  const nextValue = formatMhdQtyInputValue(qty);
+  if (input.value !== nextValue) {
+    input.value = nextValue;
+  }
+  return true;
+}
+
+function mhdQtyCrossesZeroVisibility(prevQty, nextQty) {
+  return (Number(prevQty) <= 0) !== (Number(nextQty) <= 0);
+}
+
+function stageMhdChange(id, updates = {}, options = {}) {
   if (!id || !updates || typeof updates !== 'object') return;
   const prev = mhdState.products.find((prod) => prod.id === id);
+  const prevQty = prev ? mhdItemQuantity(prev) : 0;
   const pending = {
     ...(mhdState.pendingChanges[id] || {}),
     ...updates,
@@ -895,6 +961,15 @@ function stageMhdChange(id, updates = {}) {
   updateMhdCompletionToggle();
   if (shouldAnimateMhdCompletionExit(id, updates)) {
     animateMhdCardExit(id).then(() => renderMhdList());
+    return;
+  }
+
+  const qtyOnlyLocal = options.localQtyPatch === true
+    && Object.keys(updates).every((key) => key === 'qty' || key === 'menge')
+    && updates.qty != null
+    && !mhdQtyCrossesZeroVisibility(prevQty, updates.qty);
+
+  if (qtyOnlyLocal && patchMhdCardQtyDom(id, updates.qty)) {
     return;
   }
   renderMhdList();
@@ -4643,15 +4718,82 @@ async function saveMhdCardQty(id, newQty) {
   }
 }
 
-async function adjustQty(id, change) {
-  const prod = mhdState.products.find(p => p.id === id);
-  if (!prod || prod.soldOut) return;
+const MHD_STEPPER_REPEAT_DELAY_MS = 380;
+const MHD_STEPPER_REPEAT_INTERVAL_MS = 85;
+
+/** @type {{ id: string, change: number, pointerId: number, delayTimer: number|null, intervalId: number|null } | null} */
+let mhdStepperRepeatState = null;
+/** Nach pointerdown den folgenden click-Ghost unterdrücken (Doppelzählung). */
+let mhdStepperSkipNextClick = false;
+let mhdStepperSkipClickTimer = null;
+
+function clearMhdStepperRepeat() {
+  if (!mhdStepperRepeatState) return;
+  if (mhdStepperRepeatState.delayTimer != null) {
+    window.clearTimeout(mhdStepperRepeatState.delayTimer);
+  }
+  if (mhdStepperRepeatState.intervalId != null) {
+    window.clearInterval(mhdStepperRepeatState.intervalId);
+  }
+  mhdStepperRepeatState = null;
+}
+
+function armMhdStepperSkipClick() {
+  mhdStepperSkipNextClick = true;
+  if (mhdStepperSkipClickTimer != null) {
+    window.clearTimeout(mhdStepperSkipClickTimer);
+  }
+  mhdStepperSkipClickTimer = window.setTimeout(() => {
+    mhdStepperSkipNextClick = false;
+    mhdStepperSkipClickTimer = null;
+  }, 400);
+}
+
+/**
+ * Sofortige lokale Mengenanpassung (kein Full-Render bei normalem +/-).
+ * @returns {boolean} true wenn die Menge geändert wurde
+ */
+function adjustQty(id, change, options = {}) {
+  const prod = mhdState.products.find((p) => p.id === id);
+  if (!prod || prod.soldOut) return false;
 
   const currentQty = mhdItemQuantity(prod);
   const newQty = Math.max(0, currentQty + change);
-  if (newQty === currentQty) return;
-  mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
-  stageMhdChange(id, { qty: newQty });
+  if (newQty === currentQty) return false;
+  if (!options.fromRepeat) {
+    mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
+  }
+  stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
+  return true;
+}
+
+function startMhdStepperRepeat(id, change, pointerId) {
+  clearMhdStepperRepeat();
+  armMhdStepperSkipClick();
+  const applied = adjustQty(id, change);
+  mhdStepperRepeatState = {
+    id,
+    change,
+    pointerId,
+    delayTimer: null,
+    intervalId: null,
+  };
+  if (!applied && change < 0) {
+    // Bereits bei 0 — kein Repeat nötig
+    return;
+  }
+  mhdStepperRepeatState.delayTimer = window.setTimeout(() => {
+    if (!mhdStepperRepeatState || mhdStepperRepeatState.id !== id) return;
+    mhdStepperRepeatState.intervalId = window.setInterval(() => {
+      if (!mhdStepperRepeatState || mhdStepperRepeatState.id !== id) {
+        clearMhdStepperRepeat();
+        return;
+      }
+      if (!adjustQty(id, change, { fromRepeat: true })) {
+        clearMhdStepperRepeat();
+      }
+    }, MHD_STEPPER_REPEAT_INTERVAL_MS);
+  }, MHD_STEPPER_REPEAT_DELAY_MS);
 }
 
 async function commitMhdCardQtyFromInput(id, rawValue) {
@@ -4662,7 +4804,7 @@ async function commitMhdCardQtyFromInput(id, rawValue) {
   }
   const prod = mhdState.products.find((entry) => entry.id === id);
   if (!prod || prod.soldOut || newQty === (prod.qty ?? 0)) return;
-  stageMhdChange(id, { qty: newQty });
+  stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
 }
 
 async function setSoldOut(id) {
@@ -5407,12 +5549,64 @@ async function mergeMhdDuplicateBatch(primaryId) {
   }
 }
 
+function selectMhdQtyInputValue(input) {
+  if (!input || typeof input.select !== 'function') return;
+  const runSelect = () => {
+    try {
+      input.select();
+    } catch (_) {
+      /* noop – ältere WebViews */
+    }
+  };
+  // iOS markiert oft erst nach dem nächsten Tick zuverlässig.
+  runSelect();
+  window.requestAnimationFrame(runSelect);
+  window.setTimeout(runSelect, 0);
+}
+
 function bindMhdCardActions() {
   const page = document.getElementById('page-mhd');
   if (!page || page.dataset.mhdActionBound === '1') return;
   page.dataset.mhdActionBound = '1';
+
+  const isMhdListTarget = (target) => Boolean(
+    target?.closest?.('#mhd-items-container, #mhd-admin-search-results'),
+  );
+
+  page.addEventListener('pointerdown', (event) => {
+    if (!isMhdListTarget(event.target)) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const button = event.target.closest('[data-mhd-command="adjust"]');
+    if (!button) return;
+    const id = button.dataset.mhdId;
+    const change = Number(button.dataset.mhdChange || 0);
+    if (!id || !Number.isFinite(change) || change === 0) return;
+    // Sofort zählen — kein Warten auf click (vermeidet Haken bei schnellem Tippen).
+    event.preventDefault();
+    try {
+      button.setPointerCapture?.(event.pointerId);
+    } catch (_) { /* noop */ }
+    startMhdStepperRepeat(id, change, event.pointerId);
+  });
+
+  const stopStepperOnPointerEnd = (event) => {
+    if (!mhdStepperRepeatState) return;
+    if (
+      event.pointerId != null
+      && mhdStepperRepeatState.pointerId != null
+      && event.pointerId !== mhdStepperRepeatState.pointerId
+    ) {
+      return;
+    }
+    clearMhdStepperRepeat();
+  };
+
+  page.addEventListener('pointerup', stopStepperOnPointerEnd);
+  page.addEventListener('pointercancel', stopStepperOnPointerEnd);
+  page.addEventListener('lostpointercapture', stopStepperOnPointerEnd);
+
   page.addEventListener('click', (event) => {
-    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
+    if (!isMhdListTarget(event.target)) return;
     const daysBadge = event.target.closest('[data-mhd-days-badge]');
     if (daysBadge) {
       event.preventDefault();
@@ -5424,7 +5618,20 @@ function bindMhdCardActions() {
     if (!button) return;
     const id = button.dataset.mhdId;
     const command = button.dataset.mhdCommand;
-    if (command === 'adjust') adjustQty(id, Number(button.dataset.mhdChange || 0));
+    if (command === 'adjust') {
+      // Pointer-Pfad hat bereits gezählt — Ghost-Click / Doppelzählung unterbinden.
+      if (mhdStepperSkipNextClick) {
+        event.preventDefault();
+        mhdStepperSkipNextClick = false;
+        if (mhdStepperSkipClickTimer != null) {
+          window.clearTimeout(mhdStepperSkipClickTimer);
+          mhdStepperSkipClickTimer = null;
+        }
+        return;
+      }
+      adjustQty(id, Number(button.dataset.mhdChange || 0));
+      return;
+    }
     if (command === 'soldout') setSoldOut(id);
     if (command === 'restore-zero') {
       void restoreMhdQuantity(id, 1, { soldOut: false, clearSoldOutStatus: true });
@@ -5447,14 +5654,30 @@ function bindMhdCardActions() {
       if (prod) openStichprobeModal(prod);
     }
   });
+
+  page.addEventListener('focusin', (event) => {
+    if (!isMhdListTarget(event.target)) return;
+    const input = event.target.closest?.('.mhd-qty-input');
+    if (!input) return;
+    selectMhdQtyInputValue(input);
+  });
+
+  // iOS: Fokus allein markiert oft nicht — beim Antippen erneut select().
+  page.addEventListener('mouseup', (event) => {
+    if (!isMhdListTarget(event.target)) return;
+    const input = event.target.closest?.('.mhd-qty-input');
+    if (!input) return;
+    selectMhdQtyInputValue(input);
+  });
+
   page.addEventListener('change', (event) => {
-    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
+    if (!isMhdListTarget(event.target)) return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
     commitMhdCardQtyFromInput(input.dataset.mhdQtyId, input.value);
   });
   page.addEventListener('keydown', (event) => {
-    if (!event.target.closest('#mhd-items-container, #mhd-admin-search-results')) return;
+    if (!isMhdListTarget(event.target)) return;
     if (event.key !== 'Enter') return;
     const input = event.target.closest('.mhd-qty-input');
     if (!input) return;
@@ -7551,4 +7774,6 @@ export {
   saveManualReceiving,
   saveProductMaster,
   showMhdAnomalyWarning,
+  syncMhdSaveBarKeyboardOffset,
+  bindMhdSaveBarViewportSync,
 };
