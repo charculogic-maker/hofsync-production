@@ -67,6 +67,8 @@ import {
   refreshReceivingTabUiSafe,
   renderMhdList,
   startMhdLiveSync,
+  syncMhdSaveBarKeyboardOffset,
+  bindMhdSaveBarViewportSync,
   updateMhdAdminSearchVisibility,
 } from './mhd.js';
 import {
@@ -3019,7 +3021,11 @@ function showPage(pageId) {
 window.addEventListener('resize', () => {
   syncDesktopWideLayout();
   syncAppShellLayout();
+  syncMhdSaveBarKeyboardOffset();
 });
+
+// iOS: Speichern-Balken ("X Änderungen ausstehend") oberhalb der virtuellen Tastatur halten
+bindMhdSaveBarViewportSync();
 
 const ADMIN_DROPDOWN_MODULES = {
   haccp: {

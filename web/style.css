@@ -1122,13 +1122,14 @@ button:active, .btn:active {
   cursor: not-allowed;
 }
 
-/* Sticky Save Bar (MHD) — fixiert über der PWA-Bottom-Nav, viewport-unabhängig */
+/* Sticky Save Bar (MHD) — fixiert über der PWA-Bottom-Nav, viewport-unabhängig.
+ * --mhd-save-bar-bottom wird per visualViewport angehoben, wenn die iOS-Tastatur offen ist. */
 .sticky-action-bar,
 .mhd-sticky-save-bar {
   position: fixed !important;
   left: 12px !important;
   right: 12px !important;
-  bottom: calc(65px + env(safe-area-inset-bottom, 0px)) !important;
+  bottom: var(--mhd-save-bar-bottom, calc(65px + env(safe-area-inset-bottom, 0px))) !important;
   width: auto !important;
   margin: 0 !important;
   padding: 12px 14px;
@@ -1140,7 +1141,7 @@ button:active, .btn:active {
   opacity: 0;
   transform: translateY(12px);
   pointer-events: none;
-  transition: opacity 0.28s ease, transform 0.28s ease;
+  transition: opacity 0.28s ease, transform 0.28s ease, bottom 0.12s ease;
 }
 
 .sticky-action-bar.is-visible,
@@ -1941,7 +1942,7 @@ button:active, .btn:active {
   body.app-shell-sidebar #page-mhd .mhd-sticky-save-bar {
     left: calc(var(--desktop-sidebar-width) + 12px) !important;
     right: 12px !important;
-    bottom: 12px !important;
+    bottom: var(--mhd-save-bar-bottom, 12px) !important;
   }
 }
 
@@ -2545,6 +2546,10 @@ button:active, .btn:active {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .btn-stepper:active {
@@ -2570,6 +2575,8 @@ button:active, .btn:active {
   padding: 0;
   -moz-appearance: textfield;
   appearance: textfield;
+  touch-action: manipulation;
+  caret-color: var(--primary-color, #2e7d32);
 }
 
 .mhd-qty-input::-webkit-outer-spin-button,
