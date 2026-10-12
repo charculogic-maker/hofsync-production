@@ -919,19 +919,33 @@ function ensureMhdStickySaveBarFixed() {
   }
 }
 
+function escapeMhdDomSelector(value) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(String(value));
+  }
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function formatMhdQtyBadgeValue(qty) {
+  const n = Number(qty);
+  if (!Number.isFinite(n) || n < 0) return '0';
+  return String(Math.round(n));
+}
+
 /**
  * Lokales Patch der Mengen-Anzeige ohne Full-List-Render.
- * Ermöglicht flüssiges Mehrfach-Tippen auf +/- an der Frischetheke.
  */
 function patchMhdCardQtyDom(id, qty) {
-  const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-    ? CSS.escape(String(id))
-    : String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  const input = document.querySelector(`.mhd-qty-input[data-mhd-qty-id="${safeId}"]`);
-  if (!input) return false;
-  const nextValue = formatMhdQtyInputValue(qty);
-  if (input.value !== nextValue) {
-    input.value = nextValue;
+  const safeId = escapeMhdDomSelector(id);
+  const badgeValue = document.querySelector(`.mhd-qty-badge-value[data-mhd-qty-id="${safeId}"]`);
+  if (!badgeValue) return false;
+  const nextValue = formatMhdQtyBadgeValue(qty);
+  if (badgeValue.textContent !== nextValue) {
+    badgeValue.textContent = nextValue;
+  }
+  const badge = badgeValue.closest?.('.mhd-qty-badge');
+  if (badge) {
+    badge.setAttribute('aria-label', `Menge ${nextValue}, tippen zum Ändern`);
   }
   return true;
 }
@@ -4390,7 +4404,6 @@ function buildMhdCardHtml(prod = {}) {
   const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
   const badgeDaysLabel = `${badgeLabel} Tage`;
   const badgeDateLabel = formatMhdDateForCardMeta(prod) || '–';
-  const qtyInputValue = formatMhdQtyInputValue(prod.qty ?? prod.menge ?? 0);
   const productMetaHtml = buildMhdProductMetaHtml(prod);
   const mhdDateEditButton = formatMhdDateForCardMeta(prod)
     ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
@@ -4472,13 +4485,17 @@ function buildMhdCardHtml(prod = {}) {
       </div>
       ${zeroRestoreHtml}
       <div class="mhd-controls-row">
-        <div class="qty-stepper">
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="-1">−</button>
-          <div class="qty-value-container">
-            <input type="number" class="mhd-qty-input" data-mhd-qty-id="${prod.id}" placeholder="1" min="0" step="1" inputmode="numeric" aria-label="Menge"${qtyInputValue ? ` value="${qtyInputValue}"` : ''}>
-          </div>
-          <button class="btn-stepper" data-mhd-command="adjust" data-mhd-id="${prod.id}" data-mhd-change="1">+</button>
-        </div>
+        <button
+          type="button"
+          class="mhd-qty-badge"
+          data-mhd-command="qty-edit"
+          data-mhd-id="${prod.id}"
+          aria-label="Menge ${escapeHtml(formatMhdQtyBadgeValue(qty))}, tippen zum Ändern"
+          ${prod.soldOut || isZeroQty ? 'disabled' : ''}
+        >
+          <span class="mhd-qty-badge-label">Menge</span>
+          <span class="mhd-qty-badge-value" data-mhd-qty-id="${prod.id}">${escapeHtml(formatMhdQtyBadgeValue(qty))}</span>
+        </button>
         <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
           <span aria-hidden="true">🗑️</span> Ausverkauft
         </button>
@@ -4718,39 +4735,13 @@ async function saveMhdCardQty(id, newQty) {
   }
 }
 
-const MHD_STEPPER_REPEAT_DELAY_MS = 380;
-const MHD_STEPPER_REPEAT_INTERVAL_MS = 85;
+const MHD_QTY_NUMPAD_MAX_DIGITS = 4;
 
-/** @type {{ id: string, change: number, pointerId: number, delayTimer: number|null, intervalId: number|null } | null} */
-let mhdStepperRepeatState = null;
-/** Nach pointerdown den folgenden click-Ghost unterdrücken (Doppelzählung). */
-let mhdStepperSkipNextClick = false;
-let mhdStepperSkipClickTimer = null;
-
-function clearMhdStepperRepeat() {
-  if (!mhdStepperRepeatState) return;
-  if (mhdStepperRepeatState.delayTimer != null) {
-    window.clearTimeout(mhdStepperRepeatState.delayTimer);
-  }
-  if (mhdStepperRepeatState.intervalId != null) {
-    window.clearInterval(mhdStepperRepeatState.intervalId);
-  }
-  mhdStepperRepeatState = null;
-}
-
-function armMhdStepperSkipClick() {
-  mhdStepperSkipNextClick = true;
-  if (mhdStepperSkipClickTimer != null) {
-    window.clearTimeout(mhdStepperSkipClickTimer);
-  }
-  mhdStepperSkipClickTimer = window.setTimeout(() => {
-    mhdStepperSkipNextClick = false;
-    mhdStepperSkipClickTimer = null;
-  }, 400);
-}
+/** @type {{ id: string, currentQty: number, draft: string, productName: string } | null} */
+let mhdQtyNumpadState = null;
 
 /**
- * Sofortige lokale Mengenanpassung (kein Full-Render bei normalem +/-).
+ * Sofortige lokale Mengenanpassung (z. B. Stichprobe +/-).
  * @returns {boolean} true wenn die Menge geändert wurde
  */
 function adjustQty(id, change, options = {}) {
@@ -4767,44 +4758,213 @@ function adjustQty(id, change, options = {}) {
   return true;
 }
 
-function startMhdStepperRepeat(id, change, pointerId) {
-  clearMhdStepperRepeat();
-  armMhdStepperSkipClick();
-  const applied = adjustQty(id, change);
-  mhdStepperRepeatState = {
-    id,
-    change,
-    pointerId,
-    delayTimer: null,
-    intervalId: null,
-  };
-  if (!applied && change < 0) {
-    // Bereits bei 0 — kein Repeat nötig
-    return;
+let mhdQtyNumpadKeyHandler = null;
+
+function closeMhdQtyNumpad() {
+  if (mhdQtyNumpadKeyHandler) {
+    document.removeEventListener('keydown', mhdQtyNumpadKeyHandler);
+    mhdQtyNumpadKeyHandler = null;
   }
-  mhdStepperRepeatState.delayTimer = window.setTimeout(() => {
-    if (!mhdStepperRepeatState || mhdStepperRepeatState.id !== id) return;
-    mhdStepperRepeatState.intervalId = window.setInterval(() => {
-      if (!mhdStepperRepeatState || mhdStepperRepeatState.id !== id) {
-        clearMhdStepperRepeat();
-        return;
-      }
-      if (!adjustQty(id, change, { fromRepeat: true })) {
-        clearMhdStepperRepeat();
-      }
-    }, MHD_STEPPER_REPEAT_INTERVAL_MS);
-  }, MHD_STEPPER_REPEAT_DELAY_MS);
+  document.getElementById('mhd-qty-numpad-overlay')?.remove();
+  mhdQtyNumpadState = null;
+  document.documentElement.classList.remove('mhd-qty-numpad-open');
 }
 
-async function commitMhdCardQtyFromInput(id, rawValue) {
-  const newQty = parseMhdCardQty(rawValue);
+function syncMhdQtyNumpadDisplay() {
+  if (!mhdQtyNumpadState) return;
+  const draftEl = document.getElementById('mhd-qty-numpad-draft');
+  const currentEl = document.getElementById('mhd-qty-numpad-current');
+  if (currentEl) {
+    currentEl.textContent = formatMhdQtyBadgeValue(mhdQtyNumpadState.currentQty);
+  }
+  if (draftEl) {
+    const draft = mhdQtyNumpadState.draft;
+    draftEl.textContent = draft === '' ? '—' : draft;
+    draftEl.classList.toggle('is-empty', draft === '');
+  }
+}
+
+function applyMhdQtyNumpadKey(key) {
+  if (!mhdQtyNumpadState) return;
+  const state = mhdQtyNumpadState;
+  mhdState.playClickSound?.(1200, 0.02, 0.08);
+
+  if (key === 'clear') {
+    state.draft = '';
+    syncMhdQtyNumpadDisplay();
+    return;
+  }
+  if (key === 'backspace') {
+    state.draft = state.draft.slice(0, -1);
+    syncMhdQtyNumpadDisplay();
+    return;
+  }
+  if (key === 'soldout') {
+    state.draft = '0';
+    syncMhdQtyNumpadDisplay();
+    return;
+  }
+  if (key === 'plus1' || key === 'plus5') {
+    const add = key === 'plus5' ? 5 : 1;
+    const base = state.draft === ''
+      ? state.currentQty
+      : Number.parseInt(state.draft, 10);
+    const next = Math.max(0, (Number.isFinite(base) ? base : 0) + add);
+    state.draft = String(Math.min(9999, next));
+    syncMhdQtyNumpadDisplay();
+    return;
+  }
+  if (/^\d$/.test(key)) {
+    if (state.draft.length >= MHD_QTY_NUMPAD_MAX_DIGITS) return;
+    // Führende Nullen nur als echte „0“ erlauben.
+    if (state.draft === '0') {
+      state.draft = key;
+    } else {
+      state.draft += key;
+    }
+    syncMhdQtyNumpadDisplay();
+  }
+}
+
+function commitMhdQtyFromNumpad() {
+  if (!mhdQtyNumpadState) return;
+  const { id, currentQty, draft } = mhdQtyNumpadState;
+  if (draft === '') {
+    closeMhdQtyNumpad();
+    return;
+  }
+  const newQty = parseMhdCardQty(draft);
   if (Number.isNaN(newQty)) {
     mhdState.showHUD('Ungültige Menge', 'Bitte eine gültige Stückzahl eingeben.', '!');
     return;
   }
   const prod = mhdState.products.find((entry) => entry.id === id);
-  if (!prod || prod.soldOut || newQty === (prod.qty ?? 0)) return;
+  if (!prod || prod.soldOut) {
+    closeMhdQtyNumpad();
+    return;
+  }
+  closeMhdQtyNumpad();
+  if (newQty === currentQty) return;
+
+  mhdState.playClickSound?.(900, 0.06, 0.14);
+  if (newQty === 0) {
+    const actor = getAuditActorName();
+    stageMhdChange(id, {
+      soldOut: true,
+      qty: 0,
+      menge: 0,
+      previousQuantity: currentQty,
+      lastModifiedBy: actor || 'unbekannt',
+      status: 'sold_out',
+    });
+    if (currentQty > 0) armZeroQtyUndo(prod, currentQty);
+    return;
+  }
   stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
+}
+
+function openMhdQtyNumpad(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod || prod.soldOut) return;
+
+  const currentQty = mhdItemQuantity(prod);
+  if (currentQty <= 0) return;
+
+  const displayParts = resolveMhdProductDisplayParts(prod);
+  const productName = displayParts.title || prod.name || prod.produkt || 'Artikel';
+
+  closeMhdQtyNumpad();
+  mhdQtyNumpadState = {
+    id,
+    currentQty,
+    draft: '',
+    productName,
+  };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'mhd-qty-numpad-overlay';
+  overlay.className = 'mhd-qty-numpad-overlay';
+  overlay.setAttribute('role', 'presentation');
+  overlay.innerHTML = `
+    <button type="button" class="mhd-qty-numpad-backdrop" data-mhd-numpad-cmd="close" aria-label="Schließen"></button>
+    <div class="mhd-qty-numpad-sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="mhd-qty-numpad-title">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <header class="mhd-qty-numpad-header">
+        <div class="mhd-qty-numpad-title" id="mhd-qty-numpad-title">${escapeHtml(productName)}</div>
+        <div class="mhd-qty-numpad-meta">
+          <span>Bisher <strong id="mhd-qty-numpad-current">${escapeHtml(formatMhdQtyBadgeValue(currentQty))}</strong></span>
+          <span class="mhd-qty-numpad-arrow" aria-hidden="true">→</span>
+          <span>Neu <strong id="mhd-qty-numpad-draft" class="mhd-qty-numpad-draft is-empty">—</strong></span>
+        </div>
+      </header>
+      <div class="mhd-qty-numpad-quick" role="group" aria-label="Schnelltasten">
+        <button type="button" class="mhd-qty-numpad-quick-btn mhd-qty-numpad-quick-soldout" data-mhd-numpad-key="soldout">0 · Ausverkauft</button>
+        <button type="button" class="mhd-qty-numpad-quick-btn" data-mhd-numpad-key="plus1">+1</button>
+        <button type="button" class="mhd-qty-numpad-quick-btn" data-mhd-numpad-key="plus5">+5</button>
+      </div>
+      <div class="mhd-qty-numpad-grid" role="group" aria-label="Zahlenblock">
+        ${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'backspace'].map((key) => {
+          if (key === 'clear') {
+            return '<button type="button" class="mhd-qty-numpad-key mhd-qty-numpad-key--action" data-mhd-numpad-key="clear" aria-label="Löschen">C</button>';
+          }
+          if (key === 'backspace') {
+            return '<button type="button" class="mhd-qty-numpad-key mhd-qty-numpad-key--action" data-mhd-numpad-key="backspace" aria-label="Zurück">⌫</button>';
+          }
+          return `<button type="button" class="mhd-qty-numpad-key" data-mhd-numpad-key="${key}">${key}</button>`;
+        }).join('')}
+      </div>
+      <div class="mhd-qty-numpad-actions">
+        <button type="button" class="btn btn-secondary mhd-qty-numpad-cancel" data-mhd-numpad-cmd="close">Abbrechen</button>
+        <button type="button" class="btn btn-primary mhd-qty-numpad-confirm" data-mhd-numpad-cmd="confirm">Übernehmen</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  document.documentElement.classList.add('mhd-qty-numpad-open');
+
+  // Kein natives iOS-Keyboard: nur Buttons, kein Input-Fokus.
+  overlay.addEventListener('touchstart', (event) => {
+    if (event.target.closest('button')) return;
+    event.preventDefault();
+  }, { passive: false });
+
+  overlay.addEventListener('click', (event) => {
+    const cmdBtn = event.target.closest('[data-mhd-numpad-cmd]');
+    if (cmdBtn) {
+      const cmd = cmdBtn.dataset.mhdNumpadCmd;
+      if (cmd === 'close') closeMhdQtyNumpad();
+      if (cmd === 'confirm') commitMhdQtyFromNumpad();
+      return;
+    }
+    const keyBtn = event.target.closest('[data-mhd-numpad-key]');
+    if (!keyBtn) return;
+    applyMhdQtyNumpadKey(keyBtn.dataset.mhdNumpadKey);
+  });
+
+  mhdQtyNumpadKeyHandler = (event) => {
+    if (!mhdQtyNumpadState) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMhdQtyNumpad();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitMhdQtyFromNumpad();
+      return;
+    }
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+      applyMhdQtyNumpadKey('backspace');
+      return;
+    }
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      applyMhdQtyNumpadKey(event.key);
+    }
+  };
+  document.addEventListener('keydown', mhdQtyNumpadKeyHandler);
 }
 
 async function setSoldOut(id) {
@@ -5549,21 +5709,6 @@ async function mergeMhdDuplicateBatch(primaryId) {
   }
 }
 
-function selectMhdQtyInputValue(input) {
-  if (!input || typeof input.select !== 'function') return;
-  const runSelect = () => {
-    try {
-      input.select();
-    } catch (_) {
-      /* noop – ältere WebViews */
-    }
-  };
-  // iOS markiert oft erst nach dem nächsten Tick zuverlässig.
-  runSelect();
-  window.requestAnimationFrame(runSelect);
-  window.setTimeout(runSelect, 0);
-}
-
 function bindMhdCardActions() {
   const page = document.getElementById('page-mhd');
   if (!page || page.dataset.mhdActionBound === '1') return;
@@ -5572,38 +5717,6 @@ function bindMhdCardActions() {
   const isMhdListTarget = (target) => Boolean(
     target?.closest?.('#mhd-items-container, #mhd-admin-search-results'),
   );
-
-  page.addEventListener('pointerdown', (event) => {
-    if (!isMhdListTarget(event.target)) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    const button = event.target.closest('[data-mhd-command="adjust"]');
-    if (!button) return;
-    const id = button.dataset.mhdId;
-    const change = Number(button.dataset.mhdChange || 0);
-    if (!id || !Number.isFinite(change) || change === 0) return;
-    // Sofort zählen — kein Warten auf click (vermeidet Haken bei schnellem Tippen).
-    event.preventDefault();
-    try {
-      button.setPointerCapture?.(event.pointerId);
-    } catch (_) { /* noop */ }
-    startMhdStepperRepeat(id, change, event.pointerId);
-  });
-
-  const stopStepperOnPointerEnd = (event) => {
-    if (!mhdStepperRepeatState) return;
-    if (
-      event.pointerId != null
-      && mhdStepperRepeatState.pointerId != null
-      && event.pointerId !== mhdStepperRepeatState.pointerId
-    ) {
-      return;
-    }
-    clearMhdStepperRepeat();
-  };
-
-  page.addEventListener('pointerup', stopStepperOnPointerEnd);
-  page.addEventListener('pointercancel', stopStepperOnPointerEnd);
-  page.addEventListener('lostpointercapture', stopStepperOnPointerEnd);
 
   page.addEventListener('click', (event) => {
     if (!isMhdListTarget(event.target)) return;
@@ -5618,18 +5731,9 @@ function bindMhdCardActions() {
     if (!button) return;
     const id = button.dataset.mhdId;
     const command = button.dataset.mhdCommand;
-    if (command === 'adjust') {
-      // Pointer-Pfad hat bereits gezählt — Ghost-Click / Doppelzählung unterbinden.
-      if (mhdStepperSkipNextClick) {
-        event.preventDefault();
-        mhdStepperSkipNextClick = false;
-        if (mhdStepperSkipClickTimer != null) {
-          window.clearTimeout(mhdStepperSkipClickTimer);
-          mhdStepperSkipClickTimer = null;
-        }
-        return;
-      }
-      adjustQty(id, Number(button.dataset.mhdChange || 0));
+    if (command === 'qty-edit') {
+      event.preventDefault();
+      openMhdQtyNumpad(id);
       return;
     }
     if (command === 'soldout') setSoldOut(id);
@@ -5653,36 +5757,6 @@ function bindMhdCardActions() {
       const prod = mhdState.products.find((entry) => entry.id === id);
       if (prod) openStichprobeModal(prod);
     }
-  });
-
-  page.addEventListener('focusin', (event) => {
-    if (!isMhdListTarget(event.target)) return;
-    const input = event.target.closest?.('.mhd-qty-input');
-    if (!input) return;
-    selectMhdQtyInputValue(input);
-  });
-
-  // iOS: Fokus allein markiert oft nicht — beim Antippen erneut select().
-  page.addEventListener('mouseup', (event) => {
-    if (!isMhdListTarget(event.target)) return;
-    const input = event.target.closest?.('.mhd-qty-input');
-    if (!input) return;
-    selectMhdQtyInputValue(input);
-  });
-
-  page.addEventListener('change', (event) => {
-    if (!isMhdListTarget(event.target)) return;
-    const input = event.target.closest('.mhd-qty-input');
-    if (!input) return;
-    commitMhdCardQtyFromInput(input.dataset.mhdQtyId, input.value);
-  });
-  page.addEventListener('keydown', (event) => {
-    if (!isMhdListTarget(event.target)) return;
-    if (event.key !== 'Enter') return;
-    const input = event.target.closest('.mhd-qty-input');
-    if (!input) return;
-    event.preventDefault();
-    input.blur();
   });
 }
 function bindUtilityDialogActions() {
@@ -7776,4 +7850,6 @@ export {
   showMhdAnomalyWarning,
   syncMhdSaveBarKeyboardOffset,
   bindMhdSaveBarViewportSync,
+  closeMhdQtyNumpad,
+  openMhdQtyNumpad,
 };
