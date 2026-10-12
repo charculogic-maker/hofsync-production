@@ -1,7 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
-import { flushPendingSyncs, getPendingSyncs } from './sync.js';
+import { flushPendingSyncs, getPendingSyncs, removePendingSyncsForDoc } from './sync.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -341,6 +341,7 @@ const mhdState = {
   searchQuery: '',
   searchScanActive: false,
   pendingChanges: {},
+  deletedPostenIds: new Set(),
   hasUnsavedChanges: false,
   showZeroQty: false,
   zeroQtyCount: 0,
@@ -823,6 +824,15 @@ function getMhdPendingChangeCount() {
   return Object.keys(mhdState.pendingChanges).length;
 }
 
+function isDeletedMhdPosten(id) {
+  return Boolean(id && mhdState.deletedPostenIds?.has(String(id)));
+}
+
+function filterDeletedMhdProducts(products = []) {
+  return (Array.isArray(products) ? products : [])
+    .filter((prod) => prod?.id && !isDeletedMhdPosten(prod.id));
+}
+
 function applyPendingChangesToProducts() {
   mhdState.products = mergeCloudProductsWithPendingChanges(mhdState.products);
 }
@@ -834,10 +844,11 @@ function applyPendingChangesToProducts() {
 function mergeCloudProductsWithPendingChanges(cloudProducts = []) {
   const pending = mhdState.pendingChanges || {};
   const pendingIds = Object.keys(pending);
-  if (!pendingIds.length) return cloudProducts;
+  const visibleCloudProducts = filterDeletedMhdProducts(cloudProducts);
+  if (!pendingIds.length) return visibleCloudProducts;
 
   const mergedById = new Map();
-  cloudProducts.forEach((prod) => {
+  visibleCloudProducts.forEach((prod) => {
     const id = prod?.id;
     if (!id) return;
     mergedById.set(id, pending[id] ? { ...prod, ...pending[id] } : prod);
@@ -845,6 +856,7 @@ function mergeCloudProductsWithPendingChanges(cloudProducts = []) {
 
   const previousProducts = Array.isArray(mhdState.products) ? mhdState.products : [];
   pendingIds.forEach((id) => {
+    if (isDeletedMhdPosten(id)) return;
     if (mergedById.has(id)) return;
     const previous = previousProducts.find((prod) => prod.id === id);
     if (previous) {
@@ -954,7 +966,9 @@ function mhdQtyCrossesZeroVisibility(prevQty, nextQty) {
 
 function stageMhdChange(id, updates = {}, options = {}) {
   if (!id || !updates || typeof updates !== 'object') return;
-  const prev = mhdState.products.find((prod) => prod.id === id);
+  if (isDeletedMhdPosten(id)) return;
+  const rawPrev = mhdState.products.find((prod) => prod.id === id);
+  const prev = rawPrev ? getEffectiveMhdProduct(rawPrev) : null;
   const prevQty = prev ? mhdItemQuantity(prev) : 0;
   const pending = {
     ...(mhdState.pendingChanges[id] || {}),
@@ -3787,13 +3801,13 @@ function mergeMhdDocsById(...docLists) {
 }
 
 function mergeMhdLiveProducts() {
-  const inStock = Array.isArray(mhdState.inStockProducts) ? mhdState.inStockProducts : [];
+  const inStock = filterDeletedMhdProducts(mhdState.inStockProducts);
   if (!mhdState.showZeroQty) {
-    mhdState.products = inStock;
+    mhdState.products = mergeCloudProductsWithPendingChanges(inStock);
     return mhdState.products;
   }
-  const zeros = Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : [];
-  mhdState.products = mergeMhdDocsById(inStock, zeros);
+  const zeros = filterDeletedMhdProducts(mhdState.zeroProducts);
+  mhdState.products = mergeCloudProductsWithPendingChanges(mergeMhdDocsById(inStock, zeros));
   return mhdState.products;
 }
 
@@ -4890,7 +4904,9 @@ let mhdQtyNumpadState = null;
  * @returns {boolean} true wenn die Menge geändert wurde
  */
 function adjustQty(id, change, options = {}) {
-  const prod = mhdState.products.find((p) => p.id === id);
+  const rawProd = mhdState.products.find((p) => p.id === id);
+  if (!rawProd) return false;
+  const prod = getEffectiveMhdProduct(rawProd);
   if (!prod || prod.soldOut) return false;
 
   const currentQty = mhdItemQuantity(prod);
@@ -4983,7 +4999,8 @@ function commitMhdQtyFromNumpad() {
     mhdState.showHUD('Ungültige Menge', 'Bitte eine gültige Stückzahl eingeben.', '!');
     return;
   }
-  const prod = mhdState.products.find((entry) => entry.id === id);
+  const rawProd = mhdState.products.find((entry) => entry.id === id);
+  const prod = rawProd ? getEffectiveMhdProduct(rawProd) : null;
   if (!prod || prod.soldOut) {
     closeMhdQtyNumpad();
     return;
@@ -5009,7 +5026,8 @@ function commitMhdQtyFromNumpad() {
 }
 
 function openMhdQtyNumpad(id) {
-  const prod = mhdState.products.find((entry) => entry.id === id);
+  const rawProd = mhdState.products.find((entry) => entry.id === id);
+  const prod = rawProd ? getEffectiveMhdProduct(rawProd) : null;
   if (!prod || prod.soldOut) return;
 
   const currentQty = mhdItemQuantity(prod);
@@ -5581,7 +5599,7 @@ async function addMhdItemToRetterBox(id) {
 
 async function deleteMhdPosten(id) {
   try {
-    await mhdState.writeOrQueueFirestore({
+    const result = await mhdState.writeOrQueueFirestore({
       collectionPath: mhdCollectionPath(),
       docId: id,
       op: 'delete',
@@ -5589,6 +5607,17 @@ async function deleteMhdPosten(id) {
       queueData: {},
       offlineMessage: "Löschung wird nachträglich synchronisiert.",
     });
+    if (result !== 'queued') {
+      removePendingSyncsForDoc(mhdCollectionPath(), id);
+    }
+    delete mhdState.pendingChanges[id];
+    mhdState.deletedPostenIds.add(String(id));
+    mhdState.products = filterDeletedMhdProducts(mhdState.products);
+    mhdState.inStockProducts = filterDeletedMhdProducts(mhdState.inStockProducts);
+    mhdState.zeroProducts = filterDeletedMhdProducts(mhdState.zeroProducts);
+    mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
+    updateMhdStickySaveBar();
+    renderMhdList();
     mhdState.showHUD("Gelöscht", "Der Posten wurde entfernt oder zur Löschung vorgemerkt.");
     resetScanState({ keepLearnOverlay: false });
   } catch (err) {

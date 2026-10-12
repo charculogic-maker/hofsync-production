@@ -39,6 +39,7 @@ const {
   getSyncErrors,
   initSyncEngine,
   isFatalSyncError,
+  removePendingSyncsForDoc,
   writeFirestoreDocOrQueue,
 } = await import('../web/sync.js');
 const { setGlobalTenantId } = await import('../web/tenant-db.js');
@@ -182,6 +183,47 @@ describe('sync queue resilience', () => {
     expect(sets).to.have.length(1);
     expect(sets[0].opts).to.deep.equal({ merge: true });
     expect(sets[0].payload.name).to.equal('Bratwurst');
+  });
+
+  it('coalesces queued MHD writes so delete is not followed by stale update', async () => {
+    addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: `tenants/${TENANT}/mhd_liste`,
+      _docId: 'stale-doc',
+      _op: 'update',
+      data: { name: 'Alt', qty: 3 },
+    });
+    addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: `tenants/${TENANT}/mhd_liste`,
+      _docId: 'stale-doc',
+      _op: 'delete',
+      data: {},
+    });
+    addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: `tenants/${TENANT}/mhd_liste`,
+      _docId: 'stale-doc',
+      _op: 'update',
+      data: { name: 'Alt', qty: 4 },
+    });
+
+    const queued = getPendingSyncs();
+    expect(queued).to.have.length(1);
+    expect(queued[0]._op).to.equal('delete');
+  });
+
+  it('removes queued writes for a document after an online delete', () => {
+    addPendingSync({
+      _syncType: 'firestore-doc',
+      _collectionPath: `tenants/${TENANT}/mhd_liste`,
+      _docId: 'delete-online',
+      _op: 'update',
+      data: { name: 'Alt', qty: 3 },
+    });
+
+    expect(removePendingSyncsForDoc('mhd_liste', 'delete-online')).to.equal(true);
+    expect(getPendingSyncs()).to.deep.equal([]);
   });
 
   it('writes mhd_audit via add without GET', async () => {

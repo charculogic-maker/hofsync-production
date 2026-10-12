@@ -160,7 +160,11 @@ describe('Phase 3 webhook signatures', () => {
     expect(parseBillingEvent('stripe', {
       type: 'checkout.session.completed',
       data: { object: { customer_email: 'meister@gmail.com', metadata: {} } },
-    }).companyName).toBe('Neukunde');
+    }).companyName).toBe('Neukunde Meister Gmail');
+    expect(parseBillingEvent('stripe', {
+      type: 'checkout.session.completed',
+      data: { object: { customer_email: 'laden@gmx.de', metadata: {} } },
+    }).companyName).toBe('Neukunde Laden Gmx');
     expect(parseBillingEvent('stripe', {
       type: 'checkout.session.completed',
       data: {

@@ -311,6 +311,50 @@ export function removeQueuedMutation(id) {
   return savePendingSyncs(next);
 }
 
+function isSameQueuedDoc(a = {}, b = {}) {
+  const leftPath = String(a._collectionPath || '').replace(/^\/+|\/+$/g, '');
+  const rightPath = String(b._collectionPath || '').replace(/^\/+|\/+$/g, '');
+  const leftDoc = String(a._docId || '').trim();
+  const rightDoc = String(b._docId || '').trim();
+  if (!leftPath || !rightPath || !leftDoc || !rightDoc) return false;
+  return leftPath === rightPath && leftDoc === rightDoc;
+}
+
+function coalescePendingSyncQueue(queue, entry) {
+  if (entry?._syncType !== 'firestore-doc' || !entry._docId || entry._op === 'add') {
+    return { queue, append: true };
+  }
+
+  if (entry._op === 'delete') {
+    return {
+      queue: queue.filter((item) => !isSameQueuedDoc(item, entry)),
+      append: true,
+    };
+  }
+
+  const hasQueuedMhdDelete = queue.some((item) => (
+    isSameQueuedDoc(item, entry)
+    && item._op === 'delete'
+    && isMhdListeCollectionPath(item._collectionPath)
+  ));
+  if (hasQueuedMhdDelete && isMhdListeCollectionPath(entry._collectionPath)) {
+    return { queue, append: false };
+  }
+
+  return { queue, append: true };
+}
+
+export function removePendingSyncsForDoc(collectionPath, docId) {
+  const targetDoc = String(docId || '').trim();
+  if (!targetDoc) return false;
+  const normalizedPath = normalizeTenantCollectionPath(collectionPath);
+  const next = getPendingSyncs().filter((item) => !isSameQueuedDoc(item, {
+    _collectionPath: normalizedPath,
+    _docId: targetDoc,
+  }));
+  return savePendingSyncs(next);
+}
+
 function isMhdAuditPath(collectionPath) {
   const value = String(collectionPath || '').trim();
   return value === 'mhd_audit' || value.endsWith('mhd_audit');
@@ -367,12 +411,14 @@ export function savePendingSyncs(queue) {
 export function addPendingSync(entry) {
   const queue = getPendingSyncs();
   const retryCount = getRetryCount(entry);
-  queue.push(withRetryCount({
+  const nextEntry = withRetryCount({
     ...entry,
     _queuedAt: Date.now(),
     _id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  }, retryCount));
-  const saved = savePendingSyncs(queue);
+  }, retryCount);
+  const coalesced = coalescePendingSyncQueue(queue, nextEntry);
+  const nextQueue = coalesced.append ? [...coalesced.queue, nextEntry] : coalesced.queue;
+  const saved = savePendingSyncs(nextQueue);
   updateSyncIndicator();
   return saved;
 }
