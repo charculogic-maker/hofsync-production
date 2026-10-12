@@ -3552,14 +3552,14 @@ function showSyncQueueDialog() {
 
   const overlay = document.createElement('div');
   overlay.id = 'sync-queue-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:120100;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
 
   const pendingRows = pending.length
     ? pending.map((item) => `
       <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #e5e7eb;">
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:13px;">${escapeQueueText(queueItemTitle(item))}</div>
-          <div style="font-size:11px;color:#4b5563;">${escapeQueueText(queueItemSubtitle(item))} · Alter ${formatQueueAge(item._queuedAt)}</div>
+          <div style="font-size:11px;color:#4b5563;">${escapeQueueText(queueItemSubtitle(item))} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${Number(item.retryCount ?? item._attempts) || 0}</div>
           ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${escapeQueueText(item._lastError)}${item._errorCode ? ` (${escapeQueueText(item._errorCode)})` : ''}</div>` : ''}
         </div>
         <button type="button" class="sync-queue-drop" data-queue-id="${escapeQueueText(item._id || '')}" aria-label="Eintrag verwerfen" style="min-width:44px;min-height:44px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-size:18px;">🗑️</button>
@@ -3594,9 +3594,9 @@ function showSyncQueueDialog() {
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Nicht automatisch übertragen (${dead.length})</div>
         ${deadRows}
       </div>
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="btn btn-primary" id="sync-queue-retry">Jetzt synchronisieren</button>
-        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Liste leeren</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="sync-queue-retry">Erneut synchronisieren</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Warteschlange bereinigen</button>
       </div>
     </div>
   `;
@@ -3638,7 +3638,7 @@ function showSyncQueueDialog() {
     showToast(
       requeued > 0 || reset > 0
         ? `${requeued + reset} Einträge erneut eingeplant, Übertragung läuft.`
-        : 'Übertragung erneut angestoßen.',
+        : 'Erneute Synchronisierung gestartet.',
       'success',
     );
   });
@@ -3646,7 +3646,7 @@ function showSyncQueueDialog() {
     if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
     clearAllPendingSyncQueues();
     close();
-    showToast('Wartende und fehlerhafte Einträge lokal verworfen.', 'warning');
+    showToast('Warteschlange bereinigt. Wartende Einträge wurden lokal entfernt.', 'warning');
   });
 }
 
