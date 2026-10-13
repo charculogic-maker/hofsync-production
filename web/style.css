@@ -421,6 +421,9 @@ h1, h2, h3, h4,
   letter-spacing: 0.3px;
   line-height: 1;
   box-shadow: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .header-action-btn:active {
@@ -541,27 +544,86 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   color: #f3f4f6;
 }
 
-.employee-session-badge {
+.employee-session-badge,
+.btn-team-switch {
+  display: none;
   align-items: center;
-  min-height: 24px;
-  max-width: 92px;
-  padding: 0 6px;
+  justify-content: center;
+  min-height: 32px;
+  max-width: 108px;
+  padding: 0 8px;
   border: 1px solid rgba(21, 101, 192, 0.18);
   border-radius: var(--border-radius-sm);
   background: rgba(21, 101, 192, 0.06);
   color: #1565C0;
-  font-size: 9px;
+  font-family: inherit;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.employee-session-badge:active,
+.btn-team-switch:active {
+  background: rgba(21, 101, 192, 0.14);
 }
 
 #employee-session-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.profile-session-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.profile-session-card {
+  position: relative;
+}
+
+.team-switcher-selected {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.team-switcher-pin-block {
+  margin-top: 12px;
+}
+
+.profile-picker-btn.is-selected {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 /* --- SYNC INDICATOR --- */
@@ -6787,7 +6849,8 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border-color: var(--primary-alpha-22);
 }
 
-[data-theme="dark"] .employee-session-badge {
+[data-theme="dark"] .employee-session-badge,
+[data-theme="dark"] .btn-team-switch {
   background: rgba(66, 165, 245, 0.1);
   color: #64B5F6;
   border-color: rgba(100, 181, 246, 0.22);
@@ -6970,8 +7033,10 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     display: none;
   }
 
-  .employee-session-badge {
-    max-width: 72px;
+  .employee-session-badge,
+  .btn-team-switch {
+    max-width: 86px;
+    min-height: 32px;
     padding: 0 6px;
     font-size: 9px;
   }

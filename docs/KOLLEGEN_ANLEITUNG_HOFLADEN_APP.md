@@ -28,6 +28,7 @@ Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone g
 Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
 
 - Das gewählte Profil erscheint **oben rechts** in der App.
+- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Profil-Liste öffnet sich erneut. **Abbrechen** oder **✕** lässt den bisherigen Login unverändert.
 - Für **MHD**, **Neu** (Wareneingang) und **Herkunft** ist ein Profil **Pflicht**.
 - Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut nach dem Profil.
 

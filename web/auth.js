@@ -463,9 +463,23 @@ function bindHeaderLogoutButton() {
   const trigger = document.getElementById('header-logout-btn');
   if (!trigger || trigger.dataset.authBound === '1') return;
   trigger.dataset.authBound = '1';
-  trigger.addEventListener('click', async () => {
+  if (trigger.tagName === 'BUTTON') {
+    trigger.type = 'button';
+  }
+  trigger.style.touchAction = 'manipulation';
+  trigger.style.cursor = 'pointer';
+
+  let lastLogoutAt = 0;
+  const runLogout = async (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const now = Date.now();
+    if (now - lastLogoutAt < 450) return;
+    lastLogoutAt = now;
     try {
-      window.showToast?.("Abgemeldet. System wird neu geladen...", "warning");
+      window.showToast?.('Abgemeldet. System wird neu geladen...', 'warning');
+      // Nur echter Logout löscht die Mitarbeiter-Sitzung — Modal-Abbrechen am
+      // Team-Schnellwechsler (#btn-team) darf clearSessionCaches nicht auslösen.
       clearSessionCaches();
       authContext = null;
       await shutdownFirestoreClient();
@@ -480,6 +494,13 @@ function bindHeaderLogoutButton() {
         window.location.reload(true);
       }, 800);
     }
+  };
+
+  trigger.addEventListener('pointerdown', (event) => {
+    void runLogout(event);
+  });
+  trigger.addEventListener('click', (event) => {
+    void runLogout(event);
   });
 }
 

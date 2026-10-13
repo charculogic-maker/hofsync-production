@@ -58,8 +58,9 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 1. App öffnen: **https://charculogic-whitelabel-test.web.app** (oder vom Homescreen).
 2. Mit **E-Mail/Passwort** anmelden (Betriebs-Login).
 3. Tab **Start** → **Mitarbeiter** wählen (Stephan / Boris / Aushilfe) und **4-stellige PIN** eingeben.
-4. **Mein Bereich:** für Solo-Betrieb **„Alle meine Bereiche“** lassen – sonst z. B. **Theke** oder **Küche & Events** filtern.
-5. **Nachricht des Tages** lesen, **Meine Aufgaben** mit **✓** quittieren.
+4. Zum **Schneller Wechsel** oben rechts auf den Namens-Button (👤 …) tippen, Namen wählen und PIN eingeben. **Abbrechen** / **✕** lässt den bisherigen Login unverändert.
+5. **Mein Bereich:** für Solo-Betrieb **„Alle meine Bereiche“** lassen – sonst z. B. **Theke** oder **Küche & Events** filtern.
+6. **Nachricht des Tages** lesen, **Meine Aufgaben** mit **✓** quittieren.
 
 ![Start-Tab (Beispiel-UI)](./modulanleitungen/screenshots/00-start.png)
 

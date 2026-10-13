@@ -220,10 +220,17 @@
               <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
               <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
             </div>
-            <div class="employee-session-badge" id="employee-session-badge" style="display: none;">
+            <button
+              type="button"
+              id="btn-team"
+              class="employee-session-badge btn-team-switch"
+              style="display: none;"
+              aria-label="Mitarbeiter wechseln"
+              title="Mitarbeiter wechseln"
+            >
               <span id="employee-session-name"></span>
-            </div>
-            <button id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
+            </button>
+            <button type="button" id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
             <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
         </header>

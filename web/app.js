@@ -109,6 +109,7 @@ import {
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
   syncPushRegistration,
+  verifyEmployeePin,
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
 import { initDiscountMatrixUi } from './discount-matrix-ui.js';
@@ -1064,20 +1065,40 @@ function persistNamedProfileSession(employeeName, branding = window.BRANDING) {
   return cleanName;
 }
 
-function buildProfileSessionOverlayShell(cardNode) {
+function buildProfileSessionOverlayShell(cardNode, { closable = true, onClose } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'profile-session-overlay';
   const card = document.createElement('div');
   card.className = 'pin-auth-card profile-session-card';
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-modal', 'true');
+  if (closable) {
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'profile-session-close';
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.dataset.profileClose = '1';
+    closeBtn.textContent = '✕';
+    card.appendChild(closeBtn);
+  }
   card.appendChild(cardNode);
   overlay.appendChild(card);
+  if (closable && typeof onClose === 'function') {
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay || event.target.closest('[data-profile-close]')) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    });
+  }
   return { overlay, card };
 }
 
 function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
+  const existingClose = card.querySelector('[data-profile-close]');
   card.replaceChildren();
+  if (existingClose) card.appendChild(existingClose);
 
   const title = document.createElement('div');
   title.className = 'pin-auth-title';
@@ -1169,20 +1190,23 @@ function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
   input.focus();
 }
 
-function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther, onLogout }) {
+function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther, onLogout, onCancel }) {
+  const existingClose = card.querySelector('[data-profile-close]');
   card.replaceChildren();
+  if (existingClose) card.appendChild(existingClose);
+
   const employees = getSortedProfilePickerEmployees();
 
   const title = document.createElement('div');
   title.className = 'pin-auth-title';
-  title.textContent = 'Profil wählen';
+  title.textContent = 'Mitarbeiter wechseln';
   card.appendChild(title);
 
   const hint = document.createElement('p');
   hint.className = 'pin-auth-scan';
   hint.textContent = mandatory
     ? 'Bitte auswählen, wer MHD und Wareneingang bearbeitet.'
-    : 'Wer bearbeitet den Wareneingang?';
+    : 'Wer arbeitet gerade an der Theke?';
   card.appendChild(hint);
 
   const list = document.createElement('div');
@@ -1220,6 +1244,7 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
   card.appendChild(logoutLink);
 
   card.onclick = (event) => {
+    if (event.target.closest('[data-profile-close]')) return;
     const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
     if (picked) {
       persistNamedProfileSession(picked);
@@ -1236,7 +1261,8 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
       return;
     }
     if (!mandatory && event.target.closest('.profile-picker-cancel')) {
-      onPick('');
+      if (typeof onCancel === 'function') onCancel();
+      else onPick('');
     }
   };
 
@@ -1254,20 +1280,28 @@ function openProfileEmployeePicker(options = {}) {
     }
 
     document.getElementById('profile-picker-overlay')?.remove();
-
-    const { overlay, card } = buildProfileSessionOverlayShell(document.createDocumentFragment());
-    overlay.id = 'profile-picker-overlay';
+    document.getElementById('team-switcher-overlay')?.remove();
 
     const close = (pickedName = '') => {
       overlay.remove();
       resolve(pickedName);
     };
 
+    const { overlay, card } = buildProfileSessionOverlayShell(document.createDocumentFragment(), {
+      closable: !mandatory,
+      onClose: () => close(''),
+    });
+    overlay.id = 'profile-picker-overlay';
+
     const showList = () => {
       mountProfileEmployeePickerList(card, {
         mandatory,
         onPick: (pickedName) => close(pickedName),
+        onCancel: () => close(''),
         onOther: () => {
+          const existingClose = card.querySelector('[data-profile-close]');
+          card.replaceChildren();
+          if (existingClose) card.appendChild(existingClose);
           mountProfileOtherNameForm(card, {
             mandatory,
             onBack: showList,
@@ -1287,6 +1321,187 @@ function openProfileEmployeePicker(options = {}) {
     showList();
     document.body.appendChild(overlay);
   });
+}
+
+function openPinTeamSwitcher(options = {}) {
+  const mandatory = options.mandatory === true;
+
+  return new Promise((resolve) => {
+    const employees = getSortedProfilePickerEmployees();
+    if (!employees.length) {
+      window.showToast?.('Keine Mitarbeiter hinterlegt.', 'warning');
+      resolve('');
+      return;
+    }
+
+    document.getElementById('team-switcher-overlay')?.remove();
+    document.getElementById('profile-picker-overlay')?.remove();
+
+    let selectedName = '';
+    let enteredPin = '';
+
+    const body = document.createDocumentFragment();
+    const title = document.createElement('div');
+    title.className = 'pin-auth-title';
+    title.id = 'team-switcher-title';
+    title.textContent = 'Mitarbeiter wechseln';
+    body.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'pin-auth-scan';
+    hint.textContent = 'Namen tippen, dann 4-stellige PIN eingeben.';
+    body.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'profile-picker-list';
+    employees.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-primary profile-picker-btn';
+      btn.dataset.teamSwitchName = name;
+      btn.textContent = name;
+      list.appendChild(btn);
+    });
+    body.appendChild(list);
+
+    const selectedLabel = document.createElement('div');
+    selectedLabel.className = 'team-switcher-selected';
+    selectedLabel.hidden = true;
+    body.appendChild(selectedLabel);
+
+    const pinBlock = document.createElement('div');
+    pinBlock.className = 'team-switcher-pin-block';
+    pinBlock.hidden = true;
+    pinBlock.innerHTML = `
+      <div class="pin-auth-dots" id="team-switcher-pin-dots">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="pin-auth-keypad">
+        ${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'X'].map((key) =>
+          `<button type="button" class="pin-auth-key" data-pin-key="${key}">${key === 'X' ? '⌫' : key}</button>`
+        ).join('')}
+      </div>
+    `;
+    body.appendChild(pinBlock);
+
+    if (!mandatory) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-secondary profile-picker-cancel';
+      cancelBtn.dataset.teamSwitchCancel = '1';
+      cancelBtn.textContent = 'Abbrechen';
+      body.appendChild(cancelBtn);
+    }
+
+    const close = (pickedName = '') => {
+      overlay.remove();
+      resolve(pickedName);
+    };
+
+    const { overlay, card } = buildProfileSessionOverlayShell(body, {
+      closable: !mandatory,
+      onClose: () => close(''),
+    });
+    overlay.id = 'team-switcher-overlay';
+    card.setAttribute('aria-labelledby', 'team-switcher-title');
+
+    const dots = Array.from(pinBlock.querySelectorAll('#team-switcher-pin-dots span'));
+    const updateDots = () => {
+      dots.forEach((dot, index) => dot.classList.toggle('filled', index < enteredPin.length));
+    };
+
+    const selectEmployee = (name) => {
+      selectedName = String(name || '').trim();
+      enteredPin = '';
+      updateDots();
+      list.querySelectorAll('[data-team-switch-name]').forEach((btn) => {
+        btn.classList.toggle('is-selected', btn.dataset.teamSwitchName === selectedName);
+      });
+      selectedLabel.hidden = !selectedName;
+      selectedLabel.textContent = selectedName ? `PIN für ${selectedName}` : '';
+      pinBlock.hidden = !selectedName;
+    };
+
+    const failPin = () => {
+      window.showToast?.('Falsche PIN. Bitte erneut versuchen.', 'error');
+      enteredPin = '';
+      updateDots();
+      card.classList.add('pin-shake');
+      setTimeout(() => card.classList.remove('pin-shake'), 260);
+    };
+
+    const submitPin = async () => {
+      if (!selectedName || enteredPin.length !== 4) return;
+      const ok = await verifyEmployeePin(selectedName, enteredPin);
+      if (!ok) {
+        failPin();
+        return;
+      }
+      persistActiveEmployeeSession(selectedName);
+      touchProfileLastActionTime();
+      window.showToast?.(`Angemeldet als ${selectedName}`, 'success');
+      close(selectedName);
+    };
+
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('[data-profile-close]')) return;
+
+      const name = event.target.closest('[data-team-switch-name]')?.dataset.teamSwitchName;
+      if (name) {
+        selectEmployee(name);
+        return;
+      }
+
+      if (event.target.closest('[data-team-switch-cancel]')) {
+        close('');
+        return;
+      }
+
+      const key = event.target.closest('[data-pin-key]')?.dataset.pinKey;
+      if (!key || !selectedName) return;
+      if (key === 'X') {
+        enteredPin = enteredPin.slice(0, -1);
+        updateDots();
+        return;
+      }
+      if (key === 'C') {
+        enteredPin = '';
+        updateDots();
+        return;
+      }
+      if (!/^\d$/.test(key) || enteredPin.length >= 4) return;
+      enteredPin += key;
+      updateDots();
+      if (enteredPin.length === 4) {
+        void submitPin();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    list.querySelector('button')?.focus();
+  });
+}
+
+/**
+ * Header-Schnellwechsler: Profil-Picker oder PIN-Modal je nach Mandanten-Auth.
+ * Abbrechen / Backdrop / ✕ schließt ohne den aktuellen Login zu verlieren.
+ */
+function showTeamSwitcher(options = {}) {
+  if (isFirebaseRoleAuth()) {
+    window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+    return Promise.resolve(readActiveEmployee());
+  }
+  if (isProfileEmployeeAuth() && !isEmployeePinRequired()) {
+    return openProfileEmployeePicker({ mandatory: false, ...options });
+  }
+  if (isEmployeePinRequired()) {
+    return openPinTeamSwitcher(options);
+  }
+  return openProfileEmployeePicker({ mandatory: false, ...options });
+}
+
+function openPinModal(options = {}) {
+  return showTeamSwitcher(options);
 }
 
 function resolveTerminalAuthEmail(branding = window.BRANDING) {
@@ -1612,6 +1827,9 @@ window.touchProfileLastActionTime = touchProfileLastActionTime;
 window.expireProfileSessionIfIdle = expireProfileSessionIfIdle;
 window.showReceivingProfileGatekeeperIfNeeded = showReceivingProfileGatekeeperIfNeeded;
 window.openProfileEmployeePicker = openProfileEmployeePicker;
+window.showTeamSwitcher = showTeamSwitcher;
+window.openPinModal = openPinModal;
+window.openPinTeamSwitcher = openPinTeamSwitcher;
 window.requireProfileSessionForInventory = requireProfileSessionForInventory;
 window.ensureInventoryProfileSessionForTab = ensureInventoryProfileSessionForTab;
 window.ensureEmployeeSessionForProtectedAreaAsync = ensureEmployeeSessionForProtectedAreaAsync;
@@ -2944,7 +3162,8 @@ const appContent = document.getElementById('app-content');
 const headerTitle = document.getElementById('header-title');
 const headerSubtitle = document.getElementById('header-subtitle');
 const headerLogoutBtn = document.getElementById('header-logout-btn');
-const employeeSessionBadge = document.getElementById('employee-session-badge');
+const employeeSessionBadge = document.getElementById('btn-team')
+  || document.getElementById('employee-session-badge');
 const employeeSessionName = document.getElementById('employee-session-name');
 
 function activeEmployeeStorageKey() {
@@ -3243,21 +3462,40 @@ window.addEventListener('charculogic:active-employee-changed', (event) => {
   }
 });
 
-if (employeeSessionBadge) {
-  employeeSessionBadge.style.cursor = 'pointer';
-  employeeSessionBadge.setAttribute('role', 'button');
-  employeeSessionBadge.setAttribute('tabindex', '0');
-  employeeSessionBadge.setAttribute('aria-label', 'Profil wechseln');
-  employeeSessionBadge.addEventListener('click', () => {
-    if (!isProfileEmployeeAuth()) return;
-    void openProfileEmployeePicker({ mandatory: false });
-  });
-  employeeSessionBadge.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
+  if (!button || button.dataset.teamSwitcherBound === '1') return;
+  button.dataset.teamSwitcherBound = '1';
+  button.style.cursor = 'pointer';
+  button.setAttribute('aria-label', 'Mitarbeiter wechseln');
+  button.setAttribute('title', 'Mitarbeiter wechseln');
+  if (button.tagName !== 'BUTTON') {
+    button.setAttribute('role', 'button');
+    button.setAttribute('tabindex', '0');
+  }
+
+  let lastOpenAt = 0;
+  const openSwitcher = (event) => {
     event.preventDefault();
-    employeeSessionBadge.click();
+    event.stopPropagation();
+    const now = Date.now();
+    if (now - lastOpenAt < 450) return;
+    lastOpenAt = now;
+    if (isFirebaseRoleAuth()) {
+      window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+      return;
+    }
+    void showTeamSwitcher({ mandatory: false });
+  };
+
+  button.addEventListener('pointerdown', openSwitcher);
+  button.addEventListener('click', openSwitcher);
+  button.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    openSwitcher(event);
   });
 }
+
+bindTeamSwitcherHeaderButton();
 
 tabs.forEach(tab => {
   tab.addEventListener('click', async () => {
