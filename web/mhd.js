@@ -383,6 +383,8 @@ const mhdState = {
   cloudSyncStatus: 'idle',
   pendingCloudSync: false,
   cloudSyncTimeoutId: null,
+  /** @type {string} Tenant-ID der letzten erfolgreichen MHD-Hydration */
+  lastSyncedTenantId: '',
 };
 
 const MHD_CLOUD_SYNC_TIMEOUT_MS = 20000;
@@ -3865,31 +3867,86 @@ function clearMhdCloudSyncTimeout() {
 function markMhdCloudSyncLoading() {
   setMhdCloudSyncStatus('loading');
   clearMhdCloudSyncTimeout();
-  if (!isFirebaseReady() || !canStartMhdFirestoreLiveSync()) return;
+  // Always arm a failsafe so idle/pending never leaves the Theke on a spinner forever
+  // (e.g. Auth noch nicht bereit, Listener verzögert).
   mhdState.cloudSyncTimeoutId = setTimeout(() => {
     if (mhdState.cloudSyncStatus !== 'loading') return;
     setMhdCloudSyncStatus('ready');
+    mhdState.pendingCloudSync = false;
     renderMhdList();
   }, MHD_CLOUD_SYNC_TIMEOUT_MS);
 }
 
 function markMhdCloudSyncReady() {
   clearMhdCloudSyncTimeout();
+  mhdState.pendingCloudSync = false;
   setMhdCloudSyncStatus('ready');
 }
 
+function markMhdCloudSyncError() {
+  clearMhdCloudSyncTimeout();
+  mhdState.pendingCloudSync = false;
+  setMhdCloudSyncStatus('error');
+}
+
+/** True once the first definitive cloud/cache hydration finished for this tenant session. */
+function isMhdCloudLoadSettled() {
+  return mhdState.cloudSyncStatus === 'ready' || mhdState.cloudSyncStatus === 'error';
+}
+
+function hasMhdCachedProducts() {
+  return (Array.isArray(mhdState.products) && mhdState.products.length > 0)
+    || (Array.isArray(mhdState.inStockProducts) && mhdState.inStockProducts.length > 0);
+}
+
+/**
+ * Initial Loading vs. wirklich leer:
+ * - Mit bereits hydrierten Artikeln nie den Spinner zeigen (Cache-first).
+ * - Leermeldung erst nach settled (ready/error).
+ * - idle/loading/pending ohne Artikel → ruhiger Ladezustand.
+ */
 function shouldShowMhdCloudLoadingState() {
+  if (hasMhdCachedProducts()) return false;
+  if (isMhdCloudLoadSettled()) return false;
   return mhdState.cloudSyncStatus === 'loading'
-    && isFirebaseReady()
-    && canStartMhdFirestoreLiveSync();
+    || mhdState.cloudSyncStatus === 'idle'
+    || mhdState.pendingCloudSync === true;
 }
 
 function buildMhdLoadingHtml() {
   return `
-    <div class="mhd-loading-hint" role="status" aria-live="polite">
+    <div class="mhd-loading-hint" role="status" aria-live="polite" aria-busy="true">
+      <div class="mhd-loading-skeleton" aria-hidden="true">
+        <div class="mhd-skeleton-card"></div>
+        <div class="mhd-skeleton-card"></div>
+        <div class="mhd-skeleton-card"></div>
+      </div>
       <div class="mhd-loading-spinner" aria-hidden="true"></div>
-      <p class="mhd-loading-text">MHD-Bestände werden geladen…</p>
+      <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
     </div>`;
+}
+
+function isMhdSnapshotWaitingForServer(snapshot) {
+  return Boolean(snapshot?.metadata?.fromCache) && Boolean(snapshot?.empty);
+}
+
+function shouldKeepMhdCloudLoading(snapshots = [], expectedCount = 2) {
+  const readySnaps = (snapshots || []).filter(Boolean);
+  // Dual-Query (qty + menge): nicht „ready/leer“ melden, solange ein Listener fehlt —
+  // sonst Empty-Flash bevor der zweite Snapshot ankommt.
+  if (readySnaps.length < expectedCount) return true;
+  // Firestore Persistence: leerer fromCache-Snapshot ≠ „wirklich leer“ —
+  // erst Server-/definitive Antwort darf den Ladezustand beenden.
+  return readySnaps.every((snap) => isMhdSnapshotWaitingForServer(snap));
+}
+
+function buildMhdListRenderKey(products = []) {
+  return products.map((prod) => {
+    const qty = mhdItemQuantity(prod);
+    const mhd = String(prod?.mhd || prod?.mhdDate || prod?.expiryDate || '');
+    const status = String(prod?.status || '');
+    return `${prod?.id || ''}:${qty}:${mhd}:${status}`;
+  }).join('|');
 }
 
 function isAusverkauftMhdDoc(data = {}) {
@@ -4003,7 +4060,13 @@ function startMhdZeroQtyLiveSync() {
 }
 
 function loadMhdFromCloud() {
-  if (!canStartMhdFirestoreLiveSync()) return;
+  if (!canStartMhdFirestoreLiveSync()) {
+    // Auth/Listener noch nicht bereit: Ladezustand halten, kein Leermeldungs-Flackern.
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
+    return;
+  }
   if (!resolveMhdTenantId()) {
     mhdState.pendingCloudSync = true;
     markMhdCloudSyncLoading();
@@ -4017,9 +4080,33 @@ function loadMhdFromCloud() {
     return;
   }
 
+  const tenantId = resolveMhdTenantId();
+  const tenantChanged = Boolean(
+    tenantId
+    && mhdState.lastSyncedTenantId
+    && mhdState.lastSyncedTenantId !== tenantId,
+  );
+  if (tenantChanged) {
+    mhdState.products = [];
+    mhdState.inStockProducts = [];
+    mhdState.zeroProducts = [];
+    mhdState.zeroQtyCount = 0;
+    const container = document.getElementById('mhd-items-container');
+    if (container) {
+      container.dataset.mhdRenderMode = '';
+      container.dataset.mhdRenderKey = '';
+    }
+  }
+
   mhdState.pendingCloudSync = false;
-  markMhdCloudSyncLoading();
-  renderMhdList();
+  // Cache-first: wenn bereits Artikel im Speicher sind, kein Spinner-Overlay —
+  // still im Hintergrund weiter synchronisieren.
+  if (!hasMhdCachedProducts() || tenantChanged) {
+    markMhdCloudSyncLoading();
+    renderMhdList();
+  } else if (!isMhdCloudLoadSettled()) {
+    markMhdCloudSyncLoading();
+  }
 
   stopMhdLiveSync();
 
@@ -4029,11 +4116,22 @@ function loadMhdFromCloud() {
   const unsubscribers = [];
 
   const applyInStock = () => {
+    const readySnaps = inStockSnaps.filter(Boolean);
+    if (!readySnaps.length) return;
+
     const mapped = mergeMhdDocsById(
-      ...inStockSnaps.filter(Boolean).map((snapshot) => (snapshot.docs || []).map(mapMhdDoc)),
+      ...readySnaps.map((snapshot) => (snapshot.docs || []).map(mapMhdDoc)),
     ).filter((item) => isActiveMhdChecklistItem(item));
     mhdState.inStockProducts = mapped;
     mergeMhdLiveProducts();
+
+    const waitingForServer = shouldKeepMhdCloudLoading(inStockSnaps, 2);
+    // Cache-Hydration: sobald Artikel da sind (auch fromCache), sofort zeigen.
+    // Nur bei unvollständigen/leeren fromCache-Snapshots weiter laden.
+    if (!waitingForServer || hasMhdCachedProducts()) {
+      markMhdCloudSyncReady();
+      if (tenantId) mhdState.lastSyncedTenantId = tenantId;
+    }
     renderMhdList();
     refreshMhdAdminSearchFromCache();
   };
@@ -4041,6 +4139,8 @@ function loadMhdFromCloud() {
   const onErr = (err) => {
     if (maybeResetOnFirestorePermissionError(err, 'loadMhdFromCloud')) return;
     console.error('[CharcuLogic Firebase] MHD Live-Sync Fehler:', err);
+    markMhdCloudSyncError();
+    renderMhdList();
   };
 
   // Default: only in-stock docs (skip historical zero-qty / ausverkauft backlog).
@@ -4782,13 +4882,32 @@ function renderMhdList() {
 
   if (shouldShowMhdCloudLoadingState()) {
     updateMhdToolbarLimitHint(0);
-    container.innerHTML = buildMhdLoadingHtml();
+    if (container.dataset.mhdRenderMode !== 'loading') {
+      container.dataset.mhdRenderMode = 'loading';
+      container.dataset.mhdRenderKey = '';
+      container.innerHTML = buildMhdLoadingHtml();
+    }
     return;
   }
   updateZeroQtyToggleUi();
 
+  // Leermeldung nur nach abgeschlossenem Ladevorgang — nie während idle/loading.
   if (!mhdState.products.length) {
     updateMhdToolbarLimitHint(0);
+    if (!isMhdCloudLoadSettled()) {
+      if (container.dataset.mhdRenderMode !== 'loading') {
+        container.dataset.mhdRenderMode = 'loading';
+        container.dataset.mhdRenderKey = '';
+        container.innerHTML = buildMhdLoadingHtml();
+      }
+      return;
+    }
+    const emptyKey = `empty-cloud:${isFirebaseReady() ? '1' : '0'}`;
+    if (container.dataset.mhdRenderMode === 'empty' && container.dataset.mhdRenderKey === emptyKey) {
+      return;
+    }
+    container.dataset.mhdRenderMode = 'empty';
+    container.dataset.mhdRenderKey = emptyKey;
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
         ${isFirebaseReady()
@@ -4807,6 +4926,15 @@ function renderMhdList() {
   updateMhdToolbarLimitHint(visibleProducts.length);
 
   if (!visibleProducts.length) {
+    // Gefilterte Leermeldung erst wenn Hydration abgeschlossen ist.
+    if (!isMhdCloudLoadSettled()) {
+      if (container.dataset.mhdRenderMode !== 'loading') {
+        container.dataset.mhdRenderMode = 'loading';
+        container.dataset.mhdRenderKey = '';
+        container.innerHTML = buildMhdLoadingHtml();
+      }
+      return;
+    }
     const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
     const completionHint = mhdState.completionFilter === 'erledigt'
       ? 'Heute erledigte Artikel'
@@ -4814,6 +4942,13 @@ function renderMhdList() {
     const zeroHint = !mhdState.showZeroQty && countZeroQtyInHorizon() > 0
       ? ' 0er-Bestände sind ausgeblendet.'
       : '';
+    const emptyKey = `empty-filter:${mhdState.categoryFilter}:${mhdState.completionFilter}:${mhdState.searchQuery}:${zeroHint ? '1' : '0'}`;
+    if (container.dataset.mhdRenderMode === 'empty' && container.dataset.mhdRenderKey === emptyKey) {
+      updateMhdCompletionToggle();
+      return;
+    }
+    container.dataset.mhdRenderMode = 'empty';
+    container.dataset.mhdRenderKey = emptyKey;
     container.innerHTML = `
       <div class="mhd-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
         Keine ${escapeHtml(completionHint)} mit MHD ${getMhdMonitorEmptyHorizonText()} in ${escapeHtml(categoryLabel)}${mhdState.searchQuery ? ' für deine Suche' : ''}.${zeroHint}
@@ -4822,7 +4957,21 @@ function renderMhdList() {
     return;
   }
 
-  container.innerHTML = renderedProducts.map((prod) => buildMhdCardHtml(prod)).join('');
+  const renderKey = buildMhdListRenderKey(renderedProducts);
+  // Hintergrund-Sync: Liste nicht sprunghaft neu zusammensetzen, wenn Inhalt unverändert.
+  if (container.dataset.mhdRenderMode === 'list' && container.dataset.mhdRenderKey === renderKey) {
+    updateMhdStickySaveBar();
+    updateMhdCompletionToggle();
+    return;
+  }
+  container.dataset.mhdRenderMode = 'list';
+  container.dataset.mhdRenderKey = renderKey;
+  container.innerHTML = renderedProducts
+    .map((prod) => buildMhdCardHtml(prod).replace(
+      'class="mhd-card ',
+      'class="mhd-card mhd-card--enter ',
+    ))
+    .join('');
 
   initMhdSwipeGestures();
   updateMhdStickySaveBar();
@@ -8180,6 +8329,9 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   if (canStartMhdFirestoreLiveSync() && isFirebaseReady()) {
     startMhdLiveSync();
   } else {
+    // Noch kein Auth/Firebase: Ladezustand statt vorzeitiger Leermeldung.
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
     renderMhdList();
   }
   restoreMhdDraftFields();
@@ -8213,7 +8365,12 @@ export async function activateMhdTab() {
     .then(() => renderMhdList())
     .catch((err) => console.warn('[CharcuLogic Rabatt] Matrix-Refresh übersprungen:', err));
   applyMhdCategoryFilterOptions();
-  if (mhdState.pendingCloudSync || mhdState.cloudSyncStatus === 'loading') {
+  if (
+    mhdState.pendingCloudSync
+    || mhdState.cloudSyncStatus === 'loading'
+    || mhdState.cloudSyncStatus === 'idle'
+    || !mhdState.unsubscribe
+  ) {
     startMhdLiveSync();
   } else {
     renderMhdList();

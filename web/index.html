@@ -1102,8 +1102,16 @@
               </div>
             </details>
 
-            <div class="mhd-list" id="mhd-items-container">
-              <!-- Cards are rendered dynamically by app.js -->
+            <div class="mhd-list" id="mhd-items-container" data-mhd-render-mode="loading" aria-busy="true">
+              <div class="mhd-loading-hint" role="status" aria-live="polite">
+                <div class="mhd-loading-skeleton" aria-hidden="true">
+                  <div class="mhd-skeleton-card"></div>
+                  <div class="mhd-skeleton-card"></div>
+                  <div class="mhd-skeleton-card"></div>
+                </div>
+                <div class="mhd-loading-spinner" aria-hidden="true"></div>
+                <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
+              </div>
             </div>
           </div>
 

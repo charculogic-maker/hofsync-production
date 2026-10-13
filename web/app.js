@@ -3662,9 +3662,14 @@ function startTenantLiveDataListeners() {
       await waitForFirebaseCore();
     } catch (err) {
       console.warn('[CharcuLogic Sync] Live-Listener ohne Firebase-Core übersprungen:', err);
+      // MHD behält Skeleton/Loading bis Timeout oder erneuter Sync — keine Leermeldung erzwingen.
       return;
     }
-    if (!canStartFirestoreLiveListeners(firebase)) return;
+    if (!canStartFirestoreLiveListeners(firebase)) {
+      // Auth noch nicht bereit: MHD-Modul hält pendingCloudSync + Loading-State.
+      return;
+    }
+    // Offline-first: startMhdLiveSync hydriert aus Firestore-Persistence/Cache ohne Empty-Flash.
     startMhdLiveSync();
     startHaccpLiveSync();
   })();
