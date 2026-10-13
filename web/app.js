@@ -593,6 +593,10 @@ const PROFILE_TAB_ALIASES = {
 
 const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
+/** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
+const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
+const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
+const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
 const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
@@ -609,6 +613,18 @@ const TAB_ID_TO_MODULE_KEY = {
   cuts: 'knowledge',
   batches: 'buero',
 };
+
+function isMobileNavViewport() {
+  try {
+    return window.matchMedia(MOBILE_NAV_MEDIA_QUERY).matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+function isDesktopOnlyNavTab(tabId) {
+  return DESKTOP_ONLY_NAV_TAB_IDS.has(String(tabId || ''));
+}
 
 function hasActiveFirebaseAuthUser() {
   try {
@@ -697,10 +713,12 @@ function syncBottomNavTabLayout() {
   if (!nav) return;
 
   const visibleCount = countVisibleBottomNavTabs();
-  const scrollable = visibleCount > 3;
+  // Smartphone: operative Tabs gleichmäßig verteilen — kein horizontaler Scroll.
+  const scrollable = !isMobileNavViewport() && visibleCount > 3;
 
   nav.classList.toggle('bottom-nav--scrollable', scrollable);
   nav.classList.toggle('bottom-nav--compact', !scrollable);
+  nav.classList.toggle('bottom-nav--mobile-ops', isMobileNavViewport());
   nav.classList.remove('bottom-nav--three-tabs', 'bottom-nav--five-tabs', 'bottom-nav--six-tabs');
 
   requestAnimationFrame(() => {
@@ -822,6 +840,7 @@ function syncAdminNavZone(authSession = getAuthContext()) {
     if (!show) closeAdminNavAccordion();
     document.body.classList.toggle('has-admin-nav', show);
     document.body.classList.toggle('role-super-admin', isPlatformSuperAdmin(user));
+    syncAdminHeaderDashboardLink(authSession);
   } catch (err) {
     console.warn('[CharcuLogic Admin] Verwaltungs-Navigation fehlgeschlagen:', err);
     const zone = document.getElementById('app-nav-admin-zone');
@@ -835,16 +854,27 @@ function syncAdminNavZone(authSession = getAuthContext()) {
 }
 
 function bindTenantAdminNavGuard() {
-  const link = document.getElementById('nav-admin-dashboard');
-  if (!link || link.dataset.guardBound === '1') return;
-  link.dataset.guardBound = '1';
-  link.addEventListener('click', (event) => {
-    const session = getAuthContext();
-    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
-    if (isTenantAdmin(user, session)) return;
-    event.preventDefault();
-    syncAdminNavZone(session);
-    window.showToast?.('Die Verwaltung ist nur für Betriebs-Admins.', 'warning');
+  const links = [
+    document.getElementById('nav-admin-dashboard'),
+    document.getElementById('admin-header-dashboard-link'),
+  ].filter(Boolean);
+
+  links.forEach((link) => {
+    if (link.dataset.guardBound === '1') return;
+    link.dataset.guardBound = '1';
+    link.addEventListener('click', (event) => {
+      const session = getAuthContext();
+      const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+      if (isTenantAdmin(user, session)) {
+        closeAdminHeaderDropdownMenu();
+        closeAdminNavAccordion();
+        return;
+      }
+      event.preventDefault();
+      syncAdminNavZone(session);
+      syncAdminHeaderDashboardLink(session);
+      window.showToast?.('Die Verwaltung ist nur für Betriebs-Admins.', 'warning');
+    });
   });
 }
 
@@ -948,13 +978,19 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
       hideAdminHeaderDropdown();
       return;
     }
-    const show = hasAdminModuleAccess(branding) && hasAnyAdminModuleEnabled(branding);
+    const authSession = getAuthContext();
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const showModules = hasAdminModuleAccess(branding) && hasAnyAdminModuleEnabled(branding);
+    // Am Smartphone bleibt /dev-dashboard über ⚙️ erreichbar (Fußleisten-Admin ausgeblendet).
+    const showDashboard = isTenantAdmin(user, authSession);
+    const show = showModules || showDashboard;
     dropdown.hidden = !show;
     dropdown.style.display = show ? '' : 'none';
     if (!show) {
       clearAdminModuleViewState();
     } else {
       syncAdminHeaderDropdownItems(branding);
+      syncAdminHeaderDashboardLink(authSession);
     }
   } catch (err) {
     console.warn('[CharcuLogic Admin] Admin-Dropdown-Sichtbarkeit fehlgeschlagen:', err);
@@ -964,7 +1000,7 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
 
 function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
   try {
-    if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess(branding)) return;
+    const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
     const itemModuleMap = {
       haccp: isTenantModuleEnabled('haccp', branding),
       knowledge: isTenantModuleEnabled('knowledge', branding),
@@ -972,12 +1008,36 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
     };
     document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
       const moduleKey = item.getAttribute('data-admin-module');
-      const enabled = itemModuleMap[moduleKey] !== false;
+      if (moduleKey === 'dashboard') return;
+      const enabled = canModules && itemModuleMap[moduleKey] !== false;
       item.hidden = !enabled;
       item.style.display = enabled ? '' : 'none';
     });
+    syncAdminHeaderDashboardLink();
   } catch (err) {
     console.warn('[CharcuLogic Admin] Admin-Dropdown-Einträge konnten nicht aktualisiert werden:', err);
+  }
+}
+
+/**
+ * /dev-dashboard im Header-Zahnrad — am Smartphone ohne Admin-Fußleisten-Tab.
+ * Nur Betriebs-Admin / Super-Admin.
+ */
+function syncAdminHeaderDashboardLink(authSession = getAuthContext()) {
+  try {
+    const link = document.getElementById('admin-header-dashboard-link');
+    if (!link) return;
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const show = hasAuthenticatedTenantContext(authSession) && isTenantAdmin(user, authSession);
+    link.hidden = !show;
+    link.style.display = show ? '' : 'none';
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Header-Verwaltungs-Link fehlgeschlagen:', err);
+    const link = document.getElementById('admin-header-dashboard-link');
+    if (link) {
+      link.hidden = true;
+      link.style.display = 'none';
+    }
   }
 }
 
@@ -2173,8 +2233,27 @@ function isActiveTabAllowed(tabId, branding = window.BRANDING || {}) {
   if (ADMIN_HEADER_ONLY_TAB_IDS.has(current)) {
     return isTabAllowedByModules(current, branding);
   }
+  // Bewusst über ⚙️ geöffnetes Admin-Modul (Büro) auch am Smartphone erlauben.
+  if (isDesktopOnlyNavTab(current) && isAdminHeaderModuleActive()) {
+    return isTabAllowedByModules(current === 'buero' ? 'batches' : current, branding);
+  }
+  if (isMobileNavViewport() && isDesktopOnlyNavTab(current) && !isAdminHeaderModuleActive()) {
+    return false;
+  }
   if (!BOTTOM_NAV_TAB_IDS.has(current)) return false;
   return isNavTabElementVisible(current) && isTabAllowedByModules(current, branding);
+}
+
+/**
+ * Am Smartphone: versehentlich aktiver Desktop-Tab (z. B. Büro) → MHD.
+ * Bewusst über Header geöffnete Admin-Module bleiben erhalten.
+ */
+function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
+  if (isNavTabElementVisible(MOBILE_OPS_DEFAULT_TAB) && isTabAllowedByModules(MOBILE_OPS_DEFAULT_TAB, branding)) {
+    return MOBILE_OPS_DEFAULT_TAB;
+  }
+  if (isTabAllowedByModules(MOBILE_OPS_DEFAULT_TAB, branding)) return MOBILE_OPS_DEFAULT_TAB;
+  return resolveDefaultBottomNavTab(branding);
 }
 
 /**
@@ -2188,7 +2267,12 @@ function ensureActiveTabAllowed({ force = false } = {}) {
   const current = AppState?.activeTab;
   if (!force && isActiveTabAllowed(current)) return current;
 
-  const next = resolveDefaultBottomNavTab();
+  const mobileDesktopFallback = isMobileNavViewport()
+    && isDesktopOnlyNavTab(current)
+    && !isAdminHeaderModuleActive();
+  const next = mobileDesktopFallback
+    ? resolveMobileOpsFallbackTab()
+    : resolveDefaultBottomNavTab();
   if (!next) return current;
 
   if (typeof window.showTab === 'function') {
@@ -3278,6 +3362,8 @@ function showPage(pageId) {
 window.addEventListener('resize', () => {
   syncDesktopWideLayout();
   syncAppShellLayout();
+  syncBottomNavTabLayout();
+  ensureActiveTabAllowed();
   syncMhdSaveBarKeyboardOffset();
 });
 
@@ -3390,12 +3476,15 @@ function bindAdminHeaderDropdown() {
     menu.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
       item.addEventListener('click', async (event) => {
         event.stopPropagation();
+        const moduleKey = item.getAttribute('data-admin-module');
+        // /dev-dashboard: native Navigation + RBAC-Guard am Link.
+        if (moduleKey === 'dashboard') return;
         if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
           hideAdminHeaderDropdown();
           return;
         }
-        const moduleKey = item.getAttribute('data-admin-module');
         if (!moduleKey) return;
+        event.preventDefault();
         await openAdminDropdownModule(moduleKey);
         closeAdminHeaderDropdownMenu();
       });
@@ -3992,7 +4081,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-13T19:45:00+02:00';
+const APP_RELEASE_AT = '2026-10-13T20:30:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 

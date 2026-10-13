@@ -200,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261013-fouc-splash-fix-v1">
+  <link rel="stylesheet" href="/style.css?v=20261013-mobile-nav-cleanup-v1">
 </head>
 <body>
 
@@ -259,6 +259,15 @@
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Wissen</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro</button>
+                <a
+                  class="admin-header-dropdown-item admin-header-dropdown-item--dashboard nav-mobile-admin-link"
+                  id="admin-header-dashboard-link"
+                  href="/dev-dashboard"
+                  role="menuitem"
+                  data-admin-module="dashboard"
+                  hidden
+                  style="display: none;"
+                >🛠️ Verwaltung</a>
               </div>
             </div>
             <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
@@ -2311,7 +2320,7 @@
             </div>
           </div>
 
-          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Admin">
+          <div class="app-nav-zone app-nav-zone--admin nav-desktop-only" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Admin">
             <div class="admin-nav-accordion" id="admin-nav-accordion">
               <div class="admin-nav-popover" id="admin-nav-popover" hidden role="menu" aria-label="Admin-Menü">
                 <button type="button" class="admin-nav-option" id="tab-batches" data-tab="batches" role="menuitem">
