@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261013-team-switcher-v1';
+const CACHE_NAME = 'charculogic-v20261013-wareneingang-lifo-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-05T19:15:00+02:00';
+const RELEASED_AT = '2026-10-13T14:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -29,6 +29,7 @@ const CRITICAL_ASSETS = [
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/receiving.js',
   '/mhd-rabatt.js',
   '/discount-matrix.js',
   '/discount-matrix-ui.js',

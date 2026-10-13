@@ -42,7 +42,9 @@ import {
 import {
   closeScanner,
   initScannerEngine,
+  isScannerOverlayOpen,
   openScanner,
+  resumeScannerListening,
 } from './scanner.js';
 import {
   activateHaccpTab,
@@ -70,6 +72,8 @@ import {
   syncMhdSaveBarKeyboardOffset,
   bindMhdSaveBarViewportSync,
   closeMhdQtyNumpad,
+  closeReceivingQtyNumpad,
+  closeReceivingMhdEditor,
   updateMhdAdminSearchVisibility,
 } from './mhd.js';
 import {
@@ -3528,6 +3532,8 @@ tabs.forEach(tab => {
     }
     AppState.activeTab = targetTab;
     closeMhdQtyNumpad();
+    closeReceivingQtyNumpad();
+    closeReceivingMhdEditor();
 
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
     playClickSound(800, 0.05, 0.15);
@@ -3948,7 +3954,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-05T19:15:00+02:00';
+const APP_RELEASE_AT = '2026-10-13T14:00:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4324,7 +4330,12 @@ async function bootstrapAuthenticatedApp() {
     appsScriptWebAppUrl,
     getFirebase: () => firebase,
     isFirebaseReady: () => firebaseReady,
-    scannerAPI: { openScanner, closeScanner },
+    scannerAPI: {
+      openScanner,
+      closeScanner,
+      resumeScannerListening,
+      isScannerOverlayOpen,
+    },
     terminalEmployeeName,
     addRetterBoxCandidate,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
