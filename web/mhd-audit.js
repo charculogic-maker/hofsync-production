@@ -248,7 +248,9 @@ export function movementActionLabel(actionType) {
 export function inferMovementAction({ mhdActionStatus, soldOut, qtyFrom, qtyTo, isCreate } = {}) {
   if (isCreate) return MOVEMENT_ACTION_TYPES.neu;
   const status = String(mhdActionStatus || '').trim().toLowerCase();
-  if (status === 'rausgenommen' || status === 'ausverkauft') return MOVEMENT_ACTION_TYPES.raus;
+  if (status === 'rausgenommen' || status === 'raus' || status === 'ausverkauft') {
+    return MOVEMENT_ACTION_TYPES.raus;
+  }
   if (status === 'tonne' || status === 'abgeschrieben' || status === 'abschreiben') {
     return MOVEMENT_ACTION_TYPES.abschreiben;
   }
