@@ -1,14 +1,63 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#28a745">
+  <meta name="theme-color" content="#1c130e">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1c130e">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c130e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="">
+  <!-- Kritischer Boot-Hintergrund: verhindert weißen FOUC bevor style.css/app.js laden. -->
+  <style id="boot-splash-css">
+    html, body {
+      background-color: #1c130e !important;
+      color: #f5ede6;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+  <script>
+    /* Synchrones Theme-/Mandantenfarben-Boot — vor externem CSS/JS, kein spätes Repaint. */
+    (function bootThemeSplash() {
+      var BOOT_BG = '#1c130e';
+      try {
+        var root = document.documentElement;
+        var theme = localStorage.getItem('charculogic.theme')
+          || localStorage.getItem('charculogic_theme');
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ? 'dark'
+            : 'light';
+        }
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+
+        var brandBg = localStorage.getItem('charculogic_brand_bg');
+        var bootBg = (brandBg && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(brandBg))
+          ? brandBg
+          : BOOT_BG;
+        root.style.setProperty('--boot-bg', bootBg);
+        root.style.setProperty('--dark-header-bg', bootBg);
+        if (theme === 'dark') {
+          root.style.setProperty('--bg-color', bootBg);
+        }
+
+        var primary = localStorage.getItem('charculogic_brand_primary');
+        if (primary && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(primary)) {
+          root.style.setProperty('--primary-color', primary);
+        }
+
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < metas.length; i += 1) {
+          metas[i].setAttribute('content', bootBg);
+        }
+      } catch (e) { /* private mode / blocked storage */ }
+    })();
+  </script>
+  <script type="module" src="/branding.js"></script>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <link rel="manifest" id="pwa-manifest" href="/manifest.json">
   <script>
     /* Frühes Shell-Fallback für /dev-dashboard — noch bevor Module (app.js) laden. */
@@ -151,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261007-drop-beef-label-modal-v1">
+  <link rel="stylesheet" href="/style.css?v=20261013-fouc-splash-fix-v1">
 </head>
 <body>
 

@@ -2015,6 +2015,18 @@ function showAdminDevHint(title, desc = '') {
   hint.setAttribute('aria-label', desc ? `${title}: ${desc}` : title);
 }
 
+function persistBootBrandColors(branding = {}) {
+  try {
+    const splashBg = branding.darkHeaderBg || '#1c130e';
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(splashBg)) {
+      localStorage.setItem('charculogic_brand_bg', splashBg);
+    }
+    if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
+      localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
+    }
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
 function applyBrandingCssVars(branding) {
   const root = document.documentElement;
   const setVar = (name, value) => {
@@ -2023,12 +2035,15 @@ function applyBrandingCssVars(branding) {
   setVar('--primary-color', branding.primaryColor);
   setVar('--primary-color-hover', branding.primaryColorHover);
   setVar('--dark-header-bg', branding.darkHeaderBg);
+  const bootBg = branding.darkHeaderBg || '#1c130e';
+  setVar('--boot-bg', bootBg);
   setVar('--accent-alert', branding.accentAlert);
   const headerText = branding.textOnHeader || '#ffffff';
   setVar('--header-text', headerText);
   const isLightHeader = headerText.toLowerCase() === '#000000' || headerText.toLowerCase() === '#000';
   setVar('--header-text-muted', isLightHeader ? 'rgba(0, 0, 0, 0.62)' : 'rgba(255, 255, 255, 0.72)');
   setVar('--nav-text', isLightHeader ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.65)');
+  persistBootBrandColors(branding);
 }
 
 function applyBranding() {
@@ -2058,8 +2073,10 @@ function applyBranding() {
   const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitleMeta) appleTitleMeta.setAttribute('content', appName);
 
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute('content', primaryColor);
+  const splashThemeColor = branding.darkHeaderBg || '#1c130e';
+  document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
+    themeMeta.setAttribute('content', splashThemeColor);
+  });
 
   syncSidebarFacilityUserCard();
 }
@@ -2357,27 +2374,44 @@ function bindOfficeAccessLock() {
 // --- DARK MODE ---
 (function initTheme() {
   const THEME_KEY = 'charculogic.theme';
-  const saved = localStorage.getItem(THEME_KEY);
+  const THEME_KEY_ALT = 'charculogic_theme';
+  const readSavedTheme = () => {
+    try {
+      return localStorage.getItem(THEME_KEY) || localStorage.getItem(THEME_KEY_ALT) || '';
+    } catch (_) {
+      return '';
+    }
+  };
+  const writeSavedTheme = (theme) => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+      localStorage.setItem(THEME_KEY_ALT, theme);
+    } catch (_) { /* private mode / blocked storage */ }
+  };
+  const applyTheme = (theme) => {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    document.documentElement.style.colorScheme = next;
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+  };
+
+  const saved = readSavedTheme();
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = saved ? saved === 'dark' : prefersDark;
+  applyTheme(isDark ? 'dark' : 'light');
 
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   const btn = document.getElementById('btn-theme-toggle');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
-
   btn?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem(THEME_KEY, next);
-    btn.textContent = next === 'dark' ? '☀️' : '🌙';
+    applyTheme(next);
+    writeSavedTheme(next);
   });
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (localStorage.getItem(THEME_KEY)) return;
-    const theme = e.matches ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', theme);
-    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (readSavedTheme()) return;
+    applyTheme(e.matches ? 'dark' : 'light');
   });
 })();
 
@@ -3959,7 +3993,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-13T14:00:00+02:00';
+const APP_RELEASE_AT = '2026-10-13T19:30:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
