@@ -29,7 +29,7 @@ assert.match(
 );
 
 assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261013-fouc-splash-fix-v1'/);
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-13T19:30:00\+02:00'/);
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-13T19:45:00\+02:00'/);
 assert.match(appSrc, /persistBootBrandColors/);
 assert.match(appSrc, /charculogic_brand_bg/);
 assert.match(brandingSrc, /background_color:\s*splashColor/);

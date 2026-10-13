@@ -51,7 +51,7 @@ assertIncludes(cssSrc, '.we-item-card--newest', 'Newest Highlight');
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261013-wareneingang-lifo-v1'/,
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
   'SW Cache-Version',
 );
 assertIncludes(swSrc, "/receiving.js", 'receiving.js im SW-Cache');

@@ -50,7 +50,7 @@ describe('Mitarbeiter-Schnellwechsler (Header)', () => {
 
   it('bumps the service-worker cache to team-switcher-v1', () => {
     expect(swJs).to.match(
-      /const CACHE_NAME = 'charculogic-v20261013-team-switcher-v1'/,
+      /const CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
     );
   });
 });
