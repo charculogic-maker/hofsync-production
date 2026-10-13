@@ -15,6 +15,7 @@ import {
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { loadCatalogEanIndex, lookupCatalogEan } from './catalog-ean.js';
+import { writeFinalizeDeliveryBundle } from './mhd-finalize-writes.js';
 import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
@@ -7758,7 +7759,6 @@ async function finalizeDelivery() {
   if (deliveryBundleOnline) deliveryBundleOnline.tenantId = activeTenantId;
   if (queuedBundle) queuedBundle.tenantId = activeTenantId;
 
-  let finalizeTargetPath = deliveryPath;
   let finalizeFailed = false;
 
   try {
@@ -7767,17 +7767,8 @@ async function finalizeDelivery() {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-    });
-
     const catalog = await loadCatalogEanIndex();
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
+    const mhdWrites = currentDeliveryItems.map((item) => {
       const matchedEan = lookupCatalogEan(catalog, {
         name: item.product,
         articleNumber: item.artikelnummer || item.articleNumber || '',
@@ -7795,15 +7786,36 @@ async function finalizeDelivery() {
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
-      finalizeTargetPath = `${mhdPath}/${record.id}`;
-      const result = await mhdState.writeOrQueueFirestore({
+      return {
+        record,
+        writeOp,
+        qtyFrom,
+        qtyTo,
         collectionPath: mhdPath,
         docId: record.id,
         op: writeOp,
         onlineData: auditedRecord.onlineData,
         queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
-      });
+      };
+    });
+
+    await writeFinalizeDeliveryBundle({
+      db: mhdState.db,
+      isFirebaseReady,
+      writeOrQueueFirestore: mhdState.writeOrQueueFirestore,
+      deliveryWrite: {
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+        offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      },
+      mhdWrites,
+    });
+
+    mhdWrites.forEach(({ record, writeOp, qtyFrom, qtyTo }) => {
       saveProductMaster(record);
       void recordMhdMovement({
         product: record,
@@ -7811,19 +7823,8 @@ async function finalizeDelivery() {
         qtyTo: Number.isFinite(qtyTo) ? qtyTo : 0,
         actionType: writeOp === 'update' ? 'menge' : 'neu',
       });
-      return result;
     });
 
-    const mhdResults = await Promise.allSettled(mhdWrites);
-    const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
-    if (rejectedMhdWrite) {
-      finalizeFailed = true;
-      console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
-      maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
-      return;
-    }
     mhdState.playClickSound(1300, 0.08, 0.2);
     resetReceivingForm();
     const itemCount = deliveryBundle.itemCount;
