@@ -9,7 +9,7 @@ import { getAuthContext, isOfficeUser } from './auth.js';
 
 const MODULE_DEFS = [
   { key: 'mhdMonitor', label: 'MHD-Monitor' },
-  { key: 'wareneingang', label: 'Wareneingang & KI-Lieferschein' },
+  { key: 'wareneingang', label: 'Wareneingang (Barcode-Scan)' },
   { key: 'wurstkueche', label: 'Wurstküche & BEFFE-Kalkulation' },
   { key: 'haccp', label: 'HACCP-Tageskontrollen' },
   { key: 'zerlegung', label: 'Galloway-Zerlegung & Avery 3475 Etiketten' },

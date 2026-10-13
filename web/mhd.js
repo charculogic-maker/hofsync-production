@@ -14,7 +14,7 @@ import {
   writeLocalProductMasterEntry,
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
-import { bindDeliveryReconcileMain, loadCatalogEanIndex, lookupCatalogEan } from './delivery-reconciliation.js';
+import { loadCatalogEanIndex, lookupCatalogEan } from './catalog-ean.js';
 import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
@@ -8201,7 +8201,6 @@ function bindReceivingControls() {
   }
 }
 function bindOfficeInventoryToolButtons() {
-  bindDeliveryReconcileMain();
   const bindings = [
     ['btn-recent-receipts', showRecentReceipts],
     ['btn-office-recent-receipts', showRecentReceipts],

@@ -59,8 +59,6 @@ import {
 import {
   activateMhdTab,
   activateReceivingTab,
-  adjustCurrentDeliveryItemQuantity,
-  getCurrentDeliveryItems,
   getMhdProducts,
   applyReceivingMetzgereiVisibility,
   handleMhdBarcodeScan,
@@ -117,9 +115,6 @@ import {
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
 import { initDiscountMatrixUi } from './discount-matrix-ui.js';
-import { initDeliveryNoteScanner } from './delivery-note.js';
-import { initDeliveryParser } from './delivery-parser.js';
-import { initDeliveryReconciliation } from './delivery-reconciliation.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -2346,10 +2341,6 @@ function applyRoleBasedUi(authSession) {
   ['btn-master-data', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (id === 'btn-delivery-note-ai') {
-      el.hidden = !isOffice || window.BRANDING?.modules?.deliveryNoteAi !== true;
-      return;
-    }
     el.hidden = !isOffice;
   });
 
@@ -4479,32 +4470,6 @@ async function bootstrapAuthenticatedApp() {
     showHUD,
     getMhdProducts,
   });
-  initDeliveryNoteScanner({
-    tenantId,
-    getFirebase: () => firebase,
-    showHUD,
-    writeOrQueueFirestore: writeFirestoreDocOrQueue,
-  });
-  initDeliveryParser({
-    tenantId,
-    email: authSession?.email || getAuthContext()?.email || '',
-    getFirebase: () => firebase,
-    showHUD,
-    writeOrQueueFirestore: writeFirestoreDocOrQueue,
-    getHistory: getMhdProducts,
-    getCurrentDeliveryItems,
-  });
-  initDeliveryReconciliation({
-    tenantId,
-    getFirebase: () => firebase,
-    showHUD,
-    writeOrQueueFirestore: writeFirestoreDocOrQueue,
-    getCurrentDeliveryItems,
-    getMhdProducts,
-    adjustDraftQuantity: adjustCurrentDeliveryItemQuantity,
-    getAuthor: () => (authSession?.email || getAuthContext()?.email || '').split('@')[0] || 'Team',
-  });
-
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {
     tenantId,
     getFirebase: () => firebase,

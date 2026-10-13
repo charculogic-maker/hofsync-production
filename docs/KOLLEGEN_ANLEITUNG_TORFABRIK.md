@@ -18,7 +18,7 @@ Diese Anleitung gilt für den Mandanten **TorFabrik Krefeld** (`tenantId: torfab
 | **Tab Prod.** | **Nicht aktiv** (keine Wurstküche im Center) |
 | **Wareneingang** | Kategorien: Getränke (Jakob Bayen), TK & Snacks (Metro), Zubehör & Hygiene (Metro) |
 | **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge für die Thekenklade (Modul `traceability`) |
-| **KI-Lieferschein** | Tab **Neu** → **📸 Lieferschein scannen (KI)** (Metro / Jakob Bayen) |
+| **Wareneingang-Scan** | Tab **Neu** → Barcode-Serien-Scan (KI-Lieferschein in der Laden-PWA deaktiviert) |
 | **Rolle „helper“** | Eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv |
 
 ---
@@ -44,7 +44,7 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 | **Start** | PIN-Anmeldung, Nachricht des Tages, Aufgaben, Historie |
 | **Team** | Nachrichten, Kundenbestellungen, 🌡️ Temperatur-Check |
 | **MHD** | MHD-Alarme, Qualitätssicherung |
-| **Neu** | Wareneingang + **KI-Lieferschein** |
+| **Neu** | Wareneingang (Barcode-Scan) |
 | **Herkunft** | LMIV-Fleischherkunft (Etikettfoto, LOT, Thekenklade) |
 | **HACCP** | Temperatur- & Reinigungsprotokolle |
 | **Büro** | Chargen (falls genutzt), Leitstand (Admin) |
@@ -86,22 +86,15 @@ Details: [modulanleitungen/01-mhd-monitor.md](./modulanleitungen/01-mhd-monitor.
 
 ---
 
-## 4. Neu (Wareneingang & KI-Lieferschein)
+## 4. Neu (Wareneingang)
 
-### KI-Lieferschein (empfohlen für Metro / Jakob Bayen)
+### Barcode-Serien-Scan
 
-1. Tab **Neu** → **📸 Lieferschein scannen (KI)**.
-2. Foto vom Lieferschein aufnehmen oder Bild wählen.
-3. Erkannte Positionen in der Tabelle prüfen/korrigieren.
-4. **In Bestand speichern** → Einträge landen in `tenants/torfabrik/inventory`.
+1. Tab **Neu** → **Kategorie** wählen (z. B. **Getränke (Jakob Bayen)**).
+2. Artikel nacheinander per **Barcode scannen** (neueste Posten oben).
+3. Menge und MHD auf der Karte korrigieren, Lieferung abschließen.
 
-### Einzelscan (Barcode)
-
-1. **Kategorie** wählen (z. B. **Getränke (Jakob Bayen)**).
-2. Bei **Fass/Anstich** schlägt die App oft **MHD +14 Tage** vor.
-3. **Barcode scannen**, Menge und MHD erfassen, **➕ Posten hinfägen**.
-
-Metzgerei-Modus bleibt verfügbar, ist für das Center aber selten nötig.
+Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert. Metzgerei-Modus bleibt verfügbar, ist für das Center aber selten nötig.
 
 Details: [modulanleitungen/02-wareneingang.md](./modulanleitungen/02-wareneingang.md)
 
@@ -138,7 +131,7 @@ Für reguläre Aushilfen reicht meist der **PIN-Login als Mitarbeiter „Aushilf
 | Zeit | Schritte |
 |------|----------|
 | **Morgens** | Start (PIN) → MHD ALARM → HACCP Temperaturen |
-| **Lieferung** | Neu → KI-Lieferschein oder Scan → Kategorien Metro/Bayen |
+| **Lieferung** | Neu → Barcode-Scan → Kategorien Metro/Bayen |
 | **Tagsüber** | Aufgaben auf Start quittieren, Team-Infos lesen |
 | **Abends** | MHD offene Punkte, ggf. Wareneingang abschließen |
 

@@ -143,24 +143,15 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto oder PDF (KI-Wareneingang)
+### Wareneingang per Barcode (Tab Neu)
 
-Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
+Im Tab **Neu** erfassen wir Lieferungen zuverlässig per **Barcode-Serien-Scan**:
 
-1. Artikel wie gewohnt per **Barcode scannen** zur Lieferung hinzufügen.
-2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera).
-3. Bei vorhandenen Posten öffnet sich direkt der **Lieferschein-Abgleich**.
-4. Wir sehen auf einen Blick:
-   - **Noch nicht erfasst** – steht auf dem Lieferschein, fehlt im Wareneingang
-   - **Extra erfasst** – im Wareneingang, fehlt auf dem Lieferschein
-   - **Mengenabweichung** – Name passt, Menge nicht
-   - **Stimmt überein**
-5. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
-6. Optional: fehlende LS-Artikel später in den Bestand übernehmen.
+1. Lieferant wählen und Artikel nacheinander scannen (neueste Posten stehen oben).
+2. Menge und MHD direkt auf der Karte korrigieren (Touch-Pad / Schnelltasten).
+3. Lieferung abschließen oder als offenen Entwurf speichern.
 
-Der Button **🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
-
-Barcode-Scan bleibt parallel verfügbar für einzelne Artikel.
+Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert; der Fokus liegt auf dem schnellen Barcode-Flow.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -271,7 +262,7 @@ Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
 | Lieferung lässt sich nicht abschließen | Profil prüfen (oben rechts), WLAN prüfen, **↻** App aktualisieren. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
-| KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
+| KI-Lieferschein-Button fehlt unter **Neu** | Absichtlich deaktiviert — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
 | Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
 | App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |

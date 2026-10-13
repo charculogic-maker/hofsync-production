@@ -1,5 +1,6 @@
 /**
- * UI smoke: Wareneingang Lieferant-Kopf + Modal + Upload-Accept (ohne Firebase-Login).
+ * UI smoke: Wareneingang Lieferant-Kopf + Modal + Metzgerei-Foto-Accept (ohne Firebase-Login).
+ * KI-Lieferschein-Parser/Scanner-Inputs sind aus der PWA entfernt.
  */
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
@@ -34,11 +35,14 @@ async function main() {
   const supplierOptions = await page.$$eval('#we-supplier option', (opts) =>
     opts.map((o) => ({ value: o.value, label: o.textContent.trim() })),
   );
-  const acceptParser = await page.getAttribute('#delivery-parser-file-input', 'accept');
-  const acceptNote = await page.getAttribute('#delivery-note-file-input', 'accept');
   const acceptPhoto = await page.getAttribute('#we-photo-input', 'accept');
-  const captureParser = await page.getAttribute('#delivery-parser-file-input', 'capture');
   const capturePhoto = await page.getAttribute('#we-photo-input', 'capture');
+  const kiReconcileGone = (await page.locator('#btn-delivery-reconcile-main').count()) === 0
+    && (await page.locator('#delivery-reconcile-file-input').count()) === 0
+    && (await page.locator('#delivery-parser-file-input').count()) === 0
+    && (await page.locator('#delivery-note-file-input').count()) === 0
+    && (await page.locator('#btn-delivery-parser').count()) === 0
+    && (await page.locator('#btn-delivery-note-ai').count()) === 0;
 
   await page.locator('#we-supplier').scrollIntoViewIfNeeded();
   await page.screenshot({
@@ -60,14 +64,13 @@ async function main() {
 
   const report = {
     supplierOptions,
-    acceptParser,
-    acceptNote,
     acceptPhoto,
-    captureParser,
     capturePhoto,
+    kiReconcileGone,
     modalVisible: await page.isVisible('#supplier-pick-modal.is-open'),
     eigenproduktionVisible: await page.isVisible('#we-eigenproduktion-btn'),
     uploadStatusExists: await page.locator('#we-photo-upload-status').count(),
+    recentReceiptsVisible: await page.locator('#btn-recent-receipts').count(),
   };
   await fs.writeFile(path.join(OUT, 'wareneingang_ui_smoke.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
@@ -77,12 +80,13 @@ async function main() {
     && supplierOptions.some((o) => o.value === 'Großhandel')
     && supplierOptions.some((o) => o.value === 'Lieferant 1')
     && supplierOptions.some((o) => o.value === '__sonstige__')
-    && acceptParser === 'application/pdf,image/*'
-    && acceptNote === 'application/pdf,image/*'
-    && acceptPhoto === 'application/pdf,image/*'
-    && !captureParser
+    && typeof acceptPhoto === 'string'
+    && acceptPhoto.includes('application/pdf')
+    && acceptPhoto.includes('image/')
     && !capturePhoto
-    && report.modalVisible;
+    && kiReconcileGone
+    && report.modalVisible
+    && report.recentReceiptsVisible === 1;
 
   await browser.close();
   if (!ok) {

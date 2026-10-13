@@ -2,14 +2,14 @@
  * Soll-Ist-Abgleich: Gemini-Lieferschein gegen gebuchte Wareneingänge
  * (`mhd_liste` / laufende Lieferung) und Stammdaten.
  */
-import { createHttpsCallable } from './firebase-functions.js';
-import { getTenantCollection } from './tenant-db.js';
+import { createHttpsCallable } from '../web/firebase-functions.js';
+import { getTenantCollection } from '../web/tenant-db.js';
 import {
   formatIsoToGerman,
   initGermanDateInputs,
   parseGermanDateToIso,
   setGermanDateField,
-} from './date-input.js';
+} from '../web/date-input.js';
 
 const QTY_EPSILON = 0.011;
 const NAME_MATCH_RATIO = 0.82;
