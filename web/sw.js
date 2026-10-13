@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261013-cleanup-lieferschein-v1';
+const CACHE_NAME = 'charculogic-v20261013-finalize-delivery-atomic-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-13T21:30:00+02:00';
@@ -29,6 +29,7 @@ const CRITICAL_ASSETS = [
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/mhd-finalize-writes.js',
   '/receiving.js',
   '/mhd-rabatt.js',
   '/discount-matrix.js',
