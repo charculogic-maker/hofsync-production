@@ -4,7 +4,7 @@
  */
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
-import { vorhersagenMhd } from './delivery-parser.js';
+import { vorhersagenMhd } from './receiving-mhd-suggest.js';
 
 const RECEIVING_QTY_NUMPAD_MAX_DIGITS = 4;
 const MHD_QUICK_DAYS = [3, 7, 14];

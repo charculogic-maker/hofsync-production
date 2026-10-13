@@ -6,11 +6,11 @@
  * gelieferten Mengen mit einem Klick in unseren Bestand ein.
  */
 
-import { getAuthContext } from './auth.js';
-import { logAndMapOperatorError } from './operator-errors.js';
-import { getTenantCollection } from './tenant-db.js';
-import { hasModule } from './tenant-modules.js';
-import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from './date-input.js';
+import { getAuthContext } from '../web/auth.js';
+import { logAndMapOperatorError } from '../web/operator-errors.js';
+import { getTenantCollection } from '../web/tenant-db.js';
+import { hasModule } from '../web/tenant-modules.js';
+import { formatIsoToGerman, parseGermanDateToIso, initGermanDateInputs } from '../web/date-input.js';
 import {
   analyzeDeliveryNoteFile,
   isAllowedDeliveryFile,

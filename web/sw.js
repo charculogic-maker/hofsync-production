@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261013-mobile-nav-cleanup-v1';
+const CACHE_NAME = 'charculogic-v20261013-cleanup-lieferschein-v1';
 
-const CACHE_SCHEMA = 'p0-release-hardening-jun2026-ki-wareneingang';
-const RELEASED_AT = '2026-10-13T20:30:00+02:00';
+const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
+const RELEASED_AT = '2026-10-13T21:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -35,11 +35,9 @@ const CRITICAL_ASSETS = [
   '/discount-matrix-ui.js',
   '/retter-box.js',
   '/date-input.js',
-  '/delivery-note.js',
-  '/delivery-parser.js',
   '/delivery-upload.js',
-  '/delivery-reconcile.js',
-  '/delivery-reconciliation.js',
+  '/catalog-ean.js',
+  '/receiving-mhd-suggest.js',
   '/haccp.js',
   '/production.js',
   '/production-datasheet.js',
@@ -285,10 +283,9 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/sw.js')
     || pathname.endsWith('/sync.js')
     || pathname.endsWith('/mhd.js')
-    || pathname.endsWith('/delivery-note.js')
-    || pathname.endsWith('/delivery-reconciliation.js')
+    || pathname.endsWith('/receiving.js')
     || pathname.endsWith('/delivery-upload.js')
-    || pathname.endsWith('/delivery-parser.js')
+    || pathname.endsWith('/catalog-ean.js')
     || pathname.endsWith('/scanner.js')
     || pathname.endsWith('/tenant-db.js')
   );

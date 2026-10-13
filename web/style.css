@@ -4957,7 +4957,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   border: 3px solid rgba(0, 0, 0, 0.12);
   border-top-color: var(--primary-color);
   border-radius: 50%;
-  animation: delivery-parser-spin 0.8s linear infinite;
+  animation: we-photo-spin 0.8s linear infinite;
   flex-shrink: 0;
 }
 
@@ -5388,10 +5388,6 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   gap: 10px;
 }
 
-.delivery-note-draft-date {
-  width: 100%;
-  min-height: 48px;
-}
 
 .open-drafts-empty {
   padding: 14px 12px;
@@ -5563,332 +5559,21 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   font-weight: 900;
 }
 
-.delivery-reconcile-card {
-  max-width: min(560px, 100%);
-}
 
-.delivery-reconcile-lead {
-  margin-bottom: 8px;
-}
 
-.delivery-reconcile-meta {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: var(--text-muted, #636366);
-}
 
-.delivery-reconcile-section {
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.03);
-}
 
-.delivery-reconcile-section--missing {
-  background: rgba(255, 59, 48, 0.08);
-}
 
-.delivery-reconcile-section--extra {
-  background: rgba(255, 149, 0, 0.1);
-}
 
-.delivery-reconcile-section--warn {
-  background: rgba(255, 204, 0, 0.14);
-}
 
-.delivery-reconcile-section--ok {
-  background: rgba(52, 199, 89, 0.1);
-}
 
-.delivery-reconcile-section-title {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 800;
-}
 
-.delivery-reconcile-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.delivery-reconcile-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: var(--surface-color, #fff);
-}
 
-.delivery-reconcile-item strong {
-  font-size: 15px;
-}
 
-.delivery-reconcile-item span {
-  font-size: 13px;
-  color: var(--text-muted, #636366);
-}
 
-.delivery-reconcile-scroll {
-  max-height: min(55vh, 420px);
-}
 
-#btn-delivery-reconcile-main {
-  grid-column: 1 / -1;
-  width: 100%;
-  min-height: 48px;
-}
 
-.delivery-reconciliation-card {
-  width: 100%;
-  max-width: 480px;
-  max-height: 92vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin-inline: auto;
-  background: var(--surface-color, #fff);
-  color: var(--text-dark, #1c1c1e);
-}
-
-.delivery-reconciliation-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  flex-shrink: 0;
-  background: var(--surface-color, #fff);
-}
-
-.delivery-reconciliation-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.delivery-reconciliation-reparse,
-.delivery-reconciliation-select-all,
-.delivery-reconciliation-select {
-  min-height: 48px;
-}
-
-.delivery-reconciliation-select {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0;
-  font-weight: 700;
-}
-
-.new-item-checkbox {
-  width: 28px;
-  height: 28px;
-}
-
-.delivery-reconciliation-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.delivery-reconciliation-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 12px;
-}
-
-.delivery-reconciliation-filter {
-  min-height: 48px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.12));
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.delivery-reconciliation-filter.is-active {
-  background: var(--text-dark, #1c1c1e);
-  color: var(--surface-color, #fff);
-  border-color: transparent;
-}
-
-.delivery-reconciliation-exclude {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.delivery-reconciliation-exclude input {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.delivery-reconciliation-scroll {
-  overflow-y: auto;
-  max-height: 68vh;
-  padding-right: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.delivery-reconciliation-empty {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-muted, #636366);
-}
-
-.delivery-reconciliation-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 14px;
-  border: 2px solid transparent;
-  background: var(--surface-color, #fff);
-  color: var(--text-dark, #1c1c1e);
-}
-
-.delivery-reconciliation-item-head {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.delivery-reconciliation-item-head strong {
-  font-size: 16px;
-}
-
-.delivery-reconciliation-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.delivery-reconciliation-meta-line {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted, #636366);
-}
-
-.delivery-reconciliation-item--perfect {
-  background: rgba(52, 199, 89, 0.16);
-  border-color: rgba(52, 199, 89, 0.55);
-}
-
-.delivery-reconciliation-item--mismatch {
-  background: rgba(255, 204, 0, 0.2);
-  border-color: rgba(214, 158, 0, 0.7);
-}
-
-.delivery-reconciliation-item--missing {
-  background: rgba(255, 59, 48, 0.12);
-  border-color: rgba(255, 59, 48, 0.5);
-}
-
-.delivery-reconciliation-item--unmapped {
-  background: rgba(142, 142, 147, 0.16);
-  border-color: rgba(142, 142, 147, 0.45);
-}
-
-.delivery-reconciliation-item--excluded {
-  background: rgba(142, 142, 147, 0.08);
-  border-color: rgba(142, 142, 147, 0.35);
-  border-style: dashed;
-}
-
-.delivery-reconciliation-qty-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.delivery-reconciliation-qty {
-  min-height: 48px;
-  font-size: 18px;
-}
-
-.delivery-reconciliation-action {
-  min-height: 48px;
-  width: 100%;
-}
-
-.delivery-reconciliation-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 8px;
-  background: var(--surface-color, #fff);
-}
-
-[data-theme="dark"] .delivery-reconciliation-card,
-[data-theme="dark"] .delivery-reconciliation-head,
-[data-theme="dark"] .delivery-reconciliation-actions,
-[data-theme="dark"] .delivery-reconciliation-item {
-  background: var(--surface-color);
-  color: var(--text-dark);
-}
-
-[data-theme="dark"] .delivery-reconciliation-header {
-  color: var(--text-dark);
-}
-
-[data-theme="dark"] .delivery-reconciliation-meta-line {
-  color: var(--text-muted);
-}
-
-[data-theme="dark"] .delivery-reconciliation-item--perfect {
-  background: rgba(52, 199, 89, 0.22);
-}
-
-[data-theme="dark"] .delivery-reconciliation-item--mismatch {
-  background: rgba(255, 204, 0, 0.16);
-  color: var(--text-dark);
-}
-
-[data-theme="dark"] .delivery-reconciliation-item--missing {
-  background: rgba(255, 69, 58, 0.2);
-}
-
-[data-theme="dark"] .delivery-reconciliation-item--unmapped {
-  background: rgba(174, 174, 178, 0.16);
-}
-
-[data-theme="dark"] .delivery-reconciliation-qty,
-[data-theme="dark"] .delivery-reconciliation-action.btn-secondary {
-  background: var(--surface-color);
-  color: var(--text-dark);
-  border-color: var(--border-subtle);
-}
 
 .manual-barcode-fallback {
   display: none;
@@ -6314,29 +5999,6 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
 }
 
-.learn-mode-card.delivery-reconciliation-card {
-  width: 100%;
-  max-width: 480px;
-  max-height: 92vh;
-  overflow: hidden;
-  margin-inline: auto;
-}
-
-@media (min-width: 768px) {
-  .learn-mode-card.delivery-reconciliation-card {
-    width: 92%;
-    max-width: 1050px;
-  }
-
-  .delivery-reconciliation-scroll {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
-    gap: 12px;
-    max-height: 68vh;
-    overflow-y: auto;
-    padding-right: 8px;
-  }
-}
 
 .utility-list {
   display: flex;
@@ -9340,109 +9002,11 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   color: var(--text-muted);
 }
 
-.delivery-note-preview-card {
-  width: min(520px, 100%);
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
 
-.delivery-note-preview-scroll {
-  overflow: auto;
-  max-height: 50vh;
-  margin: 12px 0;
-}
-
-.delivery-note-preview-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.delivery-note-preview-table th,
-.delivery-note-preview-table td {
-  border: 1px solid var(--border-subtle);
-  padding: 8px;
-  vertical-align: top;
-}
-
-.delivery-note-preview-table input.gastro-input {
-  width: 100%;
-  min-width: 0;
-}
-
-/* KI-Wareneingang (Phase 4 Â· ERP-Light) ---------------------------------- */
-.delivery-parser-loading-overlay {
-  flex-direction: column;
-}
-
-.delivery-parser-loading-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  background: var(--surface-color);
-  border-radius: var(--border-radius-lg);
-  padding: 28px 24px;
-  max-width: 300px;
-  width: 100%;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-  text-align: center;
-}
-
-.delivery-parser-spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 4px solid rgba(0, 0, 0, 0.12);
-  border-top-color: var(--primary-color, #28a745);
-  animation: delivery-parser-spin 0.9s linear infinite;
-}
-
-@keyframes delivery-parser-spin {
+@keyframes we-photo-spin {
   to { transform: rotate(360deg); }
 }
 
-.delivery-parser-loading-text {
-  margin: 0;
-  font-weight: 700;
-  color: var(--text-dark);
-  line-height: 1.4;
-}
-
-.delivery-parser-table td {
-  vertical-align: top;
-}
-
-.delivery-parser-badge {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.delivery-parser-badge--erfahrung {
-  background: rgba(40, 167, 69, 0.16);
-  color: #1b6b32;
-}
-
-.delivery-parser-badge--standard {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--text-muted, #555);
-}
-
-.delivery-parser-mhd-hint {
-  display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted, #6b6b6b);
-  line-height: 1.35;
-}
 
 body.role-helper #page-team,
 body.role-helper .admin-leitstand-panel,
