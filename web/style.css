@@ -7299,21 +7299,46 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   .app-nav {
     height: calc(64px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
+    overflow-x: hidden;
+  }
+
+  /*
+   * Smartphone: Büro / Admin / Dev-Tools raus aus der Fußleiste.
+   * Zugang bleibt über ⚙️ im Header (Tablet/Desktop ab 769px unverändert).
+   */
+  .nav-desktop-only,
+  .app-nav-zone--admin {
+    display: none !important;
   }
 
   .bottom-nav-scroll {
-    padding-left: max(4px, env(safe-area-inset-left, 0px));
-    padding-right: max(4px, env(safe-area-inset-right, 0px));
+    padding-left: max(2px, env(safe-area-inset-left, 0px));
+    padding-right: max(2px, env(safe-area-inset-right, 0px));
+    overflow-x: hidden;
+    overflow-y: hidden;
+    justify-content: stretch;
+    width: 100%;
+    max-width: 100%;
+    scroll-snap-type: none;
+  }
+
+  .bottom-nav--compact .bottom-nav-scroll,
+  .bottom-nav--scrollable .bottom-nav-scroll {
+    justify-content: stretch;
+    scroll-snap-type: none;
   }
 
   .nav-item {
-    min-width: 72px;
-    padding-inline: 10px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    width: auto;
+    min-height: 48px;
+    padding-inline: 4px;
   }
 
   .nav-item--admin {
-    min-width: 56px;
-    max-width: 64px;
+    display: none !important;
   }
 
   .nav-item--admin span {
@@ -7323,8 +7348,14 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     overflow: hidden;
   }
 
+  .nav-item i {
+    font-size: 22px;
+    margin-bottom: 2px;
+  }
+
   .nav-item span {
-    font-size: 8.5px;
+    font-size: 9px;
+    max-width: 100%;
   }
 
   .tenant-header-logo {
