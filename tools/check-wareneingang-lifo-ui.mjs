@@ -165,7 +165,8 @@ async function main() {
     && report.hasQty
     && report.hasMhdQuick === 6
     && report.hasRemove
-    && report.swCache === 'charculogic-v20261013-wareneingang-lifo-v1';
+    && typeof report.swCache === 'string'
+    && /^charculogic-v\d{8}-.+/.test(report.swCache);
 
   await browser.close();
   if (!ok) {

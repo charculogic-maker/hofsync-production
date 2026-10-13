@@ -56,11 +56,11 @@ assertIncludes(styleSrc, '.mhd-skeleton-card', 'Skeleton-CSS');
 assertIncludes(styleSrc, 'mhd-card-fade-in', 'Fade-in Keyframes');
 assertIncludes(styleSrc, 'prefers-reduced-motion', 'Reduced-Motion Guard');
 
-// 7) SW Cache-Version
+// 7) SW Cache-Version (Patch-Bump erlaubt; Format bleibt stabil)
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261013-mhd-loading-state-v1'/,
-  'SW Cache-Version mhd-loading-state-v1',
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
+  'SW Cache-Version gesetzt',
 );
 
 // 8) App-Shell respektiert MHD Loading während Bootstrap

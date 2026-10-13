@@ -4,7 +4,7 @@ const DEFAULT_BRANDING = {  appName: 'HofSync',
   logoUrl: '/icon-192.png',
   primaryColor: '#0284c7',
   primaryColorHover: '#0369a1',
-  darkHeaderBg: '#0c4a6e',
+  darkHeaderBg: '#1c130e',
   textOnHeader: '#ffffff',
   accentAlert: '#dc3545',
   lightBg: '#f1f5f9',
@@ -153,13 +153,14 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
   try {
     const manifestEl = document.getElementById('pwa-manifest');
     if (!manifestEl) return;
+    const splashColor = branding.darkHeaderBg || '#1c130e';
     const manifestData = {
       name: branding.betriebsName || 'Betriebs-Leitstand',
       short_name: branding.appName || 'CharcuLogic',
       start_url: '.',
       display: 'standalone',
-      background_color: branding.lightBg || '#f8f9fa',
-      theme_color: branding.primaryColor || '#28a745',
+      background_color: splashColor,
+      theme_color: splashColor,
       icons: [
         { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -168,8 +169,17 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
     const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
     const manifestURL = URL.createObjectURL(blob);
     manifestEl.setAttribute('href', manifestURL);
-    const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.setAttribute('content', branding.primaryColor || '#28a745');
+    document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
+      themeMeta.setAttribute('content', splashColor);
+    });
+    try {
+      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(splashColor)) {
+        localStorage.setItem('charculogic_brand_bg', splashColor);
+      }
+      if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
+        localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
+      }
+    } catch (_) { /* private mode / blocked storage */ }
   } catch (err) {
     console.warn('[CharcuLogic Branding] PWA-Manifest konnte nicht gesetzt werden:', err);
   }
