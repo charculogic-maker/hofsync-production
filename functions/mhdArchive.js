@@ -74,6 +74,7 @@ function isZeroStockCandidate(data = {}) {
     return true;
   }
   if (data.soldOut === true) return true;
+  if (data.archived === true || data.active === false) return true;
   const status = String(data.status || '').trim().toLowerCase();
   return ZERO_STATUSES.has(status);
 }

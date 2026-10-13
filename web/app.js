@@ -3887,7 +3887,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261012-multi-mhd-accordion-v2')
+    navigator.serviceWorker.register('./sw.js?v=20261013-mhd-sync-status-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

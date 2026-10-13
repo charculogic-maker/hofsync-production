@@ -472,7 +472,11 @@ async function recordMhdMovement(partial = {}) {
 
 function pendingLooksLikeMovement(updates = {}) {
   return updates.qty != null
+    || updates.menge != null
     || updates.soldOut != null
+    || updates.archived != null
+    || updates.active != null
+    || updates.status != null
     || Boolean(updates.mhdActionStatus);
 }
 
@@ -519,6 +523,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'tage', 'resttage', 'status',
   'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
   'kategorie', 'warenKategorie', 'category', 'soldOut',
+  'archived', 'active', 'actionTimestamp', 'lastActionBy',
   'lot', 'chargenNummer', 'lieferant', 'temperatur',
   'erfassungsDatum', 'meisterOverrideReason',
   'vpeBarcode', 'vpeInhalt',
@@ -531,6 +536,81 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'retterBoxAngefragt', 'retterBoxAngefragtAt',
   'lieferungId',
 ]);
+
+/** Status values that must never appear in the active MHD checklist (Shared Store / CharcuLogicOS). */
+const MHD_INACTIVE_STATUSES = new Set([
+  'raus',
+  'ausverkauft',
+  'abgeschrieben',
+  'rausgenommen',
+  'sold_out',
+  'disposed',
+]);
+
+/**
+ * Firestore data contract for zero-stock bookings (Raus / Ausverkauft / Menge 0).
+ * Keeps HofSync and CharcuLogicOS filters aligned on menge/status/archived/active.
+ * @param {'raus'|'ausverkauft'} kind
+ * @param {{ actor?: string, includeLastActionBy?: boolean }} [options]
+ */
+function buildMhdZeroStockContract(kind, options = {}) {
+  const nowIso = new Date().toISOString();
+  const actor = String(options.actor || getAuditActorName() || '').trim();
+  const status = kind === 'raus' ? 'raus' : 'ausverkauft';
+  const online = {
+    menge: 0,
+    qty: 0,
+    status,
+    archived: true,
+    active: false,
+    soldOut: true,
+    actionTimestamp: serverTimestampFallback(),
+    mhdActionStatus: kind === 'raus' ? 'rausgenommen' : 'ausverkauft',
+  };
+  const queued = {
+    ...online,
+    actionTimestamp: nowIso,
+  };
+  if (options.includeLastActionBy !== false && actor) {
+    online.lastActionBy = actor;
+    online.lastModifiedBy = actor;
+    queued.lastActionBy = actor;
+    queued.lastModifiedBy = actor;
+  }
+  return { online, queued, status, actor, nowIso };
+}
+
+/** Active checklist must never render zero/archived/inactive/closed statuses. */
+function isInactiveMhdChecklistDoc(data = {}) {
+  if (mhdItemQuantity(data) <= 0) return true;
+  if (data.archived === true) return true;
+  if (data.active === false) return true;
+  if (data.soldOut === true) return true;
+  const status = String(data.status || '').trim().toLowerCase();
+  return MHD_INACTIVE_STATUSES.has(status);
+}
+
+function isActiveMhdChecklistItem(data = {}) {
+  return !isInactiveMhdChecklistDoc(data);
+}
+
+function buildMhdActiveRestoreFields(options = {}) {
+  const actor = String(options.actor || getAuditActorName() || '').trim();
+  const fields = {
+    archived: false,
+    active: true,
+    soldOut: false,
+    status: 'aktiv',
+    actionTimestamp: options.useServerTimestamp === false
+      ? new Date().toISOString()
+      : serverTimestampFallback(),
+  };
+  if (actor) {
+    fields.lastActionBy = actor;
+    fields.lastModifiedBy = actor;
+  }
+  return fields;
+}
 
 const DELIVERY_WRITE_FIELDS = new Set([
   'id', 'lieferant', 'warenKategorie', 'temperatur',
@@ -743,7 +823,10 @@ function filterMhdProductsByMonitorScope(products, { includeSearch = true } = {}
   const query = includeSearch ? mhdState.searchQuery.trim() : '';
   if (query && isEanSearchQuery(query)) {
     const ean = cleanScannedBarcode(query);
-    return products.filter((prod) => !prod.soldOut && getProductBarcode(prod) === ean);
+    return products.filter((prod) => {
+      if (!mhdState.showZeroQty && isInactiveMhdChecklistDoc(prod)) return false;
+      return getProductBarcode(prod) === ean;
+    });
   }
   const groupFilter = mhdState.categoryFilter || 'mopro';
   return products.filter((prod) => {
@@ -1114,10 +1197,10 @@ function buildMhdActionUpdates(actionStatus) {
     lastMhdCheckAt: nowIso,
   };
   if (actionStatus === 'rausgenommen') {
-    updates.soldOut = true;
-    updates.qty = 0;
-    queuedUpdates.soldOut = true;
-    queuedUpdates.qty = 0;
+    // Shared-Store-Vertrag: menge=0, status=raus, archived/active + Audit-Felder
+    const zeroStock = buildMhdZeroStockContract('raus');
+    Object.assign(updates, zeroStock.online);
+    Object.assign(queuedUpdates, zeroStock.queued);
   }
   if (actionStatus === 'reduziert') {
     updates.rabattiert = true;
@@ -3102,8 +3185,8 @@ function isMhdActionWindow(prod) {
 }
 
 function matchesMhdMonitorHorizon(prod) {
-  const qty = mhdItemQuantity(prod);
-  if (prod.soldOut && !(mhdState.showZeroQty && qty <= 0)) return false;
+  // Ohne 0er/Archiv-Filter: inaktive Posten (Raus/Ausverkauft/archiviert) nie in der Prüfliste.
+  if (!mhdState.showZeroQty && isInactiveMhdChecklistDoc(prod)) return false;
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
   const group = getMhdMonitorGroup(prod);
@@ -3129,7 +3212,8 @@ function filterMhdProducts(products) {
     ? filterMhdProductsByMonitorScope(products, { includeSearch: true })
     : filterMhdProductsByMonitorScope(products).filter((prod) => matchesMhdCompletionFilter(prod));
   if (mhdState.showZeroQty) return scoped;
-  return scoped.filter((prod) => mhdItemQuantity(prod) > 0);
+  // Aktive Prüfliste: nie menge<=0, archived, active=false oder Raus/Ausverkauft/Abgeschrieben.
+  return scoped.filter((prod) => isActiveMhdChecklistItem(prod));
 }
 
 function countZeroQtyInHorizon(products = mhdState.products) {
@@ -3702,8 +3786,13 @@ function mapMhdDoc(doc) {
     name: data.name,
     produkt: data.produkt,
   });
+  const rawStatus = String(data.status || '').trim().toLowerCase();
+  const keepBookedStatus = data.soldOut === true
+    || data.archived === true
+    || data.active === false
+    || MHD_INACTIVE_STATUSES.has(rawStatus);
   let status = data.status;
-  if (!data.soldOut && Number.isFinite(Number(tage))) {
+  if (!keepBookedStatus && Number.isFinite(Number(tage))) {
     const actionKey = resolveMhdActionKey(category, tage, {
       ...data,
       kategorie: category,
@@ -3721,11 +3810,14 @@ function mapMhdDoc(doc) {
     brand: sanitizeProductName(data.marke || data.brand || ''),
     marke: sanitizeProductName(data.marke || data.brand || ''),
     qty: data.qty ?? data.menge ?? 0,
+    menge: data.menge ?? data.qty ?? 0,
     tage,
     status: status || 'ok',
     mhdText: data.mhdText || (tage != null ? `${tage} Resttage` : ''),
     kategorie: data.kategorie || '',
-    soldOut: data.soldOut ?? false
+    soldOut: data.soldOut ?? false,
+    archived: data.archived === true,
+    active: data.active !== false,
   };
 }
 
@@ -3771,10 +3863,9 @@ function buildMhdLoadingHtml() {
 
 function isAusverkauftMhdDoc(data = {}) {
   if (data.soldOut === true) return true;
+  if (data.archived === true || data.active === false) return true;
   const status = String(data.status || '').toLowerCase();
-  return status === 'ausverkauft'
-    || status === 'sold_out'
-    || status === 'disposed';
+  return MHD_INACTIVE_STATUSES.has(status);
 }
 
 function mergeMhdDocsById(...docLists) {
@@ -3909,7 +4000,7 @@ function loadMhdFromCloud() {
   const applyInStock = () => {
     const mapped = mergeMhdDocsById(
       ...inStockSnaps.filter(Boolean).map((snapshot) => (snapshot.docs || []).map(mapMhdDoc)),
-    ).filter((item) => mhdItemQuantity(item) > 0 && !isAusverkauftMhdDoc(item));
+    ).filter((item) => isActiveMhdChecklistItem(item));
     mhdState.inStockProducts = mapped;
     mergeMhdLiveProducts();
     renderMhdList();
@@ -4240,10 +4331,8 @@ function mhdItemQuantity(item) {
 }
 
 function isOpenMhdBatch(item) {
-  if (!item || item.soldOut) return false;
-  const status = String(item.status || '').toLowerCase();
-  if (status === 'disposed' || status === 'sold_out') return false;
-  return mhdItemQuantity(item) > 0;
+  if (!item) return false;
+  return isActiveMhdChecklistItem(item);
 }
 
 function batchExpiryStamp(item) {
@@ -4784,8 +4873,11 @@ async function restoreMhdQuantity(id, quantity, options = {}) {
     soldOut: options.soldOut === true ? true : false,
   };
   if (options.clearSoldOutStatus) {
-    updates.status = 'aktiv';
+    Object.assign(updates, buildMhdActiveRestoreFields({ actor, useServerTimestamp: false }));
     updates.mhdActionStatus = 'geprueft';
+    updates.soldOut = false;
+  } else if (quantity <= 0) {
+    Object.assign(updates, buildMhdZeroStockContract('ausverkauft', { actor }).queued);
   }
   const audited = withHiddenAudit(updates);
   try {
@@ -4800,9 +4892,10 @@ async function restoreMhdQuantity(id, quantity, options = {}) {
     if (idx >= 0) {
       mhdState.products[idx] = {
         ...mhdState.products[idx],
+        ...updates,
         qty: quantity,
         menge: quantity,
-        soldOut: false,
+        soldOut: options.clearSoldOutStatus ? false : (quantity <= 0 || options.soldOut === true),
         previousQuantity,
         lastModifiedBy: actor || 'unbekannt',
       };
@@ -4842,12 +4935,19 @@ async function saveMhdCardQty(id, newQty) {
   if (newQty === previousQuantity) return;
 
   const actor = getAuditActorName();
-  const audited = withHiddenAudit({
+  const baseUpdates = {
     qty: newQty,
     menge: newQty,
     previousQuantity,
     lastModifiedBy: actor || 'unbekannt',
-  });
+  };
+  if (newQty === 0) {
+    Object.assign(baseUpdates, buildMhdZeroStockContract('ausverkauft', { actor }).queued);
+  } else if (previousQuantity <= 0 || isInactiveMhdChecklistDoc(prod)) {
+    Object.assign(baseUpdates, buildMhdActiveRestoreFields({ actor, useServerTimestamp: false }));
+    baseUpdates.mhdActionStatus = 'geprueft';
+  }
+  const audited = withHiddenAudit(baseUpdates);
 
   try {
     await mhdState.writeOrQueueFirestore({
@@ -4861,6 +4961,7 @@ async function saveMhdCardQty(id, newQty) {
     if (idx >= 0) {
       mhdState.products[idx] = {
         ...mhdState.products[idx],
+        ...baseUpdates,
         qty: newQty,
         menge: newQty,
         previousQuantity,
@@ -4898,6 +4999,17 @@ function adjustQty(id, change, options = {}) {
   if (newQty === currentQty) return false;
   if (!options.fromRepeat) {
     mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
+  }
+  if (newQty === 0) {
+    const actor = getAuditActorName();
+    const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
+    stageMhdChange(id, {
+      ...zeroStock.queued,
+      previousQuantity: currentQty,
+      lastModifiedBy: actor || 'unbekannt',
+    });
+    if (currentQty > 0) armZeroQtyUndo(prod, currentQty);
+    return true;
   }
   stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
   return true;
@@ -4994,13 +5106,11 @@ function commitMhdQtyFromNumpad() {
   mhdState.playClickSound?.(900, 0.06, 0.14);
   if (newQty === 0) {
     const actor = getAuditActorName();
+    const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
     stageMhdChange(id, {
-      soldOut: true,
-      qty: 0,
-      menge: 0,
+      ...zeroStock.queued,
       previousQuantity: currentQty,
       lastModifiedBy: actor || 'unbekannt',
-      status: 'sold_out',
     });
     if (currentQty > 0) armZeroQtyUndo(prod, currentQty);
     return;
@@ -5121,19 +5231,26 @@ async function setSoldOut(id) {
   if (!prod) return;
 
   const previousQuantity = mhdItemQuantity(prod);
-  const newSoldOut = !prod.soldOut;
+  const currentlyInactive = isInactiveMhdChecklistDoc(prod) || prod.soldOut === true;
+  const newSoldOut = !currentlyInactive;
   const actor = getAuditActorName();
-  const updates = {
-    soldOut: newSoldOut,
-    qty: newSoldOut ? 0 : Math.max(1, previousQuantity || 1),
-    menge: newSoldOut ? 0 : Math.max(1, previousQuantity || 1),
-    previousQuantity,
-    lastModifiedBy: actor || 'unbekannt',
-  };
-  if (!newSoldOut) {
-    updates.status = 'aktiv';
+  let updates;
+  if (newSoldOut) {
+    const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
+    updates = {
+      ...zeroStock.queued,
+      previousQuantity,
+      lastModifiedBy: actor || 'unbekannt',
+    };
   } else {
-    updates.status = 'sold_out';
+    updates = {
+      ...buildMhdActiveRestoreFields({ actor, useServerTimestamp: false }),
+      qty: Math.max(1, previousQuantity || 1),
+      menge: Math.max(1, previousQuantity || 1),
+      previousQuantity,
+      lastModifiedBy: actor || 'unbekannt',
+      mhdActionStatus: 'geprueft',
+    };
   }
   mhdState.playClickSound(400, 0.08, 0.2);
   stageMhdChange(id, updates);
