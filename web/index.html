@@ -200,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261013-mobile-nav-cleanup-v1">
+  <link rel="stylesheet" href="/style.css?v=20261013-recipes-theke-v1">
 </head>
 <body>
 
@@ -1491,9 +1491,15 @@
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
+            <section class="theke-recipes-intro" id="theke-recipes-intro" aria-label="Theken-Auskunft">
+              <p class="theke-recipes-kicker">Theken-Auskunft</p>
+              <h2 class="theke-recipes-title">Rezepturen nachschlagen</h2>
+              <p class="theke-recipes-lead">Zutaten, Gewürze, Allergene und Haltbarkeit blitzschnell für Kundenfragen finden.</p>
+            </section>
+
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
-              <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
+              <details class="kitchen-collapsible kitchen-recipe-create-panel kitchen-production-zone hidden" id="kitchen-recipe-create-panel" hidden>
                 <summary>Neues Rezept anlegen</summary>
                 <form class="recipe-create-form" id="recipe-create-form" onsubmit="return false;">
                   <label class="form-label" for="recipe-create-name">Name</label>
@@ -1513,19 +1519,41 @@
                   </button>
                 </form>
               </details>
-              <div class="recipe-toolbar">
-                <input type="search" class="input-text-touch recipe-search-input" id="recipe-search-input" placeholder="🔍 Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
+              <div class="recipe-toolbar theke-recipe-toolbar">
+                <div class="recipe-search-panel">
+                  <input
+                    type="search"
+                    class="input-text-touch recipe-search-input"
+                    id="recipe-search-input"
+                    placeholder="Rezept oder Zutat suchen..."
+                    aria-label="Rezept oder Zutat suchen"
+                    autocomplete="off"
+                  >
+                  <button type="button" class="recipe-search-clear" id="recipe-search-clear" hidden aria-label="Suche leeren">×</button>
+                </div>
+                <div class="recipe-quick-filter" id="recipe-quick-filter" role="group" aria-label="Schnellfilter für die Theke">
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="galloway" aria-pressed="false">Galloway Rind</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="bratwurst" aria-pressed="false">Bratwurst</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="schinken" aria-pressed="false">Schinken</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="allergenfrei" aria-pressed="false">Allergenfrei</button>
+                </div>
                 <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
                   <span class="recipe-filter-button-label" id="recipe-category-filter-label">Alle Kategorien</span>
                   <span class="recipe-filter-button-icon" aria-hidden="true">▾</span>
                 </button>
               </div>
               <div class="recipe-list" id="recipe-list-container">
-                <!-- Recipes list rendered dynamically by app.js -->
+                <!-- Recipes list rendered dynamically by production.js / rezepte.js -->
               </div>
             </details>
 
-            <details class="kitchen-collapsible" id="kitchen-wrs-panel">
+            <div class="kitchen-production-mode-bar" id="kitchen-production-mode-bar">
+              <button type="button" class="btn btn-secondary kitchen-production-mode-toggle" id="btn-kitchen-production-mode" aria-pressed="false">
+                Produktions-Modus einblenden
+              </button>
+            </div>
+
+            <details class="kitchen-collapsible kitchen-production-zone" id="kitchen-wrs-panel">
               <summary>WRS Kalkulation</summary>
               <section class="wrs-board" id="wrs-board" aria-labelledby="wrs-title">
                 <div class="wrs-board-header">
