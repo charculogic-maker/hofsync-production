@@ -75,21 +75,21 @@ Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Kart
 
 Im Modus **Laden** sammeln wir Posten in einer Lieferung. Oben wählen wir den **Lieferant**. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
 
-Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Nach einem erfolgreichen Scan werden Barcode und Menge geleert, die **Kategorie (Laden)** bleibt erhalten.
+Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Bekannte Artikel landen sofort als **oberste Karte** in der Liste; der Scanner bleibt für den nächsten Scan bereit. Menge und MHD korrigieren wir direkt auf der Karte (Nummernpad bzw. +3/+7/+14 Tage).
 
 Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
 2. **Lieferant** wählen (z. B. Weiling).
 3. **MoPro** auswählen.
-4. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
-5. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
+4. Artikel scannen — bekannte EAN erscheint oben in der Liste; Menge/MHD bei Bedarf auf der Karte anpassen.
+5. Den nächsten MoPro-Artikel scannen (kein Scrollen nach unten nötig).
 6. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
 7. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
 Fehlt der Lieferant beim Abschließen, erscheint ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird gebucht.
 
-Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
+Unbekannte EANs legen wir weiterhin manuell an. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 

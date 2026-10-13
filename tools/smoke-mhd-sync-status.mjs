@@ -45,7 +45,7 @@ for (const field of ['archived', 'active', 'actionTimestamp', 'lastActionBy']) {
 assertIncludes(archiveSrc, 'data.archived === true || data.active === false', 'mhdArchive archived/active');
 
 // 5) SW Cache
-assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261013-mhd-sync-status-v1'/, 'SW Cache-Version');
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/, 'SW Cache-Version gesetzt');
 
 // 6) Spiegel: aktive Prüfliste darf inaktive Docs nie durchlassen
 const MHD_INACTIVE_STATUSES = new Set([

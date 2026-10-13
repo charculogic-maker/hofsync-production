@@ -31,9 +31,8 @@ assertIncludes(receivingSrc, 'data-item-mhd-add', 'MHD Schnelltasten');
 assertIncludes(receivingSrc, 'data-item-mhd-edit', 'MHD Direktauswahl');
 assertIncludes(receivingSrc, 'data-item-remove', 'Löschen-Button');
 assertIncludes(receivingSrc, 'openReceivingQtyNumpad', 'Touch-Nummernpad');
-assertIncludes(receivingSrc, '+3 Tage', 'MHD +3');
-assertIncludes(receivingSrc, '+7 Tage', 'MHD +7');
-assertIncludes(receivingSrc, '+14 Tage', 'MHD +14');
+assertIncludes(receivingSrc, 'MHD_QUICK_DAYS = [3, 7, 14]', 'MHD Schnell-Tage');
+assertIncludes(receivingSrc, '+${days} Tage', 'MHD Schnelltasten Labels');
 assertIncludes(receivingSrc, '✕', 'Entfernen ✕');
 
 // 3) Flüssiger Scan-Flow
