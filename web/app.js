@@ -2050,7 +2050,6 @@ function applyBranding() {
   const branding = window.BRANDING || {};
   const appName = branding.appName || 'CharcuLogic';
   const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
-  const primaryColor = branding.primaryColor || '#28a745';
   const logoUrl = String(branding.logoUrl || branding.logo || '/icon-192.png').trim() || '/icon-192.png';
 
   applyBrandingCssVars(branding);
