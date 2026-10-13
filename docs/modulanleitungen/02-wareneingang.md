@@ -28,22 +28,21 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 1. Tab **Neu** → zuerst **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion)
 2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
-4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
-5. **Unbekannte EAN**: **Produktname** eintragen
+4. **Bekannte EAN**: Posten landet sofort als **oberste Karte** in der Liste (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit
+5. **Unbekannte EAN**: **Produktname** eintragen, Menge/MHD setzen und **➕ Posten hinzufügen**
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
-7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
-8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
-9. **💾 Gesamte Lieferung abschließen** — fehlt der Lieferant, erscheint ein Auswahl-Pop-up
-10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
-11. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
+7. Auf der Erfassungskarte korrigieren wir bei Bedarf **Menge** (Tap → Nummernpad), **MHD** (+3/+7/+14 Tage oder Tap auf das Datum) oder entfernen den Posten mit **✕**
+8. **💾 Gesamte Lieferung abschließen** — fehlt der Lieferant, erscheint ein Auswahl-Pop-up
+9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
+10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
 ### Kategorie bei Serien-Scans
 
-Die ausgewählte Laden-Kategorie bleibt nach **Posten hinzufügen** für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
+Die ausgewählte Laden-Kategorie bleibt für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
 
 Die Kategorie kann jederzeit geändert werden — sie gilt für den nächsten Posten.
 
-Das MHD-Feld ist nach jedem hinzugefügten Posten wieder leer. So können wir das nächste Datum direkt eintippen, ohne vorher ein altes Datum zu löschen.
+Jeder neue Posten erscheint **oben** in der Liste (zuletzt gescannt zuerst), damit wir beim Auspacken nicht nach unten scrollen müssen.
 
 ### Letzte Eingänge korrigieren
 
@@ -63,14 +62,15 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 - Barcode ins **grüne Feld** halten (ca. 15–25 cm Abstand)
 - Unten: **Eintippen** → Barcode manuell → **OK**
-- Scan im Tab **Neu** füllt nur den aktuellen Posten
+- Bekannte Artikel werden sofort eingebucht; der Scanner bleibt für den Serien-Scan offen
+- Unbekannte Artikel wechseln in die manuelle Erfassung
 
 ### Posten erkannt
 
 ![EAN erkannt und Posten in der Lieferung](./screenshots/02c-posten-erkannt.png)
 
-- Grüne Zeile **Erkannt:** nach bekannter EAN
-- Liste darunter: bereits hinzugefügte Posten (mit **×** entfernen)
+- Bekannte EAN: Quittungston und neue Karte ganz oben
+- Auf der Karte: Menge tippen, MHD mit +3/+7/+14 anpassen oder Posten mit **✕** entfernen
 
 ---
 

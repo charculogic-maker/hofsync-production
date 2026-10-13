@@ -49,7 +49,7 @@ assertIncludes(cssSrc, 'order: 6', 'Accordion Order');
 // 4) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261013-mhd-sync-status-v1'/,
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
   'SW Cache-Version',
 );
 

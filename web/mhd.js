@@ -15,6 +15,16 @@ import {
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { bindDeliveryReconcileMain, loadCatalogEanIndex, lookupCatalogEan } from './delivery-reconciliation.js';
+import {
+  buildReceivingItemCardHtml,
+  closeReceivingMhdEditor,
+  closeReceivingQtyNumpad,
+  openReceivingItemMhdEditor,
+  openReceivingQtyNumpad,
+  shiftIsoDateByDays,
+  sortDeliveryItemsLifo,
+  suggestReceivingMhd,
+} from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
@@ -363,6 +373,8 @@ const mhdState = {
   isFirebaseReady: () => false,
   openScanner: () => {},
   closeScanner: () => {},
+  resumeScannerListening: () => {},
+  isScannerOverlayOpen: () => false,
   onFormSaved: () => {},
   restoreDraftFields: () => 0,
   terminalEmployeeName: '',
@@ -2536,6 +2548,7 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
   const actor = await resolveInventoryActorForScan();
   if (!actor) {
     mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
+    mhdState.closeScanner?.({ preserveScanState: true });
     return;
   }
   recordInventoryProfileActivity();
@@ -2543,11 +2556,29 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
     renderReceivingStatus({ status: 'Test-Barcode ignoriert' });
+    if (source === 'camera' && mhdState.isScannerOverlayOpen?.()) {
+      mhdState.resumeScannerListening?.(700);
+    }
     return;
   }
+
+  const keepScannerOpen = source === 'camera' && Boolean(mhdState.isScannerOverlayOpen?.());
+  const autoAdded = tryAutoAddScannedDeliveryItem(scannedCode, { fromScan: true });
+  if (autoAdded) {
+    if (keepScannerOpen) {
+      mhdState.resumeScannerListening?.(900);
+      setScannerStatus('Posten erfasst – nächsten Barcode halten.');
+    } else {
+      mhdState.closeScanner?.({ preserveScanState: true });
+    }
+    return;
+  }
+
   mhdState.closeScanner?.({ preserveScanState: true });
   applyBarcodeToDeliveryItemDraft(scannedCode);
-  document.getElementById('we-qty')?.focus();
+  document.getElementById('we-qty')?.focus()
+    || document.getElementById('we-mhd')?.focus()
+    || document.getElementById('we-product-name')?.focus();
 }
 
 async function processScannedBarcode(decodedText, source = 'camera') {
@@ -6704,21 +6735,13 @@ function renderDeliveryItemsTable() {
     table.innerHTML = '<div class="we-items-table-empty">Noch keine Posten in dieser Lieferung.</div>';
     return;
   }
-  table.innerHTML = currentDeliveryItems.map((item) => {
-    const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
-    const brandMeta = brandLabel
-      ? `${escapeHtml(brandLabel.toUpperCase())} · `
-      : '';
-    return `
-    <div class="we-item-row" data-item-id="${escapeHtml(item.id)}">
-      <div class="we-item-row-main">
-        <div class="we-item-row-name">${escapeHtml(item.product)}</div>
-        <div class="we-item-row-meta">${item.qtyValue ?? item.qtyKg} ${(item.qtyUnit || 'kg')} · ${brandMeta}MHD ${escapeHtml(formatMhdLabel(item.mhdDate))}${item.barcode ? ` · EAN ${escapeHtml(item.barcode)}` : ''}</div>
-      </div>
-      <button type="button" class="we-item-row-remove" data-item-remove="${escapeHtml(item.id)}" aria-label="Posten entfernen">×</button>
-    </div>
-  `;
-  }).join('');
+  const lifoItems = sortDeliveryItemsLifo(currentDeliveryItems);
+  table.innerHTML = lifoItems.map((item) => buildReceivingItemCardHtml(item)).join('');
+  const newest = table.querySelector('.we-item-card');
+  if (newest) {
+    newest.classList.add('we-item-card--newest');
+    newest.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function formatMhdLabel(mhdDate) {
@@ -6800,7 +6823,8 @@ async function addDeliveryItem() {
     ? crypto.randomUUID()
     : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  currentDeliveryItems.push({
+  // LIFO: neuer Posten sofort an Position 1 (kein Scrollen nach unten).
+  currentDeliveryItems.unshift({
     id: itemId,
     product,
     barcode,
@@ -6812,14 +6836,116 @@ async function addDeliveryItem() {
     // Legacy-Feld fuer bestehende Auswertungen weiter mitschreiben.
     qtyKg: qtyUnit === 'Stk' ? Math.max(1, Math.round(qtyValue)) : Math.round(qtyValue * 100) / 100,
     mhdDate,
+    addedAt: Date.now(),
   });
 
   clearDeliveryItemFields();
   renderDeliveryItemsTable();
   updateReceivingSaveButtonState();
   persistDeliveryDraftToIndexedDB();
+  mhdState.playFeedbackSound?.('success');
   mhdState.playClickSound(1200, 0.05, 0.12);
   window.showToast?.('Posten zur Lieferung hinzugefügt.', 'success');
+}
+
+/**
+ * Bekannte EAN sofort als oberste Karte einbuchen (optimistisch, lokal).
+ * Unbekannte EANs / fehlende Kategorie → false (Formular-Flow).
+ */
+function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
+  const code = cleanScannedBarcode(barcode);
+  if (!code) return false;
+  const info = lookupScannedProduct(code);
+  if (!info?.name) return false;
+
+  let category = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
+  if (!category && info.category) {
+    const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
+    const categorySelect = document.getElementById('we-category-quick');
+    if (mappedCategory && categorySelect) {
+      const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
+      if (hasOption) {
+        categorySelect.value = mappedCategory;
+        rememberReceivingHeadCategory(mappedCategory);
+        updateReceivingQtyFieldUi();
+        category = mappedCategory;
+      }
+    }
+  }
+  if (!category) {
+    if (fromScan) {
+      window.showToast?.('Bitte zuerst eine Kategorie wählen – dann scannen wir weiter.', 'warning');
+    }
+    return false;
+  }
+
+  rememberReceivingHeadCategory(category);
+  const qtyUnit = getReceivingQtyUnitFromCategory(category);
+  const packageSize = info.isVpe && Number(info.packageSize) > 1
+    ? Math.max(1, Number(info.packageSize))
+    : 1;
+  const qtyValue = qtyUnit === 'Stk'
+    ? Math.max(1, Math.round(packageSize))
+    : Math.round(packageSize * 100) / 100;
+  const suggestion = suggestReceivingMhd(info.name, category, mhdState.products || []);
+  const mhdDate = suggestion?.mhdIso || shiftIsoDateByDays(new Date().toISOString().slice(0, 10), 7);
+  if (!mhdDate) return false;
+
+  const herstellerZusatz = String(info.brand || '').trim();
+  const itemId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  currentDeliveryItems.unshift({
+    id: itemId,
+    product: String(info.name).trim(),
+    barcode: code,
+    brand: herstellerZusatz,
+    marke: herstellerZusatz,
+    herstellerZusatz,
+    qtyValue,
+    qtyUnit,
+    qtyKg: qtyValue,
+    mhdDate,
+    addedAt: Date.now(),
+    mhdQuelle: suggestion?.quelle || 'standard',
+  });
+
+  currentDeliveryItemBarcode = '';
+  currentDeliveryItemProduct = '';
+  const eanEl = document.getElementById('we-ean');
+  const productNameEl = document.getElementById('we-product-name');
+  const herstellerEl = document.getElementById('we-hersteller-zusatz');
+  const qtyEl = document.getElementById('we-qty');
+  const mhdEl = document.getElementById('we-mhd');
+  if (eanEl) eanEl.value = '';
+  if (productNameEl) productNameEl.value = '';
+  if (herstellerEl) herstellerEl.value = '';
+  if (qtyEl) qtyEl.value = '';
+  if (mhdEl) setGermanDateField(mhdEl, '');
+  applyLastReceivingHeadCategory();
+  updateDeliveryItemProductUi();
+
+  renderDeliveryItemsTable();
+  updateReceivingSaveButtonState();
+  persistDeliveryDraftToIndexedDB();
+  renderReceivingStatus({ lastScan: code, status: 'Posten erfasst' });
+  mhdState.playFeedbackSound?.('success');
+  mhdState.playClickSound?.(1300, 0.06, 0.14);
+  const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
+  window.showToast?.(
+    `${info.name}: ${qtyHint} · MHD ${formatReceivingMhdLabelSafe(mhdDate)} – oben in der Liste.`,
+    'success',
+  );
+  return true;
+}
+
+function formatReceivingMhdLabelSafe(mhdDate) {
+  try {
+    return formatMhdLabel(mhdDate);
+  } catch {
+    return String(mhdDate || '–');
+  }
 }
 
 function removeDeliveryItem(itemId) {
@@ -7684,16 +7810,21 @@ function bindReceivingControls() {
   bindReceivingModeSwitch();
   const btnEanApply = document.getElementById('we-ean-apply');
   const eanInput = document.getElementById('we-ean');
+  const applyEanOrAutoAdd = (raw) => {
+    const code = cleanScannedBarcode(raw);
+    if (code && tryAutoAddScannedDeliveryItem(code, { fromScan: false })) return;
+    applyBarcodeToDeliveryItemDraft(raw || '');
+  };
   if (btnEanApply && btnEanApply.dataset.mhdBound !== '1') {
     btnEanApply.dataset.mhdBound = '1';
-    btnEanApply.addEventListener('click', () => applyBarcodeToDeliveryItemDraft(eanInput?.value || ''));
+    btnEanApply.addEventListener('click', () => applyEanOrAutoAdd(eanInput?.value || ''));
   }
   if (eanInput && eanInput.dataset.mhdBound !== '1') {
     eanInput.dataset.mhdBound = '1';
     eanInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        applyBarcodeToDeliveryItemDraft(eanInput.value);
+        applyEanOrAutoAdd(eanInput.value);
       }
     });
   }
@@ -7812,8 +7943,51 @@ function bindReceivingControls() {
   if (itemsTable && itemsTable.dataset.mhdBound !== '1') {
     itemsTable.dataset.mhdBound = '1';
     itemsTable.addEventListener('click', (event) => {
-      const itemId = event.target.closest('[data-item-remove]')?.dataset.itemRemove;
-      if (itemId) removeDeliveryItem(itemId);
+      const removeId = event.target.closest('[data-item-remove]')?.dataset.itemRemove;
+      if (removeId) {
+        removeDeliveryItem(removeId);
+        mhdState.playClickSound?.(700, 0.04, 0.1);
+        return;
+      }
+      const qtyEditId = event.target.closest('[data-item-qty-edit]')?.dataset.itemQtyEdit;
+      if (qtyEditId) {
+        const item = currentDeliveryItems.find((row) => row.id === qtyEditId);
+        if (!item) return;
+        openReceivingQtyNumpad(item, {
+          onConfirm: (id, qty) => {
+            if (adjustCurrentDeliveryItemQuantity(id, qty)) {
+              window.showToast?.('Menge aktualisiert.', 'success');
+            }
+          },
+          playClick: (...args) => mhdState.playClickSound?.(...args),
+        });
+        return;
+      }
+      const mhdAddBtn = event.target.closest('[data-item-mhd-add]');
+      if (mhdAddBtn) {
+        const itemId = mhdAddBtn.dataset.itemId;
+        const days = Number(mhdAddBtn.dataset.itemMhdAdd);
+        if (itemId && Number.isFinite(days) && days > 0) {
+          if (adjustCurrentDeliveryItemMhdByDays(itemId, days)) {
+            mhdState.playClickSound?.(1100, 0.04, 0.12);
+            window.showToast?.(`MHD um ${days} Tage verlängert.`, 'success');
+          }
+        }
+        return;
+      }
+      const mhdEditId = event.target.closest('[data-item-mhd-edit]')?.dataset.itemMhdEdit;
+      if (mhdEditId) {
+        const item = currentDeliveryItems.find((row) => row.id === mhdEditId);
+        if (!item) return;
+        openReceivingItemMhdEditor(item, {
+          onConfirm: (id, iso) => {
+            if (setCurrentDeliveryItemMhd(id, iso)) {
+              mhdState.playClickSound?.(1000, 0.05, 0.12);
+              window.showToast?.('MHD aktualisiert.', 'success');
+            }
+          },
+        });
+      }
     });
   }
   if (btnSaveDelivery && btnSaveDelivery.dataset.mhdBound !== '1') {
@@ -7980,6 +8154,8 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.isFirebaseReady = uiCallbacks.isFirebaseReady || mhdState.isFirebaseReady;
   mhdState.openScanner = uiCallbacks.scannerAPI?.openScanner || mhdState.openScanner;
   mhdState.closeScanner = uiCallbacks.scannerAPI?.closeScanner || mhdState.closeScanner;
+  mhdState.resumeScannerListening = uiCallbacks.scannerAPI?.resumeScannerListening || mhdState.resumeScannerListening;
+  mhdState.isScannerOverlayOpen = uiCallbacks.scannerAPI?.isScannerOverlayOpen || mhdState.isScannerOverlayOpen;
   mhdState.onFormSaved = typeof uiCallbacks.onFormSaved === 'function' ? uiCallbacks.onFormSaved : mhdState.onFormSaved;
   mhdState.restoreDraftFields = typeof uiCallbacks.restoreDraftFields === 'function' ? uiCallbacks.restoreDraftFields : mhdState.restoreDraftFields;
   mhdState.terminalEmployeeName = String(uiCallbacks.terminalEmployeeName || mhdState.terminalEmployeeName || '').trim();
@@ -8116,10 +8292,33 @@ function adjustCurrentDeliveryItemQuantity(itemId, quantity) {
   return true;
 }
 
+function setCurrentDeliveryItemMhd(itemId, isoDate) {
+  const iso = parseGermanDateToIso(isoDate) || String(isoDate || '').slice(0, 10);
+  if (!itemId || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const item = currentDeliveryItems.find((row) => row.id === itemId);
+  if (!item) return false;
+  item.mhdDate = iso;
+  renderDeliveryItemsTable();
+  updateReceivingSaveButtonState();
+  persistDeliveryDraftToIndexedDB();
+  return true;
+}
+
+function adjustCurrentDeliveryItemMhdByDays(itemId, days) {
+  const item = currentDeliveryItems.find((row) => row.id === itemId);
+  if (!item) return false;
+  const base = item.mhdDate || new Date().toISOString().slice(0, 10);
+  const next = shiftIsoDateByDays(base, days);
+  if (!next) return false;
+  return setCurrentDeliveryItemMhd(itemId, next);
+}
+
 export {
   checkMhdAnomaly,
   finalizeDelivery,
   adjustCurrentDeliveryItemQuantity,
+  adjustCurrentDeliveryItemMhdByDays,
+  setCurrentDeliveryItemMhd,
   getCurrentDeliveryItems,
   importMhdBestandToCloud,
   loadMhdFromCloud,
@@ -8132,4 +8331,6 @@ export {
   bindMhdSaveBarViewportSync,
   closeMhdQtyNumpad,
   openMhdQtyNumpad,
+  closeReceivingQtyNumpad,
+  closeReceivingMhdEditor,
 };
