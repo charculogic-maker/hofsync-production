@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-const mod = await import(pathToFileURL(path.resolve('web/delivery-reconcile.js')).href);
+const mod = await import(pathToFileURL(path.resolve('legacy/delivery-reconcile.js')).href);
 const { articlesLikelyMatch, reconcileDeliveryNote, normalizeArticleKey } = mod;
 
 describe('delivery-reconcile', () => {

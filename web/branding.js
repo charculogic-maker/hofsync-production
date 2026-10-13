@@ -27,7 +27,7 @@ const DEFAULT_BRANDING = {  appName: 'HofSync',
     chargenDoku: true,
     employeePin: true,
     employeeAuth: 'pin',
-    deliveryParser: true,
+    deliveryParser: false,
   },
 };
 

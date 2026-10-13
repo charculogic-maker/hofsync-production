@@ -276,7 +276,7 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 | Element | Sichtbarkeit |
 |---------|----------------|
 | `#btn-recent-receipts` (**Letzte Eingänge**) | Alle Nutzer mit Tab **Neu** (kein `isOfficeUser`) |
-| `#btn-master-data`, `#btn-delivery-note-ai`, `#office-tools-panel` | Nur `isOfficeUser()` |
+| `#btn-master-data`, `#office-tools-panel` | Nur `isOfficeUser()` |
 | `#btn-office-recent-receipts` | Büro-Panel (zusätzlich, gleiche Funktion `showRecentReceipts()` in `web/mhd.js`) |
 
 Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte Eingänge**.

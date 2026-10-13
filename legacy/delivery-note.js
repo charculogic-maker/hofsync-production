@@ -3,8 +3,8 @@
  * Posten gehen in die generische MHD-Liste, nicht in eine mandantenspezifische Bestandssammlung.
  */
 
-import { getAuthContext } from './auth.js';
-import { logAndMapOperatorError } from './operator-errors.js';
+import { getAuthContext } from '../web/auth.js';
+import { logAndMapOperatorError } from '../web/operator-errors.js';
 import {
   analyzeDeliveryNoteFile,
   isAllowedDeliveryFile,

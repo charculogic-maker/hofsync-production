@@ -1,5 +1,5 @@
 # [T O R | F A B R I K]
-## 🏭 BEDIENUNGSANLEITUNG: GROSSPRODUKTION & OCR
+## 🏭 BEDIENUNGSANLEITUNG: GROSSPRODUKTION & WARENEINGANG
 ***
 > **Mandant:** `TorFabrik_Werk_Nord` | **Primärfarbe:** `#0F172A` (Schwarz) | **Akzent:** `#1565C0` (Blau)
 ***
@@ -10,7 +10,7 @@
 **Mandant:** `torfabrik`  
 **App-Anzeige:** CenterLogic (grüner Akzent, gelber Header)
 
-CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteuerung ausgelegt. Diese Anleitung fokussiert die drei Säulen eures Betriebs: **Wareneingang mit KI-Lieferschein**, **Teamboard ohne Bereichs-Chaos** und **lückenlose Dokumentation** entlang der Produktionskette.
+CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteuerung ausgelegt. Diese Anleitung fokussiert die drei Säulen eures Betriebs: **Wareneingang per Barcode-Scan**, **Teamboard ohne Bereichs-Chaos** und **lückenlose Dokumentation** entlang der Produktionskette.
 
 **Weitere Dokumentation:** [Kollegen-Walkthrough](../KOLLEGEN_ANLEITUNG_TORFABRIK.md) · [Modulanleitungen](../modulanleitungen/README.md)
 
@@ -25,7 +25,7 @@ CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteu
 | **Herkunft / Thekenklade** | Tab **Herkunft** + Admin **/dev-dashboard → Rückverfolgbarkeit** (`enabledModules.traceability`) |
 | **Standard-Ansicht Aufgaben** | **„Alle meine Bereiche“** — Theke, Küche & Events, Halle auf einen Blick |
 | **Betriebsbereiche** | Theke · Küche & Events · Halle · Allgemein |
-| **KI-Lieferschein** | Tab **Neu** → Metro / Jakob Bayen |
+| **Wareneingang** | Tab **Neu** → Barcode-Serien-Scan (Metro / Jakob Bayen) |
 
 > **Datenisolation:** Alle Einträge liegen ausschließlich unter `tenants/torfabrik/…`. Andere CenterLogic-Mandanten sehen eure Bestände, Aufgaben und Lieferscheine **nicht** — auch nicht bei gemeinsam genutzter Hardware.
 
@@ -53,11 +53,9 @@ Für laufende Produktion und Events:
 
 **Doppelklick-Schutz:** Während ein Protokoll gespeichert wird, blockiert die App parallele Schreibversuche — ein versehentliches Doppeltippen erzeugt **keine doppelte Charge**.
 
-### 2.2 Inventar aus Lieferscheinen (skalierte Erfassung)
+### 2.2 Inventar über Barcode-Wareneingang
 
-Große Lieferungen (Metro, Jakob Bayen) werden nicht Position für Position getippt, sondern über den **KI-Lieferschein** (siehe Kapitel 3) in `inventory` überführt. Das ist eure **skalierte Wareneingangs-Dokumentation** — geeignet für hohe Postenanzahlen pro Lieferschein.
-
-Fehlkategorien nach dem Laden-Scan: Tab **Neu** → **Letzte Eingänge** (für alle Mitarbeiter mit Tab **Neu**, nicht für die reine Firebase-Rolle `helper`).
+Große Lieferungen (Metro, Jakob Bayen) erfassen wir im Tab **Neu** per **Barcode-Serien-Scan** (siehe Kapitel 3). Fehlkategorien nach dem Laden-Scan: Tab **Neu** → **Letzte Eingänge** (für alle Mitarbeiter mit Tab **Neu**, nicht für die reine Firebase-Rolle `helper`).
 
 ### 2.3 Büro — Chargen & Rückverfolgung
 
@@ -72,47 +70,18 @@ Fehlkategorien nach dem Laden-Scan: Tab **Neu** → **Letzte Eingänge** (für a
 
 ---
 
-## 3. Digitaler Lieferschein — OCR-Workflow
+## 3. Wareneingang — Barcode-Serien-Scan
 
-Der **KI-Lieferschein** wandelt Papier-Lieferscheine in strukturierte Bestandspositionen um.
+Der operative Wareneingang läuft über den **Barcode-Serien-Scan** im Tab **Neu** (LIFO-Karten, Mengen-/MHD-Korrektur). Der frühere KI-Lieferschein-/OCR-Flow ist in der Laden-PWA deaktiviert und für eine spätere Büro-Lösung archiviert.
 
-### 3.1 Voraussetzungen
-
-- Betriebs-Login (E-Mail) aktiv
-- Mitarbeiter unter **Start** per PIN angemeldet
-- **WLAN** für die KI-Analyse (Offline-Scan speichert lokal, die Erkennung braucht Verbindung)
-- Rolle **keine reine Aushilfe** (`helper`) für den KI-Button
-
-### 3.2 Schritt-für-Schritt
+### 3.1 Ablauf
 
 | Schritt | Aktion |
 |---------|--------|
-| 1 | Tab **Neu** → **📸 Lieferschein scannen (KI)** |
-| 2 | Foto aufnehmen oder Bild aus Galerie wählen (gute Beleuchtung, vollständiger Schein) |
-| 3 | Warten — Button ist während der Analyse **gesperrt** (kein Doppel-Scan) |
-| 4 | **Vorschau-Tabelle** prüfen: Artikel · Menge · Kategorie |
-| 5 | Fehler in der Tabelle **manuell korrigieren** |
-| 6 | **In Bestand speichern** — Positionen gehen nach `tenants/torfabrik/inventory` |
-
-### 3.3 Fehler abfangen — ohne Panik
-
-Die App zeigt **verständliche deutsche Meldungen**, keine technischen Fehlercodes:
-
-| Meldung (Beispiel) | Was tun? |
-|--------------------|----------|
-| *KI-Analyse fehlgeschlagen …* | Foto wiederholen (schärfer, gerader, weniger Schatten) |
-| *Aktion nicht erlaubt …* | Betriebs-Login / Rolle prüfen — Admin kontaktieren |
-| *Netzwerkfehler …* | WLAN prüfen, erneut versuchen |
-| Vorschau unvollständig | Fehlende Zeilen **manuell in der Tabelle ergänzen** vor dem Speichern |
-
-**Speicher-Schutz:** Auch **In Bestand speichern** ist gegen Doppeltippen abgesichert — parallele Speichervorgänge werden blockiert.
-
-### 3.4 Qualitäts-Checkliste vor dem Speichern
-
-- [ ] Lieferant/Kategorie passt (Metro vs. Jakob Bayen)
-- [ ] Mengen plausibel (Dezimalzahlen mit Komma oder Punkt)
-- [ ] Keine leeren Artikelzeilen
-- [ ] Stichprobe: 3 Positionen mit Papier-Lieferschein verglichen
+| 1 | Tab **Neu** → Kategorie wählen (Metro / Jakob Bayen) |
+| 2 | Artikel nacheinander per Barcode scannen |
+| 3 | Menge und MHD auf der Karte prüfen/korrigieren |
+| 4 | Lieferung abschließen |
 
 ---
 
@@ -165,7 +134,7 @@ Nutzer mit Rolle **`helper`** sehen nur **Start** und **MHD** — kein Team, kei
 ```
 06:30  Start (PIN) → MHD ALARM → HACCP Temperaturen
        ↓
-08:00  Lieferung Metro → Neu → KI-Lieferschein → Vorschau → Bestand
+08:00  Lieferung Metro → Neu → Barcode-Scan → Lieferung abschließen
        ↓
 tagsüber  Teamboard: Aufgaben quittieren · Infos an Küche/Theke
        ↓

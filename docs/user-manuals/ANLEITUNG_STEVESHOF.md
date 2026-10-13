@@ -107,17 +107,9 @@ Offline speichert unsere App den Eintrag lokal und synchronisiert ihn bei WLAN. 
 
 Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [modulanleitungen/07-herkunft.md](../modulanleitungen/07-herkunft.md)
 
-### Lieferschein per Foto oder PDF (KI-Wareneingang)
+### Wareneingang per Barcode (Tab Neu)
 
-Im Tab **Neu** (Modus **Laden**) gleichen wir den Lieferschein mit den gescannten Posten ab:
-
-1. Artikel per **Barcode scannen** zur Lieferung hinzufügen.
-2. **📄 Lieferschein hochladen** oder **📸 Lieferschein scannen (KI)**.
-3. Der **Lieferschein-Abgleich** zeigt fehlende, extra und mengenabweichende Artikel.
-4. Mit **Abgleich aktualisieren** nach weiteren Scans erneut prüfen.
-5. Optional fehlende LS-Artikel in den Bestand übernehmen.
-
-**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
+Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
