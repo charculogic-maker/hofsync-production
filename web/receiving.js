@@ -41,7 +41,7 @@ export const METZ_DEFAULT_CATEGORY = 'Lohnschlachtung Rind';
 
 /**
  * Warengruppen für Fleisch- und Schlachtbetriebe (Metzgerei-Tab).
- * StevesHof: eigene Galloways + eigene Weidehühner, keine Schweine.
+ * StevesHof: eigene Galloways + Weidehühner; Bio-Schwein nur als Zukauf.
  */
 export const METZ_RECEIVING_CATEGORIES = [
   {
@@ -53,8 +53,12 @@ export const METZ_RECEIVING_CATEGORIES = [
     label: '🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)',
   },
   {
-    value: 'Zukauffleisch (Fremdbezug)',
-    label: 'Zukauffleisch (Fremdbezug)',
+    value: 'Bio-Schwein Zukauf',
+    label: '🐷 Bio-Schwein Zukauf (Hälften / Ganze / Teilstücke)',
+  },
+  {
+    value: 'Zukauffleisch Rind/Kalb (Fremdbezug)',
+    label: 'Zukauffleisch Rind/Kalb (Fremdbezug)',
   },
   {
     value: 'Geflügel Zukauf (Fremdbezug)',
@@ -63,6 +67,21 @@ export const METZ_RECEIVING_CATEGORIES = [
   { value: 'Wurst Zukauf', label: 'Wurst Zukauf' },
   { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
 ];
+
+/** Standard-Lieferanten für Metzgerei / Bio-Fleisch (StevesHof). */
+export const METZ_DEFAULT_SUPPLIERS = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Bio Hof Frohnenbruch',
+  'Eigener Wareneingang',
+  'Großhandel',
+]);
+
+export const BIO_SCHWEIN_DELIVERY_TYPES = Object.freeze([
+  { value: 'Haelften', label: 'Hälften' },
+  { value: 'Ganze Tiere', label: 'Ganze Tiere' },
+  { value: 'Teilstuecke', label: 'Teilstücke' },
+]);
 
 export function isLohnschlachtungRindCategory(category = '') {
   return /lohnschlachtung\s*rind/i.test(String(category || ''));
@@ -74,6 +93,13 @@ export function isLohnschlachtungGefluegelCategory(category = '') {
     || /lohnschlachtung\s*h(ü|ue)hner/i.test(raw);
 }
 
+export function isBioSchweinZukaufCategory(category = '') {
+  const normalized = normalizeCategoryText(category);
+  return normalized.includes('bio schwein')
+    || normalized.includes('bioschwein')
+    || (normalized.includes('schwein') && normalized.includes('zukauf'));
+}
+
 export function isMetzMeatTemperatureCategory(category = '') {
   const normalized = normalizeCategoryText(category);
   if (!normalized) return false;
@@ -82,6 +108,7 @@ export function isMetzMeatTemperatureCategory(category = '') {
     || normalized.includes('zukauffleisch')
     || normalized.includes('fremd')
     || normalized.includes('gefluegel')
+    || normalized.includes('schwein')
     || normalized.includes('wurst zukauf')
     || /\brind\b/.test(normalized)
     || /\bfleisch\b/.test(normalized);
@@ -165,9 +192,16 @@ export function resolveMetzTraceLot({
 export function normalizeMetzReceivingCategory(category = '') {
   const raw = String(category || '').trim();
   if (!raw) return METZ_DEFAULT_CATEGORY;
-  if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') return 'Zukauffleisch (Fremdbezug)';
+  if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') {
+    return 'Zukauffleisch Rind/Kalb (Fremdbezug)';
+  }
+  if (/^zukauffleisch(\s*\(fremdbezug\))?$/i.test(raw)) {
+    return 'Zukauffleisch Rind/Kalb (Fremdbezug)';
+  }
   if (/gew(ü|ue)rze\s*metzgerei/i.test(raw)) return 'Gewürze & Hilfsstoffe';
-  if (/lohnschlachtung\s*schwein/i.test(raw)) return METZ_DEFAULT_CATEGORY;
+  if (/lohnschlachtung\s*schwein/i.test(raw) || /^schwein/i.test(raw)) {
+    return 'Bio-Schwein Zukauf';
+  }
   if (/^gefl(ü|ue)gel\s*zukauf$/i.test(raw)) return 'Geflügel Zukauf (Fremdbezug)';
   const known = METZ_RECEIVING_CATEGORIES.find((entry) => entry.value === raw);
   return known ? known.value : raw;

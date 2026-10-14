@@ -7,9 +7,11 @@
  */
 
 export const NEUTRAL_SUPPLIERS = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Bio Hof Frohnenbruch',
   'Eigener Wareneingang',
   'Großhandel',
-  'Lieferant 1',
 ]);
 
 export const NEUTRAL_TEAM = Object.freeze(['Mitarbeiter 1', 'Mitarbeiter 2']);

@@ -22,6 +22,7 @@ import {
   formatHaccpMeatTempWarning,
   getHaccpTempLimitForCategory,
   inferReceivingCategoryFromProductName,
+  isBioSchweinZukaufCategory,
   isLohnschlachtungGefluegelCategory,
   isLohnschlachtungRindCategory,
   isMetzMeatTemperatureCategory,
@@ -132,6 +133,8 @@ const RECEIVING_FORM_IDS = [
   'we-ohrmarke',
   'we-schlachtgewicht',
   'we-stueck-kisten',
+  'we-lieferschein-nr',
+  'we-gesamtgewicht',
   'we-ean',
   'we-product-name',
   'we-hersteller-zusatz',
@@ -142,9 +145,11 @@ const RECEIVING_FORM_IDS = [
 
 const SUPPLIER_SELECT_SONSTIGE = '__sonstige__';
 const NEUTRAL_SUPPLIER_OPTIONS = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Bio Hof Frohnenbruch',
   'Eigener Wareneingang',
   'Großhandel',
-  'Lieferant 1',
 ]);
 
 function currentSupplierOptions() {
@@ -646,7 +651,8 @@ function buildMhdActiveRestoreFields(options = {}) {
 const DELIVERY_WRITE_FIELDS = new Set([
   'id', 'lieferant', 'warenKategorie', 'warenKategorieMetzgerei', 'temperatur',
   'klassifizierung', 'schlachtDatum', 'ohrmarke', 'schlachtgewichtKg',
-  'stueckKisten', 'lot', 'chargenNummer',
+  'stueckKisten', 'lieferscheinNr', 'lieferungsArt', 'gesamtgewichtKg',
+  'lot', 'chargenNummer',
   'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
   'fotos', 'items', 'itemCount',
   'source', 'scannedBy', 'tenantId',
@@ -6893,6 +6899,7 @@ function readDeliveryHeadValues() {
   const temperatur = getReceivingTemperatureValue();
   const isRind = isLohnschlachtungRindCategory(warenKategorieMetzgerei);
   const isPoultry = isLohnschlachtungGefluegelCategory(warenKategorieMetzgerei);
+  const isPork = isBioSchweinZukaufCategory(warenKategorieMetzgerei);
   const ohrmarke = String(document.getElementById('we-ohrmarke')?.value || '').trim();
   const klassifizierung = String(document.getElementById('we-klassifizierung')?.value || '').trim();
   const schlachtDatum = isRind
@@ -6906,6 +6913,15 @@ function readDeliveryHeadValues() {
     : null;
   const schlachtgewichtKg = Number.isFinite(schlachtgewichtParsed) ? schlachtgewichtParsed : null;
   const stueckKisten = String(document.getElementById('we-stueck-kisten')?.value || '').trim();
+  const lieferscheinNr = String(document.getElementById('we-lieferschein-nr')?.value || '').trim();
+  const lieferungsArt = isPork
+    ? (document.querySelector('input[name="we-pork-delivery-type"]:checked')?.value || '')
+    : '';
+  const gesamtgewichtRaw = String(document.getElementById('we-gesamtgewicht')?.value || '').trim();
+  const gesamtgewichtParsed = gesamtgewichtRaw
+    ? Number.parseFloat(gesamtgewichtRaw.replace(',', '.'))
+    : null;
+  const gesamtgewichtKg = Number.isFinite(gesamtgewichtParsed) ? gesamtgewichtParsed : null;
   const lot = resolveMetzTraceLot({
     category: warenKategorieMetzgerei,
     ohrmarke,
@@ -6922,6 +6938,9 @@ function readDeliveryHeadValues() {
     schlachtDatum,
     schlachtgewichtKg,
     stueckKisten,
+    lieferscheinNr,
+    lieferungsArt,
+    gesamtgewichtKg,
     lot,
   };
 }
@@ -7191,15 +7210,32 @@ function updateMetzLotPreviewUi() {
     : `LOT / Charge (automatisch): ${lot}`;
 }
 
+function clearPorkDeliveryTypeSelection() {
+  document.querySelectorAll('input[name="we-pork-delivery-type"]').forEach((input) => {
+    input.checked = false;
+  });
+}
+
+function setPorkDeliveryTypeSelection(value = '') {
+  clearPorkDeliveryTypeSelection();
+  const matched = document.querySelector(
+    `input[name="we-pork-delivery-type"][value="${CSS.escape(String(value || ''))}"]`,
+  );
+  if (matched) matched.checked = true;
+}
+
 function updateMetzSlaughterExtraFieldsUi() {
   try {
     const category = document.getElementById('we-category')?.value || '';
     const rindWrap = document.getElementById('we-slaughter-rind-fields');
     const poultryWrap = document.getElementById('we-slaughter-poultry-fields');
+    const porkWrap = document.getElementById('we-slaughter-pork-fields');
     const showRind = isLohnschlachtungRindCategory(category);
     const showPoultry = isLohnschlachtungGefluegelCategory(category);
+    const showPork = isBioSchweinZukaufCategory(category);
     if (rindWrap) rindWrap.hidden = !showRind;
     if (poultryWrap) poultryWrap.hidden = !showPoultry;
+    if (porkWrap) porkWrap.hidden = !showPork;
     ensureSchlachtDatumDefaults();
     if (!showRind) {
       const klassifizierung = document.getElementById('we-klassifizierung');
@@ -7212,6 +7248,13 @@ function updateMetzSlaughterExtraFieldsUi() {
     if (!showPoultry) {
       const stueck = document.getElementById('we-stueck-kisten');
       if (stueck) stueck.value = '';
+    }
+    if (!showPork) {
+      const lieferschein = document.getElementById('we-lieferschein-nr');
+      const gesamtgewicht = document.getElementById('we-gesamtgewicht');
+      if (lieferschein) lieferschein.value = '';
+      if (gesamtgewicht) gesamtgewicht.value = '';
+      clearPorkDeliveryTypeSelection();
     }
     updateMetzLotPreviewUi();
     updateMetzTemperatureLabelUi();
@@ -7237,7 +7280,8 @@ function updateMetzTemperatureWarnUi() {
     updateMetzTemperatureLabelUi();
     const applies = isMetzMeatTemperatureCategory(category)
       || isLohnschlachtungRindCategory(category)
-      || isLohnschlachtungGefluegelCategory(category);
+      || isLohnschlachtungGefluegelCategory(category)
+      || isBioSchweinZukaufCategory(category);
     const tempValue = readTemperatureFromInput(metz);
     const warning = applies && tempValue != null && !Number.isNaN(tempValue)
       ? formatHaccpMeatTempWarning(tempValue, category)
@@ -7386,6 +7430,17 @@ async function loadDeliveryDraftFromIndexedDB() {
       }
       if (stueckRestore && payload.head.stueckKisten != null) {
         stueckRestore.value = String(payload.head.stueckKisten || '');
+      }
+      const lieferscheinRestore = document.getElementById('we-lieferschein-nr');
+      const gesamtgewichtRestore = document.getElementById('we-gesamtgewicht');
+      if (lieferscheinRestore && payload.head.lieferscheinNr != null) {
+        lieferscheinRestore.value = String(payload.head.lieferscheinNr || '');
+      }
+      if (gesamtgewichtRestore && payload.head.gesamtgewichtKg != null) {
+        gesamtgewichtRestore.value = String(payload.head.gesamtgewichtKg);
+      }
+      if (payload.head.lieferungsArt) {
+        setPorkDeliveryTypeSelection(payload.head.lieferungsArt);
       }
       updateMetzSlaughterExtraFieldsUi();
       updateMetzTemperatureWarnUi();
@@ -7980,6 +8035,13 @@ function buildDeliveryBundlePayload(head, {
     if (head.schlachtDatum) bundle.schlachtDatum = head.schlachtDatum;
     if (head.stueckKisten) bundle.stueckKisten = head.stueckKisten;
   }
+  if (isBioSchweinZukaufCategory(metzCategory)) {
+    if (head.lieferscheinNr) bundle.lieferscheinNr = head.lieferscheinNr;
+    if (head.lieferungsArt) bundle.lieferungsArt = head.lieferungsArt;
+    if (head.gesamtgewichtKg != null && Number.isFinite(head.gesamtgewichtKg)) {
+      bundle.gesamtgewichtKg = head.gesamtgewichtKg;
+    }
+  }
   if (!bundle.tenantId) {
     delete bundle.tenantId;
   }
@@ -8082,6 +8144,15 @@ function openDraftForEditing(draft) {
     poultryDateEl.value = draft.schlachtDatum || defaultSchlachtDatumIso();
   }
   if (stueckEl) stueckEl.value = draft.stueckKisten || '';
+  const lieferscheinEl = document.getElementById('we-lieferschein-nr');
+  const gesamtgewichtEl = document.getElementById('we-gesamtgewicht');
+  if (lieferscheinEl) lieferscheinEl.value = draft.lieferscheinNr || '';
+  if (gesamtgewichtEl) {
+    gesamtgewichtEl.value = draft.gesamtgewichtKg != null && Number.isFinite(Number(draft.gesamtgewichtKg))
+      ? String(draft.gesamtgewichtKg)
+      : '';
+  }
+  setPorkDeliveryTypeSelection(draft.lieferungsArt || '');
   updateMetzSlaughterExtraFieldsUi();
   if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
     setReceivingTemperatureValue(draft.temperatur);
@@ -8246,6 +8317,8 @@ function resetReceivingForm() {
     'we-ohrmarke': '',
     'we-schlachtgewicht': '',
     'we-stueck-kisten': '',
+    'we-lieferschein-nr': '',
+    'we-gesamtgewicht': '',
     'we-schlachtdatum-rind': defaultSchlachtDatumIso(),
     'we-schlachtdatum-poultry': defaultSchlachtDatumIso(),
   };
@@ -8253,6 +8326,7 @@ function resetReceivingForm() {
     const el = document.getElementById(id);
     if (el) el.value = value;
   });
+  clearPorkDeliveryTypeSelection();
   syncSupplierCustomFieldVisibility();
   setReceivingTemperatureValue('');
   applyLastReceivingHeadCategory();
@@ -8724,6 +8798,18 @@ function bindReceivingControls() {
     field.addEventListener('input', updateMetzLotPreviewUi);
     field.addEventListener('change', updateMetzLotPreviewUi);
   });
+  const porkTypeGroup = document.querySelector('.receiving-pork-type-options');
+  if (porkTypeGroup && porkTypeGroup.dataset.mhdPorkTypeBound !== '1') {
+    porkTypeGroup.dataset.mhdPorkTypeBound = '1';
+    porkTypeGroup.addEventListener('change', (event) => {
+      if (!event.target?.matches?.('input[name="we-pork-delivery-type"]')) return;
+      porkTypeGroup.querySelectorAll('.receiving-pork-type-option').forEach((label) => {
+        const input = label.querySelector('input');
+        label.classList.toggle('is-selected', Boolean(input?.checked));
+      });
+      updateReceivingSaveButtonState();
+    });
+  }
   ensureKaeseThekeQtyToggle();
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';
