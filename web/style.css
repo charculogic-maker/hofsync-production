@@ -5028,10 +5028,43 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   display: none !important;
 }
 
+.receiving-slaughter-fields--rind {
+  grid-template-columns: 1fr;
+}
+
 @media (min-width: 520px) {
-  .receiving-slaughter-fields {
-    grid-template-columns: 1.2fr 0.8fr;
+  .receiving-slaughter-fields--rind {
+    grid-template-columns: 1.1fr 0.9fr;
   }
+
+  .receiving-slaughter-fields--poultry {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.receiving-optional-hint {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+.receiving-lot-preview {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.receiving-lot-preview[hidden] {
+  display: none !important;
 }
 
 .receiving-temp-warn {
