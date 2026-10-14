@@ -94,6 +94,11 @@
     }
     .sim-panel {
       backdrop-filter: blur(8px);
+      position: relative;
+      z-index: 95; /* über Checkout-Modals, damit das Team Zeiten live testen kann */
+    }
+    header {
+      z-index: 90;
     }
     #toast-host .toast {
       animation: toast-in 0.28s ease both;
@@ -107,7 +112,7 @@
 <body class="antialiased">
   <a href="#katalog" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:bg-white focus:px-3 focus:py-2 focus:rounded-lg">Zum Sortiment springen</a>
 
-  <header class="sticky top-0 z-40 border-b border-hof-sand/80 bg-[#f7f4ee]/90 backdrop-blur-md">
+  <header class="sticky top-0 z-[90] border-b border-hof-sand/80 bg-[#f7f4ee]/90 backdrop-blur-md">
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div class="min-w-0">
         <p class="font-display text-2xl leading-none text-hof-pine sm:text-3xl">StevesHof</p>
@@ -199,16 +204,16 @@
         </div>
         <button type="button" class="modal-close rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-cut" aria-label="Schließen">Schließen</button>
       </div>
-      <form id="cut-form" class="mt-4 space-y-4">
+      <form id="cut-form" class="mt-4 space-y-4" novalidate>
         <input type="hidden" id="cut-product-id" value="">
         <div class="grid grid-cols-2 gap-3">
           <div id="cut-pieces-wrap">
             <label for="cut-pieces" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Stückzahl</label>
-            <input id="cut-pieces" type="number" min="1" step="1" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+            <input id="cut-pieces" type="number" min="1" step="1" inputmode="numeric" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
           </div>
           <div id="cut-weight-wrap">
             <label for="cut-weight" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Gewicht (kg)</label>
-            <input id="cut-weight" type="number" min="0.1" step="0.1" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+            <input id="cut-weight" type="number" min="0.05" step="0.01" inputmode="decimal" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
           </div>
         </div>
         <div id="cut-options-wrap">
@@ -332,6 +337,8 @@
     import {
       ORDER_CATALOG,
       estimateLinePrice,
+      estimateUnitPrice,
+      resolvePricingType,
       formatEuro,
       findProductById,
       getAvailablePickupSlots,
@@ -370,6 +377,22 @@
 
     function now() {
       return state.simulatedNow ? new Date(state.simulatedNow.getTime()) : new Date();
+    }
+
+    /** datetime-local immer als lokale Wanduhrzeit lesen (kein UTC-Drift). */
+    function parseDatetimeLocal(value) {
+      const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (!match) return null;
+      const date = new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4]),
+        Number(match[5]),
+        0,
+        0,
+      );
+      return Number.isNaN(date.getTime()) ? null : date;
     }
 
     function showToast(message, type = 'info') {
@@ -462,14 +485,14 @@
             `;
           }
 
-          const pieceHint = product.estimatedPiecePrice
-            ? ` · ca. ${formatEuro(product.estimatedPiecePrice)} / Stück`
-            : product.typicalWeightKg && product.pricePerKg
-              ? ` · ca. ${formatEuro(product.typicalWeightKg * product.pricePerKg)}`
-              : '';
+          const unitPrice = estimateUnitPrice(product);
+          const pricingType = resolvePricingType(product);
+          const pieceHint = (pricingType === 'per_piece' && unitPrice > 0)
+            ? ` · ca. ${formatEuro(unitPrice)} / Stück`
+            : '';
           const priceLine = product.pricePerKg > 0
             ? `${formatEuro(product.pricePerKg)} / kg${pieceHint}`
-            : `${formatEuro(product.estimatedPiecePrice || 0)} / Stück`;
+            : `${formatEuro(unitPrice)} / Stück`;
 
           return `
             <article class="product-card flex flex-col rounded-2xl border border-hof-sand bg-white p-4">
@@ -511,14 +534,28 @@
       `).join('');
     }
 
+    function readCutSelection(product) {
+      const piecesInput = document.getElementById('cut-pieces');
+      const weightInput = document.getElementById('cut-weight');
+      const pieces = Math.max(1, Number(piecesInput.value) || product?.defaultPieces || 1);
+      const allowWeight = product?.allowWeight !== false;
+      const weightKg = allowWeight && !weightInput.disabled
+        ? (Number(weightInput.value) || 0)
+        : 0;
+      return { pieces, weightKg };
+    }
+
     function updateCutEstimate() {
       const product = findProductById(state.activeProductId);
       if (!product) return;
-      const pieces = Number(document.getElementById('cut-pieces').value) || 0;
-      const weightKg = Number(document.getElementById('cut-weight').value) || 0;
+      const { pieces, weightKg } = readCutSelection(product);
       const estimate = estimateLinePrice(product, { pieces, weightKg });
+      const unit = estimateUnitPrice(product);
+      const hint = resolvePricingType(product) === 'per_piece' && unit > 0
+        ? ` (${pieces}× ca. ${formatEuro(unit)})`
+        : '';
       document.getElementById('cut-estimate').textContent =
-        `Geschätzter Preis: ${formatEuro(estimate)} · Abrechnung nach Waage`;
+        `Geschätzter Preis: ${formatEuro(estimate)}${hint} · Abrechnung nach Waage`;
     }
 
     function openCutModal(productId) {
@@ -535,11 +572,18 @@
       const weightWrap = document.getElementById('cut-weight-wrap');
       const piecesInput = document.getElementById('cut-pieces');
       const weightInput = document.getElementById('cut-weight');
+      const showPieces = product.allowPieces !== false;
+      const showWeight = product.allowWeight !== false;
 
-      piecesWrap.classList.toggle('hidden', product.allowPieces === false);
-      weightWrap.classList.toggle('hidden', product.allowWeight === false);
+      piecesWrap.classList.toggle('hidden', !showPieces);
+      weightWrap.classList.toggle('hidden', !showWeight);
+      piecesInput.disabled = !showPieces;
+      // disabled = kein HTML5-Blocker, wenn das Gewichtsfeld für Stück-Artikel fehlt
+      weightInput.disabled = !showWeight;
       piecesInput.value = product.defaultPieces || 1;
-      weightInput.value = product.defaultWeightKg || product.typicalWeightKg || '';
+      weightInput.value = showWeight
+        ? (product.defaultWeightKg || (product.typicalWeightKg || 0) * (product.defaultPieces || 1) || '')
+        : '';
 
       const cutWrap = document.getElementById('cut-options-wrap');
       const vacWrap = document.getElementById('vacuum-options-wrap');
@@ -565,16 +609,29 @@
       const product = findProductById(state.activeProductId);
       if (!product) return;
 
-      const pieces = Number(document.getElementById('cut-pieces').value) || 1;
-      const weightKg = Number(document.getElementById('cut-weight').value) || 0;
+      const { pieces, weightKg } = readCutSelection(product);
+      if (product.allowPieces !== false && !(pieces >= 1)) {
+        showToast('Bitte eine Stückzahl angeben', 'error');
+        return;
+      }
+      if (product.allowWeight !== false && product.allowPieces === false && !(weightKg > 0)) {
+        showToast('Bitte ein Gewicht angeben', 'error');
+        return;
+      }
+
       const cutId = selectedRadio('cutOption');
       const vacuumId = selectedRadio('vacuumOption');
       const note = String(document.getElementById('cut-note').value || '').trim();
       const estimatedPrice = estimateLinePrice(product, { pieces, weightKg });
+      const estimatedWeightKg = product.allowWeight !== false && weightKg > 0
+        ? weightKg
+        : roundMoneyLike((Number(product.typicalWeightKg) || 0) * pieces);
 
       const parts = [];
       if (product.allowPieces !== false) parts.push(`${pieces}×`);
-      if (product.allowWeight !== false && weightKg > 0) parts.push(`ca. ${String(weightKg).replace('.', ',')} kg`);
+      if (estimatedWeightKg > 0) {
+        parts.push(`ca. ${String(estimatedWeightKg).replace('.', ',')} kg`);
+      }
       const cutLabel = labelForOption(product.cutOptions, cutId);
       const vacLabel = labelForOption(product.vacuumOptions, vacuumId);
       if (cutLabel) parts.push(cutLabel);
@@ -585,13 +642,14 @@
         productId: product.id,
         name: product.name,
         pieces,
-        weightKg,
+        weightKg: estimatedWeightKg,
         cutId,
         vacuumId,
         note,
         summary: parts.join(' · '),
         estimatedPrice,
         pricePerKg: product.pricePerKg || 0,
+        pricingType: resolvePricingType(product),
       });
 
       closeLayer(els.cutModal);
@@ -599,6 +657,10 @@
       showToast(`${product.name} liegt im Warenkorb`, 'success');
       openLayer(els.cartDrawer);
     });
+
+    function roundMoneyLike(value) {
+      return Math.round((Number(value) || 0) * 1000) / 1000;
+    }
 
     ['cut-pieces', 'cut-weight'].forEach((id) => {
       document.getElementById(id).addEventListener('input', updateCutEstimate);
@@ -704,8 +766,8 @@
     document.getElementById('btn-sim-apply').addEventListener('click', () => {
       const value = els.simDatetime.value;
       if (!value) return;
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) {
+      const parsed = parseDatetimeLocal(value);
+      if (!parsed) {
         showToast('Bitte gültigen Zeitpunkt wählen', 'error');
         return;
       }
