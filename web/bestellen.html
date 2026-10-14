@@ -120,6 +120,51 @@
     .drawer-footer {
       padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
     }
+    #drawer-cart aside {
+      width: min(100vw, 28rem);
+      max-width: 100%;
+    }
+    @media (max-width: 640px) {
+      #drawer-cart aside {
+        width: 100%;
+        max-width: 100%;
+        left: 0;
+        right: 0;
+      }
+      #drawer-cart .drawer-header,
+      #drawer-cart .drawer-footer {
+        position: sticky;
+        z-index: 2;
+        background: #fff;
+      }
+      #drawer-cart .drawer-header {
+        top: 0;
+      }
+      #drawer-cart .drawer-footer {
+        bottom: 0;
+      }
+      /* Zuschnitt-Modal: Absenden bleibt über der Safari-Leiste */
+      #modal-cut .cut-modal-panel {
+        max-height: min(92vh, 100dvh);
+        padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+      }
+      #modal-cut .cut-submit-bar {
+        position: sticky;
+        bottom: 0;
+        background: linear-gradient(180deg, rgba(255,255,255,0), #fff 28%);
+        padding-top: 0.75rem;
+        padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+      }
+    }
+    .cut-validation-error {
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 0.85rem;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
     .channel-toggle[aria-pressed="true"] {
       background: #1b3a2f;
       color: #fff;
@@ -279,13 +324,13 @@
 
   <!-- Zuschnitt-Modal: FOUC-sicher mit Inline display:none -->
   <div id="modal-cut" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cut-title">
-    <div class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
-      <div class="flex items-start justify-between gap-3">
+    <div class="cut-modal-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3" style="padding-top: max(0px, env(safe-area-inset-top, 0px));">
         <div>
           <p id="cut-category" class="text-xs font-semibold uppercase tracking-wide text-hof-copper"></p>
           <h3 id="cut-title" class="font-display text-2xl text-hof-pine">Zuschnitt</h3>
         </div>
-        <button type="button" class="modal-close rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-cut" aria-label="Schließen">Schließen</button>
+        <button type="button" class="drawer-close-x modal-close" data-close="modal-cut" aria-label="Schließen">✕</button>
       </div>
       <form id="cut-form" class="mt-4 space-y-4" novalidate>
         <input type="hidden" id="cut-product-id" value="">
@@ -317,7 +362,10 @@
           <textarea id="cut-note" rows="3" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Besonderer Wunsch …"></textarea>
         </div>
         <p id="cut-estimate" class="rounded-xl bg-hof-cream px-3 py-2 text-sm text-hof-pine"></p>
-        <button type="submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">In den Warenkorb</button>
+        <p id="cut-validation" class="cut-validation-error hidden" role="alert"></p>
+        <div class="cut-submit-bar">
+          <button type="submit" id="btn-cut-submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">In den Warenkorb</button>
+        </div>
       </form>
     </div>
   </div>
@@ -326,17 +374,17 @@
   <div id="drawer-cart" class="drawer-layer z-[85]" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cart-title">
     <button type="button" class="absolute inset-0 bg-black/45" data-close="drawer-cart" aria-label="Warenkorb schließen"></button>
     <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-soft">
-      <div class="drawer-header border-b border-hof-sand px-4 pb-3 sm:px-5">
+      <div class="drawer-header shrink-0 border-b border-hof-sand px-4 pb-3 sm:px-5">
         <div class="flex items-center justify-between gap-2 pt-3">
-          <button type="button" id="btn-cart-back" class="inline-flex min-h-[44px] items-center gap-1 rounded-xl px-2 text-sm font-semibold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">
+          <button type="button" id="btn-cart-back" class="inline-flex min-h-[44px] flex-1 items-center gap-1 rounded-xl px-2 text-left text-sm font-semibold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">
             ← Zurück zur Auswahl
           </button>
-          <button type="button" class="drawer-close-x" data-close="drawer-cart" aria-label="Warenkorb schließen">✕</button>
+          <button type="button" class="drawer-close-x shrink-0" data-close="drawer-cart" aria-label="Warenkorb schließen">✕</button>
         </div>
         <h3 id="cart-title" class="font-display mt-1 px-2 text-2xl text-hof-pine">Warenkorb</h3>
       </div>
-      <div id="cart-items" class="flex-1 overflow-y-auto px-5 py-4"></div>
-      <div class="drawer-footer border-t border-hof-sand px-5 pt-4">
+      <div id="cart-items" class="min-h-0 flex-1 overflow-y-auto px-5 py-4"></div>
+      <div class="drawer-footer shrink-0 border-t border-hof-sand px-5 pt-4">
         <div class="flex items-center justify-between text-sm">
           <span class="text-hof-muted">Geschätzte Summe</span>
           <strong id="cart-sum" class="text-lg text-hof-pine">0,00 €</strong>
@@ -396,6 +444,7 @@
           <div>
             <label for="customer-email" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">E-Mail</label>
             <input id="customer-email" type="email" autocomplete="email" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="name@beispiel.de">
+            <p class="mt-1 text-xs text-hof-muted">Für Rückfragen. Soft-Launch: noch keine automatische Bestätigungs-Mail.</p>
           </div>
         </div>
 
@@ -472,6 +521,7 @@
       findProductById,
       getVisibleCatalog,
       describeProductPrice,
+      validateCutSelection,
       isProductActive,
       isProductSoldOut,
       hasPromoPrice,
@@ -804,6 +854,7 @@
       if (!product) return;
       const pricingType = resolvePricingType(product);
       const { pieces, weightKg, packGrams } = readCutSelection(product);
+      const cutId = selectedRadio('cutOption');
       const estimate = estimateLinePrice(product, { pieces, weightKg, packGrams });
       let hint = '';
       if (pricingType === 'per_piece') {
@@ -815,6 +866,22 @@
       if (hasPromoPrice(product)) hint += ' · Aktion';
       document.getElementById('cut-estimate').textContent =
         `Geschätzter Preis: ${formatEuro(estimate)}${hint} · Abrechnung nach Waage`;
+
+      const validationEl = document.getElementById('cut-validation');
+      const submitBtn = document.getElementById('btn-cut-submit');
+      const validation = pricingType === 'slice_pack'
+        ? { ok: true }
+        : validateCutSelection(product, { pieces, weightKg, cutId });
+      if (validationEl) {
+        if (validation.ok) {
+          validationEl.classList.add('hidden');
+          validationEl.textContent = '';
+        } else {
+          validationEl.classList.remove('hidden');
+          validationEl.textContent = validation.message || 'Bitte Zuschnitt und Gewicht prüfen.';
+        }
+      }
+      if (submitBtn) submitBtn.disabled = !validation.ok;
     }
 
     function openCutModal(productId) {
@@ -915,6 +982,14 @@
       }
 
       const cutId = selectedRadio('cutOption');
+      if (pricingType !== 'slice_pack') {
+        const validation = validateCutSelection(product, { pieces, weightKg, cutId });
+        if (!validation.ok) {
+          updateCutEstimate();
+          showToast(validation.message || 'Bitte Zuschnitt und Gewicht prüfen', 'error');
+          return;
+        }
+      }
       const vacuumId = selectedRadio('vacuumOption');
       const note = String(document.getElementById('cut-note').value || '').trim();
       const estimatedPrice = estimateLinePrice(product, { pieces, weightKg, packGrams });
@@ -972,6 +1047,22 @@
     document.getElementById('cut-form').addEventListener('change', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
+      if (target.name === 'cutOption') {
+        const product = productById(state.activeProductId);
+        if (product?.allowWeight !== false) {
+          const pieces = Math.max(1, Number(document.getElementById('cut-pieces').value) || product.defaultPieces || 1);
+          const cut = (product.cutOptions || []).find((option) => option.id === target.value);
+          const minPer = Number(cut?.minWeightKgPerPiece) || 0;
+          const minTotal = Number(cut?.minTotalWeightKg) || 0;
+          const required = Math.max(minPer * pieces, minTotal);
+          const weightInput = document.getElementById('cut-weight');
+          const current = Number(weightInput.value) || 0;
+          if (required > 0 && current + 1e-9 < required) {
+            weightInput.value = String(Math.round(required * 100) / 100);
+            showToast(`Gewicht auf mind. ${String(required).replace('.', ',')} kg angepasst (${cut.label})`, 'info', 2800);
+          }
+        }
+      }
       if (target.name === 'packSize' || target.name === 'cutOption' || target.name === 'vacuumOption') {
         updateCutEstimate();
       }
@@ -1267,7 +1358,9 @@
 
       const channelLabel = state.channel === 'sb' ? 'SB-Kühlschrank' : 'Bedientheke';
       document.getElementById('confirm-body').textContent =
-        `${name}, wir bereiten deine Bestellung für ${day.label}, ${slot.label} (${channelLabel}) vor. Du bekommst eine SMS, sobald alles bereitsteht.`;
+        `${name}, deine Vorbestellung für ${day.label}, ${slot.label} (${channelLabel}) ist bei uns eingegangen. `
+        + `Bereitstellungs-Info kommt per SMS an ${phone}. `
+        + `Eine automatische Bestätigungs-E-Mail ist im Soft-Launch noch nicht aktiv – bitte die Referenz notieren.`;
       document.getElementById('confirm-ref').textContent = `Referenz: ${ref}`;
       openLayer(els.confirmModal);
       document.getElementById('checkout-form').reset();

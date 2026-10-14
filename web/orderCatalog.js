@@ -11,6 +11,8 @@
  * @property {string} id
  * @property {string} label
  * @property {string} [hint]
+ * @property {number} [minWeightKgPerPiece] Mindestgewicht je Stück (z. B. Männercut)
+ * @property {number} [minTotalWeightKg] Mindest-Gesamtgewicht der Position
  */
 
 /**
@@ -142,9 +144,24 @@ const SLICE_CUTS = [
 ];
 
 const STEAK_CUTS = [
-  { id: '2-5cm', label: 'Klassisch (~2,5 cm)' },
-  { id: '4cm', label: 'Männercut 4 cm' },
-  { id: 'am-stueck', label: 'Am Stück' },
+  {
+    id: '2-5cm',
+    label: 'Klassisch (~2,5 cm)',
+    minWeightKgPerPiece: 0.18,
+    hint: 'ab ca. 180 g je Steak',
+  },
+  {
+    id: '4cm',
+    label: 'Männercut 4 cm',
+    minWeightKgPerPiece: 0.55,
+    hint: 'mind. ca. 550 g je Steak – sonst zu schmal für 4 cm',
+  },
+  {
+    id: 'am-stueck',
+    label: 'Am Stück',
+    minTotalWeightKg: 0.7,
+    hint: 'ab ca. 700 g am Stück sinnvoll',
+  },
 ];
 
 const ROULADEN_CUTS = [
@@ -739,6 +756,67 @@ export function findProductById(productId, overrides = null) {
   return null;
 }
 
+/**
+ * Prüft, ob Stückzahl/Gewicht zum gewählten Zuschnitt passen (Metzgerei-Realität).
+ * @param {CatalogProduct|null|undefined} product
+ * @param {{ pieces?: number, weightKg?: number, cutId?: string }} selection
+ * @returns {{ ok: boolean, message?: string, minWeightKg?: number }}
+ */
+export function validateCutSelection(product, selection = {}) {
+  if (!product) return { ok: false, message: 'Artikel nicht gefunden.' };
+
+  const piecesRaw = Number(selection.pieces);
+  const pieces = Number.isFinite(piecesRaw) && piecesRaw > 0
+    ? piecesRaw
+    : (product.defaultPieces || 1);
+  const weightRaw = Number(selection.weightKg);
+  const hasWeight = Number.isFinite(weightRaw) && weightRaw > 0;
+  const cutId = String(selection.cutId || '').trim();
+  const cut = (product.cutOptions || []).find((option) => option.id === cutId) || null;
+
+  if (!cut) return { ok: true };
+
+  const minPerPiece = Number(cut.minWeightKgPerPiece) || 0;
+  const minTotal = Number(cut.minTotalWeightKg) || 0;
+
+  if (minPerPiece > 0) {
+    const requiredTotal = roundMoneyKg(minPerPiece * pieces);
+    const effectiveWeight = hasWeight
+      ? weightRaw
+      : roundMoneyKg((Number(product.typicalWeightKg) || 0) * pieces);
+
+    if (!(effectiveWeight + 1e-9 >= requiredTotal)) {
+      const perLabel = String(minPerPiece).replace('.', ',');
+      return {
+        ok: false,
+        minWeightKg: requiredTotal,
+        message: `„${cut.label}“ braucht mind. ca. ${perLabel} kg je Stück `
+          + `(bei ${pieces}× also ca. ${String(requiredTotal).replace('.', ',')} kg). `
+          + 'Sonst wird der Zuschnitt an der Theke zu schmal.',
+      };
+    }
+  }
+
+  if (minTotal > 0) {
+    const effectiveWeight = hasWeight
+      ? weightRaw
+      : roundMoneyKg((Number(product.typicalWeightKg) || 0) * pieces);
+    if (!(effectiveWeight + 1e-9 >= minTotal)) {
+      return {
+        ok: false,
+        minWeightKg: minTotal,
+        message: `„${cut.label}“ bitte ab ca. ${String(minTotal).replace('.', ',')} kg bestellen.`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+function roundMoneyKg(value) {
+  return Math.round((Number(value) || 0) * 1000) / 1000;
+}
+
 /** @param {unknown} raw */
 export function normalizeCatalogOverrides(raw) {
   if (!raw || typeof raw !== 'object') return {};
@@ -1146,6 +1224,7 @@ export default {
   getVisibleCatalog,
   getOrderableProducts,
   findProductById,
+  validateCutSelection,
   isProductActive,
   isProductSoldOut,
   hasPromoPrice,
