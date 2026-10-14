@@ -7952,10 +7952,10 @@ function openDraftForEditing(draft) {
   updateMetzSlaughterExtraFieldsUi();
   if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
     setReceivingTemperatureValue(draft.temperatur);
-  }
-  updateMetzTemperatureWarnUi(); else {
+  } else {
     setReceivingTemperatureValue('');
   }
+  updateMetzTemperatureWarnUi();
   updateReceivingTemperatureFieldUi();
 
   loadDraftPhotosFromBundle(draft.fotos);
