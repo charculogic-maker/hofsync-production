@@ -77,10 +77,48 @@
     }
     .cart-fab {
       animation: fab-in 0.45s ease both;
+      left: 1rem;
+      right: 1rem;
+      bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+      width: auto;
+      max-width: 36rem;
+      margin-inline: auto;
+      justify-content: space-between;
+      padding: 0.85rem 1rem;
+      border-radius: 1.1rem;
     }
     @keyframes fab-in {
       from { transform: translateY(16px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
+    }
+    .drawer-layer {
+      transition: opacity 0.2s ease;
+    }
+    .drawer-layer.is-open aside {
+      animation: drawer-in 0.28s ease both;
+    }
+    @keyframes drawer-in {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    .drawer-header {
+      padding-top: max(16px, env(safe-area-inset-top, 0px));
+    }
+    .drawer-close-x {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.85rem;
+      border: 1px solid #d6d3d1;
+      background: #fff;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: #44403c;
+    }
+    .drawer-footer {
+      padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
     }
     .channel-toggle[aria-pressed="true"] {
       background: #1b3a2f;
@@ -219,7 +257,7 @@
       </div>
     </section>
 
-    <section id="katalog" class="mx-auto max-w-6xl px-4 pb-28 pt-6">
+    <section id="katalog" class="mx-auto max-w-6xl px-4 pb-36 pt-6">
       <div class="mb-4">
         <h2 class="font-display text-3xl text-hof-pine">Unser Sortiment</h2>
         <p class="mt-1 text-sm text-hof-muted">Reale Kassenpreise · WG 460–465 · Abrechnung nach Waage</p>
@@ -229,13 +267,15 @@
     </section>
   </main>
 
-  <button type="button" id="cart-fab" class="cart-fab fixed bottom-5 right-4 z-50 hidden items-center gap-2 rounded-full bg-hof-pine px-5 py-3 text-sm font-bold text-white shadow-soft hover:bg-hof-moss" aria-label="Warenkorb öffnen">
-    <span>Warenkorb</span>
-    <span id="fab-count" class="inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-white/15 px-1.5 text-xs">0</span>
-    <span id="fab-sum" class="text-xs font-medium text-white/80"></span>
+  <button type="button" id="cart-fab" class="cart-fab fixed z-50 hidden items-center gap-3 bg-hof-pine text-sm font-bold text-white shadow-soft hover:bg-hof-moss" aria-label="Warenkorb anzeigen">
+    <span class="flex min-w-0 flex-1 items-center gap-2 text-left">
+      <span id="fab-count" class="inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-white/15 px-1.5 text-xs">0</span>
+      <span id="fab-label" class="truncate">0 Positionen · 0,00 €</span>
+    </span>
+    <span id="fab-cta" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold">Warenkorb anzeigen</span>
   </button>
 
-  <div id="toast-host" class="pointer-events-none fixed inset-x-0 bottom-24 z-[90] flex flex-col items-center gap-2 px-4"></div>
+  <div id="toast-host" class="pointer-events-none fixed inset-x-0 top-[max(1rem,env(safe-area-inset-top))] z-[90] flex flex-col items-center gap-2 px-4"></div>
 
   <!-- Zuschnitt-Modal: FOUC-sicher mit Inline display:none -->
   <div id="modal-cut" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cut-title">
@@ -286,12 +326,17 @@
   <div id="drawer-cart" class="drawer-layer z-[85]" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cart-title">
     <button type="button" class="absolute inset-0 bg-black/45" data-close="drawer-cart" aria-label="Warenkorb schließen"></button>
     <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-soft">
-      <div class="flex items-center justify-between border-b border-hof-sand px-5 py-4">
-        <h3 id="cart-title" class="font-display text-2xl text-hof-pine">Warenkorb</h3>
-        <button type="button" class="rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="drawer-cart">Schließen</button>
+      <div class="drawer-header border-b border-hof-sand px-4 pb-3 sm:px-5">
+        <div class="flex items-center justify-between gap-2 pt-3">
+          <button type="button" id="btn-cart-back" class="inline-flex min-h-[44px] items-center gap-1 rounded-xl px-2 text-sm font-semibold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">
+            ← Zurück zur Auswahl
+          </button>
+          <button type="button" class="drawer-close-x" data-close="drawer-cart" aria-label="Warenkorb schließen">✕</button>
+        </div>
+        <h3 id="cart-title" class="font-display mt-1 px-2 text-2xl text-hof-pine">Warenkorb</h3>
       </div>
       <div id="cart-items" class="flex-1 overflow-y-auto px-5 py-4"></div>
-      <div class="border-t border-hof-sand px-5 py-4">
+      <div class="drawer-footer border-t border-hof-sand px-5 pt-4">
         <div class="flex items-center justify-between text-sm">
           <span class="text-hof-muted">Geschätzte Summe</span>
           <strong id="cart-sum" class="text-lg text-hof-pine">0,00 €</strong>
@@ -299,7 +344,10 @@
         <p class="mt-2 text-xs leading-relaxed text-hof-muted">
           Die Abrechnung erfolgt nach dem Einwiegen an der Hofladen-Waage. Die Summe hier ist eine Orientierung (±10–15&nbsp;% Naturprodukt-Toleranz).
         </p>
-        <button type="button" id="btn-checkout" class="mt-4 w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">Zur Kasse</button>
+        <div class="mt-4 grid gap-2">
+          <button type="button" id="btn-continue-shopping" class="w-full rounded-2xl border border-hof-sand bg-white py-3.5 text-sm font-bold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">+ Weitere Artikel hinzufügen</button>
+          <button type="button" id="btn-checkout" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">Zur Kasse</button>
+        </div>
       </div>
     </aside>
   </div>
@@ -478,7 +526,7 @@
       checkoutSum: document.getElementById('checkout-sum'),
       fab: document.getElementById('cart-fab'),
       fabCount: document.getElementById('fab-count'),
-      fabSum: document.getElementById('fab-sum'),
+      fabLabel: document.getElementById('fab-label'),
       headerCount: document.getElementById('header-cart-count'),
       slotHint: document.getElementById('slot-hint'),
       simPanel: document.getElementById('sim-panel'),
@@ -510,14 +558,14 @@
       return Number.isNaN(date.getTime()) ? null : date;
     }
 
-    function showToast(message, type = 'info') {
+    function showToast(message, type = 'info', durationMs = 3200) {
       const el = document.createElement('div');
       el.className = `toast pointer-events-auto rounded-2xl px-4 py-3 text-sm font-semibold shadow-soft ${
         type === 'error' ? 'bg-red-700 text-white' : type === 'success' ? 'bg-hof-moss text-white' : 'bg-hof-pine text-white'
       }`;
       el.textContent = message;
       els.toastHost.appendChild(el);
-      setTimeout(() => el.remove(), 3200);
+      setTimeout(() => el.remove(), durationMs);
     }
 
     function openLayer(el) {
@@ -541,8 +589,8 @@
       [els.cutModal, els.cartDrawer, els.checkoutModal, els.confirmModal, els.adminPromoModal].forEach(closeLayer);
     }
 
-    function cartCount() {
-      return state.cart.reduce((sum, line) => sum + (Number(line.pieces) || 1), 0);
+    function cartPositions() {
+      return state.cart.length;
     }
 
     function cartTotal() {
@@ -550,11 +598,12 @@
     }
 
     function refreshCartUi() {
-      const count = cartCount();
+      const count = cartPositions();
       const total = cartTotal();
+      const positionsLabel = `${count} ${count === 1 ? 'Position' : 'Positionen'} · ${formatEuro(total)}`;
       els.headerCount.textContent = String(count);
       els.fabCount.textContent = String(count);
-      els.fabSum.textContent = count ? formatEuro(total) : '';
+      if (els.fabLabel) els.fabLabel.textContent = positionsLabel;
       els.cartSum.textContent = formatEuro(total);
       els.checkoutSum.textContent = formatEuro(total);
       els.fab.classList.toggle('hidden', count === 0);
@@ -908,8 +957,8 @@
 
       closeLayer(els.cutModal);
       refreshCartUi();
-      showToast(`${product.name} liegt im Warenkorb`, 'success');
-      openLayer(els.cartDrawer);
+      // Kein Auto-Drawer: Kunde bleibt im Sortiment und kann weiter einkaufen.
+      showToast(`✓ ${product.name} zum Vorbestellkorb hinzugefügt`, 'success', 2500);
     });
 
     function roundMoneyLike(value) {
