@@ -20,7 +20,9 @@ import {
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
   formatHaccpMeatTempWarning,
+  getHaccpTempLimitForCategory,
   inferReceivingCategoryFromProductName,
+  isLohnschlachtungGefluegelCategory,
   isLohnschlachtungRindCategory,
   isMetzMeatTemperatureCategory,
   METZ_DEFAULT_CATEGORY,
@@ -28,6 +30,7 @@ import {
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
   RECEIVING_SMART_CATEGORIES,
+  resolveMetzTraceLot,
   resolveReceivingScanCategory,
   shiftIsoDateByDays,
   sortDeliveryItemsLifo,
@@ -123,8 +126,12 @@ const RECEIVING_FORM_IDS = [
   'we-category',
   'we-category-quick',
   'we-temperature',
+  'we-klassifizierung',
+  'we-schlachtdatum-rind',
+  'we-schlachtdatum-poultry',
   'we-ohrmarke',
   'we-schlachtgewicht',
+  'we-stueck-kisten',
   'we-ean',
   'we-product-name',
   'we-hersteller-zusatz',
@@ -638,7 +645,8 @@ function buildMhdActiveRestoreFields(options = {}) {
 
 const DELIVERY_WRITE_FIELDS = new Set([
   'id', 'lieferant', 'warenKategorie', 'warenKategorieMetzgerei', 'temperatur',
-  'ohrmarke', 'schlachtgewichtKg',
+  'klassifizierung', 'schlachtDatum', 'ohrmarke', 'schlachtgewichtKg',
+  'stueckKisten', 'lot', 'chargenNummer',
   'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
   'fotos', 'items', 'itemCount',
   'source', 'scannedBy', 'tenantId',
@@ -6883,19 +6891,38 @@ function readDeliveryHeadValues() {
     document.getElementById('we-category')?.value || METZ_DEFAULT_CATEGORY,
   );
   const temperatur = getReceivingTemperatureValue();
+  const isRind = isLohnschlachtungRindCategory(warenKategorieMetzgerei);
+  const isPoultry = isLohnschlachtungGefluegelCategory(warenKategorieMetzgerei);
   const ohrmarke = String(document.getElementById('we-ohrmarke')?.value || '').trim();
+  const klassifizierung = String(document.getElementById('we-klassifizierung')?.value || '').trim();
+  const schlachtDatum = isRind
+    ? String(document.getElementById('we-schlachtdatum-rind')?.value || '').trim()
+    : isPoultry
+      ? String(document.getElementById('we-schlachtdatum-poultry')?.value || '').trim()
+      : '';
   const schlachtgewichtRaw = String(document.getElementById('we-schlachtgewicht')?.value || '').trim();
   const schlachtgewichtParsed = schlachtgewichtRaw
     ? Number.parseFloat(schlachtgewichtRaw.replace(',', '.'))
     : null;
   const schlachtgewichtKg = Number.isFinite(schlachtgewichtParsed) ? schlachtgewichtParsed : null;
+  const stueckKisten = String(document.getElementById('we-stueck-kisten')?.value || '').trim();
+  const lot = resolveMetzTraceLot({
+    category: warenKategorieMetzgerei,
+    ohrmarke,
+    klassifizierung,
+    schlachtDatumIso: schlachtDatum,
+  });
   return {
     supplier,
     warenKategorie,
     warenKategorieMetzgerei,
     temperatur,
     ohrmarke,
+    klassifizierung,
+    schlachtDatum,
     schlachtgewichtKg,
+    stueckKisten,
+    lot,
   };
 }
 
@@ -7122,22 +7149,83 @@ function updateReceivingTemperatureFieldUi() {
   }
 }
 
+function defaultSchlachtDatumIso() {
+  // Lieferung oft am Tag der Schlachtung oder am Folgetag — Default: heute.
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ensureSchlachtDatumDefaults() {
+  const today = defaultSchlachtDatumIso();
+  const rindDate = document.getElementById('we-schlachtdatum-rind');
+  const poultryDate = document.getElementById('we-schlachtdatum-poultry');
+  if (rindDate && !rindDate.value) rindDate.value = today;
+  if (poultryDate && !poultryDate.value) poultryDate.value = today;
+}
+
+function updateMetzLotPreviewUi() {
+  const preview = document.getElementById('we-lot-preview');
+  if (!preview) return;
+  const category = document.getElementById('we-category')?.value || '';
+  if (!isLohnschlachtungRindCategory(category)) {
+    preview.hidden = true;
+    preview.textContent = '';
+    return;
+  }
+  const ohrmarke = String(document.getElementById('we-ohrmarke')?.value || '').trim();
+  const klassifizierung = String(document.getElementById('we-klassifizierung')?.value || '').trim();
+  const schlachtDatum = String(document.getElementById('we-schlachtdatum-rind')?.value || '').trim();
+  const lot = resolveMetzTraceLot({
+    category,
+    ohrmarke,
+    klassifizierung,
+    schlachtDatumIso: schlachtDatum || defaultSchlachtDatumIso(),
+  });
+  if (!lot) {
+    preview.hidden = true;
+    preview.textContent = '';
+    return;
+  }
+  preview.hidden = false;
+  preview.textContent = ohrmarke
+    ? `LOT / Charge: ${lot} (Ohrmarke)`
+    : `LOT / Charge (automatisch): ${lot}`;
+}
+
 function updateMetzSlaughterExtraFieldsUi() {
   try {
     const category = document.getElementById('we-category')?.value || '';
-    const wrap = document.getElementById('we-slaughter-extra-fields');
-    if (!wrap) return;
-    const show = isLohnschlachtungRindCategory(category);
-    wrap.hidden = !show;
-    if (!show) {
+    const rindWrap = document.getElementById('we-slaughter-rind-fields');
+    const poultryWrap = document.getElementById('we-slaughter-poultry-fields');
+    const showRind = isLohnschlachtungRindCategory(category);
+    const showPoultry = isLohnschlachtungGefluegelCategory(category);
+    if (rindWrap) rindWrap.hidden = !showRind;
+    if (poultryWrap) poultryWrap.hidden = !showPoultry;
+    ensureSchlachtDatumDefaults();
+    if (!showRind) {
+      const klassifizierung = document.getElementById('we-klassifizierung');
       const ohrmarke = document.getElementById('we-ohrmarke');
       const weight = document.getElementById('we-schlachtgewicht');
+      if (klassifizierung) klassifizierung.value = '';
       if (ohrmarke) ohrmarke.value = '';
       if (weight) weight.value = '';
     }
+    if (!showPoultry) {
+      const stueck = document.getElementById('we-stueck-kisten');
+      if (stueck) stueck.value = '';
+    }
+    updateMetzLotPreviewUi();
+    updateMetzTemperatureLabelUi();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Lohnschlachtungs-Zusatzfelder konnten nicht aktualisiert werden:', err);
   }
+}
+
+function updateMetzTemperatureLabelUi() {
+  const label = document.getElementById('we-temperature-metz-label');
+  if (!label) return;
+  const category = document.getElementById('we-category')?.value || '';
+  const limit = getHaccpTempLimitForCategory(category);
+  label.textContent = `Temperatur (°C) · HACCP ≤ ${limit.toFixed(1).replace('.', ',')} °C`;
 }
 
 function updateMetzTemperatureWarnUi() {
@@ -7146,11 +7234,13 @@ function updateMetzTemperatureWarnUi() {
     const warnEl = document.getElementById('we-temperature-metz-warn');
     if (!metz) return;
     const category = document.getElementById('we-category')?.value || '';
+    updateMetzTemperatureLabelUi();
     const applies = isMetzMeatTemperatureCategory(category)
-      || isLohnschlachtungRindCategory(category);
+      || isLohnschlachtungRindCategory(category)
+      || isLohnschlachtungGefluegelCategory(category);
     const tempValue = readTemperatureFromInput(metz);
     const warning = applies && tempValue != null && !Number.isNaN(tempValue)
-      ? formatHaccpMeatTempWarning(tempValue)
+      ? formatHaccpMeatTempWarning(tempValue, category)
       : '';
     metz.classList.toggle('receiving-temp-input--warn', Boolean(warning));
     if (warnEl) {
@@ -7277,11 +7367,25 @@ async function loadDeliveryDraftFromIndexedDB() {
       if (categoryQuickEl && payload.head.warenKategorie) categoryQuickEl.value = payload.head.warenKategorie;
       const ohrmarkeRestore = document.getElementById('we-ohrmarke');
       const weightRestore = document.getElementById('we-schlachtgewicht');
+      const klassifizierungRestore = document.getElementById('we-klassifizierung');
+      const rindDateRestore = document.getElementById('we-schlachtdatum-rind');
+      const poultryDateRestore = document.getElementById('we-schlachtdatum-poultry');
+      const stueckRestore = document.getElementById('we-stueck-kisten');
+      if (klassifizierungRestore && payload.head.klassifizierung != null) {
+        klassifizierungRestore.value = String(payload.head.klassifizierung || '');
+      }
       if (ohrmarkeRestore && payload.head.ohrmarke != null) {
         ohrmarkeRestore.value = String(payload.head.ohrmarke || '');
       }
       if (weightRestore && payload.head.schlachtgewichtKg != null) {
         weightRestore.value = String(payload.head.schlachtgewichtKg);
+      }
+      if (payload.head.schlachtDatum) {
+        if (rindDateRestore) rindDateRestore.value = String(payload.head.schlachtDatum);
+        if (poultryDateRestore) poultryDateRestore.value = String(payload.head.schlachtDatum);
+      }
+      if (stueckRestore && payload.head.stueckKisten != null) {
+        stueckRestore.value = String(payload.head.stueckKisten || '');
       }
       updateMetzSlaughterExtraFieldsUi();
       updateMetzTemperatureWarnUi();
@@ -7798,9 +7902,10 @@ async function applyDeliveryTemperatureGuard(head) {
 
   let mhdItemStatus = 'aktiv';
   let meisterOverrideReason = '';
+  const tempLimit = getHaccpTempLimitForCategory(categoryForTemp);
 
-  if (requiresTemperature && head.temperatur > HACCP_TEMP_LIMIT_C) {
-    const override = await showMeisterOverrideModal(head.temperatur);
+  if (requiresTemperature && head.temperatur > tempLimit) {
+    const override = await showMeisterOverrideModal(head.temperatur, { limitC: tempLimit });
     if (!override.approved) return null;
     mhdItemStatus = 'APPROVED_WITH_OVERRIDE';
     meisterOverrideReason = override.reason;
@@ -7854,10 +7959,26 @@ function buildDeliveryBundlePayload(head, {
     delete bundle.temperatur;
   }
   if (isLohnschlachtungRindCategory(metzCategory)) {
+    if (head.klassifizierung) bundle.klassifizierung = head.klassifizierung;
+    if (head.schlachtDatum) bundle.schlachtDatum = head.schlachtDatum;
     if (head.ohrmarke) bundle.ohrmarke = head.ohrmarke;
     if (head.schlachtgewichtKg != null && Number.isFinite(head.schlachtgewichtKg)) {
       bundle.schlachtgewichtKg = head.schlachtgewichtKg;
     }
+    const lot = head.lot || resolveMetzTraceLot({
+      category: metzCategory,
+      ohrmarke: head.ohrmarke,
+      klassifizierung: head.klassifizierung,
+      schlachtDatumIso: head.schlachtDatum,
+    });
+    if (lot) {
+      bundle.lot = lot;
+      bundle.chargenNummer = lot;
+    }
+  }
+  if (isLohnschlachtungGefluegelCategory(metzCategory)) {
+    if (head.schlachtDatum) bundle.schlachtDatum = head.schlachtDatum;
+    if (head.stueckKisten) bundle.stueckKisten = head.stueckKisten;
   }
   if (!bundle.tenantId) {
     delete bundle.tenantId;
@@ -7941,14 +8062,26 @@ function openDraftForEditing(draft) {
     );
   }
   if (categoryQuickEl) categoryQuickEl.value = draft.warenKategorie || MHD_CANONICAL_CATEGORIES.trockenware;
+  const klassifizierungEl = document.getElementById('we-klassifizierung');
   const ohrmarkeEl = document.getElementById('we-ohrmarke');
   const weightEl = document.getElementById('we-schlachtgewicht');
+  const rindDateEl = document.getElementById('we-schlachtdatum-rind');
+  const poultryDateEl = document.getElementById('we-schlachtdatum-poultry');
+  const stueckEl = document.getElementById('we-stueck-kisten');
+  if (klassifizierungEl) klassifizierungEl.value = draft.klassifizierung || '';
   if (ohrmarkeEl) ohrmarkeEl.value = draft.ohrmarke || '';
   if (weightEl) {
     weightEl.value = draft.schlachtgewichtKg != null && Number.isFinite(Number(draft.schlachtgewichtKg))
       ? String(draft.schlachtgewichtKg)
       : '';
   }
+  if (rindDateEl) {
+    rindDateEl.value = draft.schlachtDatum || defaultSchlachtDatumIso();
+  }
+  if (poultryDateEl) {
+    poultryDateEl.value = draft.schlachtDatum || defaultSchlachtDatumIso();
+  }
+  if (stueckEl) stueckEl.value = draft.stueckKisten || '';
   updateMetzSlaughterExtraFieldsUi();
   if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
     setReceivingTemperatureValue(draft.temperatur);
@@ -8109,8 +8242,12 @@ function resetReceivingForm() {
     'we-category': METZ_DEFAULT_CATEGORY,
     'we-category-quick': lastReceivingHeadCategory,
     'we-temperature': '',
+    'we-klassifizierung': '',
     'we-ohrmarke': '',
     'we-schlachtgewicht': '',
+    'we-stueck-kisten': '',
+    'we-schlachtdatum-rind': defaultSchlachtDatumIso(),
+    'we-schlachtdatum-poultry': defaultSchlachtDatumIso(),
   };
   Object.entries(defaults).forEach(([id, value]) => {
     const el = document.getElementById(id);
@@ -8134,7 +8271,7 @@ function resetReceivingForm() {
   mhdState.onFormSaved?.(RECEIVING_FORM_IDS);
 }
 
-function showMeisterOverrideModal(temperature) {
+function showMeisterOverrideModal(temperature, options = {}) {
   return new Promise((resolve) => {
     const modal = document.getElementById('meister-override-modal');
     const desc = document.getElementById('meister-override-desc');
@@ -8152,8 +8289,11 @@ function showMeisterOverrideModal(temperature) {
       dots.forEach((dot, index) => dot.classList.toggle('filled', index < enteredPin.length));
     };
 
+    const limitC = Number.isFinite(Number(options.limitC))
+      ? Number(options.limitC)
+      : HACCP_TEMP_LIMIT_C;
     if (desc) {
-      desc.textContent = `Gemessene Temperatur: ${temperature} °C liegt über ${HACCP_TEMP_LIMIT_C} °C. Meister-Freigabe mit PIN und Begründung erforderlich.`;
+      desc.textContent = `Gemessene Temperatur: ${temperature} °C liegt über ${limitC} °C. Meister-Freigabe mit PIN und Begründung erforderlich.`;
     }
     if (reasonInput) reasonInput.value = '';
 
@@ -8562,7 +8702,7 @@ function bindReceivingControls() {
   const categoryMetzSelect = document.getElementById('we-category');
   if (categoryMetzSelect && categoryMetzSelect.dataset.mhdMetzBound !== '1') {
     categoryMetzSelect.dataset.mhdMetzBound = '1';
-    // Alte gespeicherte Werte (Fremdfleisch) auf aktuelle Labels mappen.
+    // Alte gespeicherte Werte (Fremdfleisch/Schwein) auf aktuelle Labels mappen.
     categoryMetzSelect.value = normalizeMetzReceivingCategory(categoryMetzSelect.value || METZ_DEFAULT_CATEGORY);
     categoryMetzSelect.addEventListener('change', () => {
       categoryMetzSelect.value = normalizeMetzReceivingCategory(categoryMetzSelect.value);
@@ -8571,6 +8711,19 @@ function bindReceivingControls() {
       updateReceivingSaveButtonState();
     });
   }
+  const lotPreviewInputs = [
+    'we-klassifizierung',
+    'we-schlachtdatum-rind',
+    'we-ohrmarke',
+    'we-schlachtgewicht',
+  ];
+  lotPreviewInputs.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (!field || field.dataset.mhdLotPreviewBound === '1') return;
+    field.dataset.mhdLotPreviewBound = '1';
+    field.addEventListener('input', updateMetzLotPreviewUi);
+    field.addEventListener('change', updateMetzLotPreviewUi);
+  });
   ensureKaeseThekeQtyToggle();
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';

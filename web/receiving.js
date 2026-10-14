@@ -31,31 +31,36 @@ export const RECEIVING_SMART_CATEGORIES = {
   gewuerze: '🌿 Gewürze',
 };
 
-/** HACCP-Kühlgrenze für Rindfleisch / Lohnschlachtung (VO EG 853/2004). */
+/** HACCP-Kühlgrenze Rindfleisch / Zukauffleisch (VO EG 853/2004). */
 export const HACCP_MEAT_TEMP_LIMIT_C = 7.0;
+/** HACCP-Kühlgrenze Geflügelfleisch (VO EG 853/2004). */
+export const HACCP_POULTRY_TEMP_LIMIT_C = 4.0;
 
 /** Standard-Warengruppe für Metzgerei / Stautenhof-Anlieferungen. */
 export const METZ_DEFAULT_CATEGORY = 'Lohnschlachtung Rind';
 
 /**
  * Warengruppen für Fleisch- und Schlachtbetriebe (Metzgerei-Tab).
- * Werte sind speicherstabil; Labels laden-freundlich.
+ * StevesHof: eigene Galloways + eigene Weidehühner, keine Schweine.
  */
 export const METZ_RECEIVING_CATEGORIES = [
   {
     value: 'Lohnschlachtung Rind',
-    label: '🥩 Lohnschlachtung Rind (Eigenbestand / Galloway)',
+    label: '🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)',
   },
   {
-    value: 'Lohnschlachtung Schwein',
-    label: '🥩 Lohnschlachtung Schwein (Eigenbestand)',
+    value: 'Lohnschlachtung Geflügel',
+    label: '🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)',
   },
   {
     value: 'Zukauffleisch (Fremdbezug)',
     label: 'Zukauffleisch (Fremdbezug)',
   },
+  {
+    value: 'Geflügel Zukauf (Fremdbezug)',
+    label: 'Geflügel Zukauf (Fremdbezug)',
+  },
   { value: 'Wurst Zukauf', label: 'Wurst Zukauf' },
-  { value: 'Geflügel Zukauf', label: 'Geflügel Zukauf' },
   { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
 ];
 
@@ -63,9 +68,16 @@ export function isLohnschlachtungRindCategory(category = '') {
   return /lohnschlachtung\s*rind/i.test(String(category || ''));
 }
 
+export function isLohnschlachtungGefluegelCategory(category = '') {
+  const raw = String(category || '');
+  return /lohnschlachtung\s*gefl(ü|ue)gel/i.test(raw)
+    || /lohnschlachtung\s*h(ü|ue)hner/i.test(raw);
+}
+
 export function isMetzMeatTemperatureCategory(category = '') {
   const normalized = normalizeCategoryText(category);
   if (!normalized) return false;
+  if (normalized.includes('gewurz') || normalized.includes('hilfsstoff')) return false;
   return normalized.includes('lohnschlachtung')
     || normalized.includes('zukauffleisch')
     || normalized.includes('fremd')
@@ -75,10 +87,78 @@ export function isMetzMeatTemperatureCategory(category = '') {
     || /\bfleisch\b/.test(normalized);
 }
 
-export function formatHaccpMeatTempWarning(temperature) {
+export function getHaccpTempLimitForCategory(category = '') {
+  if (isLohnschlachtungGefluegelCategory(category)
+    || /gefl(ü|ue)gel\s*zukauf/i.test(String(category || ''))) {
+    return HACCP_POULTRY_TEMP_LIMIT_C;
+  }
+  return HACCP_MEAT_TEMP_LIMIT_C;
+}
+
+/**
+ * Kategorie-spezifische HACCP-Warnung. Ohne Überschreitung → ''.
+ * @param {number} temperature
+ * @param {string} [category]
+ */
+export function formatHaccpMeatTempWarning(temperature, category = '') {
   const value = Number(temperature);
-  if (!Number.isFinite(value) || !(value > HACCP_MEAT_TEMP_LIMIT_C)) return '';
+  if (!Number.isFinite(value)) return '';
+  const limit = getHaccpTempLimitForCategory(category);
+  if (!(value > limit)) return '';
+  if (limit <= HACCP_POULTRY_TEMP_LIMIT_C) {
+    return '⚠️ Grenzwert Geflügel überschritten (> 4,0 °C)! Kühlung sofort prüfen.';
+  }
   return '⚠️ Grenzwert überschritten (> 7,0 °C). Kühlung und Begleitpapiere prüfen!';
+}
+
+/** Token für LOT/Chargennummer (ASCII, Großbuchstaben). */
+export function sanitizeLotToken(value = '', fallback = 'OCHSE') {
+  const cleaned = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 16);
+  return cleaned || fallback;
+}
+
+/**
+ * Fallback-Chargennummer ohne Ohrmarke:
+ * `GAL-{Klassifizierung|OCHSE}-{YYYYMMDD}`
+ */
+export function buildGallowayFallbackLot({
+  klassifizierung = '',
+  schlachtDatumIso = '',
+  ohrmarke = '',
+} = {}) {
+  if (String(ohrmarke || '').trim()) return '';
+  const token = sanitizeLotToken(klassifizierung, 'OCHSE');
+  const iso = String(schlachtDatumIso || '').trim().slice(0, 10);
+  const ymd = /^\d{4}-\d{2}-\d{2}$/.test(iso)
+    ? iso.replace(/-/g, '')
+    : new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return `GAL-${token}-${ymd}`;
+}
+
+/**
+ * Rückverfolgungs-LOT: Ohrmarke hat Vorrang, sonst Galloway-Fallback bei Rind.
+ */
+export function resolveMetzTraceLot({
+  category = '',
+  ohrmarke = '',
+  klassifizierung = '',
+  schlachtDatumIso = '',
+} = {}) {
+  const ear = String(ohrmarke || '').trim();
+  if (ear) return ear;
+  if (isLohnschlachtungRindCategory(category)) {
+    return buildGallowayFallbackLot({
+      klassifizierung,
+      schlachtDatumIso,
+      ohrmarke: '',
+    });
+  }
+  return '';
 }
 
 /** Alte Metzgerei-Werte auf aktuelle Labels/Werte mappen (Bestandsdaten). */
@@ -87,6 +167,8 @@ export function normalizeMetzReceivingCategory(category = '') {
   if (!raw) return METZ_DEFAULT_CATEGORY;
   if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') return 'Zukauffleisch (Fremdbezug)';
   if (/gew(ü|ue)rze\s*metzgerei/i.test(raw)) return 'Gewürze & Hilfsstoffe';
+  if (/lohnschlachtung\s*schwein/i.test(raw)) return METZ_DEFAULT_CATEGORY;
+  if (/^gefl(ü|ue)gel\s*zukauf$/i.test(raw)) return 'Geflügel Zukauf (Fremdbezug)';
   const known = METZ_RECEIVING_CATEGORIES.find((entry) => entry.value === raw);
   return known ? known.value : raw;
 }

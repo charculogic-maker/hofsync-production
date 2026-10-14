@@ -4072,7 +4072,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-14T17:30:00+02:00';
+const APP_RELEASE_AT = '2026-10-14T18:05:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4249,7 +4249,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261014-soldout-and-slaughter-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261014-livestock-realism-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
