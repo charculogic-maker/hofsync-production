@@ -922,8 +922,12 @@ export function estimateLinePrice(product, selection = {}) {
   }
 
   if (type === 'per_piece') {
-    if (product.allowWeight !== false && hasTotalWeight) {
-      return roundMoney(weightRaw * perKg);
+    const estimatedWeightKg = estimateSelectionWeightKg(product, {
+      pieces,
+      weightKg: hasTotalWeight ? weightRaw : 0,
+    });
+    if (estimatedWeightKg > 0 && perKg > 0) {
+      return roundMoney(estimatedWeightKg * perKg);
     }
     const unit = estimateUnitPrice(product);
     if (unit > 0) return roundMoney(pieces * unit);
@@ -939,6 +943,44 @@ export function estimateLinePrice(product, selection = {}) {
   return 0;
 }
 
+/**
+ * Geschätztes Gesamtgewicht für eine Warenkorb-Auswahl.
+ * Verhindert, dass ein vorbefülltes Einzel-/Default-Gewicht bei mehreren Stücken
+ * als zu niedriges Gesamtgewicht gespeichert wird.
+ * @param {CatalogProduct} product
+ * @param {{ pieces?: number, weightKg?: number, packGrams?: number }} selection
+ */
+export function estimateSelectionWeightKg(product, selection = {}) {
+  if (!product || product.comingSoon) return 0;
+  const type = resolvePricingType(product);
+  const piecesRaw = Number(selection.pieces);
+  const pieces = Number.isFinite(piecesRaw) && piecesRaw > 0
+    ? piecesRaw
+    : (product.defaultPieces || 1);
+
+  if (type === 'slice_pack') {
+    const gramsRaw = Number(selection.packGrams);
+    const grams = Number.isFinite(gramsRaw) && gramsRaw > 0
+      ? gramsRaw
+      : (Number(product.defaultPackGrams) || 100);
+    return roundWeight(grams / 1000);
+  }
+
+  const weightRaw = Number(selection.weightKg);
+  const hasTotalWeight = Number.isFinite(weightRaw) && weightRaw > 0;
+  const pieceWeight = Number(product.typicalWeightKg) || 0;
+  const typicalTotalWeight = pieceWeight > 0 ? pieceWeight * pieces : 0;
+
+  if (hasTotalWeight) {
+    if (type === 'per_piece' && product.allowPieces !== false && pieces > 1 && typicalTotalWeight > 0) {
+      return roundWeight(Math.max(weightRaw, typicalTotalWeight));
+    }
+    return roundWeight(weightRaw);
+  }
+
+  return typicalTotalWeight > 0 ? roundWeight(typicalTotalWeight) : 0;
+}
+
 export function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
@@ -948,6 +990,10 @@ export function formatEuro(value) {
 
 function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function roundWeight(value) {
+  return Math.round((Number(value) || 0) * 1000) / 1000;
 }
 
 function pad2(value) {
