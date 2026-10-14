@@ -1072,137 +1072,137 @@ const bratwurstRecipes = [
     "id": "G-LW",
     "name": "Galloway Leberwurst",
     "kat": "Kochwurst",
-    "kaliber": "",
-    "basis_g": "10.000,00",
+    "kaliber": "45",
+    "basis_g": "20.000,00",
     "allergene": [
       "MILCH"
     ],
-    "tipp": "",
-    "haltbar": "",
-    "hinweis": "Allergene pruefen: MILCH.",
-    "anweisung_A": "Fleisch, Fett, Leber und Schuettung getrennt vorbereiten. Gegarte Rohstoffe warm verarbeiten, rohe Leber kalt halten. Allergene kennzeichnen: Milch.",
-    "anweisung_B": "Vorgegarte Fleischanteile passend wolfen oder kuttern. Leber mit Salz fein aufschliessen und erst einarbeiten, wenn die Masse nicht mehr zu heiss ist.",
-    "anweisung_C": "Gewuerze und weitere Zutaten gleichmaessig einarbeiten. In Glas, Darm oder Form fuellen; Lufteinschluesse vermeiden und Fuellgewichte kontrollieren.",
-    "anweisung_D": "Nach dem Erhitzen zuegig abkuehlen, kalt lagern und bei Glasware Deckel, Vakuum und Charge pruefen.",
+    "tipp": "SOP Kochwurst Leitsatz 2.232: Warmemulsion Fertigbraettemperatur 42–46 °C — KEINE Kaltkutterung auf ≤4 °C. Leberzugabe erst bei Kuttergut ≤48 °C (Schutz vor thermischem Lebereiweiss-Gerinnen). Garprozess: Rational SCC Daempfen 78–80 °C bis Kerntemperatur ≥72 °C. Maschinen: Alexanderwerk Kutter (ohne Fleischwolf), OSKAR 20 (Fuellrohr 30 mm, Kal. 45).",
+    "haltbar": "Gekühlt lagern; Charge und Kerntemperatur (≥72 °C) dokumentieren.",
+    "hinweis": "Allergene: MILCH (Bio-Butter). Charge-Basis 20,0 kg Gesamtmasse. Fleisch & Kollagentraeger 77 %, Gewuerze & Zusaetze 23 %.",
+    "anweisung_A": "Charge 20,0 kg ansetzen. Fleisch & Kollagentraeger (77 %): Rinderleber frisch 6,00 kg, Rinderbauch/Brust 5,50 kg, Rinderwade/Vorderhaxe 3,70 kg, Galloway-Glace 0,20 kg. Gewuerze & Zusaetze (23 %) exakt abwiegen: SCC-Kochsud, gegarte Schulter/Oberschale, gedampfte Zwiebeln, Bio-Butter, Meersalz, Traubensaft rot, Kartoffelflocken, Apfelessig, Pfeffer weiss, Majoran, Piment, Ingwer, Muskat. Allergene kennzeichnen: MILCH (Bio-Butter). Maschinen: Alexanderwerk Kutter (ohne Fleischwolf), OSKAR 20.",
+    "anweisung_B": "Warmemulsion im Alexanderwerk-Kutter: Gegarte Rohstoffe und Schuettung zur Warmemulsion kuttern. Ziel Fertigbraettemperatur 42–46 °C — KEINE Kaltkutterung auf ≤4 °C. Leber mit Meersalz erst einarbeiten, wenn das Kuttergut ≤48 °C hat (Schutz vor thermischem Lebereiweiss-Gerinnen).",
+    "anweisung_C": "Gewuerze und restliche Zusaetze gleichmaessig einarbeiten. Mit OSKAR 20 (Fuellrohr 30 mm) in Kaliber 45 fuellen; Lufteinschluesse vermeiden und Fuellgewichte kontrollieren.",
+    "anweisung_D": "Rational SCC Daempfen 78–80 °C bis Kerntemperatur ≥72 °C (Ueber-Nacht-Daempfen nach Betriebs-SOP). Danach zuegig abkuehlen, kalt lagern und Charge dokumentieren.",
     "ingredients": [
       {
-        "name": "Rinderleber (Galloway), frisch",
+        "name": "Rinderleber frisch",
         "pct": 30,
         "typ": "base",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "6,00 kg / 30 % bei 20 kg Charge"
       },
       {
-        "name": "Rinderbauch / Brust (Fett)",
+        "name": "Rinderbauch/Brust",
         "pct": 27.5,
         "typ": "base",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "5,50 kg / 27,5 % bei 20 kg Charge"
       },
       {
-        "name": "Rinderwade / Rosenstück (Geliermaterial)",
+        "name": "Rinderwade/Vorderhaxe",
         "pct": 18.5,
-        "typ": "spice",
+        "typ": "base",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "3,70 kg / 18,5 % bei 20 kg Charge"
       },
       {
-        "name": "Kochsud (Aromatisch, fetthaltig)",
+        "name": "Galloway-Glace",
+        "pct": 1,
+        "typ": "base",
+        "allergen": false,
+        "hinweis": "0,20 kg / 1,0 % bei 20 kg Charge"
+      },
+      {
+        "name": "SCC-Kochsud",
         "pct": 7,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "1,40 kg bei 20 kg Charge"
       },
       {
-        "name": "Schulter / Oberschale (Magerfleisch)",
+        "name": "Rinderschulter/Oberschale gegart",
         "pct": 6.35,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "1,27 kg bei 20 kg Charge"
       },
       {
-        "name": "Zwiebeln (Frisch)",
+        "name": "Zwiebeln gedämpft",
         "pct": 3,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,60 kg bei 20 kg Charge"
       },
       {
         "name": "Bio-Butter",
         "pct": 2.5,
         "typ": "spice",
         "allergen": true,
-        "hinweis": "MILCH"
+        "hinweis": "MILCH — 0,50 kg bei 20 kg Charge"
       },
       {
         "name": "Meersalz",
         "pct": 1.75,
         "typ": "spice",
         "allergen": false,
-        "hinweis": "Extra Schüssel für Leber!"
+        "hinweis": "0,35 kg — Extra Schüssel für Leber!"
       },
       {
-        "name": "Traubensaft (Rot, Direktsaft)",
+        "name": "Traubensaft rot",
         "pct": 1,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,20 kg bei 20 kg Charge"
       },
       {
-        "name": "Galloway-Glace (Kollagen-Konzentrat)",
-        "pct": 1,
-        "typ": "spice",
-        "allergen": false,
-        "hinweis": ""
-      },
-      {
-        "name": "Bio-Kartoffelflocken (Rein)",
+        "name": "Bio-Kartoffelflocken",
         "pct": 0.8,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,16 kg bei 20 kg Charge"
       },
       {
-        "name": "Apfelessig (Naturtrüb)",
+        "name": "Apfelessig",
         "pct": 0.3,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,06 kg bei 20 kg Charge"
       },
       {
-        "name": "Pfeffer weiß, gemahlen",
+        "name": "Pfeffer weiß",
         "pct": 0.15,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,030 kg bei 20 kg Charge"
       },
       {
-        "name": "Majoran, gerebelt",
+        "name": "Majoran",
         "pct": 0.06,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,012 kg bei 20 kg Charge"
       },
       {
-        "name": "Piment, gemahlen",
+        "name": "Piment",
         "pct": 0.05,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,010 kg bei 20 kg Charge"
       },
       {
-        "name": "Ingwer, gemahlen",
+        "name": "Ingwer",
         "pct": 0.02,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,004 kg bei 20 kg Charge"
       },
       {
-        "name": "Muskatnuss, gemahlen",
+        "name": "Muskat",
         "pct": 0.02,
         "typ": "spice",
         "allergen": false,
-        "hinweis": ""
+        "hinweis": "0,004 kg bei 20 kg Charge"
       }
     ]
   },

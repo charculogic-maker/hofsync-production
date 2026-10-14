@@ -200,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261013-recipes-theke-v1">
+  <link rel="stylesheet" href="/style.css?v=20261014-recipes-encoding-fix-v1">
 </head>
 <body>
 
@@ -1100,7 +1100,7 @@
                   <div class="mhd-search-panel" id="mhd-search-panel">
                     <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname oder EAN…" aria-label="MHD-Artikel suchen" autocomplete="off" inputmode="search">
                     <button type="button" class="mhd-search-scan" id="mhd-search-scan" aria-label="EAN scannen">📷</button>
-                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
+                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">&#10005;</button>
                     <div class="mhd-completion-toggle" id="mhd-completion-toggle" role="group" aria-label="Tageslauf-Ansicht">
                       <button type="button" class="mhd-completion-btn is-active" data-mhd-completion-filter="offen" aria-pressed="true">Offen (0)</button>
                       <button type="button" class="mhd-completion-btn" data-mhd-completion-filter="erledigt" aria-pressed="false">Erledigt (0)</button>
@@ -1539,7 +1539,7 @@
                 </div>
                 <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
                   <span class="recipe-filter-button-label" id="recipe-category-filter-label">Alle Kategorien</span>
-                  <span class="recipe-filter-button-icon" aria-hidden="true">▾</span>
+                  <span class="recipe-filter-button-icon chevron-down" aria-hidden="true"></span>
                 </button>
               </div>
               <div class="recipe-list" id="recipe-list-container">
