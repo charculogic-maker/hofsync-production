@@ -29,7 +29,7 @@ assert.match(
 );
 
 assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261014-recipes-encoding-fix-v1'/);
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:00:00\+02:00'/);
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:20:00\+02:00'/);
 assert.match(appSrc, /persistBootBrandColors/);
 assert.match(appSrc, /charculogic_brand_bg/);
 assert.match(brandingSrc, /background_color:\s*splashColor/);

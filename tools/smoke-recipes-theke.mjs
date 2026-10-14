@@ -61,7 +61,7 @@ assert.match(
   'SW Cache-Version recipes-encoding-fix-v1',
 );
 assert.match(swSrc, /'\/rezepte\.js'/, 'rezepte.js im SW-Cache');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:00:00\+02:00'/, 'App Release-Zeitstempel');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:20:00\+02:00'/, 'App Release-Zeitstempel');
 assert.doesNotMatch(styleCss, /â–[¾¸¼]/, 'Keine Encoding-Hieroglyphen in CSS-Chevrons');
 assert.match(styleCss, /\.kitchen-collapsible > summary::after[\s\S]*?border-right:\s*2px solid/, 'CSS-Chevron für Rezepte-Collapsible');
 assert.match(indexHtml, /recipe-filter-button-icon chevron-down/, 'Filter-Icon nutzt CSS-Chevron');
