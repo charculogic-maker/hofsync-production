@@ -2063,6 +2063,9 @@ button:active, .btn:active {
   flex-direction: column;
   gap: 12px;
   padding: 0 8px 8px;
+  overflow-x: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 @media (orientation: landscape), (min-width: 768px) {
@@ -2111,13 +2114,17 @@ button:active, .btn:active {
 
 .mhd-card {
   background-color: var(--surface-color);
-  border-radius: 10px;
-  padding: 9px 10px 9px 15px;
+  border-radius: 12px;
+  padding: 12px 12px 12px 16px;
   position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
   transition: opacity 0.28s ease, transform 0.28s ease, max-height 0.32s ease, margin 0.28s ease, padding 0.28s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   border: 1px solid rgba(0, 0, 0, 0.04);
 }
@@ -2161,9 +2168,10 @@ button:active, .btn:active {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 0;
+  margin-top: 2px;
   width: 100%;
+  min-width: 0;
 }
 
 .mhd-multi-batch-badge {
@@ -2174,12 +2182,12 @@ button:active, .btn:active {
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   margin: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
   background: #ecfdf5;
-  border: 1px solid #6ee7b7;
+  border: 1px solid #a7f3d0;
   color: #065f46;
   font-size: 12px;
   font-weight: 700;
@@ -2232,18 +2240,29 @@ button:active, .btn:active {
 }
 
 .mhd-multi-batch-accordion,
-.mhd-accordion-list {
+.mhd-accordion-list,
+.mhd-accordion-content {
   order: 6;
   position: relative;
   z-index: 2;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  border-radius: 12px;
+  margin-top: 6px;
+  border-radius: 10px;
   background: color-mix(in srgb, #ecfdf5 55%, #ffffff);
   border: 1px solid #a7f3d0;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mhd-accordion-content.is-open,
+.mhd-multi-batch-accordion.is-open,
+.mhd-accordion-list.is-open {
+  display: flex !important;
+  visibility: visible !important;
 }
 
 .mhd-accordion-empty {
@@ -2302,7 +2321,7 @@ button:active, .btn:active {
 
 .mhd-multi-batch-row-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -2566,6 +2585,85 @@ button:active, .btn:active {
   white-space: nowrap;
 }
 
+.mhd-card-top {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mhd-card-category {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mhd-ampel-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  max-width: 58%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mhd-ampel--expired {
+  background: #dc2626;
+  color: #fff;
+}
+
+.mhd-ampel--due {
+  background: #fbbf24;
+  color: #78350f;
+}
+
+.mhd-ampel--future,
+.mhd-ampel--soon {
+  background: #dbeafe;
+  color: #166534;
+}
+
+.mhd-ampel--unknown {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.mhd-card-body {
+  order: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mhd-card-body-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .mhd-card-header {
   order: 1;
   display: flex;
@@ -2589,6 +2687,88 @@ button:active, .btn:active {
   gap: 6px;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.mhd-card-more {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.mhd-card-more > summary {
+  list-style: none;
+}
+
+.mhd-card-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mhd-card-more-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+}
+
+.mhd-card-more[open] > .mhd-card-more-trigger {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.mhd-card-more-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 168px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.mhd-card-more-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mhd-card-more-item:active {
+  background: #f1f5f9;
+}
+
+.mhd-card-more-item--danger {
+  color: #b91c1c;
 }
 
 .mhd-card-tools {
@@ -2652,21 +2832,30 @@ button:active, .btn:active {
 }
 
 .mhd-product-name {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-dark);
   line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-width: 100%;
 }
 
-.mhd-product-meta {
+.mhd-product-meta,
+.mhd-product-meta-line {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  gap: 4px;
+  color: #64748b !important;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.35;
 }
 
 .mhd-date-edit-button {
@@ -2749,9 +2938,13 @@ button:active, .btn:active {
   min-height: 52px;
 }
 
-.status-expired .mhd-product-meta { color: var(--secondary-color); }
-.status-critical .mhd-product-meta { color: var(--warning-color); }
-.status-ok .mhd-product-meta { color: var(--ok-color); }
+.status-expired .mhd-product-meta,
+.status-critical .mhd-product-meta,
+.status-ok .mhd-product-meta,
+.mhd-card.mhd-critical .mhd-product-meta,
+.mhd-card.mhd-critical .mhd-product-meta-line {
+  color: #64748b !important;
+}
 
 .mhd-badge {
   font-size: 12px;
@@ -2788,9 +2981,6 @@ button:active, .btn:active {
 .mhd-card.mhd-critical .mhd-badge {
   background-color: var(--accent-alert);
   color: #fff;
-}
-.mhd-card.mhd-critical .mhd-product-meta {
-  color: var(--accent-alert);
 }
 
 /* Swipe-to-Action Backgrounds */
@@ -2910,6 +3100,21 @@ button:active, .btn:active {
   min-width: 0;
 }
 
+.mhd-touch-action-row {
+  order: 4;
+  display: grid;
+  grid-template-columns: minmax(80px, 0.9fr) repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+.mhd-touch-action-row > * {
+  min-width: 0;
+}
+
 .mhd-card .qty-stepper {
   width: 100%;
   justify-content: center;
@@ -2934,22 +3139,24 @@ button:active, .btn:active {
 /* MHD Mengen-Badge (öffnet Theken-Nummernpad, kein natives Keyboard) */
 .mhd-qty-badge {
   width: 100%;
-  min-height: 56px;
-  padding: 8px 12px;
+  min-width: 80px;
+  min-height: 48px;
+  padding: 6px 8px;
   border: 2px solid color-mix(in srgb, var(--primary-color, #2e7d32) 35%, transparent);
-  border-radius: var(--border-radius-md, 12px);
+  border-radius: 10px;
   background: color-mix(in srgb, var(--primary-color, #2e7d32) 10%, var(--surface-color, #fff));
   color: var(--text-dark);
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
 
 .mhd-qty-badge:active:not(:disabled) {
@@ -2972,7 +3179,7 @@ button:active, .btn:active {
 }
 
 .mhd-qty-badge-value {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1;
   color: var(--primary-color, #2e7d32);
@@ -3207,31 +3414,67 @@ html.mhd-qty-numpad-open body {
   margin-top: 0;
 }
 
+.mhd-action-row.mhd-touch-action-row {
+  grid-template-columns: minmax(80px, 0.9fr) repeat(3, minmax(0, 1fr));
+}
+
 .mhd-action-row--pair {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .btn-mhd-action {
-  min-width: 48px;
+  min-width: 0;
   min-height: 48px;
-  padding: 0 8px;
+  height: 48px;
+  padding: 0 6px;
   border: 0;
-  border-radius: var(--border-radius-sm);
+  border-radius: 10px;
   background: var(--surface-secondary);
   color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1.15;
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
+  touch-action: manipulation;
+  box-sizing: border-box;
 }
 
 
 .btn-mhd-action--primary {
-  background: var(--primary-color);
+  background: #166534;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.btn-mhd-action--rabatt {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.btn-mhd-action--raus {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+@media (max-width: 390px) {
+  .mhd-touch-action-row,
+  .mhd-action-row.mhd-touch-action-row {
+    grid-template-columns: minmax(72px, 0.85fr) repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .btn-mhd-action {
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
+  .mhd-qty-badge-value {
+    font-size: 20px;
+  }
 }
 
 /* --- SCREEN 2: WURSTKÜCHE --- */

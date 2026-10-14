@@ -24,12 +24,12 @@ assert.match(indexHtml, /charculogic_brand_bg/, 'Boot-Script liest Mandanten-Hin
 assert.match(indexHtml, /charculogic\.theme|charculogic_theme/, 'Boot-Script liest Theme-Key');
 assert.match(
   indexHtml,
-  /style\.css\?v=20261014-recipe-audit-v1/,
+  /style\.css\?v=20261014-mhd-full-redesign-v1/,
   'style.css Cache-Buster aktualisiert',
 );
 
-assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261014-recipe-audit-v1'/);
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T05:10:00\+02:00'/);
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261014-mhd-full-redesign-v1'/);
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T08:45:00\+02:00'/);
 assert.match(appSrc, /persistBootBrandColors/);
 assert.match(appSrc, /charculogic_brand_bg/);
 assert.match(brandingSrc, /background_color:\s*splashColor/);
