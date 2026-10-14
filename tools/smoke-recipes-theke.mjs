@@ -34,7 +34,7 @@ assert.match(indexHtml, /data-recipe-quick="schinken"/, 'Chip Schinken');
 assert.match(indexHtml, /data-recipe-quick="allergenfrei"/, 'Chip Allergenfrei');
 assert.match(indexHtml, /id="btn-kitchen-production-mode"/, 'Produktions-Modus-Toggle');
 assert.match(indexHtml, /Produktions-Modus einblenden/, 'Toggle-Wording Laden-tauglich');
-assert.match(indexHtml, /style\.css\?v=20261013-recipes-theke-v1/, 'style.css Cache-Buster recipes-theke');
+assert.match(indexHtml, /style\.css\?v=20261014-merge-main-v1/, 'style.css Cache-Buster merge-main');
 
 assert.match(productionSrc, /from '\.\/rezepte\.js'/, 'production.js nutzt rezepte.js');
 assert.match(productionSrc, /renderThekeRecipeCardHtml/, 'Theken-Karten-Renderer verdrahtet');
@@ -57,11 +57,11 @@ assert.match(styleCss, /\.recipe-haltbar-hint/, 'Haltbarkeits-Hinweis-Styles');
 
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261013-recipes-theke-v1'/,
-  'SW Cache-Version recipes-theke-v1',
+  /CACHE_NAME = 'charculogic-v20261014-merge-main-v1'/,
+  'SW Cache-Version merge-main-v1',
 );
 assert.match(swSrc, /'\/rezepte\.js'/, 'rezepte.js im SW-Cache');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-13T22:00:00\+02:00'/, 'App Release-Zeitstempel');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:10:00\+02:00'/, 'App Release-Zeitstempel');
 
 const sampleRecipes = [
   {

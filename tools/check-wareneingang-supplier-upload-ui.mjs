@@ -39,6 +39,7 @@ async function main() {
   const capturePhoto = await page.getAttribute('#we-photo-input', 'capture');
   const kiReconcileGone = (await page.locator('#btn-delivery-reconcile-main').count()) === 0
     && (await page.locator('#delivery-reconcile-file-input').count()) === 0
+    && (await page.locator('#delivery-note-draft-list').count()) === 0
     && (await page.locator('#delivery-parser-file-input').count()) === 0
     && (await page.locator('#delivery-note-file-input').count()) === 0
     && (await page.locator('#btn-delivery-parser').count()) === 0
