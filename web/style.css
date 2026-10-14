@@ -12187,3 +12187,309 @@ body.role-firebase-auth #team-login-card {
   min-height: 44px;
   flex: 1 1 160px;
 }
+
+/* ==========================================================================
+   Theken-Rezeptur-Nachschlagewerk (Prod. Tab, max-width 768px)
+   ========================================================================== */
+
+.theke-recipes-intro {
+  display: none;
+  margin: 0 0 12px;
+  padding: 14px 14px 12px;
+  border-radius: var(--border-radius-md, 12px);
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
+  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--border-subtle));
+}
+
+.theke-recipes-kicker {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theke-recipes-title {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.theke-recipes-lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.recipe-search-panel {
+  position: relative;
+}
+
+.recipe-search-input {
+  width: 100%;
+  padding-right: 52px;
+}
+
+.recipe-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-color);
+  color: var(--text-muted);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.recipe-quick-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  margin: 0 -2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.recipe-quick-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.recipe-quick-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid color-mix(in srgb, var(--primary-color) 22%, var(--border-subtle));
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color));
+  color: var(--primary-on-light);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.recipe-quick-chip.active-category {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
+}
+
+.kitchen-production-mode-bar {
+  display: none;
+  margin: 0 0 12px;
+}
+
+.kitchen-production-mode-toggle {
+  width: 100%;
+  min-height: 48px;
+  font-weight: 800;
+}
+
+.recipe-card--theke {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.recipe-card--theke .recipe-card-head {
+  min-width: 0;
+}
+
+.recipe-card--theke .recipe-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.recipe-card--theke .recipe-subinfo {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+.recipe-allergen-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recipe-allergen-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #b71c1c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.recipe-allergen-badge--free {
+  background: color-mix(in srgb, #2e7d32 18%, var(--surface-color));
+  color: #1b5e20;
+  border: 1px solid color-mix(in srgb, #2e7d32 35%, var(--border-subtle));
+}
+
+.recipe-ingredients-block {
+  display: grid;
+  gap: 10px;
+}
+
+.recipe-ing-section {
+  min-width: 0;
+}
+
+.recipe-ing-heading {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.recipe-ing-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recipe-ing-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-dark);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.recipe-ing-item--allergen {
+  border-color: color-mix(in srgb, #b71c1c 45%, var(--border-subtle));
+  background: color-mix(in srgb, #b71c1c 10%, var(--surface-color));
+  color: #7f0000;
+}
+
+.recipe-ing-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.recipe-haltbar-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-secondary));
+  border: 1px solid color-mix(in srgb, var(--primary-color) 16%, var(--border-subtle));
+  color: var(--text-dark);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+[data-theme="dark"] .recipe-allergen-badge--free {
+  background: color-mix(in srgb, #66bb6a 16%, var(--surface-color));
+  color: #c8e6c9;
+  border-color: color-mix(in srgb, #66bb6a 35%, var(--border-subtle));
+}
+
+[data-theme="dark"] .recipe-ing-item--allergen {
+  color: #ffcdd2;
+}
+
+@media (max-width: 768px) {
+  .theke-recipes-intro {
+    display: block;
+  }
+
+  .kitchen-production-mode-bar {
+    display: block;
+  }
+
+  #page-kitchen.kitchen-theke-mode .kitchen-production-zone,
+  body.kitchen-theke-mobile #page-kitchen .kitchen-production-zone {
+    display: none !important;
+  }
+
+  #page-kitchen.kitchen-theke-mode #kitchen-recipes-panel > summary {
+    font-size: 15px;
+  }
+
+  #page-kitchen.kitchen-theke-mode .recipe-filter-button {
+    display: none;
+  }
+
+  #page-kitchen.kitchen-theke-mode .theke-recipe-toolbar {
+    gap: 10px;
+  }
+
+  #page-kitchen.kitchen-theke-mode .recipe-search-input {
+    min-height: 52px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  /* Produktions-Skalierung in der Detailansicht standardmäßig ausblenden */
+  body.kitchen-theke-mobile #recipe-detail-panel .production-input-card,
+  body.kitchen-theke-mobile #recipe-detail-panel .production-datasheet-card,
+  body.kitchen-theke-mobile #recipe-detail-panel .production-log-card,
+  body.kitchen-theke-mobile #recipe-detail-panel #btn-document-recipe-batch {
+    display: none !important;
+  }
+
+  body.kitchen-theke-mobile #recipe-detail-panel .detail-header .app-subtitle {
+    display: none;
+  }
+
+  body.kitchen-theke-mobile #recipe-detail-panel .detail-header .app-subtitle::after,
+  body.kitchen-theke-mobile #recipe-detail-panel .detail-title-group::before {
+    content: none;
+  }
+
+  body:not(.kitchen-theke-mobile) .kitchen-production-mode-bar {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .theke-recipes-intro,
+  .kitchen-production-mode-bar,
+  .recipe-quick-filter {
+    display: none !important;
+  }
+
+  .recipe-search-clear {
+    display: none;
+  }
+}

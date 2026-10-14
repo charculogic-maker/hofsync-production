@@ -17,6 +17,16 @@ import {
 } from './production-datasheet.js';
 import { generateIngredientDeclaration } from './domain-core.js';
 import { flushPendingSyncs } from './sync.js';
+import {
+  THEKE_QUICK_FILTERS,
+  isThekeMobileViewport,
+  matchesThekeRecipe,
+  normalizeThekeQuery,
+  recipeCategoryLabel,
+  recipeSearchHaystack,
+  renderCompactRecipeCardHtml,
+  renderThekeRecipeCardHtml,
+} from './rezepte.js';
 
 const EIGENPRODUKTION_SUPPLIER = 'Eigenproduktion';
 const EIGENPRODUKTION_SOURCE = 'eigenproduktion';
@@ -26,7 +36,9 @@ const productionState = {
   tenantId: '',
   recipes: [],
   recipeSearchQuery: '',
+  recipeQuickFilterId: '',
   recipeCategoryFilter: 'all',
+  kitchenProductionMode: false,
   selectedRecipeId: null,
   activeRecipeDetail: null,
   activeRecipeDataSource: 'local',
@@ -4341,14 +4353,114 @@ function populateRecipeDetailView(recipe) {
 }
 
 function recipeCategoryOf(recipe) {
-  return recipe?.kat || recipe?.Kategorie || 'Ohne Kategorie';
+  return recipeCategoryLabel(recipe);
 }
 
 function recipeSearchText(recipe) {
-  const ingredients = Array.isArray(recipe?.ingredients)
-    ? recipe.ingredients.map((ing) => ingredientNameOf(ing)).join(' ')
-    : '';
-  return `${recipe?.name || ''} ${recipe?.id || ''} ${recipeCategoryOf(recipe)} ${ingredients}`.toLowerCase();
+  return recipeSearchHaystack(recipe);
+}
+
+function activeRecipeQuickFilter() {
+  return THEKE_QUICK_FILTERS.find((entry) => entry.id === productionState.recipeQuickFilterId) || null;
+}
+
+function syncRecipeSearchUi() {
+  const searchInput = document.getElementById('recipe-search-input');
+  const clearBtn = document.getElementById('recipe-search-clear');
+  if (searchInput && searchInput.value !== productionState.recipeSearchQuery) {
+    searchInput.value = productionState.recipeSearchQuery;
+  }
+  if (clearBtn) {
+    clearBtn.hidden = !String(productionState.recipeSearchQuery || '').trim()
+      && !productionState.recipeQuickFilterId;
+  }
+  document.querySelectorAll('.recipe-quick-chip').forEach((chip) => {
+    const id = chip.getAttribute('data-recipe-quick') || '';
+    const active = id && id === productionState.recipeQuickFilterId;
+    chip.classList.toggle('active-category', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function applyRecipeSearch(query, { keepQuickFilter = false } = {}) {
+  productionState.recipeSearchQuery = query || '';
+  if (!keepQuickFilter) {
+    const quick = activeRecipeQuickFilter();
+    if (quick && !quick.allergenFree) {
+      const expected = normalizeThekeQuery(quick.query);
+      if (normalizeThekeQuery(productionState.recipeSearchQuery) !== expected) {
+        productionState.recipeQuickFilterId = '';
+      }
+    } else if (quick?.allergenFree && productionState.recipeSearchQuery.trim()) {
+      productionState.recipeQuickFilterId = '';
+    }
+  }
+  renderRecipes();
+}
+
+function clearRecipeSearch() {
+  productionState.recipeSearchQuery = '';
+  productionState.recipeQuickFilterId = '';
+  applyRecipeSearch('', { keepQuickFilter: true });
+  document.getElementById('recipe-search-input')?.focus();
+}
+
+function syncKitchenProductionModeUi() {
+  const page = document.getElementById('page-kitchen');
+  const toggle = document.getElementById('btn-kitchen-production-mode');
+  const mobileTheke = isThekeMobileViewport();
+  const showProduction = !mobileTheke || productionState.kitchenProductionMode;
+
+  if (page) {
+    page.classList.toggle('kitchen-theke-mode', mobileTheke && !productionState.kitchenProductionMode);
+    page.classList.toggle('kitchen-show-production', showProduction);
+  }
+  document.body.classList.toggle('kitchen-theke-mobile', mobileTheke && !productionState.kitchenProductionMode);
+
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', productionState.kitchenProductionMode ? 'true' : 'false');
+    toggle.textContent = productionState.kitchenProductionMode
+      ? 'Produktions-Modus ausblenden'
+      : 'Produktions-Modus einblenden';
+  }
+
+  const wrsPanel = document.getElementById('kitchen-wrs-panel');
+  if (wrsPanel && mobileTheke && !productionState.kitchenProductionMode) {
+    wrsPanel.open = false;
+  }
+}
+
+function initKitchenProductionModeToggle() {
+  const toggle = document.getElementById('btn-kitchen-production-mode');
+  if (toggle && toggle.dataset.eventsBound !== '1') {
+    toggle.dataset.eventsBound = '1';
+    toggle.addEventListener('click', () => {
+      productionState.kitchenProductionMode = !productionState.kitchenProductionMode;
+      syncKitchenProductionModeUi();
+      renderRecipes();
+      productionState.playClickSound?.(800, 0.04, 0.12);
+    });
+  }
+
+  if (typeof window !== 'undefined' && window.__kitchenThekeViewportBound !== '1') {
+    window.__kitchenThekeViewportBound = '1';
+    try {
+      const media = window.matchMedia('(max-width: 768px)');
+      const onChange = () => {
+        if (!isThekeMobileViewport()) {
+          productionState.kitchenProductionMode = false;
+        }
+        syncKitchenProductionModeUi();
+        renderRecipes();
+      };
+      if (typeof media.addEventListener === 'function') media.addEventListener('change', onChange);
+      else if (typeof media.addListener === 'function') media.addListener(onChange);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  syncKitchenProductionModeUi();
 }
 
 function renderRecipeCategoryFilters(recipes) {
@@ -4375,17 +4487,20 @@ function renderRecipeCategoryFilters(recipes) {
 }
 
 function filteredRecipesForKitchen(recipes) {
-  const query = productionState.recipeSearchQuery.trim().toLowerCase();
+  const query = productionState.recipeSearchQuery;
   const category = productionState.recipeCategoryFilter;
+  const quick = activeRecipeQuickFilter();
   return recipes.filter((recipe) => {
     const categoryMatches = category === 'all' || recipeCategoryOf(recipe) === category;
-    const queryMatches = !query || recipeSearchText(recipe).includes(query);
+    const queryMatches = matchesThekeRecipe(recipe, query, quick);
     return categoryMatches && queryMatches;
   });
 }
 
 function initRecipeSearchAndFilters() {
   const searchInput = document.getElementById('recipe-search-input');
+  const clearBtn = document.getElementById('recipe-search-clear');
+  const quickFilter = document.getElementById('recipe-quick-filter');
   const categoryFilter = document.getElementById('recipe-category-filter');
   const categoryButton = document.getElementById('recipe-category-filter-button');
   const categorySheet = document.getElementById('recipe-category-sheet');
@@ -4413,8 +4528,33 @@ function initRecipeSearchAndFilters() {
   if (searchInput && searchInput.dataset.eventsBound !== '1') {
     searchInput.dataset.eventsBound = '1';
     searchInput.addEventListener('input', (event) => {
-      productionState.recipeSearchQuery = event.target.value || '';
-      renderRecipes();
+      applyRecipeSearch(event.target.value || '');
+    });
+  }
+
+  if (clearBtn && clearBtn.dataset.eventsBound !== '1') {
+    clearBtn.dataset.eventsBound = '1';
+    clearBtn.addEventListener('click', () => {
+      clearRecipeSearch();
+    });
+  }
+
+  if (quickFilter && quickFilter.dataset.eventsBound !== '1') {
+    quickFilter.dataset.eventsBound = '1';
+    quickFilter.addEventListener('click', (event) => {
+      const chip = event.target.closest('.recipe-quick-chip');
+      if (!chip) return;
+      const id = chip.getAttribute('data-recipe-quick') || '';
+      const next = THEKE_QUICK_FILTERS.find((entry) => entry.id === id);
+      if (!next) return;
+      if (productionState.recipeQuickFilterId === next.id) {
+        clearRecipeSearch();
+        return;
+      }
+      productionState.recipeQuickFilterId = next.id;
+      productionState.recipeSearchQuery = next.allergenFree ? '' : (next.query || '');
+      applyRecipeSearch(productionState.recipeSearchQuery, { keepQuickFilter: true });
+      searchInput?.focus();
     });
   }
 
@@ -4443,20 +4583,21 @@ function initRecipeSearchAndFilters() {
       closeCategorySheet();
     });
   }
+
+  initKitchenProductionModeToggle();
 }
 
 function renderRecipes() {
   const container = document.getElementById('recipe-list-container');
   if (!container) return;
   initRecipeSearchAndFilters();
+  syncKitchenProductionModeUi();
 
   const recipes = recipesForKitchenList();
-  const searchInput = document.getElementById('recipe-search-input');
-  if (searchInput && searchInput.value !== productionState.recipeSearchQuery) {
-    searchInput.value = productionState.recipeSearchQuery;
-  }
+  syncRecipeSearchUi();
   renderRecipeCategoryFilters(recipes);
   const visibleRecipes = filteredRecipesForKitchen(recipes);
+  const thekeCards = isThekeMobileViewport() && !productionState.kitchenProductionMode;
 
   if (!recipes.length) {
     const emptyHint = shouldUseBratwurstMasterlist()
@@ -4474,20 +4615,17 @@ function renderRecipes() {
   if (!visibleRecipes.length) {
     container.innerHTML = `
       <div class="recipe-empty-hint" style="text-align:center;padding:32px 16px;color:#666;">
-        Keine Rezepte f?r diese Suche/Kategorie gefunden.
+        Keine Rezepte für diese Suche/Kategorie gefunden.
       </div>`;
     return;
   }
 
-  container.innerHTML = visibleRecipes.map(recipe => `
-    <div class="recipe-card ${recipeIdsMatch(productionState.selectedRecipeId, recipe.id) ? 'active-recipe' : ''}" data-recipe-id="${String(recipe.id).replace(/"/g, '&quot;')}">
-      <div class="recipe-meta-group">
-        <span class="recipe-title">${recipe.name}</span>
-        <span class="recipe-subinfo">${recipeCategoryOf(recipe)} - ${Array.isArray(recipe.ingredients) ? recipe.ingredients.length : 0} Zutaten${recipe.kaliber ? ' - ' + recipe.kaliber : ''}</span>
-      </div>
-      <div class="recipe-arrow">&gt;</div>
-    </div>
-  `).join('');
+  container.innerHTML = visibleRecipes.map((recipe) => {
+    const selected = recipeIdsMatch(productionState.selectedRecipeId, recipe.id);
+    return thekeCards
+      ? renderThekeRecipeCardHtml(recipe, { selected })
+      : renderCompactRecipeCardHtml(recipe, { selected });
+  }).join('');
 }
 function resolveActiveRecipeForDetail(recipeId) {
   const resolvedId = String(recipeId);
@@ -5717,6 +5855,8 @@ function syncRecipeAdminFormVisibility() {
 export function activateKitchenTab() {
   productionState.activeTab = 'kitchen';
   syncRecipeAdminFormVisibility();
+  initKitchenProductionModeToggle();
+  syncKitchenProductionModeUi();
   renderRecipes();
   restoreProductionDraftFields();
   refreshGallowayProcessingStockPanel();
@@ -6015,5 +6155,6 @@ export {
   renderProductionBatches as renderChargenList,
   renderProductionBatches,
   renderRecipes,
+  syncKitchenProductionModeUi,
   syncRecipeAdminFormVisibility,
 };
