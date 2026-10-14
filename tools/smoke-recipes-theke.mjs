@@ -34,7 +34,7 @@ assert.match(indexHtml, /data-recipe-quick="schinken"/, 'Chip Schinken');
 assert.match(indexHtml, /data-recipe-quick="allergenfrei"/, 'Chip Allergenfrei');
 assert.match(indexHtml, /id="btn-kitchen-production-mode"/, 'Produktions-Modus-Toggle');
 assert.match(indexHtml, /Produktions-Modus einblenden/, 'Toggle-Wording Laden-tauglich');
-assert.match(indexHtml, /style\.css\?v=20261014-recipes-encoding-fix-v1/, 'style.css Cache-Buster encoding-fix');
+assert.match(indexHtml, /style\.css\?v=20261014-recipe-audit-v1/, 'style.css Cache-Buster recipe-audit');
 
 assert.match(productionSrc, /from '\.\/rezepte\.js'/, 'production.js nutzt rezepte.js');
 assert.match(productionSrc, /renderThekeRecipeCardHtml/, 'Theken-Karten-Renderer verdrahtet');
@@ -57,17 +57,20 @@ assert.match(styleCss, /\.recipe-haltbar-hint/, 'Haltbarkeits-Hinweis-Styles');
 
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261014-recipes-encoding-fix-v1'/,
-  'SW Cache-Version recipes-encoding-fix-v1',
+  /CACHE_NAME = 'charculogic-v20261014-recipe-audit-v1'/,
+  'SW Cache-Version recipe-audit-v1',
 );
 assert.match(swSrc, /'\/rezepte\.js'/, 'rezepte.js im SW-Cache');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T04:20:00\+02:00'/, 'App Release-Zeitstempel');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T05:10:00\+02:00'/, 'App Release-Zeitstempel');
 assert.doesNotMatch(styleCss, /â–[¾¸¼]/, 'Keine Encoding-Hieroglyphen in CSS-Chevrons');
 assert.match(styleCss, /\.kitchen-collapsible > summary::after[\s\S]*?border-right:\s*2px solid/, 'CSS-Chevron für Rezepte-Collapsible');
 assert.match(indexHtml, /recipe-filter-button-icon chevron-down/, 'Filter-Icon nutzt CSS-Chevron');
-assert.match(productionSrc, /"id": "G-LW"[\s\S]*?"basis_g": "20\.000,00"/, 'G-LW Charge-Basis 20 kg');
-assert.match(productionSrc, /"id": "G-LW"[\s\S]*?Warmemulsion Fertigbraettemperatur 42/, 'G-LW Warmemulsion SOP');
-assert.match(productionSrc, /"id": "G-LW"[\s\S]*?Leitsatz 2\.232/, 'G-LW Leitsatz 2.232');
+assert.match(productionSrc, /bratwurstRecipes/, 'production.js importiert zentrale Rezeptliste');
+assert.match(rezepteSrc, /"id": "G-LW"[\s\S]*?"basis_g": "20\.000,00"/, 'G-LW Charge-Basis 20 kg');
+assert.match(rezepteSrc, /"id": "G-LW"[\s\S]*?Warmemulsion Fertigbraettemperatur 42/, 'G-LW Warmemulsion SOP');
+assert.match(rezepteSrc, /"id": "G-LW"[\s\S]*?Leitsatz 2\.232/, 'G-LW Leitsatz 2.232');
+assert.match(rezepteSrc, /"id": "G-LW"[\s\S]*?"auditStatus": "verified"/, 'G-LW auditStatus verified');
+assert.match(rezepteSrc, /export const bratwurstRecipes/, 'Zentrale bratwurstRecipes in rezepte.js');
 
 const sampleRecipes = [
   {

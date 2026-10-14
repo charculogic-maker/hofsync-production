@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261014-recipes-encoding-fix-v1';
+const CACHE_NAME = 'charculogic-v20261014-recipe-audit-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-14T04:20:00+02:00';
+const RELEASED_AT = '2026-10-14T05:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
