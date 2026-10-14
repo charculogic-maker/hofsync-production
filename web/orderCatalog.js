@@ -26,8 +26,9 @@
  * @property {string} [subtitle]
  * @property {number} pricePerKg
  * @property {'kg'|'piece'|'pack'|'jar'|'bottle'} unit
- * @property {number} [typicalWeightKg]
- * @property {number} [estimatedPiecePrice]
+ * @property {'per_piece'|'per_kg'|'fixed'} [pricingType]
+ * @property {number} [typicalWeightKg] Stück- bzw. Packungsgewicht in kg (für Schätzung)
+ * @property {number} [estimatedPiecePrice] optionaler Fixpreis/Stück (Fonds, Gläser)
  * @property {boolean} [comingSoon]
  * @property {CutOption[]} [cutOptions]
  * @property {VacuumOption[]} [vacuumOptions]
@@ -112,6 +113,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Frisch gewolft',
         pricePerKg: 19.9,
         unit: 'kg',
+        pricingType: 'per_kg',
         typicalWeightKg: 0.5,
         allowWeight: true,
         allowPieces: true,
@@ -131,6 +133,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Zum Schmoren',
         pricePerKg: 24.9,
         unit: 'kg',
+        pricingType: 'per_kg',
         typicalWeightKg: 1,
         allowWeight: true,
         allowPieces: false,
@@ -149,16 +152,17 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Vom Oberwasser / Keule',
         pricePerKg: 28.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.18,
-        estimatedPiecePrice: 5.2,
         allowWeight: false,
         allowPieces: true,
         defaultPieces: 4,
         cutOptions: [
-          { id: 'stueck', label: 'Stück (klassisch ausgestochen)' },
+          { id: 'duenn', label: 'Klassisch dünn geschnitten (ca. 180–200 g)' },
+          { id: 'breit', label: 'Breiter Schnitt (für viel Füllung)' },
         ],
         vacuumOptions: VACUUM_DEFAULT,
-        notePlaceholder: 'z. B. dünner / dicker ausstechen …',
+        notePlaceholder: 'z. B. bitte extra dünn schneiden oder leicht plattieren...',
       },
       {
         id: 'galloway-rumpsteak',
@@ -167,8 +171,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Reifung am Knochen',
         pricePerKg: 49.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.28,
-        estimatedPiecePrice: 14.0,
         allowWeight: true,
         allowPieces: true,
         defaultPieces: 2,
@@ -188,8 +192,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Hochrippe / Ribeye',
         pricePerKg: 46.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.3,
-        estimatedPiecePrice: 14.1,
         allowWeight: true,
         allowPieces: true,
         defaultPieces: 2,
@@ -208,8 +212,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Mager & aromatisch',
         pricePerKg: 32.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.22,
-        estimatedPiecePrice: 7.2,
         allowWeight: true,
         allowPieces: true,
         defaultPieces: 2,
@@ -228,6 +232,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Zum Braten / Schmoren',
         pricePerKg: 24.5,
         unit: 'kg',
+        pricingType: 'per_kg',
         typicalWeightKg: 1.2,
         allowWeight: true,
         allowPieces: false,
@@ -246,8 +251,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Mit Markknochen',
         pricePerKg: 15.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.4,
-        estimatedPiecePrice: 6.4,
         allowWeight: true,
         allowPieces: true,
         defaultPieces: 2,
@@ -271,8 +276,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: '~1,6 kg',
         pricePerKg: 17.9,
         unit: 'piece',
+        pricingType: 'per_piece',
         typicalWeightKg: 1.6,
-        estimatedPiecePrice: 28.6,
         allowWeight: false,
         allowPieces: true,
         defaultPieces: 1,
@@ -291,12 +296,12 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Vom Weidehuhn',
         pricePerKg: 29.9,
         unit: 'kg',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.35,
-        estimatedPiecePrice: 10.5,
         allowWeight: true,
         allowPieces: true,
         defaultPieces: 2,
-        defaultWeightKg: 0.35,
+        defaultWeightKg: 0.7,
         cutOptions: [
           { id: 'ganz', label: 'Ganzes Filet' },
           { id: 'streifen', label: 'In Streifen' },
@@ -310,8 +315,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Oberschenkel + Unterschenkel',
         pricePerKg: 13.9,
         unit: 'pack',
+        pricingType: 'per_piece',
         typicalWeightKg: 0.55,
-        estimatedPiecePrice: 7.6,
         allowWeight: false,
         allowPieces: true,
         defaultPieces: 1,
@@ -327,8 +332,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Ideal für Brühe',
         pricePerKg: 9.9,
         unit: 'piece',
+        pricingType: 'per_piece',
         typicalWeightKg: 1.4,
-        estimatedPiecePrice: 13.9,
         allowWeight: false,
         allowPieces: true,
         defaultPieces: 1,
@@ -355,6 +360,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: '750 ml',
         pricePerKg: 0,
         unit: 'bottle',
+        pricingType: 'fixed',
         estimatedPiecePrice: 9.5,
         allowWeight: false,
         allowPieces: true,
@@ -370,6 +376,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: '750 ml',
         pricePerKg: 0,
         unit: 'bottle',
+        pricingType: 'fixed',
         estimatedPiecePrice: 8.5,
         allowWeight: false,
         allowPieces: true,
@@ -384,6 +391,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         subtitle: 'Hausgemacht',
         pricePerKg: 0,
         unit: 'jar',
+        pricingType: 'fixed',
         estimatedPiecePrice: 7.9,
         allowWeight: false,
         allowPieces: true,
@@ -479,38 +487,75 @@ export function findProductById(productId) {
 }
 
 /**
+ * @param {CatalogProduct} product
+ * @returns {'per_piece'|'per_kg'|'fixed'}
+ */
+export function resolvePricingType(product) {
+  if (!product) return 'per_kg';
+  if (product.pricingType === 'per_piece' || product.pricingType === 'per_kg' || product.pricingType === 'fixed') {
+    return product.pricingType;
+  }
+  if (product.unit === 'bottle' || product.unit === 'jar') return 'fixed';
+  if (product.allowWeight === false && product.allowPieces !== false) return 'per_piece';
+  if (product.unit === 'piece' || product.unit === 'pack') return 'per_piece';
+  return 'per_kg';
+}
+
+/**
+ * Geschätzter Einzelpreis je Stück/Packung (für Kartenanzeige).
+ * @param {CatalogProduct} product
+ */
+export function estimateUnitPrice(product) {
+  if (!product || product.comingSoon) return 0;
+  const type = resolvePricingType(product);
+  if (type === 'fixed') return roundMoney(Number(product.estimatedPiecePrice) || 0);
+  const pieceWeight = Number(product.typicalWeightKg) || 0;
+  const perKg = Number(product.pricePerKg) || 0;
+  if (pieceWeight > 0 && perKg > 0) return roundMoney(pieceWeight * perKg);
+  return roundMoney(Number(product.estimatedPiecePrice) || 0);
+}
+
+/**
  * Geschätzter Positionspreis (Abrechnung später nach Waage).
+ * per_piece: Stückzahl × (Stückgewicht_kg × €/kg) — kein fehlendes Gewichtsfeld blockiert die Summe.
  * @param {CatalogProduct} product
  * @param {{ pieces?: number, weightKg?: number }} selection
  */
 export function estimateLinePrice(product, selection = {}) {
   if (!product || product.comingSoon) return 0;
 
-  if (product.unit === 'bottle' || product.unit === 'jar' || product.unit === 'pack' || product.unit === 'piece') {
-    const pieces = Math.max(1, Number(selection.pieces) || product.defaultPieces || 1);
-    const piecePrice = Number(product.estimatedPiecePrice) || 0;
-    if (piecePrice > 0) return roundMoney(pieces * piecePrice);
-    const weight = (Number(product.typicalWeightKg) || 0) * pieces;
-    return roundMoney(weight * (Number(product.pricePerKg) || 0));
+  const type = resolvePricingType(product);
+  const piecesRaw = Number(selection.pieces);
+  const pieces = Number.isFinite(piecesRaw) && piecesRaw > 0
+    ? piecesRaw
+    : (product.defaultPieces || 1);
+  const weightRaw = Number(selection.weightKg);
+  const hasTotalWeight = Number.isFinite(weightRaw) && weightRaw > 0;
+  const perKg = Number(product.pricePerKg) || 0;
+  const pieceWeight = Number(product.typicalWeightKg) || 0;
+
+  if (type === 'fixed') {
+    const unit = Number(product.estimatedPiecePrice) || 0;
+    return roundMoney(pieces * unit);
   }
 
-  const weightKg = Number(selection.weightKg);
-  if (Number.isFinite(weightKg) && weightKg > 0) {
-    return roundMoney(weightKg * (Number(product.pricePerKg) || 0));
+  if (type === 'per_piece') {
+    // Explizites Gesamtgewicht nur nutzen, wenn der Kunde ein Gewichtsfeld bedienen darf.
+    if (product.allowWeight !== false && hasTotalWeight) {
+      return roundMoney(weightRaw * perKg);
+    }
+    // Stückzahl × gerundeter Stückpreis (kg×€/kg), z. B. 4×5,20 € = 20,80 €
+    const unit = estimateUnitPrice(product);
+    if (unit > 0) return roundMoney(pieces * unit);
+    return 0;
   }
 
-  const pieces = Number(selection.pieces);
-  if (Number.isFinite(pieces) && pieces > 0 && product.estimatedPiecePrice) {
-    return roundMoney(pieces * product.estimatedPiecePrice);
+  // per_kg
+  if (hasTotalWeight) {
+    return roundMoney(weightRaw * perKg);
   }
-
-  if (Number.isFinite(pieces) && pieces > 0 && product.typicalWeightKg) {
-    return roundMoney(pieces * product.typicalWeightKg * (Number(product.pricePerKg) || 0));
-  }
-
-  if (product.estimatedPiecePrice) return roundMoney(product.estimatedPiecePrice);
-  if (product.typicalWeightKg && product.pricePerKg) {
-    return roundMoney(product.typicalWeightKg * product.pricePerKg);
+  if (pieceWeight > 0 && perKg > 0) {
+    return roundMoney(pieces * pieceWeight * perKg);
   }
   return 0;
 }
@@ -758,6 +803,8 @@ export default {
   getCatalogCategories,
   getOrderableProducts,
   findProductById,
+  resolvePricingType,
+  estimateUnitPrice,
   estimateLinePrice,
   formatEuro,
   getAvailablePickupSlots,
