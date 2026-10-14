@@ -1,5 +1,6 @@
 /**
- * Wareneingang Schnellerfassung – LIFO-Karten, Mengen-Nummernpad, MHD-Schnelltasten.
+ * Wareneingang Schnellerfassung – LIFO-Karten, Mengen-Nummernpad, MHD-Schnelltasten,
+ * smarte Auto-Kategorisierung (Keyword-Heuristik + EAN-Gedächtnis-Helfer).
  * State (currentDeliveryItems) bleibt in mhd.js; dieses Modul liefert UI-Helfer.
  */
 
@@ -17,6 +18,139 @@ const MHD_FALLBACK_KEYWORDS = [
 ];
 const MHD_FALLBACK_DEFAULT_TAGE = 7;
 const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
+
+/** Kanonische Wareneingangs-Kategorien (Werte wie in mhd.js RECEIVING_CATEGORIES). */
+export const RECEIVING_SMART_CATEGORIES = {
+  mopro: '🥛MoPro',
+  kuehlware: '🥗 Kühlware',
+  aufschnitt: '🥓 Aufschnitt',
+  trockenware: '📦 Trockenware',
+  frische: '🍎 Frische',
+  tk: '🧊 TK',
+  getraenke: '🍺 Getränke',
+  gewuerze: '🌿 Gewürze',
+};
+
+function normalizeCategoryText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function looksLikeDryMilkChocolate(normalizedName) {
+  return /(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9].*)?(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern)/.test(normalizedName)
+    || /(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern).*(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9]|$)/.test(normalizedName)
+    || /milchreis.*(rundkorn|reis|weiss|weiss)/.test(normalizedName);
+}
+
+/**
+ * Keyword-Heuristik für unbekannte EANs.
+ * Reihenfolge: Kühlware/Feinkost → MoPro → Fleisch/Wurst → Trockenware.
+ * Fallback ist immer Trockenware — niemals pauschal MoPro.
+ */
+export function inferReceivingCategoryFromProductName(productName = '', fallbackCategory = RECEIVING_SMART_CATEGORIES.trockenware) {
+  const normalizedName = normalizeCategoryText(productName);
+  if (!normalizedName) {
+    return String(fallbackCategory || RECEIVING_SMART_CATEGORIES.trockenware).trim()
+      || RECEIVING_SMART_CATEGORIES.trockenware;
+  }
+
+  if (looksLikeDryMilkChocolate(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.trockenware;
+  }
+
+  // Kühlware / Feinkost (vor Fleisch, damit vegane Burger nicht als Wurst landen)
+  if (/(vegan|vegetarisch|tofu|aufstrich|pasta\s*frisch|frischpasta|salat|hefe\s*frisch|frischhefe|\bdip\b)/.test(normalizedName)
+    || (/\bburger\b/.test(normalizedName)
+      && /(tomate|basilikum|gemuese|gemuse|linse|kicher|erbsen|spinat|pilz|bohne|falafel|beyond|planted)/.test(normalizedName))) {
+    return RECEIVING_SMART_CATEGORIES.kuehlware;
+  }
+
+  // MoPro (Milchprodukte) – trockene Milch-Schokolade oben ausgeschlossen
+  if (/(joghurt|joghurtdrink|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|creme\s*fraiche|cremefraiche|butter|feta|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|gouda|emmentaler|mozzarella|ricotta|mascarpone|brie|camembert)/.test(normalizedName)
+    || /(^|[^a-z0-9])(h-?milch|frische milch|fettarme milch|alpenmilch|heumilch|weidemilch|vollmilch|milch|kakao milch|schokoladen milch|milch alternative)([^a-z0-9]|$)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.mopro;
+  }
+
+  // Fleisch & Wurst (Theke / Kühlware → Aufschnitt)
+  if (/(bratwurst|leberwurst|schinken|mett|salami|fleisch|galloway|rinder|hack|steak|schnitzel|gulasch|wurst|aufschnitt|\bburger\b)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.aufschnitt;
+  }
+
+  // Trockenware / ungekühlte Lagerware
+  if (/(bonbon|zucker|trockenhefe|hefe|mehl|flocken|reis|nudeln|tee|kaffee|gewuerz|gewurz|saft|sirup|\boel\b|\bol\b|essig|\bglas\b|\bdose\b|konserve|trockenware)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.trockenware;
+  }
+
+  const fallback = String(fallbackCategory || '').trim();
+  if (fallback && !/mopro/i.test(fallback)) return fallback;
+  return RECEIVING_SMART_CATEGORIES.trockenware;
+}
+
+/**
+ * Kategorie für einen Scan auflösen:
+ * 1) gelernte EAN-Stammdaten (zwingend)
+ * 2) Keyword-Heuristik auf den Artikelnamen
+ * 3) Sticky-Vorfilter (nur wenn gesetzt und kein Keyword-Treffer)
+ * 4) Trockenware — niemals pauschal MoPro
+ *
+ * @returns {{ category: string, source: 'ean'|'keyword'|'sticky'|'default' }}
+ */
+export function resolveReceivingScanCategory({
+  productName = '',
+  eanCategory = '',
+  stickyCategory = '',
+} = {}) {
+  const learned = String(eanCategory || '').trim();
+  if (learned) {
+    return { category: learned, source: 'ean' };
+  }
+
+  const keywordHit = inferReceivingCategoryKeywordHit(productName);
+  if (keywordHit) {
+    return { category: keywordHit, source: 'keyword' };
+  }
+
+  const sticky = String(stickyCategory || '').trim();
+  if (sticky) {
+    return { category: sticky, source: 'sticky' };
+  }
+
+  return {
+    category: RECEIVING_SMART_CATEGORIES.trockenware,
+    source: 'default',
+  };
+}
+
+/** Liefert die Keyword-Kategorie oder '' wenn kein Regel-Treffer. */
+export function inferReceivingCategoryKeywordHit(productName = '') {
+  const normalizedName = normalizeCategoryText(productName);
+  if (!normalizedName) return '';
+  if (looksLikeDryMilkChocolate(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.trockenware;
+  }
+  if (/(vegan|vegetarisch|tofu|aufstrich|pasta\s*frisch|frischpasta|salat|hefe\s*frisch|frischhefe|\bdip\b)/.test(normalizedName)
+    || (/\bburger\b/.test(normalizedName)
+      && /(tomate|basilikum|gemuese|gemuse|linse|kicher|erbsen|spinat|pilz|bohne|falafel|beyond|planted)/.test(normalizedName))) {
+    return RECEIVING_SMART_CATEGORIES.kuehlware;
+  }
+  if (/(joghurt|joghurtdrink|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|creme\s*fraiche|cremefraiche|butter|feta|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|gouda|emmentaler|mozzarella|ricotta|mascarpone|brie|camembert)/.test(normalizedName)
+    || /(^|[^a-z0-9])(h-?milch|frische milch|fettarme milch|alpenmilch|heumilch|weidemilch|vollmilch|milch|kakao milch|schokoladen milch|milch alternative)([^a-z0-9]|$)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.mopro;
+  }
+  if (/(bratwurst|leberwurst|schinken|mett|salami|fleisch|galloway|rinder|hack|steak|schnitzel|gulasch|wurst|aufschnitt|\bburger\b)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.aufschnitt;
+  }
+  if (/(bonbon|zucker|trockenhefe|hefe|mehl|flocken|reis|nudeln|tee|kaffee|gewuerz|gewurz|saft|sirup|\boel\b|\bol\b|essig|\bglas\b|\bdose\b|konserve|trockenware)/.test(normalizedName)) {
+    return RECEIVING_SMART_CATEGORIES.trockenware;
+  }
+  return '';
+}
 
 let receivingQtyNumpadState = null;
 let receivingQtyNumpadKeyHandler = null;

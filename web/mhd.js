@@ -19,8 +19,11 @@ import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
+  inferReceivingCategoryFromProductName,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
+  RECEIVING_SMART_CATEGORIES,
+  resolveReceivingScanCategory,
   shiftIsoDateByDays,
   sortDeliveryItemsLifo,
   suggestReceivingMhd,
@@ -1246,14 +1249,19 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
-function showUtilityDialog(title, bodyHtml) {
+function showUtilityDialog(title, bodyHtml, options = {}) {
   if (learnModeOverlay) learnModeOverlay.remove();
   learnModeOverlay = document.createElement('div');
   learnModeOverlay.className = 'learn-mode-overlay';
+  const cardClass = options.wide
+    ? 'learn-mode-card learn-mode-card--wide'
+    : 'learn-mode-card';
+  const footerHtml = options.footerHtml || '';
   learnModeOverlay.innerHTML = `
-    <div class="learn-mode-card" role="dialog" aria-modal="true">
+    <div class="${cardClass}" role="dialog" aria-modal="true">
       <div class="learn-mode-title">${escapeHtml(title)}</div>
       ${bodyHtml}
+      ${footerHtml}
       <div class="learn-mode-actions">
         <button type="button" class="btn" id="utility-dialog-close" style="width:100%;min-height:52px;margin-top:8px;background:#E5E5EA;color:#1C1C1E;">Schließen</button>
       </div>
@@ -1261,6 +1269,7 @@ function showUtilityDialog(title, bodyHtml) {
   `;
   document.querySelector('.app-container')?.appendChild(learnModeOverlay);
   document.getElementById('utility-dialog-close')?.addEventListener('click', () => {
+    recentReceiptCategoryDrafts.clear();
     resetScanState({ keepLearnOverlay: false });
   });
 }
@@ -1536,6 +1545,8 @@ const RECEIVING_ALIAS_CATALOG = [
 let lastReceivingHeadCategory = '';
 let lastMhdScanCategory = '';
 let learnModeOverlay = null;
+/** Offene Kategorie-Änderungen in „Letzte Eingänge“: id → { original, current }. */
+let recentReceiptCategoryDrafts = new Map();
 let mhdStammdatenEditId = null;
 let currentBarcode = '';
 let activeScan = null;
@@ -1955,24 +1966,42 @@ function normalizeTextForCategory(value = '') {
 }
 
 function inferMhdCategoryFromProductName(productName = '', fallbackCategory = '') {
-  const normalizedName = normalizeTextForCategory(productName);
-  if (!normalizedName) return normalizeMhdCategory(fallbackCategory || '');
+  const fallback = normalizeMhdCategory(fallbackCategory || '') || MHD_CANONICAL_CATEGORIES.trockenware;
+  // Nie pauschal MoPro als Fallback — Keyword-Heuristik aus receiving.js.
+  const inferred = inferReceivingCategoryFromProductName(
+    productName,
+    fallback === MHD_CANONICAL_CATEGORIES.mopro
+      ? MHD_CANONICAL_CATEGORIES.trockenware
+      : fallback,
+  );
+  return normalizeMhdCategory(inferred) || MHD_CANONICAL_CATEGORIES.trockenware;
+}
 
-  const fallback = normalizeMhdCategory(fallbackCategory || '');
-  const looksLikeDryMilkChocolate = /(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9].*)?(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern)/.test(normalizedName)
-    || /(schoko|schokolade|kuvert|waffel|keks|cookie|osterei|osterhase|baumkuchen|muesli|nuss|nougat|riegel|marzipan|praline|lolly|dattel|cashew|kern).*(^|[^a-z0-9])(vollmilch|milch)([^a-z0-9]|$)/.test(normalizedName);
-  const looksLikeDryRice = /milchreis.*(rundkorn|reis|weiss|weiss)/.test(normalizedName);
-  if (looksLikeDryMilkChocolate || looksLikeDryRice) return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
+/**
+ * Kategorie für Scan/Auto-Add: EAN-Gedächtnis → Keywords → Sticky → Trockenware.
+ */
+function resolveCategoryForReceivingScan(productName = '', eanCategory = '') {
+  const sticky = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
+  const resolved = resolveReceivingScanCategory({
+    productName,
+    eanCategory: eanCategory ? (normalizeMhdCategory(eanCategory) || eanCategory) : '',
+    stickyCategory: sticky,
+  });
+  const category = normalizeMhdCategory(resolved.category) || RECEIVING_SMART_CATEGORIES.trockenware;
+  return { category, source: resolved.source };
+}
 
-  if (/(joghurt|joghurtdrink|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|butter|feta|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|mozzarella|ricotta|mascarpone|brie|camembert)/.test(normalizedName)) {
-    return MHD_CANONICAL_CATEGORIES.mopro;
-  }
-
-  if (/(^|[^a-z0-9])(h-?milch|frische milch|fettarme milch|alpenmilch|heumilch|weidemilch|vollmilch|milch|kakao-milch|schokoladen-milch|milch alternative)([^a-z0-9]|$)/.test(normalizedName)) {
-    return MHD_CANONICAL_CATEGORIES.mopro;
-  }
-
-  return fallback || MHD_CANONICAL_CATEGORIES.trockenware;
+function applyResolvedCategoryToReceivingForm(category) {
+  const mappedCategory = mapMhdCategoryToHeadCategory(category);
+  const categorySelect = document.getElementById('we-category-quick');
+  if (!mappedCategory || !categorySelect) return '';
+  const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
+  if (!hasOption) return '';
+  categorySelect.value = mappedCategory;
+  rememberReceivingHeadCategory(mappedCategory);
+  updateReceivingQtyFieldUi();
+  updateReceivingTemperatureFieldUi();
+  return mappedCategory;
 }
 
 function mapVpeCsv(text) {
@@ -2510,21 +2539,11 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
         'info',
       );
     }
-    const selectedCategory = document.getElementById('we-category-quick')?.value || '';
-    if (!selectedCategory && info.category) {
-      const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
-      const categorySelect = document.getElementById('we-category-quick');
-      if (mappedCategory && categorySelect) {
-        const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
-        if (hasOption) {
-          categorySelect.value = mappedCategory;
-          rememberReceivingHeadCategory(mappedCategory);
-          updateReceivingQtyFieldUi();
-        }
-      }
-    } else {
-      applyLastReceivingHeadCategory();
-    }
+    const { category: smartCategory } = resolveCategoryForReceivingScan(
+      currentDeliveryItemProduct,
+      info.category || '',
+    );
+    applyResolvedCategoryToReceivingForm(smartCategory);
     const manualInput = document.getElementById('we-product-manual');
     if (manualInput) manualInput.value = '';
     renderReceivingStatus({ lastScan: code, status: 'Produkt erkannt' });
@@ -3156,7 +3175,8 @@ function showLearnModeDialog(ean) {
 
 function normalizeMhdCategory(kategorie) {
   const kat = (kategorie || '').trim();
-  if (!kat) return MHD_CANONICAL_CATEGORIES.mopro;
+  // Leere Kategorie nicht zu MoPro hochschreiben — Fallback entscheidet der Aufrufer / Keyword-Heuristik.
+  if (!kat) return '';
   if (kat === 'kaese_theke' || kat === 'Käse-Theke') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === '❄️Kühlware' || kat === '❄️ Kühlware') return MHD_CANONICAL_CATEGORIES.kuehlware;
   if (kat === 'Gewürze' || kat === '🌿Gewürze' || kat === '🌿 Gewürze') return MHD_CANONICAL_CATEGORIES.gewuerze;
@@ -3171,10 +3191,11 @@ function normalizeMhdCategory(kategorie) {
 }
 
 function getProductCategory(prod) {
-  const storedCategory = normalizeMhdCategory(prod.kategorie || prod.category || prod.warenKategorie || '');
+  const rawCategory = prod.kategorie || prod.category || prod.warenKategorie || '';
+  const storedCategory = normalizeMhdCategory(rawCategory);
   const productName = prod.name || prod.produkt || prod.product || '';
   if (!storedCategory || storedCategory === MHD_CANONICAL_CATEGORIES.trockenware) {
-    return inferMhdCategoryFromProductName(productName, storedCategory);
+    return inferMhdCategoryFromProductName(productName, storedCategory || MHD_CANONICAL_CATEGORIES.trockenware);
   }
   return storedCategory;
 }
@@ -6094,30 +6115,88 @@ function requireOfficeAccess(featureLabel = 'Diese Funktion') {
 }
 
 function showRecentReceipts() {
+  recentReceiptCategoryDrafts.clear();
   const receipts = mhdState.products
     .filter((entry) => entry.source === 'wareneingang-app' || entry.postentyp === 'wareneingang')
     .sort((a, b) => String(b.wareneingangAt || b.createdAt || '').localeCompare(String(a.wareneingangAt || a.createdAt || '')))
     .slice(0, 12);
   showUtilityDialog('Letzte Eingänge', `
-    <p class="learn-mode-desc">Zum Korrigieren oder Löschen von Test- und Fehleinträgen.</p>
-    <div class="utility-list">
-      ${receipts.length ? receipts.map((entry) => `
-        <div class="utility-row">
+    <p class="learn-mode-desc">Kategorien anpassen und alle Änderungen mit einem Tippen speichern.</p>
+    <div class="utility-list recent-receipts-list">
+      ${receipts.length ? receipts.map((entry) => {
+        const originalCategory = normalizeMhdCategory(entry.warenKategorie || entry.kategorie || '')
+          || String(entry.warenKategorie || entry.kategorie || '').trim();
+        return `
+        <div class="utility-row recent-receipt-row" data-recent-receipt-id="${escapeHtml(entry.id)}" data-original-category="${escapeHtml(originalCategory)}">
           <div class="utility-row-title">${escapeHtml(entry.name || entry.produkt || 'Posten')}</div>
           <div class="utility-row-meta">Barcode: ${escapeHtml(entry.ean || entry.barcode || '-')} · MHD: ${escapeHtml(entry.mhd || entry.mhdDate || '-')} · Menge: ${escapeHtml(entry.qty ?? entry.menge ?? '-')}</div>
-          <label class="utility-row-meta" for="recent-receipt-category-${escapeHtml(entry.id)}">Kategorie</label>
-          <select class="input-text-touch" id="recent-receipt-category-${escapeHtml(entry.id)}" data-mhd-receipt-category="${escapeHtml(entry.id)}">
-            ${renderReceivingCategoryOptions(entry.warenKategorie || entry.kategorie)}
+          <label class="utility-row-meta" for="recent-receipt-category-${escapeHtml(entry.id)}">
+            Kategorie
+            <span class="recent-receipt-dirty-pill" hidden>geändert</span>
+          </label>
+          <select class="input-text-touch recent-receipt-category-select" id="recent-receipt-category-${escapeHtml(entry.id)}" data-mhd-receipt-category="${escapeHtml(entry.id)}" data-original-category="${escapeHtml(originalCategory)}">
+            ${renderReceivingCategoryOptions(originalCategory)}
           </select>
           <div class="utility-row-actions recent-receipt-actions">
-            <button class="btn btn-secondary recent-receipt-action recent-receipt-action--save" data-mhd-utility-command="category-save" data-mhd-id="${entry.id}">Kategorie speichern</button>
             <button class="btn-danger-small recent-receipt-action" data-mhd-utility-command="delete" data-mhd-id="${entry.id}">Löschen</button>
             <button class="btn-danger-small recent-receipt-action" data-mhd-utility-command="history" data-mhd-id="${entry.id}">Posten ansehen</button>
           </div>
-        </div>
-      `).join('') : '<div class="utility-row"><div class="utility-row-title">Keine Wareneingänge gefunden</div></div>'}
+        </div>`;
+      }).join('') : '<div class="utility-row"><div class="utility-row-title">Keine Wareneingänge gefunden</div></div>'}
     </div>
-  `);
+  `, {
+    wide: true,
+    footerHtml: `
+      <div class="recent-receipts-batch-bar" id="recent-receipts-batch-bar" hidden>
+        <button type="button" class="btn btn-primary recent-receipts-batch-save" id="recent-receipts-batch-save" data-mhd-utility-command="category-batch-save">
+          💾 <span id="recent-receipts-batch-count">0</span> Änderungen speichern
+        </button>
+      </div>
+    `,
+  });
+  bindRecentReceiptCategoryDrafts();
+  updateRecentReceiptsBatchBar();
+}
+
+function bindRecentReceiptCategoryDrafts() {
+  const overlay = learnModeOverlay;
+  if (!overlay) return;
+  overlay.querySelectorAll('[data-mhd-receipt-category]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const id = select.dataset.mhdReceiptCategory;
+      const original = String(select.dataset.originalCategory || '').trim();
+      const current = String(select.value || '').trim();
+      const row = select.closest('.recent-receipt-row');
+      if (!id) return;
+      if (current && current !== original) {
+        recentReceiptCategoryDrafts.set(id, { original, current });
+        row?.classList.add('utility-row--category-dirty');
+        const pill = row?.querySelector('.recent-receipt-dirty-pill');
+        if (pill) pill.hidden = false;
+      } else {
+        recentReceiptCategoryDrafts.delete(id);
+        row?.classList.remove('utility-row--category-dirty');
+        const pill = row?.querySelector('.recent-receipt-dirty-pill');
+        if (pill) pill.hidden = true;
+      }
+      updateRecentReceiptsBatchBar();
+    });
+  });
+}
+
+function updateRecentReceiptsBatchBar() {
+  const bar = document.getElementById('recent-receipts-batch-bar');
+  const countEl = document.getElementById('recent-receipts-batch-count');
+  const count = recentReceiptCategoryDrafts.size;
+  if (countEl) countEl.textContent = String(count);
+  if (!bar) return;
+  bar.hidden = count === 0;
+  bar.classList.toggle('is-visible', count > 0);
+  const saveBtn = document.getElementById('recent-receipts-batch-save');
+  if (saveBtn) {
+    saveBtn.disabled = count === 0;
+    saveBtn.setAttribute('aria-disabled', count === 0 ? 'true' : 'false');
+  }
 }
 
 function renderReceivingCategoryOptions(selectedCategory = '') {
@@ -6130,6 +6209,99 @@ function renderReceivingCategoryOptions(selectedCategory = '') {
     .join('');
 }
 
+async function saveRecentReceiptCategoryDraftsBatch() {
+  const drafts = Array.from(recentReceiptCategoryDrafts.entries());
+  if (!drafts.length) {
+    mhdState.showHUD('Nichts geändert', 'Bitte zuerst eine Kategorie anpassen.', '!');
+    return;
+  }
+
+  const saveBtn = document.getElementById('recent-receipts-batch-save');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Speichern…';
+  }
+
+  const updatedAtIso = new Date().toISOString();
+  let savedCount = 0;
+
+  try {
+    await Promise.all(drafts.map(async ([id, draft]) => {
+      const warenKategorie = String(draft.current || '').trim();
+      if (!warenKategorie) return;
+      const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
+      const localEntry = mhdState.products.find((entry) => entry.id === id);
+      const audited = withHiddenAudit(
+        {
+          warenKategorie,
+          kategorie,
+          category: kategorie,
+          updatedAt: serverTimestampFallback(),
+        },
+        {
+          warenKategorie,
+          kategorie,
+          category: kategorie,
+          updatedAt: updatedAtIso,
+        },
+      );
+
+      await mhdState.writeOrQueueFirestore({
+        collectionPath: mhdCollectionPath(),
+        docId: id,
+        onlineData: audited.onlineData,
+        queueData: audited.queueData,
+        offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
+      });
+
+      if (localEntry) {
+        localEntry.warenKategorie = warenKategorie;
+        localEntry.kategorie = kategorie;
+        localEntry.category = kategorie;
+        localEntry.updatedAt = updatedAtIso;
+        const barcode = getProductBarcode(localEntry);
+        rememberCategoryForBarcode(localEntry, barcode, kategorie);
+        if (barcode) {
+          saveProductMaster({
+            barcode,
+            ean: barcode,
+            name: localEntry.name || localEntry.produkt || '',
+            brand: localEntry.brand || localEntry.marke || '',
+            kategorie,
+            category: kategorie,
+          });
+        }
+      }
+      savedCount += 1;
+    }));
+
+    recentReceiptCategoryDrafts.clear();
+    mhdState.showHUD(
+      'Kategorien gespeichert',
+      savedCount === 1
+        ? '1 Kategorie gespeichert – beim nächsten Scan kennen wir den Artikel.'
+        : `${savedCount} Kategorien gespeichert – beim nächsten Scan kennen wir die Artikel.`,
+    );
+    window.showToast?.(
+      savedCount === 1
+        ? '1 Kategorie gespeichert.'
+        : `${savedCount} Kategorien gespeichert.`,
+      'success',
+    );
+    showRecentReceipts();
+  } catch (err) {
+    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryBatchCorrection')) return;
+    console.error('[CharcuLogic Firebase] Kategorie-Batch speichern fehlgeschlagen:', err);
+    mhdState.showHUD('Fehler', 'Kategorien konnten nicht gespeichert werden.', '!');
+    updateRecentReceiptsBatchBar();
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `💾 <span id="recent-receipts-batch-count">${recentReceiptCategoryDrafts.size}</span> Änderungen speichern`;
+    }
+  }
+}
+
+/** @deprecated Einzel-Save entfernt – Batch über saveRecentReceiptCategoryDraftsBatch. */
 async function updateRecentReceiptCategory(id) {
   const select = document.querySelector(`[data-mhd-receipt-category="${CSS.escape(id)}"]`);
   const warenKategorie = String(select?.value || '').trim();
@@ -6137,42 +6309,11 @@ async function updateRecentReceiptCategory(id) {
     mhdState.showHUD('Kategorie fehlt', 'Bitte eine Kategorie auswählen.', '!');
     return;
   }
-  const kategorie = mapWarenKategorieToMhdKategorie(warenKategorie);
-  const updatedAtIso = new Date().toISOString();
-  const audited = withHiddenAudit(
-    {
-      warenKategorie,
-      kategorie,
-      updatedAt: serverTimestampFallback(),
-    },
-    {
-      warenKategorie,
-      kategorie,
-      updatedAt: updatedAtIso,
-    },
-  );
-
-  try {
-    await mhdState.writeOrQueueFirestore({
-      collectionPath: mhdCollectionPath(),
-      docId: id,
-      onlineData: audited.onlineData,
-      queueData: audited.queueData,
-      offlineMessage: 'Kategorie-Korrektur wird nachträglich synchronisiert.',
-    });
-    const localEntry = mhdState.products.find((entry) => entry.id === id);
-    if (localEntry) {
-      localEntry.warenKategorie = warenKategorie;
-      localEntry.kategorie = kategorie;
-      localEntry.updatedAt = updatedAtIso;
-    }
-    mhdState.showHUD('Kategorie gespeichert', `Der Posten wurde ${kategorie} zugeordnet.`);
-    showRecentReceipts();
-  } catch (err) {
-    if (maybeResetOnFirestorePermissionError(err, 'saveMhdCategoryCorrection')) return;
-    console.error('[CharcuLogic Firebase] Kategorie-Korrektur fehlgeschlagen:', err);
-    mhdState.showHUD('Fehler', 'Kategorie konnte nicht gespeichert werden.', '!');
-  }
+  recentReceiptCategoryDrafts.set(id, {
+    original: String(select?.dataset.originalCategory || '').trim(),
+    current: warenKategorie,
+  });
+  await saveRecentReceiptCategoryDraftsBatch();
 }
 
 async function collectStammdatenEntries() {
@@ -6456,6 +6597,10 @@ function bindUtilityDialogActions() {
     if (button.dataset.mhdUtilityCommand === 'delete') deleteMhdPosten(id);
     if (button.dataset.mhdUtilityCommand === 'history') openPostenHistory(id);
     if (button.dataset.mhdUtilityCommand === 'category-save') updateRecentReceiptCategory(id);
+    if (button.dataset.mhdUtilityCommand === 'category-batch-save') {
+      event.preventDefault();
+      void saveRecentReceiptCategoryDraftsBatch();
+    }
   });
 }
 
@@ -7212,6 +7357,8 @@ async function addDeliveryItem() {
     // Legacy-Feld fuer bestehende Auswertungen weiter mitschreiben.
     qtyKg: qtyUnit === 'Stk' ? Math.max(1, Math.round(qtyValue)) : Math.round(qtyValue * 100) / 100,
     mhdDate,
+    warenKategorie: category,
+    category,
     addedAt: Date.now(),
   });
 
@@ -7227,6 +7374,7 @@ async function addDeliveryItem() {
 /**
  * Bekannte EAN sofort als oberste Karte einbuchen (optimistisch, lokal).
  * Unbekannte EANs / fehlende Kategorie → false (Formular-Flow).
+ * Kategorie: EAN-Gedächtnis → Keyword-Heuristik → Sticky → Trockenware.
  */
 function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const code = cleanScannedBarcode(barcode);
@@ -7234,20 +7382,9 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const info = lookupScannedProduct(code);
   if (!info?.name) return false;
 
-  let category = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
-  if (!category && info.category) {
-    const mappedCategory = mapMhdCategoryToHeadCategory(info.category);
-    const categorySelect = document.getElementById('we-category-quick');
-    if (mappedCategory && categorySelect) {
-      const hasOption = Array.from(categorySelect.options || []).some((option) => option.value === mappedCategory);
-      if (hasOption) {
-        categorySelect.value = mappedCategory;
-        rememberReceivingHeadCategory(mappedCategory);
-        updateReceivingQtyFieldUi();
-        category = mappedCategory;
-      }
-    }
-  }
+  const productName = String(info.name).trim();
+  const { category: smartCategory } = resolveCategoryForReceivingScan(productName, info.category || '');
+  const category = applyResolvedCategoryToReceivingForm(smartCategory) || smartCategory;
   if (!category) {
     if (fromScan) {
       window.showToast?.('Bitte zuerst eine Kategorie wählen – dann scannen wir weiter.', 'warning');
@@ -7263,7 +7400,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const qtyValue = qtyUnit === 'Stk'
     ? Math.max(1, Math.round(packageSize))
     : Math.round(packageSize * 100) / 100;
-  const suggestion = suggestReceivingMhd(info.name, category, mhdState.products || []);
+  const suggestion = suggestReceivingMhd(productName, category, mhdState.products || []);
   const mhdDate = suggestion?.mhdIso || shiftIsoDateByDays(new Date().toISOString().slice(0, 10), 7);
   if (!mhdDate) return false;
 
@@ -7274,7 +7411,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
 
   currentDeliveryItems.unshift({
     id: itemId,
-    product: String(info.name).trim(),
+    product: productName,
     barcode: code,
     brand: herstellerZusatz,
     marke: herstellerZusatz,
@@ -7283,6 +7420,8 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     qtyUnit,
     qtyKg: qtyValue,
     mhdDate,
+    warenKategorie: category,
+    category,
     addedAt: Date.now(),
     mhdQuelle: suggestion?.quelle || 'standard',
   });
@@ -7398,7 +7537,8 @@ async function handleDeliveryPhotoSelection(fileList) {
 
 function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, meisterOverrideReason) {
   const erfassungsDatum = new Date().toISOString();
-  const mhdKategorie = mapWarenKategorieToMhdKategorie(head.warenKategorie);
+  const itemWarenKategorie = String(item.warenKategorie || item.category || head.warenKategorie || '').trim();
+  const mhdKategorie = mapWarenKategorieToMhdKategorie(itemWarenKategorie);
   const barcode = cleanScannedBarcode(item.barcode)
     || `delivery_${deliveryId}_${item.id}`.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 48);
   const mhdTime = new Date(`${item.mhdDate}T00:00:00`);
@@ -7407,7 +7547,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   const tage = Number.isNaN(mhdTime.getTime())
     ? null
     : Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
-  const qtyUnit = item.qtyUnit || getReceivingQtyUnitFromCategory(head.warenKategorie);
+  const qtyUnit = item.qtyUnit || getReceivingQtyUnitFromCategory(itemWarenKategorie);
   const qtyValueRaw = Number(item.qtyValue ?? item.qtyKg ?? 0);
   const qtyValue = qtyUnit === 'Stk'
     ? Math.max(1, Math.round(qtyValueRaw))
@@ -7443,7 +7583,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     eingangMenge: mergedMenge,
     mengeEinheit: qtyUnit,
     einheit: qtyUnit,
-    warenKategorie: head.warenKategorie,
+    warenKategorie: itemWarenKategorie || head.warenKategorie,
     kategorie: mhdKategorie,
     lieferungId: deliveryId,
     soldOut: false,
