@@ -93,8 +93,9 @@ assertIncludes(cssSrc, 'display: flex !important', 'is-open visible');
 assertIncludes(cssSrc, 'visibility: visible !important', 'is-open visibility');
 assertIncludes(cssSrc, 'overflow-x: hidden', 'kein Horizontal-Scroll');
 assertIncludes(cssSrc, 'border-radius: 12px', 'einheitlicher Radius');
-assertIncludes(cssSrc, 'padding: 12px 12px 12px 16px', 'kompaktes Padding');
+assertIncludes(cssSrc, 'padding: 10px 10px 10px 14px', 'kompaktes Padding');
 assertIncludes(cssSrc, 'background: #166534', 'OK Grün');
+assertIncludes(cssSrc, '.mhd-sticker-chip', 'Sticker-Chip in Kopfzeile');
 
 // 4) SW / App Cache
 assert.match(

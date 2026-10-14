@@ -4907,25 +4907,18 @@ function buildMhdCardHtml(prod = {}) {
     : '';
   const showPercentBadge = action.showPercentBadge === true;
   const stickerPercent = Number(action.discount?.discountPercent) || 0;
-  const stickerHtml = showPercentBadge
-    ? `<span class="mhd-sticker-badge mhd-sticker-${stickerPercent}">🏷️ -${stickerPercent} %</span>`
+  // Dezentes %-Chip in der Kopfzeile — keine eigene Banner-Zeile mehr.
+  const stickerChipHtml = showPercentBadge
+    ? `<span class="mhd-sticker-chip mhd-sticker-${stickerPercent}">-${stickerPercent}%</span>`
     : '';
-  const actionBadgeHtml = stickerHtml
-    ? stickerHtml
-    : action.key === 'tonne' || action.key === 'pruefen'
-      ? `<div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:1px solid ${action.color};">
-          ${escapeHtml(action.label)}
-        </div>`
-      : '';
   const stichprobeLink = batchCount >= 2
     ? `<button type="button" class="mhd-card-more-item" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
     : '';
   const qtyLabel = formatMhdQtyBadgeValue(qty);
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
-      ${actionBadgeHtml ? `<div class="mhd-card-badge-row">${actionBadgeHtml}</div>` : ''}
       <div class="mhd-card-top">
-        <div class="mhd-card-category">${categoryLine}</div>
+        <div class="mhd-card-category">${categoryLine}${stickerChipHtml ? ` ${stickerChipHtml}` : ''}</div>
         ${ampelHtml}
       </div>
       <div class="mhd-card-body">
