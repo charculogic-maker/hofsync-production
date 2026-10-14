@@ -176,12 +176,11 @@
     </section>
 
     <section id="katalog" class="mx-auto max-w-6xl px-4 pb-28 pt-6">
-      <div class="mb-6 flex items-end justify-between gap-3">
-        <div>
-          <h2 class="font-display text-3xl text-hof-pine">Unser Sortiment</h2>
-          <p class="mt-1 text-sm text-hof-muted">Grundpreis je kg · geschätzter Stückpreis zur Orientierung</p>
-        </div>
+      <div class="mb-4">
+        <h2 class="font-display text-3xl text-hof-pine">Unser Sortiment</h2>
+        <p class="mt-1 text-sm text-hof-muted">Reale Kassenpreise · WG 460–465 · Abrechnung nach Waage</p>
       </div>
+      <div id="category-filters" class="mb-6 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Warengruppen filtern"></div>
       <div id="catalog-root" class="space-y-10"></div>
     </section>
   </main>
@@ -206,6 +205,7 @@
       </div>
       <form id="cut-form" class="mt-4 space-y-4" novalidate>
         <input type="hidden" id="cut-product-id" value="">
+        <p id="cut-price-line" class="rounded-xl bg-hof-cream/80 px-3 py-2 text-sm font-semibold text-hof-pine"></p>
         <div class="grid grid-cols-2 gap-3">
           <div id="cut-pieces-wrap">
             <label for="cut-pieces" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Stückzahl</label>
@@ -216,8 +216,12 @@
             <input id="cut-weight" type="number" min="0.05" step="0.01" inputmode="decimal" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
           </div>
         </div>
+        <div id="pack-size-wrap" class="hidden">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Packungsgröße</p>
+          <div id="pack-size-options" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+        </div>
         <div id="cut-options-wrap">
-          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Schnittstärke / Zuschnitt</p>
+          <p id="cut-options-label" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Schnittstärke / Zuschnitt</p>
           <div id="cut-options" class="mt-2 grid gap-2"></div>
         </div>
         <div id="vacuum-options-wrap">
@@ -339,6 +343,8 @@
       estimateLinePrice,
       estimateUnitPrice,
       resolvePricingType,
+      formatSlicePackPriceLabel,
+      getPackSizeOptions,
       formatEuro,
       findProductById,
       getAvailablePickupSlots,
@@ -347,6 +353,7 @@
     const state = {
       cart: /** @type {Array<any>} */ ([]),
       activeProductId: '',
+      categoryFilter: 'all',
       channel: /** @type {'counter'|'sb'} */ ('counter'),
       simulatedNow: /** @type {Date|null} */ (null),
       lastSlots: null,
@@ -354,6 +361,7 @@
 
     const els = {
       catalog: document.getElementById('catalog-root'),
+      filters: document.getElementById('category-filters'),
       cutModal: document.getElementById('modal-cut'),
       cartDrawer: document.getElementById('drawer-cart'),
       checkoutModal: document.getElementById('modal-checkout'),
@@ -473,8 +481,50 @@
         .replace(/"/g, '&quot;');
     }
 
+    function productPriceLine(product) {
+      const pricingType = resolvePricingType(product);
+      if (pricingType === 'slice_pack') {
+        return formatSlicePackPriceLabel(product, product.defaultPackGrams || 100);
+      }
+      const unitPrice = estimateUnitPrice(product);
+      if (pricingType === 'fixed') return `${formatEuro(unitPrice)} / Stück`;
+      const pieceHint = (pricingType === 'per_piece' && unitPrice > 0)
+        ? ` · ca. ${formatEuro(unitPrice)} / Stück`
+        : '';
+      return `${formatEuro(product.pricePerKg)} / kg${pieceHint}`;
+    }
+
+    function renderFilters() {
+      const chips = [
+        { id: 'all', label: 'Alle' },
+        ...ORDER_CATALOG.map((category) => ({
+          id: category.id,
+          label: category.wg ? `${category.name}` : category.name,
+        })),
+      ];
+      els.filters.innerHTML = chips.map((chip) => `
+        <button type="button" role="tab" data-filter="${escapeHtml(chip.id)}"
+          aria-selected="${state.categoryFilter === chip.id ? 'true' : 'false'}"
+          class="shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+            state.categoryFilter === chip.id
+              ? 'border-hof-pine bg-hof-pine text-white'
+              : 'border-hof-sand bg-white text-hof-pine hover:bg-hof-cream'
+          }">${escapeHtml(chip.label)}</button>
+      `).join('');
+    }
+
     function renderCatalog() {
-      els.catalog.innerHTML = ORDER_CATALOG.map((category) => {
+      renderFilters();
+      const categories = state.categoryFilter === 'all'
+        ? ORDER_CATALOG
+        : ORDER_CATALOG.filter((category) => category.id === state.categoryFilter);
+
+      if (!categories.length) {
+        els.catalog.innerHTML = '<p class="text-sm text-hof-muted">Keine Artikel in dieser Kategorie.</p>';
+        return;
+      }
+
+      els.catalog.innerHTML = categories.map((category) => {
         const products = category.products.map((product) => {
           if (product.comingSoon || category.placeholder) {
             return `
@@ -485,29 +535,26 @@
             `;
           }
 
-          const unitPrice = estimateUnitPrice(product);
-          const pricingType = resolvePricingType(product);
-          const pieceHint = (pricingType === 'per_piece' && unitPrice > 0)
-            ? ` · ca. ${formatEuro(unitPrice)} / Stück`
+          const cta = resolvePricingType(product) === 'slice_pack' ? 'Packung wählen' : 'Zuschnitt wählen';
+          const artMeta = product.artNr
+            ? `<p class="mt-1 text-[11px] uppercase tracking-wide text-hof-muted">ArtNr ${escapeHtml(product.artNr)}${product.wg ? ` · WG ${product.wg}` : ''}</p>`
             : '';
-          const priceLine = product.pricePerKg > 0
-            ? `${formatEuro(product.pricePerKg)} / kg${pieceHint}`
-            : `${formatEuro(unitPrice)} / Stück`;
 
           return `
-            <article class="product-card flex flex-col rounded-2xl border border-hof-sand bg-white p-4">
+            <article class="product-card flex flex-col rounded-2xl border border-hof-sand bg-white p-4" data-category="${escapeHtml(category.id)}">
               <div class="flex-1">
                 <h4 class="text-lg font-bold text-hof-pine">${escapeHtml(product.name)}</h4>
                 <p class="mt-0.5 text-sm text-hof-muted">${escapeHtml(product.subtitle || '')}</p>
-                <p class="mt-3 text-sm font-semibold text-hof-ink">${priceLine}</p>
+                ${artMeta}
+                <p class="mt-3 text-sm font-semibold text-hof-ink">${productPriceLine(product)}</p>
               </div>
-              <button type="button" data-add="${escapeHtml(product.id)}" class="mt-4 rounded-xl bg-hof-pine px-3 py-2.5 text-sm font-bold text-white hover:bg-hof-moss">Zuschnitt wählen</button>
+              <button type="button" data-add="${escapeHtml(product.id)}" class="mt-4 rounded-xl bg-hof-pine px-3 py-2.5 text-sm font-bold text-white hover:bg-hof-moss">${cta}</button>
             </article>
           `;
         }).join('');
 
         return `
-          <section>
+          <section data-category-section="${escapeHtml(category.id)}">
             <div class="mb-4">
               <h3 class="font-display text-2xl text-hof-pine">${escapeHtml(category.name)}</h3>
               <p class="mt-1 text-sm text-hof-muted">${escapeHtml(category.description || '')}</p>
@@ -535,25 +582,35 @@
     }
 
     function readCutSelection(product) {
+      const pricingType = resolvePricingType(product);
       const piecesInput = document.getElementById('cut-pieces');
       const weightInput = document.getElementById('cut-weight');
       const pieces = Math.max(1, Number(piecesInput.value) || product?.defaultPieces || 1);
-      const allowWeight = product?.allowWeight !== false;
+      const allowWeight = product?.allowWeight !== false && pricingType !== 'slice_pack';
       const weightKg = allowWeight && !weightInput.disabled
         ? (Number(weightInput.value) || 0)
         : 0;
-      return { pieces, weightKg };
+      let packGrams = 0;
+      if (pricingType === 'slice_pack') {
+        const selected = selectedRadio('packSize');
+        packGrams = Number(selected) || Number(product.defaultPackGrams) || 100;
+      }
+      return { pieces, weightKg, packGrams };
     }
 
     function updateCutEstimate() {
       const product = findProductById(state.activeProductId);
       if (!product) return;
-      const { pieces, weightKg } = readCutSelection(product);
-      const estimate = estimateLinePrice(product, { pieces, weightKg });
-      const unit = estimateUnitPrice(product);
-      const hint = resolvePricingType(product) === 'per_piece' && unit > 0
-        ? ` (${pieces}× ca. ${formatEuro(unit)})`
-        : '';
+      const pricingType = resolvePricingType(product);
+      const { pieces, weightKg, packGrams } = readCutSelection(product);
+      const estimate = estimateLinePrice(product, { pieces, weightKg, packGrams });
+      let hint = '';
+      if (pricingType === 'per_piece') {
+        const unit = estimateUnitPrice(product);
+        if (unit > 0) hint = ` (${pieces}× ca. ${formatEuro(unit)})`;
+      } else if (pricingType === 'slice_pack') {
+        hint = ` (${packGrams} g)`;
+      }
       document.getElementById('cut-estimate').textContent =
         `Geschätzter Preis: ${formatEuro(estimate)}${hint} · Abrechnung nach Waage`;
     }
@@ -562,28 +619,50 @@
       const product = findProductById(productId);
       if (!product || product.comingSoon) return;
       state.activeProductId = product.id;
+      const pricingType = resolvePricingType(product);
       document.getElementById('cut-product-id').value = product.id;
-      document.getElementById('cut-category').textContent = product.categoryName || '';
+      document.getElementById('cut-category').textContent = [
+        product.categoryName || '',
+        product.artNr ? `ArtNr ${product.artNr}` : '',
+      ].filter(Boolean).join(' · ');
       document.getElementById('cut-title').textContent = product.name;
       document.getElementById('cut-note').value = '';
       document.getElementById('cut-note').placeholder = product.notePlaceholder || 'Besonderer Wunsch …';
+      document.getElementById('cut-price-line').textContent = productPriceLine(product);
 
       const piecesWrap = document.getElementById('cut-pieces-wrap');
       const weightWrap = document.getElementById('cut-weight-wrap');
+      const packWrap = document.getElementById('pack-size-wrap');
       const piecesInput = document.getElementById('cut-pieces');
       const weightInput = document.getElementById('cut-weight');
-      const showPieces = product.allowPieces !== false;
-      const showWeight = product.allowWeight !== false;
+      const isSlice = pricingType === 'slice_pack';
+      const showPieces = !isSlice && product.allowPieces !== false;
+      const showWeight = !isSlice && product.allowWeight !== false;
 
       piecesWrap.classList.toggle('hidden', !showPieces);
       weightWrap.classList.toggle('hidden', !showWeight);
+      packWrap.classList.toggle('hidden', !isSlice);
       piecesInput.disabled = !showPieces;
-      // disabled = kein HTML5-Blocker, wenn das Gewichtsfeld für Stück-Artikel fehlt
       weightInput.disabled = !showWeight;
       piecesInput.value = product.defaultPieces || 1;
       weightInput.value = showWeight
         ? (product.defaultWeightKg || (product.typicalWeightKg || 0) * (product.defaultPieces || 1) || '')
         : '';
+
+      if (isSlice) {
+        const packs = getPackSizeOptions(product);
+        const selected = String(product.defaultPackGrams || packs[0]?.grams || 100);
+        optionButtons(
+          document.getElementById('pack-size-options'),
+          packs.map((pack) => ({ id: pack.id, label: pack.label })),
+          'packSize',
+          selected,
+        );
+        document.getElementById('cut-options-label').textContent = 'Schnittstärke';
+      } else {
+        document.getElementById('pack-size-options').innerHTML = '';
+        document.getElementById('cut-options-label').textContent = 'Schnittstärke / Zuschnitt';
+      }
 
       const cutWrap = document.getElementById('cut-options-wrap');
       const vacWrap = document.getElementById('vacuum-options-wrap');
@@ -609,27 +688,38 @@
       const product = findProductById(state.activeProductId);
       if (!product) return;
 
-      const { pieces, weightKg } = readCutSelection(product);
-      if (product.allowPieces !== false && !(pieces >= 1)) {
+      const pricingType = resolvePricingType(product);
+      const { pieces, weightKg, packGrams } = readCutSelection(product);
+      if (pricingType !== 'slice_pack' && product.allowPieces !== false && !(pieces >= 1)) {
         showToast('Bitte eine Stückzahl angeben', 'error');
         return;
       }
-      if (product.allowWeight !== false && product.allowPieces === false && !(weightKg > 0)) {
+      if (pricingType !== 'slice_pack' && product.allowWeight !== false && product.allowPieces === false && !(weightKg > 0)) {
         showToast('Bitte ein Gewicht angeben', 'error');
+        return;
+      }
+      if (pricingType === 'slice_pack' && !(packGrams > 0)) {
+        showToast('Bitte eine Packungsgröße wählen', 'error');
         return;
       }
 
       const cutId = selectedRadio('cutOption');
       const vacuumId = selectedRadio('vacuumOption');
       const note = String(document.getElementById('cut-note').value || '').trim();
-      const estimatedPrice = estimateLinePrice(product, { pieces, weightKg });
-      const estimatedWeightKg = product.allowWeight !== false && weightKg > 0
-        ? weightKg
-        : roundMoneyLike((Number(product.typicalWeightKg) || 0) * pieces);
+      const estimatedPrice = estimateLinePrice(product, { pieces, weightKg, packGrams });
+      const estimatedWeightKg = pricingType === 'slice_pack'
+        ? roundMoneyLike(packGrams / 1000)
+        : (product.allowWeight !== false && weightKg > 0
+          ? weightKg
+          : roundMoneyLike((Number(product.typicalWeightKg) || 0) * pieces));
 
       const parts = [];
-      if (product.allowPieces !== false) parts.push(`${pieces}×`);
-      if (estimatedWeightKg > 0) {
+      if (pricingType === 'slice_pack') {
+        parts.push(`${packGrams} g`);
+      } else if (product.allowPieces !== false) {
+        parts.push(`${pieces}×`);
+      }
+      if (estimatedWeightKg > 0 && pricingType !== 'slice_pack') {
         parts.push(`ca. ${String(estimatedWeightKg).replace('.', ',')} kg`);
       }
       const cutLabel = labelForOption(product.cutOptions, cutId);
@@ -641,7 +731,9 @@
       state.cart.push({
         productId: product.id,
         name: product.name,
-        pieces,
+        artNr: product.artNr || '',
+        pieces: pricingType === 'slice_pack' ? 1 : pieces,
+        packGrams: pricingType === 'slice_pack' ? packGrams : 0,
         weightKg: estimatedWeightKg,
         cutId,
         vacuumId,
@@ -649,7 +741,7 @@
         summary: parts.join(' · '),
         estimatedPrice,
         pricePerKg: product.pricePerKg || 0,
-        pricingType: resolvePricingType(product),
+        pricingType,
       });
 
       closeLayer(els.cutModal);
@@ -664,6 +756,21 @@
 
     ['cut-pieces', 'cut-weight'].forEach((id) => {
       document.getElementById(id).addEventListener('input', updateCutEstimate);
+    });
+
+    document.getElementById('cut-form').addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.name === 'packSize' || target.name === 'cutOption' || target.name === 'vacuumOption') {
+        updateCutEstimate();
+      }
+    });
+
+    els.filters.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-filter]');
+      if (!btn) return;
+      state.categoryFilter = btn.getAttribute('data-filter') || 'all';
+      renderCatalog();
     });
 
     els.catalog.addEventListener('click', (event) => {

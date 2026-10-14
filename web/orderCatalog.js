@@ -1,5 +1,6 @@
 /**
  * Kunden-Vorbestellkatalog & Abhol-Slot-Berechnung (StevesHof Soft-Launch).
+ * Sortiment aus Kassen-Warengruppen WG 460–465 inkl. realer €/kg-Preise.
  * Standalone-Nutzung über web/bestellen.html — ohne Firebase-Pflicht.
  */
 
@@ -19,16 +20,26 @@
  */
 
 /**
+ * @typedef {Object} PackSizeOption
+ * @property {number} grams
+ * @property {string} label
+ */
+
+/**
  * @typedef {Object} CatalogProduct
  * @property {string} id
  * @property {string} categoryId
  * @property {string} name
  * @property {string} [subtitle]
+ * @property {string} [artNr] Kassen-Artikelnummer
+ * @property {number} [wg] Warengruppe
  * @property {number} pricePerKg
- * @property {'kg'|'piece'|'pack'|'jar'|'bottle'} unit
- * @property {'per_piece'|'per_kg'|'fixed'} [pricingType]
- * @property {number} [typicalWeightKg] Stück- bzw. Packungsgewicht in kg (für Schätzung)
- * @property {number} [estimatedPiecePrice] optionaler Fixpreis/Stück (Fonds, Gläser)
+ * @property {'kg'|'piece'|'pack'|'jar'|'bottle'|'slice'} unit
+ * @property {'per_piece'|'per_kg'|'fixed'|'slice_pack'} [pricingType]
+ * @property {number} [typicalWeightKg] Stück- bzw. Packungsgewicht in kg
+ * @property {number} [estimatedPiecePrice] Fixpreis/Stück (Fonds, Gläser)
+ * @property {number[]} [packSizesGrams] Aufschnitt-Packungen in Gramm
+ * @property {number} [defaultPackGrams]
  * @property {boolean} [comingSoon]
  * @property {CutOption[]} [cutOptions]
  * @property {VacuumOption[]} [vacuumOptions]
@@ -44,6 +55,7 @@
  * @property {string} id
  * @property {string} name
  * @property {string} [description]
+ * @property {number} [wg]
  * @property {boolean} [placeholder]
  * @property {CatalogProduct[]} products
  */
@@ -80,18 +92,18 @@ export const PICKUP_CHANNEL_LABELS = {
 };
 
 export const COUNTER_HOURS = {
-  /** Freitag = 5 */
   5: { open: '09:00', close: '18:30' },
-  /** Samstag = 6 */
   6: { open: '09:00', close: '13:00' },
 };
 
-export const SB_WEEKDAYS = new Set([0, 1, 2, 3, 4]); // So–Do
+export const SB_WEEKDAYS = new Set([0, 1, 2, 3, 4]);
 export const SB_OPEN = '06:00';
 export const SB_CLOSE = '22:00';
 export const SB_SAME_DAY_ORDER_UNTIL = '11:00';
 export const SB_SAME_DAY_FROM = '16:30';
 export const SB_NEXT_DAY_FROM = '14:00';
+
+export const DEFAULT_SLICE_PACK_GRAMS = [100, 150, 200, 250];
 
 const VACUUM_DEFAULT = [
   { id: 'einzeln', label: 'Einzeln vakuumiert' },
@@ -99,366 +111,507 @@ const VACUUM_DEFAULT = [
   { id: 'ohne', label: 'Ohne Extra-Vakuum' },
 ];
 
-/** Basissortiment für den Soft-Launch */
+const VACUUM_LIGHT = [
+  { id: 'vakuum', label: 'Vakuumiert' },
+  { id: 'beutel', label: 'Im Beutel gekühlt' },
+];
+
+const SLICE_CUTS = [
+  { id: 'hauchduenn', label: 'Hauchdünn' },
+  { id: 'standard', label: 'Standard' },
+  { id: 'rustikal', label: 'Rustikal' },
+];
+
+const STEAK_CUTS = [
+  { id: '2-5cm', label: 'Klassisch (~2,5 cm)' },
+  { id: '4cm', label: 'Männercut 4 cm' },
+  { id: 'am-stueck', label: 'Am Stück' },
+];
+
+const ROULADEN_CUTS = [
+  { id: 'duenn', label: 'Klassisch dünn geschnitten (ca. 180–200 g)' },
+  { id: 'breit', label: 'Breiter Schnitt (für viel Füllung)' },
+];
+
+/**
+ * @param {Partial<CatalogProduct> & { id: string, categoryId: string, name: string, pricePerKg: number }} base
+ * @returns {CatalogProduct}
+ */
+function kgProduct(base) {
+  return {
+    unit: 'kg',
+    pricingType: 'per_kg',
+    allowWeight: true,
+    allowPieces: false,
+    defaultWeightKg: base.defaultWeightKg ?? base.typicalWeightKg ?? 0.5,
+    vacuumOptions: VACUUM_DEFAULT,
+    notePlaceholder: 'Besonderer Wunsch an den Metzger …',
+    ...base,
+  };
+}
+
+/**
+ * @param {Partial<CatalogProduct> & { id: string, categoryId: string, name: string, pricePerKg: number, typicalWeightKg: number }} base
+ * @returns {CatalogProduct}
+ */
+function pieceProduct(base) {
+  return {
+    unit: 'kg',
+    pricingType: 'per_piece',
+    allowWeight: false,
+    allowPieces: true,
+    defaultPieces: base.defaultPieces ?? 2,
+    vacuumOptions: VACUUM_DEFAULT,
+    notePlaceholder: 'Besonderer Wunsch an den Metzger …',
+    ...base,
+  };
+}
+
+/**
+ * @param {Partial<CatalogProduct> & { id: string, categoryId: string, name: string, pricePerKg: number }} base
+ * @returns {CatalogProduct}
+ */
+function sliceProduct(base) {
+  return {
+    unit: 'slice',
+    pricingType: 'slice_pack',
+    allowWeight: false,
+    allowPieces: false,
+    packSizesGrams: DEFAULT_SLICE_PACK_GRAMS,
+    defaultPackGrams: 100,
+    cutOptions: SLICE_CUTS,
+    vacuumOptions: [],
+    notePlaceholder: 'z. B. bitte nicht zu dünn / extra rustikal …',
+    ...base,
+  };
+}
+
+/** Vollständiges StevesHof-Sortiment (Kassendaten WG 460–465) */
 export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
   {
     id: 'bio-galloway',
     name: 'Bio-Galloway',
-    description: 'Fleisch von unseren Bio-Galloways – Zuschnitt nach Wunsch.',
+    wg: 460,
+    description: 'WG 460 · Fleisch von unseren Bio-Galloways – Zuschnitt nach Wunsch.',
     products: [
-      {
-        id: 'galloway-hack',
-        categoryId: 'bio-galloway',
-        name: 'Hackfleisch',
-        subtitle: 'Frisch gewolft',
-        pricePerKg: 19.9,
-        unit: 'kg',
-        pricingType: 'per_kg',
-        typicalWeightKg: 0.5,
-        allowWeight: true,
-        allowPieces: true,
-        defaultWeightKg: 0.5,
-        defaultPieces: 1,
+      pieceProduct({
+        id: 'gal-rumpsteak', categoryId: 'bio-galloway', artNr: '46001', wg: 460,
+        name: 'Rumpsteak', subtitle: 'Dry-Aged', pricePerKg: 65.99, typicalWeightKg: 0.28,
+        defaultPieces: 2, cutOptions: STEAK_CUTS, allowWeight: true, defaultWeightKg: 0.56,
+      }),
+      pieceProduct({
+        id: 'gal-entrecote', categoryId: 'bio-galloway', artNr: '46002', wg: 460,
+        name: 'Entrecôte', subtitle: 'Hochrippe / Ribeye', pricePerKg: 58.99, typicalWeightKg: 0.3,
+        defaultPieces: 2, cutOptions: STEAK_CUTS, allowWeight: true, defaultWeightKg: 0.6,
+      }),
+      kgProduct({
+        id: 'gal-hack', categoryId: 'bio-galloway', artNr: '46003', wg: 460,
+        name: 'Hackfleisch', subtitle: 'Frisch gewolft', pricePerKg: 26.99, typicalWeightKg: 0.5,
+        allowPieces: true, defaultPieces: 1,
         cutOptions: [
-          { id: 'beutel-500', label: '500 g Beutel', hint: 'praktisch zum Einfrieren' },
-          { id: 'gross', label: 'Groß / lose', hint: 'größere Menge in einem Pack' },
+          { id: 'beutel-500', label: '500 g Beutel' },
+          { id: 'gross', label: 'Groß / lose' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-        notePlaceholder: 'z. B. für Burger oder Bolognese …',
-      },
-      {
-        id: 'galloway-gulasch',
-        categoryId: 'bio-galloway',
-        name: 'Gulasch',
-        subtitle: 'Zum Schmoren',
-        pricePerKg: 24.9,
-        unit: 'kg',
-        pricingType: 'per_kg',
-        typicalWeightKg: 1,
-        allowWeight: true,
-        allowPieces: false,
-        defaultWeightKg: 1,
+      }),
+      kgProduct({
+        id: 'gal-gulasch', categoryId: 'bio-galloway', artNr: '46004', wg: 460,
+        name: 'Gulasch', subtitle: 'Zum Schmoren', pricePerKg: 31.99, typicalWeightKg: 1, defaultWeightKg: 1,
         cutOptions: [
           { id: '3x3', label: '3 × 3 cm Würfel' },
           { id: 'brocken', label: 'Brocken / grob' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-        notePlaceholder: 'z. B. besonders mager oder mit etwas Fett …',
-      },
-      {
-        id: 'galloway-rouladen',
-        categoryId: 'bio-galloway',
-        name: 'Rouladen',
-        subtitle: 'Vom Oberwasser / Keule',
-        pricePerKg: 28.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.18,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 4,
-        cutOptions: [
-          { id: 'duenn', label: 'Klassisch dünn geschnitten (ca. 180–200 g)' },
-          { id: 'breit', label: 'Breiter Schnitt (für viel Füllung)' },
-        ],
-        vacuumOptions: VACUUM_DEFAULT,
+      }),
+      pieceProduct({
+        id: 'gal-rouladen', categoryId: 'bio-galloway', artNr: '46005', wg: 460,
+        name: 'Rouladen', subtitle: 'Vom Oberwasser / Keule', pricePerKg: 39.99, typicalWeightKg: 0.18,
+        defaultPieces: 4, cutOptions: ROULADEN_CUTS,
         notePlaceholder: 'z. B. bitte extra dünn schneiden oder leicht plattieren...',
-      },
-      {
-        id: 'galloway-rumpsteak',
-        categoryId: 'bio-galloway',
-        name: 'Rumpsteak Dry-Aged',
-        subtitle: 'Reifung am Knochen',
-        pricePerKg: 49.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.28,
-        allowWeight: true,
-        allowPieces: true,
-        defaultPieces: 2,
-        defaultWeightKg: 0.56,
-        cutOptions: [
-          { id: 'klassisch', label: 'Klassisch (~2,5 cm)' },
-          { id: 'maennercut', label: 'Männercut 4 cm' },
-          { id: 'am-stueck', label: 'Am Stück (zum Selbstschneiden)' },
-        ],
-        vacuumOptions: VACUUM_DEFAULT,
-        notePlaceholder: 'z. B. stärker marmoriert, Randfett dran lassen …',
-      },
-      {
-        id: 'galloway-entrecote',
-        categoryId: 'bio-galloway',
-        name: 'Entrecôte',
-        subtitle: 'Hochrippe / Ribeye',
-        pricePerKg: 46.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.3,
-        allowWeight: true,
-        allowPieces: true,
-        defaultPieces: 2,
-        defaultWeightKg: 0.6,
-        cutOptions: [
-          { id: '2-5cm', label: '2,5 cm' },
-          { id: '4cm', label: '4 cm' },
-          { id: 'am-stueck', label: 'Am Stück' },
-        ],
-        vacuumOptions: VACUUM_DEFAULT,
-      },
-      {
-        id: 'galloway-hueftsteak',
-        categoryId: 'bio-galloway',
-        name: 'Hüftsteak',
-        subtitle: 'Mager & aromatisch',
-        pricePerKg: 32.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.22,
-        allowWeight: true,
-        allowPieces: true,
-        defaultPieces: 2,
-        defaultWeightKg: 0.44,
-        cutOptions: [
-          { id: '2cm', label: '2 cm' },
-          { id: '2-5cm', label: '2,5 cm' },
-          { id: '3cm', label: '3 cm' },
-        ],
-        vacuumOptions: VACUUM_DEFAULT,
-      },
-      {
-        id: 'galloway-schmorbraten',
-        categoryId: 'bio-galloway',
-        name: 'Schmorbraten',
-        subtitle: 'Zum Braten / Schmoren',
-        pricePerKg: 24.5,
-        unit: 'kg',
-        pricingType: 'per_kg',
-        typicalWeightKg: 1.2,
-        allowWeight: true,
-        allowPieces: false,
-        defaultWeightKg: 1.2,
+      }),
+      pieceProduct({
+        id: 'gal-filet', categoryId: 'bio-galloway', artNr: '46006', wg: 460,
+        name: 'Filet', subtitle: 'Klassisch', pricePerKg: 109.99, typicalWeightKg: 0.2,
+        defaultPieces: 2, cutOptions: STEAK_CUTS, allowWeight: true, defaultWeightKg: 0.4,
+      }),
+      pieceProduct({
+        id: 'gal-filet-premium', categoryId: 'bio-galloway', artNr: '46007', wg: 460,
+        name: 'Filet Premium', subtitle: 'Dry-Aged / Spitzenqualität', pricePerKg: 139.99, typicalWeightKg: 0.2,
+        defaultPieces: 2, cutOptions: STEAK_CUTS, allowWeight: true, defaultWeightKg: 0.4,
+      }),
+      pieceProduct({
+        id: 'gal-hueftsteak', categoryId: 'bio-galloway', artNr: '46008', wg: 460,
+        name: 'Hüftsteak', subtitle: 'Mager & aromatisch', pricePerKg: 49.99, typicalWeightKg: 0.22,
+        defaultPieces: 2, cutOptions: STEAK_CUTS, allowWeight: true, defaultWeightKg: 0.44,
+      }),
+      kgProduct({
+        id: 'gal-schmorbraten', categoryId: 'bio-galloway', artNr: '46009', wg: 460,
+        name: 'Schmorbraten', pricePerKg: 29.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
         cutOptions: [
           { id: 'am-stueck', label: 'Am Stück gebunden' },
           { id: 'scheiben', label: 'In Scheiben' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-        notePlaceholder: 'Wunschgewicht ca. … kg',
-      },
-      {
-        id: 'galloway-beinscheibe',
-        categoryId: 'bio-galloway',
-        name: 'Beinscheibe',
-        subtitle: 'Mit Markknochen',
-        pricePerKg: 15.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.4,
-        allowWeight: true,
-        allowPieces: true,
-        defaultPieces: 2,
-        defaultWeightKg: 0.8,
+      }),
+      kgProduct({
+        id: 'gal-braten-keule', categoryId: 'bio-galloway', artNr: '46010', wg: 460,
+        name: 'Braten Keule', subtitle: 'Keulenbraten', pricePerKg: 33.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
         cutOptions: [
-          { id: 'scheibe', label: 'Scheibe mit Knochen' },
+          { id: 'am-stueck', label: 'Am Stück' },
+          { id: 'scheiben', label: 'In Scheiben' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-      },
-    ],
-  },
-  {
-    id: 'weidegefluegel',
-    name: 'Weidegeflügel',
-    description: 'Eigene Schlachtung – Weidehühner vom Hof.',
-    products: [
-      {
-        id: 'huhn-ganz',
-        categoryId: 'weidegefluegel',
-        name: 'Ganzes Weidehuhn',
-        subtitle: '~1,6 kg',
-        pricePerKg: 17.9,
-        unit: 'piece',
-        pricingType: 'per_piece',
-        typicalWeightKg: 1.6,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
+      }),
+      kgProduct({
+        id: 'gal-tafelspitz', categoryId: 'bio-galloway', artNr: '46011', wg: 460,
+        name: 'Tafelspitz', pricePerKg: 33.99, typicalWeightKg: 1, defaultWeightKg: 1,
         cutOptions: [
-          { id: 'ganz', label: 'Ganz (ofenfertig)' },
+          { id: 'am-stueck', label: 'Am Stück' },
+          { id: 'scheiben', label: 'In Scheiben' },
         ],
-        vacuumOptions: [
-          { id: 'beutel', label: 'Im Beutel gekühlt' },
-          { id: 'vakuum', label: 'Vakuumiert' },
-        ],
-      },
-      {
-        id: 'huhn-brust',
-        categoryId: 'weidegefluegel',
-        name: 'Brustfilet',
-        subtitle: 'Vom Weidehuhn',
-        pricePerKg: 29.9,
-        unit: 'kg',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.35,
-        allowWeight: true,
-        allowPieces: true,
-        defaultPieces: 2,
-        defaultWeightKg: 0.7,
-        cutOptions: [
-          { id: 'ganz', label: 'Ganzes Filet' },
+      }),
+      pieceProduct({
+        id: 'gal-flanksteak', categoryId: 'bio-galloway', artNr: '46012', wg: 460,
+        name: 'Flanksteak', pricePerKg: 41.99, typicalWeightKg: 0.5,
+        defaultPieces: 1, cutOptions: [
+          { id: 'am-stueck', label: 'Am Stück' },
           { id: 'streifen', label: 'In Streifen' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-      },
-      {
-        id: 'huhn-keulen',
-        categoryId: 'weidegefluegel',
-        name: '2er-Keulen',
-        subtitle: 'Oberschenkel + Unterschenkel',
-        pricePerKg: 13.9,
-        unit: 'pack',
-        pricingType: 'per_piece',
-        typicalWeightKg: 0.55,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
+        allowWeight: true, defaultWeightKg: 0.5,
+      }),
+      pieceProduct({
+        id: 'gal-beinscheibe', categoryId: 'bio-galloway', artNr: '46013', wg: 460,
+        name: 'Beinscheibe', subtitle: 'Mit Markknochen', pricePerKg: 22.99, typicalWeightKg: 0.4,
+        defaultPieces: 2, cutOptions: [{ id: 'scheibe', label: 'Scheibe mit Knochen' }],
+        allowWeight: true, defaultWeightKg: 0.8,
+      }),
+      kgProduct({
+        id: 'gal-baeckchen', categoryId: 'bio-galloway', artNr: '46014', wg: 460,
+        name: 'Bäckchen', subtitle: 'Rinderbäckchen', pricePerKg: 45.99, typicalWeightKg: 0.6, defaultWeightKg: 0.6,
+        cutOptions: [{ id: 'ganz', label: 'Ganz / portioniert' }],
+      }),
+      kgProduct({
+        id: 'gal-patties', categoryId: 'bio-galloway', artNr: '46015', wg: 460,
+        name: 'Patties', subtitle: 'Burger-Patties', pricePerKg: 27.99, typicalWeightKg: 0.5,
+        allowPieces: true, defaultPieces: 4, defaultWeightKg: 0.5,
         cutOptions: [
-          { id: '2er', label: '2er-Pack Keulen' },
+          { id: '120g', label: 'ca. 120 g / Patty' },
+          { id: '180g', label: 'ca. 180 g / Patty' },
         ],
-        vacuumOptions: VACUUM_DEFAULT,
-      },
-      {
-        id: 'huhn-suppe',
-        categoryId: 'weidegefluegel',
-        name: 'Suppenhuhn',
-        subtitle: 'Ideal für Brühe',
-        pricePerKg: 9.9,
-        unit: 'piece',
-        pricingType: 'per_piece',
-        typicalWeightKg: 1.4,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
+      }),
+      kgProduct({
+        id: 'gal-knochen', categoryId: 'bio-galloway', artNr: '46016', wg: 460,
+        name: 'Knochen', subtitle: 'Brühe / Hundeknochen', pricePerKg: 4.99, typicalWeightKg: 1, defaultWeightKg: 1,
         cutOptions: [
-          { id: 'ganz', label: 'Ganz' },
-          { id: 'geteilt', label: 'Geteilt' },
+          { id: 'bruehe', label: 'Für Brühe' },
+          { id: 'mark', label: 'Mit Mark' },
         ],
-        vacuumOptions: [
-          { id: 'beutel', label: 'Im Beutel gekühlt' },
-          { id: 'vakuum', label: 'Vakuumiert' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'hausgemacht',
-    name: 'Hausgemacht',
-    description: 'Fonds und Wurst aus unserer Küche.',
-    products: [
-      {
-        id: 'fond-rind',
-        categoryId: 'hausgemacht',
-        name: 'Rinderfond',
-        subtitle: '750 ml',
-        pricePerKg: 0,
-        unit: 'bottle',
-        pricingType: 'fixed',
-        estimatedPiecePrice: 9.5,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
-        cutOptions: [],
-        vacuumOptions: [],
-        notePlaceholder: 'Optional: warm / gekühlt abholen …',
-      },
-      {
-        id: 'fond-gefluegel',
-        categoryId: 'hausgemacht',
-        name: 'Geflügelfond',
-        subtitle: '750 ml',
-        pricePerKg: 0,
-        unit: 'bottle',
-        pricingType: 'fixed',
-        estimatedPiecePrice: 8.5,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
-        cutOptions: [],
-        vacuumOptions: [],
-      },
-      {
-        id: 'leberwurst-glas',
-        categoryId: 'hausgemacht',
-        name: 'Galloway-Leberwurst im Glas',
-        subtitle: 'Hausgemacht',
-        pricePerKg: 0,
-        unit: 'jar',
-        pricingType: 'fixed',
-        estimatedPiecePrice: 7.9,
-        allowWeight: false,
-        allowPieces: true,
-        defaultPieces: 1,
-        cutOptions: [],
-        vacuumOptions: [],
-      },
+        vacuumOptions: VACUUM_LIGHT,
+      }),
     ],
   },
   {
     id: 'bio-schwein',
     name: 'Bio-Schwein (Zukauf)',
-    description: 'Bald verfügbar – Sortiment wird ergänzt.',
-    placeholder: true,
+    wg: 462,
+    description: 'WG 462 · Bio-Schwein vom Partnerbetrieb.',
     products: [
-      {
-        id: 'schwein-placeholder',
-        categoryId: 'bio-schwein',
-        name: 'Sortiment folgt',
-        subtitle: 'Platzhalter',
-        pricePerKg: 0,
-        unit: 'kg',
-        comingSoon: true,
-        allowWeight: false,
-        allowPieces: false,
-        cutOptions: [],
-        vacuumOptions: [],
-      },
+      pieceProduct({
+        id: 'sw-schnitzel', categoryId: 'bio-schwein', artNr: '46201', wg: 462,
+        name: 'Schnitzel', pricePerKg: 35.99, typicalWeightKg: 0.15, defaultPieces: 4,
+        cutOptions: [
+          { id: 'plattiert', label: 'Plattiert' },
+          { id: 'natur', label: 'Natur / unplattiert' },
+        ],
+      }),
+      pieceProduct({
+        id: 'sw-filet', categoryId: 'bio-schwein', artNr: '46202', wg: 462,
+        name: 'Filet', pricePerKg: 59.99, typicalWeightKg: 0.4, defaultPieces: 1,
+        cutOptions: [
+          { id: 'ganz', label: 'Ganz' },
+          { id: 'medaillons', label: 'Medaillons' },
+        ],
+        allowWeight: true, defaultWeightKg: 0.4,
+      }),
+      pieceProduct({
+        id: 'sw-kotelett', categoryId: 'bio-schwein', artNr: '46203', wg: 462,
+        name: 'Koteletts', subtitle: 'Klassisch', pricePerKg: 27.99, typicalWeightKg: 0.22, defaultPieces: 4,
+        cutOptions: [
+          { id: '2cm', label: 'ca. 2 cm' },
+          { id: '3cm', label: 'ca. 3 cm' },
+        ],
+      }),
+      pieceProduct({
+        id: 'sw-kotelett-knochen', categoryId: 'bio-schwein', artNr: '46204', wg: 462,
+        name: 'Koteletts mit Knochen', pricePerKg: 29.99, typicalWeightKg: 0.25, defaultPieces: 4,
+        cutOptions: [
+          { id: '2cm', label: 'ca. 2 cm' },
+          { id: '3cm', label: 'ca. 3 cm' },
+        ],
+      }),
+      kgProduct({
+        id: 'sw-krustenbraten', categoryId: 'bio-schwein', artNr: '46205', wg: 462,
+        name: 'Krustenbraten', pricePerKg: 29.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
+        cutOptions: [{ id: 'am-stueck', label: 'Am Stück mit Schwarte' }],
+      }),
+      pieceProduct({
+        id: 'sw-nackensteaks', categoryId: 'bio-schwein', artNr: '46206', wg: 462,
+        name: 'Nackensteaks', pricePerKg: 29.99, typicalWeightKg: 0.2, defaultPieces: 4,
+        cutOptions: [
+          { id: '2cm', label: 'ca. 2 cm' },
+          { id: '3cm', label: 'ca. 3 cm' },
+        ],
+      }),
+      kgProduct({
+        id: 'sw-spareribs', categoryId: 'bio-schwein', artNr: '46207', wg: 462,
+        name: 'Spare Ribs', pricePerKg: 24.99, typicalWeightKg: 0.8, defaultWeightKg: 0.8,
+        cutOptions: [{ id: 'rack', label: 'Als Rack' }],
+      }),
+      kgProduct({
+        id: 'sw-gyros', categoryId: 'bio-schwein', artNr: '46208', wg: 462,
+        name: 'Gyros', pricePerKg: 36.99, typicalWeightKg: 0.5, defaultWeightKg: 0.5,
+        cutOptions: [{ id: 'gewuerzt', label: 'Gewürzt, fertig zum Braten' }],
+      }),
+      kgProduct({
+        id: 'sw-mett', categoryId: 'bio-schwein', artNr: '46209', wg: 462,
+        name: 'Hülser Mett', subtitle: 'Frisch', pricePerKg: 22.99, typicalWeightKg: 0.25, defaultWeightKg: 0.25,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [
+          { id: '250g', label: '250 g' },
+          { id: '500g', label: '500 g' },
+        ],
+      }),
+    ],
+  },
+  {
+    id: 'weidegefluegel',
+    name: 'Weidegeflügel StevesHof',
+    wg: 465,
+    description: 'WG 465 · Eigene Schlachtung – Weidehühner vom Hof.',
+    products: [
+      pieceProduct({
+        id: 'huhn-ganz', categoryId: 'weidegefluegel', artNr: '46501', wg: 465,
+        name: 'Ganzes Hähnchen', subtitle: '~1,6 kg', pricePerKg: 17.49, typicalWeightKg: 1.6,
+        unit: 'piece', defaultPieces: 1, cutOptions: [{ id: 'ganz', label: 'Ganz (ofenfertig)' }],
+        vacuumOptions: VACUUM_LIGHT,
+      }),
+      pieceProduct({
+        id: 'huhn-brust', categoryId: 'weidegefluegel', artNr: '46502', wg: 465,
+        name: 'Brustfilet', pricePerKg: 47.99, typicalWeightKg: 0.35, defaultPieces: 2,
+        cutOptions: [
+          { id: 'ganz', label: 'Ganzes Filet' },
+          { id: 'streifen', label: 'In Streifen' },
+        ],
+        allowWeight: true, defaultWeightKg: 0.7,
+      }),
+      pieceProduct({
+        id: 'huhn-keulen', categoryId: 'weidegefluegel', artNr: '46503', wg: 465,
+        name: 'Keulen', subtitle: '2er-Pack', pricePerKg: 19.99, typicalWeightKg: 0.55,
+        unit: 'pack', defaultPieces: 1, cutOptions: [{ id: '2er', label: '2er-Pack Keulen' }],
+      }),
+      kgProduct({
+        id: 'huhn-fluegel', categoryId: 'weidegefluegel', artNr: '46504', wg: 465,
+        name: 'Flügel', pricePerKg: 16.99, typicalWeightKg: 0.5, defaultWeightKg: 0.5,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: 'ganz', label: 'Ganze Flügel' }],
+      }),
+      pieceProduct({
+        id: 'huhn-suppe', categoryId: 'weidegefluegel', artNr: '46505', wg: 465,
+        name: 'Suppenhuhn', pricePerKg: 13.99, typicalWeightKg: 1.4, unit: 'piece', defaultPieces: 1,
+        cutOptions: [
+          { id: 'ganz', label: 'Ganz' },
+          { id: 'geteilt', label: 'Geteilt' },
+        ],
+        vacuumOptions: VACUUM_LIGHT,
+      }),
     ],
   },
   {
     id: 'wurst-aufschnitt',
-    name: 'Frischetheke Wurst-Aufschnitt',
-    description: 'Bald verfügbar – Aufschnitt nach Wunsch.',
-    placeholder: true,
+    name: 'Wurst & Aufschnitt',
+    wg: 461,
+    description: 'WG 461 · Aufschnitt nach Wunsch – Packungsgröße und Schnittstärke wählbar.',
     products: [
-      {
-        id: 'wurst-placeholder',
-        categoryId: 'wurst-aufschnitt',
-        name: 'Aufschnitt folgt',
-        subtitle: 'Platzhalter',
-        pricePerKg: 0,
-        unit: 'kg',
-        comingSoon: true,
-        allowWeight: false,
-        allowPieces: false,
-        cutOptions: [],
-        vacuumOptions: [],
-      },
+      sliceProduct({
+        id: 'ws-kochschinken', categoryId: 'wurst-aufschnitt', artNr: '46101', wg: 461,
+        name: 'Hausgemachter Kochschinken', pricePerKg: 46.99,
+      }),
+      sliceProduct({
+        id: 'ws-gal-kochschinken', categoryId: 'wurst-aufschnitt', artNr: '46102', wg: 461,
+        name: 'Galloway Kochschinken', pricePerKg: 54.99,
+      }),
+      sliceProduct({
+        id: 'ws-roastbeef', categoryId: 'wurst-aufschnitt', artNr: '46103', wg: 461,
+        name: 'Roastbeef Aufschnitt', pricePerKg: 59.99,
+      }),
+      sliceProduct({
+        id: 'ws-pastrami', categoryId: 'wurst-aufschnitt', artNr: '46104', wg: 461,
+        name: 'Pastrami', pricePerKg: 63.99,
+      }),
+      sliceProduct({
+        id: 'ws-lyoner', categoryId: 'wurst-aufschnitt', artNr: '46105', wg: 461,
+        name: 'Lyoner', pricePerKg: 36.99,
+      }),
+      sliceProduct({
+        id: 'ws-bierschinken', categoryId: 'wurst-aufschnitt', artNr: '46106', wg: 461,
+        name: 'Bierschinken', pricePerKg: 36.99,
+      }),
+      sliceProduct({
+        id: 'ws-salami', categoryId: 'wurst-aufschnitt', artNr: '46107', wg: 461,
+        name: 'Galloway Salami', pricePerKg: 54.99,
+      }),
+      kgProduct({
+        id: 'ws-fleischwurst', categoryId: 'wurst-aufschnitt', artNr: '46108', wg: 461,
+        name: 'Fleischwurst im Ring', pricePerKg: 29.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: 'ring', label: 'Ganzer Ring' }],
+        vacuumOptions: VACUUM_LIGHT,
+      }),
+      sliceProduct({
+        id: 'ws-nussschinken', categoryId: 'wurst-aufschnitt', artNr: '46109', wg: 461,
+        name: 'Nussschinken', pricePerKg: 49.99,
+      }),
+      sliceProduct({
+        id: 'ws-pancetta', categoryId: 'wurst-aufschnitt', artNr: '46110', wg: 461,
+        name: 'Pancetta', pricePerKg: 79.9,
+      }),
     ],
   },
   {
-    id: 'bio-kaese',
-    name: 'Bio-Käsetheke',
-    description: 'Bald verfügbar – Käse vom Hof & Partnern.',
-    placeholder: true,
+    id: 'bratwurst-grill',
+    name: 'Bratwurst & Grill',
+    wg: 461,
+    description: 'WG 461 · Frische Bratwürste und Grillwaren vom Hof.',
+    products: [
+      kgProduct({
+        id: 'bw-gal-bratwurst', categoryId: 'bratwurst-grill', artNr: '46121', wg: 461,
+        name: 'Galloway Bratwurst', pricePerKg: 31.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [
+          { id: '4er', label: '4er-Pack' },
+          { id: '6er', label: '6er-Pack' },
+        ],
+      }),
+      kgProduct({
+        id: 'bw-griller', categoryId: 'bratwurst-grill', artNr: '46122', wg: 461,
+        name: 'StevesHof Griller', pricePerKg: 29.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [
+          { id: '4er', label: '4er-Pack' },
+          { id: '6er', label: '6er-Pack' },
+        ],
+      }),
+      kgProduct({
+        id: 'bw-salsiccia', categoryId: 'bratwurst-grill', artNr: '46123', wg: 461,
+        name: 'Salsiccia', pricePerKg: 29.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: '4er', label: '4er-Pack' }],
+      }),
+      kgProduct({
+        id: 'bw-merguez', categoryId: 'bratwurst-grill', artNr: '46124', wg: 461,
+        name: 'Merguez', pricePerKg: 34.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: '4er', label: '4er-Pack' }],
+      }),
+      kgProduct({
+        id: 'bw-pfefferbeisser', categoryId: 'bratwurst-grill', artNr: '46125', wg: 461,
+        name: 'Pfefferbeißer', pricePerKg: 43.99, typicalWeightKg: 0.25, defaultWeightKg: 0.25,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: 'pack', label: 'Packung' }],
+      }),
+      kgProduct({
+        id: 'bw-wiener', categoryId: 'bratwurst-grill', artNr: '46126', wg: 461,
+        name: 'Wiener', pricePerKg: 31.99, typicalWeightKg: 0.3, defaultWeightKg: 0.3,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: '6er', label: '6er-Pack' }],
+      }),
+      kgProduct({
+        id: 'bw-kaesekrainer', categoryId: 'bratwurst-grill', artNr: '46127', wg: 461,
+        name: 'Käsekrainer', pricePerKg: 26.99, typicalWeightKg: 0.4, defaultWeightKg: 0.4,
+        allowPieces: true, defaultPieces: 1,
+        cutOptions: [{ id: '4er', label: '4er-Pack' }],
+      }),
+    ],
+  },
+  {
+    id: 'lamm-wild',
+    name: 'Lamm & Wild',
+    wg: 463,
+    description: 'Lamm und Wild – saisonal / Zukauf.',
+    products: [
+      pieceProduct({
+        id: 'lw-lammkotelett', categoryId: 'lamm-wild', artNr: '46301', wg: 463,
+        name: 'Lammkotelett', pricePerKg: 51.99, typicalWeightKg: 0.12, defaultPieces: 4,
+        cutOptions: [
+          { id: '2cm', label: 'ca. 2 cm' },
+          { id: '3cm', label: 'ca. 3 cm' },
+        ],
+      }),
+      kgProduct({
+        id: 'lw-lammbraten', categoryId: 'lamm-wild', artNr: '46302', wg: 463,
+        name: 'Lammbraten', pricePerKg: 49.99, typicalWeightKg: 1, defaultWeightKg: 1,
+        cutOptions: [{ id: 'am-stueck', label: 'Am Stück' }],
+      }),
+      kgProduct({
+        id: 'lw-wild-gulasch', categoryId: 'lamm-wild', artNr: '46303', wg: 463,
+        name: 'Wild-Gulasch', pricePerKg: 25.99, typicalWeightKg: 1, defaultWeightKg: 1,
+        cutOptions: [
+          { id: '3x3', label: '3 × 3 cm Würfel' },
+          { id: 'brocken', label: 'Brocken' },
+        ],
+      }),
+    ],
+  },
+  {
+    id: 'hausgemacht',
+    name: 'Hausgemachtes & Gläser',
+    wg: 466,
+    description: 'Fonds und Wurst im Glas aus unserer Küche.',
     products: [
       {
-        id: 'kaese-placeholder',
-        categoryId: 'bio-kaese',
-        name: 'Käsetheke folgt',
-        subtitle: 'Platzhalter',
+        id: 'hm-rinderfond',
+        categoryId: 'hausgemacht',
+        artNr: '46601',
+        wg: 466,
+        name: 'Rinderfond',
+        subtitle: '750 ml',
         pricePerKg: 0,
-        unit: 'kg',
-        comingSoon: true,
+        unit: 'bottle',
+        pricingType: 'fixed',
+        estimatedPiecePrice: 6.9,
         allowWeight: false,
-        allowPieces: false,
+        allowPieces: true,
+        defaultPieces: 1,
+        cutOptions: [],
+        vacuumOptions: [],
+      },
+      {
+        id: 'hm-gefluegelfond',
+        categoryId: 'hausgemacht',
+        artNr: '46602',
+        wg: 466,
+        name: 'Geflügelfond',
+        subtitle: '750 ml',
+        pricePerKg: 0,
+        unit: 'bottle',
+        pricingType: 'fixed',
+        estimatedPiecePrice: 6.5,
+        allowWeight: false,
+        allowPieces: true,
+        defaultPieces: 1,
+        cutOptions: [],
+        vacuumOptions: [],
+      },
+      {
+        id: 'hm-leberwurst',
+        categoryId: 'hausgemacht',
+        artNr: '46603',
+        wg: 466,
+        name: 'Leberwurst im Glas',
+        subtitle: 'Galloway',
+        pricePerKg: 0,
+        unit: 'jar',
+        pricingType: 'fixed',
+        estimatedPiecePrice: 4.8,
+        allowWeight: false,
+        allowPieces: true,
+        defaultPieces: 1,
         cutOptions: [],
         vacuumOptions: [],
       },
@@ -481,34 +634,65 @@ export function findProductById(productId) {
   if (!id) return null;
   for (const category of ORDER_CATALOG) {
     const match = category.products.find((product) => product.id === id);
-    if (match) return { ...match, categoryName: category.name };
+    if (match) return { ...match, categoryName: category.name, categoryWg: category.wg };
   }
   return null;
 }
 
 /**
  * @param {CatalogProduct} product
- * @returns {'per_piece'|'per_kg'|'fixed'}
+ * @returns {'per_piece'|'per_kg'|'fixed'|'slice_pack'}
  */
 export function resolvePricingType(product) {
   if (!product) return 'per_kg';
-  if (product.pricingType === 'per_piece' || product.pricingType === 'per_kg' || product.pricingType === 'fixed') {
+  if (
+    product.pricingType === 'per_piece'
+    || product.pricingType === 'per_kg'
+    || product.pricingType === 'fixed'
+    || product.pricingType === 'slice_pack'
+  ) {
     return product.pricingType;
   }
   if (product.unit === 'bottle' || product.unit === 'jar') return 'fixed';
+  if (product.unit === 'slice') return 'slice_pack';
   if (product.allowWeight === false && product.allowPieces !== false) return 'per_piece';
   if (product.unit === 'piece' || product.unit === 'pack') return 'per_piece';
   return 'per_kg';
 }
 
+/** @param {CatalogProduct} product */
+export function getPackSizeOptions(product) {
+  const sizes = Array.isArray(product?.packSizesGrams) && product.packSizesGrams.length
+    ? product.packSizesGrams
+    : DEFAULT_SLICE_PACK_GRAMS;
+  return sizes.map((grams) => ({
+    grams,
+    label: `${grams} g`,
+    id: String(grams),
+  }));
+}
+
 /**
- * Geschätzter Einzelpreis je Stück/Packung (für Kartenanzeige).
+ * Grundpreis-Anzeige z. B. "4,70 € / 100 g (46,99 €/kg)".
  * @param {CatalogProduct} product
+ * @param {number} [grams=100]
  */
+export function formatSlicePackPriceLabel(product, grams = 100) {
+  const perKg = Number(product?.pricePerKg) || 0;
+  const packGrams = Number(grams) > 0 ? Number(grams) : 100;
+  const packPrice = roundMoney((packGrams / 1000) * perKg);
+  return `${formatEuro(packPrice)} / ${packGrams} g (${formatEuro(perKg)}/kg)`;
+}
+
+/** Geschätzter Einzelpreis je Stück/100 g-Packung (Kartenanzeige). */
 export function estimateUnitPrice(product) {
   if (!product || product.comingSoon) return 0;
   const type = resolvePricingType(product);
   if (type === 'fixed') return roundMoney(Number(product.estimatedPiecePrice) || 0);
+  if (type === 'slice_pack') {
+    const grams = Number(product.defaultPackGrams) || 100;
+    return roundMoney((grams / 1000) * (Number(product.pricePerKg) || 0));
+  }
   const pieceWeight = Number(product.typicalWeightKg) || 0;
   const perKg = Number(product.pricePerKg) || 0;
   if (pieceWeight > 0 && perKg > 0) return roundMoney(pieceWeight * perKg);
@@ -516,10 +700,10 @@ export function estimateUnitPrice(product) {
 }
 
 /**
- * Geschätzter Positionspreis (Abrechnung später nach Waage).
- * per_piece: Stückzahl × (Stückgewicht_kg × €/kg) — kein fehlendes Gewichtsfeld blockiert die Summe.
+ * Geschätzter Positionspreis.
+ * slice_pack: (Gramm / 1000) × €/kg
  * @param {CatalogProduct} product
- * @param {{ pieces?: number, weightKg?: number }} selection
+ * @param {{ pieces?: number, weightKg?: number, packGrams?: number }} selection
  */
 export function estimateLinePrice(product, selection = {}) {
   if (!product || product.comingSoon) return 0;
@@ -539,18 +723,23 @@ export function estimateLinePrice(product, selection = {}) {
     return roundMoney(pieces * unit);
   }
 
+  if (type === 'slice_pack') {
+    const gramsRaw = Number(selection.packGrams);
+    const grams = Number.isFinite(gramsRaw) && gramsRaw > 0
+      ? gramsRaw
+      : (Number(product.defaultPackGrams) || 100);
+    return roundMoney((grams / 1000) * perKg);
+  }
+
   if (type === 'per_piece') {
-    // Explizites Gesamtgewicht nur nutzen, wenn der Kunde ein Gewichtsfeld bedienen darf.
     if (product.allowWeight !== false && hasTotalWeight) {
       return roundMoney(weightRaw * perKg);
     }
-    // Stückzahl × gerundeter Stückpreis (kg×€/kg), z. B. 4×5,20 € = 20,80 €
     const unit = estimateUnitPrice(product);
     if (unit > 0) return roundMoney(pieces * unit);
     return 0;
   }
 
-  // per_kg
   if (hasTotalWeight) {
     return roundMoney(weightRaw * perKg);
   }
@@ -587,31 +776,21 @@ export function combineLocalDateTime(isoDate, hhmm) {
   return new Date(y, mo - 1, d, h || 0, m || 0, 0, 0);
 }
 
-/** @param {Date} date */
 function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
 }
 
-/** @param {Date} date @param {number} days */
 function addDays(date, days) {
   const next = new Date(date.getTime());
   next.setDate(next.getDate() + days);
   return next;
 }
 
-/** @param {string} hhmm */
 function hhmmToMinutes(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 }
 
-/**
- * Zeitfenster in Blöcken (Standard 2 Stunden; letzter Block bis close).
- * @param {string} fromHHmm
- * @param {string} toHHmm
- * @param {number} [blockMinutes]
- * @returns {PickupSlot[]}
- */
 export function buildTimeBlocks(fromHHmm, toHHmm, blockMinutes = 120) {
   const startMin = hhmmToMinutes(fromHHmm);
   const endMin = hhmmToMinutes(toHHmm);
@@ -646,20 +825,12 @@ function dayLabelDe(date) {
   });
 }
 
-/**
- * SB-Modus für einen Abholtag relativ zum Bestellzeitpunkt.
- * @param {Date} now
- * @param {Date} pickupDay
- * @returns {'same-day'|'standard'|'advance'|null}
- */
 export function resolveSbMode(now, pickupDay) {
   const nowDay = startOfLocalDay(now);
   const pickupStart = startOfLocalDay(pickupDay);
-  const dayDiffMs = pickupStart.getTime() - nowDay.getTime();
-  const dayDiff = Math.round(dayDiffMs / 86400000);
+  const dayDiff = Math.round((pickupStart.getTime() - nowDay.getTime()) / 86400000);
 
   if (!SB_WEEKDAYS.has(pickupDay.getDay())) return null;
-
   if (dayDiff < 0) return null;
 
   if (dayDiff === 0) {
@@ -668,12 +839,9 @@ export function resolveSbMode(now, pickupDay) {
     return null;
   }
 
-  // Mehr als 24 Stunden Abstand zur Öffnung des Abholtages → volles Fenster
   const pickupOpen = combineLocalDateTime(toIsoDateLocal(pickupDay), SB_OPEN);
   const hoursUntilOpen = (pickupOpen.getTime() - now.getTime()) / 3600000;
   if (hoursUntilOpen > 24) return 'advance';
-
-  // Folgetag / innerhalb 24h: Standard-Puffer ab 14:00
   return 'standard';
 }
 
@@ -699,12 +867,6 @@ function sbWindowForMode(mode) {
   };
 }
 
-/**
- * Bedientheke: kommende Freitage/Samstage mit offenen Restfenstern.
- * @param {Date} now
- * @param {number} [horizonDays]
- * @returns {PickupDay[]}
- */
 function buildCounterDays(now, horizonDays = 28) {
   /** @type {PickupDay[]} */
   const days = [];
@@ -720,7 +882,6 @@ function buildCounterDays(now, horizonDays = 28) {
     const to = hours.close;
 
     if (offset === 0) {
-      // Gleichtag: nur noch zukünftige Blöcke, mind. ~60 Min Vorlauf
       const minStart = new Date(now.getTime() + 60 * 60 * 1000);
       const openAt = combineLocalDateTime(iso, hours.open);
       const closeAt = combineLocalDateTime(iso, hours.close);
@@ -746,12 +907,6 @@ function buildCounterDays(now, horizonDays = 28) {
   return days;
 }
 
-/**
- * SB-Kühlschrank: So–Do mit Pufferregeln.
- * @param {Date} now
- * @param {number} [horizonDays]
- * @returns {PickupDay[]}
- */
 function buildSbDays(now, horizonDays = 21) {
   /** @type {PickupDay[]} */
   const days = [];
@@ -779,11 +934,6 @@ function buildSbDays(now, horizonDays = 21) {
   return days;
 }
 
-/**
- * Dynamische Abholfenster für Bedientheke und SB-Kühlschrank.
- * @param {Date} [now]
- * @returns {AvailablePickupSlots}
- */
 export function getAvailablePickupSlots(now = new Date()) {
   const reference = now instanceof Date && !Number.isNaN(now.getTime())
     ? now
@@ -800,10 +950,13 @@ export function getAvailablePickupSlots(now = new Date()) {
 export default {
   ORDER_CATALOG,
   PICKUP_CHANNEL_LABELS,
+  DEFAULT_SLICE_PACK_GRAMS,
   getCatalogCategories,
   getOrderableProducts,
   findProductById,
   resolvePricingType,
+  getPackSizeOptions,
+  formatSlicePackPriceLabel,
   estimateUnitPrice,
   estimateLinePrice,
   formatEuro,
