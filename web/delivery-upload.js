@@ -1,6 +1,6 @@
 /**
- * Härtung für Wareneingang-Foto/PDF-Anhänge (Metzgerei-Dokumentation).
- * KI-OCR/parseDeliveryNote liegt archiviert unter legacy/lieferschein_ocr_archive.js.
+ * Helfer für Lieferschein-Foto/PDF-Anhänge im Metzgerei-Wareneingang
+ * (ohne KI-/OCR-Analyse — die liegt unter legacy/).
  */
 
 export const MAX_DELIVERY_FILE_BYTES = 12 * 1024 * 1024;
@@ -15,6 +15,39 @@ const EXT_TO_MIME = {
   heic: 'image/heic',
   heif: 'image/heif',
 };
+
+export function showOperatorToast(message) {
+  const text = String(message || '').trim();
+  if (!text) return;
+  window.showToast?.(text, 'warning');
+}
+
+/**
+ * Wartet, bis Firebase Auth die Sitzung kennt, und holt einen frischen ID-Token.
+ */
+export async function ensureDeliveryNoteAuth(firebase) {
+  const auth = typeof firebase?.auth === 'function' ? firebase.auth() : null;
+  if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+    showOperatorToast('Bitte zuerst in HofSync anmelden.');
+    return null;
+  }
+  if (!auth.currentUser) {
+    await new Promise((resolve) => {
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        unsubscribe();
+        resolve(user);
+      });
+    });
+  }
+  if (!auth.currentUser) {
+    showOperatorToast('Bitte zuerst in HofSync anmelden.');
+    return null;
+  }
+  if (typeof auth.currentUser.getIdToken === 'function') {
+    await auth.currentUser.getIdToken(true);
+  }
+  return auth.currentUser;
+}
 
 export class DeliveryUploadError extends Error {
   /**
@@ -64,31 +97,26 @@ export function resolveDeliveryMimeType(file, fallbackExt = '') {
   return EXT_TO_MIME[ext] || 'application/octet-stream';
 }
 
+function sanitizeStorageFileName(name) {
+  const raw = String(name || 'lieferschein').trim() || 'lieferschein';
+  return raw
+    .replace(/[\\/]+/g, '_')
+    .replace(/[^\w.\-äöüÄÖÜß]+/gi, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 120) || 'lieferschein';
+}
+
 /**
- * Wartet, bis Firebase Auth die Sitzung kennt (z. B. Stammdaten-Rename).
+ * Tenant-isolierter Storage-Pfad (für spätere Büro-/Desktop-Nutzung).
+ * Architektur: tenants/{tenantId}/delivery_notes/{timestamp}_{filename}
  */
-export async function ensureDeliveryNoteAuth(firebase) {
-  const auth = typeof firebase?.auth === 'function' ? firebase.auth() : null;
-  if (!auth || typeof auth.onAuthStateChanged !== 'function') {
-    window.showToast?.('Bitte zuerst in HofSync anmelden.', 'warning');
-    return null;
+export function buildDeliveryNoteStoragePath(tenantId, fileName, now = Date.now()) {
+  const cleanTenant = String(tenantId || '').trim();
+  if (!cleanTenant) {
+    throw new DeliveryUploadError('generic', 'Mandant fehlt für den Lieferschein-Upload.');
   }
-  if (!auth.currentUser) {
-    await new Promise((resolve) => {
-      const unsubscribe = auth.onAuthStateChanged((user) => {
-        unsubscribe();
-        resolve(user);
-      });
-    });
-  }
-  if (!auth.currentUser) {
-    window.showToast?.('Bitte zuerst in HofSync anmelden.', 'warning');
-    return null;
-  }
-  if (typeof auth.currentUser.getIdToken === 'function') {
-    await auth.currentUser.getIdToken(true);
-  }
-  return auth.currentUser;
+  const safeName = sanitizeStorageFileName(fileName);
+  return `tenants/${cleanTenant}/delivery_notes/${now}_${safeName}`;
 }
 
 /**

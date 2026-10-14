@@ -23,8 +23,8 @@ assert.match(
 );
 assert.match(
   indexHtml,
-  /style\.css\?v=20261013-cleanup-lieferschein-v1/,
-  'style.css Cache-Buster cleanup-lieferschein',
+  /style\.css\?v=20261014-merge-main-v1/,
+  'style.css Cache-Buster merge-main',
 );
 
 assert.match(
@@ -56,8 +56,8 @@ assert.match(
 
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261013-cleanup-lieferschein-v1'/,
-  'SW Cache-Version cleanup-lieferschein-v1',
+  /CACHE_NAME = 'charculogic-v20261014-merge-main-v1'/,
+  'SW Cache-Version merge-main-v1',
 );
 
 console.log('OK smoke-mobile-nav-cleanup: Mobile Nav-Entschlackung Verträge erfüllt.');

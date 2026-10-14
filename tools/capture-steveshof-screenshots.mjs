@@ -243,8 +243,7 @@ const shots = [
         if (qty) qty.value = '6';
         const mhd = document.getElementById('we-mhd');
         if (mhd) mhd.value = '2026-06-15';
-        const deliveryParserBtn = document.getElementById('btn-delivery-parser');
-        if (deliveryParserBtn) deliveryParserBtn.hidden = true;
+        // KI-Lieferschein-UI ist aus der PWA entfernt (legacy/).
         document.getElementById('we-hersteller-zusatz')?.scrollIntoView({ block: 'center' });
       });
       await page.waitForTimeout(200);

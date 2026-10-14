@@ -1,6 +1,6 @@
 /**
- * Stammdaten-EAN-Index für Wareneingang (Barcode / Artikelnummer → Verbraucher-EAN).
- * Früher Teil von delivery-reconciliation.js; OCR-UI wurde archiviert.
+ * Stammdaten-EAN-Index für den Barcode-Wareneingang.
+ * (Extrahiert aus dem archivierten KI-Lieferschein-Abgleich.)
  */
 
 import { getTenantCollection } from './tenant-db.js';
@@ -21,11 +21,6 @@ function digitsOnly(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
-function consumerEan(value) {
-  const digits = digitsOnly(value);
-  return digits.length >= 8 && digits.length <= 14 ? digits : '';
-}
-
 function foldCatalogName(value) {
   return String(value || '')
     .toLowerCase()
@@ -35,9 +30,14 @@ function foldCatalogName(value) {
     .trim();
 }
 
+function consumerEan(value) {
+  const digits = digitsOnly(value);
+  return digits.length >= 8 && digits.length <= 14 ? digits : '';
+}
+
 /**
- * Liefert die Verbraucher-EAN aus den Stammdaten, wenn die Rechnung nur
- * eine Lieferanten-Artikelnummer oder den Titel nennt.
+ * Liefert die Verbraucher-EAN aus den Stammdaten, wenn nur
+ * Lieferanten-Artikelnummer oder Titel bekannt sind.
  */
 export function lookupCatalogEan(index, { name = '', articleNumber = '', ean = '' } = {}) {
   const direct = consumerEan(ean);
@@ -52,6 +52,7 @@ export function lookupCatalogEan(index, { name = '', articleNumber = '', ean = '
   return '';
 }
 
+/** Lädt einen Index byArticle/byName aus tenants/{tenantId}/stammdaten. */
 export async function loadCatalogEanIndex() {
   const byArticle = new Map();
   const byName = new Map();

@@ -168,8 +168,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - **Letzte Eingänge:** Kategorie-Korrektur für alle Nutzer mit Tab Neu
 - **Metzgerei-Modus:** mandantenabhängig (`wareneingangMetzgerei`)
 - **Stammdaten (Büro):** `#btn-master-data` — nur `isOfficeUser()`
-- **KI-Parser Wareneingang** (`web/delivery-parser.js`): `#btn-delivery-parser` („Lieferschein hochladen“, Datei/PDF ohne Kamera) und `#btn-delivery-note-ai` („Lieferschein scannen (KI)“, Kamera) für StevesHof & Co.; Storage-Upload + `parseDeliveryNote` → `mhd_liste` / `stammdaten`
-- **TorFabrik KI-Lieferschein** (`web/delivery-note.js`): Scan-Button → Callable `parseDeliveryNote` → `inventory`
+- **KI-Lieferschein/OCR** (archiviert unter `legacy/`): Client-UI aus der PWA entfernt; Backend-Callables (`parseDeliveryNote` etc.) bleiben für spätere Büro-/Desktop-Nutzung. Operativer Wareneingang: Barcode-Serien-Scan in `web/receiving.js` / `web/mhd.js`
 
 ### Herkunft / LMIV (`web/traceability.js`)
 

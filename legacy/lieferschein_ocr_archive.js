@@ -1,25 +1,25 @@
 /**
- * Archiv: KI-Lieferschein / OCR (Gemini) – aus der produktiven PWA entfernt (2026-10-13).
+ * Archiv: Experimenteller KI-Lieferschein-/OCR-Client (Gemini + Cloud Functions).
  *
- * Hintergrund: Der experimentelle Foto-/OCR-Lieferscheinabgleich erzeugte im Schichtbetrieb
- * an der Frischetheke Frust (Memory bei großen iPhone-Fotos, ungenaue EAN-Zuordnung,
- * UI-Überfrachtung). Der operative Wareneingang läuft über Barcode-Schnellscanner + LIFO.
+ * Aus der produktiven PWA (Tab „Neu“) entfernt am 2026-10-13, weil:
+ * - Memory-Probleme bei großen iPhone-Fotos
+ * - ungenaue EAN-Zuordnung im Schichtbetrieb
+ * - UI-Überfrachtung gegenüber dem zuverlässigen Barcode-Serien-Scan
  *
- * Dieses Modul re-exportiert die archivierten Client-Schnittstellen für eine spätere
- * Büro-Desktop-Lösung. Backend-Callables in functions/ bleiben unberührt:
- *   - parseDeliveryNote
- *   - reprocessDeliveryNoteDraft
- *   - saveReconciledItems
+ * Backend-Callables unter functions/deliveryNote.js bleiben unberührt
+ * für eine spätere Büro-/Desktop-Lösung.
  *
- * Archivierte Dateien (gleiche Ordnerebene):
- *   - delivery-note.js          → initDeliveryNoteScanner
- *   - delivery-parser.js        → initDeliveryParser, vorhersagenMhd (Kopie)
- *   - delivery-reconcile.js     → reconcileDeliveryNote, showReconcileOverlay
- *   - delivery-reconciliation.js → initDeliveryReconciliation, reconcileDelivery, …
- *   - delivery-upload.js        → analyzeDeliveryNoteFile, enqueueDeliveryNoteAnalysis, …
+ * Module in diesem Ordner (nicht im PWA-Service-Worker gecacht):
+ * - delivery-note.js          – Branding-Modul deliveryNoteAi Scanner
+ * - delivery-parser.js        – KI-Parser + Preview-Board
+ * - delivery-reconcile.js     – Soll/Ist-Abgleich Overlay
+ * - delivery-reconciliation.js – Gemini-Abgleich-Board + Draft-Watcher
+ * - delivery-upload.js        – Storage-Upload + parseDeliveryNote Callable
  *
- * Imports in den Archiv-Dateien zeigen auf ../web/ für geteilte Auth/Tenant-Helfer.
- * Nicht in web/sw.js oder app.js einbinden – nur Archiv / Desktop-Prototyp.
+ * Produktive Reste in web/:
+ * - delivery-upload.js (schlank) – Foto/PDF-Validierung für Metzgerei-Anhänge
+ * - catalog-ean.js               – Stammdaten-EAN-Index für Barcode-Buchung
+ * - receiving.js                 – MHD-Vorschlag (vorhersagenMhd) + LIFO-Karten
  */
 
 export {
@@ -42,13 +42,13 @@ export {
 export {
   initDeliveryReconciliation,
   bindDeliveryReconcileMain,
-  reconcileDeliveryNoteFromFile,
   reconcileDelivery,
-  expandRetailQuantity,
-  isExcludedInventoryItem,
+  reconcileDeliveryNoteFromFile,
+  openParsedDeliveryBoard,
   loadCatalogEanIndex,
   lookupCatalogEan,
-  openParsedDeliveryBoard,
+  expandRetailQuantity,
+  isExcludedInventoryItem,
   levenshtein,
 } from './delivery-reconciliation.js';
 
@@ -60,8 +60,5 @@ export {
   validateDeliveryUploadFile,
   isAllowedDeliveryFile,
   mapDeliveryUploadError,
-  buildDeliveryNoteStoragePath,
   DeliveryUploadError,
-  showDeliveryParseProgress,
-  hideDeliveryParseProgress,
 } from './delivery-upload.js';

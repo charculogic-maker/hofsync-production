@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261013-cleanup-lieferschein-v1';
+const CACHE_NAME = 'charculogic-v20261014-merge-main-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-13T21:45:00+02:00';
+const RELEASED_AT = '2026-10-14T04:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -37,9 +37,9 @@ const CRITICAL_ASSETS = [
   '/date-input.js',
   '/delivery-upload.js',
   '/catalog-ean.js',
-  '/receiving-mhd-suggest.js',
   '/haccp.js',
   '/production.js',
+  '/rezepte.js',
   '/production-datasheet.js',
   '/beffe_calc.js',
   '/domain-core.js',
