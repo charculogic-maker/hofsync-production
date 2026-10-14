@@ -634,8 +634,11 @@
     function lockBodyScroll() {
       if (document.body.classList.contains('layer-scroll-lock')) return;
       lockedScrollY = window.scrollY || window.pageYOffset || 0;
+      // Zuerst nach oben: auf iOS/WebKit werden fixed-Kinder sonst mit body.top mitverschoben
+      // und der Drawer-Header liegt außerhalb des Viewports.
+      window.scrollTo(0, 0);
       document.body.classList.add('layer-scroll-lock');
-      document.body.style.top = `-${lockedScrollY}px`;
+      document.body.style.top = '0px';
     }
 
     function unlockBodyScroll() {
@@ -652,8 +655,6 @@
       el.style.display = el.id === 'drawer-cart' ? 'block' : 'flex';
       el.setAttribute('aria-hidden', 'false');
       if (el.id === 'drawer-cart') {
-        const header = el.querySelector('.drawer-header');
-        if (header) header.scrollIntoView({ block: 'start' });
         const items = document.getElementById('cart-items');
         if (items) items.scrollTop = 0;
       }
