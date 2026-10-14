@@ -4249,7 +4249,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261014-receiving-batch-cat-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261014-soldout-and-slaughter-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

@@ -396,7 +396,7 @@ async function prepareWareneingang(page) {
     const temp = document.getElementById('we-temperature-metz');
     if (temp) temp.value = '2.4';
     const category = document.getElementById('we-category');
-    if (category) category.value = 'Fremdfleisch';
+    if (category) category.value = 'Lohnschlachtung Rind';
 
     const previews = document.getElementById('we-photo-previews');
     if (previews) {
