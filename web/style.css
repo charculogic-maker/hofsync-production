@@ -1,7 +1,7 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  /* ButcherOS / HofSync â€” M3 Design Tokens */
+  /* ButcherOS / HofSync — M3 Design Tokens */
   --color-primary: #680006;
   --color-primary-container: #8c1515;
   --color-on-primary: #ffffff;
@@ -18,7 +18,7 @@
   --font-family: "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* White-label Kernfarben (Default = M3; Branding Ã¼berschreibt zur Laufzeit) */
+  /* White-label Kernfarben (Default = M3; Branding überschreibt zur Laufzeit) */
   --primary-color: var(--color-primary);
   --primary-color-hover: var(--color-primary-container);
   --dark-header-bg: #2b0a0c;
@@ -164,7 +164,7 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-  user-select: none; /* Verhindert SelektionsstÃ¶rungen bei schnellem Tippen */
+  user-select: none; /* Verhindert Selektionsstörungen bei schnellem Tippen */
 }
 
 html,
@@ -3234,7 +3234,7 @@ html.mhd-qty-numpad-open body {
   font-size: 11px;
 }
 
-/* --- SCREEN 2: WURSTKÃœCHE --- */
+/* --- SCREEN 2: WURSTKÜCHE --- */
 .wrs-board {
   display: flex;
   flex-direction: column;
@@ -3506,14 +3506,21 @@ html.mhd-qty-numpad-open body {
   display: none;
 }
 
+/* CSS-Chevron statt Unicode — vermeidet Encoding-Hieroglyphen auf Mobilgeräten */
 .kitchen-collapsible > summary::after {
-  content: 'â–¾';
+  content: '';
   float: right;
-  color: var(--text-muted);
+  width: 0.45em;
+  height: 0.45em;
+  margin-top: 0.35em;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
 }
 
 .kitchen-collapsible:not([open]) > summary::after {
-  content: 'â–¸';
+  margin-top: 0.2em;
+  transform: rotate(-45deg);
 }
 
 .kitchen-collapsible > .recipe-toolbar,
@@ -3579,9 +3586,33 @@ html.mhd-qty-numpad-open body {
   width: 100%;
 }
 
-.recipe-filter-button-icon {
+.recipe-filter-button-icon,
+.chevron-down {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
   color: var(--text-muted);
-  font-size: 14px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+  font-size: 0;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.chevron-up {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  color: var(--text-muted);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-135deg);
+  flex-shrink: 0;
+  font-size: 0;
+  line-height: 0;
+  vertical-align: middle;
 }
 
 .recipe-category-sheet {
@@ -4207,15 +4238,19 @@ html.mhd-qty-numpad-open body {
 }
 
 .haccp-collapsible > summary::after {
-  content: 'â–¾';
+  content: '';
   float: right;
-  color: var(--text-muted);
-  font-weight: 700;
-  text-transform: none;
+  width: 0.45em;
+  height: 0.45em;
+  margin-top: 0.35em;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
 }
 
 .haccp-collapsible:not([open]) > summary::after {
-  content: 'â–¸';
+  margin-top: 0.2em;
+  transform: rotate(-45deg);
 }
 
 .haccp-collapsible-body {
@@ -4818,7 +4853,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   display: none !important;
 }
 
-/* KÃ¤se-Theke: pill-shaped segmented unit toggle (Wet-Finger) */
+/* Käse-Theke: pill-shaped segmented unit toggle (Wet-Finger) */
 .kaese-qty-field-label {
   display: block;
   font-size: 14px;
@@ -6986,7 +7021,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   .nav-item--admin span {
-    /* Icon-first: vermeidet abgeschnittenes â€žVERWALTUâ€¦â€œ */
+    /* Icon-first: vermeidet abgeschnittenes „VERWALTU…“ */
     font-size: 0;
     line-height: 0;
     overflow: hidden;
@@ -7023,8 +7058,8 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   /*
-   * iOS/PWA: position:sticky im .app-content-Scroller ist unzuverlÃ¤ssig.
-   * Feste Speichern-Leiste + Padding in der Liste â€“ Karten bleiben frei.
+   * iOS/PWA: position:sticky im .app-content-Scroller ist unzuverlässig.
+   * Feste Speichern-Leiste + Padding in der Liste – Karten bleiben frei.
    */
   :root {
     --mhd-save-bar-height: 108px;
@@ -7050,7 +7085,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     font-size: 15px;
   }
 
-  /* MHD-Toolbar: nicht sticky â€“ scrollt mit, Ã¼berdeckt keine Karten */
+  /* MHD-Toolbar: nicht sticky – scrollt mit, überdeckt keine Karten */
   .mhd-monitor-toolbar {
     position: static;
     margin-bottom: 6px;
@@ -8612,14 +8647,14 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 @media print {
-  /* Alles verstecken â€“ nur der Kisten-Zettel bleibt Ã¼brig */
+  /* Alles verstecken – nur der Kisten-Zettel bleibt übrig */
   body {
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* iPhone-Frame, Desktop-Wrapper, App-Navigation, Overlays: vÃ¶llig aus dem Druck */
+  /* iPhone-Frame, Desktop-Wrapper, App-Navigation, Overlays: völlig aus dem Druck */
   .preview-container,
   .iphone-frame,
   .desktop-controls,
@@ -8665,7 +8700,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     overflow: visible !important;
   }
 
-  /* App-Chrome innerhalb des Modals unterdrÃ¼cken */
+  /* App-Chrome innerhalb des Modals unterdrücken */
   .delivery-note-toolbar {
     display: none !important;
   }
@@ -8825,14 +8860,19 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 }
 
 .leitstand-collapsible > summary::after {
-  content: 'â–¾';
+  content: '';
   float: right;
-  color: var(--text-muted);
-  font-weight: 700;
+  width: 0.45em;
+  height: 0.45em;
+  margin-top: 0.35em;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
 }
 
 .leitstand-collapsible:not([open]) > summary::after {
-  content: 'â–¸';
+  margin-top: 0.2em;
+  transform: rotate(-45deg);
 }
 
 .leitstand-collapsible-body {
@@ -8996,7 +9036,7 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Active Hofladen tabs polish: Neu, Prod., HACCP, BÃ¼ro
+   Active Hofladen tabs polish: Neu, Prod., HACCP, Büro
    ========================================================================= */
 
 #page-receiving,
@@ -9052,14 +9092,18 @@ body.role-helper #team-subnav-orders {
 }
 
 .knowledge-accordion > summary::after {
-  content: 'â–¾';
+  content: '';
   margin-left: auto;
-  color: var(--text-muted);
-  font-weight: 900;
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  flex-shrink: 0;
 }
 
 .knowledge-accordion:not([open]) > summary::after {
-  content: 'â–¸';
+  transform: rotate(-45deg);
 }
 
 .knowledge-accordion-body {
@@ -9308,7 +9352,7 @@ body.role-helper #team-subnav-orders {
 }
 
 .cut-title--definition::before {
-  content: 'ðŸ’¡ ';
+  content: '';
 }
 
 .cut-region-pill--definition {
@@ -10187,8 +10231,8 @@ body.role-helper #team-subnav-orders {
 }
 
 /* =========================================================================
-   Desktop wide layout (Wissen + BÃ¼ro), ab 1024px
-   Mobile/PWA unter 768px bleibt unverÃ¤ndert.
+   Desktop wide layout (Wissen + Büro), ab 1024px
+   Mobile/PWA unter 768px bleibt unverändert.
    ========================================================================= */
 
 @media (min-width: 1024px) {
@@ -10279,7 +10323,7 @@ body.role-helper #team-subnav-orders {
     overflow-x: visible;
   }
 
-  /* BÃ¼ro-Tab: volle Breite, Admin-Grids nebeneinander */
+  /* Büro-Tab: volle Breite, Admin-Grids nebeneinander */
   body.desktop-wide-layout #page-batches,
   body.desktop-wide-layout #page-buero {
     max-width: none;
@@ -10320,7 +10364,7 @@ body.role-helper #team-subnav-orders {
   }
 }
 
-/* Sticky Login-/Denied-Fallback fÃ¼r Direktaufruf /dev-dashboard */
+/* Sticky Login-/Denied-Fallback für Direktaufruf /dev-dashboard */
 #dev-dashboard-boot-fallback {
   position: fixed !important;
   inset: 0 !important;
@@ -10404,7 +10448,7 @@ body.dev-dashboard-view .admin-header-dropdown {
   display: none !important;
 }
 
-/* Nie das Dokument-Body Ã¼ber Tab-Panel-[hidden]-Regeln ausblenden. */
+/* Nie das Dokument-Body über Tab-Panel-[hidden]-Regeln ausblenden. */
 body.is-dev-dashboard[hidden],
 body.dev-dashboard-view[hidden] {
   display: flex !important;
@@ -11117,7 +11161,7 @@ body.role-firebase-auth #team-login-card {
   display: none !important;
 }
 
-/* ===== LMIV RÃ¼ckverfolgbarkeit ===== */
+/* ===== LMIV Rückverfolgbarkeit ===== */
 .trace-capture-card {
   display: flex;
   flex-direction: column;
