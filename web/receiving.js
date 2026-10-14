@@ -31,6 +31,66 @@ export const RECEIVING_SMART_CATEGORIES = {
   gewuerze: '🌿 Gewürze',
 };
 
+/** HACCP-Kühlgrenze für Rindfleisch / Lohnschlachtung (VO EG 853/2004). */
+export const HACCP_MEAT_TEMP_LIMIT_C = 7.0;
+
+/** Standard-Warengruppe für Metzgerei / Stautenhof-Anlieferungen. */
+export const METZ_DEFAULT_CATEGORY = 'Lohnschlachtung Rind';
+
+/**
+ * Warengruppen für Fleisch- und Schlachtbetriebe (Metzgerei-Tab).
+ * Werte sind speicherstabil; Labels laden-freundlich.
+ */
+export const METZ_RECEIVING_CATEGORIES = [
+  {
+    value: 'Lohnschlachtung Rind',
+    label: '🥩 Lohnschlachtung Rind (Eigenbestand / Galloway)',
+  },
+  {
+    value: 'Lohnschlachtung Schwein',
+    label: '🥩 Lohnschlachtung Schwein (Eigenbestand)',
+  },
+  {
+    value: 'Zukauffleisch (Fremdbezug)',
+    label: 'Zukauffleisch (Fremdbezug)',
+  },
+  { value: 'Wurst Zukauf', label: 'Wurst Zukauf' },
+  { value: 'Geflügel Zukauf', label: 'Geflügel Zukauf' },
+  { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
+];
+
+export function isLohnschlachtungRindCategory(category = '') {
+  return /lohnschlachtung\s*rind/i.test(String(category || ''));
+}
+
+export function isMetzMeatTemperatureCategory(category = '') {
+  const normalized = normalizeCategoryText(category);
+  if (!normalized) return false;
+  return normalized.includes('lohnschlachtung')
+    || normalized.includes('zukauffleisch')
+    || normalized.includes('fremd')
+    || normalized.includes('gefluegel')
+    || normalized.includes('wurst zukauf')
+    || /\brind\b/.test(normalized)
+    || /\bfleisch\b/.test(normalized);
+}
+
+export function formatHaccpMeatTempWarning(temperature) {
+  const value = Number(temperature);
+  if (!Number.isFinite(value) || !(value > HACCP_MEAT_TEMP_LIMIT_C)) return '';
+  return '⚠️ Grenzwert überschritten (> 7,0 °C). Kühlung und Begleitpapiere prüfen!';
+}
+
+/** Alte Metzgerei-Werte auf aktuelle Labels/Werte mappen (Bestandsdaten). */
+export function normalizeMetzReceivingCategory(category = '') {
+  const raw = String(category || '').trim();
+  if (!raw) return METZ_DEFAULT_CATEGORY;
+  if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') return 'Zukauffleisch (Fremdbezug)';
+  if (/gew(ü|ue)rze\s*metzgerei/i.test(raw)) return 'Gewürze & Hilfsstoffe';
+  const known = METZ_RECEIVING_CATEGORIES.find((entry) => entry.value === raw);
+  return known ? known.value : raw;
+}
+
 function normalizeCategoryText(value = '') {
   return String(value || '')
     .toLowerCase()

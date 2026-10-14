@@ -111,8 +111,8 @@ assertIncludes(cssSrc, '.utility-row--category-dirty', 'Dirty-Row Styles');
 assertIncludes(cssSrc, '.recent-receipts-batch-bar', 'Batch-Bar Styles');
 assertIncludes(cssSrc, '.learn-mode-card--wide', 'Breitere Dialog-Karte');
 
-// 4) SW / App Cache-Invalidierung
-assertIncludes(swSrc, "CACHE_NAME = 'charculogic-v20261014-receiving-batch-cat-v1'", 'SW Cache-Version');
-assertIncludes(appSrc, 'receiving-batch-cat-v1', 'App SW Register Query');
+// 4) SW / App Cache-Invalidierung (Version wird pro Feature angehoben)
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/, 'SW Cache-Version gesetzt');
+assert.match(appSrc, /sw\.js\?v=\d{8}-[^']+'/, 'App SW Register Query');
 
 console.log('OK smoke-receiving-batch-category: Heuristik + Batch-Save Verträge erfüllt.');

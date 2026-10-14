@@ -88,7 +88,7 @@ function renderPage(query = '', quickId = '') {
 <html lang="de"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/style.css?v=20261014-receiving-batch-cat-v1">
+<link rel="stylesheet" href="/style.css?v=20261014-soldout-and-slaughter-v1">
 <style>
   body { margin: 0; background: #1c130e; color: #f5f1ea; }
   .demo-shell { padding: 16px 14px 28px; max-width: 430px; margin: 0 auto; }
@@ -131,7 +131,7 @@ async function capture(name, query, quickId) {
   const html = renderPage(query, quickId);
   await page.setContent(html, { waitUntil: 'domcontentloaded' });
   // style.css vom lokalen Server nachladen
-  await page.addStyleTag({ url: 'http://127.0.0.1:5173/style.css?v=20261014-receiving-batch-cat-v1' });
+  await page.addStyleTag({ url: 'http://127.0.0.1:5173/style.css?v=20261014-soldout-and-slaughter-v1' });
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(OUT, name), fullPage: true });
 }

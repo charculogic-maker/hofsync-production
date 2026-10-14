@@ -200,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261014-receiving-batch-cat-v1">
+  <link rel="stylesheet" href="/style.css?v=20261014-soldout-and-slaughter-v1">
 </head>
 <body>
 
@@ -1296,17 +1296,30 @@
                 <h3 class="receiving-section-title" id="we-kopf-title">Temperatur &amp; Lieferschein</h3>
                 <div class="receiving-form-stack">
                   <label class="receiving-field" for="we-category">
-                    <span>Waren-Kategorie</span>
+                    <span>Warengruppe</span>
                     <select id="we-category" class="gastro-input">
-                      <option value="Fremdfleisch" selected>Fremdfleisch</option>
+                      <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Eigenbestand / Galloway)</option>
+                      <option value="Lohnschlachtung Schwein">🥩 Lohnschlachtung Schwein (Eigenbestand)</option>
+                      <option value="Zukauffleisch (Fremdbezug)">Zukauffleisch (Fremdbezug)</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
                       <option value="Geflügel Zukauf">Geflügel Zukauf</option>
-                      <option value="Gewürze Metzgerei">Gewürze Metzgerei</option>
+                      <option value="Gewürze &amp; Hilfsstoffe">Gewürze &amp; Hilfsstoffe</option>
                     </select>
                   </label>
+                  <div id="we-slaughter-extra-fields" class="receiving-slaughter-fields" hidden>
+                    <label class="receiving-field" for="we-ohrmarke">
+                      <span>Ohrmarke / Tier-ID</span>
+                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 …" autocomplete="off" inputmode="text">
+                    </label>
+                    <label class="receiving-field" for="we-schlachtgewicht">
+                      <span>Schlachtgewicht (kg)</span>
+                      <input type="number" id="we-schlachtgewicht" class="gastro-input" placeholder="kg" step="0.1" min="0" inputmode="decimal">
+                    </label>
+                  </div>
                   <label class="receiving-field" for="we-temperature-metz">
-                    <span>Temperatur (°C)</span>
+                    <span>Temperatur (°C) · HACCP ≤ 7,0 °C</span>
                     <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                    <p id="we-temperature-metz-warn" class="receiving-temp-warn" hidden role="alert">⚠️ Grenzwert überschritten (&gt; 7,0 °C). Kühlung und Begleitpapiere prüfen!</p>
                   </label>
                 </div>
                 <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="application/pdf,.pdf,image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif">

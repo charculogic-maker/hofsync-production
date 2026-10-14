@@ -78,7 +78,7 @@ const rawPoison = {
 assert.equal(auditRecipePhysics(rawPoison).ok, false, 'Brühen in Rohwurst muss Fehler flaggen');
 
 const swSrc = read('web/sw.js');
-assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261014-receiving-batch-cat-v1'/);
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/);
 assert.ok(existsSync(path.join(root, 'reports', 'audit_rezepte_status.md')), 'Audit-Report vorhanden');
 
 const report = read('reports/audit_rezepte_status.md');

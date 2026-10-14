@@ -19,7 +19,12 @@ import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
+  formatHaccpMeatTempWarning,
   inferReceivingCategoryFromProductName,
+  isLohnschlachtungRindCategory,
+  isMetzMeatTemperatureCategory,
+  METZ_DEFAULT_CATEGORY,
+  normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
   RECEIVING_SMART_CATEGORIES,
@@ -118,6 +123,8 @@ const RECEIVING_FORM_IDS = [
   'we-category',
   'we-category-quick',
   'we-temperature',
+  'we-ohrmarke',
+  'we-schlachtgewicht',
   'we-ean',
   'we-product-name',
   'we-hersteller-zusatz',
@@ -630,7 +637,8 @@ function buildMhdActiveRestoreFields(options = {}) {
 }
 
 const DELIVERY_WRITE_FIELDS = new Set([
-  'id', 'lieferant', 'warenKategorie', 'temperatur',
+  'id', 'lieferant', 'warenKategorie', 'warenKategorieMetzgerei', 'temperatur',
+  'ohrmarke', 'schlachtgewichtKg',
   'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
   'fotos', 'items', 'itemCount',
   'source', 'scannedBy', 'tenantId',
@@ -4977,6 +4985,17 @@ function buildMhdCardHtml(prod = {}) {
         <button type="button" class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
         <button type="button" class="btn-mhd-action btn-mhd-action--rabatt" data-mhd-command="rabatt" data-mhd-id="${prod.id}">🏷️ Rabatt</button>
         <button type="button" class="btn-mhd-action btn-mhd-action--raus" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">📦 Raus</button>
+        ${prod.soldOut || isZeroQty ? '' : `
+        <button
+          type="button"
+          class="btn-mhd-action btn-mhd-soldout"
+          data-action="sold-out"
+          data-mhd-id="${prod.id}"
+          aria-label="Als ausverkauft buchen"
+        >
+          <span class="btn-mhd-soldout-label btn-mhd-soldout-label--short" aria-hidden="true">🗑️ Ausv.</span>
+          <span class="btn-mhd-soldout-label btn-mhd-soldout-label--long">🗑️ Ausverkauft</span>
+        </button>`}
       </div>
       ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}${laterAccordionHtml}</div>` : ''}
     </div>
@@ -5122,18 +5141,23 @@ function showMhdUndoToast(pending) {
     toast.className = 'mhd-undo-toast';
     toast.setAttribute('role', 'status');
     toast.innerHTML = `
-      <span class="mhd-undo-toast-text">Menge auf 0 gesetzt</span>
-      <button type="button" class="mhd-undo-toast-btn" data-mhd-undo-btn>↩️ Rückgängig</button>
+      <span class="mhd-undo-toast-text">Artikel als ausverkauft gebucht</span>
+      <button type="button" class="mhd-undo-toast-btn" data-mhd-undo-btn>RÜCKGÄNGIG</button>
     `;
     document.body.appendChild(toast);
     toast.querySelector('[data-mhd-undo-btn]')?.addEventListener('click', () => {
       void undoMhdZeroAction();
     });
   }
+  const name = String(pending?.productName || 'Artikel').trim() || 'Artikel';
+  const textEl = toast.querySelector('.mhd-undo-toast-text');
+  if (textEl) textEl.textContent = `${name} als ausverkauft gebucht`;
+  const undoBtn = toast.querySelector('[data-mhd-undo-btn]');
+  if (undoBtn) undoBtn.textContent = 'RÜCKGÄNGIG';
   toast.hidden = false;
   mhdState.undoToastTimer = window.setTimeout(() => {
     dismissMhdUndoToast();
-  }, 8000);
+  }, 4000);
 }
 
 async function undoMhdZeroAction() {
@@ -5198,9 +5222,14 @@ async function restoreMhdQuantity(id, quantity, options = {}) {
 
 function armZeroQtyUndo(prod, previousQuantity) {
   if (!(previousQuantity > 0)) return;
+  const productName = resolveMhdProductDisplayName(prod)
+    || prod?.name
+    || prod?.produkt
+    || 'Artikel';
   showMhdUndoToast({
     itemId: prod.id,
     previousQuantity,
+    productName,
     timestamp: Date.now(),
   });
 }
@@ -5543,7 +5572,26 @@ async function setSoldOut(id) {
   mhdState.playClickSound(400, 0.08, 0.2);
   stageMhdChange(id, updates);
   if (newSoldOut && previousQuantity > 0) armZeroQtyUndo(prod, previousQuantity);
-};
+}
+
+/** 1-Tap Ausverkauft von der MHD-Karte (ohne Bestätigungsdialog, mit Undo-Toast). */
+async function bookMhdSoldOutDirect(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  if (isInactiveMhdChecklistDoc(prod) || prod.soldOut === true) return;
+  const previousQuantity = mhdItemQuantity(prod);
+  if (!(previousQuantity > 0)) return;
+  const actor = getAuditActorName();
+  const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
+  const updates = {
+    ...zeroStock.queued,
+    previousQuantity,
+    lastModifiedBy: actor || 'unbekannt',
+  };
+  mhdState.playClickSound(400, 0.08, 0.2);
+  stageMhdChange(id, updates);
+  armZeroQtyUndo(prod, previousQuantity);
+}
 
 function buildMhdAbschreibenContract(options = {}) {
   const base = buildMhdZeroStockContract('ausverkauft', options);
@@ -6535,6 +6583,12 @@ function bindMhdCardActions() {
       // Native <details> öffnen – keine StopPropagation nötig.
       return;
     }
+    const soldOutDirect = event.target.closest('[data-action="sold-out"]');
+    if (soldOutDirect) {
+      event.preventDefault();
+      void bookMhdSoldOutDirect(soldOutDirect.dataset.mhdId);
+      return;
+    }
     const button = event.target.closest('[data-mhd-command]');
     if (!button) return;
     const id = button.dataset.mhdId;
@@ -6825,9 +6879,24 @@ function readDeliveryHeadValues() {
     supplier = selectValue;
   }
   const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
-  const warenKategorieMetzgerei = document.getElementById('we-category')?.value || 'Fremdfleisch';
+  const warenKategorieMetzgerei = normalizeMetzReceivingCategory(
+    document.getElementById('we-category')?.value || METZ_DEFAULT_CATEGORY,
+  );
   const temperatur = getReceivingTemperatureValue();
-  return { supplier, warenKategorie, warenKategorieMetzgerei, temperatur };
+  const ohrmarke = String(document.getElementById('we-ohrmarke')?.value || '').trim();
+  const schlachtgewichtRaw = String(document.getElementById('we-schlachtgewicht')?.value || '').trim();
+  const schlachtgewichtParsed = schlachtgewichtRaw
+    ? Number.parseFloat(schlachtgewichtRaw.replace(',', '.'))
+    : null;
+  const schlachtgewichtKg = Number.isFinite(schlachtgewichtParsed) ? schlachtgewichtParsed : null;
+  return {
+    supplier,
+    warenKategorie,
+    warenKategorieMetzgerei,
+    temperatur,
+    ohrmarke,
+    schlachtgewichtKg,
+  };
 }
 
 function showSupplierPickModal({ purpose = 'finalize' } = {}) {
@@ -6993,7 +7062,8 @@ function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
   return normalized.includes('kühl')
     || normalized.includes('kuehl')
     || normalized.includes('aufschnitt')
-    || normalized === 'tk';
+    || normalized === 'tk'
+    || isMetzMeatTemperatureCategory(warenKategorie);
 }
 
 function getReceivingTemperatureInputs() {
@@ -7029,7 +7099,7 @@ function updateReceivingTemperatureFieldUi() {
   try {
     const categoryQuickSelect = document.getElementById('we-category-quick');
     const wrap = document.getElementById('we-temperature-quick-wrap');
-    const { quick } = getReceivingTemperatureInputs();
+    const { quick, metz } = getReceivingTemperatureInputs();
     const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
     if (wrap) {
       wrap.classList.toggle('hidden', !requiresTemperature);
@@ -7040,8 +7110,55 @@ function updateReceivingTemperatureFieldUi() {
       quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
       if (!requiresTemperature) quick.value = '';
     }
+    if (metz) {
+      const metzCategory = document.getElementById('we-category')?.value || '';
+      const metzRequires = isMetzMeatTemperatureCategory(metzCategory);
+      metz.required = metzRequires;
+      metz.setAttribute('aria-required', metzRequires ? 'true' : 'false');
+    }
+    updateMetzTemperatureWarnUi();
   } catch (err) {
     console.warn('[CharcuLogic MHD] Temperaturfeld konnte nicht aktualisiert werden:', err);
+  }
+}
+
+function updateMetzSlaughterExtraFieldsUi() {
+  try {
+    const category = document.getElementById('we-category')?.value || '';
+    const wrap = document.getElementById('we-slaughter-extra-fields');
+    if (!wrap) return;
+    const show = isLohnschlachtungRindCategory(category);
+    wrap.hidden = !show;
+    if (!show) {
+      const ohrmarke = document.getElementById('we-ohrmarke');
+      const weight = document.getElementById('we-schlachtgewicht');
+      if (ohrmarke) ohrmarke.value = '';
+      if (weight) weight.value = '';
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Lohnschlachtungs-Zusatzfelder konnten nicht aktualisiert werden:', err);
+  }
+}
+
+function updateMetzTemperatureWarnUi() {
+  try {
+    const { metz } = getReceivingTemperatureInputs();
+    const warnEl = document.getElementById('we-temperature-metz-warn');
+    if (!metz) return;
+    const category = document.getElementById('we-category')?.value || '';
+    const applies = isMetzMeatTemperatureCategory(category)
+      || isLohnschlachtungRindCategory(category);
+    const tempValue = readTemperatureFromInput(metz);
+    const warning = applies && tempValue != null && !Number.isNaN(tempValue)
+      ? formatHaccpMeatTempWarning(tempValue)
+      : '';
+    metz.classList.toggle('receiving-temp-input--warn', Boolean(warning));
+    if (warnEl) {
+      warnEl.hidden = !warning;
+      if (warning) warnEl.textContent = warning;
+    }
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Temperatur-Warnung konnte nicht aktualisiert werden:', err);
   }
 }
 
@@ -7154,8 +7271,20 @@ async function loadDeliveryDraftFromIndexedDB() {
       const categoryEl = document.getElementById('we-category');
       const categoryQuickEl = document.getElementById('we-category-quick');
       if (payload.head.supplier) applySupplierToForm(payload.head.supplier);
-      if (categoryEl && payload.head.warenKategorieMetzgerei) categoryEl.value = payload.head.warenKategorieMetzgerei;
+      if (categoryEl && payload.head.warenKategorieMetzgerei) {
+        categoryEl.value = normalizeMetzReceivingCategory(payload.head.warenKategorieMetzgerei);
+      }
       if (categoryQuickEl && payload.head.warenKategorie) categoryQuickEl.value = payload.head.warenKategorie;
+      const ohrmarkeRestore = document.getElementById('we-ohrmarke');
+      const weightRestore = document.getElementById('we-schlachtgewicht');
+      if (ohrmarkeRestore && payload.head.ohrmarke != null) {
+        ohrmarkeRestore.value = String(payload.head.ohrmarke || '');
+      }
+      if (weightRestore && payload.head.schlachtgewichtKg != null) {
+        weightRestore.value = String(payload.head.schlachtgewichtKg);
+      }
+      updateMetzSlaughterExtraFieldsUi();
+      updateMetzTemperatureWarnUi();
       if (payload.head.temperatur != null && !Number.isNaN(payload.head.temperatur)) {
         setReceivingTemperatureValue(payload.head.temperatur);
       } else {
@@ -7652,10 +7781,18 @@ function updateDraftEditingBanner() {
 }
 
 async function applyDeliveryTemperatureGuard(head) {
-  const requiresTemperature = isTemperatureCheckRequiredForCategory(head.warenKategorie);
+  const categoryForTemp = head.warenKategorieMetzgerei || head.warenKategorie;
+  const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryForTemp)
+    || isTemperatureCheckRequiredForCategory(head.warenKategorie);
   if (requiresTemperature && (head.temperatur === null || Number.isNaN(head.temperatur))) {
-    mhdState.showHUD('Temperatur fehlt', 'Bei TK/Kühlware ist die initiale Temperatur Pflicht.', '!');
-    document.getElementById('we-temperature')?.focus();
+    mhdState.showHUD(
+      'Temperatur fehlt',
+      'Bei Kühlware und Fleisch/Lohnschlachtung ist die Temperatur Pflicht.',
+      '!',
+    );
+    const focusEl = document.getElementById('we-temperature-metz')
+      || document.getElementById('we-temperature');
+    focusEl?.focus();
     return null;
   }
 
@@ -7679,10 +7816,12 @@ function buildDeliveryBundlePayload(head, {
   meisterOverrideReason = '',
   includeItems = true,
 }) {
+  const metzCategory = normalizeMetzReceivingCategory(head.warenKategorieMetzgerei || '');
   const bundle = {
     id: deliveryId,
     lieferant: head.supplier,
-    warenKategorie: head.warenKategorie,
+    warenKategorie: head.warenKategorie || metzCategory,
+    warenKategorieMetzgerei: metzCategory,
     temperatur: head.temperatur,
     erfassungsDatum,
     status,
@@ -7713,6 +7852,12 @@ function buildDeliveryBundlePayload(head, {
   }
   if (head.temperatur === null || Number.isNaN(head.temperatur)) {
     delete bundle.temperatur;
+  }
+  if (isLohnschlachtungRindCategory(metzCategory)) {
+    if (head.ohrmarke) bundle.ohrmarke = head.ohrmarke;
+    if (head.schlachtgewichtKg != null && Number.isFinite(head.schlachtgewichtKg)) {
+      bundle.schlachtgewichtKg = head.schlachtgewichtKg;
+    }
   }
   if (!bundle.tenantId) {
     delete bundle.tenantId;
@@ -7790,13 +7935,27 @@ function openDraftForEditing(draft) {
   const categoryEl = document.getElementById('we-category');
   const categoryQuickEl = document.getElementById('we-category-quick');
   applySupplierToForm(draft.lieferant || '');
-  if (categoryEl) categoryEl.value = draft.warenKategorieMetzgerei || 'Fremdfleisch';
+  if (categoryEl) {
+    categoryEl.value = normalizeMetzReceivingCategory(
+      draft.warenKategorieMetzgerei || draft.warenKategorie || METZ_DEFAULT_CATEGORY,
+    );
+  }
   if (categoryQuickEl) categoryQuickEl.value = draft.warenKategorie || MHD_CANONICAL_CATEGORIES.trockenware;
+  const ohrmarkeEl = document.getElementById('we-ohrmarke');
+  const weightEl = document.getElementById('we-schlachtgewicht');
+  if (ohrmarkeEl) ohrmarkeEl.value = draft.ohrmarke || '';
+  if (weightEl) {
+    weightEl.value = draft.schlachtgewichtKg != null && Number.isFinite(Number(draft.schlachtgewichtKg))
+      ? String(draft.schlachtgewichtKg)
+      : '';
+  }
+  updateMetzSlaughterExtraFieldsUi();
   if (draft.temperatur != null && !Number.isNaN(draft.temperatur)) {
     setReceivingTemperatureValue(draft.temperatur);
   } else {
     setReceivingTemperatureValue('');
   }
+  updateMetzTemperatureWarnUi();
   updateReceivingTemperatureFieldUi();
 
   loadDraftPhotosFromBundle(draft.fotos);
@@ -7947,9 +8106,11 @@ function resetReceivingForm() {
     'we-mhd': '',
     'we-supplier': '',
     'we-supplier-custom': '',
-    'we-category': 'Fremdfleisch',
+    'we-category': METZ_DEFAULT_CATEGORY,
     'we-category-quick': lastReceivingHeadCategory,
     'we-temperature': '',
+    'we-ohrmarke': '',
+    'we-schlachtgewicht': '',
   };
   Object.entries(defaults).forEach(([id, value]) => {
     const el = document.getElementById(id);
@@ -7958,7 +8119,9 @@ function resetReceivingForm() {
   syncSupplierCustomFieldVisibility();
   setReceivingTemperatureValue('');
   applyLastReceivingHeadCategory();
+  updateMetzSlaughterExtraFieldsUi();
   updateReceivingTemperatureFieldUi();
+  updateMetzTemperatureWarnUi();
 
   const photoInput = document.getElementById('we-photo-input');
   if (photoInput) photoInput.value = '';
@@ -8396,6 +8559,18 @@ function bindReceivingControls() {
       updateReceivingSaveButtonState();
     });
   }
+  const categoryMetzSelect = document.getElementById('we-category');
+  if (categoryMetzSelect && categoryMetzSelect.dataset.mhdMetzBound !== '1') {
+    categoryMetzSelect.dataset.mhdMetzBound = '1';
+    // Alte gespeicherte Werte (Fremdfleisch) auf aktuelle Labels mappen.
+    categoryMetzSelect.value = normalizeMetzReceivingCategory(categoryMetzSelect.value || METZ_DEFAULT_CATEGORY);
+    categoryMetzSelect.addEventListener('change', () => {
+      categoryMetzSelect.value = normalizeMetzReceivingCategory(categoryMetzSelect.value);
+      updateMetzSlaughterExtraFieldsUi();
+      updateReceivingTemperatureFieldUi();
+      updateReceivingSaveButtonState();
+    });
+  }
   ensureKaeseThekeQtyToggle();
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';
@@ -8403,6 +8578,7 @@ function bindReceivingControls() {
       if (temperatureMetzInput && temperatureMetzInput.value !== temperatureQuickInput.value) {
         temperatureMetzInput.value = temperatureQuickInput.value;
       }
+      updateMetzTemperatureWarnUi();
       updateReceivingSaveButtonState();
     });
   }
@@ -8412,9 +8588,11 @@ function bindReceivingControls() {
       if (temperatureQuickInput && temperatureQuickInput.value !== temperatureMetzInput.value) {
         temperatureQuickInput.value = temperatureMetzInput.value;
       }
+      updateMetzTemperatureWarnUi();
       updateReceivingSaveButtonState();
     });
   }
+  updateMetzSlaughterExtraFieldsUi();
   updateReceivingTemperatureFieldUi();
   applyLastReceivingHeadCategory();
   updateReceivingQtyFieldUi();

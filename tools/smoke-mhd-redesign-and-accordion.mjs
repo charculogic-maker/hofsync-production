@@ -100,10 +100,10 @@ assertIncludes(cssSrc, '.mhd-sticker-chip', 'Sticker-Chip in Kopfzeile');
 // 4) SW / App Cache
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261014-receiving-batch-cat-v1'/,
-  'SW Cache-Version receiving-batch-cat-v1',
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
+  'SW Cache-Version gesetzt',
 );
-assertIncludes(appSrc, '20261014-receiving-batch-cat-v1', 'SW Register Cache-Buster');
-assertIncludes(appSrc, "APP_RELEASE_AT = '2026-10-14T12:30:00+02:00'", 'APP_RELEASE_AT');
+assert.match(appSrc, /sw\.js\?v=\d{8}-[^']+'/, 'SW Register Cache-Buster');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
 
 console.log('OK smoke-mhd-redesign-and-accordion: Kompakt-Layout & Akkordeon-Touch Verträge erfüllt.');
