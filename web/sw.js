@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261014-livestock-realism-v1';
+const CACHE_NAME = 'charculogic-v20261014-order-checkout-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-14T18:05:00+02:00';
@@ -221,9 +221,13 @@ self.addEventListener('fetch', (event) => {
   const isSpaShellPath = pathname === '/dev-dashboard'
     || pathname.endsWith('/dev-dashboard')
     || pathname.endsWith('/dev-dashboard/');
+  const isStandaloneHtmlPage = isOwnOrigin
+    && pathname.endsWith('.html')
+    && !pathname.endsWith('/index.html');
 
   const isStaticAsset = isOwnOrigin && (
     pathname.endsWith('/index.html')
+    || isStandaloneHtmlPage
     || pathname.endsWith('.css')
     || pathname.endsWith('.js')
     || pathname.endsWith('/manifest.json')
@@ -239,7 +243,7 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/index.html')
     || isSpaShellPath;
 
-  if (isNavigation && isOwnOrigin) {
+  if (isNavigation && isOwnOrigin && !isStandaloneHtmlPage) {
     // Immer die App-Shell (index.html) laden — nie eine leere /dev-dashboard-Antwort cachen.
     const shellRequest = new Request('/index.html', {
       headers: request.headers,

@@ -417,6 +417,7 @@
   <script type="module">
     import {
       estimateLinePrice,
+      estimateSelectionWeightKg,
       estimateUnitPrice,
       resolvePricingType,
       getPackSizeOptions,
@@ -547,6 +548,14 @@
 
     function cartTotal() {
       return state.cart.reduce((sum, line) => sum + (Number(line.estimatedPrice) || 0), 0);
+    }
+
+    function unavailableCartLines() {
+      return state.cart.filter((line) => {
+        const product = productById(line.productId);
+        if (!product) return true;
+        return isProductSoldOut(product) || (!state.adminMode && !isProductActive(product));
+      });
     }
 
     function refreshCartUi() {
@@ -871,9 +880,7 @@
       const estimatedPrice = estimateLinePrice(product, { pieces, weightKg, packGrams });
       const estimatedWeightKg = pricingType === 'slice_pack'
         ? roundMoneyLike(packGrams / 1000)
-        : (product.allowWeight !== false && weightKg > 0
-          ? weightKg
-          : roundMoneyLike((Number(product.typicalWeightKg) || 0) * pieces));
+        : estimateSelectionWeightKg(product, { pieces, weightKg, packGrams });
 
       const parts = [];
       if (pricingType === 'slice_pack') {
@@ -1173,6 +1180,12 @@
         showToast('Bitte die Naturprodukt-Toleranz bestätigen', 'error');
         return;
       }
+      const blockedLines = unavailableCartLines();
+      if (blockedLines.length) {
+        const label = blockedLines[0]?.name || 'Ein Artikel';
+        showToast(`${label} ist gerade nicht mehr bestellbar. Bitte aus dem Warenkorb entfernen.`, 'error');
+        return;
+      }
 
       const days = currentChannelDays();
       const day = days.find((d) => d.date === els.pickupDate.value);
@@ -1206,10 +1219,13 @@
       try {
         const key = 'steveshof.preorders.v1';
         const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(existing)) throw new Error('preorder storage is not a list');
         existing.push(order);
         localStorage.setItem(key, JSON.stringify(existing));
       } catch (err) {
         console.error('[Bestellen] Speichern lokal fehlgeschlagen:', err);
+        showToast('Wir konnten die Bestellung nicht speichern. Bitte versuche es noch einmal oder ruf uns kurz an.', 'error');
+        return;
       }
 
       state.cart = [];
