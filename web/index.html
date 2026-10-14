@@ -200,7 +200,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261014-soldout-and-slaughter-v1">
+  <link rel="stylesheet" href="/style.css?v=20261014-livestock-realism-v1">
 </head>
 <body>
 
@@ -1298,26 +1298,55 @@
                   <label class="receiving-field" for="we-category">
                     <span>Warengruppe</span>
                     <select id="we-category" class="gastro-input">
-                      <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Eigenbestand / Galloway)</option>
-                      <option value="Lohnschlachtung Schwein">🥩 Lohnschlachtung Schwein (Eigenbestand)</option>
+                      <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)</option>
+                      <option value="Lohnschlachtung Geflügel">🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)</option>
                       <option value="Zukauffleisch (Fremdbezug)">Zukauffleisch (Fremdbezug)</option>
+                      <option value="Geflügel Zukauf (Fremdbezug)">Geflügel Zukauf (Fremdbezug)</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
-                      <option value="Geflügel Zukauf">Geflügel Zukauf</option>
                       <option value="Gewürze &amp; Hilfsstoffe">Gewürze &amp; Hilfsstoffe</option>
                     </select>
                   </label>
-                  <div id="we-slaughter-extra-fields" class="receiving-slaughter-fields" hidden>
+                  <div id="we-slaughter-rind-fields" class="receiving-slaughter-fields receiving-slaughter-fields--rind" hidden>
+                    <label class="receiving-field" for="we-klassifizierung">
+                      <span>Klassifizierung / Tierkategorie</span>
+                      <input type="text" id="we-klassifizierung" class="gastro-input" list="we-klassifizierung-suggestions" placeholder="z. B. Ochse, Färse, U3, R2" autocomplete="off">
+                      <datalist id="we-klassifizierung-suggestions">
+                        <option value="Ochse"></option>
+                        <option value="Färse"></option>
+                        <option value="Kuh"></option>
+                        <option value="Jungbulle"></option>
+                        <option value="R3"></option>
+                        <option value="U2"></option>
+                        <option value="U3"></option>
+                        <option value="O3"></option>
+                      </datalist>
+                    </label>
+                    <label class="receiving-field" for="we-schlachtdatum-rind">
+                      <span>Schlachtdatum</span>
+                      <input type="date" id="we-schlachtdatum-rind" class="gastro-input" autocomplete="off">
+                    </label>
                     <label class="receiving-field" for="we-ohrmarke">
-                      <span>Ohrmarke / Tier-ID</span>
-                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 …" autocomplete="off" inputmode="text">
+                      <span>Ohrmarke / Tier-ID <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 … (falls bekannt)" autocomplete="off" inputmode="text">
                     </label>
                     <label class="receiving-field" for="we-schlachtgewicht">
-                      <span>Schlachtgewicht (kg)</span>
-                      <input type="number" id="we-schlachtgewicht" class="gastro-input" placeholder="kg" step="0.1" min="0" inputmode="decimal">
+                      <span>Schlachtgewicht (kg) <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="number" id="we-schlachtgewicht" class="gastro-input" placeholder="kg (optional)" step="0.1" min="0" inputmode="decimal">
+                    </label>
+                    <p id="we-lot-preview" class="receiving-lot-preview" hidden role="status"></p>
+                  </div>
+                  <div id="we-slaughter-poultry-fields" class="receiving-slaughter-fields receiving-slaughter-fields--poultry" hidden>
+                    <label class="receiving-field" for="we-schlachtdatum-poultry">
+                      <span>Schlachtdatum</span>
+                      <input type="date" id="we-schlachtdatum-poultry" class="gastro-input" autocomplete="off">
+                    </label>
+                    <label class="receiving-field" for="we-stueck-kisten">
+                      <span>Stückzahl / Kistenanzahl</span>
+                      <input type="text" id="we-stueck-kisten" class="gastro-input" placeholder="z. B. 24 Stk / 2 Kisten" autocomplete="off">
                     </label>
                   </div>
                   <label class="receiving-field" for="we-temperature-metz">
-                    <span>Temperatur (°C) · HACCP ≤ 7,0 °C</span>
+                    <span id="we-temperature-metz-label">Temperatur (°C) · HACCP ≤ 7,0 °C</span>
                     <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                     <p id="we-temperature-metz-warn" class="receiving-temp-warn" hidden role="alert">⚠️ Grenzwert überschritten (&gt; 7,0 °C). Kühlung und Begleitpapiere prüfen!</p>
                   </label>
