@@ -34,6 +34,11 @@
  * @property {string} [artNr] Kassen-Artikelnummer
  * @property {number} [wg] Warengruppe
  * @property {number} pricePerKg
+ * @property {number} [originalPricePerKg] Streichpreis €/kg (Aktion)
+ * @property {number} [fixedOriginalPrice] Streichpreis für Festpreis-Artikel (Gläser/Fonds)
+ * @property {boolean} [active] Default true – false = im Kundenkatalog unsichtbar
+ * @property {boolean} [soldOut] Default false – Badge + Button deaktiviert
+ * @property {string} [badge] z. B. "Aktion", "Bestseller", "-15 %"
  * @property {'kg'|'piece'|'pack'|'jar'|'bottle'|'slice'} unit
  * @property {'per_piece'|'per_kg'|'fixed'|'slice_pack'} [pricingType]
  * @property {number} [typicalWeightKg] Stück- bzw. Packungsgewicht in kg
@@ -49,6 +54,20 @@
  * @property {number} [defaultWeightKg]
  * @property {string} [notePlaceholder]
  */
+
+/**
+ * @typedef {Object} CatalogOverride
+ * @property {boolean} [active]
+ * @property {boolean} [soldOut]
+ * @property {number} [pricePerKg]
+ * @property {number} [originalPricePerKg]
+ * @property {number} [estimatedPiecePrice]
+ * @property {number} [fixedOriginalPrice]
+ * @property {string} [badge]
+ */
+
+/** localStorage-Key für Team-Overrides am Laden-iPhone */
+export const CATALOG_OVERRIDES_STORAGE_KEY = 'sth_catalog_overrides';
 
 /**
  * @typedef {Object} CatalogCategory
@@ -141,6 +160,8 @@ function kgProduct(base) {
   return {
     unit: 'kg',
     pricingType: 'per_kg',
+    active: true,
+    soldOut: false,
     allowWeight: true,
     allowPieces: false,
     defaultWeightKg: base.defaultWeightKg ?? base.typicalWeightKg ?? 0.5,
@@ -158,6 +179,8 @@ function pieceProduct(base) {
   return {
     unit: 'kg',
     pricingType: 'per_piece',
+    active: true,
+    soldOut: false,
     allowWeight: false,
     allowPieces: true,
     defaultPieces: base.defaultPieces ?? 2,
@@ -175,6 +198,8 @@ function sliceProduct(base) {
   return {
     unit: 'slice',
     pricingType: 'slice_pack',
+    active: true,
+    soldOut: false,
     allowWeight: false,
     allowPieces: false,
     packSizesGrams: DEFAULT_SLICE_PACK_GRAMS,
@@ -206,7 +231,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
       }),
       kgProduct({
         id: 'gal-hack', categoryId: 'bio-galloway', artNr: '46003', wg: 460,
-        name: 'Hackfleisch', subtitle: 'Frisch gewolft', pricePerKg: 26.99, typicalWeightKg: 0.5,
+        name: 'Hackfleisch', subtitle: 'Frisch gewolft', pricePerKg: 22.99, originalPricePerKg: 26.99,
+        badge: 'Aktion', typicalWeightKg: 0.5,
         allowPieces: true, defaultPieces: 1,
         cutOptions: [
           { id: 'beutel-500', label: '500 g Beutel' },
@@ -430,7 +456,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
     products: [
       sliceProduct({
         id: 'ws-kochschinken', categoryId: 'wurst-aufschnitt', artNr: '46101', wg: 461,
-        name: 'Hausgemachter Kochschinken', pricePerKg: 46.99,
+        name: 'Hausgemachter Kochschinken', pricePerKg: 39.99, originalPricePerKg: 46.99,
+        badge: '-15 %',
       }),
       sliceProduct({
         id: 'ws-gal-kochschinken', categoryId: 'wurst-aufschnitt', artNr: '46102', wg: 461,
@@ -574,7 +601,11 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
         pricePerKg: 0,
         unit: 'bottle',
         pricingType: 'fixed',
-        estimatedPiecePrice: 6.9,
+        active: true,
+        soldOut: false,
+        estimatedPiecePrice: 5.9,
+        fixedOriginalPrice: 6.9,
+        badge: 'Aktion',
         allowWeight: false,
         allowPieces: true,
         defaultPieces: 1,
@@ -623,20 +654,131 @@ export function getCatalogCategories() {
   return ORDER_CATALOG;
 }
 
-export function getOrderableProducts() {
-  return ORDER_CATALOG.flatMap((category) =>
-    category.products.filter((product) => !product.comingSoon && !category.placeholder),
-  );
+export function isProductActive(product) {
+  return product?.active !== false;
 }
 
-export function findProductById(productId) {
+export function isProductSoldOut(product) {
+  return product?.soldOut === true;
+}
+
+export function hasPromoPrice(product) {
+  if (!product) return false;
+  const type = resolvePricingType(product);
+  if (type === 'fixed') {
+    const current = Number(product.estimatedPiecePrice) || 0;
+    const original = Number(product.fixedOriginalPrice) || 0;
+    return original > 0 && current > 0 && original > current;
+  }
+  const current = Number(product.pricePerKg) || 0;
+  const original = Number(product.originalPricePerKg) || 0;
+  return original > 0 && current > 0 && original > current;
+}
+
+/**
+ * @param {CatalogProduct} product
+ * @param {CatalogOverride|null|undefined} override
+ * @returns {CatalogProduct}
+ */
+export function applyProductOverride(product, override) {
+  if (!product) return product;
+  if (!override || typeof override !== 'object') return { ...product };
+  const next = { ...product };
+  if (typeof override.active === 'boolean') next.active = override.active;
+  if (typeof override.soldOut === 'boolean') next.soldOut = override.soldOut;
+  if (Number.isFinite(Number(override.pricePerKg)) && Number(override.pricePerKg) >= 0) {
+    next.pricePerKg = Number(override.pricePerKg);
+  }
+  if (Number.isFinite(Number(override.originalPricePerKg)) && Number(override.originalPricePerKg) > 0) {
+    next.originalPricePerKg = Number(override.originalPricePerKg);
+  }
+  if (Number.isFinite(Number(override.estimatedPiecePrice)) && Number(override.estimatedPiecePrice) >= 0) {
+    next.estimatedPiecePrice = Number(override.estimatedPiecePrice);
+  }
+  if (Number.isFinite(Number(override.fixedOriginalPrice)) && Number(override.fixedOriginalPrice) > 0) {
+    next.fixedOriginalPrice = Number(override.fixedOriginalPrice);
+  }
+  if (typeof override.badge === 'string') next.badge = override.badge;
+  return next;
+}
+
+/**
+ * @param {Record<string, CatalogOverride>|null|undefined} overrides
+ * @param {{ includeInactive?: boolean }} [options]
+ */
+export function getVisibleCatalog(overrides = null, options = {}) {
+  const includeInactive = options.includeInactive === true;
+  return ORDER_CATALOG.map((category) => ({
+    ...category,
+    products: category.products
+      .map((product) => applyProductOverride(product, overrides?.[product.id]))
+      .filter((product) => {
+        if (product.comingSoon || category.placeholder) return includeInactive;
+        if (!includeInactive && !isProductActive(product)) return false;
+        return true;
+      }),
+  })).filter((category) => category.products.length > 0 || includeInactive);
+}
+
+export function getOrderableProducts(overrides = null) {
+  return getVisibleCatalog(overrides, { includeInactive: false })
+    .flatMap((category) => category.products)
+    .filter((product) => !product.comingSoon && isProductActive(product));
+}
+
+export function findProductById(productId, overrides = null) {
   const id = String(productId || '').trim();
   if (!id) return null;
   for (const category of ORDER_CATALOG) {
     const match = category.products.find((product) => product.id === id);
-    if (match) return { ...match, categoryName: category.name, categoryWg: category.wg };
+    if (match) {
+      const merged = applyProductOverride(match, overrides?.[id]);
+      return { ...merged, categoryName: category.name, categoryWg: category.wg };
+    }
   }
   return null;
+}
+
+/** @param {unknown} raw */
+export function normalizeCatalogOverrides(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  /** @type {Record<string, CatalogOverride>} */
+  const out = {};
+  Object.entries(raw).forEach(([productId, value]) => {
+    if (!productId || !value || typeof value !== 'object') return;
+    /** @type {CatalogOverride} */
+    const entry = {};
+    if (typeof value.active === 'boolean') entry.active = value.active;
+    if (typeof value.soldOut === 'boolean') entry.soldOut = value.soldOut;
+    if (Number.isFinite(Number(value.pricePerKg))) entry.pricePerKg = Number(value.pricePerKg);
+    if (Number.isFinite(Number(value.originalPricePerKg))) entry.originalPricePerKg = Number(value.originalPricePerKg);
+    if (Number.isFinite(Number(value.estimatedPiecePrice))) entry.estimatedPiecePrice = Number(value.estimatedPiecePrice);
+    if (Number.isFinite(Number(value.fixedOriginalPrice))) entry.fixedOriginalPrice = Number(value.fixedOriginalPrice);
+    if (typeof value.badge === 'string') entry.badge = value.badge;
+    out[productId] = entry;
+  });
+  return out;
+}
+
+export function readCatalogOverridesFromStorage(storage = globalThis.localStorage) {
+  try {
+    const raw = storage?.getItem?.(CATALOG_OVERRIDES_STORAGE_KEY);
+    if (!raw) return {};
+    return normalizeCatalogOverrides(JSON.parse(raw));
+  } catch (err) {
+    console.error('[orderCatalog] Overrides konnten nicht gelesen werden:', err);
+    return {};
+  }
+}
+
+export function writeCatalogOverridesToStorage(overrides, storage = globalThis.localStorage) {
+  try {
+    storage?.setItem?.(CATALOG_OVERRIDES_STORAGE_KEY, JSON.stringify(normalizeCatalogOverrides(overrides)));
+    return true;
+  } catch (err) {
+    console.error('[orderCatalog] Overrides konnten nicht gespeichert werden:', err);
+    return false;
+  }
 }
 
 /**
@@ -681,7 +823,55 @@ export function formatSlicePackPriceLabel(product, grams = 100) {
   const perKg = Number(product?.pricePerKg) || 0;
   const packGrams = Number(grams) > 0 ? Number(grams) : 100;
   const packPrice = roundMoney((packGrams / 1000) * perKg);
+  if (hasPromoPrice(product)) {
+    const originalPerKg = Number(product.originalPricePerKg) || 0;
+    const originalPack = roundMoney((packGrams / 1000) * originalPerKg);
+    return `${formatEuro(packPrice)} / ${packGrams} g (${formatEuro(perKg)}/kg) · statt ${formatEuro(originalPack)}`;
+  }
   return `${formatEuro(packPrice)} / ${packGrams} g (${formatEuro(perKg)}/kg)`;
+}
+
+/**
+ * Strukturierte Preiszeile für Karten (Aktion inkl. Streichpreis).
+ * @param {CatalogProduct} product
+ * @returns {{ currentHtml: string, originalHtml: string, isPromo: boolean, badge: string }}
+ */
+export function describeProductPrice(product) {
+  const pricingType = resolvePricingType(product);
+  const isPromo = hasPromoPrice(product);
+  const badge = String(product?.badge || (isPromo ? 'Aktion' : '')).trim();
+
+  if (pricingType === 'slice_pack') {
+    const grams = Number(product.defaultPackGrams) || 100;
+    const perKg = Number(product.pricePerKg) || 0;
+    const packPrice = roundMoney((grams / 1000) * perKg);
+    const currentHtml = `${formatEuro(packPrice)} / ${grams} g <span class="text-xs font-medium opacity-80">(${formatEuro(perKg)}/kg)</span>`;
+    let originalHtml = '';
+    if (isPromo) {
+      const originalPerKg = Number(product.originalPricePerKg) || 0;
+      const originalPack = roundMoney((grams / 1000) * originalPerKg);
+      originalHtml = `${formatEuro(originalPack)} / ${grams} g`;
+    }
+    return { currentHtml, originalHtml, isPromo, badge };
+  }
+
+  if (pricingType === 'fixed') {
+    const current = Number(product.estimatedPiecePrice) || 0;
+    const currentHtml = `${formatEuro(current)} / Stück`;
+    const originalHtml = isPromo ? `${formatEuro(Number(product.fixedOriginalPrice) || 0)} / Stück` : '';
+    return { currentHtml, originalHtml, isPromo, badge };
+  }
+
+  const unitPrice = estimateUnitPrice(product);
+  const pieceHint = (pricingType === 'per_piece' && unitPrice > 0)
+    ? ` <span class="text-xs font-medium opacity-80">· ca. ${formatEuro(unitPrice)} / Stück</span>`
+    : '';
+  const currentHtml = `${formatEuro(Number(product.pricePerKg) || 0)} / kg${pieceHint}`;
+  let originalHtml = '';
+  if (isPromo) {
+    originalHtml = `${formatEuro(Number(product.originalPricePerKg) || 0)} / kg`;
+  }
+  return { currentHtml, originalHtml, isPromo, badge };
 }
 
 /** Geschätzter Einzelpreis je Stück/100 g-Packung (Kartenanzeige). */
@@ -951,12 +1141,22 @@ export default {
   ORDER_CATALOG,
   PICKUP_CHANNEL_LABELS,
   DEFAULT_SLICE_PACK_GRAMS,
+  CATALOG_OVERRIDES_STORAGE_KEY,
   getCatalogCategories,
+  getVisibleCatalog,
   getOrderableProducts,
   findProductById,
+  isProductActive,
+  isProductSoldOut,
+  hasPromoPrice,
+  applyProductOverride,
+  normalizeCatalogOverrides,
+  readCatalogOverridesFromStorage,
+  writeCatalogOverridesToStorage,
   resolvePricingType,
   getPackSizeOptions,
   formatSlicePackPriceLabel,
+  describeProductPrice,
   estimateUnitPrice,
   estimateLinePrice,
   formatEuro,
