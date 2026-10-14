@@ -19,22 +19,27 @@ function assertIncludes(haystack, needle, label) {
 assertIncludes(mhdSrc, 'type="button"', 'Button type');
 assertIncludes(mhdSrc, 'mhd-multi-batch-badge${expanded ? \' is-expanded\' : \'\'}', 'Badge Button Klasse');
 assertIncludes(mhdSrc, 'data-mhd-command="toggle-multi-batch"', 'Toggle-Command');
+assertIncludes(mhdSrc, 'data-action="toggle-mhd-accordion"', 'data-action Toggle');
 assertIncludes(mhdSrc, 'handleMultiMhdAccordionToggleEvent', 'iOS Toggle Handler');
 assertIncludes(mhdSrc, "addEventListener('pointerdown'", 'pointerdown Binding');
+assertIncludes(mhdSrc, "document.addEventListener('click'", 'Document Click Delegation');
 assertIncludes(mhdSrc, 'fromPointer: true', 'pointerdown Pfad');
 assertIncludes(mhdSrc, 'fromPointer: false', 'click Pfad');
 assertIncludes(mhdSrc, 'mhd-multi-batch-chevron', 'Chevron Markup');
 assertIncludes(mhdSrc, 'expandedMultiMhdIds', 'Expand-State');
+assertIncludes(mhdSrc, 'toggleMhdAccordion', 'toggleMhdAccordion');
 
 // 2) Akkordeon mit voller Aktionsfähigkeit + Leerhinweis
 assertIncludes(mhdSrc, 'buildLaterMhdAccordionHtml', 'Akkordeon Builder');
 assertIncludes(mhdSrc, 'mhd-accordion-list', 'mhd-accordion-list Klasse');
+assertIncludes(mhdSrc, 'mhd-accordion-content', 'mhd-accordion-content Klasse');
 assertIncludes(mhdSrc, 'mhd-accordion-empty', 'Leerhinweis');
 assertIncludes(mhdSrc, 'Keine weiteren MHDs im Bestand gefunden.', 'Leertext');
 assertIncludes(mhdSrc, 'data-mhd-command="qty-edit"', 'Mengen-Tap öffnet Numpad');
 assertIncludes(mhdSrc, 'data-mhd-action-status="geprueft"', 'OK-Aktion');
 assertIncludes(mhdSrc, 'data-mhd-action-status="rausgenommen"', 'Raus-Aktion');
 assertIncludes(mhdSrc, 'data-mhd-command="soldout"', 'Ausverkauft-Aktion');
+assertIncludes(mhdSrc, 'Folge-Chargen', 'Folge-Chargen Label');
 
 // 3) CSS Touch + Feedback
 assertIncludes(cssSrc, 'cursor: pointer', 'cursor pointer');
@@ -42,6 +47,8 @@ assertIncludes(cssSrc, '-webkit-tap-highlight-color: rgba(0, 0, 0, 0.1)', 'iOS T
 assertIncludes(cssSrc, 'touch-action: manipulation', 'touch-action');
 assertIncludes(cssSrc, '.mhd-multi-batch-badge:active', 'Active Feedback');
 assertIncludes(cssSrc, '.mhd-accordion-list', 'Accordion List Styles');
+assertIncludes(cssSrc, '.mhd-accordion-content', 'Accordion Content Styles');
+assertIncludes(cssSrc, '.mhd-accordion-content.is-open', 'Accordion is-open');
 assertIncludes(cssSrc, '.mhd-accordion-empty', 'Empty Styles');
 assertIncludes(cssSrc, 'order: 5', 'Badge Wrap Order');
 assertIncludes(cssSrc, 'order: 6', 'Accordion Order');
@@ -49,7 +56,7 @@ assertIncludes(cssSrc, 'order: 6', 'Accordion Order');
 // 4) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
+  /CACHE_NAME = 'charculogic-v20261014-mhd-full-redesign-v1'/,
   'SW Cache-Version',
 );
 

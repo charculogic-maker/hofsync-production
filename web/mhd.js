@@ -3310,27 +3310,61 @@ function isMultiMhdAccordionExpanded(prodOrId) {
   return mhdState.expandedMultiMhdIds.has(key);
 }
 
+function applyMultiMhdAccordionDomState(prodOrId, expanded) {
+  const id = prodOrId && typeof prodOrId === 'object'
+    ? String(prodOrId.id || '')
+    : String(prodOrId || '');
+  if (!id) return false;
+  const card = document.getElementById(`mhd-card-${id}`);
+  if (!card) return false;
+  const badge = card.querySelector('.mhd-multi-batch-badge');
+  const content = card.querySelector('.mhd-accordion-content');
+  const chevron = badge?.querySelector('.mhd-multi-batch-chevron');
+  if (badge) {
+    badge.classList.toggle('is-expanded', expanded);
+    badge.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+  if (content) content.classList.toggle('is-open', expanded);
+  if (chevron) chevron.textContent = expanded ? '▲' : '▼';
+  return true;
+}
+
 function toggleMultiMhdAccordion(prodOrId) {
   const key = resolveMhdArticleExpandKey(prodOrId);
   if (!key) return false;
   if (!(mhdState.expandedMultiMhdIds instanceof Set)) {
     mhdState.expandedMultiMhdIds = new Set();
   }
-  if (mhdState.expandedMultiMhdIds.has(key)) {
-    mhdState.expandedMultiMhdIds.delete(key);
-  } else {
-    mhdState.expandedMultiMhdIds.add(key);
+  const willExpand = !mhdState.expandedMultiMhdIds.has(key);
+  if (willExpand) mhdState.expandedMultiMhdIds.add(key);
+  else mhdState.expandedMultiMhdIds.delete(key);
+
+  if (!applyMultiMhdAccordionDomState(prodOrId, willExpand)) {
+    renderMhdList();
   }
-  renderMhdList();
   return true;
+}
+
+function toggleMhdAccordion(button) {
+  if (!button) return false;
+  const id = button.getAttribute('data-mhd-id') || button.dataset?.mhdId;
+  return toggleMultiMhdAccordion(id);
 }
 
 /** Verhindert Doppel-Toggle wenn iOS sowohl pointerdown als auch click feuert. */
 let mhdMultiBatchToggleHandledByPointer = false;
 let mhdMultiBatchToggleHandledTimer = null;
 
+function isMhdAccordionToggleTarget(target) {
+  return Boolean(target?.closest?.(
+    '[data-action="toggle-mhd-accordion"], .mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]',
+  ));
+}
+
 function handleMultiMhdAccordionToggleEvent(event, { fromPointer = false } = {}) {
-  const button = event.target?.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]');
+  const button = event.target?.closest?.(
+    '[data-action="toggle-mhd-accordion"], .mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]',
+  );
   if (!button) return false;
   const id = button.getAttribute('data-mhd-id') || button.dataset?.mhdId;
   if (!id) return false;
@@ -3348,7 +3382,7 @@ function handleMultiMhdAccordionToggleEvent(event, { fromPointer = false } = {})
       mhdMultiBatchToggleHandledByPointer = false;
       mhdMultiBatchToggleHandledTimer = null;
     }, 450);
-    toggleMultiMhdAccordion(id);
+    toggleMhdAccordion(button);
     return true;
   }
 
@@ -3361,7 +3395,7 @@ function handleMultiMhdAccordionToggleEvent(event, { fromPointer = false } = {})
     return true;
   }
 
-  toggleMultiMhdAccordion(id);
+  toggleMhdAccordion(button);
   return true;
 }
 
@@ -3372,20 +3406,21 @@ function buildLaterMhdBadgeHtml(prod) {
   const count = later.length;
   const nextLabel = formatMhdBadgeDate(next);
   const countLabel = count === 1
-    ? '+1 weiteres MHD im System'
-    : `+${count} weitere MHDs im System`;
+    ? '+1 Folge-Charge'
+    : `+${count} Folge-Chargen`;
   const expanded = isMultiMhdAccordionExpanded(prod);
   const panelId = `mhd-multi-batch-panel-${prod.id}`;
   return `
     <button
       type="button"
       class="mhd-multi-batch-badge${expanded ? ' is-expanded' : ''}"
+      data-action="toggle-mhd-accordion"
       data-mhd-command="toggle-multi-batch"
       data-mhd-id="${escapeHtml(prod.id)}"
       aria-expanded="${expanded ? 'true' : 'false'}"
       aria-controls="${escapeHtml(panelId)}"
     >
-      <span class="mhd-multi-batch-badge-text">📦 ${countLabel} (nächstes: ${escapeHtml(nextLabel)})</span>
+      <span class="mhd-multi-batch-badge-text">📦 ${countLabel} (nächste: ${escapeHtml(nextLabel)})</span>
       <span class="mhd-multi-batch-chevron" aria-hidden="true">${expanded ? '▲' : '▼'}</span>
     </button>`;
 }
@@ -3393,18 +3428,15 @@ function buildLaterMhdBadgeHtml(prod) {
 function buildLaterMhdAccordionRowHtml(batch) {
   const id = String(batch.id || '');
   const resttage = getMhdResttage(batch);
-  const action = getMhdCardAction(batch);
   const qty = mhdItemQuantity(batch);
-  const isZeroDay = resttage === 0;
   const dateLabel = formatMhdBadgeDate(batch);
-  const badgeLabel = Number.isFinite(resttage) ? `${resttage} Tage` : '–';
-  const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
   const qtyLabel = formatMhdQtyBadgeValue(qty);
+  const ampelHtml = buildMhdAmpelBadgeHtml(resttage);
   return `
     <div class="mhd-multi-batch-row mhd-accordion-row" data-mhd-multi-batch-row="${escapeHtml(id)}">
       <div class="mhd-multi-batch-row-head">
         <div class="mhd-multi-batch-row-date">${escapeHtml(dateLabel)}</div>
-        <span class="mhd-badge mhd-multi-batch-days"${badgeStyle}>${escapeHtml(badgeLabel)}</span>
+        ${ampelHtml}
       </div>
       <div class="mhd-multi-batch-row-controls">
         <button
@@ -3419,25 +3451,22 @@ function buildLaterMhdAccordionRowHtml(batch) {
         </button>
         <div class="mhd-multi-batch-row-actions">
           <button type="button" class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${escapeHtml(id)}" data-mhd-action-status="geprueft">✓ OK</button>
-          <button type="button" class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${escapeHtml(id)}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
-          <button type="button" class="btn btn-soldout mhd-multi-batch-soldout" data-mhd-command="soldout" data-mhd-id="${escapeHtml(id)}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
-            <span aria-hidden="true">🗑️</span> Ausverkauft
-          </button>
+          <button type="button" class="btn-mhd-action btn-mhd-action--raus" data-mhd-command="action" data-mhd-id="${escapeHtml(id)}" data-mhd-action-status="rausgenommen">📦 Raus</button>
         </div>
       </div>
     </div>`;
 }
 
 function buildLaterMhdAccordionHtml(prod) {
-  if (!isMultiMhdAccordionExpanded(prod)) return '';
   const later = getLaterBatchesForItem(prod);
+  if (!later.length) return '';
+  const expanded = isMultiMhdAccordionExpanded(prod);
   const panelId = `mhd-multi-batch-panel-${prod.id}`;
-  const body = later.length
-    ? later.map((batch) => buildLaterMhdAccordionRowHtml(batch)).join('')
-    : `<div class="mhd-accordion-empty" role="status">Keine weiteren MHDs im Bestand gefunden.</div>`;
+  const body = later.map((batch) => buildLaterMhdAccordionRowHtml(batch)).join('')
+    || `<div class="mhd-accordion-empty" role="status">Keine weiteren MHDs im Bestand gefunden.</div>`;
   return `
     <div
-      class="mhd-multi-batch-accordion mhd-accordion-list"
+      class="mhd-multi-batch-accordion mhd-accordion-list mhd-accordion-content${expanded ? ' is-open' : ''}"
       id="${escapeHtml(panelId)}"
       role="region"
       aria-label="Weitere MHDs für ${escapeHtml(resolveMhdProductDisplayParts(prod).title || 'Artikel')}"
@@ -3513,11 +3542,92 @@ function getCategoryBadgeLabel(prod = {}) {
   return category || 'Kategorie';
 }
 
+function getMhdCategoryShortLabel(prod = {}) {
+  const raw = String(getProductCategory(prod) || '').trim();
+  if (!raw) return 'Artikel';
+  return raw
+    .replace(/^🥛\s*/u, '')
+    .replace(/^🥗\s*/u, '')
+    .replace(/^🍎\s*/u, '')
+    .replace(/^🥓\s*/u, '')
+    .replace(/^🧊\s*/u, '')
+    .replace(/^📦\s*/u, '')
+    .replace(/^🌿\s*/u, '')
+    .replace(/^🍺\s*/u, '')
+    .replace(/^❄️\s*/u, '')
+    .trim() || 'Artikel';
+}
+
+function resolveMhdCardKuerzel(prod = {}) {
+  const brand = String(prod.brand || prod.marke || '').trim();
+  if (brand) {
+    const parts = brand.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return parts.map((part) => part.charAt(0)).join('').toUpperCase().slice(0, 4);
+    }
+    return brand.slice(0, 3).toUpperCase();
+  }
+  const actor = resolveMhdRecordActor(prod);
+  if (!actor) return '';
+  const parts = actor.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts.map((part) => part.charAt(0)).join('').toUpperCase().slice(0, 4);
+  }
+  return actor.slice(0, 3).toUpperCase();
+}
+
+function buildMhdCardCategoryLine(prod = {}) {
+  const category = getMhdCategoryShortLabel(prod);
+  const kuerzel = resolveMhdCardKuerzel(prod);
+  return kuerzel ? `${category} · ${kuerzel}` : category;
+}
+
+function buildMhdAmpelBadgeHtml(resttage) {
+  if (!Number.isFinite(resttage)) {
+    return '<span class="mhd-ampel-badge mhd-ampel--unknown">—</span>';
+  }
+  if (resttage < 0) {
+    const days = Math.abs(resttage);
+    const label = resttage === -1 ? '🔴 GESTERN (-1 T)' : `🔴 -${days} TAGE`;
+    return `<span class="mhd-ampel-badge mhd-ampel--expired">${escapeHtml(label)}</span>`;
+  }
+  if (resttage === 0) {
+    return '<span class="mhd-ampel-badge mhd-ampel--due">🟡 HEUTE FÄLLIG</span>';
+  }
+  if (resttage === 1) {
+    return '<span class="mhd-ampel-badge mhd-ampel--future">🟢 MORGEN</span>';
+  }
+  return `<span class="mhd-ampel-badge mhd-ampel--future">🟢 IN ${escapeHtml(resttage)} TAGEN</span>`;
+}
+
+function buildMhdCompactMetaLine(prod = {}) {
+  const parts = [];
+  const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  if (barcode && barcode.length >= 4) {
+    parts.push(`EAN: …${barcode.slice(-4)}`);
+  }
+  const teamOrKuerzel = resolveMhdRecordActor(prod)
+    || String(prod.brand || prod.marke || '').trim()
+    || resolveMhdCardKuerzel(prod);
+  if (teamOrKuerzel) parts.push(teamOrKuerzel);
+  const createdAt = resolveMhdRecordCreatedAt(prod);
+  if (createdAt) {
+    const dateStr = createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    parts.push(`Erfasst: ${dateStr}`);
+  } else {
+    const mhdDate = formatMhdDateForCardMeta(prod);
+    if (mhdDate) parts.push(`MHD: ${mhdDate}`);
+  }
+  return parts.join(' · ');
+}
+
 function resolveMhdCardUiSettings() {
   return readMhdCardUiSettings(getGlobalTenantId());
 }
 
 function buildMhdProductMetaHtml(prod = {}) {
+  const compact = buildMhdCompactMetaLine(prod);
+  if (compact) return escapeHtml(compact);
   const parts = [];
   const brand = String(prod.brand || prod.marke || '').trim();
   const secondaryLabel = resolveMhdProductMetaSecondaryLabel(prod);
@@ -4763,15 +4873,13 @@ function buildMhdCardHtml(prod = {}) {
   const isOverdue = resttage < 0;
   const qty = mhdItemQuantity(prod);
   const isZeroQty = qty <= 0;
-  const badgeStyle = isZeroDay ? '' : ` style="color:${action.color};background:${action.bg};"`;
-  const badgeLabel = Number.isFinite(resttage) ? resttage : '–';
-  const badgeDaysLabel = `${badgeLabel} Tage`;
-  const badgeDateLabel = formatMhdDateForCardMeta(prod) || '–';
   const productMetaHtml = buildMhdProductMetaHtml(prod);
+  const categoryLine = escapeHtml(buildMhdCardCategoryLine(prod));
+  const ampelHtml = buildMhdAmpelBadgeHtml(resttage);
   const mhdDateEditButton = formatMhdDateForCardMeta(prod)
-    ? `<button type="button" class="mhd-date-edit-button" data-mhd-command="mhd-date" data-mhd-id="${prod.id}" aria-label="MHD ändern">MHD ändern</button>`
+    ? `<button type="button" class="mhd-card-more-item" data-mhd-command="mhd-date" data-mhd-id="${prod.id}">MHD ändern</button>`
     : '';
-  const stammdatenEditButton = `<button type="button" class="mhd-date-edit-button mhd-stammdaten-edit-button" data-mhd-command="stammdaten" data-mhd-id="${prod.id}" aria-label="Artikel bearbeiten">Bearbeiten</button>`;
+  const stammdatenEditButton = `<button type="button" class="mhd-card-more-item" data-mhd-command="stammdaten" data-mhd-id="${prod.id}">Bearbeiten</button>`;
   const displayParts = resolveMhdProductDisplayParts(prod);
   const displayName = escapeHtml(displayParts.title);
   const grammageBadge = displayParts.grammageBadge
@@ -4785,11 +4893,11 @@ function buildMhdCardHtml(prod = {}) {
       </div>`
     : '';
   const cardUi = resolveMhdCardUiSettings();
-  const kitchenAction = cardUi.mhd_show_kitchen
-    ? `<button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>`
+  const kitchenMoreItem = cardUi.mhd_show_kitchen
+    ? `<button type="button" class="mhd-card-more-item" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="kueche">🥣 Küche</button>`
     : '';
-  const retterBoxAction = cardUi.mhd_show_box
-    ? `<button class="btn-mhd-action" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
+  const retterBoxMoreItem = cardUi.mhd_show_box
+    ? `<button type="button" class="mhd-card-more-item" data-mhd-command="retterbox" data-mhd-id="${prod.id}">Box</button>`
     : '';
   const batchCount = getBatchesForArticle(prod).length;
   const laterBadgeHtml = isZeroQty ? '' : buildLaterMhdBadgeHtml(prod);
@@ -4797,80 +4905,59 @@ function buildMhdCardHtml(prod = {}) {
   const zeroRestoreHtml = isZeroQty
     ? `<button type="button" class="btn btn-secondary mhd-restore-zero-btn" data-mhd-command="restore-zero" data-mhd-id="${escapeHtml(prod.id)}">↩️ Wiederherstellen / +</button>`
     : '';
-  const actionCount = 2 + (kitchenAction ? 1 : 0) + (retterBoxAction ? 1 : 0);
-  const actionRowClass = actionCount <= 2
-    ? 'mhd-action-row mhd-action-row--pair'
-    : 'mhd-action-row';
   const showPercentBadge = action.showPercentBadge === true;
   const stickerPercent = Number(action.discount?.discountPercent) || 0;
-  const stickerHtml = showPercentBadge
-    ? `<span class="mhd-sticker-badge mhd-sticker-${stickerPercent}">🏷️ -${stickerPercent} % Aufkleber</span>`
+  // Dezentes %-Chip in der Kopfzeile — keine eigene Banner-Zeile mehr.
+  const stickerChipHtml = showPercentBadge
+    ? `<span class="mhd-sticker-chip mhd-sticker-${stickerPercent}">-${stickerPercent}%</span>`
     : '';
-  const actionBadgeHtml = stickerHtml
-    ? stickerHtml
-    : action.key === 'tonne' || action.key === 'pruefen'
-      ? `<div class="mhd-action-badge" style="color:${action.color};background:${action.bg};border:2px solid ${action.color};">
-          ${escapeHtml(action.label)}
-        </div>`
-      : '';
   const stichprobeLink = batchCount >= 2
-    ? `<button type="button" class="mhd-stichprobe-link" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
+    ? `<button type="button" class="mhd-card-more-item" data-mhd-command="stichprobe" data-mhd-id="${escapeHtml(prod.id)}">Alle MHDs (${batchCount})</button>`
     : '';
+  const qtyLabel = formatMhdQtyBadgeValue(qty);
   return `
     <div class="mhd-card status-${prod.status || 'ok'}${isZeroDay || isOverdue ? ' mhd-critical' : ''} ${prod.soldOut ? 'sold-out' : ''}${isZeroQty ? ' mhd-zero-qty' : ''}" id="mhd-card-${prod.id}">
-      ${actionBadgeHtml ? `<div class="mhd-card-badge-row">${actionBadgeHtml}</div>` : ''}
-      ${stichprobeLink}
-      <div class="mhd-card-header">
-        <div class="mhd-card-heading">
-        <details class="mhd-card-tools">
-          <summary class="mhd-product-info">
-            <span class="mhd-product-name">${displayName}${grammageBadge}</span>
-            <span class="mhd-product-meta">${productMetaHtml}</span>
-          </summary>
-          <div class="mhd-card-tools-panel">
+      <div class="mhd-card-top">
+        <div class="mhd-card-category">${categoryLine}${stickerChipHtml ? ` ${stickerChipHtml}` : ''}</div>
+        ${ampelHtml}
+      </div>
+      <div class="mhd-card-body">
+        <div class="mhd-card-body-main">
+          <div class="mhd-product-name">${displayName}${grammageBadge}</div>
+          <div class="mhd-product-meta mhd-product-meta-line">${productMetaHtml}</div>
+          ${duplicateBadge}
+        </div>
+        <details class="mhd-card-more">
+          <summary class="mhd-card-more-trigger" aria-label="Weitere Aktionen">⋯</summary>
+          <div class="mhd-card-more-panel">
+            <button type="button" class="mhd-card-more-item mhd-card-more-item--danger" data-mhd-command="abschreiben" data-mhd-id="${prod.id}">Abschreiben</button>
+            <button type="button" class="mhd-card-more-item" data-mhd-command="soldout" data-mhd-id="${prod.id}">Ausverkauft</button>
             ${mhdDateEditButton}
             ${stammdatenEditButton}
+            ${kitchenMoreItem}
+            ${retterBoxMoreItem}
+            ${stichprobeLink}
           </div>
         </details>
-        ${duplicateBadge}
-        </div>
-        <button
-          type="button"
-          class="mhd-badge mhd-days-badge badge-days"
-          data-mhd-days-badge="1"
-          data-mhd-id="${prod.id}"
-          data-mhd-days-label="${escapeHtml(badgeDaysLabel)}"
-          data-mhd-date-label="${escapeHtml(badgeDateLabel)}"
-          data-mhd-badge-mode="days"
-          aria-label="MHD-Datum anzeigen"
-          title="Tippen für MHD-Datum"${badgeStyle}
-        >${escapeHtml(badgeDaysLabel)}</button>
       </div>
       ${zeroRestoreHtml}
-      <div class="mhd-controls-row">
+      <div class="mhd-touch-action-row mhd-action-row">
         <button
           type="button"
           class="mhd-qty-badge"
           data-mhd-command="qty-edit"
           data-mhd-id="${prod.id}"
-          aria-label="Menge ${escapeHtml(formatMhdQtyBadgeValue(qty))}, tippen zum Ändern"
+          aria-label="Menge ${escapeHtml(qtyLabel)}, tippen zum Ändern"
           ${prod.soldOut || isZeroQty ? 'disabled' : ''}
         >
           <span class="mhd-qty-badge-label">Menge</span>
-          <span class="mhd-qty-badge-value" data-mhd-qty-id="${prod.id}">${escapeHtml(formatMhdQtyBadgeValue(qty))}</span>
+          <span class="mhd-qty-badge-value" data-mhd-qty-id="${prod.id}">${escapeHtml(qtyLabel)}</span>
         </button>
-        <button class="btn btn-soldout" data-mhd-command="soldout" data-mhd-id="${prod.id}" title="Ausverkauft" aria-label="Als ausverkauft markieren">
-          <span aria-hidden="true">🗑️</span> Ausverkauft
-        </button>
+        <button type="button" class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
+        <button type="button" class="btn-mhd-action btn-mhd-action--rabatt" data-mhd-command="rabatt" data-mhd-id="${prod.id}">🏷️ Rabatt</button>
+        <button type="button" class="btn-mhd-action btn-mhd-action--raus" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">📦 Raus</button>
       </div>
-      <div class="${actionRowClass}">
-        <button class="btn-mhd-action" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="rausgenommen">↩️ Raus</button>
-        <button class="btn-mhd-action btn-mhd-action--primary" data-mhd-command="action" data-mhd-id="${prod.id}" data-mhd-action-status="geprueft">✓ OK</button>
-        ${kitchenAction}
-        ${retterBoxAction}
-      </div>
-      ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}</div>` : ''}
-      ${laterAccordionHtml}
+      ${laterBadgeHtml ? `<div class="mhd-multi-batch-wrap">${laterBadgeHtml}${laterAccordionHtml}</div>` : ''}
     </div>
   `;
 }
@@ -5436,6 +5523,110 @@ async function setSoldOut(id) {
   stageMhdChange(id, updates);
   if (newSoldOut && previousQuantity > 0) armZeroQtyUndo(prod, previousQuantity);
 };
+
+function buildMhdAbschreibenContract(options = {}) {
+  const base = buildMhdZeroStockContract('ausverkauft', options);
+  return {
+    ...base,
+    status: 'abgeschrieben',
+    online: {
+      ...base.online,
+      status: 'abgeschrieben',
+      mhdActionStatus: 'abgeschrieben',
+    },
+    queued: {
+      ...base.queued,
+      status: 'abgeschrieben',
+      mhdActionStatus: 'abgeschrieben',
+    },
+  };
+}
+
+async function setAbgeschrieben(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  const previousQuantity = mhdItemQuantity(prod);
+  const actor = getAuditActorName();
+  const zeroStock = buildMhdAbschreibenContract({ actor });
+  const updates = {
+    ...zeroStock.queued,
+    previousQuantity,
+    lastModifiedBy: actor || 'unbekannt',
+  };
+  mhdState.playClickSound(360, 0.08, 0.2);
+  stageMhdChange(id, updates);
+  if (previousQuantity > 0) armZeroQtyUndo(prod, previousQuantity);
+  window.showToast?.('Posten abgeschrieben.', 'success');
+}
+
+function confirmMhdSpecialAction(id, kind) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  const name = resolveMhdProductDisplayName(prod) || 'Artikel';
+  const isWriteOff = kind === 'abschreiben';
+  const title = isWriteOff ? 'Wirklich abschreiben?' : 'Wirklich ausverkauft?';
+  const desc = isWriteOff
+    ? 'Wir nehmen den Posten als abgeschrieben aus dem Bestand.'
+    : 'Wir markieren den Posten als ausverkauft (Menge 0).';
+  const confirmLabel = isWriteOff ? 'Ja, abschreiben' : 'Ja, ausverkauft';
+  showUtilityDialog(title, `
+    <p class="learn-mode-desc">${escapeHtml(name)}</p>
+    <p class="learn-mode-desc">${escapeHtml(desc)}</p>
+    <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+      <button type="button" class="btn btn-primary" id="mhd-special-confirm" style="width:100%;min-height:52px;">${escapeHtml(confirmLabel)}</button>
+      <button type="button" class="btn btn-secondary" id="mhd-special-cancel" style="width:100%;min-height:52px;">Abbrechen</button>
+    </div>
+  `);
+  document.getElementById('mhd-special-confirm')?.addEventListener('click', () => {
+    resetScanState({ keepLearnOverlay: false });
+    if (isWriteOff) void setAbgeschrieben(id);
+    else void setSoldOut(id);
+  });
+  document.getElementById('mhd-special-cancel')?.addEventListener('click', () => {
+    resetScanState({ keepLearnOverlay: false });
+  });
+}
+
+function openMhdRabattStickerDialog(id) {
+  const prod = mhdState.products.find((entry) => entry.id === id);
+  if (!prod) return;
+  const action = getMhdCardAction(prod);
+  const name = resolveMhdProductDisplayName(prod) || 'Artikel';
+  const percent = Number(action.discount?.discountPercent) || 0;
+  const price = action.price;
+  const discounted = action.discount?.discountedPrice;
+  const stickerLabel = percent > 0
+    ? `🏷️ -${percent} % Aufkleber`
+    : 'Kein Rabatt-Aufkleber nötig';
+  const priceMeta = price
+    ? `<div class="utility-row-meta">${escapeHtml(formatEuro(price))}${
+      percent && Number.isFinite(discounted) ? ` → ${escapeHtml(formatEuro(discounted))}` : ''
+    }</div>`
+    : '';
+  showUtilityDialog('Rabatt-Aufkleber', `
+    <p class="learn-mode-desc">${escapeHtml(name)}</p>
+    <div class="utility-list">
+      <div class="utility-row">
+        <div class="utility-row-title">${escapeHtml(stickerLabel)}</div>
+        ${priceMeta}
+      </div>
+    </div>
+    <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+      <button type="button" class="btn btn-primary" id="mhd-rabatt-confirm" style="width:100%;min-height:52px;" ${percent > 0 ? '' : 'disabled'}>
+        Als reduziert markieren
+      </button>
+      <button type="button" class="btn btn-secondary" id="mhd-rabatt-cancel" style="width:100%;min-height:52px;">Abbrechen</button>
+    </div>
+  `);
+  document.getElementById('mhd-rabatt-confirm')?.addEventListener('click', () => {
+    resetScanState({ keepLearnOverlay: false });
+    void markMhdAction(id, 'reduziert');
+    window.showToast?.('Als reduziert markiert. Aufkleber bitte kleben.', 'success');
+  });
+  document.getElementById('mhd-rabatt-cancel')?.addEventListener('click', () => {
+    resetScanState({ keepLearnOverlay: false });
+  });
+}
 
 function openMhdCategoryEditor(id) {
   const prod = mhdState.products.find((entry) => entry.id === id);
@@ -6161,23 +6352,34 @@ function bindMhdCardActions() {
   page.dataset.mhdActionBound = '1';
 
   const isMhdListTarget = (target) => Boolean(
-    target?.closest?.('#mhd-items-container, #mhd-admin-search-results'),
+    target?.closest?.('#mhd-items-container, #mhd-admin-search-results, .mhd-list, .mhd-list-container'),
   );
 
   // iOS Safari: pointerdown + click, damit Tipps auf dem Multi-MHD-Badge sicher ankommen.
   page.addEventListener('pointerdown', (event) => {
     if (!isMhdListTarget(event.target)) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (!event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
-      return;
-    }
+    if (!isMhdAccordionToggleTarget(event.target)) return;
     handleMultiMhdAccordionToggleEvent(event, { fromPointer: true });
   }, { passive: false });
 
+  // Document-Delegation (iOS Safari robust): Akkordeon über Listen-Container.
+  if (document.documentElement.dataset.mhdAccordionDelegated !== '1') {
+    document.documentElement.dataset.mhdAccordionDelegated = '1';
+    document.addEventListener('click', (event) => {
+      if (!isMhdListTarget(event.target)) return;
+      const btn = event.target.closest?.(
+        '[data-action="toggle-mhd-accordion"], .mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]',
+      );
+      if (!btn) return;
+      handleMultiMhdAccordionToggleEvent(event, { fromPointer: false });
+    }, { capture: true });
+  }
+
   page.addEventListener('click', (event) => {
     if (!isMhdListTarget(event.target)) return;
-    if (event.target.closest?.('.mhd-multi-batch-badge, [data-mhd-command="toggle-multi-batch"]')) {
-      handleMultiMhdAccordionToggleEvent(event, { fromPointer: false });
+    if (isMhdAccordionToggleTarget(event.target)) {
+      // Document-Capture-Handler übernimmt den Toggle; hier nur Doppel-Arbeit vermeiden.
       return;
     }
     const daysBadge = event.target.closest('[data-mhd-days-badge]');
@@ -6185,6 +6387,11 @@ function bindMhdCardActions() {
       event.preventDefault();
       event.stopPropagation();
       toggleMhdDaysBadge(daysBadge);
+      return;
+    }
+    const moreTrigger = event.target.closest('.mhd-card-more-trigger');
+    if (moreTrigger) {
+      // Native <details> öffnen – keine StopPropagation nötig.
       return;
     }
     const button = event.target.closest('[data-mhd-command]');
@@ -6196,19 +6403,39 @@ function bindMhdCardActions() {
       openMhdQtyNumpad(id);
       return;
     }
-    if (command === 'soldout') setSoldOut(id);
+    if (command === 'soldout') {
+      event.preventDefault();
+      confirmMhdSpecialAction(id, 'soldout');
+      return;
+    }
+    if (command === 'abschreiben') {
+      event.preventDefault();
+      confirmMhdSpecialAction(id, 'abschreiben');
+      return;
+    }
+    if (command === 'rabatt') {
+      event.preventDefault();
+      openMhdRabattStickerDialog(id);
+      return;
+    }
     if (command === 'restore-zero') {
       void restoreMhdQuantity(id, 1, { soldOut: false, clearSoldOutStatus: true });
       return;
     }
     if (command === 'action') {
       const actionStatus = button.dataset.mhdActionStatus;
-      // Küche/Retter-Box folgen dem Modul-Flag – alte Calls ohne Modul ignorieren.
-      if (actionStatus === 'kueche' || actionStatus === 'retterbox') return;
+      if (actionStatus === 'retterbox') return;
+      if (actionStatus === 'kueche') {
+        void markMhdAction(id, 'kueche');
+        return;
+      }
       markMhdAction(id, actionStatus);
       return;
     }
-    if (command === 'retterbox') return;
+    if (command === 'retterbox') {
+      void addMhdItemToRetterBox(id);
+      return;
+    }
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
     if (command === 'stammdaten') openMhdStammdatenEditor(id);
