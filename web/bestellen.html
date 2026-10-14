@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="StevesHof Vorbestellung – Fleisch auf Wunschmaß, Abholung an der Bedientheke oder im SB-Kühlschrank.">
+  <title>Vorbestellung · StevesHof</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            hof: {
+              pine: '#1b3a2f',
+              moss: '#2f5d4a',
+              leaf: '#3f7a5c',
+              cream: '#f3efe6',
+              sand: '#e7e0d2',
+              ink: '#1c1917',
+              muted: '#57534e',
+              copper: '#9a6b3f',
+            }
+          },
+          fontFamily: {
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            soft: '0 18px 40px rgba(27, 58, 47, 0.12)',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* FOUC-Schutz: Modals/Drawer starten unsichtbar, auch bevor Tailwind greift */
+    .modal-layer,
+    .drawer-layer {
+      display: none !important;
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+    }
+    .modal-layer.is-open,
+    .drawer-layer.is-open {
+      display: flex !important;
+      pointer-events: auto;
+      visibility: visible;
+      opacity: 1;
+    }
+    .drawer-layer.is-open {
+      display: block !important;
+    }
+    body {
+      font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(63, 122, 92, 0.18), transparent 55%),
+        radial-gradient(900px 420px at 100% 0%, rgba(154, 107, 63, 0.14), transparent 50%),
+        linear-gradient(180deg, #f7f4ee 0%, #efe8db 45%, #f3efe6 100%);
+      color: #1c1917;
+      min-height: 100vh;
+    }
+    .font-display { font-family: "Playfair Display", Georgia, serif; }
+    .product-card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(27, 58, 47, 0.12);
+    }
+    .cart-fab {
+      animation: fab-in 0.45s ease both;
+    }
+    @keyframes fab-in {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .channel-toggle[aria-pressed="true"] {
+      background: #1b3a2f;
+      color: #fff;
+      border-color: #1b3a2f;
+    }
+    .hero-panel {
+      background:
+        linear-gradient(135deg, rgba(27, 58, 47, 0.94), rgba(47, 93, 74, 0.88)),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .sim-panel {
+      backdrop-filter: blur(8px);
+    }
+    #toast-host .toast {
+      animation: toast-in 0.28s ease both;
+    }
+    @keyframes toast-in {
+      from { transform: translateY(8px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <a href="#katalog" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:bg-white focus:px-3 focus:py-2 focus:rounded-lg">Zum Sortiment springen</a>
+
+  <header class="sticky top-0 z-40 border-b border-hof-sand/80 bg-[#f7f4ee]/90 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div class="min-w-0">
+        <p class="font-display text-2xl leading-none text-hof-pine sm:text-3xl">StevesHof</p>
+        <p class="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-hof-copper">Vorbestellung · Soft-Launch</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-open-sim" class="rounded-xl border border-hof-sand bg-white/80 px-3 py-2 text-sm font-semibold text-hof-pine shadow-sm hover:bg-white">
+          ⚙️ Zeit-Simulator
+        </button>
+        <button type="button" id="btn-header-cart" class="relative rounded-xl bg-hof-pine px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-hof-moss">
+          Warenkorb
+          <span id="header-cart-count" class="ml-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-hof-copper px-1.5 text-xs">0</span>
+        </button>
+      </div>
+    </div>
+    <div id="sim-panel" class="sim-panel hidden border-t border-hof-sand bg-white/85 px-4 py-3">
+      <div class="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+          <label for="sim-datetime" class="block text-xs font-semibold uppercase tracking-wide text-hof-muted">Simulierter Zeitpunkt</label>
+          <input id="sim-datetime" type="datetime-local" class="mt-1 w-full rounded-xl border border-hof-sand bg-white px-3 py-2 text-sm text-hof-ink outline-none ring-hof-leaf focus:ring-2">
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="btn-sim-apply" class="rounded-xl bg-hof-pine px-4 py-2 text-sm font-semibold text-white hover:bg-hof-moss">Anwenden</button>
+          <button type="button" id="btn-sim-reset" class="rounded-xl border border-hof-sand bg-white px-4 py-2 text-sm font-semibold text-hof-pine hover:bg-hof-cream">Jetzt</button>
+        </div>
+      </div>
+      <p id="sim-status" class="mx-auto mt-2 max-w-6xl text-xs text-hof-muted">Aktuell: echte Uhrzeit</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="mx-auto max-w-6xl px-4 pb-6 pt-8 sm:pt-12">
+      <div class="hero-panel overflow-hidden rounded-[1.75rem] px-6 py-10 text-white shadow-soft sm:px-10 sm:py-14">
+        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">Hof · Metzgerei · Vorbestellung</p>
+        <h1 class="font-display mt-3 max-w-xl text-4xl leading-tight sm:text-5xl">Fleisch auf Wunschmaß vorbestellen</h1>
+        <p class="mt-4 max-w-xl text-base text-white/85 sm:text-lg">
+          Dicke, Vakuumierung und Portionen nach deinem Wunsch. Abrechnung nach dem Einwiegen an unserer Waage.
+        </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="#katalog" class="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-bold text-hof-pine shadow-sm hover:bg-hof-cream">Zum Sortiment</a>
+          <a href="#abholung" class="inline-flex items-center justify-center rounded-2xl border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15">Abholung wählen</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="abholung" class="mx-auto max-w-6xl px-4 pb-4">
+      <div class="rounded-2xl border border-hof-sand bg-white/70 p-4 sm:p-5">
+        <h2 class="font-display text-xl text-hof-pine">So holst du ab</h2>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl bg-hof-cream/80 p-4">
+            <p class="font-semibold text-hof-pine">🏪 Bedientheke</p>
+            <p class="mt-1 text-sm text-hof-muted">Freitag 09:00–18:30 · Samstag 09:00–13:00 · persönlich mit Kassenwägung</p>
+          </div>
+          <div class="rounded-xl bg-hof-cream/80 p-4">
+            <p class="font-semibold text-hof-pine">❄️ SB-Kühlschrank</p>
+            <p class="mt-1 text-sm text-hof-muted">Sonntag–Donnerstag 06:00–22:00 · kontaktlos. Vorbereitung mit Pufferzeiten für unser Team.</p>
+          </div>
+        </div>
+        <p id="slot-hint" class="mt-3 text-sm text-hof-muted">Zeitfenster werden im Checkout anhand deiner Bestellzeit berechnet.</p>
+      </div>
+    </section>
+
+    <section id="katalog" class="mx-auto max-w-6xl px-4 pb-28 pt-6">
+      <div class="mb-6 flex items-end justify-between gap-3">
+        <div>
+          <h2 class="font-display text-3xl text-hof-pine">Unser Sortiment</h2>
+          <p class="mt-1 text-sm text-hof-muted">Grundpreis je kg · geschätzter Stückpreis zur Orientierung</p>
+        </div>
+      </div>
+      <div id="catalog-root" class="space-y-10"></div>
+    </section>
+  </main>
+
+  <button type="button" id="cart-fab" class="cart-fab fixed bottom-5 right-4 z-50 hidden items-center gap-2 rounded-full bg-hof-pine px-5 py-3 text-sm font-bold text-white shadow-soft hover:bg-hof-moss" aria-label="Warenkorb öffnen">
+    <span>Warenkorb</span>
+    <span id="fab-count" class="inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-white/15 px-1.5 text-xs">0</span>
+    <span id="fab-sum" class="text-xs font-medium text-white/80"></span>
+  </button>
+
+  <div id="toast-host" class="pointer-events-none fixed inset-x-0 bottom-24 z-[90] flex flex-col items-center gap-2 px-4"></div>
+
+  <!-- Zuschnitt-Modal: FOUC-sicher mit Inline display:none -->
+  <div id="modal-cut" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cut-title">
+    <div class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p id="cut-category" class="text-xs font-semibold uppercase tracking-wide text-hof-copper"></p>
+          <h3 id="cut-title" class="font-display text-2xl text-hof-pine">Zuschnitt</h3>
+        </div>
+        <button type="button" class="modal-close rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-cut" aria-label="Schließen">Schließen</button>
+      </div>
+      <form id="cut-form" class="mt-4 space-y-4">
+        <input type="hidden" id="cut-product-id" value="">
+        <div class="grid grid-cols-2 gap-3">
+          <div id="cut-pieces-wrap">
+            <label for="cut-pieces" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Stückzahl</label>
+            <input id="cut-pieces" type="number" min="1" step="1" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+          </div>
+          <div id="cut-weight-wrap">
+            <label for="cut-weight" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Gewicht (kg)</label>
+            <input id="cut-weight" type="number" min="0.1" step="0.1" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+          </div>
+        </div>
+        <div id="cut-options-wrap">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Schnittstärke / Zuschnitt</p>
+          <div id="cut-options" class="mt-2 grid gap-2"></div>
+        </div>
+        <div id="vacuum-options-wrap">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Vakuumierung</p>
+          <div id="vacuum-options" class="mt-2 grid gap-2"></div>
+        </div>
+        <div>
+          <label for="cut-note" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Notiz für den Metzger</label>
+          <textarea id="cut-note" rows="3" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Besonderer Wunsch …"></textarea>
+        </div>
+        <p id="cut-estimate" class="rounded-xl bg-hof-cream px-3 py-2 text-sm text-hof-pine"></p>
+        <button type="submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">In den Warenkorb</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Warenkorb-Drawer: FOUC-sicher -->
+  <div id="drawer-cart" class="drawer-layer z-[85]" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+    <button type="button" class="absolute inset-0 bg-black/45" data-close="drawer-cart" aria-label="Warenkorb schließen"></button>
+    <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-soft">
+      <div class="flex items-center justify-between border-b border-hof-sand px-5 py-4">
+        <h3 id="cart-title" class="font-display text-2xl text-hof-pine">Warenkorb</h3>
+        <button type="button" class="rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="drawer-cart">Schließen</button>
+      </div>
+      <div id="cart-items" class="flex-1 overflow-y-auto px-5 py-4"></div>
+      <div class="border-t border-hof-sand px-5 py-4">
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-hof-muted">Geschätzte Summe</span>
+          <strong id="cart-sum" class="text-lg text-hof-pine">0,00 €</strong>
+        </div>
+        <p class="mt-2 text-xs leading-relaxed text-hof-muted">
+          Die Abrechnung erfolgt nach dem Einwiegen an der Hofladen-Waage. Die Summe hier ist eine Orientierung (±10–15&nbsp;% Naturprodukt-Toleranz).
+        </p>
+        <button type="button" id="btn-checkout" class="mt-4 w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">Zur Kasse</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Checkout-Modal: FOUC-sicher -->
+  <div id="modal-checkout" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+    <div class="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="checkout-title" class="font-display text-2xl text-hof-pine">Abholung & Kontakt</h3>
+          <p class="mt-1 text-sm text-hof-muted">Wähle Weg und Zeitfenster – wir richten uns nach der Vorbereitungslogik.</p>
+        </div>
+        <button type="button" class="rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-checkout">Schließen</button>
+      </div>
+
+      <form id="checkout-form" class="mt-5 space-y-5">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Abholweg</p>
+          <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button type="button" id="channel-counter" class="channel-toggle rounded-2xl border border-hof-sand px-3 py-3 text-left text-sm font-semibold text-hof-pine" aria-pressed="true">🏪 Bedientheke (Fr/Sa)</button>
+            <button type="button" id="channel-sb" class="channel-toggle rounded-2xl border border-hof-sand px-3 py-3 text-left text-sm font-semibold text-hof-pine" aria-pressed="false">❄️ SB-Kühlschrank (So–Do, 06–22 Uhr)</button>
+          </div>
+          <p id="channel-mode-hint" class="mt-2 text-xs text-hof-muted"></p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label for="pickup-date" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Datum</label>
+            <select id="pickup-date" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" required></select>
+          </div>
+          <div>
+            <label for="pickup-slot" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Zeitfenster</label>
+            <select id="pickup-slot" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" required></select>
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label for="customer-name" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Name</label>
+            <input id="customer-name" type="text" autocomplete="name" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Vor- und Nachname">
+          </div>
+          <div>
+            <label for="customer-phone" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Mobiltelefon (SMS)</label>
+            <input id="customer-phone" type="tel" autocomplete="tel" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="für Bereitstellungs-SMS">
+          </div>
+          <div>
+            <label for="customer-email" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">E-Mail</label>
+            <input id="customer-email" type="email" autocomplete="email" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="name@beispiel.de">
+          </div>
+        </div>
+
+        <label class="flex items-start gap-3 rounded-2xl border border-hof-sand bg-hof-cream/60 p-3 text-sm text-hof-ink">
+          <input id="nature-accept" type="checkbox" required class="mt-1 h-4 w-4 rounded border-hof-sand text-hof-pine focus:ring-hof-leaf">
+          <span>Ich akzeptiere, dass Naturprodukte um ca. ±10–15&nbsp;% vom Wunschgewicht abweichen können und die Abrechnung nach Waagengewicht erfolgt.</span>
+        </label>
+
+        <div class="rounded-2xl bg-hof-cream px-4 py-3 text-sm">
+          <div class="flex justify-between"><span class="text-hof-muted">Geschätzte Summe</span><strong id="checkout-sum" class="text-hof-pine">0,00 €</strong></div>
+        </div>
+
+        <button type="submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">Bestellung absenden</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bestätigung: FOUC-sicher -->
+  <div id="modal-confirm" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="w-full max-w-md rounded-t-3xl bg-white p-6 text-center shadow-soft sm:rounded-3xl">
+      <p class="text-sm font-semibold uppercase tracking-[0.16em] text-hof-copper">Bestellung eingegangen</p>
+      <h3 id="confirm-title" class="font-display mt-2 text-3xl text-hof-pine">Danke!</h3>
+      <p id="confirm-body" class="mt-3 text-sm leading-relaxed text-hof-muted"></p>
+      <p id="confirm-ref" class="mt-4 rounded-xl bg-hof-cream px-3 py-2 font-mono text-sm text-hof-pine"></p>
+      <button type="button" id="btn-confirm-done" class="mt-6 w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">Zurück zum Sortiment</button>
+    </div>
+  </div>
+
+  <footer class="border-t border-hof-sand/80 bg-white/50 px-4 py-8 text-center text-xs text-hof-muted">
+    <p class="font-display text-base text-hof-pine">StevesHof</p>
+    <p class="mt-1">Vorbestellung Soft-Launch · Abrechnung nach Waage · <a class="underline hover:text-hof-pine" href="/datenschutz.html">Datenschutz</a></p>
+  </footer>
+
+  <script type="module">
+    import {
+      ORDER_CATALOG,
+      estimateLinePrice,
+      formatEuro,
+      findProductById,
+      getAvailablePickupSlots,
+    } from './orderCatalog.js';
+
+    const state = {
+      cart: /** @type {Array<any>} */ ([]),
+      activeProductId: '',
+      channel: /** @type {'counter'|'sb'} */ ('counter'),
+      simulatedNow: /** @type {Date|null} */ (null),
+      lastSlots: null,
+    };
+
+    const els = {
+      catalog: document.getElementById('catalog-root'),
+      cutModal: document.getElementById('modal-cut'),
+      cartDrawer: document.getElementById('drawer-cart'),
+      checkoutModal: document.getElementById('modal-checkout'),
+      confirmModal: document.getElementById('modal-confirm'),
+      cartItems: document.getElementById('cart-items'),
+      cartSum: document.getElementById('cart-sum'),
+      checkoutSum: document.getElementById('checkout-sum'),
+      fab: document.getElementById('cart-fab'),
+      fabCount: document.getElementById('fab-count'),
+      fabSum: document.getElementById('fab-sum'),
+      headerCount: document.getElementById('header-cart-count'),
+      slotHint: document.getElementById('slot-hint'),
+      simPanel: document.getElementById('sim-panel'),
+      simDatetime: document.getElementById('sim-datetime'),
+      simStatus: document.getElementById('sim-status'),
+      pickupDate: document.getElementById('pickup-date'),
+      pickupSlot: document.getElementById('pickup-slot'),
+      channelHint: document.getElementById('channel-mode-hint'),
+      toastHost: document.getElementById('toast-host'),
+    };
+
+    function now() {
+      return state.simulatedNow ? new Date(state.simulatedNow.getTime()) : new Date();
+    }
+
+    function showToast(message, type = 'info') {
+      const el = document.createElement('div');
+      el.className = `toast pointer-events-auto rounded-2xl px-4 py-3 text-sm font-semibold shadow-soft ${
+        type === 'error' ? 'bg-red-700 text-white' : type === 'success' ? 'bg-hof-moss text-white' : 'bg-hof-pine text-white'
+      }`;
+      el.textContent = message;
+      els.toastHost.appendChild(el);
+      setTimeout(() => el.remove(), 3200);
+    }
+
+    function openLayer(el) {
+      if (!el) return;
+      el.classList.add('is-open');
+      el.style.display = el.id === 'drawer-cart' ? 'block' : 'flex';
+      el.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLayer(el) {
+      if (!el) return;
+      el.classList.remove('is-open');
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+      const anyOpen = [...document.querySelectorAll('.modal-layer.is-open, .drawer-layer.is-open')].length > 0;
+      if (!anyOpen) document.body.style.overflow = '';
+    }
+
+    function closeAllLayers() {
+      [els.cutModal, els.cartDrawer, els.checkoutModal, els.confirmModal].forEach(closeLayer);
+    }
+
+    function cartCount() {
+      return state.cart.reduce((sum, line) => sum + (Number(line.pieces) || 1), 0);
+    }
+
+    function cartTotal() {
+      return state.cart.reduce((sum, line) => sum + (Number(line.estimatedPrice) || 0), 0);
+    }
+
+    function refreshCartUi() {
+      const count = cartCount();
+      const total = cartTotal();
+      els.headerCount.textContent = String(count);
+      els.fabCount.textContent = String(count);
+      els.fabSum.textContent = count ? formatEuro(total) : '';
+      els.cartSum.textContent = formatEuro(total);
+      els.checkoutSum.textContent = formatEuro(total);
+      els.fab.classList.toggle('hidden', count === 0);
+      els.fab.classList.toggle('inline-flex', count > 0);
+      document.getElementById('btn-checkout').disabled = count === 0;
+
+      if (!state.cart.length) {
+        els.cartItems.innerHTML = '<p class="text-sm text-hof-muted">Dein Warenkorb ist noch leer. Wähle ein Stück aus dem Sortiment.</p>';
+        return;
+      }
+
+      els.cartItems.innerHTML = state.cart.map((line, index) => `
+        <article class="mb-3 rounded-2xl border border-hof-sand bg-hof-cream/40 p-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h4 class="font-semibold text-hof-pine">${escapeHtml(line.name)}</h4>
+              <p class="mt-1 text-xs text-hof-muted">${escapeHtml(line.summary)}</p>
+            </div>
+            <button type="button" data-remove="${index}" class="text-xs font-semibold text-red-700 hover:underline">Entfernen</button>
+          </div>
+          <p class="mt-2 text-sm font-semibold text-hof-ink">${formatEuro(line.estimatedPrice)}</p>
+        </article>
+      `).join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderCatalog() {
+      els.catalog.innerHTML = ORDER_CATALOG.map((category) => {
+        const products = category.products.map((product) => {
+          if (product.comingSoon || category.placeholder) {
+            return `
+              <article class="rounded-2xl border border-dashed border-hof-sand bg-white/50 p-4 opacity-80">
+                <h4 class="font-semibold text-hof-muted">${escapeHtml(product.name)}</h4>
+                <p class="mt-1 text-sm text-hof-muted">Demnächst</p>
+              </article>
+            `;
+          }
+
+          const pieceHint = product.estimatedPiecePrice
+            ? ` · ca. ${formatEuro(product.estimatedPiecePrice)} / Stück`
+            : product.typicalWeightKg && product.pricePerKg
+              ? ` · ca. ${formatEuro(product.typicalWeightKg * product.pricePerKg)}`
+              : '';
+          const priceLine = product.pricePerKg > 0
+            ? `${formatEuro(product.pricePerKg)} / kg${pieceHint}`
+            : `${formatEuro(product.estimatedPiecePrice || 0)} / Stück`;
+
+          return `
+            <article class="product-card flex flex-col rounded-2xl border border-hof-sand bg-white p-4">
+              <div class="flex-1">
+                <h4 class="text-lg font-bold text-hof-pine">${escapeHtml(product.name)}</h4>
+                <p class="mt-0.5 text-sm text-hof-muted">${escapeHtml(product.subtitle || '')}</p>
+                <p class="mt-3 text-sm font-semibold text-hof-ink">${priceLine}</p>
+              </div>
+              <button type="button" data-add="${escapeHtml(product.id)}" class="mt-4 rounded-xl bg-hof-pine px-3 py-2.5 text-sm font-bold text-white hover:bg-hof-moss">Zuschnitt wählen</button>
+            </article>
+          `;
+        }).join('');
+
+        return `
+          <section>
+            <div class="mb-4">
+              <h3 class="font-display text-2xl text-hof-pine">${escapeHtml(category.name)}</h3>
+              <p class="mt-1 text-sm text-hof-muted">${escapeHtml(category.description || '')}</p>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">${products}</div>
+          </section>
+        `;
+      }).join('');
+    }
+
+    function optionButtons(container, options, name, selectedId) {
+      if (!options?.length) {
+        container.innerHTML = '<p class="text-sm text-hof-muted">Keine Extra-Auswahl nötig.</p>';
+        return;
+      }
+      container.innerHTML = options.map((opt, idx) => `
+        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-hof-sand px-3 py-2.5 hover:bg-hof-cream/70">
+          <input type="radio" name="${name}" value="${escapeHtml(opt.id)}" class="mt-1" ${((selectedId && opt.id === selectedId) || (!selectedId && idx === 0)) ? 'checked' : ''}>
+          <span>
+            <span class="block text-sm font-semibold text-hof-pine">${escapeHtml(opt.label)}</span>
+            ${opt.hint ? `<span class="block text-xs text-hof-muted">${escapeHtml(opt.hint)}</span>` : ''}
+          </span>
+        </label>
+      `).join('');
+    }
+
+    function updateCutEstimate() {
+      const product = findProductById(state.activeProductId);
+      if (!product) return;
+      const pieces = Number(document.getElementById('cut-pieces').value) || 0;
+      const weightKg = Number(document.getElementById('cut-weight').value) || 0;
+      const estimate = estimateLinePrice(product, { pieces, weightKg });
+      document.getElementById('cut-estimate').textContent =
+        `Geschätzter Preis: ${formatEuro(estimate)} · Abrechnung nach Waage`;
+    }
+
+    function openCutModal(productId) {
+      const product = findProductById(productId);
+      if (!product || product.comingSoon) return;
+      state.activeProductId = product.id;
+      document.getElementById('cut-product-id').value = product.id;
+      document.getElementById('cut-category').textContent = product.categoryName || '';
+      document.getElementById('cut-title').textContent = product.name;
+      document.getElementById('cut-note').value = '';
+      document.getElementById('cut-note').placeholder = product.notePlaceholder || 'Besonderer Wunsch …';
+
+      const piecesWrap = document.getElementById('cut-pieces-wrap');
+      const weightWrap = document.getElementById('cut-weight-wrap');
+      const piecesInput = document.getElementById('cut-pieces');
+      const weightInput = document.getElementById('cut-weight');
+
+      piecesWrap.classList.toggle('hidden', product.allowPieces === false);
+      weightWrap.classList.toggle('hidden', product.allowWeight === false);
+      piecesInput.value = product.defaultPieces || 1;
+      weightInput.value = product.defaultWeightKg || product.typicalWeightKg || '';
+
+      const cutWrap = document.getElementById('cut-options-wrap');
+      const vacWrap = document.getElementById('vacuum-options-wrap');
+      cutWrap.classList.toggle('hidden', !(product.cutOptions && product.cutOptions.length));
+      vacWrap.classList.toggle('hidden', !(product.vacuumOptions && product.vacuumOptions.length));
+      optionButtons(document.getElementById('cut-options'), product.cutOptions || [], 'cutOption', product.cutOptions?.[0]?.id);
+      optionButtons(document.getElementById('vacuum-options'), product.vacuumOptions || [], 'vacuumOption', product.vacuumOptions?.[0]?.id);
+      updateCutEstimate();
+      openLayer(els.cutModal);
+    }
+
+    function selectedRadio(name) {
+      const el = document.querySelector(`input[name="${name}"]:checked`);
+      return el ? el.value : '';
+    }
+
+    function labelForOption(options, id) {
+      return options?.find((o) => o.id === id)?.label || '';
+    }
+
+    document.getElementById('cut-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const product = findProductById(state.activeProductId);
+      if (!product) return;
+
+      const pieces = Number(document.getElementById('cut-pieces').value) || 1;
+      const weightKg = Number(document.getElementById('cut-weight').value) || 0;
+      const cutId = selectedRadio('cutOption');
+      const vacuumId = selectedRadio('vacuumOption');
+      const note = String(document.getElementById('cut-note').value || '').trim();
+      const estimatedPrice = estimateLinePrice(product, { pieces, weightKg });
+
+      const parts = [];
+      if (product.allowPieces !== false) parts.push(`${pieces}×`);
+      if (product.allowWeight !== false && weightKg > 0) parts.push(`ca. ${String(weightKg).replace('.', ',')} kg`);
+      const cutLabel = labelForOption(product.cutOptions, cutId);
+      const vacLabel = labelForOption(product.vacuumOptions, vacuumId);
+      if (cutLabel) parts.push(cutLabel);
+      if (vacLabel) parts.push(vacLabel);
+      if (note) parts.push(`Notiz: ${note}`);
+
+      state.cart.push({
+        productId: product.id,
+        name: product.name,
+        pieces,
+        weightKg,
+        cutId,
+        vacuumId,
+        note,
+        summary: parts.join(' · '),
+        estimatedPrice,
+        pricePerKg: product.pricePerKg || 0,
+      });
+
+      closeLayer(els.cutModal);
+      refreshCartUi();
+      showToast(`${product.name} liegt im Warenkorb`, 'success');
+      openLayer(els.cartDrawer);
+    });
+
+    ['cut-pieces', 'cut-weight'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', updateCutEstimate);
+    });
+
+    els.catalog.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-add]');
+      if (!btn) return;
+      openCutModal(btn.getAttribute('data-add'));
+    });
+
+    els.cartItems.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-remove]');
+      if (!btn) return;
+      const idx = Number(btn.getAttribute('data-remove'));
+      if (!Number.isInteger(idx)) return;
+      state.cart.splice(idx, 1);
+      refreshCartUi();
+    });
+
+    function currentChannelDays() {
+      const slots = getAvailablePickupSlots(now());
+      state.lastSlots = slots;
+      return state.channel === 'sb' ? slots.sb : slots.counter;
+    }
+
+    function refreshPickupSelects() {
+      const days = currentChannelDays();
+      els.pickupDate.innerHTML = '';
+      if (!days.length) {
+        els.pickupDate.innerHTML = '<option value="">Keine Termine verfügbar</option>';
+        els.pickupSlot.innerHTML = '<option value="">—</option>';
+        els.channelHint.textContent = state.channel === 'sb'
+          ? 'Für den SB-Kühlschrank sind gerade keine passenden Fenster frei (z. B. Bestellung nach 11:00 ohne Folgetag im Fenster).'
+          : 'Für die Bedientheke sind gerade keine Freitag-/Samstag-Fenster frei.';
+        return;
+      }
+
+      days.forEach((day, index) => {
+        const opt = document.createElement('option');
+        opt.value = day.date;
+        opt.textContent = `${day.label} · ${day.weekday}`;
+        if (index === 0) opt.selected = true;
+        els.pickupDate.appendChild(opt);
+      });
+      fillSlotsForSelectedDate();
+    }
+
+    function fillSlotsForSelectedDate() {
+      const days = currentChannelDays();
+      const day = days.find((d) => d.date === els.pickupDate.value) || days[0];
+      els.pickupSlot.innerHTML = '';
+      if (!day) return;
+      els.channelHint.textContent = day.modeLabel;
+      day.slots.forEach((slot, index) => {
+        const opt = document.createElement('option');
+        opt.value = slot.id;
+        opt.textContent = slot.label;
+        if (index === 0) opt.selected = true;
+        els.pickupSlot.appendChild(opt);
+      });
+    }
+
+    function setChannel(channel) {
+      state.channel = channel;
+      document.getElementById('channel-counter').setAttribute('aria-pressed', channel === 'counter' ? 'true' : 'false');
+      document.getElementById('channel-sb').setAttribute('aria-pressed', channel === 'sb' ? 'true' : 'false');
+      refreshPickupSelects();
+    }
+
+    function updateSlotHint() {
+      const slots = getAvailablePickupSlots(now());
+      const nextCounter = slots.counter[0];
+      const nextSb = slots.sb[0];
+      const bits = [];
+      if (nextCounter) bits.push(`Nächste Bedientheke: ${nextCounter.label}`);
+      if (nextSb) bits.push(`Nächster SB-Slot: ${nextSb.label} (${nextSb.modeLabel})`);
+      els.slotHint.textContent = bits.join(' · ') || 'Zeitfenster werden im Checkout berechnet.';
+    }
+
+    function toDatetimeLocalValue(date) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    function applySimulator(dateOrNull) {
+      state.simulatedNow = dateOrNull;
+      if (dateOrNull) {
+        els.simStatus.textContent = `Simulation aktiv: ${dateOrNull.toLocaleString('de-DE')}`;
+        els.simDatetime.value = toDatetimeLocalValue(dateOrNull);
+      } else {
+        els.simStatus.textContent = 'Aktuell: echte Uhrzeit';
+        els.simDatetime.value = toDatetimeLocalValue(new Date());
+      }
+      updateSlotHint();
+      if (els.checkoutModal.classList.contains('is-open')) refreshPickupSelects();
+    }
+
+    document.getElementById('btn-open-sim').addEventListener('click', () => {
+      els.simPanel.classList.toggle('hidden');
+      if (!els.simDatetime.value) els.simDatetime.value = toDatetimeLocalValue(now());
+    });
+    document.getElementById('btn-sim-apply').addEventListener('click', () => {
+      const value = els.simDatetime.value;
+      if (!value) return;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        showToast('Bitte gültigen Zeitpunkt wählen', 'error');
+        return;
+      }
+      applySimulator(parsed);
+      showToast('Zeit-Simulator angewendet', 'success');
+    });
+    document.getElementById('btn-sim-reset').addEventListener('click', () => {
+      applySimulator(null);
+      showToast('Echte Uhrzeit wieder aktiv');
+    });
+
+    document.getElementById('channel-counter').addEventListener('click', () => setChannel('counter'));
+    document.getElementById('channel-sb').addEventListener('click', () => setChannel('sb'));
+    els.pickupDate.addEventListener('change', fillSlotsForSelectedDate);
+
+    document.getElementById('btn-header-cart').addEventListener('click', () => openLayer(els.cartDrawer));
+    els.fab.addEventListener('click', () => openLayer(els.cartDrawer));
+    document.getElementById('btn-checkout').addEventListener('click', () => {
+      if (!state.cart.length) return;
+      closeLayer(els.cartDrawer);
+      setChannel(state.channel);
+      openLayer(els.checkoutModal);
+    });
+
+    document.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-close');
+        closeLayer(document.getElementById(id));
+      });
+    });
+
+    document.getElementById('checkout-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!state.cart.length) {
+        showToast('Warenkorb ist leer', 'error');
+        return;
+      }
+      if (!document.getElementById('nature-accept').checked) {
+        showToast('Bitte die Naturprodukt-Toleranz bestätigen', 'error');
+        return;
+      }
+
+      const days = currentChannelDays();
+      const day = days.find((d) => d.date === els.pickupDate.value);
+      const slot = day?.slots.find((s) => s.id === els.pickupSlot.value);
+      if (!day || !slot) {
+        showToast('Bitte Datum und Zeitfenster wählen', 'error');
+        return;
+      }
+
+      const name = String(document.getElementById('customer-name').value || '').trim();
+      const phone = String(document.getElementById('customer-phone').value || '').trim();
+      const email = String(document.getElementById('customer-email').value || '').trim();
+      if (!name || !phone || !email) {
+        showToast('Bitte Kontaktdaten ausfüllen', 'error');
+        return;
+      }
+
+      const ref = `SH-${Date.now().toString(36).toUpperCase()}`;
+      const order = {
+        ref,
+        createdAt: now().toISOString(),
+        channel: state.channel,
+        pickupDate: day.date,
+        pickupSlot: slot,
+        mode: day.mode,
+        customer: { name, phone, email },
+        items: state.cart.slice(),
+        estimatedTotal: cartTotal(),
+      };
+
+      try {
+        const key = 'steveshof.preorders.v1';
+        const existing = JSON.parse(localStorage.getItem(key) || '[]');
+        existing.push(order);
+        localStorage.setItem(key, JSON.stringify(existing));
+      } catch (err) {
+        console.error('[Bestellen] Speichern lokal fehlgeschlagen:', err);
+      }
+
+      state.cart = [];
+      refreshCartUi();
+      closeLayer(els.checkoutModal);
+
+      const channelLabel = state.channel === 'sb' ? 'SB-Kühlschrank' : 'Bedientheke';
+      document.getElementById('confirm-body').textContent =
+        `${name}, wir bereiten deine Bestellung für ${day.label}, ${slot.label} (${channelLabel}) vor. Du bekommst eine SMS, sobald alles bereitsteht.`;
+      document.getElementById('confirm-ref').textContent = `Referenz: ${ref}`;
+      openLayer(els.confirmModal);
+      document.getElementById('checkout-form').reset();
+      document.getElementById('nature-accept').checked = false;
+    });
+
+    document.getElementById('btn-confirm-done').addEventListener('click', () => {
+      closeLayer(els.confirmModal);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Escape schließt oberste Schicht
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (els.confirmModal.classList.contains('is-open')) return closeLayer(els.confirmModal);
+      if (els.checkoutModal.classList.contains('is-open')) return closeLayer(els.checkoutModal);
+      if (els.cutModal.classList.contains('is-open')) return closeLayer(els.cutModal);
+      if (els.cartDrawer.classList.contains('is-open')) return closeLayer(els.cartDrawer);
+    });
+
+    // Initial: alle Overlay-Layer hart verstecken (FOUC-Schutz)
+    closeAllLayers();
+    renderCatalog();
+    refreshCartUi();
+    applySimulator(null);
+    setChannel('counter');
+  </script>
+</body>
+</html>
