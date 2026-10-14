@@ -103,6 +103,8 @@
     }
     .drawer-header {
       padding-top: max(16px, env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+      background: #fff;
     }
     .drawer-close-x {
       min-width: 44px;
@@ -119,10 +121,27 @@
     }
     .drawer-footer {
       padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+      flex-shrink: 0;
+      background: #fff;
+    }
+    #drawer-cart {
+      overscroll-behavior: none;
     }
     #drawer-cart aside {
       width: min(100vw, 28rem);
       max-width: 100%;
+      height: 100%;
+      max-height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    body.layer-scroll-lock {
+      overflow: hidden;
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100%;
     }
     @media (max-width: 640px) {
       #drawer-cart aside {
@@ -130,18 +149,10 @@
         max-width: 100%;
         left: 0;
         right: 0;
-      }
-      #drawer-cart .drawer-header,
-      #drawer-cart .drawer-footer {
-        position: sticky;
-        z-index: 2;
-        background: #fff;
-      }
-      #drawer-cart .drawer-header {
         top: 0;
-      }
-      #drawer-cart .drawer-footer {
         bottom: 0;
+        height: 100dvh;
+        max-height: 100dvh;
       }
       /* Zuschnitt-Modal: Absenden bleibt über der Safari-Leiste */
       #modal-cut .cut-modal-panel {
@@ -618,12 +629,34 @@
       setTimeout(() => el.remove(), durationMs);
     }
 
+    let lockedScrollY = 0;
+
+    function lockBodyScroll() {
+      if (document.body.classList.contains('layer-scroll-lock')) return;
+      lockedScrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.classList.add('layer-scroll-lock');
+      document.body.style.top = `-${lockedScrollY}px`;
+    }
+
+    function unlockBodyScroll() {
+      if (!document.body.classList.contains('layer-scroll-lock')) return;
+      document.body.classList.remove('layer-scroll-lock');
+      document.body.style.top = '';
+      window.scrollTo(0, lockedScrollY);
+    }
+
     function openLayer(el) {
       if (!el) return;
+      lockBodyScroll();
       el.classList.add('is-open');
       el.style.display = el.id === 'drawer-cart' ? 'block' : 'flex';
       el.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
+      if (el.id === 'drawer-cart') {
+        const header = el.querySelector('.drawer-header');
+        if (header) header.scrollIntoView({ block: 'start' });
+        const items = document.getElementById('cart-items');
+        if (items) items.scrollTop = 0;
+      }
     }
 
     function closeLayer(el) {
@@ -632,7 +665,7 @@
       el.style.display = 'none';
       el.setAttribute('aria-hidden', 'true');
       const anyOpen = [...document.querySelectorAll('.modal-layer.is-open, .drawer-layer.is-open')].length > 0;
-      if (!anyOpen) document.body.style.overflow = '';
+      if (!anyOpen) unlockBodyScroll();
     }
 
     function closeAllLayers() {
