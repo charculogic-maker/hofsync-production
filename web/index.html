@@ -1,13 +1,83 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <script type="module" src="/branding.js"></script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#28a745">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1c130e">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1c130e">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c130e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="">
+  <!-- Kritischer Boot-Hintergrund: verhindert weißen FOUC bevor style.css/app.js laden. -->
+  <style id="boot-splash-css">
+    html, body {
+      background-color: #1c130e !important;
+      color: #f5ede6;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+  <script>
+    /* Synchrones Theme-/Mandantenfarben-Boot — vor externem CSS/JS, kein spätes Repaint. */
+    (function bootThemeSplash() {
+      var BOOT_BG = '#1c130e';
+      try {
+        var root = document.documentElement;
+        var theme = localStorage.getItem('charculogic.theme')
+          || localStorage.getItem('charculogic_theme');
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ? 'dark'
+            : 'light';
+        }
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+
+        var brandBg = localStorage.getItem('charculogic_brand_bg');
+        var bootBg = (brandBg && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(brandBg))
+          ? brandBg
+          : BOOT_BG;
+        root.style.setProperty('--boot-bg', bootBg);
+        root.style.setProperty('--dark-header-bg', bootBg);
+        if (theme === 'dark') {
+          root.style.setProperty('--bg-color', bootBg);
+        }
+
+        var primary = localStorage.getItem('charculogic_brand_primary');
+        if (primary && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(primary)) {
+          root.style.setProperty('--primary-color', primary);
+        }
+
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < metas.length; i += 1) {
+          metas[i].setAttribute('content', bootBg);
+        }
+
+        // Synchroner Mandantentitel vor async Branding/Firestore — verhindert Flash.
+        var brandTitle = localStorage.getItem('charculogic_brand_title');
+        if (!brandTitle || !String(brandTitle).trim()) {
+          brandTitle = 'StevesHof Hofladen';
+          try { localStorage.setItem('charculogic_brand_title', brandTitle); } catch (e2) {}
+        }
+        window.__charculogicBootBrandTitle = String(brandTitle).trim();
+        function paintBootBrandTitle() {
+          var title = window.__charculogicBootBrandTitle || 'StevesHof Hofladen';
+          var nodes = document.querySelectorAll('.brand-betriebs-name');
+          for (var n = 0; n < nodes.length; n += 1) {
+            nodes[n].textContent = title;
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', paintBootBrandTitle);
+        } else {
+          paintBootBrandTitle();
+        }
+      } catch (e) { /* private mode / blocked storage */ }
+    })();
+  </script>
+  <script type="module" src="/branding.js"></script>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <link rel="manifest" id="pwa-manifest" href="/manifest.json">
   <script>
     /* Frühes Shell-Fallback für /dev-dashboard — noch bevor Module (app.js) laden. */
@@ -66,6 +136,9 @@
     window.forceAppUpdate = async function forceAppUpdate() {
       if (window.__forceAppUpdateRunning) return;
       window.__forceAppUpdateRunning = true;
+      try {
+        localStorage.setItem('charculogic.lastAppUpdateAt', new Date().toISOString());
+      } catch (_) { /* private mode / blocked storage */ }
       const hardReload = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('appUpdate', String(Date.now()));
@@ -106,16 +179,18 @@
     };
 
     window.fallbackShowTab = function fallbackShowTab(tabId) {
-      const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
+      const betriebsName = window.BRANDING?.betriebsName
+        || window.__charculogicBootBrandTitle
+        || 'StevesHof Hofladen';
       const pageMap = {
-        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Tagesinfo' },
-        team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
-        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
-        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
-        chargenDoku: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
-        traceability: { page: 'page-chargen-doku', title: 'Thekenbuch', subtitle: 'Chargen-Doku' },
-        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
-        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
+        teamboard: { page: 'page-teamboard', title: 'Start' },
+        team: { page: 'page-team', title: 'Team' },
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor' },
+        receiving: { page: 'page-receiving', title: 'Wareneingang' },
+        chargenDoku: { page: 'page-chargen-doku', title: 'Doku' },
+        traceability: { page: 'page-chargen-doku', title: 'Doku' },
+        kitchen: { page: 'page-kitchen', title: 'Prod.' },
+        knowledge: { page: 'page-knowledge', title: 'Wissen' },
       };
       const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
       const target = pageMap[preferred] || pageMap.chargenDoku || pageMap.mhd;
@@ -132,22 +207,25 @@
       const headerTitle = document.getElementById('header-title');
       const headerSubtitle = document.getElementById('header-subtitle');
       if (headerTitle) headerTitle.textContent = target.title;
-      if (headerSubtitle) headerSubtitle.textContent = target.subtitle;
+      // Branding-Slot bleibt Mandantenname — kein Modul-Untertitel.
+      if (headerSubtitle) headerSubtitle.textContent = betriebsName;
       document.getElementById('app-content')?.scrollTo?.(0, 0);
       return true;
     };
   </script>
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
+  <!-- Firebase SDK sync (kein defer/async) — muss vor auth.js/app.js-Modulen liegen. -->
   <script src="/libs/firebase-app.js"></script>
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
   <script src="/libs/firebase-storage.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260725-chargendoku-header">
+  <link rel="stylesheet" href="/style.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
 </head>
 <body>
 
@@ -174,8 +252,8 @@
         <header class="app-header">
           <div class="tenant-header" id="tenant-header" aria-label="Aktueller Betrieb">
             <img
-              class="tenant-header-logo"
-              id="tenant-header-logo"
+              class="tenant-header-logo brand-logo"
+              id="cldc-logo"
               src="/icon-192.png"
               alt=""
               width="40"
@@ -183,7 +261,7 @@
               decoding="async"
             />
             <div class="tenant-header-text app-title-group">
-              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">Betriebs-Leitstand</span>
+              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
               <h1 class="tenant-header-page" id="header-title">MHD-Monitor</h1>
             </div>
           </div>
@@ -206,6 +284,15 @@
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Wissen</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro</button>
+                <a
+                  class="admin-header-dropdown-item admin-header-dropdown-item--dashboard nav-mobile-admin-link"
+                  id="admin-header-dashboard-link"
+                  href="/dev-dashboard"
+                  role="menuitem"
+                  data-admin-module="dashboard"
+                  hidden
+                  style="display: none;"
+                >🛠️ Verwaltung</a>
               </div>
             </div>
             <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
@@ -228,13 +315,24 @@
               <span class="app-version-label" data-app-version-label>v1.4.0</span>
               <span class="app-version-status" data-app-version-status>System aktuell</span>
             </button>
-            <div class="employee-session-badge" id="employee-session-badge" style="display: none;">
+            <button
+              type="button"
+              id="btn-team"
+              class="employee-session-badge btn-team-switch"
+              style="display: none;"
+              aria-label="Mitarbeiter wechseln"
+              title="Mitarbeiter wechseln"
+            >
               <span id="employee-session-name"></span>
-            </div>
-            <button id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
+            </button>
+            <button type="button" id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
             <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
         </header>
+
+        <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
+          <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
+        </div>
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
@@ -251,7 +349,7 @@
                 >← Zurück zur App</button>
                 <div class="tenant-header tenant-header--admin" id="dev-dashboard-tenant-header" aria-label="Aktueller Betrieb">
                   <img
-                    class="tenant-header-logo"
+                    class="tenant-header-logo brand-logo"
                     id="dev-dashboard-tenant-logo"
                     src="/icon-192.png"
                     alt=""
@@ -260,7 +358,7 @@
                     decoding="async"
                   />
                   <div class="tenant-header-text dev-dashboard-topbar-titles">
-                    <span class="tenant-header-name brand-betriebs-name">Betriebs-Leitstand</span>
+                    <span class="tenant-header-name brand-betriebs-name">StevesHof Hofladen</span>
                     <h1 class="dev-dashboard-page-title">Verwaltung</h1>
                     <p class="dev-dashboard-status" id="dev-dashboard-status" aria-live="polite">Lade…</p>
                   </div>
@@ -282,6 +380,15 @@
                   type="button"
                   class="dev-dashboard-tab"
                   role="tab"
+                  id="dev-dashboard-tab-settings"
+                  data-dev-tab="settings"
+                  aria-selected="false"
+                  aria-controls="dev-dashboard-view-settings"
+                >Mein Betrieb</button>
+                <button
+                  type="button"
+                  class="dev-dashboard-tab"
+                  role="tab"
                   id="dev-dashboard-tab-users"
                   data-dev-tab="users"
                   aria-selected="false"
@@ -291,11 +398,12 @@
                   type="button"
                   class="dev-dashboard-tab"
                   role="tab"
-                  id="dev-dashboard-tab-settings"
-                  data-dev-tab="settings"
+                  id="dev-dashboard-tab-platform"
+                  data-dev-tab="platform"
                   aria-selected="false"
-                  aria-controls="dev-dashboard-view-settings"
-                >Einstellungen</button>
+                  aria-controls="dev-dashboard-view-platform"
+                  hidden
+                >Plattform &amp; Mandanten</button>
                 <button
                   type="button"
                   class="dev-dashboard-tab"
@@ -337,7 +445,7 @@
                   </div>
                   <div class="dev-dashboard-overview-actions">
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="users">Zur Nutzerverwaltung</button>
-                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu den Einstellungen</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu meinem Betrieb</button>
                   </div>
                 </section>
               </div>
@@ -447,9 +555,9 @@
               <div id="dev-dashboard-view-settings" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-settings" hidden>
                 <div class="dev-dashboard-grid">
                   <section class="dev-dashboard-panel" aria-label="Betriebseinstellungen">
-                    <h2 class="dev-dashboard-section-title">Betriebseinstellungen</h2>
+                    <h2 class="dev-dashboard-section-title">Mein Betrieb</h2>
                     <p class="dev-dashboard-intro">
-                      Firmenname und Logo für die Anzeige in unserer App. Modul-Freischaltungen gelten sofort auf allen Laden-iPhones.
+                      Firmenname, Logo und freigeschaltete Module für den ausgewählten Betrieb.
                     </p>
                     <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
                       <label class="dev-dashboard-field" for="dev-dashboard-settings-name">
@@ -467,6 +575,38 @@
                           <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
                         </div>
                       </div>
+                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
+                        <legend>Modul-Freischaltung</legend>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
+                          MHD-Monitor, Wareneingang, Wurstküche, HACCP, Teamboard sowie Büro und Chargen.
+                        </p>
+                        <div class="dev-dashboard-permissions-row">
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="mhd">
+                            <span>MHD-Monitor</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="receiving">
+                            <span>Wareneingang</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="kitchen">
+                            <span>Wurstküche &amp; Rezepte</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="haccp">
+                            <span>HACCP</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="start">
+                            <span>Teamboard</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="buero">
+                            <span>Büro &amp; Chargen</span>
+                          </label>
+                        </div>
+                      </fieldset>
                       <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>MHD-Karten-Aktionen</legend>
                         <p class="dev-dashboard-intro">
@@ -491,19 +631,23 @@
                           </label>
                         </div>
                       </fieldset>
-                      <button type="submit" class="dev-dashboard-submit-btn">Einstellungen speichern</button>
+                      <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
                   </section>
+                </div>
+              </div>
 
+              <div id="dev-dashboard-view-platform" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-platform" hidden>
+                <div class="dev-dashboard-grid">
                   <section
                     class="dev-dashboard-panel dev-dashboard-panel--global"
                     id="dev-dashboard-global-panel"
                     aria-label="Alle Betriebe"
                   >
-                    <h2 class="dev-dashboard-section-title">Betriebe (Plattform)</h2>
+                    <h2 class="dev-dashboard-section-title">Plattform &amp; Mandanten</h2>
                     <p class="dev-dashboard-intro">
-                      Module pro Betrieb aktivieren oder deaktivieren. Änderungen gelten sofort für alle Geräte.
+                      Neuen Betrieb anlegen, einen Interessenten-Zugang erzeugen und Module je Mandant schalten.
                     </p>
 
                     <div class="dev-dashboard-tenant-create">
@@ -585,6 +729,60 @@
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-tenant-form-status" aria-live="polite"></p>
                     </div>
 
+                    <div
+                      class="dev-dashboard-tenant-create fast-onboarding-card"
+                      data-fast-onboarding-card
+                      hidden
+                      aria-label="Interessenten-Zugang / Test-Mandant anlegen"
+                    >
+                      <h3 class="dev-dashboard-subsection-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</h3>
+                      <p class="dev-dashboard-intro">
+                        Sofort sauberen Test-Mandanten anlegen und 1-Klick-Einladungs-Link für Meisterschüler generieren.
+                      </p>
+                      <form class="fast-onboarding-form" data-fast-onboarding-form>
+                        <label class="dev-dashboard-field">
+                          <span>Betriebsname</span>
+                          <input name="companyName" type="text" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>Inhaber / Meister</span>
+                          <input name="adminName" type="text" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
+                        </label>
+                        <label class="dev-dashboard-field">
+                          <span>E-Mail-Adresse</span>
+                          <input name="adminEmail" type="email" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
+                        </label>
+                        <fieldset class="dev-dashboard-permissions-fieldset fast-onboarding-modules">
+                          <legend>Modul-Freischaltung</legend>
+                          <div class="dev-dashboard-permissions-row">
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="mhdMonitor" checked><span>MHD-Monitor</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wareneingang" checked><span>Wareneingang (Barcode-Scan)</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="wurstkueche" checked><span>Wurstküche &amp; BEFFE-Kalkulation</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="haccp" checked><span>HACCP-Tageskontrollen</span></label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-fast-mod="zerlegung" checked><span>Galloway-Zerlegung &amp; Avery 3475 Etiketten</span></label>
+                          </div>
+                        </fieldset>
+                        <button type="submit" class="dev-dashboard-submit-btn fast-onboarding-submit" data-fast-submit>
+                          <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                          <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
+                        </button>
+                      </form>
+                      <p class="dev-dashboard-employee-status" data-fast-onboarding-status hidden role="status"></p>
+                      <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                        <p class="dev-dashboard-intro">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                        <p class="dev-dashboard-intro" data-fast-onboarding-meta></p>
+                        <label class="dev-dashboard-field">
+                          <span>Einladungs-Link</span>
+                          <input type="text" data-fast-invite-link readonly>
+                        </label>
+                        <div class="fast-onboarding-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-copy-link>📋 Link kopieren</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-whatsapp>💬 Per WhatsApp senden</button>
+                          <button type="button" class="dev-dashboard-submit-btn" data-fast-reset>🔄 Weiteren Mandanten anlegen</button>
+                        </div>
+                      </div>
+                    </div>
+
                     <div class="dev-dashboard-table-wrap">
                       <table class="dev-dashboard-table dev-dashboard-table--tenants">
                         <thead>
@@ -600,42 +798,6 @@
                     </div>
                   </section>
 
-                  <section
-                    class="dev-dashboard-panel dev-dashboard-panel--single"
-                    id="dev-dashboard-single-panel"
-                    hidden
-                    aria-label="Eigener Betrieb"
-                  >
-                    <h2 class="dev-dashboard-section-title">Module für unseren Betrieb</h2>
-                    <p class="dev-dashboard-intro">
-                      Module für unseren Betrieb aktivieren oder deaktivieren. Darunter steuern wir die MHD-Karten-Buttons Küche und Box.
-                    </p>
-                    <div id="dev-dashboard-single-tenant" class="dev-dashboard-single-tenant-wrap"></div>
-                    <fieldset class="dev-dashboard-permissions-fieldset dev-dashboard-mhd-ui-fieldset">
-                      <legend>MHD-Karten-Aktionen</legend>
-                      <p class="dev-dashboard-intro">
-                        Buttons <strong>Küche</strong> und <strong>Box</strong> in der MHD-Karte (lokal auf diesem Gerät, Standard: aus).
-                      </p>
-                      <div class="dev-dashboard-toggles" id="dev-dashboard-mhd-card-toggles-modules">
-                        <label class="dev-dashboard-toggle" title="Küche-Button in der MHD-Karte">
-                          <input
-                            id="dev-dashboard-mhd-show-kitchen-modules"
-                            type="checkbox"
-                            data-mhd-ui-key="mhd_show_kitchen"
-                          >
-                          <span>Küche-Button</span>
-                        </label>
-                        <label class="dev-dashboard-toggle" title="Box-Button in der MHD-Karte">
-                          <input
-                            id="dev-dashboard-mhd-show-box-modules"
-                            type="checkbox"
-                            data-mhd-ui-key="mhd_show_box"
-                          >
-                          <span>Box-Button</span>
-                        </label>
-                      </div>
-                    </fieldset>
-                  </section>
                 </div>
               </div>
 
@@ -672,11 +834,8 @@
                       <span>Mitarbeiter</span>
                       <select id="dev-dashboard-report-actor" aria-label="Nach Mitarbeiter filtern">
                         <option value="">Alle</option>
-                        <option value="Paddy">Paddy</option>
-                        <option value="Stephie">Stephie</option>
-                        <option value="Bettina">Bettina</option>
-                        <option value="Nicole">Nicole</option>
-                        <option value="Heiko">Heiko</option>
+                        <option value="Mitarbeiter 1">Mitarbeiter 1</option>
+                        <option value="Mitarbeiter 2">Mitarbeiter 2</option>
                       </select>
                     </label>
                     <label class="dev-dashboard-field" for="dev-dashboard-report-action">
@@ -889,7 +1048,30 @@
               </div>
 
               <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
-                <div class="customer-order-section task-token-section" id="customer-order-section">
+                <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="aufnahme" role="tab" aria-selected="false">Bestellung aufnehmen</button>
+                </div>
+
+                <div id="orders-view-zuschnitt" class="customer-order-section task-token-section hidden" hidden>
+                  <h2 class="task-token-heading">Sammel-Zuschnittliste</h2>
+                  <p class="customer-order-hint" id="zuschnittliste-summary">Aggregation für Zerlegung, Wurstküche &amp; Ladenwolf.</p>
+                  <div class="zuschnittliste-view-toolbar">
+                    <div class="zuschnittliste-day-filters">
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="fri">Kommender Freitag</button>
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="sat">Kommender Samstag</button>
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="today">Heute</button>
+                    </div>
+                    <label class="form-label" for="zuschnittliste-date">Abholtag</label>
+                    <input type="text" id="zuschnittliste-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+                    <button type="button" class="btn btn-primary" id="zuschnittliste-print-btn">Für Metzgerei drucken (A4)</button>
+                  </div>
+                  <div id="zuschnittliste-body" class="zuschnittliste-body"></div>
+                </div>
+
+                <div id="orders-view-aufnahme" class="customer-order-section task-token-section hidden" hidden>
+                <div id="customer-order-section">
                   <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
                   <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
                   <form id="customer-order-form" class="customer-order-form">
@@ -939,25 +1121,44 @@
                     <button type="submit" class="btn btn-primary">Bestellung speichern</button>
                   </form>
                 </div>
+                </div>
 
-                <div class="customer-order-section task-token-section production-tasks-section" id="production-tasks-section">
+                <div id="orders-view-packtisch" class="customer-order-section task-token-section">
+                <div class="production-tasks-section" id="production-tasks-section">
                   <h2 class="task-token-heading">Produktions-Aufträge</h2>
                   <div class="production-tasks-grid">
                     <section class="production-station-card" aria-label="In der Küche zu tun">
-                      <h3>🍳 Heute zu kochen (Küche)</h3>
+                      <h3>Heute zu kochen (Küche)</h3>
                       <div id="production-tasks-kitchen"></div>
                     </section>
                     <section class="production-station-card" aria-label="In der Metzgerei zu tun">
-                      <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                      <h3>Heute zu zerlegen/packen (Metzgerei)</h3>
                       <div id="production-tasks-butchery"></div>
                     </section>
                   </div>
                 </div>
 
-                <div class="customer-order-section task-token-section">
-                  <h2 class="task-token-heading">Offene Bestellungen</h2>
+                <div>
+                  <h2 class="task-token-heading">Packtisch / Kisten-Kommissionierung</h2>
+                  <p class="customer-order-hint">Sortiert nach Abholtag und Zeitfenster (Theke vor SB-Kühlschrank). Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt.</p>
                   <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
                   <div id="customer-order-list" class="customer-order-list"></div>
+                </div>
+                </div>
+              </div>
+
+              <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
+
+              <div class="avery-label-modal" id="avery-label-modal" hidden role="dialog" aria-modal="true" aria-labelledby="avery-label-title">
+                <div class="avery-label-view">
+                  <header class="avery-label-toolbar">
+                    <h2 id="avery-label-title">Avery-Etikett / Kistenbon</h2>
+                    <div class="delivery-note-toolbar-actions">
+                      <button type="button" class="btn btn-secondary btn-compact" id="avery-label-close-btn">Schließen</button>
+                      <button type="button" class="btn btn-primary btn-compact" id="avery-label-print-btn">Drucken (70×36 mm)</button>
+                    </div>
+                  </header>
+                  <div id="avery-label-print-area"></div>
                 </div>
               </div>
 
@@ -978,7 +1179,7 @@
                   <div class="mhd-search-panel" id="mhd-search-panel">
                     <input type="search" class="input-text-touch mhd-search-input" id="mhd-search-input" placeholder="Artikelname oder EAN…" aria-label="MHD-Artikel suchen" autocomplete="off" inputmode="search">
                     <button type="button" class="mhd-search-scan" id="mhd-search-scan" aria-label="EAN scannen">📷</button>
-                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">✕</button>
+                    <button type="button" class="mhd-search-clear" id="mhd-search-clear" aria-label="Suche leeren">&#10005;</button>
                     <div class="mhd-completion-toggle" id="mhd-completion-toggle" role="group" aria-label="Tageslauf-Ansicht">
                       <button type="button" class="mhd-completion-btn is-active" data-mhd-completion-filter="offen" aria-pressed="true">Offen (0)</button>
                       <button type="button" class="mhd-completion-btn" data-mhd-completion-filter="erledigt" aria-pressed="false">Erledigt (0)</button>
@@ -1007,6 +1208,13 @@
                         <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>
+                    <button
+                      type="button"
+                      class="mhd-zero-qty-toggle"
+                      id="mhd-zero-qty-toggle"
+                      aria-pressed="false"
+                      hidden
+                    >👁️ 0er-Bestände anzeigen</button>
                   </div>
                   <div class="mhd-render-limit-hint mhd-toolbar-limit-hint hidden" id="mhd-toolbar-limit-hint" role="status" aria-live="polite"></div>
                 </div>
@@ -1031,15 +1239,67 @@
               </div>
             </details>
 
-            <div class="mhd-list" id="mhd-items-container">
-              <!-- Cards are rendered dynamically by app.js -->
+            <div class="mhd-list" id="mhd-items-container" data-mhd-render-mode="loading" aria-busy="true">
+              <div class="mhd-loading-hint" role="status" aria-live="polite">
+                <div class="mhd-loading-skeleton" aria-hidden="true">
+                  <div class="mhd-skeleton-card"></div>
+                  <div class="mhd-skeleton-card"></div>
+                  <div class="mhd-skeleton-card"></div>
+                </div>
+                <div class="mhd-loading-spinner" aria-hidden="true"></div>
+                <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
+              </div>
             </div>
           </div>
 
           <div class="page" id="page-receiving">
             <div class="haccp-card receiving-card">
               <div class="section-title">Wareneingang</div>
-              <p class="learn-mode-desc">Schnellerfassung für Posten im Alltag. Metzgerei für Lieferant, Temperatur und Lieferschein-Fotos (morgens als Entwurf, nachmittags Posten nachtragen).</p>
+
+              <section class="receiving-section receiving-section--supplier-head" aria-labelledby="we-supplier-head-title">
+                <h3 class="receiving-section-title" id="we-supplier-head-title">Lieferant</h3>
+                <div class="receiving-form-stack">
+                  <div class="receiving-supplier-row">
+                    <label class="receiving-field receiving-field--supplier" for="we-supplier">
+                      <span>Lieferant</span>
+                      <select id="we-supplier" class="gastro-input" autocomplete="organization">
+                        <option value="">-- Lieferant wählen --</option>
+                        <option value="Stautenhof">Stautenhof</option>
+                        <option value="Naturverbund">Naturverbund</option>
+                        <option value="Bio Hof Frohnenbruch">Bio Hof Frohnenbruch</option>
+                        <option value="Eigener Wareneingang">Eigener Wareneingang</option>
+                        <option value="Großhandel">Großhandel</option>
+                        <option value="__sonstige__">Sonstige</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label class="receiving-field hidden" id="we-supplier-custom-wrap" for="we-supplier-custom">
+                    <span>Name bei Sonstige</span>
+                    <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
+                  </label>
+                  <div class="receiving-field receiving-temp-head" id="we-temperature-head-wrap">
+                    <label class="receiving-temp-head-label" for="we-temperature-head">
+                      <span>Liefertemperatur °C (Optional)</span>
+                    </label>
+                    <div class="receiving-temp-head-row">
+                      <input
+                        type="number"
+                        id="we-temperature-head"
+                        class="gastro-input receiving-temp-head-input"
+                        placeholder="z. B. 4.2"
+                        step="0.1"
+                        inputmode="decimal"
+                        aria-required="false"
+                      >
+                      <div class="receiving-temp-presets" role="group" aria-label="Temperatur-Schnellwahl">
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="3">3 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="5">5 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="7">7 °C</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <div class="receiving-mode-switch" role="tablist" aria-label="Wareneingang Bereich">
                 <button type="button" class="receiving-mode-tab active" id="receiving-mode-schnell" data-receiving-mode="schnell" role="tab" aria-selected="true" aria-controls="receiving-panel-schnell">
@@ -1062,8 +1322,8 @@
                       <option value="" selected>-- Kategorie wählen --</option>
                     </select>
                   </label>
-                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
-                    <span>Initiale Temperatur (°C) · nur TK/Kühlware</span>
+                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature" hidden>
+                    <span>Initiale Temperatur (°C) · optional</span>
                     <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                   <button class="btn btn-primary btn-receiving-scan" id="btn-receiving-scan" type="button">
@@ -1088,7 +1348,7 @@
                     <span>Produktname</span>
                     <input type="text" id="we-product-name" class="gastro-input" placeholder="Produktname eingeben oder per Scan übernehmen…" autocomplete="off">
                   </label>
-                  <label class="receiving-field" for="we-hersteller-zusatz">
+                  <label class="receiving-field" id="we-hersteller-zusatz-wrap" for="we-hersteller-zusatz">
                     <span>Hersteller / Zusatz</span>
                     <input type="text" id="we-hersteller-zusatz" class="gastro-input" placeholder="z. B. Bauer Meier, im Glas, Frisch in Pack" autocomplete="off">
                   </label>
@@ -1102,7 +1362,7 @@
                   </label>
                   <label class="receiving-field" for="we-mhd">
                     <span>MHD</span>
-                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}">
+                    <input type="text" id="we-mhd" class="gastro-input input-date-de" placeholder="TT.MM.JJJJ oder MMJJ" inputmode="numeric" autocomplete="off" maxlength="10" pattern="[0-9.\/\-]{4,10}">
                   </label>
                 </div>
                 <button type="button" class="btn btn-secondary btn-receiving-add-item" id="we-add-item-btn">
@@ -1114,15 +1374,11 @@
               </section>
 
               <div class="receiving-tool-row">
-                <button class="btn btn-primary btn-receiving-tool btn-delivery-parser" id="btn-delivery-parser" type="button" hidden>📸 Lieferschein fotografieren / hochladen</button>
-                <input type="file" id="delivery-parser-file-input" accept="image/*" capture="environment" hidden>
-                <button class="btn btn-primary btn-receiving-tool" id="btn-delivery-note-ai" type="button" hidden>📸 Lieferschein scannen (KI)</button>
-                <input type="file" id="delivery-note-file-input" accept="image/*" capture="environment" hidden>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-recent-receipts" type="button">Letzte Eingänge</button>
                 <button class="btn btn-secondary btn-receiving-tool" id="btn-master-data" type="button">Stammdaten</button>
               </div>
               <div class="batch-audit-grid receiving-stats">
-                <div>
+                <div class="receiving-vpe-stat">
                   <span class="batch-audit-label">VPE-Stamm</span>
                   <strong id="receiving-vpe-count">-</strong>
                 </div>
@@ -1139,35 +1395,100 @@
 
               <div id="receiving-panel-metzgerei" class="receiving-mode-panel hidden" role="tabpanel" aria-labelledby="receiving-mode-metzgerei" hidden>
               <section class="receiving-section receiving-section--kopf receiving-section--metzgerei" aria-labelledby="we-kopf-title">
-                <h3 class="receiving-section-title" id="we-kopf-title">Lieferant &amp; Lieferschein</h3>
+                <h3 class="receiving-section-title" id="we-kopf-title">Temperatur &amp; Lieferschein</h3>
                 <div class="receiving-form-stack">
-                  <div class="receiving-supplier-row">
-                    <label class="receiving-field receiving-field--supplier" for="we-supplier">
-                      <span>Lieferant</span>
-                      <input type="text" id="we-supplier" class="gastro-input" placeholder="Lieferant (z. B. Bauer Meier)" autocomplete="organization">
-                    </label>
-                    <button type="button" class="btn btn-eigenproduktion" id="we-eigenproduktion-btn" title="Lieferant auf Eigene Produktion setzen">
-                      🏠 Eigenproduktion
-                    </button>
-                  </div>
                   <label class="receiving-field" for="we-category">
-                    <span>Waren-Kategorie</span>
+                    <span>Warengruppe</span>
                     <select id="we-category" class="gastro-input">
-                      <option value="Fremdfleisch" selected>Fremdfleisch</option>
+                      <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)</option>
+                      <option value="Lohnschlachtung Geflügel">🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)</option>
+                      <option value="Bio-Schwein Zukauf">🐷 Bio-Schwein Zukauf (Hälften / Ganze / Teilstücke)</option>
+                      <option value="Zukauffleisch Rind/Kalb (Fremdbezug)">Zukauffleisch Rind/Kalb (Fremdbezug)</option>
+                      <option value="Geflügel Zukauf (Fremdbezug)">Geflügel Zukauf (Fremdbezug)</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
-                      <option value="Geflügel Zukauf">Geflügel Zukauf</option>
-                      <option value="Gewürze Metzgerei">Gewürze Metzgerei</option>
+                      <option value="Gewürze &amp; Hilfsstoffe">Gewürze &amp; Hilfsstoffe</option>
                     </select>
                   </label>
+                  <div id="we-slaughter-rind-fields" class="receiving-slaughter-fields receiving-slaughter-fields--rind" hidden>
+                    <label class="receiving-field" for="we-klassifizierung">
+                      <span>Klassifizierung / Kategorie</span>
+                      <input type="text" id="we-klassifizierung" class="gastro-input" list="we-klassifizierung-suggestions" placeholder="z. B. Ochse, Färse, R3, U2" autocomplete="off">
+                      <datalist id="we-klassifizierung-suggestions">
+                        <option value="Ochse"></option>
+                        <option value="Färse"></option>
+                        <option value="Kuh"></option>
+                        <option value="Jungbulle"></option>
+                        <option value="R3"></option>
+                        <option value="U2"></option>
+                        <option value="U3"></option>
+                        <option value="O3"></option>
+                      </datalist>
+                    </label>
+                    <label class="receiving-field" for="we-schlachtdatum-rind">
+                      <span>Schlachtdatum</span>
+                      <input type="date" id="we-schlachtdatum-rind" class="gastro-input" autocomplete="off">
+                    </label>
+                    <label class="receiving-field" for="we-ohrmarke">
+                      <span>Ohrmarke / Tier-ID <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 … (falls am Viertel vermerkt)" autocomplete="off" inputmode="text">
+                    </label>
+                    <label class="receiving-field" for="we-schlachtgewicht">
+                      <span>Schlachtgewicht (kg) <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="number" id="we-schlachtgewicht" class="gastro-input" placeholder="kg (optional)" step="0.1" min="0" inputmode="decimal">
+                    </label>
+                    <p id="we-lot-preview" class="receiving-lot-preview" hidden role="status"></p>
+                  </div>
+                  <div id="we-slaughter-poultry-fields" class="receiving-slaughter-fields receiving-slaughter-fields--poultry" hidden>
+                    <label class="receiving-field" for="we-schlachtdatum-poultry">
+                      <span>Schlachtdatum</span>
+                      <input type="date" id="we-schlachtdatum-poultry" class="gastro-input" autocomplete="off">
+                    </label>
+                    <label class="receiving-field" for="we-stueck-kisten">
+                      <span>Stückzahl / Kistenanzahl</span>
+                      <input type="text" id="we-stueck-kisten" class="gastro-input" placeholder="z. B. 24 Stk / 2 Kisten" autocomplete="off">
+                    </label>
+                  </div>
+                  <div id="we-slaughter-pork-fields" class="receiving-slaughter-fields receiving-slaughter-fields--pork" hidden>
+                    <label class="receiving-field" for="we-lieferschein-nr">
+                      <span>Lieferschein-Nr. <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="text" id="we-lieferschein-nr" class="gastro-input" placeholder="LS-Nr. falls vorhanden" autocomplete="off">
+                    </label>
+                    <fieldset class="receiving-field receiving-pork-type-field">
+                      <legend>Art der Lieferung <em class="receiving-optional-hint">(Optional)</em></legend>
+                      <div class="receiving-pork-type-options" role="radiogroup" aria-label="Art der Lieferung">
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Haelften">
+                          <span>Hälften</span>
+                        </label>
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Ganze Tiere">
+                          <span>Ganze Tiere</span>
+                        </label>
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Teilstuecke">
+                          <span>Teilstücke</span>
+                        </label>
+                      </div>
+                    </fieldset>
+                    <label class="receiving-field" for="we-gesamtgewicht">
+                      <span>Gesamtgewicht (kg) <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="number" id="we-gesamtgewicht" class="gastro-input" placeholder="kg (optional)" step="0.1" min="0" inputmode="decimal">
+                    </label>
+                  </div>
                   <label class="receiving-field" for="we-temperature-metz">
-                    <span>Temperatur (°C)</span>
+                    <span id="we-temperature-metz-label">Temperatur (°C) · HACCP ≤ 7,0 °C</span>
                     <input type="number" id="we-temperature-metz" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
+                    <p id="we-temperature-metz-warn" class="receiving-temp-warn" hidden role="alert">⚠️ Grenzwert überschritten (&gt; 7,0 °C). Kühlung und Begleitpapiere prüfen!</p>
                   </label>
                 </div>
-                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="image/*" capture="environment">
+                <input type="file" id="we-photo-input" class="visually-hidden" multiple accept="application/pdf,.pdf,image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif">
                 <button type="button" class="btn btn-primary btn-receiving-photo" id="we-photo-btn">
-                  📸 Lieferscheine fotografieren
+                  📸 Lieferscheine fotografieren / PDF
                 </button>
+                <div id="we-photo-upload-status" class="we-photo-upload-status hidden" role="status" aria-live="polite">
+                  <span class="we-photo-upload-spinner" aria-hidden="true"></span>
+                  <span id="we-photo-upload-status-text">Lieferschein wird geladen…</span>
+                </div>
                 <div id="we-photo-previews" class="we-photo-previews" aria-live="polite"></div>
               </section>
               </div>
@@ -1182,7 +1503,7 @@
               </div>
 
               <section class="receiving-section open-drafts-section open-drafts-section--footer" id="open-drafts-section" aria-labelledby="open-drafts-title">
-                <h3 class="receiving-section-title" id="open-drafts-title">📋 Offene Lieferungen zur Nachbearbeitung</h3>
+                <h3 class="receiving-section-title" id="open-drafts-title">📋 Offene Entwürfe zur Nachbearbeitung</h3>
                 <div id="open-drafts-list" class="open-drafts-list" aria-live="polite">
                   <div class="open-drafts-empty">Keine offenen Entwürfe – alles nachgetragen.</div>
                 </div>
@@ -1314,8 +1635,8 @@
                     <input id="chargen-book-date" type="date">
                   </label>
                 </div>
-                <div class="dev-dashboard-table-wrap">
-                  <table class="dev-dashboard-table" id="chargen-book-table">
+                <div class="dev-dashboard-table-wrap chargen-spreadsheet-wrap">
+                  <table class="dev-dashboard-table chargen-spreadsheet" id="chargen-book-table">
                     <thead>
                       <tr>
                         <th scope="col">LOT</th>
@@ -1330,6 +1651,7 @@
                     <tbody id="chargen-book-body"></tbody>
                   </table>
                 </div>
+                <p class="chargen-spreadsheet-footer" id="chargen-book-footer" aria-live="polite">Zeige 0 von 0 Einträgen</p>
                 <div id="chargen-book-detail" class="dev-trace-detail" aria-live="polite">
                   <p class="dev-dashboard-intro">Eintrag wählen, um Etikett und LMIV-Daten anzuzeigen.</p>
                 </div>
@@ -1341,9 +1663,15 @@
           <!-- SCREEN 2: WURSTKÜCHE PAGE                       -->
           <!-- ============================================== -->
           <div class="page" id="page-kitchen">
+            <section class="theke-recipes-intro" id="theke-recipes-intro" aria-label="Theken-Auskunft">
+              <p class="theke-recipes-kicker">Theken-Auskunft</p>
+              <h2 class="theke-recipes-title">Rezepturen nachschlagen</h2>
+              <p class="theke-recipes-lead">Zutaten, Gewürze, Allergene und Haltbarkeit blitzschnell für Kundenfragen finden.</p>
+            </section>
+
             <details class="kitchen-collapsible" id="kitchen-recipes-panel" open>
               <summary>Rezepte</summary>
-              <details class="kitchen-collapsible kitchen-recipe-create-panel hidden" id="kitchen-recipe-create-panel" hidden>
+              <details class="kitchen-collapsible kitchen-recipe-create-panel kitchen-production-zone hidden" id="kitchen-recipe-create-panel" hidden>
                 <summary>Neues Rezept anlegen</summary>
                 <form class="recipe-create-form" id="recipe-create-form" onsubmit="return false;">
                   <label class="form-label" for="recipe-create-name">Name</label>
@@ -1363,19 +1691,41 @@
                   </button>
                 </form>
               </details>
-              <div class="recipe-toolbar">
-                <input type="search" class="input-text-touch recipe-search-input" id="recipe-search-input" placeholder="🔍 Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
+              <div class="recipe-toolbar theke-recipe-toolbar">
+                <div class="recipe-search-panel">
+                  <input
+                    type="search"
+                    class="input-text-touch recipe-search-input"
+                    id="recipe-search-input"
+                    placeholder="Rezept oder Zutat suchen..."
+                    aria-label="Rezept oder Zutat suchen"
+                    autocomplete="off"
+                  >
+                  <button type="button" class="recipe-search-clear" id="recipe-search-clear" hidden aria-label="Suche leeren">×</button>
+                </div>
+                <div class="recipe-quick-filter" id="recipe-quick-filter" role="group" aria-label="Schnellfilter für die Theke">
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="galloway" aria-pressed="false">Galloway Rind</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="bratwurst" aria-pressed="false">Bratwurst</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="schinken" aria-pressed="false">Schinken</button>
+                  <button type="button" class="recipe-quick-chip" data-recipe-quick="allergenfrei" aria-pressed="false">Allergenfrei</button>
+                </div>
                 <button type="button" class="recipe-filter-button" id="recipe-category-filter-button" aria-expanded="false" aria-controls="recipe-category-sheet">
                   <span class="recipe-filter-button-label" id="recipe-category-filter-label">Alle Kategorien</span>
-                  <span class="recipe-filter-button-icon" aria-hidden="true">▾</span>
+                  <span class="recipe-filter-button-icon chevron-down" aria-hidden="true"></span>
                 </button>
               </div>
               <div class="recipe-list" id="recipe-list-container">
-                <!-- Recipes list rendered dynamically by app.js -->
+                <!-- Recipes list rendered dynamically by production.js / rezepte.js -->
               </div>
             </details>
 
-            <details class="kitchen-collapsible" id="kitchen-wrs-panel">
+            <div class="kitchen-production-mode-bar" id="kitchen-production-mode-bar">
+              <button type="button" class="btn btn-secondary kitchen-production-mode-toggle" id="btn-kitchen-production-mode" aria-pressed="false">
+                Produktions-Modus einblenden
+              </button>
+            </div>
+
+            <details class="kitchen-collapsible kitchen-production-zone" id="kitchen-wrs-panel">
               <summary>WRS Kalkulation</summary>
               <section class="wrs-board" id="wrs-board" aria-labelledby="wrs-title">
                 <div class="wrs-board-header">
@@ -1409,6 +1759,23 @@
                     <span>Zielgewicht kg</span>
                     <input id="target-weight" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0.5" max="500" step="0.5" value="10">
                   </label>
+                  <details class="wrs-loss-details">
+                    <summary>Verluste und Marge</summary>
+                    <div class="wrs-loss-details-body">
+                      <label class="wrs-field" for="wrs-machine-loss">
+                        <span>Maschinenverlust kg</span>
+                        <input id="wrs-machine-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="50" step="0.05" value="0">
+                      </label>
+                      <label class="wrs-field" for="wrs-cook-loss">
+                        <span>Garverlust %</span>
+                        <input id="wrs-cook-loss" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="80" step="0.5" value="0">
+                      </label>
+                      <label class="wrs-field" for="wrs-margin-pct">
+                        <span>Ziel-Marge % (auf VK)</span>
+                        <input id="wrs-margin-pct" class="input-text-touch wrs-number" type="number" inputmode="decimal" min="0" max="75" step="1" value="35">
+                      </label>
+                    </div>
+                  </details>
                   <button type="button" class="btn btn-primary wrs-calc-btn" id="btn-calculate-wrs">Berechnen</button>
                 </div>
 
@@ -1426,6 +1793,14 @@
                   <div class="wrs-metric">
                     <span>BEFFE</span>
                     <strong id="wrs-beffe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>BEFFE im FE</span>
+                    <strong id="wrs-beffe-im-fe-percent">-</strong>
+                  </div>
+                  <div class="wrs-metric">
+                    <span>VK/kg</span>
+                    <strong id="wrs-vk-per-kg">-</strong>
                   </div>
                   <div class="wrs-metric">
                     <span>Fett</span>
@@ -1482,68 +1857,6 @@
               </button>
             </div>
 
-            <div class="haccp-card haccp-legacy-production-card">
-              <div class="section-title">Produktion dokumentieren</div>
-              <p class="learn-mode-desc">Charge, Kerntemperatur und pH-Wert nach der Herstellung festhalten.</p>
-
-              <div class="form-group">
-                <label class="form-label" for="haccp-batch">
-                  <span>Chargen-Nummer</span>
-                </label>
-                <div class="batch-input-grid">
-                  <input type="text" id="haccp-batch" class="input-text-touch" placeholder="z.B. CH-2026-0523" value="CH-2026-0523-A">
-                  <button class="btn btn-primary btn-batch-auto" id="btn-batch-generate">
-                    ⚡ Neu
-                  </button>
-                </div>
-              </div>
-
-              <details class="haccp-collapsible" id="haccp-measurements-panel">
-                <summary>Kerntemperatur &amp; pH-Wert</summary>
-                <div class="haccp-collapsible-body">
-                  <div class="form-group">
-                    <label class="form-label" for="haccp-temp">
-                      <span>Kerntemperatur (°C)</span>
-                      <span class="form-value-badge" id="temp-badge">75.0 °C</span>
-                    </label>
-                    <div class="haccp-slider-container">
-                      <input type="range" id="haccp-temp" class="touch-slider" min="-10.0" max="100.0" step="0.5" value="75.0">
-                      <div class="slider-limits">
-                        <span>❄️ -10°C</span>
-                        <span>🔥 Garziel &gt; 72°C</span>
-                        <span>💨 100°C</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="form-group">
-                    <label class="form-label" for="haccp-ph">
-                      <span>pH-Wert Messung</span>
-                      <span class="form-value-badge" id="ph-badge">5.50</span>
-                    </label>
-                    <div class="haccp-slider-container">
-                      <input type="range" id="haccp-ph" class="touch-slider" min="4.00" max="7.00" step="0.05" value="5.50">
-                      <div class="slider-limits">
-                        <span>🔴 4.0 (Sauer)</span>
-                        <span>🟢 Optimal (5.2 - 5.8)</span>
-                        <span>🔴 7.0 (Alkalisch)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="haccp-status-box" id="haccp-alert-box">
-                    <div class="haccp-status-title" id="haccp-alert-title">Warnung</div>
-                    <div class="haccp-status-desc" id="haccp-alert-desc">Qualität außerhalb der Toleranz!</div>
-                  </div>
-                </div>
-              </details>
-
-              <div class="haccp-submit-bar">
-                <button class="btn btn-submit-haccp" id="btn-submit-haccp">
-                  📝 Protokoll eintragen
-                </button>
-              </div>
-            </div>
           </div>
 
           <!-- ============================================== -->
@@ -1670,6 +1983,100 @@
             </div>
 
             <div id="office-access-content" class="office-access-content">
+            <section
+              class="batch-audit-card fast-onboarding-card"
+              id="fast-onboarding-card"
+              data-fast-onboarding-card
+              hidden
+              aria-label="Interessenten-Zugang / Test-Mandant anlegen"
+            >
+              <div class="batch-audit-title">🚀 Interessenten-Zugang / Test-Mandant anlegen</div>
+              <p class="admin-leitstand-hint">
+                Legt einen sauberen Test-Mandanten an und erzeugt einen 1-Klick-Einladungs-Link für Meisterschüler / Interessenten.
+              </p>
+              <form class="fast-onboarding-form" data-fast-onboarding-form>
+                <label class="form-label" for="fast-onboarding-company">
+                  Betriebsname
+                  <input id="fast-onboarding-company" name="companyName" type="text" class="input-text-touch" required maxlength="80" placeholder="Metzgerei Schmidt" autocomplete="organization">
+                </label>
+                <label class="form-label" for="fast-onboarding-admin-name">
+                  Inhaber / Meister
+                  <input id="fast-onboarding-admin-name" name="adminName" type="text" class="input-text-touch" required maxlength="80" placeholder="Hans Schmidt" autocomplete="name">
+                </label>
+                <label class="form-label" for="fast-onboarding-admin-email">
+                  E-Mail-Adresse
+                  <input id="fast-onboarding-admin-email" name="adminEmail" type="email" class="input-text-touch" required maxlength="120" placeholder="hans@metzgerei-schmidt.de" autocomplete="email">
+                </label>
+                <fieldset class="fast-onboarding-modules">
+                  <legend>Modul-Freischaltung</legend>
+                  <label><input type="checkbox" data-fast-mod="mhdMonitor" checked> MHD-Monitor</label>
+                  <label><input type="checkbox" data-fast-mod="wareneingang" checked> Wareneingang (Barcode-Scan)</label>
+                  <label><input type="checkbox" data-fast-mod="wurstkueche" checked> Wurstküche &amp; BEFFE-Kalkulation</label>
+                  <label><input type="checkbox" data-fast-mod="haccp" checked> HACCP-Tageskontrollen</label>
+                  <label><input type="checkbox" data-fast-mod="zerlegung" checked> Galloway-Zerlegung &amp; Avery 3475 Etiketten</label>
+                </fieldset>
+                <button type="submit" class="btn btn-primary fast-onboarding-submit" data-fast-submit>
+                  <span class="fast-onboarding-spinner" aria-hidden="true"></span>
+                  <span data-fast-submit-label>⚡ Test-Mandant jetzt erstellen</span>
+                </button>
+              </form>
+              <p class="fast-onboarding-status" data-fast-onboarding-status hidden role="status"></p>
+              <div class="fast-onboarding-result" data-fast-onboarding-result hidden>
+                <p class="admin-leitstand-hint">Mandant-ID: <code class="fast-onboarding-tenant-id" data-fast-tenant-id></code></p>
+                <p class="admin-leitstand-hint" data-fast-onboarding-meta></p>
+                <label class="form-label" for="fast-onboarding-invite-link">
+                  Einladungs-Link
+                  <input id="fast-onboarding-invite-link" type="text" class="input-text-touch" data-fast-invite-link readonly>
+                </label>
+                <div class="fast-onboarding-actions">
+                  <button type="button" class="btn btn-secondary" data-fast-copy-link>
+                    📋 Link kopieren
+                  </button>
+                  <button type="button" class="btn btn-secondary" data-fast-whatsapp>
+                    💬 Per WhatsApp senden
+                  </button>
+                  <button type="button" class="btn btn-primary" data-fast-reset>
+                    🔄 Weiteren Mandanten anlegen
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section
+              class="batch-audit-card mhd-archive-card"
+              id="mhd-archive-card"
+              aria-label="0er-Bestände archivieren"
+            >
+              <div class="batch-audit-title">🧹 MHD-Bereinigung</div>
+              <p class="admin-leitstand-hint">
+                Verschiebt alte Null-Bestände (älter als 90 Tage) aus der aktiven MHD-Liste ins Archiv.
+              </p>
+              <button
+                type="button"
+                class="btn btn-secondary mhd-archive-btn"
+                id="mhd-archive-zero-btn"
+                data-mhd-archive-btn
+                style="width:100%;min-height:52px;"
+              >
+                <span class="mhd-archive-spinner" aria-hidden="true" hidden></span>
+                <span data-mhd-archive-label>🧹 Alte 0er-Bestände archivieren (&gt;90 Tage)</span>
+              </button>
+              <p class="admin-leitstand-hint" id="mhd-archive-status" data-mhd-archive-status hidden role="status"></p>
+            </section>
+
+            <section class="batch-audit-card" id="discount-matrix-card" aria-label="MHD-Rabatt-Matrix">
+              <div class="batch-audit-title">MHD-Rabatt-Matrix</div>
+              <p class="admin-leitstand-hint">Staffel gilt für diesen Betrieb. Ohne Treffer bleibt der Artikel ohne Rabatt-Badge.</p>
+              <label class="discount-matrix-category">
+                <span>Warengruppe</span>
+                <select id="discount-matrix-category" class="input-text-touch"></select>
+              </label>
+              <div id="discount-matrix-rules"></div>
+              <button type="button" id="discount-matrix-add" class="btn btn-secondary discount-matrix-add">Neue Rabattstufe</button>
+              <button type="button" id="discount-matrix-save" class="btn btn-primary discount-matrix-save">Rabatt-Matrix speichern</button>
+              <p class="admin-leitstand-hint" id="discount-matrix-status" hidden role="status"></p>
+            </section>
+
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 
@@ -1759,6 +2166,8 @@
                   <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
                   <div id="team-config-groups" class="team-config-groups"></div>
                   <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
+                  <label class="form-label" for="tenant-suppliers">Lieferanten (eine Zeile pro Name)</label>
+                  <textarea id="tenant-suppliers" class="bulletin-message-input" rows="3" placeholder="Eigener Wareneingang&#10;Großhandel"></textarea>
                   <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
                   <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
                   <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
@@ -1876,18 +2285,34 @@
                 <button
                   type="button"
                   class="production-batch-profile-btn"
-                  data-batch-profile="alexanderwerk-oskar20-16"
-                  id="btn-batch-profile-16kg"
+                  data-batch-profile="alexanderwerk-oskar20-8"
+                  id="btn-batch-profile-8kg"
                 >
-                  Standard-Charge Alexanderwerk / OSKAR 20: 16,0 kg
+                  8,0 kg
                 </button>
                 <button
                   type="button"
                   class="production-batch-profile-btn"
-                  data-batch-profile="alexanderwerk-oskar20-10"
-                  id="btn-batch-profile-10kg"
+                  data-batch-profile="alexanderwerk-oskar20-12"
+                  id="btn-batch-profile-12kg"
                 >
-                  WRS-Basis 10,0 kg
+                  12,0 kg
+                </button>
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-16"
+                  id="btn-batch-profile-16kg"
+                >
+                  Standard-Charge 16,0 kg
+                </button>
+                <button
+                  type="button"
+                  class="production-batch-profile-btn"
+                  data-batch-profile="alexanderwerk-oskar20-20"
+                  id="btn-batch-profile-20kg"
+                >
+                  20,0 kg
                 </button>
               </div>
             </div>
@@ -1917,9 +2342,8 @@
             </button>
           </div>
 
-          <!-- Statische SOP-Struktur – Texte werden per ID aus app.js befüllt -->
-          <div class="section-title">🥣 Handwerks-Anweisungen</div>
-          <div class="instructions-card">
+          <details class="recipe-sop-phases">
+            <summary>Handwerks-Anweisungen</summary>
             <ul class="instructions-list" id="detail-recipe-instructions">
               <li class="phase-sop-item" style="border-left:4px solid #2E7D32;margin-bottom:10px;padding:8px 12px;list-style:none;background:rgba(0,0,0,0.03);border-radius:8px;">
                 <strong style="color:#2E7D32">Vorbereiten</strong><br>
@@ -1937,14 +2361,16 @@
                 <strong style="color:#E65100">Kontrolle &amp; Lagerung</strong><br>
                 <span id="recipe-phase-d-text" style="font-size:14px;line-height:1.4"></span>
               </li>
-              <li id="recipe-meister-tipp" class="meister-tipp-item" style="list-style:none;margin-top:12px;padding:10px;background:#eceff1;border-radius:8px;">
-                <strong>⭐ Meister-Tipp:</strong> <span id="recipe-meister-tipp-text"></span>
-              </li>
-              <li id="recipe-haltbarkeit" class="haltbar-item" style="list-style:none;margin-top:8px;padding:10px;background:#e8f5e9;border-radius:8px;">
-                <strong>⏱ Haltbarkeit:</strong> <span id="recipe-haltbarkeit-text"></span>
-              </li>
             </ul>
-          </div>
+          </details>
+          <ul class="instructions-list recipe-sop-notes">
+            <li id="recipe-meister-tipp" class="meister-tipp-item" style="list-style:none;margin-top:12px;padding:10px;background:#eceff1;border-radius:8px;">
+              <strong>Meister-Tipp:</strong> <span id="recipe-meister-tipp-text"></span>
+            </li>
+            <li id="recipe-haltbarkeit" class="haltbar-item" style="list-style:none;margin-top:8px;padding:10px;background:#e8f5e9;border-radius:8px;">
+              <strong>Haltbarkeit:</strong> <span id="recipe-haltbarkeit-text"></span>
+            </li>
+          </ul>
 
           <div class="section-title">Charge dokumentieren</div>
           <div class="production-log-card">
@@ -1980,13 +2406,13 @@
                 <label class="form-label" for="recipe-unit-large">
                   <span>Großkaliber / Stücke</span>
                 </label>
-                <input type="number" id="recipe-unit-large" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-large" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
               <div class="form-group">
                 <label class="form-label" for="recipe-unit-sb">
                   <span>SB-Packungen</span>
                 </label>
-                <input type="number" id="recipe-unit-sb" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-sb" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
             </div>
             <div class="batch-input-grid">
@@ -1994,13 +2420,13 @@
                 <label class="form-label" for="recipe-unit-loose">
                   <span>Lose Ware / Stück</span>
                 </label>
-                <input type="number" id="recipe-unit-loose" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-loose" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
               <div class="form-group">
                 <label class="form-label" for="recipe-unit-glass">
                   <span>Gläser / Dosen</span>
                 </label>
-                <input type="number" id="recipe-unit-glass" class="input-text-touch" min="0" step="1" placeholder="0">
+                <input type="number" id="recipe-unit-glass" class="input-text-touch" inputmode="numeric" min="0" step="1" placeholder="0">
               </div>
             </div>
             <div class="form-group">
@@ -2028,18 +2454,24 @@
         <!-- Navigation: Alltag (unten / Sidebar) + optional Verwaltung -->
         <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
           <div class="app-nav-brand" id="app-nav-brand" aria-hidden="true">
-            <img
-              class="tenant-header-logo app-nav-brand-logo"
-              id="app-nav-brand-logo"
-              src="/icon-192.png"
-              alt=""
-              width="40"
-              height="40"
-              decoding="async"
-            />
-            <div class="app-nav-brand-text">
-              <span class="app-nav-brand-name brand-betriebs-name">Betriebs-Leitstand</span>
-              <span class="app-nav-brand-hint">Laden-Alltag</span>
+            <div class="app-nav-facility-card" id="app-nav-facility-card">
+              <img
+                class="tenant-header-logo app-nav-brand-logo brand-logo"
+                id="app-nav-brand-logo"
+                src="/icon-192.png"
+                alt=""
+                width="44"
+                height="44"
+                decoding="async"
+              />
+              <div class="app-nav-brand-text">
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">StevesHof Hofladen</span>
+                <span class="app-nav-brand-hint">Laden-Alltag</span>
+              </div>
+            </div>
+            <div class="app-nav-user-card" id="app-nav-user-card" aria-label="Angemeldete Person">
+              <span class="app-nav-user-avatar" id="app-nav-user-initials" aria-hidden="true">–</span>
+              <span class="app-nav-user-name" id="app-nav-user-name">Nicht angemeldet</span>
             </div>
           </div>
 
@@ -2064,7 +2496,7 @@
               </button>
               <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
                 <i>🏷️</i>
-                <span>Thekenbuch</span>
+                <span>Doku</span>
               </button>
               <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
                 <i>🥣</i>
@@ -2078,24 +2510,31 @@
                 <i>📖</i>
                 <span>Wissen</span>
               </button>
-              <button class="nav-item" data-tab="batches" id="tab-batches" hidden style="display: none;">
-                <i>📋</i>
-                <span>Büro</span>
-              </button>
             </div>
           </div>
 
-          <div class="app-nav-zone app-nav-zone--admin" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Verwaltung">
-            <p class="app-nav-zone-label">Verwaltung</p>
-            <a
-              class="nav-item nav-item--admin"
-              id="nav-admin-dashboard"
-              href="/dev-dashboard"
-              data-nav-admin="dashboard"
-            >
-              <i>🛠️</i>
-              <span>Verwaltung</span>
-            </a>
+          <div class="app-nav-zone app-nav-zone--admin nav-desktop-only" id="app-nav-admin-zone" hidden style="display: none;" aria-label="Admin">
+            <div class="admin-nav-accordion" id="admin-nav-accordion">
+              <div class="admin-nav-popover" id="admin-nav-popover" hidden role="menu" aria-label="Admin-Menü">
+                <button type="button" class="admin-nav-option" id="tab-batches" data-tab="batches" role="menuitem">
+                  🏢 Büro &amp; Chargen
+                </button>
+                <a class="admin-nav-option" id="nav-admin-dashboard" href="/dev-dashboard" data-nav-admin="dashboard" role="menuitem">
+                  🛠️ Dev-Dashboard
+                </a>
+              </div>
+              <button
+                type="button"
+                class="admin-nav-trigger"
+                id="admin-nav-trigger"
+                aria-expanded="false"
+                aria-controls="admin-nav-popover"
+              >
+                <span aria-hidden="true">⚙️</span>
+                <span>Admin</span>
+                <span class="admin-nav-caret" aria-hidden="true">▴</span>
+              </button>
+            </div>
           </div>
         </nav>
 
@@ -2114,6 +2553,28 @@
 
         <!-- Home Indicator Bar -->
         <div class="home-indicator"></div>
+
+        <!-- Lieferant wählen (Fallback beim Abschließen) -->
+        <div class="supplier-pick-modal" id="supplier-pick-modal" hidden>
+          <div class="supplier-pick-card" role="dialog" aria-modal="true" aria-labelledby="supplier-pick-title">
+            <div class="supplier-pick-title" id="supplier-pick-title">Bitte Lieferant wählen</div>
+            <p class="supplier-pick-desc" id="supplier-pick-desc">Ohne Lieferant können wir die Lieferung nicht abschließen.</p>
+            <div class="supplier-pick-grid" id="supplier-pick-grid" role="group" aria-label="Lieferanten">
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Eigener Wareneingang">Eigener Wareneingang</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Großhandel">Großhandel</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Lieferant 1">Lieferant 1</button>
+              <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstige</button>
+            </div>
+            <label class="receiving-field hidden" id="supplier-pick-custom-wrap" for="supplier-pick-custom">
+              <span>Name bei Sonstige</span>
+              <input type="text" id="supplier-pick-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
+            </label>
+            <div class="supplier-pick-actions">
+              <button type="button" class="btn btn-primary" id="supplier-pick-confirm" hidden>Übernehmen</button>
+              <button type="button" class="btn" id="supplier-pick-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Meister-Override bei HACCP-Temperatur-Abweichung -->
         <div class="meister-override-modal" id="meister-override-modal" hidden>
@@ -2249,10 +2710,13 @@
           <div class="scanner-status-panel">
             <div id="scanner-status-text">Scanner wird vorbereitet...</div>
             <div class="scanner-manual-entry" id="scanner-manual-entry">
-              <input id="scanner-manual-barcode-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Barcode">
-              <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              <div class="scanner-manual-entry-row">
+                <input id="scanner-manual-barcode-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="EAN eintippen">
+                <button id="btn-manual-barcode-submit" class="scanner-manual-btn" type="button">OK</button>
+              </div>
+              <div id="scanner-manual-search-hits" class="manual-barcode-hits" hidden></div>
             </div>
-            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">Eintippen</button>
+            <button id="btn-manual-barcode" class="scanner-manual-btn" type="button">🔍 Manuelle Suche / EAN</button>
           </div>
         </div>
 
@@ -2375,7 +2839,9 @@
     </form>
   </template>
 
-  <script type="module" src="/tenant-admin-auth.js?v=20260915-v140"></script>
-  <script type="module" src="/app.js?v=20260915-v140"></script>
+  <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
+  <script type="module" src="/fast-onboarding.js?v=20261015-livestock-update-notice"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261015-livestock-update-notice"></script>
+  <script type="module" src="/app.js?v=20261015-livestock-update-notice"></script>
 </body>
 </html>

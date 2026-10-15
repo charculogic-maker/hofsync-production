@@ -54,7 +54,20 @@ export function mapOperatorError(error, context = '') {
     return 'Fleischpreis-Aktualisierung fehlgeschlagen. Bitte später erneut versuchen.';
   }
   if (context === 'delivery-note') {
-    return 'KI-Analyse fehlgeschlagen. Bitte Foto erneut aufnehmen oder manuell erfassen.';
+    const raw = String(error?.message || error?.code || error || '');
+    if (code.includes('deadline-exceeded') || code.includes('timeout') || raw.toLowerCase().includes('timeout')) {
+      return 'Die KI-Lieferscheinanalyse hat zu lange gedauert. Bitte manuell erfassen.';
+    }
+    if (code.includes('unavailable') || code.includes('network') || raw.toLowerCase().includes('network') || raw.toLowerCase().includes('offline')) {
+      return 'Das Laden-iPhone hat kurz die Verbindung verloren. Bitte versuche es noch einmal.';
+    }
+    if (raw.toLowerCase().includes('zu groß') || raw.toLowerCase().includes('12 mb') || raw.toLowerCase().includes('too large')) {
+      return 'Die Datei ist zu groß (max. 12 MB). Bitte ein kleineres Foto oder PDF wählen.';
+    }
+    if (raw.toLowerCase().includes('dateityp') || raw.toLowerCase().includes('nicht erlaubt') || raw.toLowerCase().includes('unsupported')) {
+      return 'Nur Fotos (JPG/PNG/HEIC) oder PDF vom Lieferschein sind möglich.';
+    }
+    return 'KI-Analyse fehlgeschlagen. Bitte Foto oder PDF erneut wählen oder manuell erfassen.';
   }
   if (context === 'meat-label') {
     return 'Etikett konnte nicht gelesen werden. Bitte Daten manuell eintragen.';
@@ -71,4 +84,26 @@ export function mapOperatorError(error, context = '') {
 export function logAndMapOperatorError(error, context = '') {
   console.error(`[CharcuLogic OperatorError${context ? ` · ${context}` : ''}]`, error);
   return mapOperatorError(error, context);
+}
+
+const TELEMETRY_NAME_KEYS = [
+  'employeeName',
+  'scannedBy',
+  'actorName',
+  'displayName',
+  'preparedBy',
+  'updatedBy',
+  'defaultOperatorName',
+];
+
+/** Fehlertext für system_errors: keine Mailadressen, keine mitgeschickten Klarnamen. */
+export function redactTelemetryMessage(value, entry = {}) {
+  let text = String(value || '');
+  TELEMETRY_NAME_KEYS.forEach((key) => {
+    const name = String(entry?.[key] || '').trim();
+    if (name.length >= 3) text = text.split(name).join('[person]');
+  });
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+    .slice(0, 999);
 }

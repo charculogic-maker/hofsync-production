@@ -18,6 +18,10 @@ let quaggaLoadPromise = null;
 let adapterLoadPromise = null;
 let scannerSessionId = 0;
 let scannerStartPromise = null;
+let lastAcceptedCode = '';
+let lastAcceptedAt = 0;
+let resumeScannerTimer = null;
+const SCAN_DEBOUNCE_MS = 1100;
 
 function detectCameraAvailability() {
   return Boolean(typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
@@ -66,6 +70,39 @@ export function isScannerRunning() {
   return scannerRunning;
 }
 
+export function isScannerOverlayOpen() {
+  const { scannerOverlay } = getElements();
+  if (!scannerOverlay) return false;
+  const display = scannerOverlay.style.display;
+  if (display === 'none') return false;
+  if (display === 'block' || display === 'flex') return true;
+  return window.getComputedStyle?.(scannerOverlay)?.display !== 'none';
+}
+
+/** Pause detections briefly (e.g. after a hit) without tearing down the camera. */
+export function pauseScannerListening() {
+  scannerRunning = false;
+}
+
+/**
+ * Resume barcode listening if the scanner overlay is still open.
+ * Used for Wareneingang serien-scans without closing the camera UI.
+ */
+export function resumeScannerListening(delayMs = 900) {
+  if (resumeScannerTimer) {
+    clearTimeout(resumeScannerTimer);
+    resumeScannerTimer = null;
+  }
+  const sessionId = scannerSessionId;
+  resumeScannerTimer = setTimeout(() => {
+    resumeScannerTimer = null;
+    if (sessionId !== scannerSessionId) return;
+    if (!isScannerOverlayOpen()) return;
+    scannerRunning = true;
+    setScannerStatus('Bereit für den nächsten Scan.', 'Scanner bereit');
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
 function getElements() {
   const configured = scannerContext.elements || {};
   return {
@@ -91,12 +128,37 @@ function cleanScannedBarcode(rawCode) {
   return String(rawCode || '').trim().replace(/[^0-9]/g, '');
 }
 
+function isMhdMonitorPageActive() {
+  return Boolean(document.getElementById('page-mhd')?.classList.contains('active'));
+}
+
+function openExistingMhdBatches(code) {
+  if (!isMhdMonitorPageActive()) return false;
+  const openInspection = window.openMhdBatchInspection;
+  if (typeof openInspection !== 'function') return false;
+  return openInspection(code) === true;
+}
+
 function emitScanSuccess(decodedText) {
   if (!scannerRunning) return;
   const code = cleanScannedBarcode(decodedText);
   if (!code) return;
+  const now = Date.now();
+  if (code === lastAcceptedCode && (now - lastAcceptedAt) < SCAN_DEBOUNCE_MS) return;
+  lastAcceptedCode = code;
+  lastAcceptedAt = now;
   scannerRunning = false;
   clearDetectionTimeouts();
+  let opened = false;
+  try {
+    opened = openExistingMhdBatches(code);
+  } catch (err) {
+    console.warn('[CharcuLogic Scanner] Multi-MHD-Stichprobe fehlgeschlagen:', err);
+  }
+  if (opened) {
+    closeScanner();
+    return;
+  }
   scannerContext.onScanSuccess(code);
 }
 
@@ -224,6 +286,10 @@ export function closeScanner() {
   scannerSessionId += 1;
   scannerStartPromise = null;
   scannerRunning = false;
+  if (resumeScannerTimer) {
+    clearTimeout(resumeScannerTimer);
+    resumeScannerTimer = null;
+  }
   clearDetectionTimeouts();
   stopZxingScanner();
 
@@ -558,7 +624,7 @@ async function preferredHtml5CameraConfig() {
   }
 
   return {
-    facingMode: { exact: 'environment' },
+    facingMode: { ideal: 'environment' },
     width: { ideal: 1280 },
     height: { ideal: 720 },
   };

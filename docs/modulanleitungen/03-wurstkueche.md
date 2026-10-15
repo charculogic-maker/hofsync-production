@@ -27,7 +27,7 @@ Zwei aufklappbare Bereiche:
 Nach Antippen eines Rezepts:
 
 1. **Tagesproduktion (kg)** einstellen
-2. Optional **Schnellwahl Standard-Charge** antippen (z. B. Alexanderwerk / OSKAR 20: 16,0 kg) – Fleisch, Schüttung und Gewürze werden automatisch skaliert
+2. Optional **Schnellwahl** antippen (8 / 12 / 16 / 20 kg; Standard Alexanderwerk / OSKAR 20: 16,0 kg) – Fleisch, Schüttung und Gewürze werden automatisch skaliert
 3. **Zutaten berechnet** und **Handwerks-Anweisungen** lesen
 4. Sicherheitshinweise (Temperatur, Allergene) beachten
 5. Bei Bedarf **📄 Druckdatenblatt DIN A4** öffnen (zwei Seiten: Fleischeinsatz, Gewürze, Etikettentext/QUID, HACCP-Prüfpunkte)

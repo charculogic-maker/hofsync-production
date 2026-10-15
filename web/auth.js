@@ -10,7 +10,8 @@ import {
   scopedTeamboardStorageKey,
 } from './teamboard-storage.js';
 import { isTenantAdminRoute } from './tenant-admin-auth.js';
-import { isLocalDevHost, resolveFirebaseConfig } from './firebase-config.js';
+import { isLocalDevHost, resolveFirebaseConfig, toFirebaseSdkConfig } from './firebase-config.js';
+import { ensureFirebaseApp } from './firebase-init.js';
 import { describeAuthError, logAuthFailure } from './auth-errors.js';
 
 const TERMINAL_DEVICE_TOKEN_KEY = 'charculogic_terminal_device_token';
@@ -170,18 +171,30 @@ function prefillTerminalLoginEmail(terminalEmail = '') {
 
 function cachedTenantId() {
   try {
-    return localStorage.getItem(CACHED_TENANT_ID_KEY);
+    const fromLocal = localStorage.getItem(CACHED_TENANT_ID_KEY);
+    if (fromLocal) return fromLocal;
   } catch (err) {
     console.warn('[CharcuLogic Auth] Tenant-Cache konnte nicht gelesen werden:', err);
+  }
+  try {
+    return sessionStorage.getItem(CACHED_TENANT_ID_KEY) || '';
+  } catch (_) {
     return '';
   }
 }
 
 function cacheTenantId(tenantId) {
+  const clean = cleanTenantId(tenantId);
+  if (!clean) return;
   try {
-    localStorage.setItem(CACHED_TENANT_ID_KEY, tenantId);
+    localStorage.setItem(CACHED_TENANT_ID_KEY, clean);
   } catch (err) {
     console.warn('[CharcuLogic Auth] Tenant-Cache konnte nicht geschrieben werden:', err);
+  }
+  try {
+    sessionStorage.setItem(CACHED_TENANT_ID_KEY, clean);
+  } catch (err) {
+    console.warn('[CharcuLogic Auth] Tenant-Session-Cache konnte nicht geschrieben werden:', err);
   }
 }
 
@@ -191,6 +204,7 @@ function clearSessionCaches() {
     clearTeamboardTenantStorage(tenantId);
     localStorage.removeItem(CACHED_TENANT_ID_KEY);
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+    try { sessionStorage.removeItem(CACHED_TENANT_ID_KEY); } catch (_) { /* noop */ }
     window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
       detail: { employeeName: '' },
     }));
@@ -214,20 +228,46 @@ function claimsAreComplete(claims = {}) {
   return Boolean(tenantIdFromClaims(claims) && roleFromClaims(claims));
 }
 
+/**
+ * Wartet auf den App-Bootstrap (falls registriert) und erzwingt danach
+ * synchron firebase.initializeApp — bevor auth() jemals aufgerufen wird.
+ * Verhindert app-compat/no-app beim Login auf dem Laden-iPhone.
+ */
 async function ensureAuthConfigured() {
+  const bootPromise = (typeof window !== 'undefined' && window.firebaseCoreReadyPromise)
+    || firebaseCoreReadyPromise;
+
   try {
-    await firebaseCoreReadyPromise;
+    await bootPromise;
   } catch (err) {
-    throw new Error(`Firebase Auth ist nicht geladen (${err?.message || err}).`);
+    console.warn(
+      '[CharcuLogic Auth] Firebase-Core-Boot fehlgeschlagen — Sync-Init wird versucht:',
+      err?.message || err,
+    );
   }
 
-  if (!authState.firebase?.auth && typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
-    authState.firebase = authState.firebase || firebase;
-  }
-
-  if (!authState.firebase?.auth) {
+  const firebaseApi = (typeof firebase !== 'undefined' ? firebase : null) || authState.firebase;
+  if (!firebaseApi || typeof firebaseApi.auth !== 'function') {
     throw new Error('Firebase Auth ist nicht geladen.');
   }
+
+  try {
+    ensureFirebaseApp(firebaseApi);
+  } catch (err) {
+    if (!firebaseApi.apps?.length) {
+      const fallbackConfig = (typeof window !== 'undefined' && window.firebaseConfig)
+        || (typeof FIREBASE_CONFIG !== 'undefined' ? FIREBASE_CONFIG : null)
+        || toFirebaseSdkConfig(resolveFirebaseConfig());
+      if (!fallbackConfig) {
+        throw new Error(`Firebase Auth ist nicht geladen (${err?.message || err}).`);
+      }
+      firebaseApi.initializeApp(toFirebaseSdkConfig(fallbackConfig));
+    } else {
+      throw err;
+    }
+  }
+
+  authState.firebase = firebaseApi;
 }
 
 function setAuthError(message) {
@@ -273,6 +313,9 @@ function ensureLoginOverlay() {
         </details>
         <p class="auth-lock-meta" id="auth-lock-meta"></p>
         <div id="auth-login-error" class="auth-lock-error" role="alert"></div>
+        <p class="auth-lock-legal">
+          <a href="/datenschutz.html" target="_blank" rel="noopener noreferrer">Datenschutz</a>
+        </p>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -390,6 +433,14 @@ function ensureLoginOverlay() {
         background: rgba(220, 38, 38, 0.16);
         color: #fecaca;
       }
+      .auth-lock-legal {
+        margin: 18px 0 0;
+        font-size: 12px;
+      }
+      .auth-lock-legal a {
+        color: #93c5fd;
+        text-decoration: underline;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -452,9 +503,23 @@ function bindHeaderLogoutButton() {
   const trigger = document.getElementById('header-logout-btn');
   if (!trigger || trigger.dataset.authBound === '1') return;
   trigger.dataset.authBound = '1';
-  trigger.addEventListener('click', async () => {
+  if (trigger.tagName === 'BUTTON') {
+    trigger.type = 'button';
+  }
+  trigger.style.touchAction = 'manipulation';
+  trigger.style.cursor = 'pointer';
+
+  let lastLogoutAt = 0;
+  const runLogout = async (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const now = Date.now();
+    if (now - lastLogoutAt < 450) return;
+    lastLogoutAt = now;
     try {
-      window.showToast?.("Abgemeldet. System wird neu geladen...", "warning");
+      window.showToast?.('Abgemeldet. System wird neu geladen...', 'warning');
+      // Nur echter Logout löscht die Mitarbeiter-Sitzung — Modal-Abbrechen am
+      // Team-Schnellwechsler (#btn-team) darf clearSessionCaches nicht auslösen.
       clearSessionCaches();
       authContext = null;
       await shutdownFirestoreClient();
@@ -469,6 +534,13 @@ function bindHeaderLogoutButton() {
         window.location.reload(true);
       }, 800);
     }
+  };
+
+  trigger.addEventListener('pointerdown', (event) => {
+    void runLogout(event);
+  });
+  trigger.addEventListener('click', (event) => {
+    void runLogout(event);
   });
 }
 
@@ -658,7 +730,7 @@ export function isOfficeUser(session = authContext) {
 }
 
 export async function initAuthModule(firebaseInstance, databaseInstance, { showHUD } = {}) {
-  authState.firebase = firebaseInstance;
+  authState.firebase = firebaseInstance || (typeof firebase !== 'undefined' ? firebase : null);
   authState.db = databaseInstance;
   authState.showHUD = typeof showHUD === 'function' ? showHUD : authState.showHUD;
 
@@ -873,10 +945,24 @@ function completeSuccessfulAuthUnlock(nextContext) {
   }
 }
 
+async function persistTenantSessionAfterLogin(user) {
+  if (!user) return null;
+  const nextContext = await buildAuthContext(user);
+  authContext = nextContext;
+  document.documentElement.dataset.authenticatedTenant = nextContext.tenantId;
+  // buildAuthContext schreibt bereits localStorage + sessionStorage + setGlobalTenantId
+  return nextContext;
+}
+
 export async function loginTenant(email, password) {
   await ensureAuthConfigured();
   if (!email || !password) throw new Error('E-Mail und Passwort sind erforderlich.');
-  return authState.firebase.auth().signInWithEmailAndPassword(email, password);
+  const credential = await authState.firebase.auth().signInWithEmailAndPassword(email, password);
+  const user = credential?.user || authState.firebase.auth().currentUser;
+  if (user) {
+    await persistTenantSessionAfterLogin(user);
+  }
+  return credential;
 }
 
 export async function loginWithToken(token, options = {}) {
@@ -889,6 +975,10 @@ export async function loginWithToken(token, options = {}) {
   }
 
   const credential = await authState.firebase.auth().signInWithCustomToken(token);
+  const user = credential?.user || authState.firebase.auth().currentUser;
+  if (user) {
+    await persistTenantSessionAfterLogin(user);
+  }
   if (credential?.user && options.persistDeviceToken !== false) {
     const tenantId = authContext?.tenantId || expectedTenantId || getGlobalTenantId();
     if (tenantId) cacheTerminalDeviceToken(tenantId, token);

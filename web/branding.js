@@ -1,12 +1,15 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
-import { isWhitelabelFirebaseHost } from './firebase-config.js';
+/** Stabiler Boot-Titel — verhindert Flash „Mein Hofladen“ / Modul-Untertitel. */
+export const DEFAULT_BRAND_TITLE = 'StevesHof Hofladen';
+export const BRAND_TITLE_STORAGE_KEY = 'charculogic_brand_title';
 
-const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
-  betriebsName: 'Ihr Betrieb',
+const DEFAULT_BRANDING = {
+  appName: 'HofSync',
+  betriebsName: DEFAULT_BRAND_TITLE,
   logoUrl: '/icon-192.png',
-  primaryColor: '#64748b',
-  primaryColorHover: '#475569',
-  darkHeaderBg: '#334155',
+  primaryColor: '#0284c7',
+  primaryColorHover: '#0369a1',
+  darkHeaderBg: '#1c130e',
   textOnHeader: '#ffffff',
   accentAlert: '#dc3545',
   lightBg: '#f1f5f9',
@@ -29,228 +32,38 @@ const DEFAULT_BRANDING = {  appName: 'Betriebs-App',
     chargenDoku: true,
     employeePin: true,
     employeeAuth: 'pin',
+    deliveryParser: false,
   },
 };
 
 const TENANT_BRANDING = {
+  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch */
   steveshof_hauptbetrieb: {
     betriebsName: 'StevesHof Hofladen',
-    terminalAuth: {
-      email: 'bestellung@steveshof-hofladen.de',
-    },
-    profileCapabilities: {
-      Melanie: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: true,
-        email: 'melanie@steveshof-hofladen.de',
-      },
-      Bettina: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: true,
-        email: 'bettina@steveshof-hofladen.de',
-      },
-      Heiko: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: false,
-        email: 'heiko@steveshof-hofladen.de',
-      },
-      Ernst: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku'],
-        kitchenReadOnly: false,
-        email: 'ernst@steveshof-hofladen.de',
-      },
-      Paddy: {
-        allowedTabs: ['mhd', 'receiving', 'kitchen', 'chargenDoku', 'haccp', 'knowledge', 'wissen'],
-        kitchenReadOnly: false,
-      },
-    },
-    appName: 'CharcuLogic',
-    primaryColor: '#5D4037',
-    primaryColorHover: '#4E342E',
-    darkHeaderBg: '#3E2723',
-    textOnHeader: '#ffffff',
-    accentAlert: '#EA580C',
-    standardBereich: 'Laden / Verkauf',
+    appName: 'HofSync',
     modules: {
-      teamboard: false,
-      team: false,
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: true,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: true,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'profile',
-    },
-  },
-  torfabrik: {
-    betriebsName: 'TorFabrik Krefeld',
-    appName: 'CenterLogic',
-    primaryColor: '#00A651',
-    primaryColorHover: '#008541',
-    darkHeaderBg: '#FFC20E',
-    textOnHeader: '#000000',
-    accentAlert: '#800020',
-    standardBereich: 'Theke',
-    modules: {
-      teamboard: true,
-      team: true,
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: true,
       orders: true,
-      chargenDoku: true,
-      employeePin: true,
-      employeeAuth: 'pin',
-    },
-  },
-  whitelabel_test: {
-    betriebsName: 'Whitelabel Testbetrieb',
-    appName: 'CharcuLogic Test',
-    primaryColor: '#2563eb',
-    primaryColorHover: '#1d4ed8',
-    darkHeaderBg: '#1e3a5f',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Test-Theke',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: true,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  home_leitstand: {
-    betriebsName: 'Home Leitstand',
-    appName: 'CharcuLogic Home',
-    primaryColor: '#7c3aed',
-    primaryColorHover: '#6d28d9',
-    darkHeaderBg: '#4c1d95',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Heimküche',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  ap23: {
-    betriebsName: 'AP23',
-    appName: 'AP23',
-    brandingClass: 'theme-blue',
-    primaryColor: '#2563eb',
-    primaryColorHover: '#1d4ed8',
-    darkHeaderBg: '#1e3a5f',
-    textOnHeader: '#ffffff',
-    accentAlert: '#dc2626',
-    standardBereich: 'Heimküche',
-    modules: {
-      mhdMonitor: true,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: true,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: true,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: false,
-      employeeAuth: 'firebase',
-    },
-  },
-  superbiomarkt: {
-    betriebsName: 'SuperBioMarkt – Bedientheke',
-    appName: 'CharcuLogic',
-    primaryColor: '#8A1529',
-    primaryColorHover: '#6F1121',
-    darkHeaderBg: '#5C0E1B',
-    textOnHeader: '#ffffff',
-    accentAlert: '#B91C1C',
-    standardBereich: 'Fleischtheke / Bedienung',
-    modules: {
-      teamboard: false,
-      team: false,
-      mhdMonitor: false,
-      wareneingang: false,
-      wareneingangMetzgerei: false,
-      rezeptAudit: false,
-      bratwurstMasterlist: false,
-      wurstkueche: false,
-      knowledge: false,
-      cutGlossary: false,
-      haccp: false,
-      orders: false,
-      batches: false,
-      retterBox: false,
-      chargenDoku: true,
-      employeePin: true,
-      employeeAuth: 'pin',
+      team: true,
     },
   },
 };
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
-const TORFABRIK_TENANT_KEY = 'torfabrik';
-const WHITELABEL_DEFAULT_TENANT = 'whitelabel_test';
 
-/** Whitelabel-Test-Hosting → Mandant whitelabel_test, solange noch kein Login-Cache existiert. */
-const HOSTING_DEFAULT_TENANT = {
-  whitelabel: WHITELABEL_DEFAULT_TENANT,
-};
-function isLocalDevHost() {
-  const host = String(window.location?.hostname || '').toLowerCase();
-  return host === 'localhost' || host === '127.0.0.1';
+function readCachedBrandTitle() {
+  try {
+    const cached = String(localStorage.getItem(BRAND_TITLE_STORAGE_KEY) || '').trim();
+    if (cached) return cached;
+  } catch (_) { /* private mode */ }
+  return DEFAULT_BRAND_TITLE;
 }
 
-function readDevFirebaseProjectOverride() {
-  if (!isLocalDevHost()) return null;
+function persistBrandTitle(title) {
+  const clean = String(title || '').trim() || DEFAULT_BRAND_TITLE;
   try {
-    const params = new URLSearchParams(window.location.search);
-    const fromQuery = params.get('firebase') || params.get('project');
-    if (fromQuery === 'whitelabel' || fromQuery === 'production') return fromQuery;
-    const fromStorage = localStorage.getItem('charculogic_firebase_project');
-    if (fromStorage === 'whitelabel' || fromStorage === 'production') return fromStorage;
-  } catch (_) { /* noop */ }
-  return null;
+    localStorage.setItem(BRAND_TITLE_STORAGE_KEY, clean);
+  } catch (_) { /* private mode */ }
+  return clean;
 }
 
 function readTenantFromQueryString() {
@@ -297,46 +110,23 @@ function hasDistinctTenantBranding(branding) {
 
 function readCachedTenantId() {
   try {
-    const cached = coerceTenantForHosting(localStorage.getItem(CACHED_TENANT_ID_KEY));
-    if (!cached) return '';
-    if (lookupTenantBranding(cached)) return cached;
-    console.warn(
-      `[CharcuLogic Branding] Unbekannte gecachte tenantId="${cached}" ignoriert — nutze URL- oder Hosting-Vorgabe.`,
-    );
-    return '';
+    return coerceTenantForHosting(localStorage.getItem(CACHED_TENANT_ID_KEY)) || '';
   } catch (_) {
     return '';
   }
 }
 function isWhitelabelHostingContext() {
-  const override = readDevFirebaseProjectOverride();
-  if (override === 'whitelabel') return true;
-  if (override === 'production') return false;
-  return isWhitelabelFirebaseHost();
+  return false;
 }
 
 function coerceTenantForHosting(tenantKey) {
-  const normalized = normalizeTenantKey(tenantKey);
-  if (!normalized) return '';
-  if (isWhitelabelHostingContext() && normalized === TORFABRIK_TENANT_KEY) {
-    console.warn(
-      '[CharcuLogic Branding] torfabrik auf Whitelabel-Host blockiert — fallback whitelabel_test.',
-    );
-    return WHITELABEL_DEFAULT_TENANT;
-  }
-  return normalized;
+  return normalizeTenantKey(tenantKey);
 }
 
 function resolveHostingDefaultTenant() {
-  if (isWhitelabelHostingContext()) {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
-  if (isLocalDevHost() && readDevFirebaseProjectOverride() === 'whitelabel') {
-    return HOSTING_DEFAULT_TENANT.whitelabel || WHITELABEL_DEFAULT_TENANT;
-  }
   return '';
 }
-/** Reihenfolge: explizit → URL ?tenant= / ?tenantId= → Cache (nur bekannte) → Hosting-Vorgabe. */
+/** Reihenfolge: explizit → URL ?tenant= / ?tenantId= → Cache → Hosting-Vorgabe. */
 function resolveEffectiveTenantId(explicitTenantId) {
   const resolved = (
     normalizeTenantKey(explicitTenantId) ||
@@ -350,33 +140,24 @@ function resolveEffectiveTenantId(explicitTenantId) {
 function resolveBranding(tenantId) {
   const key = resolveEffectiveTenantId(tenantId);
   const tenantOverrides = lookupTenantBranding(key);
-  if (key && !tenantOverrides) {
-    console.warn(
-      '[CharcuLogic Branding] Kein Mandanten-Profil gefunden — neutrale White-Label-Vorlage aktiv. '
-      + `tenantId="${key}". Bitte TENANT_BRANDING konfigurieren oder anmelden.`,
-    );
-  }
-  if (!key && isWhitelabelHostingContext()) {
-    const whitelabelFallback = lookupTenantBranding(WHITELABEL_DEFAULT_TENANT) || {};
-    return {
-      ...DEFAULT_BRANDING,
-      ...whitelabelFallback,
-      modules: {
-        ...DEFAULT_BRANDING.modules,
-        ...(whitelabelFallback.modules || {}),
-      },
-    };
-  }  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
+  if (!key && hasDistinctTenantBranding(window.BRANDING)) {
     return window.BRANDING;
   }
-  return {
+  const cachedTitle = readCachedBrandTitle();
+  const merged = {
     ...DEFAULT_BRANDING,
+    betriebsName: cachedTitle || DEFAULT_BRANDING.betriebsName,
     ...(tenantOverrides || {}),
     modules: {
       ...DEFAULT_BRANDING.modules,
       ...(tenantOverrides?.modules || {}),
     },
   };
+  // Tenant-Override gewinnt; sonst gecachten Mandantentitel behalten.
+  if (!tenantOverrides?.betriebsName && cachedTitle) {
+    merged.betriebsName = cachedTitle;
+  }
+  return merged;
 }
 
 function applyResolvedBranding(tenantId) {
@@ -387,18 +168,39 @@ function applyResolvedBranding(tenantId) {
   initPwaManifestFromBranding(window.BRANDING);
 }
 
+function applyTenantProfile(profile, terminal) {
+  const current = window.BRANDING || resolveBranding();
+  const next = { ...current, modules: { ...(current.modules || {}) } };
+  if (profile?.betriebsName) {
+    next.betriebsName = persistBrandTitle(profile.betriebsName);
+  }
+  if (profile?.appName) next.appName = profile.appName;
+  if (profile?.primaryColor) next.primaryColor = profile.primaryColor;
+  if (profile?.primaryColorHover) next.primaryColorHover = profile.primaryColorHover;
+  if (profile?.darkHeaderBg) next.darkHeaderBg = profile.darkHeaderBg;
+  if (profile?.logoUrl) next.logoUrl = profile.logoUrl;
+  if (profile?.standardBereich) next.standardBereich = profile.standardBereich;
+  const terminalUser = String(terminal?.terminalUser || profile?.terminalUser || '').trim();
+  if (terminalUser) next.terminalAuth = { email: terminalUser };
+  if (terminal?.bypassPin === true) next.modules.employeePin = false;
+  window.BRANDING = next;
+  if (typeof window.applyBranding === 'function') window.applyBranding();
+  initPwaManifestFromBranding(window.BRANDING);
+}
+
 function initPwaManifestFromBranding(branding = window.BRANDING) {
   if (!branding || typeof document === 'undefined') return;
   try {
     const manifestEl = document.getElementById('pwa-manifest');
     if (!manifestEl) return;
+    const splashColor = branding.darkHeaderBg || '#1c130e';
     const manifestData = {
       name: branding.betriebsName || 'Betriebs-Leitstand',
       short_name: branding.appName || 'CharcuLogic',
       start_url: '.',
       display: 'standalone',
-      background_color: branding.lightBg || '#f8f9fa',
-      theme_color: branding.primaryColor || '#28a745',
+      background_color: splashColor,
+      theme_color: splashColor,
       icons: [
         { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -407,8 +209,18 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
     const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
     const manifestURL = URL.createObjectURL(blob);
     manifestEl.setAttribute('href', manifestURL);
-    const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.setAttribute('content', branding.primaryColor || '#28a745');
+    document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
+      themeMeta.setAttribute('content', splashColor);
+    });
+    try {
+      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(splashColor)) {
+        localStorage.setItem('charculogic_brand_bg', splashColor);
+      }
+      if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
+        localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
+      }
+      if (branding.betriebsName) persistBrandTitle(branding.betriebsName);
+    } catch (_) { /* private mode / blocked storage */ }
   } catch (err) {
     console.warn('[CharcuLogic Branding] PWA-Manifest konnte nicht gesetzt werden:', err);
   }
@@ -416,10 +228,16 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
 
 window.TENANT_BRANDING = TENANT_BRANDING;
 window.TENANT_BRANDING_INDEX = TENANT_BRANDING_INDEX;
+window.DEFAULT_BRAND_TITLE = DEFAULT_BRAND_TITLE;
+window.BRAND_TITLE_STORAGE_KEY = BRAND_TITLE_STORAGE_KEY;
+window.readCachedBrandTitle = readCachedBrandTitle;
+window.persistBrandTitle = persistBrandTitle;
 window.resolveBranding = resolveBranding;
 window.resolveEffectiveTenantId = resolveEffectiveTenantId;
 window.resolveHostingDefaultTenant = resolveHostingDefaultTenant;
 window.isWhitelabelHostingContext = isWhitelabelHostingContext;
 window.applyResolvedBranding = applyResolvedBranding;
+window.applyTenantProfile = applyTenantProfile;
 window.BRANDING = resolveBranding();
+persistBrandTitle(window.BRANDING?.betriebsName || DEFAULT_BRAND_TITLE);
 initPwaManifestFromBranding(window.BRANDING);

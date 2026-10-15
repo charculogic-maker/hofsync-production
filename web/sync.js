@@ -1,9 +1,14 @@
 import { getGlobalTenantId, tenantIdsMatch } from './tenant-db.js';
-import { logAndMapOperatorError } from './operator-errors.js';
+import { logAndMapOperatorError, redactTelemetryMessage } from './operator-errors.js';
 
 const PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.';
+/** Dead-letter / sync_errors buffer (tenant-scoped). */
 const DEAD_PENDING_SYNCS_KEY_PREFIX = 'charculogic.pendingSyncs.dead.';
+const SYNC_ERRORS_KEY_PREFIX = 'charculogic.sync_errors.';
 const ERROR_TELEMETRY_KEY_PREFIX = 'charculogic.errorTelemetry.';
+
+/** Max failed flush attempts before an item moves to the dead-letter queue. */
+export const MAX_SYNC_RETRIES = 3;
 
 let flushInFlight = false;
 
@@ -75,6 +80,27 @@ function deadPendingSyncsKey() {
   return tenantId ? `${DEAD_PENDING_SYNCS_KEY_PREFIX}${tenantId}` : '';
 }
 
+function syncErrorsKey() {
+  const tenantId = currentTenantId();
+  return tenantId ? `${SYNC_ERRORS_KEY_PREFIX}${tenantId}` : '';
+}
+
+function getRetryCount(item = {}) {
+  const fromRetry = Number(item.retryCount);
+  if (Number.isFinite(fromRetry) && fromRetry >= 0) return fromRetry;
+  const fromAttempts = Number(item._attempts);
+  if (Number.isFinite(fromAttempts) && fromAttempts >= 0) return fromAttempts;
+  return 0;
+}
+
+function withRetryCount(item, retryCount) {
+  return {
+    ...item,
+    retryCount,
+    _attempts: retryCount,
+  };
+}
+
 function requireTenantId() {
   const tenantId = currentTenantId();
   if (!tenantId) throw new Error('Mandant fehlt: Sync ist ohne Firebase-Auth gesperrt.');
@@ -144,11 +170,13 @@ const MHD_LISTE_SYNC_FIELDS = new Set([
   'tage', 'resttage', 'status',
   'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
   'kategorie', 'warenKategorie', 'soldOut',
+  'archived', 'active', 'actionTimestamp', 'lastActionBy',
   'lot', 'chargenNummer', 'lieferant', 'temperatur',
   'erfassungsDatum', 'meisterOverrideReason',
   'vpeBarcode', 'vpeInhalt',
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'lastModifiedBy', 'previousQuantity',
   'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
@@ -191,8 +219,7 @@ export function getPendingSyncs() {
   }
 }
 
-export function getDeadPendingSyncs() {
-  const key = deadPendingSyncsKey();
+function readLocalJsonArray(key) {
   if (!key) return [];
   const raw = localStorage.getItem(key);
   if (!raw) return [];
@@ -200,16 +227,30 @@ export function getDeadPendingSyncs() {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.warn('[CharcuLogic Offline] Dead-Letter Queue beschadigt:', err);
+    console.warn('[CharcuLogic Offline] Queue beschadigt:', { key, err });
     return [];
   }
 }
 
+export function getDeadPendingSyncs() {
+  const primary = readLocalJsonArray(deadPendingSyncsKey());
+  if (primary.length) return primary;
+  return readLocalJsonArray(syncErrorsKey());
+}
+
+/** Alias: sync_errors dead-letter buffer for the current tenant. */
+export function getSyncErrors() {
+  return getDeadPendingSyncs();
+}
+
 export function saveDeadPendingSyncs(queue) {
-  const key = deadPendingSyncsKey();
-  if (!key) return false;
+  const deadKey = deadPendingSyncsKey();
+  const errorsKey = syncErrorsKey();
+  if (!deadKey && !errorsKey) return false;
   try {
-    localStorage.setItem(key, JSON.stringify(queue));
+    const serialized = JSON.stringify(queue);
+    if (deadKey) localStorage.setItem(deadKey, serialized);
+    if (errorsKey) localStorage.setItem(errorsKey, serialized);
     return true;
   } catch (err) {
     console.warn('[CharcuLogic Offline] Dead-Letter konnte nicht gespeichert werden:', err);
@@ -227,14 +268,14 @@ export function requeueDeadPendingSyncs() {
 
   for (const item of dead) {
     const {
-      _deadAt, _lastError, _errorCode, _attempts, _id, _queuedAt,
+      _deadAt, _lastError, _errorCode, _attempts, retryCount, _id, _queuedAt,
       ...rest
     } = item;
     if (!isValidPendingSync(rest)) {
       stillDead.push(item);
       continue;
     }
-    addPendingSync({ ...rest, _attempts: 0 });
+    addPendingSync(withRetryCount(rest, 0));
     requeued += 1;
   }
 
@@ -247,18 +288,66 @@ export function resetPendingSyncRetries() {
   const queue = getPendingSyncs();
   if (!queue.length) return 0;
   const reset = queue.map((item) => {
-    const { _lastError, _errorCode, _attempts, ...rest } = item;
-    return { ...rest, _attempts: 0 };
+    const { _lastError, _errorCode, _attempts, retryCount, ...rest } = item;
+    return withRetryCount(rest, 0);
   });
   savePendingSyncs(reset);
   return reset.length;
 }
 
-/** Leert Warteschlange und Dead-Letter-Puffer für den aktuellen Mandanten. */
+/** Leert Warteschlange und Dead-Letter-/sync_errors-Puffer für den aktuellen Mandanten. */
 export function clearAllPendingSyncQueues() {
   savePendingSyncs([]);
   saveDeadPendingSyncs([]);
+  const errorsKey = syncErrorsKey();
+  if (errorsKey) {
+    try { localStorage.removeItem(errorsKey); } catch (_) { /* noop */ }
+  }
   updateSyncIndicator();
+}
+
+export function removeQueuedMutation(id) {
+  const target = String(id || '');
+  if (!target) return false;
+  const next = getPendingSyncs().filter((item) => item._id !== target);
+  return savePendingSyncs(next);
+}
+
+function isMhdAuditPath(collectionPath) {
+  const value = String(collectionPath || '').trim();
+  return value === 'mhd_audit' || value.endsWith('mhd_audit');
+}
+
+function isMhdListePath(collectionPath) {
+  const leaf = String(collectionPath || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+  return leaf === 'mhd_liste';
+}
+
+/** Neuer Posten wird angelegt, bestehender Posten wird gemerged. Kein update() auf fehlende Dokumente. */
+function upsertMhdListeDoc(ref, payload, firebase, writeOp) {
+  const setPayload = { ...(payload || {}) };
+  if ((writeOp === 'set' || writeOp === 'create') && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  return ref.set(setPayload, { merge: true });
+}
+
+/** Append-only Audit: kein Server-Get. set bei bekannter ID, sonst add. */
+async function writeMhdAuditDirect(db, firebase, collectionPath, docId, op, payload) {
+  const body = { ...(payload || {}) };
+  if (op !== 'delete' && firebase?.firestore?.FieldValue?.serverTimestamp) {
+    body.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  if (op === 'delete') {
+    if (!docId) return;
+    await tenantFirestoreDocRef(db, collectionPath, docId).delete();
+    return;
+  }
+  if (!docId) {
+    await db.collection(collectionPath).add(body);
+    return;
+  }
+  await tenantFirestoreDocRef(db, collectionPath, docId).set(body);
 }
 
 export function savePendingSyncs(queue) {
@@ -279,38 +368,41 @@ export function savePendingSyncs(queue) {
 
 export function addPendingSync(entry) {
   const queue = getPendingSyncs();
-  queue.push({ ...entry, _queuedAt: Date.now(), _id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  const retryCount = getRetryCount(entry);
+  queue.push(withRetryCount({
+    ...entry,
+    _queuedAt: Date.now(),
+    _id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  }, retryCount));
   const saved = savePendingSyncs(queue);
   updateSyncIndicator();
   return saved;
 }
 
 function saveDeadPendingSync(item, error) {
-  const key = deadPendingSyncsKey();
-  if (!key) return;
-  const deadEntry = {
+  const deadEntry = withRetryCount({
     ...item,
     _deadAt: Date.now(),
     _lastError: error?.message || String(error || 'Unbekannter Fehler'),
     _errorCode: error?.code || '',
-  };
+  }, getRetryCount(item));
   try {
-    const dead = JSON.parse(localStorage.getItem(key) || '[]');
+    const dead = getDeadPendingSyncs();
     dead.push(deadEntry);
-    localStorage.setItem(key, JSON.stringify(dead.slice(-100)));
+    saveDeadPendingSyncs(dead.slice(-100));
   } catch (err) {
     console.error('[CharcuLogic Offline] Dead-Letter konnte nicht geschrieben werden:', err);
   }
   reportCriticalError({
-    errorCode: 'ERR_SYNC_DEAD_LETTER',
     type: 'dead-letter',
     syncType: item._syncType,
     collectionPath: item._collectionPath,
     docId: item._docId,
     op: item._op,
-    attempts: item._attempts || 0,
+    attempts: getRetryCount(item),
+    retryCount: getRetryCount(item),
     errorMessage: error?.message || String(error || ''),
-    errorCode: error?.code || '',
+    errorCode: error?.code || 'ERR_SYNC_DEAD_LETTER',
     queuedAt: item._queuedAt || null,
     deadAt: deadEntry._deadAt,
     payload: item.data || null,
@@ -364,8 +456,8 @@ export function reportCriticalError(errorContext) {
     tenantId: currentTenantId() || 'unknown',
     userId,
     reportedAt: new Date().toISOString(),
-    userAgent: navigator.userAgent || '',
-    url: window.location.href || '',
+    userAgent: typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '',
+    url: typeof window !== 'undefined' && window.location ? (window.location.href || '') : '',
     _telemetryId: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   };
 
@@ -384,7 +476,10 @@ function mapTelemetryErrorCode(entry) {
 }
 
 function buildTelemetryMessage(entry) {
-  return String(entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler').slice(0, 999);
+  return redactTelemetryMessage(
+    entry?.errorMessage || entry?.type || 'Unbekannter Client-Fehler',
+    entry,
+  );
 }
 
 function buildTelemetryContext(entry) {
@@ -404,7 +499,6 @@ function buildSystemErrorDocument(entry, firebase) {
     message: buildTelemetryMessage(entry),
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
   };
-  if (entry?.userId) doc.userId = String(entry.userId).slice(0, 128);
   const context = buildTelemetryContext(entry);
   if (context) doc.context = context;
   return doc;
@@ -434,7 +528,7 @@ export async function flushErrorTelemetry() {
           remaining.push(entry);
           continue;
         }
-        await db.collection('system_errors').add(payload);
+        await db.collection('tenants').doc(payload.tenantId).collection('system_errors').add(payload);
       } catch (writeErr) {
         console.warn('[CharcuLogic Telemetrie] system_errors Schreiben fehlgeschlagen:', writeErr);
         remaining.push(entry);
@@ -451,7 +545,9 @@ function isValidPendingSync(item) {
   if (item._syncType === 'haccp') return Boolean(item._collectionPath);
   if (item._syncType === 'appsScript') return true;
   if (item._syncType === 'firestore-doc') {
-    return Boolean(item._collectionPath && item._docId && ['create', 'set', 'update', 'delete'].includes(item._op));
+    const op = item._op;
+    if (op === 'add') return Boolean(item._collectionPath);
+    return Boolean(item._collectionPath && item._docId && ['create', 'set', 'update', 'delete'].includes(op));
   }
   return false;
 }
@@ -464,9 +560,28 @@ function isPermissionOrExistsError(err) {
     || code === 'ALREADY_EXISTS';
 }
 
-export function isPermissionDeniedError(err) {
+function isNotFoundError(err) {
   const code = String(err?.code || '').toLowerCase();
-  return code.includes('permission-denied') || code === 'permission-denied';
+  const message = String(err?.message || '');
+  return code.includes('not-found')
+    || code === 'not-found'
+    || /NOT_FOUND/i.test(message);
+}
+
+/** Fatal errors must leave the active queue immediately (dead-letter). */
+export function isFatalSyncError(err) {
+  const code = String(err?.code || '').toLowerCase();
+  return isPermissionDeniedError(err)
+    || code.includes('already-exists')
+    || code.includes('invalid-argument')
+    || code.includes('failed-precondition')
+    || code.includes('out-of-range')
+    || code.includes('data-loss');
+}
+
+export function isPermissionDeniedError(err) {
+  const code = String(err?.code || err?.message || '').toLowerCase();
+  return code.includes('permission-denied');
 }
 
 const permissionToastState = { lastAt: 0 };
@@ -550,7 +665,7 @@ async function tryStaleArchiveFallback(item) {
 export async function flushOnePendingSync(item) {
   const db = syncContext.getDatabase();
   const firebase = syncContext.getFirebase();
-  const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _attempts, data, ...legacyData } = item;
+  const { _queuedAt, _id, _syncType, _collectionPath, _docId, _op, _attempts, retryCount, data, ...legacyData } = item;
   if (_syncType === 'haccp' && _collectionPath) {
     const collectionPath = normalizeTenantCollectionPath(_collectionPath);
     try {
@@ -574,7 +689,6 @@ export async function flushOnePendingSync(item) {
   }
   if (_syncType === 'firestore-doc') {
     const collectionPath = normalizeTenantCollectionPath(_collectionPath);
-    const ref = tenantFirestoreDocRef(db, _collectionPath, _docId);
     const rawPayload = data || {};
     const payload = isTaskCollectionPath(collectionPath)
       ? sanitizeTaskSyncPayload(rawPayload)
@@ -582,9 +696,44 @@ export async function flushOnePendingSync(item) {
         ? sanitizeMhdListeSyncPayload(rawPayload)
         : rawPayload);
     const writeOp = (_op === 'create' && isTaskCollectionPath(collectionPath)) ? 'set' : _op;
+
+    // Write-only collection append (e.g. mhd_audit via op:'add') — never pre-read / GET.
+    if (writeOp === 'add') {
+      try {
+        const addPayload = { ...payload };
+        if (firebase?.firestore?.FieldValue?.serverTimestamp) {
+          addPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+        await db.collection(collectionPath).add(addPayload);
+      } catch (err) {
+        if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
+        throw err;
+      }
+      return;
+    }
+
+    // Main: append-only audit helper (docId optional); swallow failures so audit never blocks the queue.
+    if (isMhdAuditPath(collectionPath)) {
+      try {
+        await writeMhdAuditDirect(db, firebase, collectionPath, _docId, writeOp, payload);
+      } catch (err) {
+        console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', _docId, err);
+      }
+      return;
+    }
+
+    const ref = tenantFirestoreDocRef(db, _collectionPath, _docId);
     try {
       if (writeOp === 'delete') {
-        await ref.delete();
+        try {
+          await ref.delete();
+        } catch (delErr) {
+          // Idempotent: missing docs are already gone — do not block the queue.
+          if (isNotFoundError(delErr)) return;
+          throw delErr;
+        }
+      } else if (isMhdListePath(collectionPath)) {
+        await upsertMhdListeDoc(ref, payload, firebase, writeOp);
       } else if (writeOp === 'set') {
         const setPayload = { ...payload };
         if (firebase?.firestore?.FieldValue?.serverTimestamp) {
@@ -598,10 +747,16 @@ export async function flushOnePendingSync(item) {
         }
         await ref.create(createPayload);
       } else {
-        await ref.update(payload);
+        // Upsert: recreate missing docs instead of blocking on NOT_FOUND.
+        // Intent note: main still used update() for non-mhd_liste; this branch keeps universal upsert.
+        await ref.set(payload, { merge: true });
       }
     } catch (err) {
       if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
+      // permission-denied is fatal — skip content GET (fails offline / blocks queue).
+      if (isPermissionDeniedError(err)) {
+        throw err;
+      }
       if (isPermissionOrExistsError(err) && _op !== 'delete') {
         if (isStaleHaccpPayload(item)) {
           const archived = await tryStaleArchiveFallback(item);
@@ -617,9 +772,10 @@ export async function flushOnePendingSync(item) {
           }
         } catch (verifyErr) {
           if (verifyErr instanceof ServerGetFailedError) {
-            console.warn(`[CharcuLogic Sync] Server-Get für ${_docId} fehlgeschlagen — Eintrag bleibt sicher in Queue.`);
-            if (qaState.active) qaState.log(`[QA] Server-Get fehlgeschlagen: ${_docId} bleibt in Queue`);
-            throw verifyErr;
+            // Do not keep forever: treat as flush failure so retry/dead-letter can proceed.
+            console.warn(`[CharcuLogic Sync] Server-Get für ${_docId} fehlgeschlagen — zählt als Fehlversuch.`);
+            if (qaState.active) qaState.log(`[QA] Server-Get fehlgeschlagen: ${_docId}`);
+            throw err;
           }
           throw err;
         }
@@ -697,21 +853,23 @@ export async function writeFirestoreDocOrQueue({
   silentPermissionDenied = false,
 }) {
   const db = syncContext.getDatabase();
-  if (!collectionPath || !docId) throw new Error('Firestore-Ziel fehlt');
+  if (!collectionPath) throw new Error('Firestore-Ziel fehlt');
+  const syncOp = op;
+  if (syncOp !== 'add' && !docId) throw new Error('Firestore-Ziel fehlt');
   const normalizedCollectionPath = normalizeTenantCollectionPath(collectionPath);
   const syncData = isTaskCollectionPath(normalizedCollectionPath)
     ? sanitizeTaskSyncPayload(queueData)
     : (isMhdListeCollectionPath(normalizedCollectionPath)
       ? sanitizeMhdListeSyncPayload(queueData)
       : queueData);
-  const syncOp = (op === 'create' && isTaskCollectionPath(normalizedCollectionPath)) ? 'set' : op;
+  const effectiveOp = (syncOp === 'create' && isTaskCollectionPath(normalizedCollectionPath)) ? 'set' : syncOp;
 
   if (!navigator.onLine || !syncContext.isFirebaseReady() || !db) {
     const saved = addPendingSync({
       _syncType: 'firestore-doc',
       _collectionPath: normalizedCollectionPath,
-      _docId: docId,
-      _op: syncOp,
+      ...(effectiveOp === 'add' ? {} : { _docId: docId }),
+      _op: effectiveOp,
       data: syncData,
     });
     if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
@@ -722,46 +880,68 @@ export async function writeFirestoreDocOrQueue({
 
   try {
     if (qaState.active && qaState.latency) {
-      qaState.log(`[QA] Latenz 5000ms auf ${op} ${docId}`);
+      qaState.log(`[QA] Latenz 5000ms auf ${op} ${docId || 'add'}`);
       await new Promise((r) => setTimeout(r, 5000));
     }
 
-    const ref = tenantFirestoreDocRef(db, collectionPath, docId);
     const firebase = syncContext.getFirebase();
     const onlinePayload = isTaskCollectionPath(normalizedCollectionPath)
       ? sanitizeTaskSyncPayload(onlineData)
       : (isMhdListeCollectionPath(normalizedCollectionPath)
         ? sanitizeMhdListeSyncPayload(onlineData)
         : onlineData);
-    const writeOp = syncOp;
+    const writeOp = effectiveOp;
     let writePromise;
-    if (writeOp === 'delete') {
-      writePromise = ref.delete();
-    } else if (writeOp === 'set') {
-      const setPayload = { ...onlinePayload };
+
+    if (writeOp === 'add') {
+      const addPayload = { ...onlinePayload };
       if (firebase?.firestore?.FieldValue?.serverTimestamp) {
-        setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        addPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       }
-      writePromise = ref.set(setPayload, { merge: false });
-    } else if (writeOp === 'create') {
-      const createPayload = { ...onlinePayload };
-      if (firebase?.firestore?.FieldValue?.serverTimestamp) {
-        createPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      }
-      writePromise = ref.create(createPayload);
+      // Write-only append — no pre-read/GET before audit / collection logs.
+      writePromise = db.collection(normalizedCollectionPath).add(addPayload);
+    } else if (isMhdAuditPath(normalizedCollectionPath)) {
+      await withTimeout(writeMhdAuditDirect(db, firebase, normalizedCollectionPath, docId, writeOp, onlinePayload));
+      refreshSyncConnectivityUi();
+      return 'written';
     } else {
-      writePromise = ref.update(onlinePayload);
+      const ref = tenantFirestoreDocRef(db, collectionPath, docId);
+      if (writeOp === 'delete') {
+        writePromise = ref.delete();
+      } else if (isMhdListePath(normalizedCollectionPath)) {
+        writePromise = upsertMhdListeDoc(ref, onlinePayload, firebase, writeOp);
+      } else if (writeOp === 'set') {
+        const setPayload = { ...onlinePayload };
+        if (firebase?.firestore?.FieldValue?.serverTimestamp) {
+          setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+        writePromise = ref.set(setPayload, { merge: false });
+      } else if (writeOp === 'create') {
+        const createPayload = { ...onlinePayload };
+        if (firebase?.firestore?.FieldValue?.serverTimestamp) {
+          createPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+        writePromise = ref.create(createPayload);
+      } else {
+        // Upsert via set+merge so missing server docs recreate instead of NOT_FOUND.
+        // Intent note: main still used update() for non-mhd_liste; this branch keeps universal upsert.
+        writePromise = ref.set(onlinePayload, { merge: true });
+      }
     }
     await withTimeout(writePromise);
 
     if (qaState.active && qaState.teardown) {
-      qaState.log(`[QA] Abreißer: Schreiben für ${docId} lokal als gescheitert simuliert`);
+      qaState.log(`[QA] Abreißer: Schreiben für ${docId || 'add'} lokal als gescheitert simuliert`);
       throw new Error('[QA-Teardown] Simulierter Netzwerk-Abreißer nach Firebase-Trigger');
     }
 
     refreshSyncConnectivityUi();
     return 'written';
   } catch (err) {
+    if (isMhdAuditPath(normalizedCollectionPath)) {
+      console.warn('[CharcuLogic Sync] mhd_audit verworfen, Queue bleibt frei:', docId, err);
+      return 'skipped';
+    }
     if (maybeResetOnFirestorePermissionError(err, 'Sync-Write')) return 'written';
     const errorCode = String(err?.code || '').toLowerCase();
     if (errorCode.includes('permission-denied') || errorCode === 'permission-denied') {
@@ -773,8 +953,8 @@ export async function writeFirestoreDocOrQueue({
     const saved = addPendingSync({
       _syncType: 'firestore-doc',
       _collectionPath: normalizedCollectionPath,
-      _docId: docId,
-      _op: syncOp,
+      ...(effectiveOp === 'add' ? {} : { _docId: docId }),
+      _op: effectiveOp,
       data: syncData,
     });
     if (!saved) throw err;
@@ -800,32 +980,44 @@ export async function flushPendingSyncs() {
     requireTenantId();
 
     const failed = [];
+    let deadLetterCount = 0;
     for (const item of queue) {
       if (!isValidPendingSync(item)) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, new Error('Ungultiger Queue-Eintrag'));
+          continue;
+        }
         saveDeadPendingSync(item, new Error('Ungultiger Queue-Eintrag'));
+        deadLetterCount += 1;
         continue;
       }
       try {
         await flushOnePendingSync(item);
       } catch (err) {
+        if (isMhdAuditPath(item._collectionPath)) {
+          console.warn('[CharcuLogic Sync] mhd_audit aus der Queue verworfen:', item._docId, err);
+          continue;
+        }
         if (maybeResetOnFirestorePermissionError(err, 'Sync-Flush')) return;
         console.warn('[CharcuLogic Offline] Sync fehlgeschlagen, bleibt in Queue:', err);
-        const attempts = (item._attempts || 0) + 1;
-        if (attempts >= 5) {
-          saveDeadPendingSync({ ...item, _attempts: attempts }, err);
+        const attempts = getRetryCount(item) + 1;
+        const enriched = withRetryCount({
+          ...item,
+          _lastError: err?.message || String(err),
+          _errorCode: err?.code || '',
+        }, attempts);
+        // Fatal errors or retry limit — move to sync_errors, do not block siblings.
+        if (isFatalSyncError(err) || attempts >= MAX_SYNC_RETRIES) {
+          saveDeadPendingSync(enriched, err);
+          deadLetterCount += 1;
         } else {
-          failed.push({
-            ...item,
-            _attempts: attempts,
-            _lastError: err?.message || String(err),
-            _errorCode: err?.code || '',
-          });
+          failed.push(enriched);
         }
       }
     }
     savePendingSyncs(failed);
     refreshSyncConnectivityUi();
-    if (failed.length === 0 && queue.length > 0) {
+    if (failed.length === 0 && deadLetterCount === 0 && queue.length > 0) {
       window.showToast?.("Alle Offline-Daten synchronisiert!", "success");
     }
   } finally {
@@ -834,6 +1026,7 @@ export async function flushPendingSyncs() {
 }
 
 export function updateSyncIndicator() {
+  if (typeof document === 'undefined') return;
   const dot = document.getElementById('sync-status-dot');
   const count = document.getElementById('sync-pending-count');
   if (!dot) return;

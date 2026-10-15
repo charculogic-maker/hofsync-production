@@ -34,6 +34,7 @@ import {
   reportCriticalError,
   resetPendingSyncRetries,
   clearAllPendingSyncQueues,
+  removeQueuedMutation,
   savePendingSyncs,
   updateSyncIndicator,
   writeFirestoreDocOrQueue,
@@ -41,7 +42,9 @@ import {
 import {
   closeScanner,
   initScannerEngine,
+  isScannerOverlayOpen,
   openScanner,
+  resumeScannerListening,
 } from './scanner.js';
 import {
   activateHaccpTab,
@@ -64,6 +67,11 @@ import {
   refreshReceivingTabUiSafe,
   renderMhdList,
   startMhdLiveSync,
+  syncMhdSaveBarKeyboardOffset,
+  bindMhdSaveBarViewportSync,
+  closeMhdQtyNumpad,
+  closeReceivingQtyNumpad,
+  closeReceivingMhdEditor,
   updateMhdAdminSearchVisibility,
 } from './mhd.js';
 import {
@@ -103,10 +111,10 @@ import {
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
   syncPushRegistration,
+  verifyEmployeePin,
 } from './team-config.js';
 import { initGermanDateInputs } from './date-input.js';
-import { initDeliveryNoteScanner } from './delivery-note.js';
-import { initDeliveryParser } from './delivery-parser.js';
+import { initDiscountMatrixUi } from './discount-matrix-ui.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -117,11 +125,13 @@ import {
   setGlobalTenantId,
   tenantIdsMatch,
 } from './tenant-db.js';
-import { resolveFirebaseConfig, resolveFirebaseProjectKey, toFirebaseSdkConfig } from './firebase-config.js';
+import { FIREBASE_BOOT_GRACE_MS, resolveFirebaseConfig, resolveFirebaseProjectKey, toFirebaseSdkConfig } from './firebase-config.js';
 import {
   assertFirebaseProjectIsolation,
   ensureFirebaseApp,
+  ensureFirestorePersistentCache,
   handleEmergencyLogoutParam,
+  installSecretLogoutGestures,
   isEmergencyLogoutRequested,
 } from './firebase-init.js';
 import {
@@ -131,7 +141,7 @@ import {
   resolveFunctionsBaseUrl,
 } from './firebase-functions.js';
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
-import { attachLocalFirebaseEmulators, isLocalFirebaseEmulatorHost } from './firebase-emulator.js';
+import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
   hasAnyAdminModuleEnabled,
   hasModule,
@@ -139,6 +149,7 @@ import {
   loadTenantEnabledModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
+import { getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
 import {
   initDevDashboard,
   isDevDashboardRoute,
@@ -168,9 +179,8 @@ const EMERGENCY_LOGOUT_REQUESTED = isEmergencyLogoutRequested();
 if (EMERGENCY_LOGOUT_REQUESTED) {
   void handleEmergencyLogoutParam();
 }
+installSecretLogoutGestures();
 
-const STEVESHOF_TENANT_ID = 'StevesHof_Hauptbetrieb';
-const STEVESHOF_TERMINAL_EMAIL = 'bestellung@steveshof-hofladen.de';
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
@@ -191,10 +201,9 @@ const AUTH_LOCAL_STORAGE_MARKERS = [
 const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
-const LEGACY_TEAM_SESSION_MARKERS = ['steveshof-team', 'team steveshof'];
-
 function isEmployeePinRequired(branding = window.BRANDING) {
   if (isFirebaseRoleAuth(branding)) return false;
+  if (getTerminalSettings().bypassPin === true) return false;
   return branding?.modules?.employeePin !== false;
 }
 
@@ -230,8 +239,7 @@ function isTeamSessionName(employeeName, branding = window.BRANDING) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return true;
   const normalized = cleanName.toLowerCase();
-  if (LEGACY_TEAM_SESSION_MARKERS.includes(normalized)) return true;
-  if (normalized.startsWith('team ')) return true;
+  if (normalized.startsWith('team ') || normalized.endsWith('-team') || normalized.endsWith(' team')) return true;
   return cleanName === resolveTeamSessionName(branding);
 }
 
@@ -340,7 +348,6 @@ function rememberProfileGuestName(name) {
 function getSortedProfilePickerEmployees() {
   const blocked = new Set([
     PROFILE_OTHER_LABEL.toLowerCase(),
-    ...LEGACY_TEAM_SESSION_MARKERS,
     resolveTeamSessionName().toLowerCase(),
   ]);
   return getTeamEmployees()
@@ -581,7 +588,11 @@ const PROFILE_TAB_ALIASES = {
 };
 
 const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
-const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts', 'batches']);
+const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
+/** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
+const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
+const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
+const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
 const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
@@ -598,6 +609,18 @@ const TAB_ID_TO_MODULE_KEY = {
   cuts: 'knowledge',
   batches: 'buero',
 };
+
+function isMobileNavViewport() {
+  try {
+    return window.matchMedia(MOBILE_NAV_MEDIA_QUERY).matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+function isDesktopOnlyNavTab(tabId) {
+  return DESKTOP_ONLY_NAV_TAB_IDS.has(String(tabId || ''));
+}
 
 function hasActiveFirebaseAuthUser() {
   try {
@@ -686,10 +709,12 @@ function syncBottomNavTabLayout() {
   if (!nav) return;
 
   const visibleCount = countVisibleBottomNavTabs();
-  const scrollable = visibleCount > 3;
+  // Smartphone: operative Tabs gleichmäßig verteilen — kein horizontaler Scroll.
+  const scrollable = !isMobileNavViewport() && visibleCount > 3;
 
   nav.classList.toggle('bottom-nav--scrollable', scrollable);
   nav.classList.toggle('bottom-nav--compact', !scrollable);
+  nav.classList.toggle('bottom-nav--mobile-ops', isMobileNavViewport());
   nav.classList.remove('bottom-nav--three-tabs', 'bottom-nav--five-tabs', 'bottom-nav--six-tabs');
 
   requestAnimationFrame(() => {
@@ -740,18 +765,78 @@ function hideAdminHeaderDropdown() {
   }
 }
 
+function closeAdminNavAccordion() {
+  const popover = document.getElementById('admin-nav-popover');
+  const trigger = document.getElementById('admin-nav-trigger');
+  if (popover) popover.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+}
+
+function bindAdminNavAccordion() {
+  const trigger = document.getElementById('admin-nav-trigger');
+  const popover = document.getElementById('admin-nav-popover');
+  const accordion = document.getElementById('admin-nav-accordion');
+  if (!trigger || !popover || !accordion || trigger.dataset.bound === '1') return;
+  trigger.dataset.bound = '1';
+
+  const placePopover = () => {
+    const rect = trigger.getBoundingClientRect();
+    const width = 240;
+    const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+    popover.style.position = 'fixed';
+    popover.style.left = `${left}px`;
+    popover.style.right = 'auto';
+    popover.style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`;
+    popover.style.top = 'auto';
+    popover.style.width = `${width}px`;
+    popover.style.zIndex = '1200';
+  };
+
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const willOpen = popover.hidden;
+    closeAdminNavAccordion();
+    if (!willOpen) return;
+    placePopover();
+    popover.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  });
+
+  popover.querySelector('#tab-batches')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeAdminNavAccordion();
+    window.showTab?.('batches');
+  });
+
+  popover.querySelector('#nav-admin-dashboard')?.addEventListener('click', () => {
+    closeAdminNavAccordion();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (popover.hidden) return;
+    if (accordion.contains(event.target)) return;
+    closeAdminNavAccordion();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAdminNavAccordion();
+  });
+}
+
 function syncAdminNavZone(authSession = getAuthContext()) {
   try {
     const zone = document.getElementById('app-nav-admin-zone');
     if (!zone) return;
+    bindAdminNavAccordion();
     const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
-    const isAdmin = isTenantAdmin(user, authSession)
-      || isPlatformSuperAdmin(user);
-    const show = hasAuthenticatedTenantContext(authSession) && isAdmin;
+    const show = hasAuthenticatedTenantContext(authSession) && isOfficeUser(authSession);
     zone.hidden = !show;
     zone.style.display = show ? '' : 'none';
+    if (!show) closeAdminNavAccordion();
     document.body.classList.toggle('has-admin-nav', show);
     document.body.classList.toggle('role-super-admin', isPlatformSuperAdmin(user));
+    syncAdminHeaderDashboardLink(authSession);
   } catch (err) {
     console.warn('[CharcuLogic Admin] Verwaltungs-Navigation fehlgeschlagen:', err);
     const zone = document.getElementById('app-nav-admin-zone');
@@ -765,16 +850,27 @@ function syncAdminNavZone(authSession = getAuthContext()) {
 }
 
 function bindTenantAdminNavGuard() {
-  const link = document.getElementById('nav-admin-dashboard');
-  if (!link || link.dataset.guardBound === '1') return;
-  link.dataset.guardBound = '1';
-  link.addEventListener('click', (event) => {
-    const session = getAuthContext();
-    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
-    if (isTenantAdmin(user, session)) return;
-    event.preventDefault();
-    syncAdminNavZone(session);
-    window.showToast?.('Die Verwaltung ist nur für Betriebs-Admins.', 'warning');
+  const links = [
+    document.getElementById('nav-admin-dashboard'),
+    document.getElementById('admin-header-dashboard-link'),
+  ].filter(Boolean);
+
+  links.forEach((link) => {
+    if (link.dataset.guardBound === '1') return;
+    link.dataset.guardBound = '1';
+    link.addEventListener('click', (event) => {
+      const session = getAuthContext();
+      const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+      if (isTenantAdmin(user, session)) {
+        closeAdminHeaderDropdownMenu();
+        closeAdminNavAccordion();
+        return;
+      }
+      event.preventDefault();
+      syncAdminNavZone(session);
+      syncAdminHeaderDashboardLink(session);
+      window.showToast?.('Die Verwaltung ist nur für Betriebs-Admins.', 'warning');
+    });
   });
 }
 
@@ -817,9 +913,55 @@ function syncAppShellLayout(pageId) {
       const sidebar = document.body.classList.contains('app-shell-sidebar');
       navBrand.setAttribute('aria-hidden', sidebar ? 'false' : 'true');
     }
+    syncSidebarFacilityUserCard();
   } catch (err) {
     console.warn('[CharcuLogic Layout] App-Shell-Layout fehlgeschlagen:', err);
   }
+}
+
+/**
+ * Sidebar-Topkarte: Betriebsname + aktuelle Person (Name / Initialen).
+ */
+function syncSidebarFacilityUserCard(employeeName = readActiveEmployee()) {
+  try {
+    const branding = window.BRANDING || {};
+    const facilityEl = document.getElementById('app-nav-facility-name');
+    if (facilityEl) {
+      facilityEl.textContent = branding.betriebsName || branding.displayName || resolveHeaderBrandName();
+    }
+
+    const nameEl = document.getElementById('app-nav-user-name');
+    const initialsEl = document.getElementById('app-nav-user-initials');
+    if (!nameEl && !initialsEl) return;
+
+    let resolved = String(employeeName || '').trim();
+    if (!resolved) {
+      try {
+        const authSession = getAuthContext() || {};
+        resolved = resolveFirebaseEmployeeName(authSession);
+        if (!resolved || resolved === 'Mitarbeiter') {
+          const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+          resolved = String(user?.displayName || user?.email?.split('@')[0] || '').trim();
+        }
+      } catch (_) { /* noop */ }
+    }
+
+    const display = resolved || 'Nicht angemeldet';
+    if (nameEl) nameEl.textContent = display;
+    if (initialsEl) initialsEl.textContent = initialsFromDisplayName(display);
+  } catch (err) {
+    console.warn('[CharcuLogic Layout] Sidebar-Nutzerkarte fehlgeschlagen:', err);
+  }
+}
+
+function initialsFromDisplayName(name = '') {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length || parts[0] === 'Nicht' || parts[0] === '–') return '–';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
 window.syncAppShellLayout = syncAppShellLayout;
@@ -832,13 +974,19 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
       hideAdminHeaderDropdown();
       return;
     }
-    const show = hasAdminModuleAccess(branding) && hasAnyAdminModuleEnabled(branding);
+    const authSession = getAuthContext();
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const showModules = hasAdminModuleAccess(branding) && hasAnyAdminModuleEnabled(branding);
+    // Am Smartphone bleibt /dev-dashboard über ⚙️ erreichbar (Fußleisten-Admin ausgeblendet).
+    const showDashboard = isTenantAdmin(user, authSession);
+    const show = showModules || showDashboard;
     dropdown.hidden = !show;
     dropdown.style.display = show ? '' : 'none';
     if (!show) {
       clearAdminModuleViewState();
     } else {
       syncAdminHeaderDropdownItems(branding);
+      syncAdminHeaderDashboardLink(authSession);
     }
   } catch (err) {
     console.warn('[CharcuLogic Admin] Admin-Dropdown-Sichtbarkeit fehlgeschlagen:', err);
@@ -848,7 +996,7 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
 
 function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
   try {
-    if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess(branding)) return;
+    const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
     const itemModuleMap = {
       haccp: isTenantModuleEnabled('haccp', branding),
       knowledge: isTenantModuleEnabled('knowledge', branding),
@@ -856,12 +1004,36 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
     };
     document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
       const moduleKey = item.getAttribute('data-admin-module');
-      const enabled = itemModuleMap[moduleKey] !== false;
+      if (moduleKey === 'dashboard') return;
+      const enabled = canModules && itemModuleMap[moduleKey] !== false;
       item.hidden = !enabled;
       item.style.display = enabled ? '' : 'none';
     });
+    syncAdminHeaderDashboardLink();
   } catch (err) {
     console.warn('[CharcuLogic Admin] Admin-Dropdown-Einträge konnten nicht aktualisiert werden:', err);
+  }
+}
+
+/**
+ * /dev-dashboard im Header-Zahnrad — am Smartphone ohne Admin-Fußleisten-Tab.
+ * Nur Betriebs-Admin / Super-Admin.
+ */
+function syncAdminHeaderDashboardLink(authSession = getAuthContext()) {
+  try {
+    const link = document.getElementById('admin-header-dashboard-link');
+    if (!link) return;
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const show = hasAuthenticatedTenantContext(authSession) && isTenantAdmin(user, authSession);
+    link.hidden = !show;
+    link.style.display = show ? '' : 'none';
+  } catch (err) {
+    console.warn('[CharcuLogic Admin] Header-Verwaltungs-Link fehlgeschlagen:', err);
+    const link = document.getElementById('admin-header-dashboard-link');
+    if (link) {
+      link.hidden = true;
+      link.style.display = 'none';
+    }
   }
 }
 
@@ -885,6 +1057,7 @@ function applyProfileCapabilityTabFilter(branding = window.BRANDING) {
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') return;
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;
@@ -952,20 +1125,40 @@ function persistNamedProfileSession(employeeName, branding = window.BRANDING) {
   return cleanName;
 }
 
-function buildProfileSessionOverlayShell(cardNode) {
+function buildProfileSessionOverlayShell(cardNode, { closable = true, onClose } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'profile-session-overlay';
   const card = document.createElement('div');
   card.className = 'pin-auth-card profile-session-card';
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-modal', 'true');
+  if (closable) {
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'profile-session-close';
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    closeBtn.dataset.profileClose = '1';
+    closeBtn.textContent = '✕';
+    card.appendChild(closeBtn);
+  }
   card.appendChild(cardNode);
   overlay.appendChild(card);
+  if (closable && typeof onClose === 'function') {
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay || event.target.closest('[data-profile-close]')) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    });
+  }
   return { overlay, card };
 }
 
 function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
+  const existingClose = card.querySelector('[data-profile-close]');
   card.replaceChildren();
+  if (existingClose) card.appendChild(existingClose);
 
   const title = document.createElement('div');
   title.className = 'pin-auth-title';
@@ -1057,20 +1250,23 @@ function mountProfileOtherNameForm(card, { mandatory = true, onBack, onPick }) {
   input.focus();
 }
 
-function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther, onLogout }) {
+function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOther, onLogout, onCancel }) {
+  const existingClose = card.querySelector('[data-profile-close]');
   card.replaceChildren();
+  if (existingClose) card.appendChild(existingClose);
+
   const employees = getSortedProfilePickerEmployees();
 
   const title = document.createElement('div');
   title.className = 'pin-auth-title';
-  title.textContent = 'Profil wählen';
+  title.textContent = 'Mitarbeiter wechseln';
   card.appendChild(title);
 
   const hint = document.createElement('p');
   hint.className = 'pin-auth-scan';
   hint.textContent = mandatory
     ? 'Bitte auswählen, wer MHD und Wareneingang bearbeitet.'
-    : 'Wer bearbeitet den Wareneingang?';
+    : 'Wer arbeitet gerade an der Theke?';
   card.appendChild(hint);
 
   const list = document.createElement('div');
@@ -1108,6 +1304,7 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
   card.appendChild(logoutLink);
 
   card.onclick = (event) => {
+    if (event.target.closest('[data-profile-close]')) return;
     const picked = event.target.closest('[data-profile-name]')?.dataset.profileName;
     if (picked) {
       persistNamedProfileSession(picked);
@@ -1124,7 +1321,8 @@ function mountProfileEmployeePickerList(card, { mandatory = true, onPick, onOthe
       return;
     }
     if (!mandatory && event.target.closest('.profile-picker-cancel')) {
-      onPick('');
+      if (typeof onCancel === 'function') onCancel();
+      else onPick('');
     }
   };
 
@@ -1142,20 +1340,28 @@ function openProfileEmployeePicker(options = {}) {
     }
 
     document.getElementById('profile-picker-overlay')?.remove();
-
-    const { overlay, card } = buildProfileSessionOverlayShell(document.createDocumentFragment());
-    overlay.id = 'profile-picker-overlay';
+    document.getElementById('team-switcher-overlay')?.remove();
 
     const close = (pickedName = '') => {
       overlay.remove();
       resolve(pickedName);
     };
 
+    const { overlay, card } = buildProfileSessionOverlayShell(document.createDocumentFragment(), {
+      closable: !mandatory,
+      onClose: () => close(''),
+    });
+    overlay.id = 'profile-picker-overlay';
+
     const showList = () => {
       mountProfileEmployeePickerList(card, {
         mandatory,
         onPick: (pickedName) => close(pickedName),
+        onCancel: () => close(''),
         onOther: () => {
+          const existingClose = card.querySelector('[data-profile-close]');
+          card.replaceChildren();
+          if (existingClose) card.appendChild(existingClose);
           mountProfileOtherNameForm(card, {
             mandatory,
             onBack: showList,
@@ -1177,12 +1383,191 @@ function openProfileEmployeePicker(options = {}) {
   });
 }
 
+function openPinTeamSwitcher(options = {}) {
+  const mandatory = options.mandatory === true;
+
+  return new Promise((resolve) => {
+    const employees = getSortedProfilePickerEmployees();
+    if (!employees.length) {
+      window.showToast?.('Keine Mitarbeiter hinterlegt.', 'warning');
+      resolve('');
+      return;
+    }
+
+    document.getElementById('team-switcher-overlay')?.remove();
+    document.getElementById('profile-picker-overlay')?.remove();
+
+    let selectedName = '';
+    let enteredPin = '';
+
+    const body = document.createDocumentFragment();
+    const title = document.createElement('div');
+    title.className = 'pin-auth-title';
+    title.id = 'team-switcher-title';
+    title.textContent = 'Mitarbeiter wechseln';
+    body.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'pin-auth-scan';
+    hint.textContent = 'Namen tippen, dann 4-stellige PIN eingeben.';
+    body.appendChild(hint);
+
+    const list = document.createElement('div');
+    list.className = 'profile-picker-list';
+    employees.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-primary profile-picker-btn';
+      btn.dataset.teamSwitchName = name;
+      btn.textContent = name;
+      list.appendChild(btn);
+    });
+    body.appendChild(list);
+
+    const selectedLabel = document.createElement('div');
+    selectedLabel.className = 'team-switcher-selected';
+    selectedLabel.hidden = true;
+    body.appendChild(selectedLabel);
+
+    const pinBlock = document.createElement('div');
+    pinBlock.className = 'team-switcher-pin-block';
+    pinBlock.hidden = true;
+    pinBlock.innerHTML = `
+      <div class="pin-auth-dots" id="team-switcher-pin-dots">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="pin-auth-keypad">
+        ${['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'X'].map((key) =>
+          `<button type="button" class="pin-auth-key" data-pin-key="${key}">${key === 'X' ? '⌫' : key}</button>`
+        ).join('')}
+      </div>
+    `;
+    body.appendChild(pinBlock);
+
+    if (!mandatory) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-secondary profile-picker-cancel';
+      cancelBtn.dataset.teamSwitchCancel = '1';
+      cancelBtn.textContent = 'Abbrechen';
+      body.appendChild(cancelBtn);
+    }
+
+    const close = (pickedName = '') => {
+      overlay.remove();
+      resolve(pickedName);
+    };
+
+    const { overlay, card } = buildProfileSessionOverlayShell(body, {
+      closable: !mandatory,
+      onClose: () => close(''),
+    });
+    overlay.id = 'team-switcher-overlay';
+    card.setAttribute('aria-labelledby', 'team-switcher-title');
+
+    const dots = Array.from(pinBlock.querySelectorAll('#team-switcher-pin-dots span'));
+    const updateDots = () => {
+      dots.forEach((dot, index) => dot.classList.toggle('filled', index < enteredPin.length));
+    };
+
+    const selectEmployee = (name) => {
+      selectedName = String(name || '').trim();
+      enteredPin = '';
+      updateDots();
+      list.querySelectorAll('[data-team-switch-name]').forEach((btn) => {
+        btn.classList.toggle('is-selected', btn.dataset.teamSwitchName === selectedName);
+      });
+      selectedLabel.hidden = !selectedName;
+      selectedLabel.textContent = selectedName ? `PIN für ${selectedName}` : '';
+      pinBlock.hidden = !selectedName;
+    };
+
+    const failPin = () => {
+      window.showToast?.('Falsche PIN. Bitte erneut versuchen.', 'error');
+      enteredPin = '';
+      updateDots();
+      card.classList.add('pin-shake');
+      setTimeout(() => card.classList.remove('pin-shake'), 260);
+    };
+
+    const submitPin = async () => {
+      if (!selectedName || enteredPin.length !== 4) return;
+      const ok = await verifyEmployeePin(selectedName, enteredPin);
+      if (!ok) {
+        failPin();
+        return;
+      }
+      persistActiveEmployeeSession(selectedName);
+      touchProfileLastActionTime();
+      window.showToast?.(`Angemeldet als ${selectedName}`, 'success');
+      close(selectedName);
+    };
+
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('[data-profile-close]')) return;
+
+      const name = event.target.closest('[data-team-switch-name]')?.dataset.teamSwitchName;
+      if (name) {
+        selectEmployee(name);
+        return;
+      }
+
+      if (event.target.closest('[data-team-switch-cancel]')) {
+        close('');
+        return;
+      }
+
+      const key = event.target.closest('[data-pin-key]')?.dataset.pinKey;
+      if (!key || !selectedName) return;
+      if (key === 'X') {
+        enteredPin = enteredPin.slice(0, -1);
+        updateDots();
+        return;
+      }
+      if (key === 'C') {
+        enteredPin = '';
+        updateDots();
+        return;
+      }
+      if (!/^\d$/.test(key) || enteredPin.length >= 4) return;
+      enteredPin += key;
+      updateDots();
+      if (enteredPin.length === 4) {
+        void submitPin();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    list.querySelector('button')?.focus();
+  });
+}
+
+/**
+ * Header-Schnellwechsler: Profil-Picker oder PIN-Modal je nach Mandanten-Auth.
+ * Abbrechen / Backdrop / ✕ schließt ohne den aktuellen Login zu verlieren.
+ */
+function showTeamSwitcher(options = {}) {
+  if (isFirebaseRoleAuth()) {
+    window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+    return Promise.resolve(readActiveEmployee());
+  }
+  if (isProfileEmployeeAuth() && !isEmployeePinRequired()) {
+    return openProfileEmployeePicker({ mandatory: false, ...options });
+  }
+  if (isEmployeePinRequired()) {
+    return openPinTeamSwitcher(options);
+  }
+  return openProfileEmployeePicker({ mandatory: false, ...options });
+}
+
+function openPinModal(options = {}) {
+  return showTeamSwitcher(options);
+}
+
 function resolveTerminalAuthEmail(branding = window.BRANDING) {
-  const fromBranding = String(branding?.terminalAuth?.email || '').trim();
-  if (fromBranding) return fromBranding;
-  const tenantId = getGlobalTenantId() || window.resolveEffectiveTenantId?.() || '';
-  if (isSteveshofTenantId(tenantId)) return STEVESHOF_TERMINAL_EMAIL;
-  return '';
+  const fromSettings = String(getTerminalSettings().terminalUser || '').trim();
+  if (fromSettings) return fromSettings;
+  return String(branding?.terminalAuth?.email || '').trim();
 }
 
 async function ensureTenantFirebaseAuth(branding = window.BRANDING) {
@@ -1485,7 +1870,7 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
     if (teamLoginCard) teamLoginCard.hidden = true;
     return configureTeamSessionWithoutPin(branding);
   }
-  if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== 'steveshof') {
+  if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== '1') {
     teamLoginCard.hidden = false;
   }
   return readActiveEmployee();
@@ -1502,6 +1887,9 @@ window.touchProfileLastActionTime = touchProfileLastActionTime;
 window.expireProfileSessionIfIdle = expireProfileSessionIfIdle;
 window.showReceivingProfileGatekeeperIfNeeded = showReceivingProfileGatekeeperIfNeeded;
 window.openProfileEmployeePicker = openProfileEmployeePicker;
+window.showTeamSwitcher = showTeamSwitcher;
+window.openPinModal = openPinModal;
+window.openPinTeamSwitcher = openPinTeamSwitcher;
 window.requireProfileSessionForInventory = requireProfileSessionForInventory;
 window.ensureInventoryProfileSessionForTab = ensureInventoryProfileSessionForTab;
 window.ensureEmployeeSessionForProtectedAreaAsync = ensureEmployeeSessionForProtectedAreaAsync;
@@ -1594,7 +1982,9 @@ async function awaitFirebaseAuthSignOut(options = {}) {
       if (!isFirebaseConfigValid(toFirebaseSdkConfig(firebaseConfig))) return;
       ensureFirebaseApp(firebase);
     }
-    await firebase.auth().signOut();
+    const authApp = window.firebaseApp || firebase.app();
+    const auth = typeof authApp.auth === 'function' ? authApp.auth() : firebase.auth(authApp);
+    await auth.signOut();
   } catch (err) {
     console.warn('[CharcuLogic Auth] Firebase signOut fehlgeschlagen:', err);
   }
@@ -1618,10 +2008,6 @@ window.hasActiveFirebaseAuthUser = hasActiveFirebaseAuthUser;
 window.resetAuthStateOnPermissionDenied = resetAuthStateOnPermissionDenied;
 window.tenantIdsMatch = tenantIdsMatch;
 
-function isSteveshofTenantId(tenantId = '') {
-  return String(tenantId || '').trim().toLowerCase() === STEVESHOF_TENANT_ID.toLowerCase();
-}
-
 export {
   getGlobalTenantId,
   getTenantCollection,
@@ -1634,6 +2020,7 @@ export {
 // ============================================================================
 
 function showToast(message, type = "success") {
+  if (isPrematureFirebaseConfigToast(message)) return;
   const toastType = ['success', 'warning', 'error'].includes(type) ? type : 'success';
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -1684,6 +2071,46 @@ function showAdminDevHint(title, desc = '') {
   hint.setAttribute('aria-label', desc ? `${title}: ${desc}` : title);
 }
 
+function persistBootBrandColors(branding = {}) {
+  try {
+    const splashBg = branding.darkHeaderBg || '#1c130e';
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(splashBg)) {
+      localStorage.setItem('charculogic_brand_bg', splashBg);
+    }
+    if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
+      localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
+    }
+    const title = String(branding.betriebsName || '').trim();
+    if (title) {
+      localStorage.setItem(
+        window.BRAND_TITLE_STORAGE_KEY || 'charculogic_brand_title',
+        title,
+      );
+    }
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
+function resolveHeaderBrandName() {
+  const fromBranding = String(window.BRANDING?.betriebsName || '').trim();
+  if (fromBranding) return fromBranding;
+  try {
+    const cached = String(localStorage.getItem(
+      window.BRAND_TITLE_STORAGE_KEY || 'charculogic_brand_title',
+    ) || '').trim();
+    if (cached) return cached;
+  } catch (_) { /* private mode */ }
+  return window.DEFAULT_BRAND_TITLE || 'StevesHof Hofladen';
+}
+
+/** Mandantenname im Header — nie mit Modul-Untertiteln überschreiben. */
+function applyHeaderBrandName(name) {
+  const brandName = String(name || resolveHeaderBrandName()).trim() || 'StevesHof Hofladen';
+  document.querySelectorAll('.brand-betriebs-name').forEach((el) => {
+    el.textContent = brandName;
+  });
+  return brandName;
+}
+
 function applyBrandingCssVars(branding) {
   const root = document.documentElement;
   const setVar = (name, value) => {
@@ -1692,25 +2119,29 @@ function applyBrandingCssVars(branding) {
   setVar('--primary-color', branding.primaryColor);
   setVar('--primary-color-hover', branding.primaryColorHover);
   setVar('--dark-header-bg', branding.darkHeaderBg);
+  const bootBg = branding.darkHeaderBg || '#1c130e';
+  setVar('--boot-bg', bootBg);
   setVar('--accent-alert', branding.accentAlert);
   const headerText = branding.textOnHeader || '#ffffff';
   setVar('--header-text', headerText);
   const isLightHeader = headerText.toLowerCase() === '#000000' || headerText.toLowerCase() === '#000';
   setVar('--header-text-muted', isLightHeader ? 'rgba(0, 0, 0, 0.62)' : 'rgba(255, 255, 255, 0.72)');
   setVar('--nav-text', isLightHeader ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.65)');
+  persistBootBrandColors(branding);
 }
 
 function applyBranding() {
   const branding = window.BRANDING || {};
   const appName = branding.appName || 'CharcuLogic';
-  const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
-  const primaryColor = branding.primaryColor || '#28a745';
+  const betriebsName = applyHeaderBrandName(
+    branding.betriebsName || resolveHeaderBrandName(),
+  );
   const logoUrl = String(branding.logoUrl || branding.logo || '/icon-192.png').trim() || '/icon-192.png';
 
   applyBrandingCssVars(branding);
+  persistBootBrandColors({ ...branding, betriebsName });
 
   document.querySelectorAll('.brand-app-name').forEach((el) => { el.textContent = appName; });
-  document.querySelectorAll('.brand-betriebs-name').forEach((el) => { el.textContent = betriebsName; });
   document.querySelectorAll('.auth-lock-brand').forEach((el) => { el.textContent = appName; });
   document.querySelectorAll('.tenant-header-logo, .app-nav-brand-logo').forEach((el) => {
     if (el.getAttribute('src') !== logoUrl) el.setAttribute('src', logoUrl);
@@ -1727,15 +2158,14 @@ function applyBranding() {
   const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitleMeta) appleTitleMeta.setAttribute('content', appName);
 
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (themeMeta) themeMeta.setAttribute('content', primaryColor);
+  const splashThemeColor = branding.darkHeaderBg || '#1c130e';
+  document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
+    themeMeta.setAttribute('content', splashThemeColor);
+  });
+
+  syncSidebarFacilityUserCard();
 }
 window.applyBranding = applyBranding;
-
-function isWurstkuecheEnabledForTenant(tenantId = '', branding = window.BRANDING || {}) {
-  const normalizedTenantId = String(tenantId || '').trim().toLowerCase();
-  return normalizedTenantId !== 'torfabrik' && branding.modules?.wurstkueche !== false;
-}
 
 window.applyModuleVisibility = applyModuleVisibility;
 
@@ -1756,6 +2186,12 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   };
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') {
+      const showOffice = isOfficeUser() && tabModuleMap.batches === true;
+      tab.hidden = !showOffice;
+      tab.style.display = showOffice ? '' : 'none';
+      return;
+    }
     if (ADMIN_HEADER_ONLY_TAB_IDS.has(tabId)) {
       tab.hidden = true;
       tab.style.display = 'none';
@@ -1823,8 +2259,27 @@ function isActiveTabAllowed(tabId, branding = window.BRANDING || {}) {
   if (ADMIN_HEADER_ONLY_TAB_IDS.has(current)) {
     return isTabAllowedByModules(current, branding);
   }
+  // Bewusst über ⚙️ geöffnetes Admin-Modul (Büro) auch am Smartphone erlauben.
+  if (isDesktopOnlyNavTab(current) && isAdminHeaderModuleActive()) {
+    return isTabAllowedByModules(current === 'buero' ? 'batches' : current, branding);
+  }
+  if (isMobileNavViewport() && isDesktopOnlyNavTab(current) && !isAdminHeaderModuleActive()) {
+    return false;
+  }
   if (!BOTTOM_NAV_TAB_IDS.has(current)) return false;
   return isNavTabElementVisible(current) && isTabAllowedByModules(current, branding);
+}
+
+/**
+ * Am Smartphone: versehentlich aktiver Desktop-Tab (z. B. Büro) → MHD.
+ * Bewusst über Header geöffnete Admin-Module bleiben erhalten.
+ */
+function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
+  if (isNavTabElementVisible(MOBILE_OPS_DEFAULT_TAB) && isTabAllowedByModules(MOBILE_OPS_DEFAULT_TAB, branding)) {
+    return MOBILE_OPS_DEFAULT_TAB;
+  }
+  if (isTabAllowedByModules(MOBILE_OPS_DEFAULT_TAB, branding)) return MOBILE_OPS_DEFAULT_TAB;
+  return resolveDefaultBottomNavTab(branding);
 }
 
 /**
@@ -1838,7 +2293,12 @@ function ensureActiveTabAllowed({ force = false } = {}) {
   const current = AppState?.activeTab;
   if (!force && isActiveTabAllowed(current)) return current;
 
-  const next = resolveDefaultBottomNavTab();
+  const mobileDesktopFallback = isMobileNavViewport()
+    && isDesktopOnlyNavTab(current)
+    && !isAdminHeaderModuleActive();
+  const next = mobileDesktopFallback
+    ? resolveMobileOpsFallbackTab()
+    : resolveDefaultBottomNavTab();
   if (!next) return current;
 
   if (typeof window.showTab === 'function') {
@@ -1891,6 +2351,7 @@ function applyRoleBasedUi(authSession) {
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
+    if (tabId === 'batches') return;
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;
@@ -1908,9 +2369,10 @@ function applyRoleBasedUi(authSession) {
     if (teamLoginCard) teamLoginCard.hidden = true;
   }
 
-  ['btn-master-data', 'btn-delivery-note-ai', 'office-tools-panel'].forEach((id) => {
+  ['btn-master-data', 'office-tools-panel'].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.hidden = !isOffice;
+    if (!el) return;
+    el.hidden = !isOffice;
   });
 
   const saveMhdBar = document.getElementById('mhd-sticky-save-bar');
@@ -1938,6 +2400,7 @@ function applyRoleBasedUi(authSession) {
   updateMhdAdminSearchVisibility(isOffice);
   updateOfficeAccessLock();
   syncRecipeAdminFormVisibility();
+  window.syncFastOnboardingVisibility?.();
 }
 
 function setOfficeLoginError(message = '') {
@@ -2016,27 +2479,44 @@ function bindOfficeAccessLock() {
 // --- DARK MODE ---
 (function initTheme() {
   const THEME_KEY = 'charculogic.theme';
-  const saved = localStorage.getItem(THEME_KEY);
+  const THEME_KEY_ALT = 'charculogic_theme';
+  const readSavedTheme = () => {
+    try {
+      return localStorage.getItem(THEME_KEY) || localStorage.getItem(THEME_KEY_ALT) || '';
+    } catch (_) {
+      return '';
+    }
+  };
+  const writeSavedTheme = (theme) => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+      localStorage.setItem(THEME_KEY_ALT, theme);
+    } catch (_) { /* private mode / blocked storage */ }
+  };
+  const applyTheme = (theme) => {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    document.documentElement.style.colorScheme = next;
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+  };
+
+  const saved = readSavedTheme();
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = saved ? saved === 'dark' : prefersDark;
+  applyTheme(isDark ? 'dark' : 'light');
 
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   const btn = document.getElementById('btn-theme-toggle');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
-
   btn?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem(THEME_KEY, next);
-    btn.textContent = next === 'dark' ? '☀️' : '🌙';
+    applyTheme(next);
+    writeSavedTheme(next);
   });
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (localStorage.getItem(THEME_KEY)) return;
-    const theme = e.matches ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', theme);
-    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (readSavedTheme()) return;
+    applyTheme(e.matches ? 'dark' : 'light');
   });
 })();
 
@@ -2051,6 +2531,65 @@ const firebaseConfig = resolveFirebaseConfig();
 
 let db = null;
 let firebaseReady = false;
+let firebaseConfigToastAllowed = false;
+let firebasePersistencePromise = Promise.resolve();
+
+function isPrematureFirebaseConfigToast(message) {
+  if (firebaseConfigToastAllowed) return false;
+  return /firebase nicht konfiguriert/i.test(String(message || ''));
+}
+
+function isFirebaseConfigGraceOpen() {
+  return !firebaseConfigToastAllowed;
+}
+
+function showStartupLoading(visible) {
+  const existing = document.getElementById('startup-firebase-loading');
+  if (!visible) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const el = document.createElement('div');
+  el.id = 'startup-firebase-loading';
+  el.className = 'startup-firebase-loading';
+  el.setAttribute('role', 'status');
+  el.textContent = 'Betriebsdaten werden geladen…';
+  document.body.appendChild(el);
+}
+
+function waitForAuthBootstrap(timeoutMs = FIREBASE_BOOT_GRACE_MS) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      const authApp = window.firebaseApp || (firebase.apps?.length ? firebase.app() : null);
+      const auth = authApp && typeof authApp.auth === 'function'
+        ? authApp.auth()
+        : (authApp && typeof firebase.auth === 'function' ? firebase.auth(authApp) : null);
+      if (!auth) {
+        clearTimeout(timer);
+        finish();
+        return;
+      }
+      const unsubscribe = auth.onAuthStateChanged(() => {
+        unsubscribe();
+        clearTimeout(timer);
+        finish();
+      });
+    } catch {
+      clearTimeout(timer);
+      finish();
+    }
+  });
+}
+
+window.isFirebaseConfigGraceOpen = isFirebaseConfigGraceOpen;
 
 initSyncEngine({
   getDatabase: () => db,
@@ -2098,7 +2637,7 @@ async function handleAuthUrlResetIfRequested() {
   return true;
 }
 
-function initFirebase() {
+async function initFirebase() {
   if (firebaseReady && db) return true;
   if (typeof firebase === 'undefined') {
     console.error('[CharcuLogic Firebase] Firebase SDK nicht geladen. Prüfe die Script-Tags in index.html.');
@@ -2109,25 +2648,34 @@ function initFirebase() {
     return false;
   }
   try {
-    ensureFirebaseApp(firebase);
+    const app = ensureFirebaseApp(firebase);
     assertFirebaseProjectIsolation(firebase);
-    if (isLocalFirebaseEmulatorHost()) {
-      attachLocalFirebaseEmulators(firebase);
-    }
-    db = firebase.firestore();
+    // TEMP: Emulatoren deaktiviert — localhost spricht Live-Staging (Auth/Firestore).
+    // if (shouldUseFirebaseEmulators()) {
+    //   attachLocalFirebaseEmulators(firebase);
+    // }
+    const cacheMode = await ensureFirestorePersistentCache(app, firebase);
+    db = typeof app.firestore === 'function' ? app.firestore() : firebase.firestore(app);
     initTenantDb(db);
-    if (typeof firebase.auth === 'function') {
-      firebase.auth();
+    if (typeof app.auth === 'function') {
+      app.auth();
+    } else if (typeof firebase.auth === 'function') {
+      firebase.auth(app);
     }
-    if (typeof firebase.functions === 'function') {
-      getRegionalFunctions(firebase, FUNCTIONS_REGION);
-      console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
+    getRegionalFunctions(firebase, FUNCTIONS_REGION);
+    console.log(`[CharcuLogic Functions] Region ${FUNCTIONS_REGION} · Base-URL: ${resolveFunctionsBaseUrl()}`);
+    if (cacheMode === 'persistentLocalCache') {
+      firebasePersistencePromise = Promise.resolve();
+    } else {
+      firebasePersistencePromise = Promise.race([
+        db.enablePersistence().catch((err) => {
+          console.warn('Firestore Persistence Error:', err?.code || err);
+        }),
+        new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
+      ]);
     }
-    db.enablePersistence().catch((err) => {
-      console.warn('Firestore Persistence Error:', err.code);
-    });
     firebaseReady = true;
-    const modeLabel = isLocalFirebaseEmulatorHost() ? 'Emulator' : 'Cloud';
+    const modeLabel = areLocalFirebaseEmulatorsAttached() ? 'Emulator' : 'Cloud';
     console.log(
       `[CharcuLogic Firebase] Verbunden mit Projekt "${firebaseConfig.projectId}" `
       + `(${resolveFirebaseProjectKey()}, ${modeLabel}).`,
@@ -2141,15 +2689,40 @@ function initFirebase() {
   }
 }
 
-function bootstrapFirebaseCore() {
-  const ok = initFirebase();
+async function bootstrapFirebaseCore() {
+  const loadingTimer = setTimeout(() => showStartupLoading(true), 350);
+  const started = Date.now();
+  let ok = false;
+  try {
+    ok = await initFirebase();
+    if (ok) {
+      await Promise.race([
+        Promise.all([
+          firebasePersistencePromise,
+          waitForAuthBootstrap(FIREBASE_BOOT_GRACE_MS),
+        ]),
+        new Promise((resolve) => setTimeout(resolve, FIREBASE_BOOT_GRACE_MS)),
+      ]);
+    } else {
+      const remaining = Math.max(0, FIREBASE_BOOT_GRACE_MS - (Date.now() - started));
+      await new Promise((resolve) => setTimeout(resolve, remaining));
+      ok = await initFirebase();
+    }
+  } finally {
+    clearTimeout(loadingTimer);
+    showStartupLoading(false);
+    firebaseConfigToastAllowed = true;
+    window.dispatchEvent(new CustomEvent('charculogic:firebase-boot-settled'));
+  }
   if (!ok) {
+    showToast('Firebase nicht konfiguriert – bitte Verbindung prüfen.', 'error');
     throw new Error('Firebase-Core konnte nicht initialisiert werden.');
   }
   return true;
 }
 
 const firebaseCoreReadyPromise = Promise.resolve().then(() => bootstrapFirebaseCore());
+window.firebaseCoreReadyPromise = firebaseCoreReadyPromise;
 registerFirebaseCoreReady(firebaseCoreReadyPromise);
 
 async function waitForFirebaseCore() {
@@ -2358,10 +2931,16 @@ function setWrsWarning(warnings) {
 
 function renderWrsMetrics(result) {
   const totals = result?.totals || {};
+  const beffeImFe = totals.beffeImFeProzent;
+  const vk = totals.vkProKg;
   const values = {
     'wrs-total-cost': `${formatNumber(totals.totalCost)} EUR`,
-    'wrs-cost-per-kg': `${formatNumber(totals.costPerKg)} EUR`,
+    'wrs-cost-per-kg': totals.costPerKgFinished == null
+      ? '–'
+      : `${formatNumber(totals.costPerKgFinished)} EUR`,
     'wrs-beffe-percent': `${formatNumber(totals.beffeProzent)} %`,
+    'wrs-beffe-im-fe-percent': beffeImFe == null ? '–' : `${formatNumber(beffeImFe)} %`,
+    'wrs-vk-per-kg': vk == null ? '–' : `${formatNumber(vk)} EUR`,
     'wrs-fat-percent': `${formatNumber(totals.fettProzent)} %`,
     'wrs-water-percent': `${formatNumber(totals.wasserProzent)} %`,
   };
@@ -2394,6 +2973,17 @@ function renderWrsPacklist(result) {
   });
 }
 
+function readWrsCalcOptions() {
+  const maschinenverlustKg = Number(document.getElementById('wrs-machine-loss')?.value);
+  const garverlustPct = Number(document.getElementById('wrs-cook-loss')?.value);
+  const marginPct = Number(document.getElementById('wrs-margin-pct')?.value);
+  return {
+    maschinenverlustKg: Number.isFinite(maschinenverlustKg) ? maschinenverlustKg : 0,
+    garverlustPct: Number.isFinite(garverlustPct) ? garverlustPct : 0,
+    marginFrac: Number.isFinite(marginPct) ? marginPct / 100 : 0,
+  };
+}
+
 function calculateAndRenderWrs() {
   if (!wrsState.engine) return;
   const select = document.getElementById('recipe-select');
@@ -2403,7 +2993,7 @@ function calculateAndRenderWrs() {
   if (!recipeName) return;
 
   try {
-    const result = wrsState.engine.calculateCharge(recipeName, targetKg);
+    const result = wrsState.engine.calculateCharge(recipeName, targetKg, {}, readWrsCalcOptions());
     renderWrsMetrics(result);
     renderWrsPacklist(result);
     setWrsWarning(result.warnings);
@@ -2449,6 +3039,9 @@ async function initWrsModule() {
 
     document.getElementById('recipe-select')?.addEventListener('change', calculateAndRenderWrs);
     document.getElementById('target-weight')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-machine-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-cook-loss')?.addEventListener('input', calculateAndRenderWrs);
+    document.getElementById('wrs-margin-pct')?.addEventListener('input', calculateAndRenderWrs);
     document.getElementById('btn-calculate-wrs')?.addEventListener('click', () => {
       playClickSound(900, 0.04, 0.12);
       calculateAndRenderWrs();
@@ -2544,19 +3137,24 @@ function snapshotFormFields() {
 function restoreDraftFields(fieldIds) {
   const draft = readDraftStore();
   if (!draft) return 0;
+  draftAudioLocked = true;
   let restored = 0;
-  const idsToCheck = fieldIds || Object.keys(draft.fields);
-  for (const key of idsToCheck) {
-    const entry = draft.fields[key];
-    if (!entry) continue;
-    const el = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
-    if (!el) continue;
-    if (entry.t === 'checkbox' || entry.t === 'radio') {
-      el.checked = !!entry.v;
-    } else {
-      el.value = entry.v ?? '';
+  try {
+    const idsToCheck = fieldIds || Object.keys(draft.fields);
+    for (const key of idsToCheck) {
+      const entry = draft.fields[key];
+      if (!entry) continue;
+      const el = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
+      if (!el) continue;
+      if (entry.t === 'checkbox' || entry.t === 'radio') {
+        el.checked = !!entry.v;
+      } else {
+        el.value = entry.v ?? '';
+      }
+      restored++;
     }
-    restored++;
+  } finally {
+    draftAudioLocked = false;
   }
   if (restored > 0) {
     isUiDirty = true;
@@ -2570,70 +3168,73 @@ document.getElementById('app-content')?.addEventListener('input', (e) => {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') markDirty();
 }, { passive: true });
 
-// Web Audio API für Taktiles Feedback (Haptik)
+// Web Audio API für Taktiles Feedback (Haptik).
+// Beim Start, bei DOM-Updates und bei der Entwurfswiederherstellung bleibt der Kontext unberührt.
+window.userInteracted = false;
 let audioCtx = null;
+let draftAudioLocked = false;
 
-function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
-  try {
-    // Initialisiere AudioContext beim ersten Klick
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    // Kurzer, knackiger "Klick"-Ton
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-    
-    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-    
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + duration + 0.02);
-  } catch (e) {
-    console.warn("Audio Haptik fehlgeschlagen: ", e);
-  }
-}
-
-function ensureAudioContext() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
+function getAudioContext() {
+  if (draftAudioLocked || !window.userInteracted) return null;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
 
-// iOS/Safari: AudioContext nach erster User-Interaktion freischalten
-document.addEventListener('click', function unlockAudio() {
-  ensureAudioContext();
-  document.removeEventListener('click', unlockAudio);
-}, { once: true });
-
-async function unlockAudioForIos() {
+function markUserInteracted(event) {
+  if (draftAudioLocked) return;
+  if (event && event.isTrusted === false) return;
+  window.userInteracted = true;
   try {
-    const ctx = ensureAudioContext();
-    if (ctx?.state === 'suspended') await ctx.resume();
+    getAudioContext();
   } catch (err) {
     console.warn('[CharcuLogic Audio] Unlock fehlgeschlagen:', err);
   }
 }
 
-['pointerdown', 'touchstart'].forEach((eventName) => {
-  document.addEventListener(eventName, unlockAudioForIos, { once: true, passive: true });
-});
+function playClickSound(frequency = 1200, duration = 0.04, volume = 0.12) {
+  if (draftAudioLocked || !window.userInteracted) return;
+  try {
+    const activeCtx = audioCtx;
+    if (!activeCtx || activeCtx.state !== 'running') return;
+
+    const osc = activeCtx.createOscillator();
+    const gain = activeCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(activeCtx.destination);
+    
+    // Kurzer, knackiger "Klick"-Ton
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, activeCtx.currentTime);
+    
+    gain.gain.setValueAtTime(volume, activeCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, activeCtx.currentTime + duration);
+    
+    osc.start(activeCtx.currentTime);
+    osc.stop(activeCtx.currentTime + duration + 0.02);
+  } catch (e) {
+    console.warn("Audio Haptik fehlgeschlagen: ", e);
+  }
+}
+
+function bindLazyAudioUnlock() {
+  const host = document.body;
+  if (!host || host.dataset.audioUnlockBound === '1') return;
+  host.dataset.audioUnlockBound = '1';
+  host.addEventListener('pointerdown', markUserInteracted);
+  host.addEventListener('click', markUserInteracted);
+}
+
+bindLazyAudioUnlock();
 
 function playFeedbackSound(type) {
+  if (draftAudioLocked || !window.userInteracted) return;
   try {
-    const ctx = ensureAudioContext();
+    const ctx = audioCtx;
+    if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
 
     if (type === 'success') {
@@ -2704,7 +3305,8 @@ const appContent = document.getElementById('app-content');
 const headerTitle = document.getElementById('header-title');
 const headerSubtitle = document.getElementById('header-subtitle');
 const headerLogoutBtn = document.getElementById('header-logout-btn');
-const employeeSessionBadge = document.getElementById('employee-session-badge');
+const employeeSessionBadge = document.getElementById('btn-team')
+  || document.getElementById('employee-session-badge');
 const employeeSessionName = document.getElementById('employee-session-name');
 
 function activeEmployeeStorageKey() {
@@ -2716,7 +3318,7 @@ function activeEmployeeStorageKey() {
 
 function updateHeaderLogoutVisibility(activeTab) {
   if (!headerLogoutBtn) return;
-  const isFixedTerminal = document.documentElement.dataset.fixedTerminal === 'steveshof';
+  const isFixedTerminal = document.documentElement.dataset.fixedTerminal === '1';
   if (isFirebaseRoleAuth()) {
     headerLogoutBtn.style.display = !isFixedTerminal ? 'inline-block' : 'none';
     return;
@@ -2736,15 +3338,20 @@ function readActiveEmployee() {
 }
 
 function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
-  if (!employeeSessionBadge || !employeeSessionName) return;
+  if (!employeeSessionBadge || !employeeSessionName) {
+    syncSidebarFacilityUserCard(employeeName);
+    return;
+  }
   if (!employeeName) {
     employeeSessionBadge.style.display = 'none';
     employeeSessionName.textContent = '';
+    syncSidebarFacilityUserCard('');
     return;
   }
   const firstName = String(employeeName).trim().split(/\s+/)[0] || employeeName;
   employeeSessionName.textContent = `👤 ${firstName}`;
   employeeSessionBadge.style.display = 'inline-flex';
+  syncSidebarFacilityUserCard(employeeName);
 }
 
 const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero', 'page-dev-dashboard']);
@@ -2777,7 +3384,13 @@ function showPage(pageId) {
 window.addEventListener('resize', () => {
   syncDesktopWideLayout();
   syncAppShellLayout();
+  syncBottomNavTabLayout();
+  ensureActiveTabAllowed();
+  syncMhdSaveBarKeyboardOffset();
 });
+
+// iOS: Speichern-Balken ("X Änderungen ausstehend") oberhalb der virtuellen Tastatur halten
+bindMhdSaveBarViewportSync();
 
 const ADMIN_DROPDOWN_MODULES = {
   haccp: {
@@ -2835,7 +3448,8 @@ async function openAdminDropdownModule(moduleKey) {
 
     showPage(moduleConfig.pageId);
     if (headerTitle) headerTitle.textContent = moduleConfig.title;
-    if (headerSubtitle) headerSubtitle.textContent = moduleConfig.subtitle;
+    // Mandantenname bleibt im Branding-Slot — kein Modul-Untertitel („Qualitätssicherung“).
+    applyHeaderBrandName();
 
     try {
       moduleConfig.activate();
@@ -2885,12 +3499,15 @@ function bindAdminHeaderDropdown() {
     menu.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
       item.addEventListener('click', async (event) => {
         event.stopPropagation();
+        const moduleKey = item.getAttribute('data-admin-module');
+        // /dev-dashboard: native Navigation + RBAC-Guard am Link.
+        if (moduleKey === 'dashboard') return;
         if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
           hideAdminHeaderDropdown();
           return;
         }
-        const moduleKey = item.getAttribute('data-admin-module');
         if (!moduleKey) return;
+        event.preventDefault();
         await openAdminDropdownModule(moduleKey);
         closeAdminHeaderDropdownMenu();
       });
@@ -2953,41 +3570,29 @@ function resolveEarlyTenantId() {
 }
 
 function applyEarlyTenantShell() {
-  const tenantKey = resolveEarlyTenantId() || normalizeTenantId(STEVESHOF_TENANT_ID);
-  if (!isSteveshofTenantId(tenantKey)) return;
-  const firestoreTenantId = STEVESHOF_TENANT_ID;
+  const tenantKey = resolveEarlyTenantId();
+  if (!tenantKey) return;
   if (typeof window.applyResolvedBranding === 'function') {
-    window.applyResolvedBranding(firestoreTenantId);
+    window.applyResolvedBranding(tenantKey);
   } else {
     applyBranding();
   }
-  setGlobalTenantId(firestoreTenantId);
   applyModuleVisibility(window.BRANDING);
-  applyRoleBasedUi({
-    tenantId: firestoreTenantId,
-    role: 'employee',
-    isAdmin: false,
-    isHelper: false,
-  });
-  configureSteveshofTerminalSession({
-    tenantId: firestoreTenantId,
-    email: STEVESHOF_TERMINAL_EMAIL,
-  });
-  purgeInvalidProfileSession(window.BRANDING);
-  showPreferredStartTab();
 }
 
-function isSteveshofTerminalSession(authSession) {
-  return tenantIdsMatch(authSession?.tenantId, STEVESHOF_TENANT_ID)
-    && String(authSession?.email || '').trim().toLowerCase() === STEVESHOF_TERMINAL_EMAIL;
-}
-
-function configureSteveshofTerminalSession(authSession) {
-  if (!isSteveshofTerminalSession(authSession)) return '';
-  document.documentElement.dataset.fixedTerminal = 'steveshof';
+function applyFixedTerminalSettings(settings = getTerminalSettings()) {
+  if (settings?.isFixedTerminal === true) {
+    document.documentElement.dataset.fixedTerminal = '1';
+  } else {
+    delete document.documentElement.dataset.fixedTerminal;
+  }
+  if (settings?.bypassPin === true && window.BRANDING?.modules) {
+    window.BRANDING.modules.employeePin = false;
+  }
+  const operator = String(settings?.defaultOperatorName || '').trim();
+  if (operator && window.BRANDING) window.BRANDING.defaultOperatorName = operator;
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
-  return readActiveEmployee();
 }
 
 window.addEventListener('charculogic:active-employee-changed', (event) => {
@@ -3006,24 +3611,46 @@ window.addEventListener('charculogic:active-employee-changed', (event) => {
   }
 });
 
-if (employeeSessionBadge) {
-  employeeSessionBadge.style.cursor = 'pointer';
-  employeeSessionBadge.setAttribute('role', 'button');
-  employeeSessionBadge.setAttribute('tabindex', '0');
-  employeeSessionBadge.setAttribute('aria-label', 'Profil wechseln');
-  employeeSessionBadge.addEventListener('click', () => {
-    if (!isProfileEmployeeAuth()) return;
-    void openProfileEmployeePicker({ mandatory: false });
-  });
-  employeeSessionBadge.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
+function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
+  if (!button || button.dataset.teamSwitcherBound === '1') return;
+  button.dataset.teamSwitcherBound = '1';
+  button.style.cursor = 'pointer';
+  button.setAttribute('aria-label', 'Mitarbeiter wechseln');
+  button.setAttribute('title', 'Mitarbeiter wechseln');
+  if (button.tagName !== 'BUTTON') {
+    button.setAttribute('role', 'button');
+    button.setAttribute('tabindex', '0');
+  }
+
+  let lastOpenAt = 0;
+  const openSwitcher = (event) => {
     event.preventDefault();
-    employeeSessionBadge.click();
+    event.stopPropagation();
+    const now = Date.now();
+    if (now - lastOpenAt < 450) return;
+    lastOpenAt = now;
+    if (isFirebaseRoleAuth()) {
+      window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+      return;
+    }
+    void showTeamSwitcher({ mandatory: false });
+  };
+
+  button.addEventListener('pointerdown', openSwitcher);
+  button.addEventListener('click', openSwitcher);
+  button.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    openSwitcher(event);
   });
 }
 
+bindTeamSwitcherHeaderButton();
+
 tabs.forEach(tab => {
   tab.addEventListener('click', async () => {
+    if (tab.id === 'nav-admin-dashboard' || tab.getAttribute('data-nav-admin') === 'dashboard') {
+      return;
+    }
     const targetTab = tab.getAttribute('data-tab');
     if (tab.hidden || tab.style.display === 'none') {
       return;
@@ -3049,6 +3676,9 @@ tabs.forEach(tab => {
       }
     }
     AppState.activeTab = targetTab;
+    closeMhdQtyNumpad();
+    closeReceivingQtyNumpad();
+    closeReceivingMhdEditor();
 
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
     playClickSound(800, 0.05, 0.15);
@@ -3058,52 +3688,43 @@ tabs.forEach(tab => {
     tab.classList.add('active');
     scrollActiveNavTabIntoView({ smooth: true });
 
-    // Seite + Header immer zuerst stabil umschalten
+    // Seite + Header: Seitentitel wechseln, Mandantenname (#header-subtitle) nie mit Modultext überschreiben.
+    const brandName = resolveHeaderBrandName();
     if (targetTab === 'teamboard') {
       showPage('page-teamboard');
       headerTitle.textContent = "Start";
-      headerSubtitle.textContent = "Tagesinfo";
     } else if (targetTab === 'team') {
       showPage('page-team');
       headerTitle.textContent = "Team";
-      headerSubtitle.textContent = "Nachrichten & Bestellungen";
     } else if (targetTab === 'mhd') {
       showPage('page-mhd');
       headerTitle.textContent = "MHD-Monitor";
-      headerSubtitle.textContent = "Qualitätssicherung";
     } else if (targetTab === 'receiving') {
       showPage('page-receiving');
       headerTitle.textContent = "Wareneingang";
-      headerSubtitle.textContent = "Lieferung erfassen";
     } else if (targetTab === 'chargenDoku') {
       showPage('page-chargen-doku');
-      headerTitle.textContent = "Thekenbuch";
-      headerSubtitle.textContent = "Chargen-Doku";
+      headerTitle.textContent = "Doku";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
-      headerSubtitle.textContent = "Produktion";
     } else if (targetTab === 'haccp') {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
-      headerSubtitle.textContent = "Tageskontrollen";
     } else if (targetTab === 'knowledge') {
       showPage('page-knowledge');
       headerTitle.textContent = "Wissen";
-      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'cuts') {
       showPage('page-knowledge');
       headerTitle.textContent = "Wissen";
-      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
       headerTitle.textContent = "Chargen-Archiv";
-      headerSubtitle.textContent = "Büro & Rückverfolgung";
     } else {
       showPage('page-teamboard');
       headerTitle.textContent = "Schwarzes Brett";
-      headerSubtitle.textContent = "Team & Aufgaben";
     }
+    applyHeaderBrandName(brandName);
 
     // Modul-Aktivierung defensiv: bei Fehler nicht auf Start zurückspringen.
     try {
@@ -3177,9 +3798,14 @@ function startTenantLiveDataListeners() {
       await waitForFirebaseCore();
     } catch (err) {
       console.warn('[CharcuLogic Sync] Live-Listener ohne Firebase-Core übersprungen:', err);
+      // MHD behält Skeleton/Loading bis Timeout oder erneuter Sync — keine Leermeldung erzwingen.
       return;
     }
-    if (!canStartFirestoreLiveListeners(firebase)) return;
+    if (!canStartFirestoreLiveListeners(firebase)) {
+      // Auth noch nicht bereit: MHD-Modul hält pendingCloudSync + Loading-State.
+      return;
+    }
+    // Offline-first: startMhdLiveSync hydriert aus Firestore-Persistence/Cache ohne Empty-Flash.
     startMhdLiveSync();
     startHaccpLiveSync();
   })();
@@ -3285,6 +3911,27 @@ function formatQueueAge(ts) {
   return `${h}h ${m}m`;
 }
 
+function queueItemTitle(item) {
+  const data = item?.data || {};
+  return data.artikelName || data.name || data.produkt || item?._docId || 'ohne Namen';
+}
+
+function queueItemSubtitle(item) {
+  const data = item?.data || {};
+  const op = String(item?._op || 'update').toUpperCase();
+  const status = data.status || 'Update';
+  const collection = String(item?._collectionPath || 'ohne-pfad').split('/').filter(Boolean).pop() || 'ohne-pfad';
+  return `${op} · ${status} · ${collection}`;
+}
+
+function escapeQueueText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function showSyncQueueDialog() {
   const pending = getPendingSyncs();
   const dead = getDeadPendingSyncs();
@@ -3292,14 +3939,17 @@ function showSyncQueueDialog() {
 
   const overlay = document.createElement('div');
   overlay.id = 'sync-queue-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:120100;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
 
   const pendingRows = pending.length
     ? pending.map((item) => `
-      <div style="padding:8px 0;border-bottom:1px solid #e5e7eb;">
-        <div style="font-weight:700;font-size:12px;">${item._op || 'update'} · ${item._docId || 'ohne-id'}</div>
-        <div style="font-size:11px;color:#4b5563;">${item._collectionPath || 'ohne-pfad'} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${item._attempts || 0}</div>
-        ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${item._lastError}${item._errorCode ? ` (${item._errorCode})` : ''}</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #e5e7eb;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;font-size:13px;">${escapeQueueText(queueItemTitle(item))}</div>
+          <div style="font-size:11px;color:#4b5563;">${escapeQueueText(queueItemSubtitle(item))} · Alter ${formatQueueAge(item._queuedAt)} · Versuche ${Number(item.retryCount ?? item._attempts) || 0}</div>
+          ${item._lastError ? `<div style="font-size:11px;color:#7f1d1d;margin-top:2px;">${escapeQueueText(item._lastError)}${item._errorCode ? ` (${escapeQueueText(item._errorCode)})` : ''}</div>` : ''}
+        </div>
+        <button type="button" class="sync-queue-drop" data-queue-id="${escapeQueueText(item._id || '')}" aria-label="Eintrag verwerfen" style="min-width:44px;min-height:44px;border:0;border-radius:12px;background:#fee2e2;color:#991b1b;font-size:18px;">🗑️</button>
       </div>
     `).join('')
     : '<div style="font-size:12px;color:#4b5563;padding:8px 0;">Keine wartenden Einträge.</div>';
@@ -3319,6 +3969,10 @@ function showSyncQueueDialog() {
         <h3 style="margin:0;font-size:16px;">Wartende Änderungen</h3>
         <button type="button" id="sync-queue-close" class="btn btn-secondary" style="min-height:36px;">Schließen</button>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button type="button" class="btn btn-primary" id="sync-queue-send-all" style="flex:1;min-height:44px;">🔄 Alle jetzt senden</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-drop-all" style="flex:1;min-height:44px;">⚠️ Alle verwerfen</button>
+      </div>
       <div style="margin-bottom:10px;">
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Wartend (${pending.length})</div>
         ${pendingRows}
@@ -3327,9 +3981,9 @@ function showSyncQueueDialog() {
         <div style="font-weight:800;font-size:12px;text-transform:uppercase;color:#374151;">Nicht automatisch übertragen (${dead.length})</div>
         ${deadRows}
       </div>
-      <div style="display:flex;gap:8px;">
-        <button type="button" class="btn btn-primary" id="sync-queue-retry">Jetzt synchronisieren</button>
-        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Liste leeren</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="sync-queue-retry">Erneut synchronisieren</button>
+        <button type="button" class="btn btn-secondary" id="sync-queue-clear">Warteschlange bereinigen</button>
       </div>
     </div>
   `;
@@ -3340,6 +3994,28 @@ function showSyncQueueDialog() {
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) close();
   });
+  document.getElementById('sync-queue-send-all')?.addEventListener('click', async () => {
+    await flushPendingSyncs();
+    updateSyncIndicator();
+    close();
+    showToast('Übertragung angestoßen.', 'success');
+  });
+  document.getElementById('sync-queue-drop-all')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
+    savePendingSyncs([]);
+    updateSyncIndicator();
+    close();
+    showToast('Warteschlange geleert.', 'warning');
+  });
+  overlay.querySelectorAll('.sync-queue-drop').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.getAttribute('data-queue-id');
+      if (!id) return;
+      removeQueuedMutation(id);
+      updateSyncIndicator();
+      showSyncQueueDialog();
+    });
+  });
   document.getElementById('sync-queue-retry')?.addEventListener('click', async () => {
     const requeued = requeueDeadPendingSyncs();
     const reset = resetPendingSyncRetries();
@@ -3349,17 +4025,19 @@ function showSyncQueueDialog() {
     showToast(
       requeued > 0 || reset > 0
         ? `${requeued + reset} Einträge erneut eingeplant, Übertragung läuft.`
-        : 'Übertragung erneut angestoßen.',
+        : 'Erneute Synchronisierung gestartet.',
       'success',
     );
   });
   document.getElementById('sync-queue-clear')?.addEventListener('click', () => {
+    if (!window.confirm('Alle wartenden Änderungen verwerfen?')) return;
     clearAllPendingSyncQueues();
     close();
-    showToast('Wartende und fehlerhafte Einträge lokal verworfen.', 'warning');
+    showToast('Warteschlange bereinigt. Wartende Einträge wurden lokal entfernt.', 'warning');
   });
 }
 
+window.showSyncQueueDialog = showSyncQueueDialog;
 document.getElementById('sync-indicator')?.addEventListener('click', showSyncQueueDialog);
 
 // --- BARCODE-SCANNER// --- BARCODE-SCANNER (Kamera + Lernmodus) ---
@@ -3417,6 +4095,85 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
+/** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
+const APP_RELEASE_AT = '2026-10-15T21:15:00+02:00';
+const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
+const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
+
+function formatAppUpdateStamp(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function readStoredAppUpdateAt() {
+  try {
+    return localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberAppStand(releasedAt) {
+  if (!releasedAt) return;
+  try {
+    const previousStand = localStorage.getItem(APP_STAND_STORAGE_KEY) || '';
+    if (previousStand !== releasedAt) {
+      localStorage.setItem(APP_STAND_STORAGE_KEY, releasedAt);
+      const stored = localStorage.getItem(LAST_APP_UPDATE_STORAGE_KEY);
+      const storedMs = Date.parse(stored || '');
+      const releasedMs = Date.parse(releasedAt);
+      if (!Number.isFinite(storedMs) || (Number.isFinite(releasedMs) && releasedMs > storedMs)) {
+        localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, releasedAt);
+      }
+    }
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
+function resolveAppUpdateIso(swReleasedAt) {
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  const stored = readStoredAppUpdateAt();
+  const releasedMs = Date.parse(releasedAt);
+  const storedMs = Date.parse(stored || '');
+  if (Number.isFinite(storedMs) && Number.isFinite(releasedMs)) {
+    return storedMs >= releasedMs ? stored : releasedAt;
+  }
+  return stored || releasedAt;
+}
+
+function renderAppUpdateInfo(swReleasedAt) {
+  const textEl = document.getElementById('app-update-info-text');
+  if (!textEl) return;
+  const releasedAt = swReleasedAt || APP_RELEASE_AT;
+  rememberAppStand(releasedAt);
+  const stamp = formatAppUpdateStamp(resolveAppUpdateIso(releasedAt));
+  textEl.textContent = stamp
+    ? `Zuletzt aktualisiert: ${stamp}`
+    : 'Zuletzt aktualisiert: noch unbekannt';
+  const infoEl = document.getElementById('app-update-info');
+  if (infoEl) {
+    infoEl.title = `App-Stand ${formatAppUpdateStamp(releasedAt) || releasedAt}`;
+  }
+}
+
+function requestServiceWorkerVersion() {
+  if (!navigator.serviceWorker?.controller) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+    return;
+  }
+  try {
+    navigator.serviceWorker.controller.postMessage({ type: 'GET_SW_VERSION' });
+  } catch (_) {
+    renderAppUpdateInfo(APP_RELEASE_AT);
+  }
+}
+
 function showUpdateToast() {
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.add('is-visible');
@@ -3455,6 +4212,9 @@ async function activateWaitingServiceWorker() {
 async function refreshAppFromNetwork() {
   refreshingForSwUpdate = true;
   try {
+    try {
+      localStorage.setItem(LAST_APP_UPDATE_STORAGE_KEY, new Date().toISOString());
+    } catch (_) { /* private mode / blocked storage */ }
     const registration = serviceWorkerRegistration
       || await navigator.serviceWorker?.getRegistration?.();
     await registration?.update?.();
@@ -3516,6 +4276,8 @@ document.getElementById('version-changelog-modal')?.addEventListener('click', (e
   }
 });
 
+renderAppUpdateInfo(APP_RELEASE_AT);
+
 if ('serviceWorker' in navigator) {
   // Neuer SW (skipWaiting + clientsClaim) übernimmt sofort — Seite neu laden,
   // sobald keine offenen Eingaben blockieren. Erste Aktivierung (kein vorheriger
@@ -3536,13 +4298,19 @@ if ('serviceWorker' in navigator) {
     window.location.reload();
   });
 
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type !== 'SW_VERSION') return;
+    renderAppUpdateInfo(event.data.releasedAt || APP_RELEASE_AT);
+  });
+
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20260915-v140')
+    navigator.serviceWorker.register('./sw.js?v=20261015-livestock-update-notice')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
+        requestServiceWorkerVersion();
 
         // Periodisch nach Updates suchen (PWA auf Laden-iPhones).
         try {
@@ -3699,6 +4467,8 @@ async function bootstrapAuthenticatedApp() {
   }
   setGlobalTenantId(authSession.tenantId);
   await loadTenantEnabledModules(db, authSession.tenantId);
+  await loadTenantShopSettings(db, authSession.tenantId);
+  applyFixedTerminalSettings();
   applyModuleVisibility(window.BRANDING);
 
   bindTenantModuleConfigListener(authSession.tenantId);
@@ -3714,11 +4484,14 @@ async function bootstrapAuthenticatedApp() {
     if (!enforceTenantAdminRouteOrLeave(nextSession)) return;
     if (nextSession?.tenantId) {
       setGlobalTenantId(nextSession.tenantId);
-      void loadTenantEnabledModules(db, nextSession.tenantId).then(() => {
-        applyModuleVisibility(window.BRANDING);
-        bindTenantModuleConfigListener(nextSession.tenantId);
-        ensureActiveTabAllowed();
-      });
+      void loadTenantEnabledModules(db, nextSession.tenantId)
+        .then(() => loadTenantShopSettings(db, nextSession.tenantId))
+        .then(() => {
+          applyFixedTerminalSettings();
+          applyModuleVisibility(window.BRANDING);
+          bindTenantModuleConfigListener(nextSession.tenantId);
+          ensureActiveTabAllowed();
+        });
     }
     if (typeof window.applyResolvedBranding === 'function') {
       window.applyResolvedBranding(nextSession?.tenantId);
@@ -3731,7 +4504,7 @@ async function bootstrapAuthenticatedApp() {
     ensureActiveTabAllowed();
     startTenantLiveDataListeners();
   });
-  configureSteveshofTerminalSession(authSession);
+  applyFixedTerminalSettings();
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
   const terminalEmployeeName = readActiveEmployee();
@@ -3757,13 +4530,21 @@ async function bootstrapAuthenticatedApp() {
     appsScriptWebAppUrl,
     getFirebase: () => firebase,
     isFirebaseReady: () => firebaseReady,
-    scannerAPI: { openScanner, closeScanner },
+    scannerAPI: {
+      openScanner,
+      closeScanner,
+      resumeScannerListening,
+      isScannerOverlayOpen,
+    },
     terminalEmployeeName,
     addRetterBoxCandidate,
     onFormSaved: (fieldIds) => clearDirty(fieldIds),
     restoreDraftFields,
   });
   startMhdLiveSync();
+  initDiscountMatrixUi().catch((err) => {
+    console.warn('[CharcuLogic Rabatt] Matrix-Karte konnte nicht geladen werden:', err);
+  });
   initRetterBoxModule(db, {
     tenantId,
     getFirebase: () => firebase,
@@ -3771,21 +4552,6 @@ async function bootstrapAuthenticatedApp() {
     showHUD,
     getMhdProducts,
   });
-  initDeliveryNoteScanner({
-    tenantId,
-    getFirebase: () => firebase,
-    showHUD,
-    writeOrQueueFirestore: writeFirestoreDocOrQueue,
-  });
-  initDeliveryParser({
-    tenantId,
-    email: authSession?.email || getAuthContext()?.email || '',
-    getFirebase: () => firebase,
-    showHUD,
-    writeOrQueueFirestore: writeFirestoreDocOrQueue,
-    getHistory: getMhdProducts,
-  });
-
   initHaccpModule(db, writeFirestoreDocOrQueue, showHUD, verifyAdminAction, {
     tenantId,
     getFirebase: () => firebase,
@@ -3841,7 +4607,7 @@ async function bootstrapAuthenticatedApp() {
     syncFirebaseEmployeeSession(authSession);
   }
 
-  if (tenantIdsMatch(authSession.tenantId, STEVESHOF_TENANT_ID)) {
+  if (getTerminalSettings().isFixedTerminal) {
     showPreferredStartTab();
   }
   updateSyncIndicator();

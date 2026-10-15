@@ -1,13 +1,17 @@
 /**
- * KI-Lieferschein-Scanner (TorFabrik) via Cloud Function parseDeliveryNote
+ * KI-Lieferschein-Scanner. Sichtbar nur bei branding.modules.deliveryNoteAi.
+ * Posten gehen in die generische MHD-Liste, nicht in eine mandantenspezifische Bestandssammlung.
  */
 
-import { getAuthContext } from './auth.js';
-import { logAndMapOperatorError } from './operator-errors.js';
-import { waitForAppCheckReady } from './app-check.js';
-import { createHttpsCallable } from './firebase-functions.js';
-
-const TORFABRIK_TENANT_ID = 'torfabrik';
+import { getAuthContext } from '../web/auth.js';
+import { logAndMapOperatorError } from '../web/operator-errors.js';
+import {
+  analyzeDeliveryNoteFile,
+  isAllowedDeliveryFile,
+  mapDeliveryUploadError,
+  DeliveryUploadError,
+} from './delivery-upload.js';
+import { openParsedDeliveryBoard } from './delivery-reconciliation.js';
 
 const deliveryNoteState = {
   tenantId: '',
@@ -27,19 +31,6 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error || new Error('Datei konnte nicht gelesen werden.'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function normalizeParsedItems(items) {
   if (!Array.isArray(items)) return [];
   return items.map((entry, index) => {
@@ -54,15 +45,13 @@ function normalizeParsedItems(items) {
   }).filter((row) => row.artikel);
 }
 
-async function callParseDeliveryNote(imageBase64, mimeType) {
-  const firebase = deliveryNoteState.getFirebase();
-  if (!firebase?.functions) {
-    throw new Error('Firebase Functions SDK nicht geladen.');
-  }
-  const callable = createHttpsCallable('parseDeliveryNote', undefined, firebase);
-  await waitForAppCheckReady();
-  const result = await callable({ imageBase64, mimeType });
-  return normalizeParsedItems(result?.data?.items);
+async function callParseDeliveryNote(file) {
+  const result = await analyzeDeliveryNoteFile({
+    file,
+    tenantId: deliveryNoteState.tenantId || getAuthContext()?.tenantId || '',
+    getFirebase: deliveryNoteState.getFirebase,
+  });
+  return normalizeParsedItems(result.items);
 }
 
 function removePreviewOverlay() {
@@ -128,11 +117,15 @@ function showDeliveryNotePreview(items) {
   });
 }
 
+function isDeliveryNoteAiEnabled() {
+  return window.BRANDING?.modules?.deliveryNoteAi === true;
+}
+
 async function saveDeliveryNoteInventory(items) {
   if (deliveryNoteState.saveInFlight) return;
   const tenantId = deliveryNoteState.tenantId;
-  if (tenantId !== TORFABRIK_TENANT_ID) {
-    deliveryNoteState.showHUD('Nur TorFabrik', 'Bestand-Import ist für diesen Mandanten nicht freigeschaltet.', '!');
+  if (!isDeliveryNoteAiEnabled()) {
+    deliveryNoteState.showHUD('Nicht freigeschaltet', 'Lieferschein-Import ist für diesen Mandanten nicht aktiv.', '!');
     return;
   }
   if (!items.length) {
@@ -155,30 +148,42 @@ async function saveDeliveryNoteInventory(items) {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       const docId = `${batchId}_${i}`;
+      const nowIso = new Date().toISOString();
       const result = await writeFn({
-        collectionPath: 'inventory',
+        collectionPath: 'mhd_liste',
         docId,
         op: 'set',
         onlineData: {
-          artikel: item.artikel,
+          id: docId,
+          postenId: docId,
+          produkt: item.artikel,
+          name: item.artikel,
           menge: item.menge,
+          qty: item.menge,
           kategorie: item.kategorie,
-          tenantId,
+          status: 'aktiv',
           source: 'delivery-note-ai',
+          postentyp: 'wareneingang',
+          tenantId,
           batchId,
           createdBy: author,
-          createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.()
-            || new Date().toISOString(),
+          createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || nowIso,
         },
         queueData: {
-          artikel: item.artikel,
+          id: docId,
+          postenId: docId,
+          produkt: item.artikel,
+          name: item.artikel,
           menge: item.menge,
+          qty: item.menge,
           kategorie: item.kategorie,
-          tenantId,
+          status: 'aktiv',
           source: 'delivery-note-ai',
+          postentyp: 'wareneingang',
+          tenantId,
           batchId,
           createdBy: author,
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         },
         offlineMessage: 'Lieferschein-Posten werden nachgereicht.',
       });
@@ -190,7 +195,7 @@ async function saveDeliveryNoteInventory(items) {
       window.showToast?.(`${items.length} Lieferschein-Posten werden automatisch synchronisiert.`, 'warning');
       return;
     }
-    deliveryNoteState.showHUD('Gespeichert', `${items.length} Posten in inventory übernommen.`);
+    deliveryNoteState.showHUD('Gespeichert', `${items.length} Posten in die MHD-Liste übernommen.`);
     window.showToast?.(`${items.length} Lieferschein-Posten gespeichert.`, 'success');
   } catch (err) {
     console.error('[DeliveryNote] Speichern fehlgeschlagen:', err);
@@ -202,25 +207,26 @@ async function saveDeliveryNoteInventory(items) {
 
 async function handleDeliveryNoteFile(file) {
   if (!file || deliveryNoteState.ocrInFlight) return;
-  const mimeType = String(file.type || 'image/jpeg').trim() || 'image/jpeg';
-  if (!/^image\//i.test(mimeType)) {
-    window.showToast?.('Bitte ein Foto (JPG/PNG) wählen.', 'warning');
+  if (!isAllowedDeliveryFile(file)) {
+    window.showToast?.(mapDeliveryUploadError(new DeliveryUploadError('unsupported-type', 'Unsupported')), 'warning');
     return;
   }
 
   window.showToast?.('Lieferschein wird analysiert…', 'warning');
   try {
     deliveryNoteState.ocrInFlight = true;
-    const imageBase64 = await readFileAsBase64(file);
-    const items = await callParseDeliveryNote(imageBase64, mimeType);
+    const items = await callParseDeliveryNote(file);
     if (!items.length) {
       window.showToast?.('Keine Artikel erkannt.', 'warning');
       return;
     }
-    showDeliveryNotePreview(items);
+    openParsedDeliveryBoard({ items });
   } catch (err) {
     console.error('[DeliveryNote] OCR fehlgeschlagen:', err);
-    window.showToast?.(logAndMapOperatorError(err, 'delivery-note'), 'error');
+    const toast = err instanceof DeliveryUploadError
+      ? mapDeliveryUploadError(err)
+      : (mapDeliveryUploadError(err) || logAndMapOperatorError(err, 'delivery-note'));
+    window.showToast?.(toast, 'error');
   } finally {
     deliveryNoteState.ocrInFlight = false;
   }
@@ -250,8 +256,8 @@ export function initDeliveryNoteScanner(options = {}) {
   deliveryNoteState.writeOrQueueFirestore = options.writeOrQueueFirestore || deliveryNoteState.writeOrQueueFirestore;
 
   const btn = document.getElementById('btn-delivery-note-ai');
-  const isTorfabrik = deliveryNoteState.tenantId === TORFABRIK_TENANT_ID;
-  if (btn) btn.hidden = !isTorfabrik;
+  const enabled = isDeliveryNoteAiEnabled();
+  if (btn) btn.hidden = !enabled;
 
-  if (isTorfabrik) bindDeliveryNoteUi();
+  if (enabled) bindDeliveryNoteUi();
 }

@@ -49,11 +49,10 @@ describe('mhd-audit report helpers', () => {
     expect(inferMovementAction({ mhdActionStatus: 'geprueft' })).to.equal('ok');
   });
 
-  it('normalizes actor names and keeps StevesHof shop options first', () => {
-    expect(normalizeActorName('stephie@steveshof-hofladen.de')).to.equal('Stephie');
-    expect(buildShopNameOptions(['Finn'])).to.deep.equal([
-      'Paddy', 'Stephie', 'Bettina', 'Nicole', 'Heiko', 'Finn',
-    ]);
+  it('normalizes actor names and uses the active team as shop options', () => {
+    expect(normalizeActorName('anna@betrieb.de')).to.equal('Anna');
+    expect(buildShopNameOptions(['Finn'])).to.deep.equal(['Finn']);
+    expect(buildShopNameOptions([])).to.deep.equal(['Mitarbeiter 1', 'Mitarbeiter 2']);
   });
 
   it('filters movements by actor and action type', () => {

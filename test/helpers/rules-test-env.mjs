@@ -202,6 +202,34 @@ export function sampleInventoryItem(tenantId) {
   };
 }
 
+/** Wareneingang-Lieferung (Laden/MoPro) – Felder müssen zu firebase.rules hasOnly passen. */
+export function sampleWareneingangDelivery(tenantId, extra = {}) {
+  return {
+    id: 'lieferung_test_1',
+    lieferant: 'Weiling',
+    warenKategorie: '🥛MoPro',
+    erfassungsDatum: '2026-10-15T12:00:00.000Z',
+    status: 'completed',
+    fotos: [],
+    items: [
+      {
+        id: 'item-1',
+        product: 'Bio Drink Lennon crush',
+        qtyValue: 7,
+        qtyUnit: 'Stk',
+        mhdDate: '2026-10-22',
+      },
+    ],
+    itemCount: 7,
+    source: 'wareneingang-lieferung',
+    scannedBy: 'Paddy',
+    tenantId,
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z',
+    ...extra,
+  };
+}
+
 export function sampleTask(tenantId, author = 'Tester') {
   return {
     title: 'Emulator Test Task',
@@ -255,6 +283,10 @@ export function traceabilityObjectPath(tenantId, fileName = 'record.jpg') {
 
 export function chargenDokuObjectPath(tenantId, fileName = 'record.jpg') {
   return `tenants/${tenantId}/chargendoku/${fileName}`;
+}
+
+export function deliveryNotesObjectPath(tenantId, fileName = 'lieferschein.jpg') {
+  return `tenants/${tenantId}/delivery_notes/${fileName}`;
 }
 
 export {

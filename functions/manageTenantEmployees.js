@@ -1,8 +1,9 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const crypto = require('crypto');
 const adminDb = require('./adminDb');
 const { resolveAuthContext } = require('./authContext');
+const { isSuperAdmin } = require('./superAdmin');
 
 const REGION = 'europe-west3';
 
@@ -10,9 +11,6 @@ const CALLABLE_BASE_OPTIONS = {
   region: REGION,
   enforceAppCheck: true,
 };
-
-const SUPER_ADMIN_EMAIL = 'patrik@charculogic.de';
-const SUPER_ADMIN_UIDS = new Set(['VYwMy5IAlAR26pj8ZbFfc5PNdou2']);
 
 const EMPLOYEE_MODULE_KEYS = ['mhd', 'kitchen', 'buero'];
 
@@ -45,12 +43,6 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function isSuperAdmin(auth) {
-  const email = normalizeEmail(auth?.token?.email || auth?.email);
-  if (email === SUPER_ADMIN_EMAIL) return true;
-  return SUPER_ADMIN_UIDS.has(String(auth?.uid || '').trim());
-}
-
 function assertAdminAccess(auth, targetTenantId) {
   if (!auth?.uid) {
     throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.');
@@ -60,7 +52,7 @@ function assertAdminAccess(auth, targetTenantId) {
     throw new HttpsError('invalid-argument', 'Mandant (tenantId) fehlt.');
   }
 
-  // Plattform-Super-Admin zuerst: Claim tenantId ist optional, Ziel-Mandant kommt aus dem Payload.
+  // patrik@charculogic.de, Claim superAdmin oder Plattform-UID: jeder tenantId aus dem Payload.
   if (isSuperAdmin(auth)) {
     return {
       uid: auth.uid,
@@ -461,6 +453,9 @@ function toHttpsError(err, context) {
 }
 
 async function handleManageTenantEmployees(request) {
+  if (!admin.apps.length) {
+    admin.initializeApp();
+  }
   const action = String(request.data?.action || '').trim();
   const tenantId = String(request.data?.tenantId || '').trim();
 
@@ -499,7 +494,11 @@ async function handleManageTenantEmployees(request) {
 
 exports.handleManageTenantEmployees = handleManageTenantEmployees;
 exports.manageTenantEmployees = onCall(
-  CALLABLE_BASE_OPTIONS,
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    cors: true,
+    enforceAppCheck: false,
+  },
   handleManageTenantEmployees,
 );
 

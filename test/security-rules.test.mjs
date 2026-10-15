@@ -27,9 +27,11 @@ import {
   sampleSettings,
   sampleTask,
   sampleTraceabilityRecord,
+  sampleWareneingangDelivery,
   seedFirestoreDoc,
   tenantDocPath,
   chargenDokuObjectPath,
+  deliveryNotesObjectPath,
 } from './helpers/rules-test-env.mjs';
 import { arrayUnion, serverTimestamp } from 'firebase/firestore';
 
@@ -288,6 +290,65 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 2e: Wareneingang MoPro Abschluss', () => {
+    const deliveryPath = tenantDocPath(
+      TENANTS.STEVES_HOF,
+      'wareneingang_lieferungen',
+      'lieferung_mopro_1',
+    );
+    const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'mopro-batch-1');
+
+    it('allows employee to create Laden/MoPro delivery without temperature', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we', TENANTS.STEVES_HOF, 'employee');
+      const payload = sampleWareneingangDelivery(TENANTS.STEVES_HOF);
+      await expectFirestoreAllow(ctx, deliveryPath, 'create', payload);
+    });
+
+    it('allows employee delivery with warenKategorieMetzgerei and lot fields', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we-metz', TENANTS.STEVES_HOF, 'employee');
+      const payload = sampleWareneingangDelivery(TENANTS.STEVES_HOF, {
+        warenKategorie: 'Lohnschlachtung Rind',
+        warenKategorieMetzgerei: 'Lohnschlachtung Rind',
+        temperatur: 3.5,
+        klassifizierung: 'Ochse',
+        schlachtDatum: '2026-10-14',
+        lot: 'GAL-OCHSE-20261014',
+        chargenNummer: 'GAL-OCHSE-20261014',
+        itemCount: 1,
+      });
+      await expectFirestoreAllow(ctx, deliveryPath, 'create', payload);
+    });
+
+    it('allows employee to create MoPro mhd_liste posten for StevesHof', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we-mhd', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        mhdPath,
+        'create',
+        {
+          name: 'Bio Drink Lennon crush',
+          produkt: 'Bio Drink Lennon crush',
+          qty: 7,
+          menge: 7,
+          kategorie: '🥛MoPro',
+          lieferant: 'Weiling',
+          source: 'wareneingang-app',
+          tenantId: TENANTS.STEVES_HOF,
+        },
+      );
+    });
+
+    it('denies foreign tenant create on StevesHof wareneingang', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-we', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        deliveryPath,
+        'create',
+        sampleWareneingangDelivery(TENANTS.STEVES_HOF),
+      );
+    });
+  });
+
   describe('TEST CASE 2b: task comments', () => {
     function comment(author = 'Stephan') {
       return {
@@ -392,6 +453,11 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('denies TorFabrik access to recipes and production batches', async () => {
       const ctx = torfabrikAdmin();
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, {
+        displayName: 'TorFabrik',
+        status: 'active',
+        enabledModules: { kitchen: false, wurstkueche: false, retterBox: false },
+      });
 
       await expectFirestoreDeny(
         ctx,
@@ -442,6 +508,22 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 3c: module flag opens Wurstküche', () => {
+    it('allows a tenant with kitchen enabled to read recipes', async () => {
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.STEVES_HOF}`, {
+        displayName: 'StevesHof',
+        status: 'active',
+        enabledModules: { kitchen: true, retterBox: false },
+      });
+      const ctx = authContext(testEnv, 'sh-employee-kitchen', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        tenantDocPath(TENANTS.STEVES_HOF, 'rezepte', 'bratwurst'),
+        'read',
+      );
+    });
+  });
+
   describe('TEST CASE 5: system_errors write-only schema', () => {
     const torfabrikEmployee = () => authContext(
       testEnv,
@@ -460,19 +542,23 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       };
     }
 
+    function telemetryPath(tenantId, id) {
+      return `tenants/${tenantId}/system_errors/${id}`;
+    }
+
     it('allows authenticated client to append a valid system_errors document', async () => {
       const ctx = torfabrikEmployee();
       await expectFirestoreAllow(
         ctx,
-        'system_errors/telemetry-ok',
+        telemetryPath(TENANTS.TORFABRIK, 'telemetry-ok'),
         'create',
         validSystemError(TENANTS.TORFABRIK),
       );
     });
 
-    it('denies client read, update, and delete on system_errors', async () => {
+    it('denies employee read and any update or delete on system_errors', async () => {
       const ctx = torfabrikEmployee();
-      const path = 'system_errors/telemetry-locked';
+      const path = telemetryPath(TENANTS.TORFABRIK, 'telemetry-locked');
 
       await seedFirestoreDoc(testEnv, path, {
         tenantId: TENANTS.TORFABRIK,
@@ -483,13 +569,22 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(ctx, path, 'read');
       await expectFirestoreDeny(ctx, path, 'update', { message: 'changed' });
       await expectFirestoreDeny(ctx, path, 'delete');
+
+      const admin = authContext(testEnv, 'tf-admin-telemetry', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreAllow(admin, path, 'read');
     });
 
-    it('denies create when tenantId does not match auth token', async () => {
+    it('denies create on the global collection and across tenants', async () => {
       const ctx = torfabrikEmployee();
       await expectFirestoreDeny(
         ctx,
-        'system_errors/telemetry-cross-tenant',
+        'system_errors/telemetry-global',
+        'create',
+        validSystemError(TENANTS.TORFABRIK),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        telemetryPath(TENANTS.STEVES_HOF, 'telemetry-cross-tenant'),
         'create',
         validSystemError(TENANTS.STEVES_HOF),
       );
@@ -500,16 +595,23 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
       await expectFirestoreDeny(
         ctx,
-        'system_errors/telemetry-inject',
+        telemetryPath(TENANTS.TORFABRIK, 'telemetry-inject'),
         'create',
         validSystemError(TENANTS.TORFABRIK, { injected: true }),
       );
 
       await expectFirestoreDeny(
         ctx,
-        'system_errors/telemetry-flood',
+        telemetryPath(TENANTS.TORFABRIK, 'telemetry-flood'),
         'create',
         validSystemError(TENANTS.TORFABRIK, { message: 'x'.repeat(1000) }),
+      );
+
+      await expectFirestoreDeny(
+        ctx,
+        telemetryPath(TENANTS.TORFABRIK, 'telemetry-userid'),
+        'create',
+        validSystemError(TENANTS.TORFABRIK, { userId: 'person-name' }),
       );
     });
   });
@@ -587,6 +689,23 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('denies cross-tenant chargendoku storage upload', async () => {
       const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TORFABRIK, 'employee');
       await expectStorageUploadDeny(ctx, chargenDokuObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
+    });
+  });
+
+  describe('TEST CASE 6b: delivery_notes storage tenant isolation', () => {
+    it('allows employee upload to own tenant delivery_notes path', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadAllow(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-own.jpg'));
+    });
+
+    it('denies cross-tenant delivery_notes storage upload', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage-x', TENANTS.TORFABRIK, 'employee');
+      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.STEVES_HOF, 'ls-foreign.jpg'));
+    });
+
+    it('denies helper write on delivery_notes', async () => {
+      const ctx = authContext(testEnv, 'tf-helper-delivery-storage', TENANTS.TORFABRIK, 'helper');
+      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-helper.jpg'));
     });
   });
 
@@ -674,21 +793,28 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
     });
 
-    it('allows Tenant-Admin to update enabledModules on own tenant only', async () => {
+    it('denies client updates of enabledModules and allows a displayName change', async () => {
       await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
       const ownAdmin = authContext(testEnv, 'tf-admin-modules', TENANTS.TORFABRIK, 'admin');
-      await expectFirestoreAllow(ownAdmin, tenantRootPath, 'update', {
+      await expectFirestoreDeny(ownAdmin, tenantRootPath, 'update', {
         enabledModules: {
           start: true,
           team: true,
           mhd: true,
           receiving: false,
-          kitchen: false,
+          kitchen: true,
           haccp: false,
           knowledge: false,
           buero: false,
           chargenDoku: true,
         },
+      });
+      const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
+      await expectFirestoreDeny(platform, tenantRootPath, 'update', {
+        enabledModules: { mhd: false },
+      });
+      await expectFirestoreAllow(ownAdmin, tenantRootPath, 'update', {
+        displayName: 'TorFabrik Krefeld',
       });
     });
   });
@@ -772,9 +898,9 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const admin = authContext(testEnv, 'sh-admin-employees', TENANTS.STEVES_HOF, 'admin');
       const employee = authContext(testEnv, 'sh-employee-employees', TENANTS.STEVES_HOF, 'employee');
       const foreignAdmin = authContext(testEnv, 'tf-admin-employees', TENANTS.TORFABRIK, 'admin');
-      await expectFirestoreAllow(admin, employeePath, 'get');
-      await expectFirestoreDeny(employee, employeePath, 'get');
-      await expectFirestoreDeny(foreignAdmin, employeePath, 'get');
+      await expectFirestoreAllow(admin, employeePath, 'read');
+      await expectFirestoreDeny(employee, employeePath, 'read');
+      await expectFirestoreDeny(foreignAdmin, employeePath, 'read');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'update', { displayName: 'Inject' });
     });
   });
@@ -911,6 +1037,53 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200599'),
         'create',
         sampleProductMaster(TENANTS.STEVES_HOF, { ean: '4012346200599', articleName: '' }),
+      );
+    });
+  });
+
+  describe('TEST CASE 12: catalog_overrides public read + tenant write', () => {
+    const sampleOverride = {
+      isActive: true,
+      promoPrice: 24.99,
+      promoText: 'Wochen-Aktion',
+      updatedBy: 'tester@example.com',
+    };
+
+    it('allows unauthenticated read on catalog_overrides', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(testEnv.unauthenticatedContext(), path, 'read');
+    });
+
+    it('allows tenant employee write and denies cross-tenant write', async () => {
+      const own = authContext(testEnv, 'sh-cat-emp', TENANTS.STEVES_HOF, 'employee');
+      const foreign = authContext(testEnv, 'tf-cat-emp', TENANTS.TORFABRIK, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '501');
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '500');
+
+      await expectFirestoreAllow(own, ownPath, 'create', sampleOverride);
+      await expectFirestoreDeny(foreign, foreignPath, 'create', sampleOverride);
+    });
+
+    it('denies helper write but allows helper read', async () => {
+      const helper = authContext(testEnv, 'sh-cat-helper', TENANTS.STEVES_HOF, 'helper');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '550');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(helper, path, 'read');
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '552'),
+        'create',
+        sampleOverride,
+      );
+    });
+
+    it('denies unauthenticated write', async () => {
+      await expectFirestoreDeny(
+        testEnv.unauthenticatedContext(),
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503'),
+        'create',
+        sampleOverride,
       );
     });
   });

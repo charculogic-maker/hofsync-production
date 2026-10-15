@@ -10,7 +10,6 @@ const { defineString } = require('firebase-functions/params');
 const PARAM_UNSET = 'unset';
 const DEFAULT_SMTP_HOST = 'mail.agenturserver.de';
 const DEFAULT_SMTP_PORT = '465';
-const DEFAULT_FROM_EMAIL = 'bestellung@steveshof-hofladen.de';
 
 function defineOptionalString(name, description) {
   return defineString(name, {
@@ -29,9 +28,9 @@ function isConfiguredParam(value) {
 
 const SMTP_HOST = defineString('SMTP_HOST', { default: DEFAULT_SMTP_HOST });
 const SMTP_PORT = defineString('SMTP_PORT', { default: DEFAULT_SMTP_PORT });
-const SMTP_USER = defineString('SMTP_USER', { default: DEFAULT_FROM_EMAIL });
+const SMTP_USER = defineOptionalString('SMTP_USER', 'SMTP-Benutzer (optional)');
 const SMTP_PASS = defineOptionalString('SMTP_PASS', 'SMTP-Passwort (optional)');
-const FROM_EMAIL = defineString('FROM_EMAIL', { default: DEFAULT_FROM_EMAIL });
+const FROM_EMAIL = defineOptionalString('FROM_EMAIL', 'Absender-Adresse (optional; sonst Profil oder FROM_EMAIL-Env)');
 const TWILIO_ACCOUNT_SID = defineOptionalString(
   'TWILIO_ACCOUNT_SID',
   'Twilio Account SID (optional, SMS Kunden-Signal)',
@@ -45,13 +44,20 @@ const FROM_NUMBER = defineOptionalString(
   'Twilio Absender-Nummer (optional, E.164)',
 );
 
+function readConfigured(paramValue) {
+  const value = String(paramValue || process.env.FROM_EMAIL || '').trim();
+  return isConfiguredParam(value) ? value : '';
+}
+
 function readSmtpConfig() {
+  const smtpUser = String(SMTP_USER.value() || '').trim();
+  const fromEmail = String(FROM_EMAIL.value() || '').trim();
   return {
     smtpHost: String(SMTP_HOST.value() || DEFAULT_SMTP_HOST).trim(),
     smtpPort: String(SMTP_PORT.value() || DEFAULT_SMTP_PORT).trim(),
-    smtpUser: String(SMTP_USER.value() || DEFAULT_FROM_EMAIL).trim(),
+    smtpUser: isConfiguredParam(smtpUser) ? smtpUser : '',
     smtpPass: String(SMTP_PASS.value() || '').trim(),
-    fromEmail: String(FROM_EMAIL.value() || DEFAULT_FROM_EMAIL).trim(),
+    fromEmail: isConfiguredParam(fromEmail) ? fromEmail : readConfigured(process.env.FROM_EMAIL),
   };
 }
 
@@ -67,7 +73,6 @@ module.exports = {
   PARAM_UNSET,
   DEFAULT_SMTP_HOST,
   DEFAULT_SMTP_PORT,
-  DEFAULT_FROM_EMAIL,
   defineOptionalString,
   isConfiguredParam,
   SMTP_HOST,

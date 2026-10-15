@@ -28,6 +28,7 @@ Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone g
 Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
 
 - Das gewählte Profil erscheint **oben rechts** in der App.
+- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Profil-Liste öffnet sich erneut. **Abbrechen** oder **✕** lässt den bisherigen Login unverändert.
 - Für **MHD**, **Neu** (Wareneingang) und **Herkunft** ist ein Profil **Pflicht**.
 - Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut nach dem Profil.
 
@@ -52,7 +53,16 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
+Im Tab **MHD** zeigt unsere App automatisch alle Posten im passenden Zeitraum: **MoPro 0-4 Tage**, **Trockenware 0-21 Tage**. Bei Bedarf stellen wir den Zeitraum für sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage**.
+
+Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach dem Produkt:
+
+- **Frischmilch:** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
+- **MoPro / Käse:** 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
+- **Frische / Fleisch / Wurst:** 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
+- **Trockenware / Konserven / TK / Gewürze / Getränke:** 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %**
+
+Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge).
 
 Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 
@@ -82,34 +92,35 @@ Ware, die wir als **Retter-Box** verkaufen wollen, markieren wir direkt in der M
 
 ## 2. Neue Ware erfassen (Wareneingang)
 
-Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
+Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben wählen wir den **Lieferant**. Die Posten sammeln wir in einer **Lieferung** und schließen sie am Ende mit **Gesamte Lieferung abschließen** ab.
 
 1. Tab **Neu** öffnen — bei Bedarf zuerst **unser Profil** wählen.
-2. Einmal die passende **Kategorie (Laden)** wählen:
+2. **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion).
+3. Einmal die passende **Kategorie (Laden)** wählen:
    - Frische
    - MoPro
    - Kühlware
+   - Aufschnitt
    - TK
    - Getränke
    - Trockenware
    - Gewürze
-3. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
-4. Bei bekannter EAN: grüne Zeile **Erkannt: …**
-5. Bei unbekannter EAN den **Produktnamen** ergänzen.
-6. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
-7. **Menge** prüfen und **MHD** eintippen, z. B. `31.12.2026`.
-8. **➕ Posten hinzufügen** wählen — der Artikel erscheint in der Liste **Posten in Lieferung**.
-9. Den nächsten Artikel scannen und wieder **Posten hinzufügen**.
+4. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
+5. Bei bekannter EAN: der Posten erscheint sofort als **oberste Karte** (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit.
+6. Bei unbekannter EAN den **Produktnamen** ergänzen, Menge/MHD setzen und **➕ Posten hinzufügen**.
+7. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
+8. Auf der Karte Menge (Tap → Nummernpad), MHD (+3/+7/+14 oder Datum tippen) oder **✕** zum Entfernen nutzen.
+9. Den nächsten Artikel scannen — ohne nach unten zu scrollen.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
 11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 
-Fehlt der Lieferant, speichert unsere App die Lieferung als **Direkterfassung** (mit unserem Profilnamen). Das ist in Ordnung für schnelles Einräumen ohne Lieferschein.
+Fehlt der Lieferant beim Abschließen, öffnet unsere App ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird die Lieferung gebucht.
 
 ### Wichtig: Kategorie bleibt erhalten
 
-Die gewählte Kategorie bleibt nach **Posten hinzufügen** aktiv. Wenn wir gerade nur MoPro verräumen, müssen wir **MoPro** nicht bei jedem Scan neu wählen.
+Die gewählte Kategorie bleibt für den nächsten Scan aktiv. Wenn wir gerade nur MoPro verräumen, müssen wir **MoPro** nicht bei jedem Scan neu wählen.
 
-Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten.
+Die Kategorie können wir jederzeit ändern — sie gilt für den **nächsten** Posten. Neue Posten stehen immer **oben** in der Liste.
 
 ---
 
@@ -132,19 +143,15 @@ Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Di
 
 ---
 
-### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
+### Wareneingang per Barcode (Tab Neu)
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (Schritte oben unter Wareneingang). Der KI-Wareneingang ist technisch vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf vor Freigabe). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
+Im Tab **Neu** erfassen wir Lieferungen zuverlässig per **Barcode-Serien-Scan**:
 
-Sobald die Funktion freigeschaltet ist, läuft der Ablauf so:
+1. Lieferant wählen und Artikel nacheinander scannen (neueste Posten stehen oben).
+2. Menge und MHD direkt auf der Karte korrigieren (Touch-Pad / Schnelltasten).
+3. Lieferung abschließen oder als offenen Entwurf speichern.
 
-1. Im Tab **Neu** auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Jedes MHD lässt sich vor dem Einbuchen als `TT.MM.JJJJ` anpassen.
+Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert; der Fokus liegt auf dem schnellen Barcode-Flow.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -165,7 +172,7 @@ So berichtigen wir falsch zugeordnete Artikel ohne Zugriff auf die technische Da
 
 Im Tab **Prod.** nutzen wir Rezepte, Produktion und WRS-Kalkulation.
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
-Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schnellwahl **Alexanderwerk / OSKAR 20: 16,0 kg**. Das **Druckdatenblatt DIN A4** öffnet zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten.
+Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schnellwahl **8 / 12 / 16 / 20 kg** (Standard: Alexanderwerk / OSKAR 20: **16,0 kg**), z. B. für die **Bio-Galloway Rostbrat- & Currywurst**. Das **Druckdatenblatt DIN A4** öffnet zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten.
 
 ![StevesHof Prod.-Tab mit Rezeptliste](./modulanleitungen/screenshots/steveshof-04-prod.png)
 
@@ -255,7 +262,7 @@ Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal
 | Kategorie eines gespeicherten Artikels ist falsch | **Neu → Letzte Eingänge** öffnen, Kategorie auswählen und speichern. |
 | Lieferung lässt sich nicht abschließen | Profil prüfen (oben rechts), WLAN prüfen, **↻** App aktualisieren. |
 | Kein Internet beim Speichern | Erfassung fortsetzen. Unsere App zeigt **Lokal vorgemerkt** und synchronisiert automatisch, sobald WLAN wieder verfügbar ist. |
-| KI-Lieferschein-Button fehlt unter **Neu** | Am Laden-iPhone noch nicht freigeschaltet — Ware per Barcode scannen. |
+| KI-Lieferschein-Button fehlt unter **Neu** | Absichtlich deaktiviert — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
 | Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
 | App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |

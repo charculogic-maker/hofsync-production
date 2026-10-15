@@ -28,6 +28,7 @@ Das Passwort bleibt intern. Es gehört nicht in Anleitungen oder Aushänge. Dies
 Nach dem Geräte-Zugang wählen wir **unser Profil** aus der Liste — z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan, Mimi oder **Andere** mit freiem Namen.
 
 - Das aktive Profil steht **oben rechts** in der Kopfzeile.
+- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Profil-Liste öffnet sich erneut. **Abbrechen** oder **✕** lässt den bisherigen Login unverändert.
 - **MHD**, **Neu** und **Herkunft** verlangen ein gültiges Profil.
 - Nach **zwei Stunden ohne Aktivität** erscheint die Profil-Auswahl beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut.
 - Safari **nicht** im privaten Modus — sonst geht der Geräte-Zugang nach dem Schließen verloren.
@@ -49,10 +50,10 @@ Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACC
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-3 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
+Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-4 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
 
 - **Zeitraum** — 7, 14 oder 21 Tage
-- **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, TK, Getränke, Trockenware, Gewürze
+- **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware, Gewürze
 
 Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 
@@ -72,22 +73,23 @@ Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Kart
 
 ## 4. Wareneingang mit Serien-Scans und Lieferungsabschluss
 
-Im Modus **Laden** sammeln wir Posten in einer Lieferung. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
+Im Modus **Laden** sammeln wir Posten in einer Lieferung. Oben wählen wir den **Lieferant**. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
 
-Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Nach einem erfolgreichen Scan werden Barcode und Menge geleert, die **Kategorie (Laden)** bleibt erhalten.
+Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Bekannte Artikel landen sofort als **oberste Karte** in der Liste; der Scanner bleibt für den nächsten Scan bereit. Menge und MHD korrigieren wir direkt auf der Karte (Nummernpad bzw. +3/+7/+14 Tage).
 
 Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
-2. **MoPro** auswählen.
-3. Artikel scannen, Produktname, **Hersteller / Zusatz**, Menge und MHD eintippen, **➕ Posten hinzufügen**.
-4. Den nächsten MoPro-Artikel scannen und erneut **Posten hinzufügen**.
-5. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
-6. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
+2. **Lieferant** wählen (z. B. Weiling).
+3. **MoPro** auswählen.
+4. Artikel scannen — bekannte EAN erscheint oben in der Liste; Menge/MHD bei Bedarf auf der Karte anpassen.
+5. Den nächsten MoPro-Artikel scannen (kein Scrollen nach unten nötig).
+6. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
+7. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
-Ohne eingetragenen Lieferanten speichert unsere App eine **Direkterfassung** mit unserem Profilnamen — das ist für schnelles Verräumen ohne Lieferschein vorgesehen.
+Fehlt der Lieferant beim Abschließen, erscheint ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird gebucht.
 
-Das MHD-Datum tippen wir direkt als `TT.MM.JJJJ`, zum Beispiel `31.12.2026`. Das Feld ist nach jedem neuen Posten wieder leer. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
+Unbekannte EANs legen wir weiterhin manuell an. Hersteller und Zusatzinfos erscheinen später auch in der MHD-Karten-Ansicht.
 
 ![StevesHof Wareneingang](../modulanleitungen/screenshots/steveshof-02-neu-wareneingang.png)
 
@@ -105,19 +107,9 @@ Offline speichert unsere App den Eintrag lokal und synchronisiert ihn bei WLAN. 
 
 Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [modulanleitungen/07-herkunft.md](../modulanleitungen/07-herkunft.md)
 
-### Lieferschein per Foto (KI-Wareneingang) — noch nicht am Laden-iPhone
+### Wareneingang per Barcode (Tab Neu)
 
-Am neutralen Laden-iPhone erfassen wir Ware **per Barcode-Scan** (siehe oben). Der KI-Wareneingang ist vorbereitet, am Hofladen-Terminal aber **noch ausgeblendet** (interner Testlauf). Der Button **📸 Lieferschein fotografieren / hochladen** erscheint dort deshalb noch nicht.
-
-Nach Freigabe läuft der Ablauf so:
-
-1. Im Tab **Neu** (Modus **Laden**) auf **📸 Lieferschein fotografieren / hochladen** tippen.
-2. Lieferschein fotografieren oder ein Foto wählen.
-3. Animation **„Die KI liest den Lieferschein für uns...“** abwarten.
-4. In der Vorschau je Artikel **Name**, **Liefermenge** und **vorgeschlagenes MHD** prüfen.
-5. **📥 Artikel in den Bestand einbuchen** tippen — Bestätigung: **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
-Das **vorgeschlagene MHD** nutzt **Erfahrungswerte früherer Lieferungen** (Kennzeichen **Erfahrungswert**). Ohne Historie schlägt unsere App je Warengruppe vor — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**). Vor dem Einbuchen können wir jedes MHD als `TT.MM.JJJJ` anpassen.
+Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
@@ -133,7 +125,7 @@ Der Tab **Prod.** enthält Rezepte, Produktion und WRS-Kalkulation.
 
 Mit dem Kategorie-Button unter der Rezeptsuche grenzen wir die Rezeptliste im Filterblatt ein.
 
-Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl Standard-Charge** (Alexanderwerk / OSKAR 20: 16,0 kg) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
+Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8 / 12 / 16 / 20 kg, Standard Alexanderwerk / OSKAR 20: **16,0 kg**) und drucken bei Bedarf das **Druckdatenblatt DIN A4** (zwei Seiten mit Fleischeinsatz, Gewürzen, Etikettentext und HACCP-Prüfpunkten).
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 

@@ -6,16 +6,16 @@ Hier erfassen wir **Lieferungen**: Lieferschein-Fotos, Lieferant, Temperatur und
 
 ## Zwei Bereiche
 
-Oben wählen wir zwischen:
+Oben wählen wir zuerst den **Lieferant** (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion). Danach wechseln wir zwischen:
 
 | Modus | Inhalt |
 |-------|--------|
 | **Laden** | Kategorie, Barcode/EAN, Menge, MHD, Postenliste |
-| **Metzgerei** | Lieferant, Waren-Kategorie, Temperatur, Lieferschein-Fotos |
+| **Metzgerei** | Waren-Kategorie, Temperatur, Lieferschein-Fotos/PDF |
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
 
 ---
 
@@ -25,25 +25,24 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
 ### Schritte
 
-1. Tab **Neu** → **Laden**
-2. **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, TK, Getränke, Trockenware oder Gewürze
+1. Tab **Neu** → zuerst **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion)
+2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
-4. **Bekannte EAN**: grüne Zeile **Erkannt: …**
-5. **Unbekannte EAN**: **Produktname** eintragen
+4. **Bekannte EAN**: Posten landet sofort als **oberste Karte** in der Liste (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit
+5. **Unbekannte EAN**: **Produktname** eintragen, Menge/MHD setzen und **➕ Posten hinzufügen**
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
-7. **Menge** setzen und **MHD** direkt als `TT.MM.JJJJ` eintippen, z. B. `31.12.2026`
-8. **➕ Posten hinzufügen** – für jeden weiteren Artikel wiederholen
-9. **💾 Gesamte Lieferung abschließen** — alle Posten der aktuellen Lieferung werden gebucht
-10. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
-11. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
+7. Auf der Erfassungskarte korrigieren wir bei Bedarf **Menge** (Tap → Nummernpad), **MHD** (+3/+7/+14 Tage oder Tap auf das Datum) oder entfernen den Posten mit **✕**
+8. **💾 Gesamte Lieferung abschließen** — fehlt der Lieferant, erscheint ein Auswahl-Pop-up
+9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
+10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
 ### Kategorie bei Serien-Scans
 
-Die ausgewählte Laden-Kategorie bleibt nach **Posten hinzufügen** für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
+Die ausgewählte Laden-Kategorie bleibt für den nächsten Scan erhalten. Wer gerade nur MoPro, Frische oder TK-Ware verräumt, muss die Kategorie daher nicht bei jedem Artikel neu auswählen.
 
 Die Kategorie kann jederzeit geändert werden — sie gilt für den nächsten Posten.
 
-Das MHD-Feld ist nach jedem hinzugefügten Posten wieder leer. So können wir das nächste Datum direkt eintippen, ohne vorher ein altes Datum zu löschen.
+Jeder neue Posten erscheint **oben** in der Liste (zuletzt gescannt zuerst), damit wir beim Auspacken nicht nach unten scrollen müssen.
 
 ### Letzte Eingänge korrigieren
 
@@ -63,34 +62,35 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 - Barcode ins **grüne Feld** halten (ca. 15–25 cm Abstand)
 - Unten: **Eintippen** → Barcode manuell → **OK**
-- Scan im Tab **Neu** füllt nur den aktuellen Posten
+- Bekannte Artikel werden sofort eingebucht; der Scanner bleibt für den Serien-Scan offen
+- Unbekannte Artikel wechseln in die manuelle Erfassung
 
 ### Posten erkannt
 
 ![EAN erkannt und Posten in der Lieferung](./screenshots/02c-posten-erkannt.png)
 
-- Grüne Zeile **Erkannt:** nach bekannter EAN
-- Liste darunter: bereits hinzugefügte Posten (mit **×** entfernen)
+- Bekannte EAN: Quittungston und neue Karte ganz oben
+- Auf der Karte: Menge tippen, MHD mit +3/+7/+14 anpassen oder Posten mit **✕** entfernen
 
 ---
 
-## 📸 Lieferschein einlesen (KI-Wareneingang)
+## 📸 Lieferschein einlesen & abgleichen (KI-Wareneingang)
 
-> **StevesHof:** Am neutralen Laden-iPhone ist dieser Button **noch ausgeblendet** (interner Testlauf). Für StevesHof gilt bis zur Freigabe der Barcode-Scan im Bereich **Laden**.
+Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
 
-Statt jeden Artikel einzeln einzutippen, lassen wir den Lieferschein von der KI lesen und buchen alles mit einem Klick in unseren Bestand ein.
+### Ablauf
 
-### Schritte
+1. Tab **Neu** → **Laden** → Artikel per **Barcode scannen** hinzufügen
+2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera)
+3. Der **Lieferschein-Abgleich** zeigt:
+   - noch nicht erfasste LS-Artikel
+   - extra erfasste Posten
+   - Mengenabweichungen
+   - Übereinstimmungen
+4. Nach weiteren Scans **Abgleich aktualisieren**
+5. Optional fehlende LS-Artikel in den Bestand übernehmen
 
-1. Tab **Neu** → **Laden**
-2. **📸 Lieferschein fotografieren / hochladen** antippen
-3. Lieferschein mit dem iPhone fotografieren oder ein vorhandenes Foto wählen
-4. Es erscheint die Animation **„Die KI liest den Lieferschein für uns...“**
-5. In der Vorschau-Tabelle prüfen wir je Artikel: **Name**, **Liefermenge** und das **vorgeschlagene MHD**
-6. **📥 Artikel in den Bestand einbuchen** antippen
-
-Danach erscheint die Bestätigung **„Lieferschein erfolgreich verbucht. Alle Bestände wurden erhöht!“**
-
+**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
 ### Vorgeschlagenes MHD aus Erfahrungswerten
 
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
@@ -113,10 +113,9 @@ Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisc
 ### Schritte
 
 1. Auf **Metzgerei** wechseln
-2. **Lieferant** (oder **🏠 Eigenproduktion**)
-3. **Waren-Kategorie** und **Temperatur (°C)**
-4. **📸 Lieferscheine fotografieren** (mindestens ein Foto für Entwurf)
-5. **📝 Als offenen Entwurf speichern** – auch ohne Posten (morgens nur dokumentieren)
+2. **Waren-Kategorie** und **Temperatur (°C)**
+3. **📸 Lieferscheine fotografieren / PDF** (mindestens ein Foto oder PDF für Entwurf)
+4. **📝 Als offenen Entwurf speichern** – auch ohne Posten (morgens nur dokumentieren)
 
 ![Lieferschein-Fotos in der Vorschau](./screenshots/03b-lieferschein-fotos.png)
 
@@ -128,9 +127,10 @@ Bei Temperatur über 7 °C kann eine **Meister-Freigabe** (PIN) nötig sein.
 
 ## Lieferung abschließen
 
-1. Unter **Laden** mindestens einen Posten erfassen
-2. Unter **Metzgerei** Lieferant (und ggf. Fotos) pflegen
-3. **💾 Gesamte Lieferung abschließen**
+1. Oben **Lieferant** wählen (oder beim Abschließen im Pop-up nachholen)
+2. Unter **Laden** mindestens einen Posten erfassen
+3. Optional unter **Metzgerei** Temperatur und Fotos/PDF pflegen
+4. **💾 Gesamte Lieferung abschließen**
 
 ## Offene Lieferungen (unten)
 

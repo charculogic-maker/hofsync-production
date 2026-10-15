@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="StevesHof Vorbestellung – Fleisch auf Wunschmaß, Abholung an der Bedientheke oder im SB-Kühlschrank.">
+  <title>Vorbestellung · StevesHof</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            hof: {
+              pine: '#1b3a2f',
+              moss: '#2f5d4a',
+              leaf: '#3f7a5c',
+              cream: '#f3efe6',
+              sand: '#e7e0d2',
+              ink: '#1c1917',
+              muted: '#57534e',
+              copper: '#9a6b3f',
+            }
+          },
+          fontFamily: {
+            display: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            soft: '0 18px 40px rgba(27, 58, 47, 0.12)',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* FOUC-Schutz: Modals/Drawer starten unsichtbar, auch bevor Tailwind greift */
+    .modal-layer,
+    .drawer-layer {
+      display: none !important;
+      position: fixed;
+      inset: 0;
+      /* Über sticky App-Header (z-90), sonst blockiert er Zurück/✕ am iPhone */
+      z-index: 100;
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+    }
+    .modal-layer.is-open,
+    .drawer-layer.is-open {
+      display: flex !important;
+      pointer-events: auto;
+      visibility: visible;
+      opacity: 1;
+    }
+    .drawer-layer.is-open {
+      display: block !important;
+    }
+    body {
+      font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(63, 122, 92, 0.18), transparent 55%),
+        radial-gradient(900px 420px at 100% 0%, rgba(154, 107, 63, 0.14), transparent 50%),
+        linear-gradient(180deg, #f7f4ee 0%, #efe8db 45%, #f3efe6 100%);
+      color: #1c1917;
+      min-height: 100vh;
+    }
+    .font-display { font-family: "Playfair Display", Georgia, serif; }
+    .product-card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(27, 58, 47, 0.12);
+    }
+    .cart-fab {
+      animation: fab-in 0.45s ease both;
+      left: 1rem;
+      right: 1rem;
+      bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+      width: auto;
+      max-width: 36rem;
+      margin-inline: auto;
+      justify-content: space-between;
+      padding: 0.85rem 1rem;
+      border-radius: 1.1rem;
+    }
+    @keyframes fab-in {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .drawer-layer {
+      transition: opacity 0.2s ease;
+    }
+    .drawer-layer.is-open aside {
+      animation: drawer-in 0.28s ease both;
+    }
+    @keyframes drawer-in {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+    .drawer-header {
+      padding-top: max(16px, env(safe-area-inset-top, 0px));
+      flex-shrink: 0;
+      background: #fff;
+    }
+    .drawer-close-x {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.85rem;
+      border: 1px solid #d6d3d1;
+      background: #fff;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: #44403c;
+    }
+    .drawer-footer {
+      padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+      flex-shrink: 0;
+      background: #fff;
+    }
+    #drawer-cart {
+      overscroll-behavior: none;
+    }
+    #drawer-cart aside {
+      width: min(100vw, 28rem);
+      max-width: 100%;
+      height: 100%;
+      max-height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Warenkorb-Liste scrollt; Footer (Summe/Kasse) bleibt unten */
+    #cart-items.cart-items-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    body.layer-scroll-lock {
+      overflow: hidden;
+      position: fixed;
+      left: 0;
+      right: 0;
+      width: 100%;
+    }
+    @media (max-width: 640px) {
+      #drawer-cart aside {
+        width: 100%;
+        max-width: 100%;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        height: 100dvh;
+        max-height: 100dvh;
+      }
+      /* Zuschnitt-Modal: Absenden bleibt über der Safari-Leiste */
+      #modal-cut .cut-modal-panel {
+        max-height: min(92vh, 100dvh);
+        padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+      }
+      #modal-cut .cut-submit-bar {
+        position: sticky;
+        bottom: 0;
+        background: linear-gradient(180deg, rgba(255,255,255,0), #fff 28%);
+        padding-top: 0.75rem;
+        padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+      }
+    }
+    .cut-validation-error {
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 0.85rem;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .channel-toggle[aria-pressed="true"] {
+      background: #1b3a2f;
+      color: #fff;
+      border-color: #1b3a2f;
+    }
+    .hero-panel {
+      background:
+        linear-gradient(135deg, rgba(27, 58, 47, 0.94), rgba(47, 93, 74, 0.88)),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .sim-panel {
+      backdrop-filter: blur(8px);
+      position: relative;
+      z-index: 95; /* über Checkout-Modals, damit das Team Zeiten live testen kann */
+    }
+    header {
+      z-index: 90;
+    }
+    #toast-host .toast {
+      animation: toast-in 0.28s ease both;
+    }
+    @keyframes toast-in {
+      from { transform: translateY(8px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .price-promo {
+      color: #b45309;
+      font-weight: 700;
+    }
+    .price-original {
+      color: #78716c;
+      text-decoration: line-through;
+      font-weight: 500;
+      font-size: 0.85em;
+      margin-left: 0.35rem;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-aktion { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+    .badge-soldout { background: #f5f5f4; color: #57534e; border: 1px solid #d6d3d1; }
+    .badge-hidden { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .admin-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+    }
+    .admin-toolbar button {
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-radius: 0.7rem;
+      border: 1px solid #d6d3d1;
+      background: #fff;
+      padding: 0.35rem 0.55rem;
+      color: #1b3a2f;
+    }
+    body.admin-mode .admin-banner { display: block !important; }
+    body.admin-mode .admin-only { display: inline-flex !important; }
+    #drawer-sortiment aside {
+      width: min(100vw, 40rem);
+      max-width: 100%;
+      height: 100%;
+      max-height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    #sortiment-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .sortiment-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.65rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid #e7e0d2;
+    }
+    @media (min-width: 640px) {
+      .sortiment-row {
+        grid-template-columns: minmax(0, 1.4fr) auto minmax(6rem, 7rem) minmax(7rem, 9rem);
+        align-items: end;
+      }
+    }
+    .sortiment-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #1b3a2f;
+    }
+    .sortiment-switch input {
+      width: 1.1rem;
+      height: 1.1rem;
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <a href="#katalog" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:bg-white focus:px-3 focus:py-2 focus:rounded-lg">Zum Sortiment springen</a>
+
+  <div class="admin-banner hidden border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-xs font-semibold text-amber-900" style="display: none;">
+    Team-Modus aktiv · Sortiment &amp; Aktionen werden in Firestore gespeichert (für alle Kunden)
+  </div>
+
+  <header class="sticky top-0 z-[90] border-b border-hof-sand/80 bg-[#f7f4ee]/90 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div class="min-w-0">
+        <p class="font-display text-2xl leading-none text-hof-pine sm:text-3xl">StevesHof</p>
+        <p class="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-hof-copper">Vorbestellung · Soft-Launch</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-open-sortiment" class="admin-only hidden rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100">
+          Sortiment
+        </button>
+        <button type="button" id="btn-open-sim" class="rounded-xl border border-hof-sand bg-white/80 px-3 py-2 text-sm font-semibold text-hof-pine shadow-sm hover:bg-white">
+          ⚙️ Zeit-Simulator
+        </button>
+        <button type="button" id="btn-header-cart" class="relative rounded-xl bg-hof-pine px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-hof-moss">
+          Warenkorb
+          <span id="header-cart-count" class="ml-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-hof-copper px-1.5 text-xs">0</span>
+        </button>
+      </div>
+    </div>
+    <div id="sim-panel" class="sim-panel hidden border-t border-hof-sand bg-white/85 px-4 py-3">
+      <div class="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+          <label for="sim-datetime" class="block text-xs font-semibold uppercase tracking-wide text-hof-muted">Simulierter Zeitpunkt</label>
+          <input id="sim-datetime" type="datetime-local" class="mt-1 w-full rounded-xl border border-hof-sand bg-white px-3 py-2 text-sm text-hof-ink outline-none ring-hof-leaf focus:ring-2">
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="btn-sim-apply" class="rounded-xl bg-hof-pine px-4 py-2 text-sm font-semibold text-white hover:bg-hof-moss">Anwenden</button>
+          <button type="button" id="btn-sim-reset" class="rounded-xl border border-hof-sand bg-white px-4 py-2 text-sm font-semibold text-hof-pine hover:bg-hof-cream">Jetzt</button>
+        </div>
+      </div>
+      <p id="sim-status" class="mx-auto mt-2 max-w-6xl text-xs text-hof-muted">Aktuell: echte Uhrzeit</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="mx-auto max-w-6xl px-4 pb-6 pt-8 sm:pt-12">
+      <div class="hero-panel overflow-hidden rounded-[1.75rem] px-6 py-10 text-white shadow-soft sm:px-10 sm:py-14">
+        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">Hof · Metzgerei · Vorbestellung</p>
+        <h1 class="font-display mt-3 max-w-xl text-4xl leading-tight sm:text-5xl">Fleisch auf Wunschmaß vorbestellen</h1>
+        <p class="mt-4 max-w-xl text-base text-white/85 sm:text-lg">
+          Dicke, Vakuumierung und Portionen nach deinem Wunsch. Abrechnung nach dem Einwiegen an unserer Waage.
+        </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="#katalog" class="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-bold text-hof-pine shadow-sm hover:bg-hof-cream">Zum Sortiment</a>
+          <a href="#abholung" class="inline-flex items-center justify-center rounded-2xl border border-white/35 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15">Abholung wählen</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="abholung" class="mx-auto max-w-6xl px-4 pb-4">
+      <div class="rounded-2xl border border-hof-sand bg-white/70 p-4 sm:p-5">
+        <h2 class="font-display text-xl text-hof-pine">So holst du ab</h2>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl bg-hof-cream/80 p-4">
+            <p class="font-semibold text-hof-pine">🏪 Bedientheke</p>
+            <p class="mt-1 text-sm text-hof-muted">Freitag 09:00–18:30 · Samstag 09:00–13:00 · persönlich mit Kassenwägung</p>
+          </div>
+          <div class="rounded-xl bg-hof-cream/80 p-4">
+            <p class="font-semibold text-hof-pine">❄️ SB-Kühlschrank</p>
+            <p class="mt-1 text-sm text-hof-muted">Sonntag–Donnerstag 06:00–22:00 · kontaktlos. Vorbereitung mit Pufferzeiten für unser Team.</p>
+          </div>
+        </div>
+        <p id="slot-hint" class="mt-3 text-sm text-hof-muted">Zeitfenster werden im Checkout anhand deiner Bestellzeit berechnet.</p>
+      </div>
+    </section>
+
+    <section id="katalog" class="mx-auto max-w-6xl px-4 pb-36 pt-6">
+      <div class="mb-4">
+        <h2 class="font-display text-3xl text-hof-pine">Unser Sortiment</h2>
+        <p class="mt-1 text-sm text-hof-muted">Reale Kassenpreise · WG 460–465 · Abrechnung nach Waage</p>
+      </div>
+      <div id="category-filters" class="mb-6 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Warengruppen filtern"></div>
+      <div id="catalog-root" class="space-y-10"></div>
+    </section>
+  </main>
+
+  <button type="button" id="cart-fab" class="cart-fab fixed z-50 hidden items-center gap-3 bg-hof-pine text-sm font-bold text-white shadow-soft hover:bg-hof-moss" aria-label="Warenkorb anzeigen">
+    <span class="flex min-w-0 flex-1 items-center gap-2 text-left">
+      <span id="fab-count" class="inline-flex min-w-[1.4rem] items-center justify-center rounded-full bg-white/15 px-1.5 text-xs">0</span>
+      <span id="fab-label" class="truncate">0 Positionen · 0,00 €</span>
+    </span>
+    <span id="fab-cta" class="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold">Warenkorb anzeigen</span>
+  </button>
+
+  <div id="toast-host" class="pointer-events-none fixed inset-x-0 top-[max(1rem,env(safe-area-inset-top))] z-[110] flex flex-col items-center gap-2 px-4"></div>
+
+  <!-- Zuschnitt-Modal: FOUC-sicher mit Inline display:none -->
+  <div id="modal-cut" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cut-title">
+    <div class="cut-modal-panel max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3" style="padding-top: max(0px, env(safe-area-inset-top, 0px));">
+        <div>
+          <p id="cut-category" class="text-xs font-semibold uppercase tracking-wide text-hof-copper"></p>
+          <h3 id="cut-title" class="font-display text-2xl text-hof-pine">Zuschnitt</h3>
+          <p id="cut-tier-badge" class="badge-pill badge-aktion mt-2 hidden"></p>
+        </div>
+        <button type="button" class="drawer-close-x modal-close" data-close="modal-cut" aria-label="Schließen">✕</button>
+      </div>
+      <form id="cut-form" class="mt-4 space-y-4" novalidate>
+        <input type="hidden" id="cut-product-id" value="">
+        <p id="cut-price-line" class="rounded-xl bg-hof-cream/80 px-3 py-2 text-sm font-semibold text-hof-pine"></p>
+        <div class="grid grid-cols-2 gap-3">
+          <div id="cut-pieces-wrap">
+            <label for="cut-pieces" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Stückzahl</label>
+            <input id="cut-pieces" type="number" min="1" step="1" inputmode="numeric" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+          </div>
+          <div id="cut-weight-wrap">
+            <label for="cut-weight" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Gewicht (kg)</label>
+            <input id="cut-weight" type="number" min="0.05" step="0.01" inputmode="decimal" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2">
+          </div>
+        </div>
+        <div id="pack-size-wrap" class="hidden">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Packungsgröße</p>
+          <div id="pack-size-options" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+        </div>
+        <div id="cut-options-wrap">
+          <p id="cut-options-label" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Schnittstärke / Zuschnitt</p>
+          <div id="cut-options" class="mt-2 grid gap-2"></div>
+        </div>
+        <div id="vacuum-options-wrap">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Vakuumierung</p>
+          <div id="vacuum-options" class="mt-2 grid gap-2"></div>
+        </div>
+        <div id="state-options-wrap">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Zustand</p>
+          <div id="state-options" class="mt-2 grid gap-2"></div>
+          <p id="state-options-hint" class="mt-2 text-xs leading-relaxed text-hof-muted"></p>
+        </div>
+        <div>
+          <label for="cut-note" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Notiz für den Metzger</label>
+          <textarea id="cut-note" rows="3" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Besonderer Wunsch …"></textarea>
+        </div>
+        <p id="cut-estimate" class="rounded-xl bg-hof-cream px-3 py-2 text-sm text-hof-pine"></p>
+        <p id="cut-validation" class="cut-validation-error hidden" role="alert"></p>
+        <div class="cut-submit-bar">
+          <button type="submit" id="btn-cut-submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">In den Warenkorb</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Warenkorb-Drawer: FOUC-sicher -->
+  <div id="drawer-cart" class="drawer-layer" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+    <button type="button" class="absolute inset-0 bg-black/45" data-close="drawer-cart" aria-label="Warenkorb schließen"></button>
+    <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-soft">
+      <div class="drawer-header shrink-0 border-b border-hof-sand px-4 pb-3 sm:px-5">
+        <div class="flex items-center justify-between gap-2 pt-3">
+          <button type="button" id="btn-cart-back" class="inline-flex min-h-[44px] flex-1 items-center gap-1 rounded-xl px-2 text-left text-sm font-semibold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">
+            ← Zurück zur Auswahl
+          </button>
+          <button type="button" class="drawer-close-x shrink-0" data-close="drawer-cart" aria-label="Warenkorb schließen">✕</button>
+        </div>
+        <h3 id="cart-title" class="font-display mt-1 px-2 text-2xl text-hof-pine">Warenkorb</h3>
+      </div>
+      <div id="cart-items" class="cart-items-list min-h-0 flex-1 overflow-y-auto px-5 py-4"></div>
+      <div class="drawer-footer shrink-0 border-t border-hof-sand px-5 pt-4">
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-hof-muted">Geschätzte Summe</span>
+          <strong id="cart-sum" class="text-lg text-hof-pine">0,00 €</strong>
+        </div>
+        <p class="mt-2 text-xs leading-relaxed text-hof-muted">
+          Die Abrechnung erfolgt nach dem Einwiegen an der Hofladen-Waage. Die Summe hier ist eine Orientierung (±10–15&nbsp;% Naturprodukt-Toleranz).
+        </p>
+        <div class="mt-4 grid gap-2">
+          <button type="button" id="btn-continue-shopping" class="w-full rounded-2xl border border-hof-sand bg-white py-3.5 text-sm font-bold text-hof-pine hover:bg-hof-cream" data-close="drawer-cart">+ Weitere Artikel hinzufügen</button>
+          <button type="button" id="btn-checkout" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss disabled:cursor-not-allowed disabled:opacity-50">Zur Kasse</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Checkout-Modal: FOUC-sicher -->
+  <div id="modal-checkout" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+    <div class="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="checkout-title" class="font-display text-2xl text-hof-pine">Abholung & Kontakt</h3>
+          <p class="mt-1 text-sm text-hof-muted">Wähle Weg und Zeitfenster – wir richten uns nach der Vorbereitungslogik.</p>
+        </div>
+        <button type="button" class="rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-checkout">Schließen</button>
+      </div>
+
+      <form id="checkout-form" class="mt-5 space-y-5">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Abholweg</p>
+          <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button type="button" id="channel-counter" class="channel-toggle rounded-2xl border border-hof-sand px-3 py-3 text-left text-sm font-semibold text-hof-pine" aria-pressed="true">🏪 Bedientheke (Fr/Sa)</button>
+            <button type="button" id="channel-sb" class="channel-toggle rounded-2xl border border-hof-sand px-3 py-3 text-left text-sm font-semibold text-hof-pine" aria-pressed="false">❄️ SB-Kühlschrank (So–Do, 06–22 Uhr)</button>
+          </div>
+          <p id="channel-mode-hint" class="mt-2 text-xs text-hof-muted"></p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label for="pickup-date" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Datum</label>
+            <select id="pickup-date" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" required></select>
+          </div>
+          <div>
+            <label for="pickup-slot" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Zeitfenster</label>
+            <select id="pickup-slot" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" required></select>
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label for="customer-name" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Name</label>
+            <input id="customer-name" type="text" autocomplete="name" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Vor- und Nachname">
+          </div>
+          <div>
+            <label for="customer-phone" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Mobiltelefon (SMS)</label>
+            <input id="customer-phone" type="tel" autocomplete="tel" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="für Bereitstellungs-SMS">
+          </div>
+          <div>
+            <label for="customer-email" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">E-Mail</label>
+            <input id="customer-email" type="email" autocomplete="email" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="name@beispiel.de">
+            <p class="mt-1 text-xs text-hof-muted">Für Rückfragen. Soft-Launch: noch keine automatische Bestätigungs-Mail.</p>
+          </div>
+        </div>
+
+        <label class="flex items-start gap-3 rounded-2xl border border-hof-sand bg-hof-cream/60 p-3 text-sm text-hof-ink">
+          <input id="nature-accept" type="checkbox" required class="mt-1 h-4 w-4 rounded border-hof-sand text-hof-pine focus:ring-hof-leaf">
+          <span>Ich akzeptiere, dass Naturprodukte um ca. ±10–15&nbsp;% vom Wunschgewicht abweichen können und die Abrechnung nach Waagengewicht erfolgt.</span>
+        </label>
+
+        <div class="rounded-2xl bg-hof-cream px-4 py-3 text-sm">
+          <div class="flex justify-between"><span class="text-hof-muted">Geschätzte Summe</span><strong id="checkout-sum" class="text-hof-pine">0,00 €</strong></div>
+        </div>
+
+        <button type="submit" class="w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">Bestellung absenden</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Aktion: FOUC-sicher -->
+  <div id="modal-admin-promo" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="admin-promo-title">
+    <div class="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-soft sm:rounded-3xl sm:p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="admin-promo-title" class="font-display text-2xl text-hof-pine">Aktion anlegen</h3>
+          <p id="admin-promo-product" class="mt-1 text-sm text-hof-muted"></p>
+        </div>
+        <button type="button" class="rounded-xl border border-hof-sand px-3 py-2 text-sm font-semibold text-hof-muted hover:bg-hof-cream" data-close="modal-admin-promo">Schließen</button>
+      </div>
+      <form id="admin-promo-form" class="mt-4 space-y-3" novalidate>
+        <input type="hidden" id="admin-promo-product-id" value="">
+        <div>
+          <label for="admin-promo-price" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Aktionspreis</label>
+          <input id="admin-promo-price" type="number" min="0.01" step="0.01" required class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="z. B. 22,99">
+          <p id="admin-promo-hint" class="mt-1 text-xs text-hof-muted"></p>
+        </div>
+        <div>
+          <label for="admin-promo-badge" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Badge</label>
+          <input id="admin-promo-badge" type="text" maxlength="24" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Aktion / -15 % / Bestseller" value="Aktion">
+        </div>
+        <label class="flex items-center gap-2 text-sm text-hof-ink">
+          <input id="admin-promo-soldout" type="checkbox" class="h-4 w-4 rounded border-hof-sand text-hof-pine focus:ring-hof-leaf">
+          Zusätzlich als ausverkauft markieren
+        </label>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" id="admin-promo-clear" class="rounded-2xl border border-hof-sand py-3 text-sm font-semibold text-hof-pine hover:bg-hof-cream">Aktion löschen</button>
+          <button type="submit" class="rounded-2xl bg-hof-pine py-3 text-sm font-bold text-white hover:bg-hof-moss">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bestätigung: FOUC-sicher -->
+  <div id="modal-confirm" class="modal-layer items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="w-full max-w-md rounded-t-3xl bg-white p-6 text-center shadow-soft sm:rounded-3xl">
+      <p class="text-sm font-semibold uppercase tracking-[0.16em] text-hof-copper">Bestellung eingegangen</p>
+      <h3 id="confirm-title" class="font-display mt-2 text-3xl text-hof-pine">Danke!</h3>
+      <p id="confirm-body" class="mt-3 text-sm leading-relaxed text-hof-muted"></p>
+      <p id="confirm-ref" class="mt-4 rounded-xl bg-hof-cream px-3 py-2 font-mono text-sm text-hof-pine"></p>
+      <button type="button" id="btn-confirm-done" class="mt-6 w-full rounded-2xl bg-hof-pine py-3.5 text-sm font-bold text-white hover:bg-hof-moss">Zurück zum Sortiment</button>
+    </div>
+  </div>
+
+  <!-- Sortiment-Admin-Drawer -->
+  <div id="drawer-sortiment" class="drawer-layer" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="sortiment-title">
+    <button type="button" class="absolute inset-0 bg-black/45" data-close="drawer-sortiment" aria-label="Sortiment schließen"></button>
+    <aside class="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-soft">
+      <div class="drawer-header shrink-0 border-b border-hof-sand px-4 pb-3 sm:px-5">
+        <div class="flex items-center justify-between gap-2 pt-3">
+          <button type="button" class="inline-flex min-h-[44px] flex-1 items-center gap-1 rounded-xl px-2 text-left text-sm font-semibold text-hof-pine hover:bg-hof-cream" data-close="drawer-sortiment">
+            ← Zurück
+          </button>
+          <button type="button" class="drawer-close-x shrink-0" data-close="drawer-sortiment" aria-label="Schließen">✕</button>
+        </div>
+        <h3 id="sortiment-title" class="font-display mt-1 px-2 text-2xl text-hof-pine">Sortiment steuern</h3>
+        <p id="sortiment-status" class="mt-1 px-2 text-xs text-hof-muted">Lade Overrides …</p>
+      </div>
+      <div id="sortiment-list" class="px-4 py-3 sm:px-5"></div>
+      <div class="drawer-footer shrink-0 border-t border-hof-sand px-5 pt-3 pb-4">
+        <p class="text-xs leading-relaxed text-hof-muted">
+          Sichtbarkeit und Aktionspreise gelten für alle Kunden im Portal. Speichern braucht eine Anmeldung am Laden-iPhone (Metzgerei-Team).
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="border-t border-hof-sand/80 bg-white/50 px-4 py-8 text-center text-xs text-hof-muted">
+    <p class="font-display text-base text-hof-pine">StevesHof</p>
+    <p class="mt-1">Vorbestellung Soft-Launch · Abrechnung nach Waage · <a class="underline hover:text-hof-pine" href="/datenschutz.html">Datenschutz</a></p>
+  </footer>
+
+  <script src="./libs/firebase-app.js"></script>
+  <script src="./libs/firebase-auth.js"></script>
+  <script src="./libs/firebase-firestore.js"></script>
+  <script type="module" src="./bestellen.js"></script>
+
+</body>
+</html>
