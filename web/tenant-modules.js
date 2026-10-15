@@ -83,6 +83,8 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
       return modules.teamboard === true;
     case 'team':
       return modules.team === true || modules.orders === true;
+    case 'orders':
+      return modules.orders === true;
     case 'mhd':
       return modules.mhdMonitor !== false;
     case 'receiving':

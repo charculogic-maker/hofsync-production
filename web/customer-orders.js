@@ -1890,7 +1890,9 @@ function bindAveryLabelActions() {
 }
 
 function bindOrdersViewSwitch() {
-  const root = document.getElementById('team-panel-orders');
+  const root = document.getElementById('view-orders')
+    || document.getElementById('page-orders')
+    || document.getElementById('team-panel-orders');
   if (!root || root.dataset.ordersViewBound === '1') return;
   root.dataset.ordersViewBound = '1';
 
@@ -2026,6 +2028,11 @@ export function activateCustomerOrdersTab() {
   renderProductionTasks();
   renderZuschnittliste();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
+}
+
+/** Alias für Nav-/Routing-Aufrufe aus app.js */
+export function renderCustomerOrders() {
+  activateCustomerOrdersTab();
 }
 
 export {
