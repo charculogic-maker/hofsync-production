@@ -16,6 +16,8 @@ import {
   readCatalogOverridesFromStorage,
   writeCatalogOverridesToStorage,
   getAvailablePickupSlots,
+  PRODUCT_STATE_OPTIONS,
+  PRODUCT_STATE_HINT,
 } from './orderCatalog.js';
 
 const ADMIN_TEAM_FLAG_KEY = 'sth_team_mode';
@@ -236,6 +238,22 @@ function productPriceHtml(product) {
   return `<span class="text-hof-ink">${price.currentHtml}</span>`;
 }
 
+/** CTA auf der Karte: kein „Zuschnitt wählen“ bei reiner Stückware ohne Cuts */
+function productCtaLabel(product) {
+  const pricingType = resolvePricingType(product);
+  if (pricingType === 'slice_pack') return 'Packung wählen';
+  const hasCuts = Array.isArray(product.cutOptions) && product.cutOptions.length > 1;
+  if (hasCuts) return 'Zuschnitt wählen';
+  if (pricingType === 'fixed') return 'Hinzufügen';
+  return 'Menge wählen';
+}
+
+/** Einzelne Fix-Zuschnitte (z. B. nur „Am Stück“) nicht als Radio-Liste zeigen */
+function visibleCutOptions(product) {
+  const cuts = product?.cutOptions || [];
+  return cuts.length > 1 ? cuts : [];
+}
+
 function renderFilters(categories) {
   const chips = [
     { id: 'all', label: 'Alle' },
@@ -300,9 +318,7 @@ function renderCatalog() {
         inactive && state.adminMode ? '<span class="badge-pill badge-hidden">Ausgeblendet</span>' : '',
       ].filter(Boolean).join(' ');
 
-      const cta = soldOut
-        ? 'Ausverkauft'
-        : (resolvePricingType(product) === 'slice_pack' ? 'Packung wählen' : 'Zuschnitt wählen');
+      const cta = soldOut ? 'Ausverkauft' : productCtaLabel(product);
       const artMeta = product.artNr
         ? `<p class="mt-1 text-[11px] uppercase tracking-wide text-hof-muted">ArtNr ${escapeHtml(product.artNr)}${product.wg ? ` · WG ${product.wg}` : ''}</p>`
         : '';
@@ -403,7 +419,7 @@ function updateCutEstimate() {
   if (!product) return;
   const pricingType = resolvePricingType(product);
   const { pieces, weightKg, packGrams } = readCutSelection(product);
-  const cutId = selectedRadio('cutOption');
+  const cutId = resolvedCutId(product);
   const priced = effectiveCutProduct(product, weightKg);
   syncCutModalMeta(priced);
   const estimate = estimateLinePrice(priced, { pieces, weightKg, packGrams });
@@ -473,30 +489,47 @@ function openCutModal(productId) {
     ? (product.defaultWeightKg || (product.typicalWeightKg || 0) * (product.defaultPieces || 1) || '')
     : '';
 
-  if (isSlice) {
-    const packs = getPackSizeOptions(product);
-    const selected = String(product.defaultPackGrams || packs[0]?.grams || 100);
-    optionButtons(
-      document.getElementById('pack-size-options'),
-      packs.map((pack) => ({ id: pack.id, label: pack.label })),
-      'packSize',
-      selected,
-    );
-    document.getElementById('cut-options-label').textContent = 'Schnittstärke';
-  } else {
-    document.getElementById('pack-size-options').innerHTML = '';
-    document.getElementById('cut-options-label').textContent = 'Schnittstärke / Zuschnitt';
-  }
+      if (isSlice) {
+        const packs = getPackSizeOptions(product);
+        const selected = String(product.defaultPackGrams || packs[0]?.grams || 100);
+        optionButtons(
+          document.getElementById('pack-size-options'),
+          packs.map((pack) => ({ id: pack.id, label: pack.label })),
+          'packSize',
+          selected,
+        );
+        document.getElementById('cut-options-label').textContent = 'Schnittstärke';
+      } else {
+        document.getElementById('pack-size-options').innerHTML = '';
+        document.getElementById('cut-options-label').textContent = 'Schnittstärke / Zuschnitt';
+      }
 
-  const cutWrap = document.getElementById('cut-options-wrap');
-  const vacWrap = document.getElementById('vacuum-options-wrap');
-  cutWrap.classList.toggle('hidden', !(product.cutOptions && product.cutOptions.length));
-  vacWrap.classList.toggle('hidden', !(product.vacuumOptions && product.vacuumOptions.length));
-  optionButtons(document.getElementById('cut-options'), product.cutOptions || [], 'cutOption', product.cutOptions?.[0]?.id);
-  optionButtons(document.getElementById('vacuum-options'), product.vacuumOptions || [], 'vacuumOption', product.vacuumOptions?.[0]?.id);
-  updateCutEstimate();
-  openLayer(els.cutModal);
-}
+      const cutsForUi = isSlice ? (product.cutOptions || []) : visibleCutOptions(product);
+      const cutWrap = document.getElementById('cut-options-wrap');
+      const vacWrap = document.getElementById('vacuum-options-wrap');
+      const stateWrap = document.getElementById('state-options-wrap');
+      cutWrap.classList.toggle('hidden', !cutsForUi.length);
+      vacWrap.classList.toggle('hidden', !(product.vacuumOptions && product.vacuumOptions.length));
+      if (stateWrap) stateWrap.classList.remove('hidden');
+      optionButtons(document.getElementById('cut-options'), cutsForUi, 'cutOption', cutsForUi[0]?.id);
+      optionButtons(document.getElementById('vacuum-options'), product.vacuumOptions || [], 'vacuumOption', product.vacuumOptions?.[0]?.id);
+      optionButtons(
+        document.getElementById('state-options'),
+        PRODUCT_STATE_OPTIONS,
+        'productState',
+        PRODUCT_STATE_OPTIONS[0]?.id,
+      );
+      const stateHint = document.getElementById('state-options-hint');
+      if (stateHint) stateHint.textContent = PRODUCT_STATE_HINT;
+      updateCutEstimate();
+      openLayer(els.cutModal);
+    }
+
+    function resolvedCutId(product) {
+      const selected = selectedRadio('cutOption');
+      if (selected) return selected;
+      return product?.cutOptions?.[0]?.id || '';
+    }
 
 function selectedRadio(name) {
   const el = document.querySelector(`input[name="${name}"]:checked`);
@@ -531,7 +564,7 @@ document.getElementById('cut-form').addEventListener('submit', (event) => {
     return;
   }
 
-      const cutId = selectedRadio('cutOption');
+      const cutId = resolvedCutId(product);
       if (pricingType !== 'slice_pack') {
         const validation = validateCutSelection(product, { pieces, weightKg, cutId });
         if (!validation.ok) {
@@ -541,6 +574,7 @@ document.getElementById('cut-form').addEventListener('submit', (event) => {
         }
       }
       const vacuumId = selectedRadio('vacuumOption');
+      const stateId = selectedRadio('productState') || 'frisch';
       const note = String(document.getElementById('cut-note').value || '').trim();
       const estimatedWeightKg = pricingType === 'slice_pack'
         ? roundMoneyLike(packGrams / 1000)
@@ -561,8 +595,10 @@ document.getElementById('cut-form').addEventListener('submit', (event) => {
       }
       const cutLabel = labelForOption(product.cutOptions, cutId);
       const vacLabel = labelForOption(product.vacuumOptions, vacuumId);
+      const stateLabel = labelForOption(PRODUCT_STATE_OPTIONS, stateId);
       if (cutLabel) parts.push(cutLabel);
       if (vacLabel) parts.push(vacLabel);
+      if (stateLabel) parts.push(stateLabel);
       if (note) parts.push(`Notiz: ${note}`);
 
       state.cart.push({
@@ -574,6 +610,8 @@ document.getElementById('cut-form').addEventListener('submit', (event) => {
         weightKg: estimatedWeightKg,
         cutId,
         vacuumId,
+        stateId,
+        stateLabel,
         note,
         summary: parts.join(' · '),
         estimatedPrice,
@@ -621,7 +659,7 @@ document.getElementById('cut-form').addEventListener('change', (event) => {
           }
         }
   }
-  if (target.name === 'packSize' || target.name === 'cutOption' || target.name === 'vacuumOption') {
+  if (target.name === 'packSize' || target.name === 'cutOption' || target.name === 'vacuumOption' || target.name === 'productState') {
     updateCutEstimate();
   }
 });
