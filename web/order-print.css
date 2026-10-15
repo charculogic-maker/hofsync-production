@@ -1,0 +1,376 @@
+/**
+ * Druckansichten für Metzgerei-Zuschnittliste (A4) und Avery-Kistenbon (70×36 mm).
+ * Screen-Styles bleiben in style.css; hier vor allem @media print.
+ */
+
+/* —— Screen: Zuschnittliste —— */
+.zuschnittliste-print-root {
+  display: none;
+}
+
+.zuschnittliste-print-sheet {
+  display: none;
+}
+
+.zuschnittliste-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.zuschnittliste-day-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zuschnittliste-day-filters .btn.is-active {
+  outline: 2px solid var(--primary-color, #0284c7);
+  outline-offset: 1px;
+}
+
+.zuschnittliste-section {
+  margin-bottom: 18px;
+}
+
+.zuschnittliste-section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.zuschnittliste-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.zuschnittliste-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.zuschnittliste-row strong {
+  font-size: 16px;
+}
+
+.zuschnittliste-tk {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.zuschnittliste-empty {
+  color: #64748b;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+/* —— Screen: Avery / Kistenbon Vorschau —— */
+.avery-label-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.avery-label-modal.is-open {
+  display: flex;
+}
+
+.avery-label-view {
+  width: min(420px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  padding: 16px;
+}
+
+.avery-label-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.avery-label-toolbar h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.avery-label-sheet {
+  width: 70mm;
+  min-height: 36mm;
+  margin: 0 auto;
+  padding: 3mm 3.5mm;
+  border: 1px dashed #94a3b8;
+  border-radius: 2px;
+  box-sizing: border-box;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color: #0f172a;
+}
+
+.avery-label-ref {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+}
+
+.avery-label-name {
+  margin: 2px 0 4px;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.avery-label-meta {
+  font-size: 10px;
+  color: #475569;
+  margin-bottom: 4px;
+}
+
+.avery-label-items {
+  margin: 0;
+  padding-left: 14px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.avery-label-total {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 900;
+  border-top: 1px solid #cbd5e1;
+  padding-top: 3px;
+}
+
+/* —— Packtisch Karten —— */
+.orders-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.orders-view-switch .btn.is-active {
+  outline: 2px solid var(--primary-color, #0284c7);
+  outline-offset: 1px;
+}
+
+.packtisch-card {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  margin-bottom: 10px;
+}
+
+.packtisch-card--open { border-left: 4px solid #64748b; }
+.packtisch-card--in_progress { border-left: 4px solid #ea580c; }
+.packtisch-card--ready { border-left: 4px solid #16a34a; }
+.packtisch-card--picked_up { border-left: 4px solid #94a3b8; opacity: 0.85; }
+
+.packtisch-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.packtisch-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.packtisch-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.packtisch-weigh-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  margin: 8px 0;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.packtisch-weigh-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.packtisch-weigh-row input {
+  width: 100%;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.packtisch-line-price {
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.packtisch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media print {
+  body.print-zuschnittliste .preview-container,
+  body.print-zuschnittliste .iphone-frame,
+  body.print-zuschnittliste .desktop-controls,
+  body.print-zuschnittliste .status-bar,
+  body.print-zuschnittliste .app-header,
+  body.print-zuschnittliste .app-update-info,
+  body.print-zuschnittliste .bottom-nav,
+  body.print-zuschnittliste .home-indicator,
+  body.print-zuschnittliste .pin-auth-modal,
+  body.print-zuschnittliste .orders-view-switch,
+  body.print-zuschnittliste .team-panel,
+  body.print-zuschnittliste .avery-label-modal,
+  body.print-zuschnittliste .delivery-note-modal,
+  body.print-zuschnittliste .sammel-pickliste-modal,
+  body.print-avery .preview-container,
+  body.print-avery .iphone-frame,
+  body.print-avery .desktop-controls,
+  body.print-avery .status-bar,
+  body.print-avery .app-header,
+  body.print-avery .bottom-nav,
+  body.print-avery .home-indicator,
+  body.print-avery .delivery-note-modal,
+  body.print-avery .sammel-pickliste-modal {
+    display: none !important;
+  }
+
+  body.print-zuschnittliste .zuschnittliste-print-root {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 12mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+  }
+
+  body.print-zuschnittliste .zuschnittliste-print-sheet {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  .zuschnittliste-print-sheet h1 {
+    font-size: 20pt;
+    margin: 0 0 4mm;
+  }
+
+  .zuschnittliste-print-sheet h2 {
+    font-size: 13pt;
+    margin: 6mm 0 2mm;
+    border-bottom: 1pt solid #000;
+    padding-bottom: 1mm;
+  }
+
+  .zuschnittliste-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11pt;
+  }
+
+  .zuschnittliste-print-sheet th,
+  .zuschnittliste-print-sheet td {
+    border-bottom: 0.4pt solid #999;
+    padding: 2mm 1.5mm;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .zuschnittliste-print-sheet .tk-mark {
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  body.print-avery .avery-label-modal {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  body.print-avery .avery-label-toolbar {
+    display: none !important;
+  }
+
+  body.print-avery .avery-label-view {
+    width: auto !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.print-avery .avery-label-sheet {
+    width: 70mm;
+    height: 36mm;
+    min-height: 36mm;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    page-break-inside: avoid;
+  }
+
+  body.print-zuschnittliste {
+    margin: 0;
+  }
+
+  body.print-avery {
+    margin: 0;
+  }
+}
+
+@page {
+  margin: 8mm;
+}

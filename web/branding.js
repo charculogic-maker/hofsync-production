@@ -1,6 +1,11 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
-const DEFAULT_BRANDING = {  appName: 'HofSync',
-  betriebsName: 'Mein Hofladen / Metzgerei',
+/** Stabiler Boot-Titel — verhindert Flash „Mein Hofladen“ / Modul-Untertitel. */
+export const DEFAULT_BRAND_TITLE = 'StevesHof Hofladen';
+export const BRAND_TITLE_STORAGE_KEY = 'charculogic_brand_title';
+
+const DEFAULT_BRANDING = {
+  appName: 'HofSync',
+  betriebsName: DEFAULT_BRAND_TITLE,
   logoUrl: '/icon-192.png',
   primaryColor: '#0284c7',
   primaryColorHover: '#0369a1',
@@ -31,9 +36,35 @@ const DEFAULT_BRANDING = {  appName: 'HofSync',
   },
 };
 
-const TENANT_BRANDING = {};
+const TENANT_BRANDING = {
+  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch */
+  steveshof_hauptbetrieb: {
+    betriebsName: 'StevesHof Hofladen',
+    appName: 'HofSync',
+    modules: {
+      orders: true,
+      team: true,
+    },
+  },
+};
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
+
+function readCachedBrandTitle() {
+  try {
+    const cached = String(localStorage.getItem(BRAND_TITLE_STORAGE_KEY) || '').trim();
+    if (cached) return cached;
+  } catch (_) { /* private mode */ }
+  return DEFAULT_BRAND_TITLE;
+}
+
+function persistBrandTitle(title) {
+  const clean = String(title || '').trim() || DEFAULT_BRAND_TITLE;
+  try {
+    localStorage.setItem(BRAND_TITLE_STORAGE_KEY, clean);
+  } catch (_) { /* private mode */ }
+  return clean;
+}
 
 function readTenantFromQueryString() {
   try {
@@ -112,14 +143,21 @@ function resolveBranding(tenantId) {
   if (!key && hasDistinctTenantBranding(window.BRANDING)) {
     return window.BRANDING;
   }
-  return {
+  const cachedTitle = readCachedBrandTitle();
+  const merged = {
     ...DEFAULT_BRANDING,
+    betriebsName: cachedTitle || DEFAULT_BRANDING.betriebsName,
     ...(tenantOverrides || {}),
     modules: {
       ...DEFAULT_BRANDING.modules,
       ...(tenantOverrides?.modules || {}),
     },
   };
+  // Tenant-Override gewinnt; sonst gecachten Mandantentitel behalten.
+  if (!tenantOverrides?.betriebsName && cachedTitle) {
+    merged.betriebsName = cachedTitle;
+  }
+  return merged;
 }
 
 function applyResolvedBranding(tenantId) {
@@ -133,7 +171,9 @@ function applyResolvedBranding(tenantId) {
 function applyTenantProfile(profile, terminal) {
   const current = window.BRANDING || resolveBranding();
   const next = { ...current, modules: { ...(current.modules || {}) } };
-  if (profile?.betriebsName) next.betriebsName = profile.betriebsName;
+  if (profile?.betriebsName) {
+    next.betriebsName = persistBrandTitle(profile.betriebsName);
+  }
   if (profile?.appName) next.appName = profile.appName;
   if (profile?.primaryColor) next.primaryColor = profile.primaryColor;
   if (profile?.primaryColorHover) next.primaryColorHover = profile.primaryColorHover;
@@ -179,6 +219,7 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
       if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
         localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
       }
+      if (branding.betriebsName) persistBrandTitle(branding.betriebsName);
     } catch (_) { /* private mode / blocked storage */ }
   } catch (err) {
     console.warn('[CharcuLogic Branding] PWA-Manifest konnte nicht gesetzt werden:', err);
@@ -187,6 +228,10 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
 
 window.TENANT_BRANDING = TENANT_BRANDING;
 window.TENANT_BRANDING_INDEX = TENANT_BRANDING_INDEX;
+window.DEFAULT_BRAND_TITLE = DEFAULT_BRAND_TITLE;
+window.BRAND_TITLE_STORAGE_KEY = BRAND_TITLE_STORAGE_KEY;
+window.readCachedBrandTitle = readCachedBrandTitle;
+window.persistBrandTitle = persistBrandTitle;
 window.resolveBranding = resolveBranding;
 window.resolveEffectiveTenantId = resolveEffectiveTenantId;
 window.resolveHostingDefaultTenant = resolveHostingDefaultTenant;
@@ -194,4 +239,5 @@ window.isWhitelabelHostingContext = isWhitelabelHostingContext;
 window.applyResolvedBranding = applyResolvedBranding;
 window.applyTenantProfile = applyTenantProfile;
 window.BRANDING = resolveBranding();
+persistBrandTitle(window.BRANDING?.betriebsName || DEFAULT_BRAND_TITLE);
 initPwaManifestFromBranding(window.BRANDING);

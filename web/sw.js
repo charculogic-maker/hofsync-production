@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261014-livestock-realism-v2';
+const CACHE_NAME = 'charculogic-v20261015-livestock-realism-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-14T18:20:00+02:00';
+const RELEASED_AT = '2026-10-15T21:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -25,6 +25,8 @@ const CRITICAL_ASSETS = [
   '/team-config.js',
   '/team-notify.js',
   '/customer-orders.js',
+  '/order-packlist.js',
+  '/order-print.css',
   '/auth.js',
   '/auth-errors.js',
   '/scanner.js',
@@ -345,3 +347,4 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => cached || fetch(request))
   );
 });
+

@@ -1,7 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
-import { flushPendingSyncs, getPendingSyncs } from './sync.js';
+import { flushPendingSyncs, getPendingSyncs, isPermissionDeniedError } from './sync.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -26,6 +26,7 @@ import {
   isLohnschlachtungGefluegelCategory,
   isLohnschlachtungRindCategory,
   isMetzMeatTemperatureCategory,
+  isStrictHaccpTemperatureRequired,
   METZ_DEFAULT_CATEGORY,
   normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
@@ -126,6 +127,7 @@ const RECEIVING_FORM_IDS = [
   'we-supplier-custom',
   'we-category',
   'we-category-quick',
+  'we-temperature-head',
   'we-temperature',
   'we-klassifizierung',
   'we-schlachtdatum-rind',
@@ -409,7 +411,10 @@ const mhdState = {
   lastSyncedTenantId: '',
 };
 
-const MHD_CLOUD_SYNC_TIMEOUT_MS = 20000;
+/** Max. Wartezeit auf Firestore-Netzwerk; danach lokaler Snapshot / Skeleton, nie Leermeldung vortäuschen. */
+const MHD_CLOUD_SYNC_TIMEOUT_MS = 3000;
+const MHD_LOCAL_SNAPSHOT_PREFIX = 'charculogic_mhd_snapshot_v1:';
+const MHD_LOCAL_SNAPSHOT_MAX_ITEMS = 400;
 const MHD_ADMIN_SEARCH_LIMIT = 40;
 const MHD_ADMIN_SEARCH_DEBOUNCE_MS = 280;
 const mhdAdminSearchState = {
@@ -423,8 +428,24 @@ const mhdAdminSearchState = {
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 
+function readCachedTenantIdFallback() {
+  try {
+    return canonicalTenantId(
+      localStorage.getItem('charculogic_cached_tenant_id')
+      || sessionStorage.getItem('charculogic_cached_tenant_id')
+      || '',
+    );
+  } catch (_) {
+    return '';
+  }
+}
+
 function resolveMhdTenantId() {
-  const tenantId = canonicalTenantId(getGlobalTenantId() || mhdState.tenantId);
+  const tenantId = canonicalTenantId(
+    getGlobalTenantId()
+    || mhdState.tenantId
+    || readCachedTenantIdFallback(),
+  );
   if (!tenantId) return '';
   if (!getGlobalTenantId()) {
     setGlobalTenantId(tenantId);
@@ -673,7 +694,26 @@ function sanitizeMhdListePayload(payload) {
 }
 
 function sanitizeDeliveryPayload(payload) {
-  return pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
+  const clean = pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
+  // Leere Optionalfelder weglassen — Rules hasOnly + saubere Pfade.
+  [
+    'warenKategorieMetzgerei',
+    'temperatur',
+    'klassifizierung',
+    'schlachtDatum',
+    'ohrmarke',
+    'schlachtgewichtKg',
+    'stueckKisten',
+    'lot',
+    'chargenNummer',
+    'meisterOverrideReason',
+  ].forEach((key) => {
+    const value = clean[key];
+    if (value === '' || value === null || Number.isNaN(value)) {
+      delete clean[key];
+    }
+  });
+  return clean;
 }
 
 function buildHiddenQueuedAuditFields() {
@@ -4020,12 +4060,16 @@ function clearMhdCloudSyncTimeout() {
 function markMhdCloudSyncLoading() {
   setMhdCloudSyncStatus('loading');
   clearMhdCloudSyncTimeout();
-  // Always arm a failsafe so idle/pending never leaves the Theke on a spinner forever
-  // (e.g. Auth noch nicht bereit, Listener verzögert).
+  // Nach max. 3s: lokalen Bestand zeigen falls vorhanden — niemals „leer“ vortäuschen.
   mhdState.cloudSyncTimeoutId = setTimeout(() => {
     if (mhdState.cloudSyncStatus !== 'loading') return;
-    setMhdCloudSyncStatus('ready');
-    mhdState.pendingCloudSync = false;
+    if (hasMhdCachedProducts()) {
+      setMhdCloudSyncStatus('ready');
+      mhdState.pendingCloudSync = false;
+      renderMhdList();
+      return;
+    }
+    // Kein Cache: Skeleton behalten, Sync darf nachliefern (kein Empty-Flash).
     renderMhdList();
   }, MHD_CLOUD_SYNC_TIMEOUT_MS);
 }
@@ -4075,8 +4119,64 @@ function buildMhdLoadingHtml() {
         <div class="mhd-skeleton-card"></div>
       </div>
       <div class="mhd-loading-spinner" aria-hidden="true"></div>
-      <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
+      <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
     </div>`;
+}
+
+function mhdLocalSnapshotKey(tenantId = '') {
+  const tid = String(tenantId || resolveMhdTenantId() || '').trim() || 'default';
+  return `${MHD_LOCAL_SNAPSHOT_PREFIX}${tid}`;
+}
+
+function persistMhdLocalSnapshot(products = []) {
+  try {
+    const tenantId = resolveMhdTenantId();
+    if (!tenantId) return;
+    const list = Array.isArray(products) ? products : [];
+    if (!list.length) return;
+    const compact = list.slice(0, MHD_LOCAL_SNAPSHOT_MAX_ITEMS).map((item) => ({
+      id: item.id,
+      name: item.name || item.produkt || item.product || '',
+      qty: item.qty ?? item.menge ?? 0,
+      menge: item.menge ?? item.qty ?? 0,
+      mhd: item.mhd || item.mhdDate || item.expiryDate || '',
+      mhdDate: item.mhdDate || item.mhd || '',
+      status: item.status || 'ok',
+      kategorie: item.kategorie || '',
+      tage: item.tage ?? null,
+      mhdText: item.mhdText || '',
+      soldOut: item.soldOut === true,
+      archived: item.archived === true,
+      active: item.active !== false,
+    }));
+    localStorage.setItem(mhdLocalSnapshotKey(tenantId), JSON.stringify({
+      savedAt: Date.now(),
+      products: compact,
+    }));
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Lokaler MHD-Snapshot konnte nicht gespeichert werden:', err);
+  }
+}
+
+function hydrateMhdFromLocalSnapshot() {
+  try {
+    if (hasMhdCachedProducts()) return false;
+    const tenantId = resolveMhdTenantId();
+    if (!tenantId) return false;
+    const raw = localStorage.getItem(mhdLocalSnapshotKey(tenantId));
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const products = Array.isArray(parsed?.products) ? parsed.products : [];
+    if (!products.length) return false;
+    mhdState.inStockProducts = products.filter((item) => (Number(item.qty ?? item.menge) || 0) > 0);
+    mergeMhdLiveProducts();
+    // Cache sichtbar machen, ohne Sync als „fertig/leer“ zu markieren.
+    renderMhdList();
+    return true;
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Lokaler MHD-Snapshot konnte nicht geladen werden:', err);
+    return false;
+  }
 }
 
 function isMhdSnapshotWaitingForServer(snapshot) {
@@ -4213,6 +4313,9 @@ function startMhdZeroQtyLiveSync() {
 }
 
 function loadMhdFromCloud() {
+  // Sofort-Hydration aus lokalem Snapshot (<150 ms), bevor Auth/Firestore greifen.
+  hydrateMhdFromLocalSnapshot();
+
   if (!canStartMhdFirestoreLiveSync()) {
     // Auth/Listener noch nicht bereit: Ladezustand halten, kein Leermeldungs-Flackern.
     mhdState.pendingCloudSync = true;
@@ -4284,6 +4387,9 @@ function loadMhdFromCloud() {
     if (!waitingForServer || hasMhdCachedProducts()) {
       markMhdCloudSyncReady();
       if (tenantId) mhdState.lastSyncedTenantId = tenantId;
+      if (hasMhdCachedProducts()) {
+        persistMhdLocalSnapshot(mhdState.products);
+      }
     }
     renderMhdList();
     refreshMhdAdminSearchFromCache();
@@ -6892,10 +6998,14 @@ function readDeliveryHeadValues() {
   } else {
     supplier = selectValue;
   }
+  const receivingMode = getReceivingMode();
   const warenKategorie = document.getElementById('we-category-quick')?.value || lastReceivingHeadCategory || '';
-  const warenKategorieMetzgerei = normalizeMetzReceivingCategory(
-    document.getElementById('we-category')?.value || METZ_DEFAULT_CATEGORY,
-  );
+  // Im Laden-Modus keine Phantom-Metzgerei-Kategorie mitschreiben (Default wäre sonst Lohnschlachtung Rind).
+  const warenKategorieMetzgerei = receivingMode === 'metzgerei'
+    ? normalizeMetzReceivingCategory(
+      document.getElementById('we-category')?.value || METZ_DEFAULT_CATEGORY,
+    )
+    : '';
   const temperatur = getReceivingTemperatureValue();
   const isRind = isLohnschlachtungRindCategory(warenKategorieMetzgerei);
   const isPoultry = isLohnschlachtungGefluegelCategory(warenKategorieMetzgerei);
@@ -6933,6 +7043,7 @@ function readDeliveryHeadValues() {
     warenKategorie,
     warenKategorieMetzgerei,
     temperatur,
+    receivingMode,
     ohrmarke,
     klassifizierung,
     schlachtDatum,
@@ -7103,17 +7214,9 @@ function normalizeDateInputToDotted(value = '') {
   return '';
 }
 
-function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
-  const normalized = String(warenKategorie).trim().toLowerCase();
-  return normalized.includes('kühl')
-    || normalized.includes('kuehl')
-    || normalized.includes('aufschnitt')
-    || normalized === 'tk'
-    || isMetzMeatTemperatureCategory(warenKategorie);
-}
-
 function getReceivingTemperatureInputs() {
   return {
+    head: document.getElementById('we-temperature-head'),
     quick: document.getElementById('we-temperature'),
     metz: document.getElementById('we-temperature-metz'),
   };
@@ -7128,37 +7231,51 @@ function readTemperatureFromInput(inputEl) {
 }
 
 function getReceivingTemperatureValue() {
-  const { quick, metz } = getReceivingTemperatureInputs();
+  const { head, quick, metz } = getReceivingTemperatureInputs();
+  const headValue = readTemperatureFromInput(head);
+  if (headValue !== null) return headValue;
   const quickValue = readTemperatureFromInput(quick);
   if (quickValue !== null) return quickValue;
   return readTemperatureFromInput(metz);
 }
 
 function setReceivingTemperatureValue(value) {
-  const { quick, metz } = getReceivingTemperatureInputs();
+  const { head, quick, metz } = getReceivingTemperatureInputs();
   const next = value == null || Number.isNaN(value) ? '' : String(value);
+  if (head) head.value = next;
   if (quick) quick.value = next;
   if (metz) metz.value = next;
 }
 
+function syncReceivingTemperatureInputs(sourceEl) {
+  const { head, quick, metz } = getReceivingTemperatureInputs();
+  const next = sourceEl ? String(sourceEl.value ?? '') : '';
+  [head, quick, metz].forEach((el) => {
+    if (el && el !== sourceEl && el.value !== next) el.value = next;
+  });
+}
+
 function updateReceivingTemperatureFieldUi() {
   try {
-    const categoryQuickSelect = document.getElementById('we-category-quick');
     const wrap = document.getElementById('we-temperature-quick-wrap');
-    const { quick, metz } = getReceivingTemperatureInputs();
-    const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryQuickSelect?.value || '');
+    const { quick, metz, head } = getReceivingTemperatureInputs();
+    // Legacy-Schnellfeld bleibt versteckt — optionale Temperatur sitzt im Lieferanten-Kopf.
     if (wrap) {
-      wrap.classList.toggle('hidden', !requiresTemperature);
-      wrap.hidden = !requiresTemperature;
+      wrap.classList.add('hidden');
+      wrap.hidden = true;
     }
     if (quick) {
-      quick.required = requiresTemperature;
-      quick.setAttribute('aria-required', requiresTemperature ? 'true' : 'false');
-      if (!requiresTemperature) quick.value = '';
+      quick.required = false;
+      quick.setAttribute('aria-required', 'false');
+    }
+    if (head) {
+      head.required = false;
+      head.setAttribute('aria-required', 'false');
     }
     if (metz) {
       const metzCategory = document.getElementById('we-category')?.value || '';
-      const metzRequires = isMetzMeatTemperatureCategory(metzCategory);
+      const metzRequires = getReceivingMode() === 'metzgerei'
+        && isMetzMeatTemperatureCategory(metzCategory);
       metz.required = metzRequires;
       metz.setAttribute('aria-required', metzRequires ? 'true' : 'false');
     }
@@ -7358,6 +7475,39 @@ function openDeliveryDraftDb() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+const PENDING_DELIVERIES_STORAGE_KEY = 'charculogic_pending_deliveries';
+
+async function persistPendingDeliveryFallback({
+  head = null,
+  items = [],
+  photos = [],
+  deliveryId = '',
+  tenantId = '',
+  errorMessage = '',
+} = {}) {
+  const entry = {
+    id: deliveryId || `local_${Date.now().toString(36)}`,
+    tenantId: canonicalTenantId(tenantId || resolveMhdTenantId() || ''),
+    head: head || readDeliveryHeadValues(),
+    items: Array.isArray(items) ? items : [],
+    photoCount: Array.isArray(photos) ? photos.length : 0,
+    savedAt: new Date().toISOString(),
+    errorMessage: String(errorMessage || '').slice(0, 240),
+  };
+  try {
+    const raw = localStorage.getItem(PENDING_DELIVERIES_STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const next = Array.isArray(list) ? list.filter((row) => row?.id !== entry.id) : [];
+    next.unshift(entry);
+    localStorage.setItem(PENDING_DELIVERIES_STORAGE_KEY, JSON.stringify(next.slice(0, 20)));
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] pending_deliveries localStorage fehlgeschlagen:', err);
+  }
+  // Zusätzlich IndexedDB-Entwurf (enthält Fotos) — Rampe verliert keinen Scan.
+  await persistDeliveryDraftToIndexedDB();
+  return entry;
 }
 
 async function persistDeliveryDraftToIndexedDB() {
@@ -7940,16 +8090,22 @@ function updateDraftEditingBanner() {
 }
 
 async function applyDeliveryTemperatureGuard(head) {
-  const categoryForTemp = head.warenKategorieMetzgerei || head.warenKategorie;
-  const requiresTemperature = isTemperatureCheckRequiredForCategory(categoryForTemp)
-    || isTemperatureCheckRequiredForCategory(head.warenKategorie);
+  const mode = head.receivingMode || getReceivingMode();
+  const categoryForTemp = head.warenKategorieMetzgerei || '';
+  const requiresTemperature = isStrictHaccpTemperatureRequired({
+    mode,
+    warenKategorie: head.warenKategorie,
+    warenKategorieMetzgerei: categoryForTemp,
+  });
   if (requiresTemperature && (head.temperatur === null || Number.isNaN(head.temperatur))) {
     mhdState.showHUD(
       'Temperatur fehlt',
-      'Bei Kühlware und Fleisch/Lohnschlachtung ist die Temperatur Pflicht.',
+      'Bei Lohnschlachtung und Bio-Schwein Zukauf brauchen wir die Liefertemperatur.',
       '!',
     );
-    const focusEl = document.getElementById('we-temperature-metz')
+    setReceivingMode('metzgerei');
+    const focusEl = document.getElementById('we-temperature-head')
+      || document.getElementById('we-temperature-metz')
       || document.getElementById('we-temperature');
     focusEl?.focus();
     return null;
@@ -7957,7 +8113,7 @@ async function applyDeliveryTemperatureGuard(head) {
 
   let mhdItemStatus = 'aktiv';
   let meisterOverrideReason = '';
-  const tempLimit = getHaccpTempLimitForCategory(categoryForTemp);
+  const tempLimit = getHaccpTempLimitForCategory(categoryForTemp || head.warenKategorie);
 
   if (requiresTemperature && head.temperatur > tempLimit) {
     const override = await showMeisterOverrideModal(head.temperatur, { limitC: tempLimit });
@@ -7976,7 +8132,10 @@ function buildDeliveryBundlePayload(head, {
   meisterOverrideReason = '',
   includeItems = true,
 }) {
-  const metzCategory = normalizeMetzReceivingCategory(head.warenKategorieMetzgerei || '');
+  const rawMetzCategory = String(head.warenKategorieMetzgerei || '').trim();
+  const metzCategory = rawMetzCategory
+    ? normalizeMetzReceivingCategory(rawMetzCategory)
+    : '';
   const bundle = {
     id: deliveryId,
     lieferant: head.supplier,
@@ -8257,7 +8416,7 @@ async function saveDeliveryDraft() {
     includeItems: false,
   });
 
-  const auditedBundle = withHiddenAudit(deliveryBundle, {
+  const auditedBundle = withSanitizedDeliveryAudit(deliveryBundle, {
     ...deliveryBundle,
     updatedAt: erfassungsDatum,
   });
@@ -8312,7 +8471,9 @@ function resetReceivingForm() {
     'we-supplier-custom': '',
     'we-category': METZ_DEFAULT_CATEGORY,
     'we-category-quick': lastReceivingHeadCategory,
+    'we-temperature-head': '',
     'we-temperature': '',
+    'we-temperature-metz': '',
     'we-klassifizierung': '',
     'we-ohrmarke': '',
     'we-schlachtgewicht': '',
@@ -8518,6 +8679,8 @@ async function finalizeDelivery() {
       onlineData: deliveryBundleOnline,
       queueData: queuedBundle,
       offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      // Fehler-UI übernimmt finalizeDelivery (lokal sichern + ruhiger Toast).
+      silentPermissionDenied: true,
     });
 
     const catalog = await loadCatalogEanIndex();
@@ -8547,6 +8710,7 @@ async function finalizeDelivery() {
         onlineData: auditedRecord.onlineData,
         queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+        silentPermissionDenied: true,
       });
       saveProductMaster(record);
       void recordMhdMovement({
@@ -8594,10 +8758,37 @@ async function finalizeDelivery() {
   } catch (err) {
     finalizeFailed = true;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
-    const message = String(err?.message || err || 'Unbekannter Fehler');
-    window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
-    mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
+    const isPermission = isPermissionDeniedError(err);
+    // Rampe: Scan nie verlieren — lokal sichern, ruhiger Hinweis statt Dev-Jargon.
+    try {
+      await persistPendingDeliveryFallback({
+        head,
+        items: currentDeliveryItems,
+        photos: currentDeliveryPhotos,
+        deliveryId,
+        tenantId: activeTenantId,
+        errorMessage: String(err?.message || err || ''),
+      });
+    } catch (persistErr) {
+      console.warn('[CharcuLogic MHD] Pending-Delivery-Fallback fehlgeschlagen:', persistErr);
+      await persistDeliveryDraftToIndexedDB();
+    }
+    if (isPermission) {
+      window.showToast?.(
+        '⚠️ Cloud-Sync verzögert: Lieferung lokal auf dem Gerät gesichert. Sync erfolgt automatisch.',
+        'warning',
+      );
+      mhdState.showHUD(
+        'Lokal gesichert',
+        'Die Lieferung liegt auf diesem iPhone. Sync startet, sobald die Berechtigung passt.',
+        '!',
+      );
+    } else {
+      const message = String(err?.message || err || 'Unbekannter Fehler');
+      window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
+      mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
+      maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
+    }
   } finally {
     if (finalizeFailed) {
       await persistDeliveryDraftToIndexedDB();
@@ -8661,11 +8852,19 @@ function updateReceivingSaveButtonState() {
   }
 }
 
+/** Aktueller Wareneingangs-Bereich: 'schnell' (Laden) | 'metzgerei'. */
+let currentReceivingMode = 'schnell';
+
+function getReceivingMode() {
+  return currentReceivingMode === 'metzgerei' ? 'metzgerei' : 'schnell';
+}
+
 function setReceivingMode(mode) {
   let normalized = mode === 'metzgerei' ? 'metzgerei' : 'schnell';
   if (normalized === 'metzgerei' && !isReceivingMetzgereiEnabled()) {
     normalized = 'schnell';
   }
+  currentReceivingMode = normalized;
   const panels = {
     schnell: document.getElementById('receiving-panel-schnell'),
     metzgerei: document.getElementById('receiving-panel-metzgerei'),
@@ -8682,6 +8881,7 @@ function setReceivingMode(mode) {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  updateReceivingTemperatureFieldUi();
 }
 
 function bindReceivingModeSwitch() {
@@ -8740,8 +8940,10 @@ function bindReceivingControls() {
   const btnFallbackManualBarcodeSubmit = document.getElementById('btn-manual-barcode-fallback-submit');
   const scannerManualEntry = document.getElementById('scanner-manual-entry');
   const mhdInput = document.getElementById('we-mhd');
+  const temperatureHeadInput = document.getElementById('we-temperature-head');
   const temperatureQuickInput = document.getElementById('we-temperature');
   const temperatureMetzInput = document.getElementById('we-temperature-metz');
+  const temperaturePresetGroup = document.querySelector('.receiving-temp-presets');
   const openScannerOrFallback = async () => {
     updateManualBarcodeFallback();
     if (isCameraBlockedForPwa()) {
@@ -8811,12 +9013,31 @@ function bindReceivingControls() {
     });
   }
   ensureKaeseThekeQtyToggle();
+  if (temperatureHeadInput && temperatureHeadInput.dataset.mhdBound !== '1') {
+    temperatureHeadInput.dataset.mhdBound = '1';
+    temperatureHeadInput.addEventListener('input', () => {
+      syncReceivingTemperatureInputs(temperatureHeadInput);
+      updateMetzTemperatureWarnUi();
+      updateReceivingSaveButtonState();
+    });
+  }
+  if (temperaturePresetGroup && temperaturePresetGroup.dataset.mhdBound !== '1') {
+    temperaturePresetGroup.dataset.mhdBound = '1';
+    temperaturePresetGroup.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-temp-preset]');
+      if (!btn) return;
+      const preset = String(btn.dataset.tempPreset || '').trim();
+      if (!preset) return;
+      setReceivingTemperatureValue(preset);
+      updateMetzTemperatureWarnUi();
+      updateReceivingSaveButtonState();
+      mhdState.playClickSound?.(900, 0.04, 0.1);
+    });
+  }
   if (temperatureQuickInput && temperatureQuickInput.dataset.mhdBound !== '1') {
     temperatureQuickInput.dataset.mhdBound = '1';
     temperatureQuickInput.addEventListener('input', () => {
-      if (temperatureMetzInput && temperatureMetzInput.value !== temperatureQuickInput.value) {
-        temperatureMetzInput.value = temperatureQuickInput.value;
-      }
+      syncReceivingTemperatureInputs(temperatureQuickInput);
       updateMetzTemperatureWarnUi();
       updateReceivingSaveButtonState();
     });
@@ -8824,9 +9045,7 @@ function bindReceivingControls() {
   if (temperatureMetzInput && temperatureMetzInput.dataset.mhdBound !== '1') {
     temperatureMetzInput.dataset.mhdBound = '1';
     temperatureMetzInput.addEventListener('input', () => {
-      if (temperatureQuickInput && temperatureQuickInput.value !== temperatureMetzInput.value) {
-        temperatureQuickInput.value = temperatureMetzInput.value;
-      }
+      syncReceivingTemperatureInputs(temperatureMetzInput);
       updateMetzTemperatureWarnUi();
       updateReceivingSaveButtonState();
     });
@@ -9126,7 +9345,13 @@ export function refreshMhdMonitorCards() {
 }
 
 export function startMhdLiveSync() {
-  if (!canStartMhdFirestoreLiveSync()) return;
+  hydrateMhdFromLocalSnapshot();
+  if (!canStartMhdFirestoreLiveSync()) {
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
+    return;
+  }
   void refreshSharedProductMaster();
   loadMhdFromCloud();
   subscribeToPendingDeliveryDrafts();
@@ -9144,6 +9369,7 @@ function restoreMhdDraftFields() {
 export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
   await window.ensureInventoryProfileSessionForTab?.('mhd');
+  hydrateMhdFromLocalSnapshot();
   loadDiscountMatrix(getGlobalTenantId())
     .then(() => renderMhdList())
     .catch((err) => console.warn('[CharcuLogic Rabatt] Matrix-Refresh übersprungen:', err));

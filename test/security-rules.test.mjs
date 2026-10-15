@@ -27,6 +27,7 @@ import {
   sampleSettings,
   sampleTask,
   sampleTraceabilityRecord,
+  sampleWareneingangDelivery,
   seedFirestoreDoc,
   tenantDocPath,
   chargenDokuObjectPath,
@@ -285,6 +286,65 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
           lastCheckedDate: '2026-09-01',
           updatedAt: serverTimestamp(),
         },
+      );
+    });
+  });
+
+  describe('TEST CASE 2e: Wareneingang MoPro Abschluss', () => {
+    const deliveryPath = tenantDocPath(
+      TENANTS.STEVES_HOF,
+      'wareneingang_lieferungen',
+      'lieferung_mopro_1',
+    );
+    const mhdPath = tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'mopro-batch-1');
+
+    it('allows employee to create Laden/MoPro delivery without temperature', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we', TENANTS.STEVES_HOF, 'employee');
+      const payload = sampleWareneingangDelivery(TENANTS.STEVES_HOF);
+      await expectFirestoreAllow(ctx, deliveryPath, 'create', payload);
+    });
+
+    it('allows employee delivery with warenKategorieMetzgerei and lot fields', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we-metz', TENANTS.STEVES_HOF, 'employee');
+      const payload = sampleWareneingangDelivery(TENANTS.STEVES_HOF, {
+        warenKategorie: 'Lohnschlachtung Rind',
+        warenKategorieMetzgerei: 'Lohnschlachtung Rind',
+        temperatur: 3.5,
+        klassifizierung: 'Ochse',
+        schlachtDatum: '2026-10-14',
+        lot: 'GAL-OCHSE-20261014',
+        chargenNummer: 'GAL-OCHSE-20261014',
+        itemCount: 1,
+      });
+      await expectFirestoreAllow(ctx, deliveryPath, 'create', payload);
+    });
+
+    it('allows employee to create MoPro mhd_liste posten for StevesHof', async () => {
+      const ctx = authContext(testEnv, 'sh-employee-we-mhd', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(
+        ctx,
+        mhdPath,
+        'create',
+        {
+          name: 'Bio Drink Lennon crush',
+          produkt: 'Bio Drink Lennon crush',
+          qty: 7,
+          menge: 7,
+          kategorie: '🥛MoPro',
+          lieferant: 'Weiling',
+          source: 'wareneingang-app',
+          tenantId: TENANTS.STEVES_HOF,
+        },
+      );
+    });
+
+    it('denies foreign tenant create on StevesHof wareneingang', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-we', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(
+        ctx,
+        deliveryPath,
+        'create',
+        sampleWareneingangDelivery(TENANTS.STEVES_HOF),
       );
     });
   });
@@ -977,6 +1037,53 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200599'),
         'create',
         sampleProductMaster(TENANTS.STEVES_HOF, { ean: '4012346200599', articleName: '' }),
+      );
+    });
+  });
+
+  describe('TEST CASE 12: catalog_overrides public read + tenant write', () => {
+    const sampleOverride = {
+      isActive: true,
+      promoPrice: 24.99,
+      promoText: 'Wochen-Aktion',
+      updatedBy: 'tester@example.com',
+    };
+
+    it('allows unauthenticated read on catalog_overrides', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(testEnv.unauthenticatedContext(), path, 'read');
+    });
+
+    it('allows tenant employee write and denies cross-tenant write', async () => {
+      const own = authContext(testEnv, 'sh-cat-emp', TENANTS.STEVES_HOF, 'employee');
+      const foreign = authContext(testEnv, 'tf-cat-emp', TENANTS.TORFABRIK, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '501');
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '500');
+
+      await expectFirestoreAllow(own, ownPath, 'create', sampleOverride);
+      await expectFirestoreDeny(foreign, foreignPath, 'create', sampleOverride);
+    });
+
+    it('denies helper write but allows helper read', async () => {
+      const helper = authContext(testEnv, 'sh-cat-helper', TENANTS.STEVES_HOF, 'helper');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '550');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(helper, path, 'read');
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '552'),
+        'create',
+        sampleOverride,
+      );
+    });
+
+    it('denies unauthenticated write', async () => {
+      await expectFirestoreDeny(
+        testEnv.unauthenticatedContext(),
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503'),
+        'create',
+        sampleOverride,
       );
     });
   });

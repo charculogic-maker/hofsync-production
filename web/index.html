@@ -53,6 +53,26 @@
         for (var i = 0; i < metas.length; i += 1) {
           metas[i].setAttribute('content', bootBg);
         }
+
+        // Synchroner Mandantentitel vor async Branding/Firestore — verhindert Flash.
+        var brandTitle = localStorage.getItem('charculogic_brand_title');
+        if (!brandTitle || !String(brandTitle).trim()) {
+          brandTitle = 'StevesHof Hofladen';
+          try { localStorage.setItem('charculogic_brand_title', brandTitle); } catch (e2) {}
+        }
+        window.__charculogicBootBrandTitle = String(brandTitle).trim();
+        function paintBootBrandTitle() {
+          var title = window.__charculogicBootBrandTitle || 'StevesHof Hofladen';
+          var nodes = document.querySelectorAll('.brand-betriebs-name');
+          for (var n = 0; n < nodes.length; n += 1) {
+            nodes[n].textContent = title;
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', paintBootBrandTitle);
+        } else {
+          paintBootBrandTitle();
+        }
       } catch (e) { /* private mode / blocked storage */ }
     })();
   </script>
@@ -159,16 +179,18 @@
     };
 
     window.fallbackShowTab = function fallbackShowTab(tabId) {
-      const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
+      const betriebsName = window.BRANDING?.betriebsName
+        || window.__charculogicBootBrandTitle
+        || 'StevesHof Hofladen';
       const pageMap = {
-        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Tagesinfo' },
-        team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
-        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
-        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
-        chargenDoku: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
-        traceability: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
-        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
-        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
+        teamboard: { page: 'page-teamboard', title: 'Start' },
+        team: { page: 'page-team', title: 'Team' },
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor' },
+        receiving: { page: 'page-receiving', title: 'Wareneingang' },
+        chargenDoku: { page: 'page-chargen-doku', title: 'Doku' },
+        traceability: { page: 'page-chargen-doku', title: 'Doku' },
+        kitchen: { page: 'page-kitchen', title: 'Prod.' },
+        knowledge: { page: 'page-knowledge', title: 'Wissen' },
       };
       const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
       const target = pageMap[preferred] || pageMap.chargenDoku || pageMap.mhd;
@@ -185,13 +207,15 @@
       const headerTitle = document.getElementById('header-title');
       const headerSubtitle = document.getElementById('header-subtitle');
       if (headerTitle) headerTitle.textContent = target.title;
-      if (headerSubtitle) headerSubtitle.textContent = target.subtitle;
+      // Branding-Slot bleibt Mandantenname — kein Modul-Untertitel.
+      if (headerSubtitle) headerSubtitle.textContent = betriebsName;
       document.getElementById('app-content')?.scrollTo?.(0, 0);
       return true;
     };
   </script>
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
+  <!-- Firebase SDK sync (kein defer/async) — muss vor auth.js/app.js-Modulen liegen. -->
   <script src="/libs/firebase-app.js"></script>
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
@@ -200,7 +224,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261014-livestock-realism-v2">
+  <link rel="stylesheet" href="/style.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
 </head>
 <body>
 
@@ -236,7 +261,7 @@
               decoding="async"
             />
             <div class="tenant-header-text app-title-group">
-              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">Betriebs-Leitstand</span>
+              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
               <h1 class="tenant-header-page" id="header-title">MHD-Monitor</h1>
             </div>
           </div>
@@ -321,7 +346,7 @@
                     decoding="async"
                   />
                   <div class="tenant-header-text dev-dashboard-topbar-titles">
-                    <span class="tenant-header-name brand-betriebs-name">Betriebs-Leitstand</span>
+                    <span class="tenant-header-name brand-betriebs-name">StevesHof Hofladen</span>
                     <h1 class="dev-dashboard-page-title">Verwaltung</h1>
                     <p class="dev-dashboard-status" id="dev-dashboard-status" aria-live="polite">Lade…</p>
                   </div>
@@ -1011,7 +1036,30 @@
               </div>
 
               <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
-                <div class="customer-order-section task-token-section" id="customer-order-section">
+                <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
+                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="aufnahme" role="tab" aria-selected="false">Bestellung aufnehmen</button>
+                </div>
+
+                <div id="orders-view-zuschnitt" class="customer-order-section task-token-section hidden" hidden>
+                  <h2 class="task-token-heading">Sammel-Zuschnittliste</h2>
+                  <p class="customer-order-hint" id="zuschnittliste-summary">Aggregation für Zerlegung, Wurstküche &amp; Ladenwolf.</p>
+                  <div class="zuschnittliste-view-toolbar">
+                    <div class="zuschnittliste-day-filters">
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="fri">Kommender Freitag</button>
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="sat">Kommender Samstag</button>
+                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="today">Heute</button>
+                    </div>
+                    <label class="form-label" for="zuschnittliste-date">Abholtag</label>
+                    <input type="text" id="zuschnittliste-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+                    <button type="button" class="btn btn-primary" id="zuschnittliste-print-btn">Für Metzgerei drucken (A4)</button>
+                  </div>
+                  <div id="zuschnittliste-body" class="zuschnittliste-body"></div>
+                </div>
+
+                <div id="orders-view-aufnahme" class="customer-order-section task-token-section hidden" hidden>
+                <div id="customer-order-section">
                   <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
                   <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
                   <form id="customer-order-form" class="customer-order-form">
@@ -1061,25 +1109,44 @@
                     <button type="submit" class="btn btn-primary">Bestellung speichern</button>
                   </form>
                 </div>
+                </div>
 
-                <div class="customer-order-section task-token-section production-tasks-section" id="production-tasks-section">
+                <div id="orders-view-packtisch" class="customer-order-section task-token-section">
+                <div class="production-tasks-section" id="production-tasks-section">
                   <h2 class="task-token-heading">Produktions-Aufträge</h2>
                   <div class="production-tasks-grid">
                     <section class="production-station-card" aria-label="In der Küche zu tun">
-                      <h3>🍳 Heute zu kochen (Küche)</h3>
+                      <h3>Heute zu kochen (Küche)</h3>
                       <div id="production-tasks-kitchen"></div>
                     </section>
                     <section class="production-station-card" aria-label="In der Metzgerei zu tun">
-                      <h3>🥩 Heute zu zerlegen/packen (Metzgerei)</h3>
+                      <h3>Heute zu zerlegen/packen (Metzgerei)</h3>
                       <div id="production-tasks-butchery"></div>
                     </section>
                   </div>
                 </div>
 
-                <div class="customer-order-section task-token-section">
-                  <h2 class="task-token-heading">Offene Bestellungen</h2>
+                <div>
+                  <h2 class="task-token-heading">Packtisch / Kisten-Kommissionierung</h2>
+                  <p class="customer-order-hint">Sortiert nach Abholtag und Zeitfenster (Theke vor SB-Kühlschrank). Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt.</p>
                   <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
                   <div id="customer-order-list" class="customer-order-list"></div>
+                </div>
+                </div>
+              </div>
+
+              <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
+
+              <div class="avery-label-modal" id="avery-label-modal" hidden role="dialog" aria-modal="true" aria-labelledby="avery-label-title">
+                <div class="avery-label-view">
+                  <header class="avery-label-toolbar">
+                    <h2 id="avery-label-title">Avery-Etikett / Kistenbon</h2>
+                    <div class="delivery-note-toolbar-actions">
+                      <button type="button" class="btn btn-secondary btn-compact" id="avery-label-close-btn">Schließen</button>
+                      <button type="button" class="btn btn-primary btn-compact" id="avery-label-print-btn">Drucken (70×36 mm)</button>
+                    </div>
+                  </header>
+                  <div id="avery-label-print-area"></div>
                 </div>
               </div>
 
@@ -1168,7 +1235,7 @@
                   <div class="mhd-skeleton-card"></div>
                 </div>
                 <div class="mhd-loading-spinner" aria-hidden="true"></div>
-                <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
+                <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
               </div>
             </div>
           </div>
@@ -1198,6 +1265,27 @@
                     <span>Name bei Sonstige</span>
                     <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
                   </label>
+                  <div class="receiving-field receiving-temp-head" id="we-temperature-head-wrap">
+                    <label class="receiving-temp-head-label" for="we-temperature-head">
+                      <span>Liefertemperatur °C (Optional)</span>
+                    </label>
+                    <div class="receiving-temp-head-row">
+                      <input
+                        type="number"
+                        id="we-temperature-head"
+                        class="gastro-input receiving-temp-head-input"
+                        placeholder="z. B. 4.2"
+                        step="0.1"
+                        inputmode="decimal"
+                        aria-required="false"
+                      >
+                      <div class="receiving-temp-presets" role="group" aria-label="Temperatur-Schnellwahl">
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="3">3 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="5">5 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="7">7 °C</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -1222,8 +1310,8 @@
                       <option value="" selected>-- Kategorie wählen --</option>
                     </select>
                   </label>
-                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
-                    <span>Initiale Temperatur (°C) · nur TK/Kühlware</span>
+                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature" hidden>
+                    <span>Initiale Temperatur (°C) · optional</span>
                     <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                   <button class="btn btn-primary btn-receiving-scan" id="btn-receiving-scan" type="button">
@@ -2365,7 +2453,7 @@
                 decoding="async"
               />
               <div class="app-nav-brand-text">
-                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">Betriebs-Leitstand</span>
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">StevesHof Hofladen</span>
                 <span class="app-nav-brand-hint">Laden-Alltag</span>
               </div>
             </div>
@@ -2695,8 +2783,9 @@
     </form>
   </template>
 
-  <script type="module" src="/fast-onboarding.js?v=20261002-fast-onboard-v1"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
-  <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
+  <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
+  <script type="module" src="/fast-onboarding.js?v=20261015-livestock-realism-v2"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261015-livestock-realism-v2"></script>
+  <script type="module" src="/app.js?v=20261015-livestock-realism-v2"></script>
 </body>
 </html>
