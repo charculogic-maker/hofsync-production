@@ -6,6 +6,7 @@ import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getActiveEmployeeName, postTeamboardBulletin } from './teamboard.js';
 import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import { calculateNextStockOrThrow, mergeStockDeductions } from './customer-order-stock.js';
 import {
   ACTIVE_ORDER_STATUSES,
   CUTLIST_ORDER_STATUSES,
@@ -357,10 +358,12 @@ async function findStockDocForOrderItem(item) {
   const product = String(item?.product || item?.produkt || item?.name || '').trim();
   if (!product) return null;
 
-  const byProdukt = await col.where('produkt', '==', product).limit(1).get();
+  const byProdukt = await col.where('produkt', '==', product).limit(2).get();
+  if (byProdukt.size > 1) throw new Error(`Mehrere Lagerartikel passen zu ${product}.`);
   if (!byProdukt.empty) return byProdukt.docs[0].ref;
 
-  const byName = await col.where('name', '==', product).limit(1).get();
+  const byName = await col.where('name', '==', product).limit(2).get();
+  if (byName.size > 1) throw new Error(`Mehrere Lagerartikel passen zu ${product}.`);
   if (!byName.empty) return byName.docs[0].ref;
 
   return null;
@@ -373,14 +376,15 @@ async function prepareStockDeductionsForOrder(order) {
     const amount = quantityForStock(item);
     if (!amount) continue;
     const ref = await findStockDocForOrderItem(item);
-    if (!ref) continue;
+    const product = item?.product || item?.produkt || item?.name || 'Artikel';
+    if (!ref) throw new Error(`Kein Lagerartikel für ${product} gefunden.`);
     deductions.push({
       ref,
       amount,
-      product: item?.product || item?.produkt || item?.name || 'Artikel',
+      product,
     });
   }
-  return deductions;
+  return mergeStockDeductions(deductions);
 }
 
 async function markOrderPickedUpWithStock(order, employee) {
@@ -411,9 +415,9 @@ async function markOrderPickedUpWithStock(order, employee) {
     }
 
     stockSnaps.forEach(({ deduction, snap }) => {
-      if (!snap.exists) return;
+      if (!snap.exists) throw new Error(`Lagerartikel für ${deduction.product} wurde nicht gefunden.`);
       const currentStock = parseQuantityValue(snap.data()?.currentStock);
-      const nextStock = Math.max(0, Math.round((currentStock - deduction.amount) * 1000) / 1000);
+      const nextStock = calculateNextStockOrThrow(currentStock, deduction.amount, deduction.product);
       transaction.update(deduction.ref, {
         currentStock: nextStock,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
