@@ -926,7 +926,7 @@ function syncSidebarFacilityUserCard(employeeName = readActiveEmployee()) {
     const branding = window.BRANDING || {};
     const facilityEl = document.getElementById('app-nav-facility-name');
     if (facilityEl) {
-      facilityEl.textContent = branding.betriebsName || branding.displayName || 'Betriebs-Leitstand';
+      facilityEl.textContent = branding.betriebsName || branding.displayName || resolveHeaderBrandName();
     }
 
     const nameEl = document.getElementById('app-nav-user-name');
@@ -2079,7 +2079,35 @@ function persistBootBrandColors(branding = {}) {
     if (branding.primaryColor && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(branding.primaryColor)) {
       localStorage.setItem('charculogic_brand_primary', branding.primaryColor);
     }
+    const title = String(branding.betriebsName || '').trim();
+    if (title) {
+      localStorage.setItem(
+        window.BRAND_TITLE_STORAGE_KEY || 'charculogic_brand_title',
+        title,
+      );
+    }
   } catch (_) { /* private mode / blocked storage */ }
+}
+
+function resolveHeaderBrandName() {
+  const fromBranding = String(window.BRANDING?.betriebsName || '').trim();
+  if (fromBranding) return fromBranding;
+  try {
+    const cached = String(localStorage.getItem(
+      window.BRAND_TITLE_STORAGE_KEY || 'charculogic_brand_title',
+    ) || '').trim();
+    if (cached) return cached;
+  } catch (_) { /* private mode */ }
+  return window.DEFAULT_BRAND_TITLE || 'StevesHof Hofladen';
+}
+
+/** Mandantenname im Header — nie mit Modul-Untertiteln überschreiben. */
+function applyHeaderBrandName(name) {
+  const brandName = String(name || resolveHeaderBrandName()).trim() || 'StevesHof Hofladen';
+  document.querySelectorAll('.brand-betriebs-name').forEach((el) => {
+    el.textContent = brandName;
+  });
+  return brandName;
 }
 
 function applyBrandingCssVars(branding) {
@@ -2104,13 +2132,15 @@ function applyBrandingCssVars(branding) {
 function applyBranding() {
   const branding = window.BRANDING || {};
   const appName = branding.appName || 'CharcuLogic';
-  const betriebsName = branding.betriebsName || 'Betriebs-Leitstand';
+  const betriebsName = applyHeaderBrandName(
+    branding.betriebsName || resolveHeaderBrandName(),
+  );
   const logoUrl = String(branding.logoUrl || branding.logo || '/icon-192.png').trim() || '/icon-192.png';
 
   applyBrandingCssVars(branding);
+  persistBootBrandColors({ ...branding, betriebsName });
 
   document.querySelectorAll('.brand-app-name').forEach((el) => { el.textContent = appName; });
-  document.querySelectorAll('.brand-betriebs-name').forEach((el) => { el.textContent = betriebsName; });
   document.querySelectorAll('.auth-lock-brand').forEach((el) => { el.textContent = appName; });
   document.querySelectorAll('.tenant-header-logo, .app-nav-brand-logo').forEach((el) => {
     if (el.getAttribute('src') !== logoUrl) el.setAttribute('src', logoUrl);
@@ -3417,7 +3447,8 @@ async function openAdminDropdownModule(moduleKey) {
 
     showPage(moduleConfig.pageId);
     if (headerTitle) headerTitle.textContent = moduleConfig.title;
-    if (headerSubtitle) headerSubtitle.textContent = moduleConfig.subtitle;
+    // Mandantenname bleibt im Branding-Slot — kein Modul-Untertitel („Qualitätssicherung“).
+    applyHeaderBrandName();
 
     try {
       moduleConfig.activate();
@@ -3656,52 +3687,43 @@ tabs.forEach(tab => {
     tab.classList.add('active');
     scrollActiveNavTabIntoView({ smooth: true });
 
-    // Seite + Header immer zuerst stabil umschalten
+    // Seite + Header: Seitentitel wechseln, Mandantenname (#header-subtitle) nie mit Modultext überschreiben.
+    const brandName = resolveHeaderBrandName();
     if (targetTab === 'teamboard') {
       showPage('page-teamboard');
       headerTitle.textContent = "Start";
-      headerSubtitle.textContent = "Tagesinfo";
     } else if (targetTab === 'team') {
       showPage('page-team');
       headerTitle.textContent = "Team";
-      headerSubtitle.textContent = "Nachrichten & Bestellungen";
     } else if (targetTab === 'mhd') {
       showPage('page-mhd');
       headerTitle.textContent = "MHD-Monitor";
-      headerSubtitle.textContent = "Qualitätssicherung";
     } else if (targetTab === 'receiving') {
       showPage('page-receiving');
       headerTitle.textContent = "Wareneingang";
-      headerSubtitle.textContent = "Lieferung erfassen";
     } else if (targetTab === 'chargenDoku') {
       showPage('page-chargen-doku');
       headerTitle.textContent = "Doku";
-      headerSubtitle.textContent = "Chargen-Doku";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
-      headerSubtitle.textContent = "Produktion";
     } else if (targetTab === 'haccp') {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
-      headerSubtitle.textContent = "Tageskontrollen";
     } else if (targetTab === 'knowledge') {
       showPage('page-knowledge');
       headerTitle.textContent = "Wissen";
-      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'cuts') {
       showPage('page-knowledge');
       headerTitle.textContent = "Wissen";
-      headerSubtitle.textContent = "Handbücher & Fleisch-Lexikon";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
       headerTitle.textContent = "Chargen-Archiv";
-      headerSubtitle.textContent = "Büro & Rückverfolgung";
     } else {
       showPage('page-teamboard');
       headerTitle.textContent = "Schwarzes Brett";
-      headerSubtitle.textContent = "Team & Aufgaben";
     }
+    applyHeaderBrandName(brandName);
 
     // Modul-Aktivierung defensiv: bei Fehler nicht auf Start zurückspringen.
     try {
@@ -4072,7 +4094,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-14T18:05:00+02:00';
+const APP_RELEASE_AT = '2026-10-15T14:00:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4249,7 +4271,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261015-laden-temp-optional-v2')
+    navigator.serviceWorker.register('./sw.js?v=20261015-rampe-mhd-fix-v2')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

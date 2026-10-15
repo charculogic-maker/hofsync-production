@@ -53,6 +53,26 @@
         for (var i = 0; i < metas.length; i += 1) {
           metas[i].setAttribute('content', bootBg);
         }
+
+        // Synchroner Mandantentitel vor async Branding/Firestore — verhindert Flash.
+        var brandTitle = localStorage.getItem('charculogic_brand_title');
+        if (!brandTitle || !String(brandTitle).trim()) {
+          brandTitle = 'StevesHof Hofladen';
+          try { localStorage.setItem('charculogic_brand_title', brandTitle); } catch (e2) {}
+        }
+        window.__charculogicBootBrandTitle = String(brandTitle).trim();
+        function paintBootBrandTitle() {
+          var title = window.__charculogicBootBrandTitle || 'StevesHof Hofladen';
+          var nodes = document.querySelectorAll('.brand-betriebs-name');
+          for (var n = 0; n < nodes.length; n += 1) {
+            nodes[n].textContent = title;
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', paintBootBrandTitle);
+        } else {
+          paintBootBrandTitle();
+        }
       } catch (e) { /* private mode / blocked storage */ }
     })();
   </script>
@@ -159,16 +179,18 @@
     };
 
     window.fallbackShowTab = function fallbackShowTab(tabId) {
-      const betriebsName = window.BRANDING?.betriebsName || 'Betriebs-Leitstand';
+      const betriebsName = window.BRANDING?.betriebsName
+        || window.__charculogicBootBrandTitle
+        || 'StevesHof Hofladen';
       const pageMap = {
-        teamboard: { page: 'page-teamboard', title: 'Start', subtitle: 'Tagesinfo' },
-        team: { page: 'page-team', title: 'Team', subtitle: 'Nachrichten & Bestellungen' },
-        mhd: { page: 'page-mhd', title: 'MHD-Monitor', subtitle: betriebsName },
-        receiving: { page: 'page-receiving', title: 'Wareneingang', subtitle: betriebsName },
-        chargenDoku: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
-        traceability: { page: 'page-chargen-doku', title: 'Doku', subtitle: 'Chargen-Doku' },
-        kitchen: { page: 'page-kitchen', title: 'Prod.', subtitle: betriebsName },
-        knowledge: { page: 'page-knowledge', title: 'Wissen', subtitle: betriebsName },
+        teamboard: { page: 'page-teamboard', title: 'Start' },
+        team: { page: 'page-team', title: 'Team' },
+        mhd: { page: 'page-mhd', title: 'MHD-Monitor' },
+        receiving: { page: 'page-receiving', title: 'Wareneingang' },
+        chargenDoku: { page: 'page-chargen-doku', title: 'Doku' },
+        traceability: { page: 'page-chargen-doku', title: 'Doku' },
+        kitchen: { page: 'page-kitchen', title: 'Prod.' },
+        knowledge: { page: 'page-knowledge', title: 'Wissen' },
       };
       const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
       const target = pageMap[preferred] || pageMap.chargenDoku || pageMap.mhd;
@@ -185,13 +207,15 @@
       const headerTitle = document.getElementById('header-title');
       const headerSubtitle = document.getElementById('header-subtitle');
       if (headerTitle) headerTitle.textContent = target.title;
-      if (headerSubtitle) headerSubtitle.textContent = target.subtitle;
+      // Branding-Slot bleibt Mandantenname — kein Modul-Untertitel.
+      if (headerSubtitle) headerSubtitle.textContent = betriebsName;
       document.getElementById('app-content')?.scrollTo?.(0, 0);
       return true;
     };
   </script>
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title data-brand-title-suffix=" - Betriebs-App für Hofläden &amp; Metzgereien"></title>
+  <!-- Firebase SDK sync (kein defer/async) — muss vor auth.js/app.js-Modulen liegen. -->
   <script src="/libs/firebase-app.js"></script>
   <script src="/libs/firebase-auth.js"></script>
   <script src="/libs/firebase-firestore.js"></script>
@@ -200,7 +224,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261014-livestock-realism-v1">
+  <link rel="stylesheet" href="/style.css?v=20261015-rampe-mhd-fix-v2">
 </head>
 <body>
 
@@ -236,7 +260,7 @@
               decoding="async"
             />
             <div class="tenant-header-text app-title-group">
-              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">Betriebs-Leitstand</span>
+              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
               <h1 class="tenant-header-page" id="header-title">MHD-Monitor</h1>
             </div>
           </div>
@@ -321,7 +345,7 @@
                     decoding="async"
                   />
                   <div class="tenant-header-text dev-dashboard-topbar-titles">
-                    <span class="tenant-header-name brand-betriebs-name">Betriebs-Leitstand</span>
+                    <span class="tenant-header-name brand-betriebs-name">StevesHof Hofladen</span>
                     <h1 class="dev-dashboard-page-title">Verwaltung</h1>
                     <p class="dev-dashboard-status" id="dev-dashboard-status" aria-live="polite">Lade…</p>
                   </div>
@@ -1168,7 +1192,7 @@
                   <div class="mhd-skeleton-card"></div>
                 </div>
                 <div class="mhd-loading-spinner" aria-hidden="true"></div>
-                <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
+                <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
               </div>
             </div>
           </div>
@@ -2357,7 +2381,7 @@
                 decoding="async"
               />
               <div class="app-nav-brand-text">
-                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">Betriebs-Leitstand</span>
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">StevesHof Hofladen</span>
                 <span class="app-nav-brand-hint">Laden-Alltag</span>
               </div>
             </div>
@@ -2687,8 +2711,9 @@
     </form>
   </template>
 
-  <script type="module" src="/fast-onboarding.js?v=20261002-fast-onboard-v1"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20260725-devdash-bodyhidden"></script>
-  <script type="module" src="/app.js?v=20260725-devdash-bodyhidden"></script>
+  <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
+  <script type="module" src="/fast-onboarding.js?v=20261015-rampe-mhd-fix-v2"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261015-rampe-mhd-fix-v2"></script>
+  <script type="module" src="/app.js?v=20261015-rampe-mhd-fix-v2"></script>
 </body>
 </html>

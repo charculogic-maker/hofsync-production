@@ -92,3 +92,8 @@ export function getAppCheckSiteKey(projectKey = resolveFirebaseProjectKey()) {
   if (!trimmed || trimmed.startsWith('REPLACE_')) return '';
   return trimmed;
 }
+
+/** Login-Guards (auth.js) und Notfall-Init dürfen synchrone window.firebaseConfig lesen. */
+if (typeof window !== 'undefined' && !window.firebaseConfig) {
+  window.firebaseConfig = toFirebaseSdkConfig(resolveFirebaseConfig());
+}

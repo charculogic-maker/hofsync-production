@@ -188,11 +188,13 @@ assert.equal(
 );
 
 // 5) SW / App Cache
-assertIncludes(
+assert.match(
   swSrc,
-  "CACHE_NAME = 'charculogic-v20261015-laden-temp-optional-v2'",
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
   'SW Cache-Version',
 );
-assertIncludes(appSrc, 'laden-temp-optional-v2', 'App SW Register Query');
+assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/, 'App SW Register Query');
+assertIncludes(swSrc, 'rampe-mhd-fix-v2', 'SW Cache rampe-mhd-fix-v2');
+assertIncludes(appSrc, 'rampe-mhd-fix-v2', 'App SW Register rampe-mhd-fix-v2');
 
 console.log('OK smoke-soldout-and-slaughter: Ausverkauft + Galloway/Geflügel-Realismus Verträge erfüllt.');

@@ -160,12 +160,30 @@ export function installSecretLogoutGestures() {
   });
 }
 
+function resolveBootstrapSdkConfig() {
+  if (typeof window !== 'undefined' && window.firebaseConfig) {
+    return toFirebaseSdkConfig(window.firebaseConfig);
+  }
+  if (typeof FIREBASE_CONFIG !== 'undefined') {
+    return toFirebaseSdkConfig(FIREBASE_CONFIG);
+  }
+  return toFirebaseSdkConfig(resolveFirebaseConfig());
+}
+
+/**
+ * Garantiert eine Default-App bevor Auth/Firestore genutzt wird.
+ * Kein harter Crash bei apps.length === 0 — initialisiert sofort nach.
+ */
 export function ensureFirebaseApp(firebaseApi = typeof firebase !== 'undefined' ? firebase : null) {
   if (!firebaseApi) {
     throw new Error('[CharcuLogic Firebase] Firebase SDK nicht geladen.');
   }
   if (!firebaseApi.apps?.length) {
-    firebaseApi.initializeApp(toFirebaseSdkConfig(resolveFirebaseConfig()));
+    const sdkConfig = resolveBootstrapSdkConfig();
+    if (typeof window !== 'undefined' && !window.firebaseConfig) {
+      window.firebaseConfig = sdkConfig;
+    }
+    firebaseApi.initializeApp(sdkConfig);
     logProjectIsolation(firebaseApi);
   }
   const app = firebaseApi.app();

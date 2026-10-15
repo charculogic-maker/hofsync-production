@@ -406,7 +406,10 @@ const mhdState = {
   lastSyncedTenantId: '',
 };
 
-const MHD_CLOUD_SYNC_TIMEOUT_MS = 20000;
+/** Max. Wartezeit auf Firestore-Netzwerk; danach lokaler Snapshot / Skeleton, nie Leermeldung vortäuschen. */
+const MHD_CLOUD_SYNC_TIMEOUT_MS = 3000;
+const MHD_LOCAL_SNAPSHOT_PREFIX = 'charculogic_mhd_snapshot_v1:';
+const MHD_LOCAL_SNAPSHOT_MAX_ITEMS = 400;
 const MHD_ADMIN_SEARCH_LIMIT = 40;
 const MHD_ADMIN_SEARCH_DEBOUNCE_MS = 280;
 const mhdAdminSearchState = {
@@ -4016,12 +4019,16 @@ function clearMhdCloudSyncTimeout() {
 function markMhdCloudSyncLoading() {
   setMhdCloudSyncStatus('loading');
   clearMhdCloudSyncTimeout();
-  // Always arm a failsafe so idle/pending never leaves the Theke on a spinner forever
-  // (e.g. Auth noch nicht bereit, Listener verzögert).
+  // Nach max. 3s: lokalen Bestand zeigen falls vorhanden — niemals „leer“ vortäuschen.
   mhdState.cloudSyncTimeoutId = setTimeout(() => {
     if (mhdState.cloudSyncStatus !== 'loading') return;
-    setMhdCloudSyncStatus('ready');
-    mhdState.pendingCloudSync = false;
+    if (hasMhdCachedProducts()) {
+      setMhdCloudSyncStatus('ready');
+      mhdState.pendingCloudSync = false;
+      renderMhdList();
+      return;
+    }
+    // Kein Cache: Skeleton behalten, Sync darf nachliefern (kein Empty-Flash).
     renderMhdList();
   }, MHD_CLOUD_SYNC_TIMEOUT_MS);
 }
@@ -4071,8 +4078,64 @@ function buildMhdLoadingHtml() {
         <div class="mhd-skeleton-card"></div>
       </div>
       <div class="mhd-loading-spinner" aria-hidden="true"></div>
-      <p class="mhd-loading-text">Artikel werden synchronisiert…</p>
+      <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
     </div>`;
+}
+
+function mhdLocalSnapshotKey(tenantId = '') {
+  const tid = String(tenantId || resolveMhdTenantId() || '').trim() || 'default';
+  return `${MHD_LOCAL_SNAPSHOT_PREFIX}${tid}`;
+}
+
+function persistMhdLocalSnapshot(products = []) {
+  try {
+    const tenantId = resolveMhdTenantId();
+    if (!tenantId) return;
+    const list = Array.isArray(products) ? products : [];
+    if (!list.length) return;
+    const compact = list.slice(0, MHD_LOCAL_SNAPSHOT_MAX_ITEMS).map((item) => ({
+      id: item.id,
+      name: item.name || item.produkt || item.product || '',
+      qty: item.qty ?? item.menge ?? 0,
+      menge: item.menge ?? item.qty ?? 0,
+      mhd: item.mhd || item.mhdDate || item.expiryDate || '',
+      mhdDate: item.mhdDate || item.mhd || '',
+      status: item.status || 'ok',
+      kategorie: item.kategorie || '',
+      tage: item.tage ?? null,
+      mhdText: item.mhdText || '',
+      soldOut: item.soldOut === true,
+      archived: item.archived === true,
+      active: item.active !== false,
+    }));
+    localStorage.setItem(mhdLocalSnapshotKey(tenantId), JSON.stringify({
+      savedAt: Date.now(),
+      products: compact,
+    }));
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Lokaler MHD-Snapshot konnte nicht gespeichert werden:', err);
+  }
+}
+
+function hydrateMhdFromLocalSnapshot() {
+  try {
+    if (hasMhdCachedProducts()) return false;
+    const tenantId = resolveMhdTenantId();
+    if (!tenantId) return false;
+    const raw = localStorage.getItem(mhdLocalSnapshotKey(tenantId));
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const products = Array.isArray(parsed?.products) ? parsed.products : [];
+    if (!products.length) return false;
+    mhdState.inStockProducts = products.filter((item) => (Number(item.qty ?? item.menge) || 0) > 0);
+    mergeMhdLiveProducts();
+    // Cache sichtbar machen, ohne Sync als „fertig/leer“ zu markieren.
+    renderMhdList();
+    return true;
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] Lokaler MHD-Snapshot konnte nicht geladen werden:', err);
+    return false;
+  }
 }
 
 function isMhdSnapshotWaitingForServer(snapshot) {
@@ -4209,6 +4272,9 @@ function startMhdZeroQtyLiveSync() {
 }
 
 function loadMhdFromCloud() {
+  // Sofort-Hydration aus lokalem Snapshot (<150 ms), bevor Auth/Firestore greifen.
+  hydrateMhdFromLocalSnapshot();
+
   if (!canStartMhdFirestoreLiveSync()) {
     // Auth/Listener noch nicht bereit: Ladezustand halten, kein Leermeldungs-Flackern.
     mhdState.pendingCloudSync = true;
@@ -4280,6 +4346,9 @@ function loadMhdFromCloud() {
     if (!waitingForServer || hasMhdCachedProducts()) {
       markMhdCloudSyncReady();
       if (tenantId) mhdState.lastSyncedTenantId = tenantId;
+      if (hasMhdCachedProducts()) {
+        persistMhdLocalSnapshot(mhdState.products);
+      }
     }
     renderMhdList();
     refreshMhdAdminSearchFromCache();
@@ -9092,7 +9161,13 @@ export function refreshMhdMonitorCards() {
 }
 
 export function startMhdLiveSync() {
-  if (!canStartMhdFirestoreLiveSync()) return;
+  hydrateMhdFromLocalSnapshot();
+  if (!canStartMhdFirestoreLiveSync()) {
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
+    return;
+  }
   void refreshSharedProductMaster();
   loadMhdFromCloud();
   subscribeToPendingDeliveryDrafts();
@@ -9110,6 +9185,7 @@ function restoreMhdDraftFields() {
 export async function activateMhdTab() {
   window.expireProfileSessionIfIdle?.();
   await window.ensureInventoryProfileSessionForTab?.('mhd');
+  hydrateMhdFromLocalSnapshot();
   loadDiscountMatrix(getGlobalTenantId())
     .then(() => renderMhdList())
     .catch((err) => console.warn('[CharcuLogic Rabatt] Matrix-Refresh übersprungen:', err));
