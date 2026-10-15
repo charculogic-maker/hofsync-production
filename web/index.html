@@ -185,6 +185,7 @@
       const pageMap = {
         teamboard: { page: 'page-teamboard', title: 'Start' },
         team: { page: 'page-team', title: 'Team' },
+        orders: { page: 'page-orders', title: 'Packtisch' },
         mhd: { page: 'page-mhd', title: 'MHD-Monitor' },
         receiving: { page: 'page-receiving', title: 'Wareneingang' },
         chargenDoku: { page: 'page-chargen-doku', title: 'Doku' },
@@ -224,8 +225,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261015-rampe-mhd-fix-v2">
-  <link rel="stylesheet" href="/order-print.css?v=20261015-packliste-7b-v1">
+  <link rel="stylesheet" href="/style.css?v=20261015-nav-orders-fix-v3">
+  <link rel="stylesheet" href="/order-print.css?v=20261015-nav-orders-fix-v3">
 </head>
 <body>
 
@@ -1002,16 +1003,7 @@
           <!-- SCREEN: TEAM (Nachrichten & Bestellungen)        -->
           <!-- ============================================== -->
           <div class="page" id="page-team">
-            <section class="team-hub-panel" aria-label="Team Kommunikation und Bestellungen">
-              <div class="team-subnav" role="tablist" aria-label="Team-Bereiche">
-                <button type="button" class="team-subnav-btn active" data-team-panel="messages" role="tab" aria-selected="true" id="team-subnav-messages">
-                  💬 Nachrichten
-                </button>
-                <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
-                  🛒 Bestellungen
-                </button>
-              </div>
-
+            <section class="team-hub-panel" aria-label="Team Kommunikation">
               <div class="team-panel active" id="team-panel-messages" data-team-panel="messages" role="tabpanel">
                 <section class="team-push-section task-token-section" aria-label="Benachrichtigungen">
                   <h2 class="task-token-heading">Benachrichtigungen</h2>
@@ -1034,8 +1026,14 @@
                   <div id="team-info-feed" class="team-info-feed"></div>
                 </div>
               </div>
+            </section>
+          </div>
 
-              <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
+          <!-- ============================================== -->
+          <!-- SCREEN: PACKTISCH / BESTELLUNGEN (Task 7b)      -->
+          <!-- ============================================== -->
+          <div class="page" id="page-orders" hidden>
+            <div id="view-orders" class="view orders-hub-panel" aria-label="Packtisch und Sammel-Zuschnittliste">
                 <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
                   <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
                   <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
@@ -1133,24 +1131,22 @@
                   <div id="customer-order-list" class="customer-order-list"></div>
                 </div>
                 </div>
+            </div>
+
+            <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
+
+            <div class="avery-label-modal" id="avery-label-modal" hidden role="dialog" aria-modal="true" aria-labelledby="avery-label-title">
+              <div class="avery-label-view">
+                <header class="avery-label-toolbar">
+                  <h2 id="avery-label-title">Avery-Etikett / Kistenbon</h2>
+                  <div class="delivery-note-toolbar-actions">
+                    <button type="button" class="btn btn-secondary btn-compact" id="avery-label-close-btn">Schließen</button>
+                    <button type="button" class="btn btn-primary btn-compact" id="avery-label-print-btn">Drucken (70×36 mm)</button>
+                  </div>
+                </header>
+                <div id="avery-label-print-area"></div>
               </div>
-
-              <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
-
-              <div class="avery-label-modal" id="avery-label-modal" hidden role="dialog" aria-modal="true" aria-labelledby="avery-label-title">
-                <div class="avery-label-view">
-                  <header class="avery-label-toolbar">
-                    <h2 id="avery-label-title">Avery-Etikett / Kistenbon</h2>
-                    <div class="delivery-note-toolbar-actions">
-                      <button type="button" class="btn btn-secondary btn-compact" id="avery-label-close-btn">Schließen</button>
-                      <button type="button" class="btn btn-primary btn-compact" id="avery-label-print-btn">Drucken (70×36 mm)</button>
-                    </div>
-                  </header>
-                  <div id="avery-label-print-area"></div>
-                </div>
-              </div>
-
-            </section>
+            </div>
           </div>
 
           <!-- ============================================== -->
@@ -2445,6 +2441,10 @@
                 <i>💬</i>
                 <span>Team</span>
               </button>
+              <button class="nav-item" data-tab="orders" id="tab-orders" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('orders')">
+                <i>📦</i>
+                <span>Packtisch</span>
+              </button>
               <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
                 <i>📅</i>
                 <span>MHD</span>
@@ -2755,8 +2755,8 @@
   </template>
 
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
-  <script type="module" src="/fast-onboarding.js?v=20261015-rampe-mhd-fix-v2"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20261015-rampe-mhd-fix-v2"></script>
-  <script type="module" src="/app.js?v=20261015-rampe-mhd-fix-v2"></script>
+  <script type="module" src="/fast-onboarding.js?v=20261015-nav-orders-fix-v3"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261015-nav-orders-fix-v3"></script>
+  <script type="module" src="/app.js?v=20261015-nav-orders-fix-v3"></script>
 </body>
 </html>

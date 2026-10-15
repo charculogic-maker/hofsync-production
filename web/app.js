@@ -104,6 +104,7 @@ import {
 } from './teamboard.js';
 import {
   initCustomerOrdersModule,
+  activateCustomerOrdersTab,
 } from './customer-orders.js';
 import { activateTeamHubTab } from './team-tab.js';
 import {
@@ -181,7 +182,7 @@ if (EMERGENCY_LOGOUT_REQUESTED) {
 installSecretLogoutGestures();
 
 
-const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
+const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
@@ -586,7 +587,7 @@ const PROFILE_TAB_ALIASES = {
   herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
@@ -594,11 +595,12 @@ const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
   team: 'team',
+  orders: 'orders',
   mhd: 'mhd',
   receiving: 'receiving',
   chargenDoku: 'chargenDoku',
@@ -2174,6 +2176,8 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
   const tabModuleMap = {
     teamboard: isTenantModuleEnabled('start', branding),
     team: isTenantModuleEnabled('team', branding),
+    // Packtisch nur bei explizitem orders-Flag (StevesHof Soft-Launch)
+    orders: modules.orders === true,
     mhd: isTenantModuleEnabled('mhd', branding),
     receiving: isTenantModuleEnabled('receiving', branding),
     chargenDoku: hasModule('chargenDoku', branding),
@@ -2328,6 +2332,7 @@ function resolveFirebaseEmployeeAllowedTabs(authSession) {
   if (allowed.mhd !== false) tabs.add('mhd');
   if (allowed.kitchen !== false) tabs.add('kitchen');
   if (allowed.buero !== false) tabs.add('batches');
+  if (allowed.orders === true || allowed.team === true) tabs.add('orders');
   return tabs;
 }
 
@@ -2344,7 +2349,7 @@ function applyRoleBasedUi(authSession) {
   syncAdminNavZone(authSession);
   bindTenantAdminNavGuard();
 
-  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
+  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -3376,6 +3381,7 @@ function showPage(pageId) {
     // Defensive inline display handling: avoids rare stale layout states
     // where .active class exists but page still does not paint.
     page.style.display = isTarget ? 'block' : 'none';
+    if (isTarget) page.removeAttribute('hidden');
   });
   syncDesktopWideLayout(pageId);
 }
@@ -3695,6 +3701,9 @@ tabs.forEach(tab => {
     } else if (targetTab === 'team') {
       showPage('page-team');
       headerTitle.textContent = "Team";
+    } else if (targetTab === 'orders') {
+      showPage('page-orders');
+      headerTitle.textContent = "Packtisch";
     } else if (targetTab === 'mhd') {
       showPage('page-mhd');
       headerTitle.textContent = "MHD-Monitor";
@@ -3730,6 +3739,7 @@ tabs.forEach(tab => {
       if (targetTab !== 'chargenDoku') stopChargenDokuBookView();
       if (targetTab === 'teamboard') activateTeamboardTab();
       if (targetTab === 'team') activateTeamHubTab();
+      if (targetTab === 'orders') activateCustomerOrdersTab();
       if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
       if (targetTab === 'chargenDoku') activateChargenDokuTab();
@@ -4094,7 +4104,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-15T18:45:00+02:00';
+const APP_RELEASE_AT = '2026-10-15T20:24:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4271,7 +4281,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261015-rampe-mhd-fix-v2')
+    navigator.serviceWorker.register('./sw.js?v=20261015-nav-orders-fix-v3')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
