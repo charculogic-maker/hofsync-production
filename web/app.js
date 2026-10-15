@@ -4249,7 +4249,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261014-livestock-realism-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261015-laden-temp-optional-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

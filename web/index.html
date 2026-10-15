@@ -1196,6 +1196,27 @@
                     <span>Name bei Sonstige</span>
                     <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
                   </label>
+                  <div class="receiving-field receiving-temp-head" id="we-temperature-head-wrap">
+                    <label class="receiving-temp-head-label" for="we-temperature-head">
+                      <span>Liefertemperatur °C (Optional)</span>
+                    </label>
+                    <div class="receiving-temp-head-row">
+                      <input
+                        type="number"
+                        id="we-temperature-head"
+                        class="gastro-input receiving-temp-head-input"
+                        placeholder="z. B. 4.2"
+                        step="0.1"
+                        inputmode="decimal"
+                        aria-required="false"
+                      >
+                      <div class="receiving-temp-presets" role="group" aria-label="Temperatur-Schnellwahl">
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="3">3 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="5">5 °C</button>
+                        <button type="button" class="btn btn-secondary receiving-temp-preset-btn" data-temp-preset="7">7 °C</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -1220,8 +1241,8 @@
                       <option value="" selected>-- Kategorie wählen --</option>
                     </select>
                   </label>
-                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature">
-                    <span>Initiale Temperatur (°C) · nur TK/Kühlware</span>
+                  <label class="receiving-field hidden" id="we-temperature-quick-wrap" for="we-temperature" hidden>
+                    <span>Initiale Temperatur (°C) · optional</span>
                     <input type="number" id="we-temperature" class="gastro-input" placeholder="Temperatur in °C" step="0.1" inputmode="decimal">
                   </label>
                   <button class="btn btn-primary btn-receiving-scan" id="btn-receiving-scan" type="button">
@@ -1300,6 +1321,7 @@
                     <select id="we-category" class="gastro-input">
                       <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)</option>
                       <option value="Lohnschlachtung Geflügel">🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)</option>
+                      <option value="Bio-Schwein Zukauf">🐷 Bio-Schwein Zukauf</option>
                       <option value="Zukauffleisch (Fremdbezug)">Zukauffleisch (Fremdbezug)</option>
                       <option value="Geflügel Zukauf (Fremdbezug)">Geflügel Zukauf (Fremdbezug)</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
