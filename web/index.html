@@ -224,8 +224,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261015-firestore-perm-packliste-v1">
-  <link rel="stylesheet" href="/order-print.css?v=20261015-firestore-perm-packliste-v1">
+  <link rel="stylesheet" href="/style.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
 </head>
 <body>
 
@@ -1252,9 +1252,11 @@
                       <span>Lieferant</span>
                       <select id="we-supplier" class="gastro-input" autocomplete="organization">
                         <option value="">-- Lieferant wählen --</option>
+                        <option value="Stautenhof">Stautenhof</option>
+                        <option value="Naturverbund">Naturverbund</option>
+                        <option value="Bio Hof Frohnenbruch">Bio Hof Frohnenbruch</option>
                         <option value="Eigener Wareneingang">Eigener Wareneingang</option>
                         <option value="Großhandel">Großhandel</option>
-                        <option value="Lieferant 1">Lieferant 1</option>
                         <option value="__sonstige__">Sonstige</option>
                       </select>
                     </label>
@@ -1388,8 +1390,8 @@
                     <select id="we-category" class="gastro-input">
                       <option value="Lohnschlachtung Rind" selected>🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)</option>
                       <option value="Lohnschlachtung Geflügel">🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)</option>
-                      <option value="Bio-Schwein Zukauf">🐷 Bio-Schwein Zukauf</option>
-                      <option value="Zukauffleisch (Fremdbezug)">Zukauffleisch (Fremdbezug)</option>
+                      <option value="Bio-Schwein Zukauf">🐷 Bio-Schwein Zukauf (Hälften / Ganze / Teilstücke)</option>
+                      <option value="Zukauffleisch Rind/Kalb (Fremdbezug)">Zukauffleisch Rind/Kalb (Fremdbezug)</option>
                       <option value="Geflügel Zukauf (Fremdbezug)">Geflügel Zukauf (Fremdbezug)</option>
                       <option value="Wurst Zukauf">Wurst Zukauf</option>
                       <option value="Gewürze &amp; Hilfsstoffe">Gewürze &amp; Hilfsstoffe</option>
@@ -1397,8 +1399,8 @@
                   </label>
                   <div id="we-slaughter-rind-fields" class="receiving-slaughter-fields receiving-slaughter-fields--rind" hidden>
                     <label class="receiving-field" for="we-klassifizierung">
-                      <span>Klassifizierung / Tierkategorie</span>
-                      <input type="text" id="we-klassifizierung" class="gastro-input" list="we-klassifizierung-suggestions" placeholder="z. B. Ochse, Färse, U3, R2" autocomplete="off">
+                      <span>Klassifizierung / Kategorie</span>
+                      <input type="text" id="we-klassifizierung" class="gastro-input" list="we-klassifizierung-suggestions" placeholder="z. B. Ochse, Färse, R3, U2" autocomplete="off">
                       <datalist id="we-klassifizierung-suggestions">
                         <option value="Ochse"></option>
                         <option value="Färse"></option>
@@ -1416,7 +1418,7 @@
                     </label>
                     <label class="receiving-field" for="we-ohrmarke">
                       <span>Ohrmarke / Tier-ID <em class="receiving-optional-hint">(Optional)</em></span>
-                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 … (falls bekannt)" autocomplete="off" inputmode="text">
+                      <input type="text" id="we-ohrmarke" class="gastro-input" placeholder="DE 05 … (falls am Viertel vermerkt)" autocomplete="off" inputmode="text">
                     </label>
                     <label class="receiving-field" for="we-schlachtgewicht">
                       <span>Schlachtgewicht (kg) <em class="receiving-optional-hint">(Optional)</em></span>
@@ -1432,6 +1434,33 @@
                     <label class="receiving-field" for="we-stueck-kisten">
                       <span>Stückzahl / Kistenanzahl</span>
                       <input type="text" id="we-stueck-kisten" class="gastro-input" placeholder="z. B. 24 Stk / 2 Kisten" autocomplete="off">
+                    </label>
+                  </div>
+                  <div id="we-slaughter-pork-fields" class="receiving-slaughter-fields receiving-slaughter-fields--pork" hidden>
+                    <label class="receiving-field" for="we-lieferschein-nr">
+                      <span>Lieferschein-Nr. <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="text" id="we-lieferschein-nr" class="gastro-input" placeholder="LS-Nr. falls vorhanden" autocomplete="off">
+                    </label>
+                    <fieldset class="receiving-field receiving-pork-type-field">
+                      <legend>Art der Lieferung <em class="receiving-optional-hint">(Optional)</em></legend>
+                      <div class="receiving-pork-type-options" role="radiogroup" aria-label="Art der Lieferung">
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Haelften">
+                          <span>Hälften</span>
+                        </label>
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Ganze Tiere">
+                          <span>Ganze Tiere</span>
+                        </label>
+                        <label class="receiving-pork-type-option">
+                          <input type="radio" name="we-pork-delivery-type" value="Teilstuecke">
+                          <span>Teilstücke</span>
+                        </label>
+                      </div>
+                    </fieldset>
+                    <label class="receiving-field" for="we-gesamtgewicht">
+                      <span>Gesamtgewicht (kg) <em class="receiving-optional-hint">(Optional)</em></span>
+                      <input type="number" id="we-gesamtgewicht" class="gastro-input" placeholder="kg (optional)" step="0.1" min="0" inputmode="decimal">
                     </label>
                   </div>
                   <label class="receiving-field" for="we-temperature-metz">
@@ -2755,8 +2784,8 @@
   </template>
 
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
-  <script type="module" src="/fast-onboarding.js?v=20261015-firestore-perm-packliste-v1"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20261015-firestore-perm-packliste-v1"></script>
-  <script type="module" src="/app.js?v=20261015-firestore-perm-packliste-v1"></script>
+  <script type="module" src="/fast-onboarding.js?v=20261015-livestock-realism-v2"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261015-livestock-realism-v2"></script>
+  <script type="module" src="/app.js?v=20261015-livestock-realism-v2"></script>
 </body>
 </html>

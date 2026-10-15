@@ -43,11 +43,11 @@ const sdkPos = indexSrc.indexOf('src="/libs/firebase-app.js"');
 const appModulePos = indexSrc.search(/src="\/app\.js\?v=\d{8}-[^"]+"/);
 assert.ok(sdkPos >= 0 && appModulePos > sdkPos, 'Firebase SDK muss vor app.js-Modul geladen werden');
 assert.match(indexSrc, /src="\/app\.js\?v=\d{8}-[^"]+"/);
-assert.match(indexSrc, /firestore-perm-packliste-v1/);
+assert.match(indexSrc, /livestock-realism-v2/);
 
 assert.match(swSrc, /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/);
-assert.match(swSrc, /firestore-perm-packliste-v1/);
+assert.match(swSrc, /livestock-realism-v2/);
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/);
-assert.match(appSrc, /firestore-perm-packliste-v1/);
+assert.match(appSrc, /livestock-realism-v2/);
 
 console.log('OK smoke-firebase-init-guard: Login-Init-Guard, Script-Reihenfolge und SW-Cache gesetzt.');

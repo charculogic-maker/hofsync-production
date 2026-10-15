@@ -369,7 +369,8 @@ service cloud.firestore {
         && hasOnly([
           'id', 'lieferant', 'warenKategorie', 'warenKategorieMetzgerei', 'temperatur',
           'klassifizierung', 'schlachtDatum', 'ohrmarke', 'schlachtgewichtKg',
-          'stueckKisten', 'lot', 'chargenNummer',
+          'stueckKisten', 'lieferscheinNr', 'lieferungsArt', 'gesamtgewichtKg',
+          'lot', 'chargenNummer',
           'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
           'fotos', 'items', 'itemCount',
           'source', 'scannedBy', 'tenantId',

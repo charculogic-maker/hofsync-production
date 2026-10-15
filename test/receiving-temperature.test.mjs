@@ -50,6 +50,11 @@ describe('Wareneingang Temperaturpflicht', () => {
 
     expect(isStrictHaccpTemperatureRequired({
       mode: 'metzgerei',
+      warenKategorieMetzgerei: 'Zukauffleisch Rind/Kalb (Fremdbezug)',
+    })).to.equal(false);
+
+    expect(isStrictHaccpTemperatureRequired({
+      mode: 'metzgerei',
       warenKategorieMetzgerei: 'Zukauffleisch (Fremdbezug)',
     })).to.equal(false);
 

@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261015-firestore-perm-packliste-v1';
+const CACHE_NAME = 'charculogic-v20261015-livestock-realism-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-15T19:15:00+02:00';
+const RELEASED_AT = '2026-10-15T21:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

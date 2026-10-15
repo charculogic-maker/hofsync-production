@@ -54,11 +54,11 @@ export const METZ_RECEIVING_CATEGORIES = [
   },
   {
     value: 'Bio-Schwein Zukauf',
-    label: '🐷 Bio-Schwein Zukauf',
+    label: '🐷 Bio-Schwein Zukauf (Hälften / Ganze / Teilstücke)',
   },
   {
-    value: 'Zukauffleisch (Fremdbezug)',
-    label: 'Zukauffleisch (Fremdbezug)',
+    value: 'Zukauffleisch Rind/Kalb (Fremdbezug)',
+    label: 'Zukauffleisch Rind/Kalb (Fremdbezug)',
   },
   {
     value: 'Geflügel Zukauf (Fremdbezug)',
@@ -67,6 +67,21 @@ export const METZ_RECEIVING_CATEGORIES = [
   { value: 'Wurst Zukauf', label: 'Wurst Zukauf' },
   { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
 ];
+
+/** Standard-Lieferanten für Metzgerei / Bio-Fleisch (StevesHof). */
+export const METZ_DEFAULT_SUPPLIERS = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Bio Hof Frohnenbruch',
+  'Eigener Wareneingang',
+  'Großhandel',
+]);
+
+export const BIO_SCHWEIN_DELIVERY_TYPES = Object.freeze([
+  { value: 'Haelften', label: 'Hälften' },
+  { value: 'Ganze Tiere', label: 'Ganze Tiere' },
+  { value: 'Teilstuecke', label: 'Teilstücke' },
+]);
 
 export function isLohnschlachtungRindCategory(category = '') {
   return /lohnschlachtung\s*rind/i.test(String(category || ''));
@@ -191,10 +206,17 @@ export function resolveMetzTraceLot({
 export function normalizeMetzReceivingCategory(category = '') {
   const raw = String(category || '').trim();
   if (!raw) return METZ_DEFAULT_CATEGORY;
-  if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') return 'Zukauffleisch (Fremdbezug)';
+  if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') {
+    return 'Zukauffleisch Rind/Kalb (Fremdbezug)';
+  }
+  if (/^zukauffleisch(\s*\(fremdbezug\))?$/i.test(raw)) {
+    return 'Zukauffleisch Rind/Kalb (Fremdbezug)';
+  }
   if (/gew(ü|ue)rze\s*metzgerei/i.test(raw)) return 'Gewürze & Hilfsstoffe';
-  if (/lohnschlachtung\s*schwein/i.test(raw)) return METZ_DEFAULT_CATEGORY;
-  if (/bio[-\s]*schwein/i.test(raw)) return 'Bio-Schwein Zukauf';
+  // Legacy Eigenbestand-Schwein-Kategorie → Bio-Schwein Zukauf (kein eigener Bestand)
+  if (/lohnschlachtung\s*schwein/i.test(raw) || /bio[-\s]*schwein/i.test(raw)) {
+    return 'Bio-Schwein Zukauf';
+  }
   if (/^gefl(ü|ue)gel\s*zukauf$/i.test(raw)) return 'Geflügel Zukauf (Fremdbezug)';
   const known = METZ_RECEIVING_CATEGORIES.find((entry) => entry.value === raw);
   return known ? known.value : raw;
