@@ -4272,6 +4272,8 @@ function startMhdZeroQtyLiveSync() {
 }
 
 function loadMhdFromCloud() {
+  // Reiner Daten-Fetch: darf NIEMALS showTab / showPreferredStartTab /
+  // ensureActiveTabAllowed aufrufen — nur Liste rendern (Async-Nav-Conflict).
   // Sofort-Hydration aus lokalem Snapshot (<150 ms), bevor Auth/Firestore greifen.
   hydrateMhdFromLocalSnapshot();
 
