@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261015-livestock-realism-v2';
+const CACHE_NAME = 'charculogic-v20261015-livestock-update-notice';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-15T21:15:00+02:00';
@@ -15,6 +15,7 @@ const CRITICAL_ASSETS = [
   '/libs/firebase-firestore.js',
   '/libs/firebase-storage.js',
   '/app.js',
+  '/app-version.js',
   '/app-check.js',
   '/firebase-config.js',
   '/firebase-init.js',
@@ -347,4 +348,3 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => cached || fetch(request))
   );
 });
-

@@ -4,7 +4,25 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
-## [v1.4.0] - 2026-09-13
+## [v1.4.0] - 2026-09-15
+
+### Hinzugefügt (Wareneingang & MHD)
+
+- **Auto-VPE:** Gebindegrößen-Erkennung lernt übliche Packungsgrößen und schlägt sie vor.
+- **LIFO-Scan:** Neuester Scan steht im Wareneingang oben.
+- **MHD-Parser:** Flexible 2-stellige Jahreingabe (`29` → `2029`).
+- **Auto-Kategorie:** Kategorie-Erkennung beim Erfassen.
+- **Fixes:** Lieferantenauswahl und PDF-Upload stabilisiert.
+
+### Hinzugefügt (PWA Update-Hinweis)
+
+- Dezentes Versions-Badge (`v1.4.0`, Status „System aktuell“) mit Mini-Changelog-Popover.
+- Einmaliger Release-Toast nach Update (localStorage pro Version).
+- Service Worker: `skipWaiting()` + `clientsClaim()` für sofortige Asset-Übernahme.
+
+---
+
+## [v1.4.0-datasheet] - 2026-09-13
 
 ### Hinzugefügt (Produktionsdatenblatt DIN A4)
 
