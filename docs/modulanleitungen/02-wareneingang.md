@@ -2,7 +2,7 @@
 
 Hier erfassen wir **Lieferungen**: Lieferschein-Fotos, Lieferant, Temperatur und die einzelnen **Posten** (Artikel mit MHD).
 
-> **TorFabrik (`torfabrik`):** Zusätzlich **„Lieferschein scannen (KI)“** (Gemini) – geparste Posten landen in `tenants/torfabrik/inventory`. Details: [KOLLEGEN_ANLEITUNG_TORFABRIK.md](../KOLLEGEN_ANLEITUNG_TORFABRIK.md).
+> **KI-Lieferschein:** Betriebe mit Tab **Neu** können Lieferscheine als Datei hochladen oder mit der Kamera scannen. StevesHof & Co. buchen geprüfte Artikel in unseren MHD-Bestand ein; TorFabrik nutzt den eigenen KI-Scanner und übernimmt erkannte Posten in `tenants/torfabrik/inventory`. Details: [KOLLEGEN_ANLEITUNG_TORFABRIK.md](../KOLLEGEN_ANLEITUNG_TORFABRIK.md).
 
 ## Zwei Bereiche
 
@@ -15,7 +15,7 @@ Oben wählen wir zuerst den **Lieferant** (Weiling, Naturverbund, Stautenhof, So
 
 Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 
-> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone noch **nicht freigeschaltet** — bis dahin gilt der Barcode-Scan unten.
+> **StevesHof Hofladen (`StevesHof_Hauptbetrieb`):** Nur der Bereich **Laden** ist aktiv (Metzgerei ausgeblendet). Der **Lieferant** bleibt oben sichtbar. Vor **MHD** und **Neu** wählen wir unser **Profil** (keine PIN). Posten sammeln wir in einer Lieferung und schließen mit **Gesamte Lieferung abschließen** ab. Der **KI-Lieferschein** ist am Laden-iPhone freigeschaltet: Wir können eine PDF/Fotodatei hochladen oder den Lieferschein direkt scannen. Der Barcode-Scan bleibt weiter der schnellste Weg für einzelne Artikel.
 
 ---
 
@@ -76,7 +76,7 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 
 ## 📸 Lieferschein einlesen & abgleichen (KI-Wareneingang)
 
-Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
+Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab. Alternativ können wir fehlende Artikel aus dem erkannten Lieferschein nach Prüfung direkt in den Bestand übernehmen.
 
 ### Ablauf
 
@@ -91,6 +91,17 @@ Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
 5. Optional fehlende LS-Artikel in den Bestand übernehmen
 
 **🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
+
+### Hochladen oder scannen
+
+| Button | Wann nutzen wir ihn? | Hinweis |
+|--------|-----------------------|---------|
+| **📄 Lieferschein hochladen** | PDF oder Foto aus Dateien/Fotos | Gut für per Mail erhaltene Lieferscheine |
+| **📸 Lieferschein scannen (KI)** | Foto direkt mit der Kamera aufnehmen | Gut am Laden-iPhone beim Auspacken |
+| **🔎 Lieferschein abgleichen** | Bereits erkannten Lieferschein erneut mit gescannten Posten vergleichen | Erscheint nach dem ersten KI-Lauf |
+
+Erlaubt sind PDF, JPG, PNG und HEIC/HEIF bis 12 MB. Wenn das Laden-iPhone kurz offline ist, erfassen wir manuell weiter; gespeicherte Bestandsbuchungen werden synchronisiert, sobald WLAN verfügbar ist.
+
 ### Vorgeschlagenes MHD aus Erfahrungswerten
 
 Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
