@@ -60,6 +60,7 @@ import {
   buildMovementRecord,
   inferMovementAction,
 } from './mhd-audit.js';
+import { mergeDeliveryMhdRecords } from './mhd-delivery-records.js';
 import { readMhdCardUiSettings } from './admin-tenant-models.js';
 import {
   validateDeliveryUploadFile,
@@ -7994,8 +7995,10 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   const postenId = buildMhdBatchDocId(barcode, item.mhdDate);
   const existingBatch = findExistingMhdBatch(barcode, item.mhdDate);
   const manufacturer = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
-  const mergedQty = (existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0) + qtyInt;
-  const mergedMenge = (existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0) + qtyValue;
+  const qtyFrom = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
+  const mengeFrom = existingBatch ? Number(existingBatch.menge ?? existingBatch.qty ?? 0) : 0;
+  const mergedQty = qtyFrom + qtyInt;
+  const mergedMenge = mengeFrom + qtyValue;
 
   const record = sanitizeMhdProductRecord({
     id: postenId,
@@ -8045,7 +8048,10 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     delete record.tenantId;
   }
   record._mhdWriteOp = existingBatch ? 'update' : 'set';
-  record._qtyFrom = existingBatch ? Number(existingBatch.qty ?? existingBatch.menge ?? 0) : 0;
+  record._qtyFrom = qtyFrom;
+  record._mengeFrom = mengeFrom;
+  record._qtyIncrement = qtyInt;
+  record._mengeIncrement = qtyValue;
   return record;
 }
 
@@ -8684,7 +8690,7 @@ async function finalizeDelivery() {
     });
 
     const catalog = await loadCatalogEanIndex();
-    const mhdWrites = currentDeliveryItems.map(async (item) => {
+    const mhdRecords = currentDeliveryItems.map((item) => {
       const matchedEan = lookupCatalogEan(catalog, {
         name: item.product,
         articleNumber: item.artikelnummer || item.articleNumber || '',
@@ -8693,11 +8699,18 @@ async function finalizeDelivery() {
       const line = matchedEan ? { ...item, barcode: matchedEan } : item;
       const record = buildMhdRecordFromDeliveryItem(line, head, deliveryId, mhdItemStatus, meisterOverrideReason);
       record.tenantId = activeTenantId;
+      return record;
+    });
+    const mergedMhdRecords = mergeDeliveryMhdRecords(mhdRecords);
+    const mhdWrites = mergedMhdRecords.map(async (record) => {
       const writeOp = record._mhdWriteOp || 'set';
       const qtyFrom = Number(record._qtyFrom);
       const qtyTo = Number(record.qty ?? record.menge ?? 0);
       delete record._mhdWriteOp;
       delete record._qtyFrom;
+      delete record._mengeFrom;
+      delete record._qtyIncrement;
+      delete record._mengeIncrement;
       const auditedRecord = withSanitizedMhdAudit(
         { ...record, updatedAt: serverTimestampFallback(), tenantId: activeTenantId },
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },

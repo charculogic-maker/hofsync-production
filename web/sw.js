@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261015-livestock-update-notice';
+const CACHE_NAME = 'charculogic-v20261015-wareneingang-merge-fix';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-15T21:15:00+02:00';
@@ -26,12 +26,14 @@ const CRITICAL_ASSETS = [
   '/team-config.js',
   '/team-notify.js',
   '/customer-orders.js',
+  '/customer-order-stock.js',
   '/order-packlist.js',
   '/order-print.css',
   '/auth.js',
   '/auth-errors.js',
   '/scanner.js',
   '/mhd.js',
+  '/mhd-delivery-records.js',
   '/receiving.js',
   '/mhd-rabatt.js',
   '/discount-matrix.js',
