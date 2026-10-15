@@ -1,22 +1,34 @@
 /**
- * Kundenbestellungen – Annahme durch alle Mitarbeiter, Übersicht im Büro
+ * Kundenbestellungen – Annahme, Sammel-Zuschnittliste & Packtisch
  */
 
 import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getActiveEmployeeName, postTeamboardBulletin } from './teamboard.js';
 import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import {
+  ACTIVE_ORDER_STATUSES,
+  CUTLIST_ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
+  butcherNotes,
+  calculateLinePriceFromWeight,
+  customerDisplayName,
+  customerPhone,
+  generateZuschnittAggregation,
+  nextStatusInPipeline,
+  nextWeekdayIso,
+  normalizeOrderItem,
+  orderPickupChannelLabel,
+  orderPickupDayIso,
+  orderPickupSlotLabel,
+  orderRefLabel,
+  orderStatus,
+  sortOrdersForPacktisch,
+  todayIsoLocal as packlistTodayIso,
+  vacuumWishesSummary,
+} from './order-packlist.js';
 
-const ORDER_STATUS_LABELS = {
-  open: 'Offen',
-  pending: 'Offen',
-  eingegangen: 'Offen',
-  ready: 'Bereit',
-  picked_up: 'Abgeholt',
-  cancelled: 'Storniert',
-};
-
-const OPEN_ORDER_STATUSES = new Set(['open', 'pending', 'eingegangen']);
+const OPEN_ORDER_STATUSES = CUTLIST_ORDER_STATUSES;
 const PICKLIST_CATEGORY_ORDER = ['Wurstküche', 'Molkereiprodukte', 'Hofladen-Spezialitäten', 'Sonstiges'];
 const PRODUCTION_STATIONS = {
   kitchen: {
@@ -46,6 +58,12 @@ const orderState = {
   picklistChecked: new Set(),
   productionChecked: new Set(),
   actualQuantityByKey: new Map(),
+  /** @type {'aufnahme'|'zuschnitt'|'packtisch'} */
+  ordersView: 'packtisch',
+  zuschnittDayIso: '',
+  expandedPackOrderId: '',
+  weighDraftByKey: new Map(),
+  weighSaveInFlight: false,
 };
 
 function escapeHtml(value) {
@@ -57,11 +75,14 @@ function escapeHtml(value) {
 }
 
 function todayIsoLocal() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return packlistTodayIso();
+}
+
+function ensureZuschnittDay() {
+  if (!orderState.zuschnittDayIso) {
+    orderState.zuschnittDayIso = nextWeekdayIso(5); // Freitag als Metzgerei-Default
+  }
+  return orderState.zuschnittDayIso;
 }
 
 function defaultReadyTimeLocal() {
@@ -238,9 +259,24 @@ function renderOrderSlipAttachments(attachments = []) {
 function renderOrderItemsList(items) {
   if (!Array.isArray(items) || items.length === 0) return '<span>–</span>';
   return items.map((item) => {
-    const qty = [item.quantity, item.unit].filter(Boolean).join(' ');
-    const extras = [item.weight, item.width, item.lineNotes].filter(Boolean).join(' · ');
-    return `<li><strong>${escapeHtml(item.product)}</strong> – ${escapeHtml(qty)}${extras ? ` <span class="customer-order-item-meta">(${escapeHtml(extras)})</span>` : ''}</li>`;
+    const n = normalizeOrderItem(item);
+    const qtyParts = [];
+    if (n.pieces > 0) qtyParts.push(`${formatQuantityValue(n.pieces)} Stück`);
+    if (n.weightKg > 0) qtyParts.push(`ca. ${formatQuantityValue(n.weightKg)} kg`);
+    if (!qtyParts.length && (n.quantity || n.unit)) {
+      qtyParts.push([item.quantity ?? n.quantity, item.unit || n.unit].filter(Boolean).join(' '));
+    }
+    const extras = [
+      n.cutLabel && n.cutLabel !== 'Standard' ? n.cutLabel : '',
+      n.isTk ? 'TK' : '',
+      n.vacuumLabel || '',
+      n.note,
+      item.weight,
+      item.width,
+      item.lineNotes,
+    ].filter(Boolean);
+    const uniqueExtras = [...new Set(extras.map((e) => String(e)))];
+    return `<li><strong>${escapeHtml(n.product || item.product || 'Artikel')}</strong> – ${escapeHtml(qtyParts.join(' · ') || '–')}${uniqueExtras.length ? ` <span class="customer-order-item-meta">(${escapeHtml(uniqueExtras.join(' · '))})</span>` : ''}</li>`;
   }).join('');
 }
 
@@ -769,15 +805,27 @@ function getItemUnitPrice(item, orderedQuantity) {
 
 export function calculateFinalOrderPrice(order) {
   const lines = (Array.isArray(order?.items) ? order.items : []).map((item) => {
-    const orderedQuantity = parseQuantityValue(item?.quantity);
-    const actualQuantity = item?.actualQuantity ? parseQuantityValue(item.actualQuantity) : orderedQuantity;
-    const unit = item?.actualQuantityUnit || item?.unit || '';
-    const unitPrice = getItemUnitPrice(item, orderedQuantity);
-    const lineTotal = Math.round((actualQuantity * unitPrice) * 100) / 100;
-    const orderedLabel = [item?.quantity, item?.unit].filter(Boolean).join(' ');
-    const actualLabel = [formatQuantityValue(actualQuantity), unit].filter(Boolean).join(' ');
+    const n = normalizeOrderItem(item);
+    const orderedQuantity = n.weightKg > 0 ? n.weightKg : (n.pieces || parseQuantityValue(item?.quantity));
+    const weigh = calculateLinePriceFromWeight(item);
+    const unitPrice = weigh.pricePerKg || getItemUnitPrice(item, orderedQuantity);
+    const actualQuantity = weigh.hasActualWeight
+      ? weigh.weightKg
+      : (item?.actualQuantity ? parseQuantityValue(item.actualQuantity) : orderedQuantity);
+    const unit = weigh.hasActualWeight ? 'kg' : (item?.actualQuantityUnit || n.unit || '');
+    const lineTotal = weigh.hasActualWeight
+      ? weigh.lineTotal
+      : Math.round((actualQuantity * unitPrice) * 100) / 100;
+    const orderedLabel = [
+      n.pieces > 0 ? `${formatQuantityValue(n.pieces)} Stück` : '',
+      n.weightKg > 0 ? `ca. ${formatQuantityValue(n.weightKg)} kg` : '',
+      !n.pieces && !n.weightKg ? [item?.quantity, item?.unit].filter(Boolean).join(' ') : '',
+    ].filter(Boolean).join(' · ');
+    const actualLabel = weigh.hasActualWeight
+      ? `${formatQuantityValue(weigh.weightGrams)} g`
+      : [formatQuantityValue(actualQuantity), unit].filter(Boolean).join(' ');
     return {
-      product: item?.product || 'Artikel',
+      product: n.product || item?.product || 'Artikel',
       orderedQuantity,
       actualQuantity,
       unit,
@@ -785,8 +833,8 @@ export function calculateFinalOrderPrice(order) {
       actualLabel,
       unitPrice,
       lineTotal,
-      hasActualQuantity: Boolean(item?.actualQuantity),
-      notes: [item?.weight, item?.width, item?.lineNotes].filter(Boolean).join(' · '),
+      hasActualQuantity: Boolean(item?.actualQuantity) || weigh.hasActualWeight,
+      notes: [n.cutLabel, n.isTk ? 'TK' : '', item?.weight, item?.width, item?.lineNotes, n.note].filter(Boolean).join(' · '),
     };
   });
   const total = Math.round(lines.reduce((sum, line) => sum + line.lineTotal, 0) * 100) / 100;
@@ -824,9 +872,9 @@ function openDeliveryNote(orderId) {
   body.innerHTML = `
     <section class="delivery-note-sheet">
       <header class="delivery-note-sheet-head">
-        <p>Kisten-Zettel</p>
-        <h1>${escapeHtml(order.customerName || 'Kunde')}</h1>
-        <div>Abholung: ${escapeHtml(formatReadyAt(order.readyAt))}</div>
+        <p>Kisten-Zettel · ${escapeHtml(orderRefLabel(order))}</p>
+        <h1>${escapeHtml(customerDisplayName(order))}</h1>
+        <div>Abholung: ${escapeHtml(formatReadyAt(order.readyAt || order.pickupDate))} · ${escapeHtml(orderPickupChannelLabel(order))}</div>
       </header>
       <table class="delivery-note-table">
         <thead>
@@ -956,45 +1004,126 @@ async function markSammelPicklisteReady() {
   }
 }
 
+function weighDraftKey(orderId, lineIndex) {
+  return `${orderId}:${lineIndex}`;
+}
+
+function formatGramsInput(grams) {
+  if (!Number.isFinite(grams) || grams <= 0) return '';
+  return String(Math.round(grams));
+}
+
+function renderPacktischWeighFields(order) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (!items.length) return '<p class="customer-order-hint">Keine Positionen hinterlegt.</p>';
+  return items.map((raw, index) => {
+    const item = normalizeOrderItem(raw);
+    const key = weighDraftKey(order.id, index);
+    const draft = orderState.weighDraftByKey.get(key);
+    const grams = draft !== undefined
+      ? parseQuantityValue(draft)
+      : (item.actualWeightGrams || (item.weightKg > 0 ? Math.round(item.weightKg * 1000) : 0));
+    const priced = calculateLinePriceFromWeight(item, grams > 0 ? grams : null);
+    const isWeighable = item.pricePerKg > 0 || item.weightKg > 0 || /kg/i.test(item.unit);
+    if (!isWeighable) {
+      return `
+        <div class="packtisch-weigh-row">
+          <div>
+            <strong>${escapeHtml(item.product)}</strong>
+            <div class="customer-order-meta">${escapeHtml([item.pieces > 0 ? `${item.pieces} Stück` : '', item.cutLabel, item.isTk ? 'TK' : ''].filter(Boolean).join(' · '))}</div>
+          </div>
+          <div class="packtisch-line-price">${escapeHtml(formatMoneyValue(item.estimatedPrice || priced.lineTotal))}</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="packtisch-weigh-row" data-weigh-order="${escapeHtml(order.id)}" data-weigh-line="${index}">
+        <div>
+          <label for="weigh-${escapeHtml(order.id)}-${index}">${escapeHtml(item.product)} – Waage (g)</label>
+          <input type="text" inputmode="decimal" id="weigh-${escapeHtml(order.id)}-${index}"
+            data-actual-weight-order="${escapeHtml(order.id)}" data-actual-weight-line="${index}"
+            data-price-per-kg="${escapeHtml(String(item.pricePerKg || 0))}"
+            value="${escapeHtml(formatGramsInput(grams))}"
+            placeholder="z. B. 485" aria-label="Waagengewicht in Gramm für ${escapeHtml(item.product)}">
+          <div class="customer-order-meta">${escapeHtml([item.cutLabel, item.isTk ? 'TK' : '', item.pricePerKg ? `${formatMoneyValue(item.pricePerKg)}/kg` : ''].filter(Boolean).join(' · '))}</div>
+        </div>
+        <div class="packtisch-line-price" data-weigh-price="${escapeHtml(order.id)}-${index}">${escapeHtml(formatMoneyValue(priced.lineTotal))}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderPacktischDetail(order) {
+  const phone = customerPhone(order);
+  const notes = butcherNotes(order);
+  const vacuum = vacuumWishesSummary(order);
+  const ref = orderRefLabel(order);
+  return `
+    <div class="packtisch-detail">
+      <p class="customer-order-meta"><strong>${escapeHtml(ref)}</strong> · ${escapeHtml(phone || 'Keine Telefonnummer')}</p>
+      ${notes ? `<p class="customer-order-wishes"><strong>Notiz für die Metzgerei:</strong> ${escapeHtml(notes)}</p>` : ''}
+      ${vacuum.length ? `<p class="customer-order-meta"><strong>Vakuum:</strong> ${escapeHtml(vacuum.join(' · '))}</p>` : ''}
+      ${renderPacktischWeighFields(order)}
+      <div class="packtisch-actions">
+        <button type="button" class="btn btn-secondary btn-compact" data-order-action="save_weights" data-order-id="${escapeHtml(order.id)}">Waagengewichte speichern</button>
+        <button type="button" class="btn btn-secondary btn-compact" data-order-action="avery" data-order-id="${escapeHtml(order.id)}">Avery-Etikett / Kistenbon drucken</button>
+        <button type="button" class="btn btn-secondary btn-compact" data-order-action="delivery_note" data-order-id="${escapeHtml(order.id)}">Lieferschein</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderOrderCard(order, { adminView = false } = {}) {
-  const status = order.status || 'open';
+  const status = orderStatus(order);
   const statusLabel = ORDER_STATUS_LABELS[status] || status;
-  const acceptedAt = formatDateTimeDe(order.acceptedAt);
-  const readyLabel = formatReadyAt(order.readyAt);
-  const contact = [order.callbackPhone, order.customerEmail].filter(Boolean).join(' · ');
+  const acceptedAt = formatDateTimeDe(order.acceptedAt || order.createdAt);
+  const readyLabel = formatReadyAt(order.readyAt || order.pickupDate);
+  const name = customerDisplayName(order);
+  const contact = [customerPhone(order), order.customerEmail || order.customer?.email].filter(Boolean).join(' · ');
   const isUpdatingThisOrder = orderState.statusUpdateOrderIds.has(order.id);
+  const channel = orderPickupChannelLabel(order);
+  const slot = orderPickupSlotLabel(order);
+  const ref = orderRefLabel(order);
+  const expanded = orderState.expandedPackOrderId === order.id;
 
   let actions = '';
-  if (status === 'open') {
+  if (status === 'open' || status === 'pending' || status === 'eingegangen') {
     actions = `
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Bereit</button>
+      <button type="button" class="btn btn-primary btn-compact" data-order-action="in_progress" data-order-id="${escapeHtml(order.id)}">In Bearbeitung</button>
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
+    `;
+  } else if (status === 'in_progress') {
+    actions = `
+      <button type="button" class="btn btn-primary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
     `;
   } else if (status === 'ready') {
     actions = `
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt...' : 'Als abgeholt markieren'}</button>
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="delivery_note" data-order-id="${escapeHtml(order.id)}">Lieferschein drucken</button>
+      <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt…' : 'Als abgeholt markieren'}</button>
     `;
   }
 
-  const metaExtra = adminView && status !== 'open'
-    ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>`
-    : '';
-
   return `
-    <article class="customer-order-card customer-order-card--${escapeHtml(status)}" data-order-id="${escapeHtml(order.id)}">
-      <header class="customer-order-card-head">
-        <strong>${escapeHtml(order.customerName)}</strong>
-        <span class="customer-order-badge">${escapeHtml(statusLabel)}</span>
+    <article class="customer-order-card packtisch-card packtisch-card--${escapeHtml(status)} customer-order-card--${escapeHtml(status)}" data-order-id="${escapeHtml(order.id)}">
+      <header class="customer-order-card-head packtisch-card-head">
+        <div>
+          <strong>${escapeHtml(name)}</strong>
+          <div class="customer-order-meta">${escapeHtml(ref)} · ${escapeHtml(channel)}${slot ? ` · ${escapeHtml(slot)}` : ''}</div>
+        </div>
+        <span class="customer-order-badge packtisch-badge">${escapeHtml(statusLabel)}</span>
       </header>
-      <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || '–')}</p>
-      <p class="customer-order-meta">Bereit: <strong>${escapeHtml(readyLabel)}</strong></p>
+      <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || 'Portal')}</p>
+      <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items)}</ul>
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
-      ${order.additionalWishes ? `<p class="customer-order-wishes">${escapeHtml(order.additionalWishes)}</p>` : ''}
-      ${metaExtra}
-      ${actions ? `<div class="customer-order-actions">${actions}</div>` : ''}
+      <div class="packtisch-actions">
+        <button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>
+        ${actions}
+      </div>
+      ${expanded ? renderPacktischDetail(order) : ''}
+      ${adminView && status !== 'open' ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>` : ''}
     </article>
   `;
 }
@@ -1004,9 +1133,9 @@ function renderOpenOrders() {
   const empty = document.getElementById('customer-order-empty');
   if (!list) return;
 
-  const open = orderState.allOrders
-    .filter((o) => OPEN_ORDER_STATUSES.has(o.status || 'open') || o.status === 'ready')
-    .sort((a, b) => toEpochMs(a.readyAt) - toEpochMs(b.readyAt));
+  const open = sortOrdersForPacktisch(
+    orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o))),
+  );
 
   if (open.length === 0) {
     list.innerHTML = '';
@@ -1022,13 +1151,13 @@ function renderAdminOrders() {
   if (!list) return;
 
   const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
-  const visible = orderState.allOrders
-    .filter((o) => {
-      if (OPEN_ORDER_STATUSES.has(o.status || 'open') || o.status === 'ready') return true;
-      const ts = toEpochMs(o.pickedUpAt || o.readyMarkedAt || o.acceptedAt);
+  const visible = sortOrdersForPacktisch(
+    orderState.allOrders.filter((o) => {
+      if (ACTIVE_ORDER_STATUSES.has(orderStatus(o))) return true;
+      const ts = toEpochMs(o.pickedUpAt || o.readyMarkedAt || o.acceptedAt || o.createdAt);
       return ts >= cutoff;
-    })
-    .sort((a, b) => toEpochMs(b.acceptedAt) - toEpochMs(a.acceptedAt));
+    }),
+  );
 
   if (visible.length === 0) {
     list.innerHTML = '<p class="admin-leitstand-hint">Keine Bestellungen im Zeitraum.</p>';
@@ -1209,7 +1338,16 @@ async function updateOrderStatus(orderId, nextStatus) {
   const firebase = orderState.getFirebase();
   const payload = { status: nextStatus };
 
-  if (nextStatus === 'ready') {
+  if (nextStatus === 'in_progress') {
+    payload.inProgressBy = employee;
+    payload.inProgressAt = firebase?.firestore?.FieldValue
+      ? firebase.firestore.FieldValue.serverTimestamp()
+      : new Date().toISOString();
+  } else if (nextStatus === 'ready') {
+    if (!firebase?.firestore?.FieldValue) {
+      window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
+      return;
+    }
     payload.readyMarkedBy = employee;
     payload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
   } else if (nextStatus === 'picked_up') {
@@ -1253,6 +1391,7 @@ async function updateOrderStatus(orderId, nextStatus) {
 
   try {
     orderState.statusUpdateInFlight = true;
+    orderState.statusUpdateOrderIds.add(orderId);
     const result = await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
@@ -1260,6 +1399,10 @@ async function updateOrderStatus(orderId, nextStatus) {
       onlineData: payload,
       queueData: (() => {
         const q = { status: nextStatus };
+        if (nextStatus === 'in_progress') {
+          q.inProgressBy = employee;
+          q.inProgressAt = new Date().toISOString();
+        }
         if (nextStatus === 'ready') {
           q.readyMarkedBy = employee;
           q.readyMarkedAt = new Date().toISOString();
@@ -1270,9 +1413,30 @@ async function updateOrderStatus(orderId, nextStatus) {
         }
         return q;
       })(),
-      offlineMessage: 'Status wird synchronisiert.',
+      offlineMessage: 'Status wird synchronisiert, sobald WLAN verfügbar ist.',
     });
-    const labels = { ready: 'als bereit markiert', picked_up: 'als abgeholt markiert', cancelled: 'storniert' };
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      const next = { ...entry, status: nextStatus };
+      if (nextStatus === 'in_progress') {
+        next.inProgressBy = employee;
+        next.inProgressAt = new Date().toISOString();
+      }
+      if (nextStatus === 'ready') {
+        next.readyMarkedBy = employee;
+        next.readyMarkedAt = new Date().toISOString();
+      }
+      return next;
+    });
+    renderOpenOrders();
+    renderAdminOrders();
+    renderZuschnittliste();
+    const labels = {
+      in_progress: 'auf „In Bearbeitung“ gesetzt',
+      ready: 'als Abholbereit markiert – Benachrichtigung geht raus',
+      picked_up: 'als abgeholt markiert',
+      cancelled: 'storniert',
+    };
     window.showToast?.(
       result === 'queued'
         ? 'Status wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
@@ -1283,8 +1447,328 @@ async function updateOrderStatus(orderId, nextStatus) {
     console.error('[CustomerOrders] Status-Update fehlgeschlagen:', err);
     window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
   } finally {
+    orderState.statusUpdateOrderIds.delete(orderId);
     orderState.statusUpdateInFlight = false;
+    renderOpenOrders();
+    renderAdminOrders();
   }
+}
+
+function formatKgLabel(kg) {
+  return `${formatQuantityValue(kg)} kg`;
+}
+
+function renderZuschnittlisteBody(agg) {
+  const sections = [];
+  sections.push(`
+    <section class="zuschnittliste-section">
+      <h3>Hackfleisch (Wolf)</h3>
+      ${agg.hackfleisch.lines === 0
+    ? '<p class="zuschnittliste-empty">Kein Hackfleisch für diesen Tag.</p>'
+    : `<div class="zuschnittliste-grid">
+          <div class="zuschnittliste-row"><span>Frischpackung (Beutel)</span><strong>${escapeHtml(formatKgLabel(agg.hackfleisch.frischpackungKg))}</strong></div>
+          <div class="zuschnittliste-row"><span>Lose / VB</span><strong>${escapeHtml(formatKgLabel(agg.hackfleisch.loseKg))}</strong></div>
+          <div class="zuschnittliste-row"><span>Gesamt</span><strong>${escapeHtml(formatKgLabel(agg.hackfleisch.totalKg))}</strong></div>
+          ${agg.hackfleisch.tkPortions
+    ? `<div class="zuschnittliste-row"><span>davon TK-Portionen</span><strong><span class="zuschnittliste-tk">TK</span> ${agg.hackfleisch.tkPortions}</strong></div>`
+    : ''}
+        </div>`}
+    </section>
+  `);
+
+  sections.push(`
+    <section class="zuschnittliste-section">
+      <h3>Stückware / Steaks (nach Schnittstärke)</h3>
+      ${!agg.steaks.length
+    ? '<p class="zuschnittliste-empty">Keine Steaks/Stückware für diesen Tag.</p>'
+    : `<div class="zuschnittliste-grid">${agg.steaks.map((row) => `
+          <div class="zuschnittliste-row">
+            <span>${escapeHtml(row.product)} · ${escapeHtml(row.label)}${row.tkPieces ? ' <span class="zuschnittliste-tk">TK</span>' : ''}</span>
+            <strong>${escapeHtml(formatQuantityValue(row.pieces))} Stück${row.tkPieces ? ` (davon ${row.tkPieces} TK)` : ''}</strong>
+          </div>`).join('')}</div>`}
+    </section>
+  `);
+
+  sections.push(`
+    <section class="zuschnittliste-section">
+      <h3>Rouladen</h3>
+      ${!agg.rouladen.length
+    ? '<p class="zuschnittliste-empty">Keine Rouladen für diesen Tag.</p>'
+    : `<div class="zuschnittliste-grid">${agg.rouladen.map((row) => `
+          <div class="zuschnittliste-row">
+            <span>${escapeHtml(row.label)}${row.tkPieces ? ' <span class="zuschnittliste-tk">TK</span>' : ''}</span>
+            <strong>${escapeHtml(formatQuantityValue(row.pieces))} Stück${row.tkPieces ? ` (davon ${row.tkPieces} TK)` : ''}</strong>
+          </div>`).join('')}</div>`}
+    </section>
+  `);
+
+  if (agg.other.length) {
+    sections.push(`
+      <section class="zuschnittliste-section">
+        <h3>Weitere Positionen</h3>
+        <div class="zuschnittliste-grid">${agg.other.map((row) => `
+          <div class="zuschnittliste-row">
+            <span>${escapeHtml(row.product)} · ${escapeHtml(row.label)}${row.tkPieces ? ' <span class="zuschnittliste-tk">TK</span>' : ''}</span>
+            <strong>${row.kg > 0 ? escapeHtml(formatKgLabel(row.kg)) : `${escapeHtml(formatQuantityValue(row.pieces))} Stück`}</strong>
+          </div>`).join('')}</div>
+      </section>
+    `);
+  }
+
+  if (agg.tkPortionTotal > 0) {
+    sections.push(`
+      <section class="zuschnittliste-section">
+        <h3>TK-Kennzeichnung</h3>
+        <div class="zuschnittliste-row">
+          <span>Positionen mit TK-Wunsch</span>
+          <strong><span class="zuschnittliste-tk">TK</span> ${agg.tkPortionTotal}</strong>
+        </div>
+      </section>
+    `);
+  }
+
+  return sections.join('');
+}
+
+function buildZuschnittPrintHtml(agg) {
+  const dayLabel = (() => {
+    const parsed = Date.parse(`${agg.dayIso}T12:00:00`);
+    if (!Number.isFinite(parsed)) return agg.dayIso;
+    return new Date(parsed).toLocaleDateString('de-DE', {
+      weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+  })();
+  return `
+    <article class="zuschnittliste-print-sheet">
+      <h1>Sammel-Zuschnittliste</h1>
+      <p>Abholtag: <strong>${escapeHtml(dayLabel)}</strong> · ${agg.orderCount} Bestellung${agg.orderCount === 1 ? '' : 'en'}</p>
+      <h2>Hackfleisch</h2>
+      <table>
+        <thead><tr><th>Art</th><th>Menge</th></tr></thead>
+        <tbody>
+          <tr><td>Frischpackung (Beutel)</td><td>${escapeHtml(formatKgLabel(agg.hackfleisch.frischpackungKg))}</td></tr>
+          <tr><td>Lose / VB</td><td>${escapeHtml(formatKgLabel(agg.hackfleisch.loseKg))}</td></tr>
+          <tr><td><strong>Gesamt</strong></td><td><strong>${escapeHtml(formatKgLabel(agg.hackfleisch.totalKg))}</strong></td></tr>
+          ${agg.hackfleisch.tkPortions ? `<tr><td>davon TK</td><td class="tk-mark">${agg.hackfleisch.tkPortions} Portionen</td></tr>` : ''}
+        </tbody>
+      </table>
+      <h2>Stückware / Steaks</h2>
+      <table>
+        <thead><tr><th>Artikel / Schnitt</th><th>Stück</th></tr></thead>
+        <tbody>
+          ${agg.steaks.length
+    ? agg.steaks.map((row) => `<tr><td>${escapeHtml(row.product)} – ${escapeHtml(row.label)}${row.tkPieces ? ' <span class="tk-mark">TK</span>' : ''}</td><td>${escapeHtml(formatQuantityValue(row.pieces))}${row.tkPieces ? ` (TK ${row.tkPieces})` : ''}</td></tr>`).join('')
+    : '<tr><td colspan="2">–</td></tr>'}
+        </tbody>
+      </table>
+      <h2>Rouladen</h2>
+      <table>
+        <thead><tr><th>Schnitt</th><th>Stück</th></tr></thead>
+        <tbody>
+          ${agg.rouladen.length
+    ? agg.rouladen.map((row) => `<tr><td>${escapeHtml(row.label)}${row.tkPieces ? ' <span class="tk-mark">TK</span>' : ''}</td><td>${escapeHtml(formatQuantityValue(row.pieces))}</td></tr>`).join('')
+    : '<tr><td colspan="2">–</td></tr>'}
+        </tbody>
+      </table>
+      ${agg.other.length ? `
+        <h2>Weitere</h2>
+        <table>
+          <thead><tr><th>Artikel</th><th>Menge</th></tr></thead>
+          <tbody>
+            ${agg.other.map((row) => `<tr><td>${escapeHtml(row.product)} – ${escapeHtml(row.label)}</td><td>${row.kg > 0 ? escapeHtml(formatKgLabel(row.kg)) : `${escapeHtml(formatQuantityValue(row.pieces))} Stück`}</td></tr>`).join('')}
+          </tbody>
+        </table>` : ''}
+      <p><strong>TK gesamt:</strong> ${agg.tkPortionTotal} Position${agg.tkPortionTotal === 1 ? '' : 'en'}</p>
+    </article>
+  `;
+}
+
+function renderZuschnittliste() {
+  const body = document.getElementById('zuschnittliste-body');
+  const summary = document.getElementById('zuschnittliste-summary');
+  if (!body) return;
+  const day = ensureZuschnittDay();
+  const agg = generateZuschnittAggregation(orderState.allOrders, day);
+  document.querySelectorAll('[data-zuschnitt-day]').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.zuschnittDay === day
+      || (btn.dataset.zuschnittDay === 'custom' && !['fri', 'sat'].includes(btn.dataset.zuschnittPreset || '')));
+  });
+  document.querySelectorAll('[data-zuschnitt-preset]').forEach((btn) => {
+    const preset = btn.dataset.zuschnittPreset;
+    let target = day;
+    if (preset === 'fri') target = nextWeekdayIso(5);
+    if (preset === 'sat') target = nextWeekdayIso(6);
+    btn.classList.toggle('is-active', target === day && preset !== 'date');
+  });
+  const dateInput = document.getElementById('zuschnittliste-date');
+  if (dateInput && readGermanDateField(dateInput) !== day) {
+    setGermanDateField(dateInput, day);
+  }
+  if (summary) {
+    summary.textContent = agg.orderCount === 0
+      ? 'Für diesen Abholtag liegen keine offenen Zuschnitte vor.'
+      : `${agg.orderCount} Bestellung${agg.orderCount === 1 ? '' : 'en'} · ${formatKgLabel(agg.hackfleisch.totalKg)} Hack · ${agg.tkPortionTotal}× TK`;
+  }
+  body.innerHTML = renderZuschnittlisteBody(agg);
+  const printRoot = document.getElementById('zuschnittliste-print-root');
+  if (printRoot) printRoot.innerHTML = buildZuschnittPrintHtml(agg);
+}
+
+function printZuschnittliste() {
+  renderZuschnittliste();
+  document.body.classList.add('print-zuschnittliste');
+  document.body.classList.remove('print-avery');
+  const cleanup = () => {
+    document.body.classList.remove('print-zuschnittliste');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 1000);
+}
+
+function setZuschnittDayFromPreset(preset) {
+  if (preset === 'fri') orderState.zuschnittDayIso = nextWeekdayIso(5);
+  else if (preset === 'sat') orderState.zuschnittDayIso = nextWeekdayIso(6);
+  else if (preset === 'today') orderState.zuschnittDayIso = todayIsoLocal();
+  renderZuschnittliste();
+}
+
+function setOrdersView(view) {
+  orderState.ordersView = view;
+  const views = {
+    aufnahme: document.getElementById('orders-view-aufnahme'),
+    zuschnitt: document.getElementById('orders-view-zuschnitt'),
+    packtisch: document.getElementById('orders-view-packtisch'),
+  };
+  Object.entries(views).forEach(([key, el]) => {
+    if (!el) return;
+    const active = key === view;
+    el.classList.toggle('hidden', !active);
+    el.hidden = !active;
+  });
+  document.querySelectorAll('[data-orders-view]').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.ordersView === view);
+    btn.setAttribute('aria-selected', btn.dataset.ordersView === view ? 'true' : 'false');
+  });
+  if (view === 'zuschnitt') renderZuschnittliste();
+  if (view === 'packtisch') renderOpenOrders();
+}
+
+function openAveryLabel(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const modal = document.getElementById('avery-label-modal');
+  const body = document.getElementById('avery-label-print-area');
+  if (!order || !modal || !body) {
+    window.showToast?.('Etikett konnte nicht geöffnet werden.', 'error');
+    return;
+  }
+  const price = calculateFinalOrderPrice(order);
+  const itemsHtml = price.lines.map((line) => `
+    <li>${escapeHtml(line.product)} · ${escapeHtml(line.actualLabel || line.orderedLabel || '–')}</li>
+  `).join('');
+  body.innerHTML = `
+    <div class="avery-label-sheet">
+      <div class="avery-label-ref">${escapeHtml(orderRefLabel(order))}</div>
+      <div class="avery-label-name">${escapeHtml(customerDisplayName(order))}</div>
+      <div class="avery-label-meta">${escapeHtml(orderPickupChannelLabel(order))} · ${escapeHtml(formatReadyAt(order.readyAt || order.pickupDate))}</div>
+      <ul class="avery-label-items">${itemsHtml || '<li>–</li>'}</ul>
+      <div class="avery-label-total">Waage / Endpreis: ${escapeHtml(formatMoneyValue(price.total))}</div>
+    </div>
+  `;
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeAveryLabel() {
+  const modal = document.getElementById('avery-label-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+  document.body.classList.remove('print-avery');
+}
+
+function printAveryLabel() {
+  document.body.classList.add('print-avery');
+  document.body.classList.remove('print-zuschnittliste');
+  const cleanup = () => {
+    document.body.classList.remove('print-avery');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 1000);
+}
+
+async function saveOrderWeights(orderId) {
+  if (orderState.weighSaveInFlight) return;
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  const items = (Array.isArray(order.items) ? order.items : []).map((raw, index) => {
+    const key = weighDraftKey(orderId, index);
+    const draft = orderState.weighDraftByKey.get(key);
+    const inputEl = document.querySelector(`[data-actual-weight-order="${CSS.escape(orderId)}"][data-actual-weight-line="${index}"]`);
+    const rawVal = draft !== undefined ? draft : (inputEl?.value ?? '');
+    const grams = parseQuantityValue(rawVal);
+    if (!(grams > 0)) return raw;
+    const priced = calculateLinePriceFromWeight(raw, grams);
+    return {
+      ...raw,
+      actualWeightGrams: Math.round(grams),
+      actualQuantity: formatQuantityValue(priced.weightKg),
+      actualQuantityUnit: 'kg',
+      actualQuantityRecordedAt: new Date().toISOString(),
+    };
+  });
+
+  try {
+    orderState.weighSaveInFlight = true;
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData: { items },
+      queueData: { items },
+      offlineMessage: 'Waagengewichte werden synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => (
+      entry.id === orderId ? { ...entry, items } : entry
+    ));
+    renderOpenOrders();
+    renderAdminOrders();
+    window.showToast?.(
+      result === 'queued'
+        ? 'Gewichte vorgemerkt – wir synchronisieren, sobald WLAN da ist.'
+        : 'Waagengewichte gespeichert. Endpreis ist aktualisiert.',
+      result === 'queued' ? 'warning' : 'success',
+    );
+  } catch (err) {
+    console.error('[CustomerOrders] Waagengewicht speichern fehlgeschlagen:', err);
+    window.showToast?.('Gewichte konnten nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+  } finally {
+    orderState.weighSaveInFlight = false;
+  }
+}
+
+function handleWeighInput(event) {
+  const input = event.target.closest('[data-actual-weight-order]');
+  if (!input) return;
+  const orderId = input.dataset.actualWeightOrder;
+  const line = Number(input.dataset.actualWeightLine);
+  if (!orderId || !Number.isInteger(line)) return;
+  orderState.weighDraftByKey.set(weighDraftKey(orderId, line), input.value.trim());
+  const grams = parseQuantityValue(input.value);
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const item = order?.items?.[line];
+  if (!item) return;
+  const priced = calculateLinePriceFromWeight(item, grams > 0 ? grams : null);
+  const priceEl = document.querySelector(`[data-weigh-price="${CSS.escape(orderId)}-${line}"]`);
+  if (priceEl) priceEl.textContent = formatMoneyValue(priced.lineTotal);
 }
 
 function bindOrderForm() {
@@ -1350,23 +1834,37 @@ function bindOrderForm() {
 
 function bindOrderListActions() {
   const handler = (event) => {
+    if (event.target.closest('[data-actual-weight-order]')) return;
     const btn = event.target.closest('[data-order-action]');
     if (!btn) return;
     const orderId = btn.dataset.orderId;
     const action = btn.dataset.orderAction;
     if (!orderId || !action) return;
+    if (action === 'toggle_detail') {
+      orderState.expandedPackOrderId = orderState.expandedPackOrderId === orderId ? '' : orderId;
+      renderOpenOrders();
+      renderAdminOrders();
+      return;
+    }
     if (action === 'cancel') {
       if (!window.confirm('Bestellung wirklich stornieren?')) return;
       updateOrderStatus(orderId, 'cancelled');
       return;
     }
+    if (action === 'in_progress') updateOrderStatus(orderId, 'in_progress');
     if (action === 'ready') updateOrderStatus(orderId, 'ready');
     if (action === 'picked_up') updateOrderStatus(orderId, 'picked_up');
     if (action === 'delivery_note') openDeliveryNote(orderId);
+    if (action === 'avery') openAveryLabel(orderId);
+    if (action === 'save_weights') saveOrderWeights(orderId);
   };
+
+  const inputHandler = (event) => handleWeighInput(event);
 
   document.getElementById('customer-order-list')?.addEventListener('click', handler);
   document.getElementById('admin-customer-order-list')?.addEventListener('click', handler);
+  document.getElementById('customer-order-list')?.addEventListener('input', inputHandler);
+  document.getElementById('admin-customer-order-list')?.addEventListener('input', inputHandler);
 }
 
 function bindDeliveryNoteActions() {
@@ -1377,6 +1875,48 @@ function bindDeliveryNoteActions() {
   document.getElementById('delivery-note-print-btn')?.addEventListener('click', () => window.print());
   modal.addEventListener('click', (event) => {
     if (event.target === modal) closeDeliveryNote();
+  });
+}
+
+function bindAveryLabelActions() {
+  const modal = document.getElementById('avery-label-modal');
+  if (!modal || modal.dataset.averyBound === '1') return;
+  modal.dataset.averyBound = '1';
+  document.getElementById('avery-label-close-btn')?.addEventListener('click', closeAveryLabel);
+  document.getElementById('avery-label-print-btn')?.addEventListener('click', printAveryLabel);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeAveryLabel();
+  });
+}
+
+function bindOrdersViewSwitch() {
+  const root = document.getElementById('team-panel-orders');
+  if (!root || root.dataset.ordersViewBound === '1') return;
+  root.dataset.ordersViewBound = '1';
+
+  root.addEventListener('click', (event) => {
+    const viewBtn = event.target.closest('[data-orders-view]');
+    if (viewBtn?.dataset.ordersView) {
+      setOrdersView(viewBtn.dataset.ordersView);
+      return;
+    }
+    const presetBtn = event.target.closest('[data-zuschnitt-preset]');
+    if (presetBtn?.dataset.zuschnittPreset) {
+      setZuschnittDayFromPreset(presetBtn.dataset.zuschnittPreset);
+      return;
+    }
+    if (event.target.closest('#zuschnittliste-print-btn')) {
+      printZuschnittliste();
+    }
+  });
+
+  const dateInput = document.getElementById('zuschnittliste-date');
+  dateInput?.addEventListener('change', () => {
+    const iso = readGermanDateField(dateInput);
+    if (iso) {
+      orderState.zuschnittDayIso = iso;
+      renderZuschnittliste();
+    }
   });
 }
 
@@ -1450,6 +1990,7 @@ function subscribeOrders() {
       renderOpenOrders();
       renderAdminOrders();
       renderProductionTasks();
+      renderZuschnittliste();
       if (document.getElementById('sammel-pickliste-modal')?.classList.contains('is-open')) {
         renderSammelPickliste();
       }
@@ -1463,19 +2004,34 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
   orderState.tenantId = options.tenantId || '';
   orderState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : orderState.getFirebase;
 
+  ensureZuschnittDay();
   bindOrderForm();
   bindOrderListActions();
   bindProductionTaskActions();
   bindDeliveryNoteActions();
+  bindAveryLabelActions();
+  bindOrdersViewSwitch();
   bindSammelPicklisteActions();
+  setOrdersView(orderState.ordersView || 'packtisch');
   subscribeOrders();
   initGermanDateInputs(document);
 }
 
 export function activateCustomerOrdersTab() {
   ensureDefaultOrderLine();
+  ensureZuschnittDay();
+  setOrdersView(orderState.ordersView || 'packtisch');
   renderOpenOrders();
   renderAdminOrders();
   renderProductionTasks();
+  renderZuschnittliste();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
 }
+
+export {
+  generateZuschnittAggregation,
+  normalizeOrderItem,
+  calculateLinePriceFromWeight,
+  ORDER_STATUS_LABELS,
+  nextStatusInPipeline,
+};
