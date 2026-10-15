@@ -11,7 +11,7 @@
  * @property {string} id
  * @property {string} label
  * @property {string} [hint]
- * @property {number} [minWeightKgPerPiece] Mindestgewicht je Stück (z. B. Männercut)
+ * @property {number} [minWeightKgPerPiece] Mindestgewicht je Stück (z. B. Extra dick 4 cm)
  * @property {number} [minTotalWeightKg] Mindest-Gesamtgewicht der Position
  * @property {number} [suggestedWeightKg] Vorschlagswert für das Gewichts-Feld
  */
@@ -144,7 +144,7 @@ const SLICE_CUTS = [
   { id: 'rustikal', label: 'Rustikal' },
 ];
 
-/** Rumpsteak (Art. 502) – Männercut mind. 550 g */
+/** Rumpsteak (Art. 502) – Extra dick mind. 550 g */
 const RUMPSTEAK_CUTS = [
   {
     id: 'klassisch',
@@ -154,7 +154,7 @@ const RUMPSTEAK_CUTS = [
   },
   {
     id: '4cm',
-    label: 'Männercut 4 cm',
+    label: 'Extra dick (ca. 4 cm)',
     minWeightKgPerPiece: 0.55,
     hint: 'mind. ca. 550 g je Steak – sonst zu schmal für 4 cm',
   },
@@ -176,7 +176,7 @@ const ENTRECOTE_CUTS = [
   },
   {
     id: '4cm',
-    label: 'Männercut 4 cm',
+    label: 'Extra dick (ca. 4 cm)',
     minWeightKgPerPiece: 0.55,
     hint: 'mind. ca. 550 g je Steak',
   },
@@ -190,7 +190,7 @@ const ENTRECOTE_CUTS = [
 
 /**
  * Filet am Stück (Art. 501) – nur Ganz/Halb.
- * Kein Steak-/Männercut: sonst bleiben Kopf und Spitze unverkäuflich.
+ * Kein Steak-/Extra-dick-Zuschnitt: sonst bleiben Kopf und Spitze unverkäuflich.
  */
 const FILET_STUECK_CUTS = [
   {
@@ -209,7 +209,7 @@ const FILET_STUECK_CUTS = [
   },
 ];
 
-/** Filet-Steaks / Tournedos Mittelstück (Art. 500) – exklusiv Männercut & Steaks */
+/** Filet-Steaks / Tournedos Mittelstück (Art. 500) – Steaks & Extra dick nur hier */
 const FILET_TOURNEDOS_CUTS = [
   {
     id: 'klassisch',
@@ -218,8 +218,8 @@ const FILET_TOURNEDOS_CUTS = [
     hint: 'ab ca. 180 g je Stück',
   },
   {
-    id: 'maennercut',
-    label: 'Männercut 4 cm (~280–320 g)',
+    id: 'extra-dick',
+    label: 'Extra dick (ca. 4 cm) (~280–320 g)',
     minWeightKgPerPiece: 0.28,
     hint: 'mind. ca. 280 g je Stück – nur aus dem Mittelstück',
   },
@@ -241,7 +241,7 @@ const STEAK_CUTS = [
   },
   {
     id: '4cm',
-    label: 'Männercut 4 cm',
+    label: 'Extra dick (ca. 4 cm)',
     minWeightKgPerPiece: 0.55,
     hint: 'mind. ca. 550 g je Steak – sonst zu schmal für 4 cm',
   },
@@ -253,10 +253,23 @@ const STEAK_CUTS = [
   },
 ];
 
+/** Rouladen (Art. 505) – Aufschnittmaschine; Breite kommt von der Oberschale */
 const ROULADEN_CUTS = [
-  { id: 'duenn', label: 'Klassisch dünn geschnitten (ca. 180–200 g)' },
-  { id: 'breit', label: 'Breiter Schnitt (für viel Füllung)' },
+  { id: 'stufe-45', label: 'Klassisch (Stufe 4,5)' },
+  { id: 'dicker', label: 'Dicker geschnitten' },
 ];
+
+/** Braten immer am Stück – keine Scheiben-Option */
+const BRATEN_CUTS = [
+  { id: 'am-stueck', label: 'Am Stück' },
+];
+
+/** Zustand Frisch / TK in der Bestellmaske */
+export const PRODUCT_STATE_OPTIONS = Object.freeze([
+  Object.freeze({ id: 'frisch', label: 'Frisch (Standard)' }),
+  Object.freeze({ id: 'tk', label: 'Tiefgekühlt (TK) gewünscht' }),
+]);
+export const PRODUCT_STATE_HINT = 'Einige Cuts (besonders mit Knochen) sind oft nur TK verfügbar.';
 
 /** BioOffice-Hackfleisch-Staffel (Art. 503 / 5031 / 5033) – Wolf erst ab 1,5 kg wirtschaftlich */
 export const HACKFLEISCH_PRODUCT_ID = 'gal-hack';
@@ -409,7 +422,7 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
       }),
       pieceProduct({
         id: 'gal-filet-tournedos', categoryId: 'bio-galloway', artNr: '500', wg: 460,
-        name: 'Filet-Steaks / Tournedos', subtitle: 'Mittelstück – Steaks & Männercut',
+        name: 'Filet-Steaks / Tournedos', subtitle: 'Mittelstück – Steaks & Extra dick',
         pricePerKg: 139.99, typicalWeightKg: 0.2,
         defaultPieces: 2, cutOptions: FILET_TOURNEDOS_CUTS, allowWeight: true, defaultWeightKg: 0.4,
       }),
@@ -451,43 +464,28 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
       }),
       kgProduct({
         id: 'gal-schmorbraten', categoryId: 'bio-galloway', artNr: '506', wg: 460,
-        name: 'Schmorbraten Schulter', pricePerKg: 32.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
-        cutOptions: [
-          { id: 'am-stueck', label: 'Am Stück gebunden' },
-          { id: 'scheiben', label: 'In Scheiben' },
-        ],
+        name: 'Schmorbraten Schulter', subtitle: 'Immer am Stück', pricePerKg: 32.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
+        cutOptions: BRATEN_CUTS,
       }),
       kgProduct({
         id: 'gal-braten-keule', categoryId: 'bio-galloway', artNr: '507', wg: 460,
-        name: 'Braten aus der Keule', subtitle: 'Keulenbraten', pricePerKg: 34.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
-        cutOptions: [
-          { id: 'am-stueck', label: 'Am Stück' },
-          { id: 'scheiben', label: 'In Scheiben' },
-        ],
+        name: 'Braten aus der Keule', subtitle: 'Immer am Stück', pricePerKg: 34.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
+        cutOptions: BRATEN_CUTS,
       }),
       kgProduct({
         id: 'gal-tafelspitz', categoryId: 'bio-galloway', artNr: '508', wg: 460,
-        name: 'Tafelspitz', pricePerKg: 36.99, typicalWeightKg: 1, defaultWeightKg: 1,
-        cutOptions: [
-          { id: 'am-stueck', label: 'Am Stück' },
-          { id: 'scheiben', label: 'In Scheiben' },
-        ],
+        name: 'Tafelspitz', subtitle: 'Immer am Stück', pricePerKg: 36.99, typicalWeightKg: 1, defaultWeightKg: 1,
+        cutOptions: BRATEN_CUTS,
       }),
       kgProduct({
         id: 'gal-buergermeister', categoryId: 'bio-galloway', artNr: '509', wg: 460,
-        name: 'Bürgermeisterstück / Tri-Tip', pricePerKg: 38.99, typicalWeightKg: 0.8, defaultWeightKg: 0.8,
-        cutOptions: [
-          { id: 'am-stueck', label: 'Am Stück' },
-          { id: 'steaks', label: 'Als Steaks' },
-        ],
+        name: 'Bürgermeisterstück / Tri-Tip', subtitle: 'Immer am Stück', pricePerKg: 38.99, typicalWeightKg: 0.8, defaultWeightKg: 0.8,
+        cutOptions: BRATEN_CUTS,
       }),
       kgProduct({
         id: 'gal-falsches-filet', categoryId: 'bio-galloway', artNr: '510', wg: 460,
-        name: 'Falsches Filet', pricePerKg: 29.99, typicalWeightKg: 0.6, defaultWeightKg: 0.6,
-        cutOptions: [
-          { id: 'am-stueck', label: 'Am Stück' },
-          { id: 'scheiben', label: 'In Scheiben' },
-        ],
+        name: 'Falsches Filet', subtitle: 'Immer am Stück', pricePerKg: 29.99, typicalWeightKg: 0.6, defaultWeightKg: 0.6,
+        cutOptions: BRATEN_CUTS,
       }),
       pieceProduct({
         id: 'gal-hueftsteak', categoryId: 'bio-galloway', artNr: '513', wg: 460,
@@ -529,10 +527,10 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
     products: [
       pieceProduct({
         id: 'sw-schnitzel', categoryId: 'bio-schwein', artNr: '550', wg: 462,
-        name: 'Schweine-Schnitzel', subtitle: 'Oberschale', pricePerKg: 35.99, typicalWeightKg: 0.15, defaultPieces: 4,
+        name: 'Schweine-Schnitzel', subtitle: 'Oberschale · nicht plattiert (verklebt im Vakuum)',
+        pricePerKg: 35.99, typicalWeightKg: 0.15, defaultPieces: 4,
         cutOptions: [
-          { id: 'plattiert', label: 'Plattiert' },
-          { id: 'natur', label: 'Natur / unplattiert' },
+          { id: 'klassisch', label: 'Klassisch geschnitten' },
         ],
       }),
       pieceProduct({
@@ -554,8 +552,8 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
       }),
       kgProduct({
         id: 'sw-krustenbraten', categoryId: 'bio-schwein', artNr: '556', wg: 462,
-        name: 'Krustenbraten', pricePerKg: 29.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
-        cutOptions: [{ id: 'am-stueck', label: 'Am Stück mit Schwarte' }],
+        name: 'Krustenbraten', subtitle: 'Immer am Stück mit Schwarte', pricePerKg: 29.99, typicalWeightKg: 1.2, defaultWeightKg: 1.2,
+        cutOptions: BRATEN_CUTS,
       }),
     ],
   },
@@ -581,16 +579,15 @@ export const ORDER_CATALOG = /** @type {CatalogCategory[]} */ ([
       }),
       pieceProduct({
         id: 'huhn-ganz', categoryId: 'weidegefluegel', artNr: '597', wg: 465,
-        name: 'Ganzes Weidehähnchen', subtitle: '~1,5–1,8 kg', pricePerKg: 17.49, typicalWeightKg: 1.65,
-        unit: 'piece', defaultPieces: 1, cutOptions: [{ id: 'ganz', label: 'Ganz (ofenfertig)' }],
+        name: 'Ganzes Weidehähnchen', subtitle: '~1,5–1,8 kg · nur im Ganzen', pricePerKg: 17.49, typicalWeightKg: 1.65,
+        unit: 'piece', defaultPieces: 1, cutOptions: [{ id: 'ganz', label: 'Im Ganzen' }],
         vacuumOptions: VACUUM_LIGHT,
       }),
       pieceProduct({
         id: 'huhn-suppe', categoryId: 'weidegefluegel', artNr: '598', wg: 465,
         name: 'Bio-Suppenhuhn', subtitle: '~1,4 kg', pricePerKg: 13.99, typicalWeightKg: 1.4, unit: 'piece', defaultPieces: 1,
         cutOptions: [
-          { id: 'ganz', label: 'Ganz' },
-          { id: 'geteilt', label: 'Geteilt' },
+          { id: 'ganz', label: 'Im Ganzen' },
         ],
         vacuumOptions: VACUUM_LIGHT,
       }),
@@ -1329,6 +1326,8 @@ export default {
   HACKFLEISCH_PRODUCT_ID,
   HACKFLEISCH_BASE_PRICE,
   HACKFLEISCH_TIERS,
+  PRODUCT_STATE_OPTIONS,
+  PRODUCT_STATE_HINT,
   getCatalogCategories,
   getVisibleCatalog,
   getOrderableProducts,

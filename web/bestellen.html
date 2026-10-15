@@ -137,6 +137,14 @@
       display: flex;
       flex-direction: column;
     }
+    /* Warenkorb-Liste scrollt; Footer (Summe/Kasse) bleibt unten */
+    #cart-items.cart-items-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
     body.layer-scroll-lock {
       overflow: hidden;
       position: fixed;
@@ -370,6 +378,11 @@
           <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Vakuumierung</p>
           <div id="vacuum-options" class="mt-2 grid gap-2"></div>
         </div>
+        <div id="state-options-wrap">
+          <p class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Zustand</p>
+          <div id="state-options" class="mt-2 grid gap-2"></div>
+          <p id="state-options-hint" class="mt-2 text-xs leading-relaxed text-hof-muted"></p>
+        </div>
         <div>
           <label for="cut-note" class="text-xs font-semibold uppercase tracking-wide text-hof-muted">Notiz für den Metzger</label>
           <textarea id="cut-note" rows="3" class="mt-1 w-full rounded-xl border border-hof-sand px-3 py-2.5 text-sm outline-none ring-hof-leaf focus:ring-2" placeholder="Besonderer Wunsch …"></textarea>
@@ -396,7 +409,7 @@
         </div>
         <h3 id="cart-title" class="font-display mt-1 px-2 text-2xl text-hof-pine">Warenkorb</h3>
       </div>
-      <div id="cart-items" class="min-h-0 flex-1 overflow-y-auto px-5 py-4"></div>
+      <div id="cart-items" class="cart-items-list min-h-0 flex-1 overflow-y-auto px-5 py-4"></div>
       <div class="drawer-footer shrink-0 border-t border-hof-sand px-5 pt-4">
         <div class="flex items-center justify-between text-sm">
           <span class="text-hof-muted">Geschätzte Summe</span>

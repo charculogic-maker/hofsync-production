@@ -61,26 +61,32 @@ describe('orderCatalog BioOffice Hackfleisch-Staffel', () => {
 });
 
 describe('orderCatalog Filet-Margenschutz', () => {
-  it('Filet am Stück (501) hat nur Ganz/Halb – keinen Männercut', () => {
+  it('Filet am Stück (501) hat nur Ganz/Halb – kein Extra-dick-Zuschnitt', () => {
     const product = findProductById('gal-filet');
     assert.ok(product);
     assert.equal(product.artNr, '501');
     assert.equal(product.pricePerKg, 109.99);
     const ids = (product.cutOptions || []).map((c) => c.id);
     assert.deepEqual(ids, ['ganz', 'halb']);
-    assert.ok(!ids.includes('4cm') && !ids.includes('maennercut'));
+    assert.ok(!ids.includes('4cm') && !ids.includes('extra-dick') && !ids.includes('maennercut'));
+    for (const cut of product.cutOptions || []) {
+      assert.ok(!/Männercut/i.test(cut.label || ''));
+    }
   });
 
-  it('Filet Tournedos (500) bietet Klassisch und Männercut 4 cm', () => {
+  it('Filet Tournedos (500) bietet Klassisch und Extra dick (ca. 4 cm)', () => {
     const product = findProductById('gal-filet-tournedos');
     assert.ok(product);
     assert.equal(product.artNr, '500');
     assert.equal(product.pricePerKg, 139.99);
     const ids = (product.cutOptions || []).map((c) => c.id);
-    assert.deepEqual(ids, ['klassisch', 'maennercut']);
+    assert.deepEqual(ids, ['klassisch', 'extra-dick']);
+    const thick = product.cutOptions.find((c) => c.id === 'extra-dick');
+    assert.match(thick.label, /Extra dick \(ca\. 4 cm\)/);
+    assert.ok(!/Männercut/i.test(thick.label));
   });
 
-  it('Männercut am Filet am Stück ist nicht wählbar / Validierung nutzt Ganz-Mindestgewicht', () => {
+  it('Extra dick am Filet am Stück ist nicht wählbar / Validierung nutzt Ganz-Mindestgewicht', () => {
     const product = findProductById('gal-filet');
     const ok = validateCutSelection(product, { cutId: 'ganz', weightKg: 2.0 });
     assert.equal(ok.ok, true);
