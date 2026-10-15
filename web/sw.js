@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261015-rampe-mhd-fix-v2';
+const CACHE_NAME = 'charculogic-v20261015-firestore-perm-fix-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-15T15:20:00+02:00';
+const RELEASED_AT = '2026-10-15T16:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
