@@ -67,6 +67,10 @@
  * @property {number} [estimatedPiecePrice]
  * @property {number} [fixedOriginalPrice]
  * @property {string} [badge]
+ * @property {string} [artNr] BioOffice-Artikelnummer (Firestore-Doc-ID)
+ * @property {boolean} [isActive] Firestore-Alias für active
+ * @property {number|null} [promoPrice] Firestore-Aktionspreis
+ * @property {string|null} [promoText] Firestore-Aktions-Badge
  */
 
 /** localStorage-Key für Team-Overrides am Laden-iPhone */
@@ -796,6 +800,88 @@ export function hasPromoPrice(product) {
 }
 
 /**
+ * Firestore-Dokument normalisieren (Doc-ID = Artikelnummer).
+ * @param {unknown} raw
+ * @returns {{ artNr: string, isActive: boolean, promoPrice: number|null, promoText: string }}
+ */
+export function normalizeFirestoreCatalogOverride(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const artNr = String(src.artNr || src.id || '').trim();
+  const promoRaw = src.promoPrice;
+  const promoPrice = promoRaw == null || promoRaw === ''
+    ? null
+    : (Number.isFinite(Number(promoRaw)) ? Number(promoRaw) : null);
+  return {
+    artNr,
+    isActive: src.isActive !== false && src.active !== false,
+    promoPrice: promoPrice != null && promoPrice >= 0 ? promoPrice : null,
+    promoText: typeof src.promoText === 'string'
+      ? src.promoText.trim().slice(0, 48)
+      : (typeof src.badge === 'string' ? src.badge.trim().slice(0, 48) : ''),
+  };
+}
+
+/**
+ * Firestore-Override → internes CatalogOverride-Patch für ein Basisprodukt.
+ * @param {CatalogProduct} product
+ * @param {unknown} firestoreDoc
+ * @returns {CatalogOverride}
+ */
+export function firestoreOverrideToCatalogPatch(product, firestoreDoc) {
+  const doc = normalizeFirestoreCatalogOverride(firestoreDoc);
+  /** @type {CatalogOverride} */
+  const patch = {
+    active: doc.isActive,
+    artNr: doc.artNr || product?.artNr || '',
+    isActive: doc.isActive,
+    promoPrice: doc.promoPrice,
+    promoText: doc.promoText || null,
+  };
+  if (!product) return patch;
+
+  if (doc.promoPrice != null && doc.promoPrice >= 0) {
+    const type = resolvePricingType(product);
+    if (type === 'fixed') {
+      const base = Number(product.estimatedPiecePrice) || 0;
+      patch.estimatedPiecePrice = doc.promoPrice;
+      if (base > doc.promoPrice) patch.fixedOriginalPrice = base;
+    } else {
+      const base = Number(product.pricePerKg) || 0;
+      patch.pricePerKg = doc.promoPrice;
+      if (base > doc.promoPrice) patch.originalPricePerKg = base;
+    }
+    if (doc.promoText) patch.badge = doc.promoText;
+  } else if (doc.promoText) {
+    patch.badge = doc.promoText;
+  }
+  return patch;
+}
+
+/**
+ * Internes Override → Firestore-Felder (isActive / promoPrice / promoText).
+ * @param {CatalogProduct} product
+ * @param {CatalogOverride|null|undefined} override
+ */
+export function catalogOverrideToFirestoreFields(product, override) {
+  const active = override?.active !== false && override?.isActive !== false;
+  const type = resolvePricingType(product);
+  let promoPrice = null;
+  if (type === 'fixed' && Number.isFinite(Number(override?.estimatedPiecePrice))) {
+    promoPrice = Number(override.estimatedPiecePrice);
+  } else if (Number.isFinite(Number(override?.pricePerKg))) {
+    promoPrice = Number(override.pricePerKg);
+  } else if (Number.isFinite(Number(override?.promoPrice))) {
+    promoPrice = Number(override.promoPrice);
+  }
+  const promoText = String(override?.promoText || override?.badge || '').trim().slice(0, 48) || null;
+  return {
+    isActive: active,
+    promoPrice,
+    promoText,
+  };
+}
+
+/**
  * @param {CatalogProduct} product
  * @param {CatalogOverride|null|undefined} override
  * @returns {CatalogProduct}
@@ -803,22 +889,31 @@ export function hasPromoPrice(product) {
 export function applyProductOverride(product, override) {
   if (!product) return product;
   if (!override || typeof override !== 'object') return { ...product };
+
+  // Firestore-Rohform erlauben (isActive/promoPrice/promoText)
+  const normalized = (override.isActive !== undefined || override.promoPrice !== undefined || override.promoText !== undefined)
+    && override.pricePerKg === undefined
+    && override.estimatedPiecePrice === undefined
+    ? firestoreOverrideToCatalogPatch(product, override)
+    : override;
+
   const next = { ...product };
-  if (typeof override.active === 'boolean') next.active = override.active;
-  if (typeof override.soldOut === 'boolean') next.soldOut = override.soldOut;
-  if (Number.isFinite(Number(override.pricePerKg)) && Number(override.pricePerKg) >= 0) {
-    next.pricePerKg = Number(override.pricePerKg);
+  if (typeof normalized.active === 'boolean') next.active = normalized.active;
+  else if (typeof normalized.isActive === 'boolean') next.active = normalized.isActive;
+  if (typeof normalized.soldOut === 'boolean') next.soldOut = normalized.soldOut;
+  if (Number.isFinite(Number(normalized.pricePerKg)) && Number(normalized.pricePerKg) >= 0) {
+    next.pricePerKg = Number(normalized.pricePerKg);
   }
-  if (Number.isFinite(Number(override.originalPricePerKg)) && Number(override.originalPricePerKg) > 0) {
-    next.originalPricePerKg = Number(override.originalPricePerKg);
+  if (Number.isFinite(Number(normalized.originalPricePerKg)) && Number(normalized.originalPricePerKg) > 0) {
+    next.originalPricePerKg = Number(normalized.originalPricePerKg);
   }
-  if (Number.isFinite(Number(override.estimatedPiecePrice)) && Number(override.estimatedPiecePrice) >= 0) {
-    next.estimatedPiecePrice = Number(override.estimatedPiecePrice);
+  if (Number.isFinite(Number(normalized.estimatedPiecePrice)) && Number(normalized.estimatedPiecePrice) >= 0) {
+    next.estimatedPiecePrice = Number(normalized.estimatedPiecePrice);
   }
-  if (Number.isFinite(Number(override.fixedOriginalPrice)) && Number(override.fixedOriginalPrice) > 0) {
-    next.fixedOriginalPrice = Number(override.fixedOriginalPrice);
+  if (Number.isFinite(Number(normalized.fixedOriginalPrice)) && Number(normalized.fixedOriginalPrice) > 0) {
+    next.fixedOriginalPrice = Number(normalized.fixedOriginalPrice);
   }
-  if (typeof override.badge === 'string') next.badge = override.badge;
+  if (typeof normalized.badge === 'string') next.badge = normalized.badge;
   return next;
 }
 
@@ -1340,6 +1435,9 @@ export default {
   isProductSoldOut,
   hasPromoPrice,
   applyProductOverride,
+  normalizeFirestoreCatalogOverride,
+  firestoreOverrideToCatalogPatch,
+  catalogOverrideToFirestoreFields,
   normalizeCatalogOverrides,
   readCatalogOverridesFromStorage,
   writeCatalogOverridesToStorage,

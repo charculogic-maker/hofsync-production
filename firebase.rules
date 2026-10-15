@@ -721,17 +721,45 @@ service cloud.firestore {
       return items is list && items.size() >= 1 && items.size() <= 40;
     }
 
+    function isCustomerOrderStatusTransition() {
+      return isNonEmptyString(request.resource.data.status)
+        && (
+          (resource.data.status == 'open' && request.resource.data.status == 'in_progress')
+          || (resource.data.status == 'open' && request.resource.data.status == 'ready')
+          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          || (resource.data.status == 'in_progress' && request.resource.data.status == 'ready')
+          || (resource.data.status == 'in_progress' && request.resource.data.status == 'cancelled')
+          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
+        );
+    }
+
+    // Status-Pipeline + Waagenkorrektur (actualWeightGrams) + Abholplatz für Packtisch
     function isCustomerOrderStatusUpdate() {
       return resource.data.tenantId == request.auth.token.tenantId
         && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt'
-        ])
-        && isNonEmptyString(request.resource.data.status)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
+            'pickupPlace', 'items', 'inProgressBy', 'inProgressAt'
+          ])
+        && isCustomerOrderStatusTransition()
         && (
-          (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+          !('items' in request.resource.data)
+          || request.resource.data.items is list
+        );
+    }
+
+    // Nur Gewicht/Positionen nachwiegen, Status unverändert (z. B. Packtisch-Waage)
+    function isCustomerOrderItemsWeighUpdate() {
+      return resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.tenantId == request.auth.token.tenantId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['items'])
+        && request.resource.data.items is list
+        && request.resource.data.status == resource.data.status
+        && (
+          resource.data.status == 'open'
+          || resource.data.status == 'in_progress'
+          || resource.data.status == 'ready'
         );
     }
 
@@ -780,9 +808,43 @@ service cloud.firestore {
         && (
           isAdmin(tenantId)
           || isCustomerOrderStatusUpdate()
+          || isCustomerOrderItemsWeighUpdate()
         );
 
       allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // VORBESTELL-KATALOG OVERRIDES (Hybrid: statischer Katalog + Firestore)
+    // Doc-ID = BioOffice-Artikelnummer. Öffentlich lesbar für bestellen.html.
+    // =========================================================================
+
+    function isValidCatalogOverrideWrite() {
+      return hasOnly(['isActive', 'promoPrice', 'promoText', 'updatedAt', 'updatedBy'])
+        && (!('isActive' in request.resource.data) || request.resource.data.isActive is bool)
+        && isNumericOrNull(request.resource.data.promoPrice)
+        && (
+          !('promoPrice' in request.resource.data)
+          || request.resource.data.promoPrice == null
+          || request.resource.data.promoPrice >= 0
+        )
+        && isOptionalString(request.resource.data.promoText)
+        && (
+          !('promoText' in request.resource.data)
+          || request.resource.data.promoText == null
+          || request.resource.data.promoText.size() <= 48
+        )
+        && isOptionalString(request.resource.data.updatedBy);
+    }
+
+    match /tenants/{tenantId}/catalog_overrides/{artNr} {
+      // Kundenportal ohne Login muss Overrides laden können
+      allow read: if true;
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && isValidCatalogOverrideWrite();
+
+      allow delete: if isEmployeeOrAdmin(tenantId);
     }
 
     // =========================================================================
