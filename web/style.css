@@ -5088,6 +5088,45 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   background: #fff7ed;
 }
 
+.receiving-temp-head {
+  margin-top: 4px;
+}
+
+.receiving-temp-head-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+
+.receiving-temp-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.receiving-temp-head-input {
+  flex: 1 1 7rem;
+  min-width: 6.5rem;
+  max-width: 9rem;
+}
+
+.receiving-temp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.receiving-temp-preset-btn {
+  min-height: 40px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .receiving-field .gastro-input,
 .receiving-field select.gastro-input {
   margin-top: 0;

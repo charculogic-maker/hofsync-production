@@ -40,11 +40,14 @@ for (const tag of firebaseScriptTags) {
   assert.doesNotMatch(tag, /\sdefer\b|\sasync\b/i, `Firebase-Script darf kein defer/async haben: ${tag}`);
 }
 const sdkPos = indexSrc.indexOf('src="/libs/firebase-app.js"');
-const appModulePos = indexSrc.indexOf('src="/app.js?v=20261015-firebase-init-fix-v1"');
+const appModulePos = indexSrc.search(/src="\/app\.js\?v=\d{8}-[^"]+"/);
 assert.ok(sdkPos >= 0 && appModulePos > sdkPos, 'Firebase SDK muss vor app.js-Modul geladen werden');
-assert.match(indexSrc, /src="\/app\.js\?v=20261015-firebase-init-fix-v1"/);
+assert.match(indexSrc, /src="\/app\.js\?v=\d{8}-[^"]+"/);
+assert.match(indexSrc, /rampe-mhd-fix-v2/);
 
-assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261015-firebase-init-fix-v1'/);
-assert.match(appSrc, /sw\.js\?v=20261015-firebase-init-fix-v1/);
+assert.match(swSrc, /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/);
+assert.match(swSrc, /rampe-mhd-fix-v2/);
+assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/);
+assert.match(appSrc, /rampe-mhd-fix-v2/);
 
 console.log('OK smoke-firebase-init-guard: Login-Init-Guard, Script-Reihenfolge und SW-Cache gesetzt.');

@@ -41,7 +41,7 @@ export const METZ_DEFAULT_CATEGORY = 'Lohnschlachtung Rind';
 
 /**
  * Warengruppen für Fleisch- und Schlachtbetriebe (Metzgerei-Tab).
- * StevesHof: eigene Galloways + eigene Weidehühner, keine Schweine.
+ * StevesHof: eigene Galloways + eigene Weidehühner; Bio-Schwein nur als Zukauf.
  */
 export const METZ_RECEIVING_CATEGORIES = [
   {
@@ -51,6 +51,10 @@ export const METZ_RECEIVING_CATEGORIES = [
   {
     value: 'Lohnschlachtung Geflügel',
     label: '🐔 Lohnschlachtung Geflügel (Hühner / Eigenbestand)',
+  },
+  {
+    value: 'Bio-Schwein Zukauf',
+    label: '🐷 Bio-Schwein Zukauf',
   },
   {
     value: 'Zukauffleisch (Fremdbezug)',
@@ -74,17 +78,39 @@ export function isLohnschlachtungGefluegelCategory(category = '') {
     || /lohnschlachtung\s*h(ü|ue)hner/i.test(raw);
 }
 
-export function isMetzMeatTemperatureCategory(category = '') {
+export function isBioSchweinZukaufCategory(category = '') {
   const normalized = normalizeCategoryText(category);
   if (!normalized) return false;
-  if (normalized.includes('gewurz') || normalized.includes('hilfsstoff')) return false;
-  return normalized.includes('lohnschlachtung')
-    || normalized.includes('zukauffleisch')
-    || normalized.includes('fremd')
-    || normalized.includes('gefluegel')
-    || normalized.includes('wurst zukauf')
-    || /\brind\b/.test(normalized)
-    || /\bfleisch\b/.test(normalized);
+  return (normalized.includes('bio') && normalized.includes('schwein'))
+    || normalized === 'bio schwein zukauf';
+}
+
+/**
+ * Strikte HACCP-Temperaturpflicht gilt NUR in der Metzgerei für:
+ * Lohnschlachtung Rind, Lohnschlachtung Geflügel, Bio-Schwein Zukauf.
+ * Laden / MoPro / Kühlware / sonstige Zukäufe: keine Pflicht.
+ */
+export function isMetzMeatTemperatureCategory(category = '') {
+  return isLohnschlachtungRindCategory(category)
+    || isLohnschlachtungGefluegelCategory(category)
+    || isBioSchweinZukaufCategory(category);
+}
+
+/**
+ * Ob eine Lieferung eine Pflicht-Temperatur braucht.
+ * Im Laden-Modus (schnell) niemals — auch nicht bei MoPro/Kühlware.
+ */
+export function isStrictHaccpTemperatureRequired({
+  mode = 'schnell',
+  warenKategorie = '',
+  warenKategorieMetzgerei = '',
+} = {}) {
+  if (String(mode || '').toLowerCase() !== 'metzgerei') return false;
+  const metzCategory = String(warenKategorieMetzgerei || '').trim();
+  if (metzCategory && isMetzMeatTemperatureCategory(metzCategory)) return true;
+  // Fallback nur wenn explizit eine Metz-Kategorie in warenKategorie steht
+  // (z. B. Entwurf ohne separates Feld) — nie für MoPro/Laden-Kategorien.
+  return isMetzMeatTemperatureCategory(warenKategorie);
 }
 
 export function getHaccpTempLimitForCategory(category = '') {
@@ -168,6 +194,7 @@ export function normalizeMetzReceivingCategory(category = '') {
   if (/^fremd/i.test(raw) || raw === 'Fremdfleisch') return 'Zukauffleisch (Fremdbezug)';
   if (/gew(ü|ue)rze\s*metzgerei/i.test(raw)) return 'Gewürze & Hilfsstoffe';
   if (/lohnschlachtung\s*schwein/i.test(raw)) return METZ_DEFAULT_CATEGORY;
+  if (/bio[-\s]*schwein/i.test(raw)) return 'Bio-Schwein Zukauf';
   if (/^gefl(ü|ue)gel\s*zukauf$/i.test(raw)) return 'Geflügel Zukauf (Fremdbezug)';
   const known = METZ_RECEIVING_CATEGORIES.find((entry) => entry.value === raw);
   return known ? known.value : raw;
