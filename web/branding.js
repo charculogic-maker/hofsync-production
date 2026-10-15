@@ -36,7 +36,17 @@ const DEFAULT_BRANDING = {
   },
 };
 
-const TENANT_BRANDING = {};
+const TENANT_BRANDING = {
+  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch */
+  steveshof_hauptbetrieb: {
+    betriebsName: 'StevesHof Hofladen',
+    appName: 'HofSync',
+    modules: {
+      orders: true,
+      team: true,
+    },
+  },
+};
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
 
