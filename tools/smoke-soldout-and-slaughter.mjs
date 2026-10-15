@@ -32,11 +32,15 @@ assertIncludes(mhdSrc, 'RÜCKGÄNGIG', 'Undo-Button Beschriftung');
 assertIncludes(mhdSrc, '}, 4000);', 'Undo-Toast 4 Sekunden');
 assertIncludes(cssSrc, '.btn-mhd-action.btn-mhd-soldout', 'Sold-Out Styles');
 
-// 2) Warengruppen: Galloway + Hühner, kein Schwein
+// 2) Warengruppen: Galloway + Hühner + Bio-Schwein Zukauf (keine Lohnschlachtung Schwein)
 assertIncludes(htmlSrc, 'Lohnschlachtung Rind (Galloway / Eigenbestand)', 'HTML Kategorie Rind');
 assertIncludes(htmlSrc, 'Lohnschlachtung Geflügel (Hühner / Eigenbestand)', 'HTML Kategorie Geflügel');
 assertIncludes(htmlSrc, 'Geflügel Zukauf (Fremdbezug)', 'HTML Geflügel Zukauf');
 assertIncludes(htmlSrc, 'Zukauffleisch (Fremdbezug)', 'HTML Zukauffleisch');
+assertIncludes(htmlSrc, 'Bio-Schwein Zukauf', 'HTML Bio-Schwein Zukauf');
+assertIncludes(htmlSrc, 'we-temperature-head', 'HTML optionale Liefertemperatur');
+assertIncludes(htmlSrc, 'Liefertemperatur °C (Optional)', 'HTML Liefertemperatur-Label');
+assertIncludes(htmlSrc, 'data-temp-preset="3"', 'HTML Temp-Preset 3');
 assertNotIncludes(htmlSrc, 'Lohnschlachtung Schwein', 'kein Schwein im HTML');
 assertNotIncludes(receivingSrc, 'Lohnschlachtung Schwein', 'kein Schwein in receiving.js');
 assertIncludes(htmlSrc, 'id="we-klassifizierung"', 'Klassifizierung Feld');
@@ -82,8 +86,8 @@ assert.ok(
   'Geflügel vorhanden',
 );
 assert.ok(
-  !METZ_RECEIVING_CATEGORIES.some((entry) => /schwein/i.test(entry.value) || /schwein/i.test(entry.label)),
-  'kein Schwein in Kategorie-Liste',
+  METZ_RECEIVING_CATEGORIES.some((entry) => entry.value === 'Bio-Schwein Zukauf'),
+  'Bio-Schwein Zukauf vorhanden',
 );
 
 assert.equal(isLohnschlachtungRindCategory('Lohnschlachtung Rind'), true);
@@ -91,6 +95,7 @@ assert.equal(isLohnschlachtungGefluegelCategory('Lohnschlachtung Geflügel'), tr
 assert.equal(isLohnschlachtungGefluegelCategory('Lohnschlachtung Rind'), false);
 assert.equal(getHaccpTempLimitForCategory('Lohnschlachtung Rind'), 7.0);
 assert.equal(getHaccpTempLimitForCategory('Lohnschlachtung Geflügel'), 4.0);
+assert.equal(getHaccpTempLimitForCategory('Bio-Schwein Zukauf'), 7.0);
 assert.equal(
   formatHaccpMeatTempWarning(4.1, 'Lohnschlachtung Geflügel'),
   '⚠️ Grenzwert Geflügel überschritten (> 4,0 °C)! Kühlung sofort prüfen.',
@@ -156,7 +161,31 @@ assert.equal(
 
 assert.equal(normalizeMetzReceivingCategory('Lohnschlachtung Schwein'), 'Lohnschlachtung Rind');
 assert.equal(normalizeMetzReceivingCategory('Geflügel Zukauf'), 'Geflügel Zukauf (Fremdbezug)');
+assert.equal(normalizeMetzReceivingCategory('Bio Schwein Zukauf'), 'Bio-Schwein Zukauf');
 assert.equal(isMetzMeatTemperatureCategory('Gewürze & Hilfsstoffe'), false);
+assert.equal(isMetzMeatTemperatureCategory('Zukauffleisch (Fremdbezug)'), false);
+assert.equal(isMetzMeatTemperatureCategory('Wurst Zukauf'), false);
+assert.equal(isMetzMeatTemperatureCategory('🥛MoPro'), false);
+assert.equal(isMetzMeatTemperatureCategory('Lohnschlachtung Rind'), true);
+assert.equal(isMetzMeatTemperatureCategory('Lohnschlachtung Geflügel'), true);
+assert.equal(isMetzMeatTemperatureCategory('Bio-Schwein Zukauf'), true);
+assert.equal(
+  receiving.isStrictHaccpTemperatureRequired({
+    mode: 'schnell',
+    warenKategorie: '🥛MoPro',
+    warenKategorieMetzgerei: 'Lohnschlachtung Rind',
+  }),
+  false,
+  'Laden/MoPro: keine Temperaturpflicht trotz Phantom-Metz-Kategorie',
+);
+assert.equal(
+  receiving.isStrictHaccpTemperatureRequired({
+    mode: 'metzgerei',
+    warenKategorieMetzgerei: 'Lohnschlachtung Rind',
+  }),
+  true,
+  'Metzgerei Lohnschlachtung Rind: Temperaturpflicht',
+);
 
 // 5) SW / App Cache
 assert.match(
@@ -165,5 +194,7 @@ assert.match(
   'SW Cache-Version',
 );
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/, 'App SW Register Query');
+assertIncludes(swSrc, 'rampe-mhd-fix-v2', 'SW Cache rampe-mhd-fix-v2');
+assertIncludes(appSrc, 'rampe-mhd-fix-v2', 'App SW Register rampe-mhd-fix-v2');
 
 console.log('OK smoke-soldout-and-slaughter: Ausverkauft + Galloway/Geflügel-Realismus Verträge erfüllt.');
