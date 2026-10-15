@@ -37,13 +37,16 @@ const DEFAULT_BRANDING = {
 };
 
 const TENANT_BRANDING = {
-  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch */
+  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch.
+   * Index-Key wird immer lowercased (StevesHof_Hauptbetrieb ≡ steveshof_hauptbetrieb). */
   steveshof_hauptbetrieb: {
     betriebsName: 'StevesHof Hofladen',
     appName: 'HofSync',
     modules: {
       orders: true,
       team: true,
+      // Teamboard (Start) bewusst aus — eigener Team-Tab + Packtisch, kein Icon-Flicker Start↔Team
+      teamboard: false,
     },
   },
 };

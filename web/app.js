@@ -593,6 +593,65 @@ const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
 const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
+const ACTIVE_TAB_STORAGE_KEY = 'charculogic.activeTab';
+const ORDERS_VIEW_STORAGE_KEY = 'charculogic.ordersView';
+
+/** Feste Nav-Identität — verhindert asynchrones Umbenennen Start↔Team. */
+const BOTTOM_NAV_TAB_IDENTITY = Object.freeze({
+  teamboard: { icon: '📌', label: 'Start' },
+  team: { icon: '💬', label: 'Team' },
+  orders: { icon: '📦', label: 'Packtisch' },
+  mhd: { icon: '📅', label: 'MHD' },
+  receiving: { icon: '📥', label: 'Neu' },
+  chargenDoku: { icon: '🏷️', label: 'Doku' },
+  kitchen: { icon: '🥣', label: 'Prod.' },
+  haccp: { icon: '🛡️', label: 'HACCP' },
+  knowledge: { icon: '📖', label: 'Wissen' },
+});
+
+function readPersistedActiveTab() {
+  try {
+    return String(sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function persistActiveTab(tabId) {
+  const clean = String(tabId || '').trim();
+  if (!clean) return;
+  if (AppState) AppState.activeTab = clean;
+  try {
+    sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, clean);
+  } catch (_) { /* private mode */ }
+}
+
+function readDomActiveTab() {
+  const active = document.querySelector('.bottom-nav .nav-item.active[data-tab], .app-nav .nav-item.active[data-tab]');
+  return active?.getAttribute('data-tab') || '';
+}
+
+/** Aktiven Tab aus State, DOM oder Session lesen — ohne ihn zu ändern. */
+function resolveCurrentTabCandidate() {
+  return String(
+    AppState?.activeTab
+    || readDomActiveTab()
+    || readPersistedActiveTab()
+    || '',
+  ).trim();
+}
+
+function lockBottomNavTabIdentity() {
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    const tabId = tab.getAttribute('data-tab');
+    const identity = BOTTOM_NAV_TAB_IDENTITY[tabId];
+    if (!identity) return;
+    const iconEl = tab.querySelector('i');
+    const labelEl = tab.querySelector('span:not(.nav-unread-badge)');
+    if (iconEl && iconEl.textContent !== identity.icon) iconEl.textContent = identity.icon;
+    if (labelEl && labelEl.textContent !== identity.label) labelEl.textContent = identity.label;
+  });
+}
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
 const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
@@ -2218,6 +2277,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     applyReceivingMetzgereiVisibility(branding);
   }
 
+  lockBottomNavTabIdentity();
   syncBottomNavTabLayout();
   try {
     syncAdminHeaderDropdown(branding);
@@ -2286,15 +2346,24 @@ function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
 }
 
 /**
- * Route-Guard: liegt der aktuelle Tab außerhalb der freigeschalteten Module,
- * auf den ersten erlaubten Bottom-Nav-Tab umleiten.
+ * Route-Guard: nur umleiten, wenn der aktuelle/gespeicherte Tab wirklich
+ * nicht freigeschaltet ist. Späte Auth-/Tenant-Init darf keinen aktiven Tab
+ * auf Start zurückwerfen.
  */
 function ensureActiveTabAllowed({ force = false } = {}) {
   if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) {
     return AppState?.activeTab;
   }
-  const current = AppState?.activeTab;
-  if (!force && isActiveTabAllowed(current)) return current;
+  lockBottomNavTabIdentity();
+  const current = resolveCurrentTabCandidate();
+  if (current && isActiveTabAllowed(current)) {
+    persistActiveTab(current);
+    // force=true mit gültigem Tab: nur bestätigen, nicht wegschalten
+    if (force && readDomActiveTab() !== current && typeof window.showTab === 'function') {
+      window.showTab(current);
+    }
+    return current;
+  }
 
   const mobileDesktopFallback = isMobileNavViewport()
     && isDesktopOnlyNavTab(current)
@@ -2302,19 +2371,26 @@ function ensureActiveTabAllowed({ force = false } = {}) {
   const next = mobileDesktopFallback
     ? resolveMobileOpsFallbackTab()
     : resolveDefaultBottomNavTab();
-  if (!next) return current;
+  if (!next || next === current) {
+    if (current) persistActiveTab(current);
+    return current;
+  }
 
   if (typeof window.showTab === 'function') {
     window.showTab(next);
   } else {
     window.fallbackShowTab?.(next);
-    if (AppState) AppState.activeTab = next;
+    persistActiveTab(next);
   }
   return next;
 }
 
+/**
+ * Soft-Start: gespeicherten/aktiven Tab wiederherstellen.
+ * Nur wenn noch kein gültiger Tab existiert → Default (Start/Team/MHD …).
+ */
 function showPreferredStartTab() {
-  return ensureActiveTabAllowed({ force: true });
+  return ensureActiveTabAllowed({ force: false });
 }
 
 window.resolveDefaultBottomNavTab = resolveDefaultBottomNavTab;
@@ -2741,7 +2817,13 @@ async function waitForFirebaseCore() {
 
 // State-Management für den Web-Prototypen
 const AppState = {
-  activeTab: 'mhd',
+  activeTab: (() => {
+    try {
+      return String(sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || '').trim() || 'mhd';
+    } catch (_) {
+      return 'mhd';
+    }
+  })(),
   wetHandsMode: false,
 };
 
@@ -3449,7 +3531,7 @@ async function openAdminDropdownModule(moduleKey) {
     setAdminDropdownActiveItem(moduleKey);
 
     tabs.forEach((navTab) => navTab.classList.remove('active'));
-    AppState.activeTab = targetTab;
+    persistActiveTab(targetTab);
 
     showPage(moduleConfig.pageId);
     if (headerTitle) headerTitle.textContent = moduleConfig.title;
@@ -3680,7 +3762,7 @@ tabs.forEach(tab => {
         await ensureInventoryProfileSessionForTab(targetTab);
       }
     }
-    AppState.activeTab = targetTab;
+    persistActiveTab(targetTab);
     closeMhdQtyNumpad();
     closeReceivingQtyNumpad();
     closeReceivingMhdEditor();
@@ -4104,7 +4186,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-15T20:24:00+02:00';
+const APP_RELEASE_AT = '2026-10-15T20:50:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4281,7 +4363,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261015-nav-orders-fix-v3')
+    navigator.serviceWorker.register('./sw.js?v=20261015-team-tab-stable-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
@@ -4424,6 +4506,7 @@ async function bootstrapAuthenticatedApp() {
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
   applyRoleBasedUi(authSession);
+  // Kein hard Reset auf Start — aktiven/gespeicherten Tab behalten
   showPreferredStartTab();
   refreshRetterBoxModule();
   bindOfficeAccessLock();
@@ -4558,7 +4641,8 @@ async function bootstrapAuthenticatedApp() {
   }
 
   if (getTerminalSettings().isFixedTerminal) {
-    showPreferredStartTab();
+    // Soft restore only — nicht auf Start zurückwerfen
+    ensureActiveTabAllowed({ force: false });
   }
   updateSyncIndicator();
   startTenantLiveDataListeners();

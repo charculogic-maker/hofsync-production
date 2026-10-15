@@ -60,9 +60,12 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
     // Keep legacy branding key in sync for older callers
     modules.traceability = chargenResolved;
   }
-  // Team-Tab-Inhalte (Bestellungen) folgen dem team-Schalter.
-  if ('team' in enabledModules) {
-    modules.orders = enabledModules.team === true;
+  // Packtisch: expliziter orders-Key gewinnt; sonst team=true schaltet orders mit ein.
+  // team=false darf ein bereits per Branding freigeschaltetes orders:true nicht löschen.
+  if ('orders' in enabledModules) {
+    modules.orders = enabledModules.orders === true;
+  } else if ('team' in enabledModules && enabledModules.team === true) {
+    modules.orders = true;
   }
   branding.modules = modules;
   return branding;

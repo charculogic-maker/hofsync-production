@@ -1635,7 +1635,20 @@ function setZuschnittDayFromPreset(preset) {
 }
 
 function setOrdersView(view) {
-  orderState.ordersView = view;
+  const next = ['packtisch', 'zuschnitt', 'aufnahme'].includes(view) ? view : 'packtisch';
+  orderState.ordersView = next;
+  try {
+    sessionStorage.setItem('charculogic.ordersView', next);
+  } catch (_) { /* private mode */ }
+
+  // Sub-Views dürfen den Bottom-Nav-Tab nicht verlassen (kein Re-Entry während Tab-Aktivierung)
+  const ordersPage = document.getElementById('page-orders');
+  const alreadyOnOrders = ordersPage?.classList.contains('active')
+    || document.querySelector('.nav-item.active[data-tab="orders"]');
+  if (ordersPage && !alreadyOnOrders) {
+    window.fallbackShowTab?.('orders');
+  }
+
   const views = {
     aufnahme: document.getElementById('orders-view-aufnahme'),
     zuschnitt: document.getElementById('orders-view-zuschnitt'),
@@ -1643,16 +1656,16 @@ function setOrdersView(view) {
   };
   Object.entries(views).forEach(([key, el]) => {
     if (!el) return;
-    const active = key === view;
+    const active = key === next;
     el.classList.toggle('hidden', !active);
     el.hidden = !active;
   });
   document.querySelectorAll('[data-orders-view]').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.ordersView === view);
-    btn.setAttribute('aria-selected', btn.dataset.ordersView === view ? 'true' : 'false');
+    btn.classList.toggle('is-active', btn.dataset.ordersView === next);
+    btn.setAttribute('aria-selected', btn.dataset.ordersView === next ? 'true' : 'false');
   });
-  if (view === 'zuschnitt') renderZuschnittliste();
-  if (view === 'packtisch') renderOpenOrders();
+  if (next === 'zuschnitt') renderZuschnittliste();
+  if (next === 'packtisch') renderOpenOrders();
 }
 
 function openAveryLabel(orderId) {
@@ -2022,7 +2035,12 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
 export function activateCustomerOrdersTab() {
   ensureDefaultOrderLine();
   ensureZuschnittDay();
-  setOrdersView(orderState.ordersView || 'packtisch');
+  let preferred = orderState.ordersView || 'packtisch';
+  try {
+    const stored = String(sessionStorage.getItem('charculogic.ordersView') || '').trim();
+    if (['packtisch', 'zuschnitt', 'aufnahme'].includes(stored)) preferred = stored;
+  } catch (_) { /* noop */ }
+  setOrdersView(preferred);
   renderOpenOrders();
   renderAdminOrders();
   renderProductionTasks();
