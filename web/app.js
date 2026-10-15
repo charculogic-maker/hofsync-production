@@ -596,6 +596,16 @@ const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 const ACTIVE_TAB_STORAGE_KEY = 'charculogic.activeTab';
 const ORDERS_VIEW_STORAGE_KEY = 'charculogic.ordersView';
 
+/**
+ * Auth/Tenant-Init-Sperre:
+ * onAuthStateChanged feuert auf iPhone oft 2× (Cache + Token-Refresh).
+ * Tab-Wechsel nur beim allerersten Durchlauf, danach Lock.
+ */
+let isAppInitialLoadDone = false;
+if (typeof window.__userNavigated !== 'boolean') {
+  window.__userNavigated = false;
+}
+
 /** Feste Nav-Identität — verhindert asynchrones Umbenennen Start↔Team. */
 const BOTTOM_NAV_TAB_IDENTITY = Object.freeze({
   teamboard: { icon: '📌', label: 'Start' },
@@ -624,6 +634,21 @@ function persistActiveTab(tabId) {
   try {
     sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, clean);
   } catch (_) { /* private mode */ }
+}
+
+/** Nutzer hat bewusst getippt — Hintergrund-Auth darf den Tab nicht mehr ändern. */
+function markUserNavigated(tabId) {
+  window.__userNavigated = true;
+  if (tabId) persistActiveTab(tabId);
+}
+
+function markAppInitialLoadDone() {
+  isAppInitialLoadDone = true;
+}
+
+/** true → Auth-/Tenant-Folgeevents dürfen keinen Tab-Wechsel auslösen */
+function shouldBlockBackgroundTabSwitch() {
+  return window.__userNavigated === true || isAppInitialLoadDone === true;
 }
 
 function readDomActiveTab() {
@@ -2347,8 +2372,8 @@ function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
 
 /**
  * Route-Guard: nur umleiten, wenn der aktuelle/gespeicherte Tab wirklich
- * nicht freigeschaltet ist. Späte Auth-/Tenant-Init darf keinen aktiven Tab
- * auf Start zurückwerfen.
+ * nicht freigeschaltet ist. Späte Auth-/Tenant-Init und Token-Refresh
+ * dürfen keinen aktiven Tab auf Start zurückwerfen.
  */
 function ensureActiveTabAllowed({ force = false } = {}) {
   if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) {
@@ -2356,6 +2381,13 @@ function ensureActiveTabAllowed({ force = false } = {}) {
   }
   lockBottomNavTabIdentity();
   const current = resolveCurrentTabCandidate();
+
+  // Nutzer-Tap oder Folge-Auth nach erstem Boot: nie Tab wechseln
+  if (shouldBlockBackgroundTabSwitch()) {
+    if (current) persistActiveTab(current);
+    return current || AppState?.activeTab;
+  }
+
   if (current && isActiveTabAllowed(current)) {
     persistActiveTab(current);
     // force=true mit gültigem Tab: nur bestätigen, nicht wegschalten
@@ -2387,15 +2419,28 @@ function ensureActiveTabAllowed({ force = false } = {}) {
 
 /**
  * Soft-Start: gespeicherten/aktiven Tab wiederherstellen.
- * Nur wenn noch kein gültiger Tab existiert → Default (Start/Team/MHD …).
+ * Nur beim allerersten Boot, wenn noch kein gültiger Tab existiert.
+ * Folge-Aufrufe (Token-Refresh / auth-changed) sind no-ops bzgl. Tab-Wechsel.
  */
 function showPreferredStartTab() {
-  return ensureActiveTabAllowed({ force: false });
+  if (window.__userNavigated === true) {
+    return resolveCurrentTabCandidate();
+  }
+  if (isAppInitialLoadDone) {
+    const current = resolveCurrentTabCandidate();
+    if (current) persistActiveTab(current);
+    return current;
+  }
+  const result = ensureActiveTabAllowed({ force: false });
+  markAppInitialLoadDone();
+  return result;
 }
 
 window.resolveDefaultBottomNavTab = resolveDefaultBottomNavTab;
 window.ensureActiveTabAllowed = ensureActiveTabAllowed;
 window.showPreferredStartTab = showPreferredStartTab;
+window.markUserNavigated = markUserNavigated;
+window.markAppInitialLoadDone = markAppInitialLoadDone;
 
 function resolveFirebaseEmployeeAllowedTabs(authSession) {
   const allowed = authSession?.profile?.allowedModules
@@ -2465,7 +2510,8 @@ function applyRoleBasedUi(authSession) {
   applyProfileCapabilityTabFilter();
   applyProfileKitchenRestrictions();
   syncBottomNavTabLayout();
-  ensureActiveTabAllowed();
+  // Nach Initial-Load / User-Nav: nur bestätigen, nicht umschalten
+  ensureActiveTabAllowed({ force: false });
   try {
     if (hasAuthenticatedTenantContext(authSession)) {
       syncAdminHeaderDropdown(window.BRANDING || {});
@@ -3617,24 +3663,40 @@ function bindAdminHeaderDropdown() {
 bindAdminHeaderDropdown();
 
 function showTab(tabId) {
+  const requested = String(tabId || '').trim();
+  const current = resolveCurrentTabCandidate();
+  // Hintergrund darf nach User-Nav / Initial-Load nicht auf einen anderen Tab springen
+  if (
+    shouldBlockBackgroundTabSwitch()
+    && requested
+    && current
+    && requested !== current
+    && window.__userNavigated === true
+  ) {
+    console.info('[CharcuLogic Nav] Hintergrund-Tabwechsel blockiert:', requested, '(aktiv:', current, ')');
+    return false;
+  }
   const adminModuleKey = {
     haccp: 'haccp',
     knowledge: 'knowledge',
     cuts: 'knowledge',
     batches: 'buero',
     buero: 'buero',
-  }[tabId] || '';
+  }[requested] || '';
   if (adminModuleKey && hasAdminModuleAccess()) {
-    if (!isTabAllowedByModules(tabId === 'buero' ? 'batches' : tabId)) {
+    if (!isTabAllowedByModules(requested === 'buero' ? 'batches' : requested)) {
       return showPreferredStartTab();
     }
     void openAdminDropdownModule(adminModuleKey);
     return true;
   }
-  const tab = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
-  if (!tab || tab.hidden || tab.style.display === 'none' || !isTabAllowedByModules(tabId)) {
+  const tab = document.querySelector(`.nav-item[data-tab="${requested}"]`);
+  if (!tab || tab.hidden || tab.style.display === 'none' || !isTabAllowedByModules(requested)) {
+    if (shouldBlockBackgroundTabSwitch()) {
+      return false;
+    }
     const fallback = resolveDefaultBottomNavTab();
-    if (fallback && fallback !== tabId) {
+    if (fallback && fallback !== requested) {
       return showTab(fallback);
     }
     return false;
@@ -3643,6 +3705,18 @@ function showTab(tabId) {
   return true;
 }
 window.showTab = showTab;
+
+/** Inline-onclick fallbackShowTab ebenfalls als Nutzer-Navigation werten */
+(function patchFallbackShowTabForNavLock() {
+  const prev = window.fallbackShowTab;
+  if (typeof prev !== 'function' || prev.__navLockPatched) return;
+  function patched(tabId) {
+    markUserNavigated(tabId);
+    return prev(tabId);
+  }
+  patched.__navLockPatched = true;
+  window.fallbackShowTab = patched;
+})();
 
 function resolveEarlyTenantId() {
   try {
@@ -3734,16 +3808,22 @@ function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
 bindTeamSwitcherHeaderButton();
 
 tabs.forEach(tab => {
-  tab.addEventListener('click', async () => {
+  tab.addEventListener('click', async (event) => {
     if (tab.id === 'nav-admin-dashboard' || tab.getAttribute('data-nav-admin') === 'dashboard') {
       return;
     }
+    try {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+    } catch (_) { /* noop */ }
     const targetTab = tab.getAttribute('data-tab');
     if (tab.hidden || tab.style.display === 'none') {
       return;
     }
+    // Explizite Nutzer-Navigation: Auth-/Tenant-Folgeevents dürfen den Tab nicht mehr umwerfen
+    markUserNavigated(targetTab);
     if (!isTabAllowedByModules(targetTab)) {
-      showPreferredStartTab();
+      window.showToast?.('Dieser Bereich ist für uns gerade nicht freigeschaltet.', 'warning');
       return;
     }
     if (isAdminHeaderModuleActive()) {
@@ -3865,7 +3945,8 @@ function bindTenantModuleConfigListener(tenantId) {
       hideAdminHeaderDropdown();
     }
     refreshRetterBoxModule();
-    ensureActiveTabAllowed();
+    // Modul-Updates dürfen den vom Nutzer gewählten Tab nicht umwerfen
+    ensureActiveTabAllowed({ force: false });
   });
 }
 
@@ -4186,7 +4267,7 @@ let updateAvailable = false;
 let serviceWorkerRegistration = null;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-15T20:50:00+02:00';
+const APP_RELEASE_AT = '2026-10-15T21:30:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -4363,7 +4444,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261015-team-tab-stable-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261015-nav-lock-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
@@ -4506,8 +4587,9 @@ async function bootstrapAuthenticatedApp() {
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
   applyRoleBasedUi(authSession);
-  // Kein hard Reset auf Start — aktiven/gespeicherten Tab behalten
+  // Allererster Boot: Tab nur setzen wenn noch keiner aktiv — danach Lock
   showPreferredStartTab();
+  markAppInitialLoadDone();
   refreshRetterBoxModule();
   bindOfficeAccessLock();
   bindAdminHeaderDropdown();
@@ -4523,7 +4605,8 @@ async function bootstrapAuthenticatedApp() {
           applyFixedTerminalSettings();
           applyModuleVisibility(window.BRANDING);
           bindTenantModuleConfigListener(nextSession.tenantId);
-          ensureActiveTabAllowed();
+          // Token-Refresh / 2. onAuthStateChanged: kein Tab-Wechsel
+          ensureActiveTabAllowed({ force: false });
         });
     }
     if (typeof window.applyResolvedBranding === 'function') {
@@ -4534,7 +4617,8 @@ async function bootstrapAuthenticatedApp() {
     syncFirebaseEmployeeSession(nextSession);
     refreshRetterBoxModule();
     purgeInvalidProfileSession(window.BRANDING);
-    ensureActiveTabAllowed();
+    // Folge-Auth: Tab-Lock greift in ensureActiveTabAllowed
+    ensureActiveTabAllowed({ force: false });
     startTenantLiveDataListeners();
   });
   applyFixedTerminalSettings();
@@ -4641,9 +4725,10 @@ async function bootstrapAuthenticatedApp() {
   }
 
   if (getTerminalSettings().isFixedTerminal) {
-    // Soft restore only — nicht auf Start zurückwerfen
+    // Soft restore only — Tab-Lock greift nach Initial-Load
     ensureActiveTabAllowed({ force: false });
   }
+  markAppInitialLoadDone();
   updateSyncIndicator();
   startTenantLiveDataListeners();
   if (recipeModuleEnabled) {
