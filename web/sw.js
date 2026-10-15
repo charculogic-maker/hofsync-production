@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261015-team-tab-stable-v1';
+const CACHE_NAME = 'charculogic-v20261015-nav-lock-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-15T20:50:00+02:00';
+const RELEASED_AT = '2026-10-15T21:30:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
