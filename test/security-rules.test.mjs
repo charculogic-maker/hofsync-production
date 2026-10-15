@@ -981,6 +981,53 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 12: catalog_overrides public read + tenant write', () => {
+    const sampleOverride = {
+      isActive: true,
+      promoPrice: 24.99,
+      promoText: 'Wochen-Aktion',
+      updatedBy: 'tester@example.com',
+    };
+
+    it('allows unauthenticated read on catalog_overrides', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(testEnv.unauthenticatedContext(), path, 'read');
+    });
+
+    it('allows tenant employee write and denies cross-tenant write', async () => {
+      const own = authContext(testEnv, 'sh-cat-emp', TENANTS.STEVES_HOF, 'employee');
+      const foreign = authContext(testEnv, 'tf-cat-emp', TENANTS.TORFABRIK, 'employee');
+      const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '501');
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '500');
+
+      await expectFirestoreAllow(own, ownPath, 'create', sampleOverride);
+      await expectFirestoreDeny(foreign, foreignPath, 'create', sampleOverride);
+    });
+
+    it('denies helper write but allows helper read', async () => {
+      const helper = authContext(testEnv, 'sh-cat-helper', TENANTS.STEVES_HOF, 'helper');
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '550');
+      await seedFirestoreDoc(testEnv, path, sampleOverride);
+      await expectFirestoreAllow(helper, path, 'read');
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '552'),
+        'create',
+        sampleOverride,
+      );
+    });
+
+    it('denies unauthenticated write', async () => {
+      await expectFirestoreDeny(
+        testEnv.unauthenticatedContext(),
+        tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '503'),
+        'create',
+        sampleOverride,
+      );
+    });
+  });
+
   describe('Sanity: environment wiring', () => {
     it('initializes test environment with project id', () => {
       expect(testEnv).to.exist;

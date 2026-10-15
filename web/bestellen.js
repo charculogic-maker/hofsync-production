@@ -6,6 +6,7 @@ import {
   formatEuro,
   findProductById,
   getVisibleCatalog,
+  getCatalogCategories,
   describeProductPrice,
   validateCutSelection,
   isHackfleischProduct,
@@ -16,11 +17,22 @@ import {
   readCatalogOverridesFromStorage,
   writeCatalogOverridesToStorage,
   getAvailablePickupSlots,
+  catalogOverrideToFirestoreFields,
   PRODUCT_STATE_OPTIONS,
   PRODUCT_STATE_HINT,
 } from './orderCatalog.js';
+import {
+  ensurePreorderFirebase,
+  fetchCatalogOverridesFromFirestore,
+  mapArtNrOverridesToProductOverrides,
+  saveCatalogOverrideToFirestore,
+  deleteCatalogOverrideFromFirestore,
+  describeOverrideEditorState,
+  resolvePreorderTenantId,
+} from './catalog-overrides-db.js';
 
 const ADMIN_TEAM_FLAG_KEY = 'sth_team_mode';
+const SORTIMENT_SAVE_DEBOUNCE_MS = 450;
 
 function detectAdminMode() {
   try {
@@ -41,6 +53,9 @@ const state = {
   lastSlots: null,
   adminMode: detectAdminMode(),
   overrides: readCatalogOverridesFromStorage(),
+  overridesReady: false,
+  tenantId: resolvePreorderTenantId(),
+  sortimentSaveTimers: /** @type {Record<string, number>} */ ({}),
 };
 
 if (state.adminMode) {
@@ -58,6 +73,7 @@ const els = {
   filters: document.getElementById('category-filters'),
   cutModal: document.getElementById('modal-cut'),
   cartDrawer: document.getElementById('drawer-cart'),
+  sortimentDrawer: document.getElementById('drawer-sortiment'),
   checkoutModal: document.getElementById('modal-checkout'),
   confirmModal: document.getElementById('modal-confirm'),
   adminPromoModal: document.getElementById('modal-admin-promo'),
@@ -76,6 +92,8 @@ const els = {
   pickupSlot: document.getElementById('pickup-slot'),
   channelHint: document.getElementById('channel-mode-hint'),
   toastHost: document.getElementById('toast-host'),
+  sortimentList: document.getElementById('sortiment-list'),
+  sortimentStatus: document.getElementById('sortiment-status'),
 };
 
 function now() {
@@ -131,11 +149,15 @@ function openLayer(el) {
   if (!el) return;
   lockBodyScroll();
   el.classList.add('is-open');
-  el.style.display = el.id === 'drawer-cart' ? 'block' : 'flex';
+  el.style.display = (el.id === 'drawer-cart' || el.id === 'drawer-sortiment') ? 'block' : 'flex';
   el.setAttribute('aria-hidden', 'false');
   if (el.id === 'drawer-cart') {
     const items = document.getElementById('cart-items');
     if (items) items.scrollTop = 0;
+  }
+  if (el.id === 'drawer-sortiment') {
+    const list = document.getElementById('sortiment-list');
+    if (list) list.scrollTop = 0;
   }
 }
 
@@ -149,7 +171,75 @@ function closeLayer(el) {
 }
 
 function closeAllLayers() {
-  [els.cutModal, els.cartDrawer, els.checkoutModal, els.confirmModal, els.adminPromoModal].forEach(closeLayer);
+  [els.cutModal, els.cartDrawer, els.sortimentDrawer, els.checkoutModal, els.confirmModal, els.adminPromoModal]
+    .forEach(closeLayer);
+}
+
+function setSortimentStatus(message) {
+  if (els.sortimentStatus) els.sortimentStatus.textContent = message;
+}
+
+/**
+ * Overrides aus Firestore laden und mit lokalem Cache mergen (Firestore gewinnt).
+ */
+async function refreshOverridesFromCloud() {
+  ensurePreorderFirebase();
+  const byArtNr = await fetchCatalogOverridesFromFirestore({ tenantId: state.tenantId });
+  const fromCloud = mapArtNrOverridesToProductOverrides(byArtNr);
+  const local = readCatalogOverridesFromStorage();
+  state.overrides = { ...local, ...fromCloud };
+  writeCatalogOverridesToStorage(state.overrides);
+  state.overridesReady = true;
+  renderCatalog();
+  if (state.adminMode) renderSortimentAdmin();
+  const count = Object.keys(fromCloud).length;
+  setSortimentStatus(
+    count
+      ? `${count} Override${count === 1 ? '' : 's'} aus der Cloud · Mandant ${state.tenantId}`
+      : `Keine Cloud-Overrides · Mandant ${state.tenantId}`,
+  );
+  return fromCloud;
+}
+
+async function persistOverrideToCloud(productId) {
+  const product = findProductById(productId);
+  if (!product?.artNr) return;
+  const override = state.overrides[productId];
+  try {
+    if (!override) {
+      await deleteCatalogOverrideFromFirestore({ artNr: product.artNr, tenantId: state.tenantId });
+      setSortimentStatus(`Standard wiederhergestellt · ArtNr ${product.artNr}`);
+      return;
+    }
+    const fields = catalogOverrideToFirestoreFields(product, override);
+    await saveCatalogOverrideToFirestore({
+      artNr: product.artNr,
+      tenantId: state.tenantId,
+      isActive: fields.isActive,
+      promoPrice: fields.promoPrice,
+      promoText: fields.promoText,
+    });
+    setSortimentStatus(`Gespeichert · ArtNr ${product.artNr}`);
+  } catch (err) {
+    console.error('[Bestellen] Override speichern fehlgeschlagen:', err);
+    showToast(
+      err?.message?.includes('anmelden')
+        ? err.message
+        : 'Speichern in der Cloud hat nicht geklappt. Bitte Anmeldung prüfen.',
+      'error',
+      4200,
+    );
+    setSortimentStatus('Cloud-Speichern fehlgeschlagen – lokal zwischengespeichert');
+  }
+}
+
+function scheduleCloudSave(productId) {
+  const prev = state.sortimentSaveTimers[productId];
+  if (prev) window.clearTimeout(prev);
+  state.sortimentSaveTimers[productId] = window.setTimeout(() => {
+    delete state.sortimentSaveTimers[productId];
+    persistOverrideToCloud(productId);
+  }, SORTIMENT_SAVE_DEBOUNCE_MS);
 }
 
 function cartPositions() {
@@ -222,12 +312,117 @@ function persistOverrides() {
   writeCatalogOverridesToStorage(state.overrides);
 }
 
-function patchOverride(productId, patch) {
-  const current = { ...(state.overrides[productId] || {}) };
+function patchOverride(productId, patch, options = {}) {
+  const current = options.replacePricing ? {} : { ...(state.overrides[productId] || {}) };
   Object.assign(current, patch);
-  state.overrides[productId] = current;
+  if (!current.badge) delete current.badge;
+  if (!current.promoText) delete current.promoText;
+  if (current.promoPrice == null) delete current.promoPrice;
+
+  const hasPricing = Number.isFinite(Number(current.pricePerKg))
+    || Number.isFinite(Number(current.estimatedPiecePrice))
+    || Number.isFinite(Number(current.promoPrice));
+  const hasBadge = Boolean(current.badge || current.promoText);
+  const inactive = current.active === false || current.isActive === false;
+  if (!inactive && !hasPricing && !hasBadge && !current.soldOut) {
+    delete state.overrides[productId];
+  } else {
+    state.overrides[productId] = current;
+  }
   persistOverrides();
   renderCatalog();
+  if (state.adminMode && options.rerenderSortiment !== false) renderSortimentAdmin();
+  if (options.cloud !== false) scheduleCloudSave(productId);
+}
+
+function renderSortimentAdmin() {
+  if (!els.sortimentList || !state.adminMode) return;
+  const categories = getCatalogCategories();
+  els.sortimentList.innerHTML = categories.map((category) => {
+    const rows = category.products.map((baseProduct) => {
+      const editor = describeOverrideEditorState(baseProduct, state.overrides[baseProduct.id]);
+      if (!editor.artNr) return '';
+      return `
+        <article class="sortiment-row" data-sortiment-id="${escapeHtml(baseProduct.id)}" data-art-nr="${escapeHtml(editor.artNr)}">
+          <div class="min-w-0">
+            <p class="text-sm font-bold text-hof-pine">${escapeHtml(baseProduct.name)}</p>
+            <p class="text-[11px] uppercase tracking-wide text-hof-muted">ArtNr ${escapeHtml(editor.artNr)} · Basis ${formatEuro(editor.basePrice)} ${escapeHtml(editor.unitLabel)}</p>
+          </div>
+          <label class="sortiment-switch">
+            <input type="checkbox" data-sortiment-active ${editor.isActive ? 'checked' : ''}>
+            Im Portal sichtbar
+          </label>
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-wide text-hof-muted">Aktionspreis</label>
+            <input type="number" min="0" step="0.01" inputmode="decimal" data-sortiment-promo
+              class="mt-1 w-full rounded-xl border border-hof-sand px-2.5 py-2 text-sm"
+              placeholder="${escapeHtml(String(editor.basePrice))}"
+              value="${editor.promoPrice != null ? escapeHtml(String(editor.promoPrice)) : ''}">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-wide text-hof-muted">Aktions-Badge</label>
+            <input type="text" maxlength="48" data-sortiment-badge
+              class="mt-1 w-full rounded-xl border border-hof-sand px-2.5 py-2 text-sm"
+              placeholder="z. B. Wochen-Aktion"
+              value="${escapeHtml(editor.promoText || '')}">
+          </div>
+        </article>
+      `;
+    }).filter(Boolean).join('');
+    if (!rows) return '';
+    return `
+      <section class="mb-4">
+        <h4 class="font-display text-lg text-hof-pine">${escapeHtml(category.name)}</h4>
+        <p class="text-xs text-hof-muted">${escapeHtml(category.description || '')}</p>
+        <div class="mt-2">${rows}</div>
+      </section>
+    `;
+  }).join('') || '<p class="text-sm text-hof-muted">Keine Artikel mit Artikelnummer.</p>';
+}
+
+function readSortimentRowPatch(row) {
+  const productId = row.getAttribute('data-sortiment-id');
+  const baseProduct = findProductById(productId);
+  if (!baseProduct) return null;
+  const active = Boolean(row.querySelector('[data-sortiment-active]')?.checked);
+  const promoRaw = row.querySelector('[data-sortiment-promo]')?.value;
+  const badge = String(row.querySelector('[data-sortiment-badge]')?.value || '').trim();
+  const promoPrice = promoRaw === '' || promoRaw == null ? null : Number(promoRaw);
+  /** @type {Record<string, any>} */
+  const patch = {
+    active,
+    isActive: active,
+    artNr: baseProduct.artNr,
+    badge: badge || undefined,
+    promoText: badge || null,
+  };
+  const pricingType = resolvePricingType(baseProduct);
+  delete patch.pricePerKg;
+  delete patch.originalPricePerKg;
+  delete patch.estimatedPiecePrice;
+  delete patch.fixedOriginalPrice;
+  delete patch.promoPrice;
+
+  if (promoPrice != null && Number.isFinite(promoPrice) && promoPrice >= 0) {
+    patch.promoPrice = promoPrice;
+    if (pricingType === 'fixed') {
+      patch.estimatedPiecePrice = promoPrice;
+      const base = Number(baseProduct.estimatedPiecePrice) || 0;
+      if (base > promoPrice) patch.fixedOriginalPrice = base;
+    } else {
+      patch.pricePerKg = promoPrice;
+      const base = Number(baseProduct.pricePerKg) || 0;
+      if (base > promoPrice) patch.originalPricePerKg = base;
+    }
+  }
+  return { productId, patch, clearPromo: promoPrice == null || !(promoPrice >= 0) };
+}
+
+function applySortimentRow(row) {
+  const parsed = readSortimentRowPatch(row);
+  if (!parsed) return;
+  const { productId, patch } = parsed;
+  patchOverride(productId, patch, { replacePricing: true, rerenderSortiment: false });
 }
 
 function productPriceHtml(product) {
@@ -885,6 +1080,24 @@ els.pickupDate.addEventListener('change', fillSlotsForSelectedDate);
 
 document.getElementById('btn-header-cart').addEventListener('click', () => openLayer(els.cartDrawer));
 els.fab.addEventListener('click', () => openLayer(els.cartDrawer));
+document.getElementById('btn-open-sortiment')?.addEventListener('click', () => {
+  if (!state.adminMode) return;
+  renderSortimentAdmin();
+  openLayer(els.sortimentDrawer);
+});
+els.sortimentList?.addEventListener('change', (event) => {
+  const row = event.target.closest?.('[data-sortiment-id]');
+  if (!row) return;
+  applySortimentRow(row);
+});
+els.sortimentList?.addEventListener('input', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (!target.matches('[data-sortiment-promo], [data-sortiment-badge]')) return;
+  const row = target.closest('[data-sortiment-id]');
+  if (!row) return;
+  applySortimentRow(row);
+});
 document.getElementById('btn-checkout').addEventListener('click', () => {
   if (!state.cart.length) return;
   closeLayer(els.cartDrawer);
@@ -975,6 +1188,7 @@ document.addEventListener('keydown', (event) => {
   if (els.confirmModal.classList.contains('is-open')) return closeLayer(els.confirmModal);
   if (els.checkoutModal.classList.contains('is-open')) return closeLayer(els.checkoutModal);
   if (els.cutModal.classList.contains('is-open')) return closeLayer(els.cutModal);
+  if (els.sortimentDrawer?.classList.contains('is-open')) return closeLayer(els.sortimentDrawer);
   if (els.cartDrawer.classList.contains('is-open')) return closeLayer(els.cartDrawer);
 });
 
@@ -984,3 +1198,9 @@ renderCatalog();
 refreshCartUi();
 applySimulator(null);
 setChannel('counter');
+if (state.adminMode) renderSortimentAdmin();
+
+refreshOverridesFromCloud().catch((err) => {
+  console.error('[Bestellen] Cloud-Overrides nicht geladen:', err);
+  setSortimentStatus('Cloud-Overrides nicht erreichbar – zeige lokalen Stand');
+});

@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261015-bestellen-feinschliff-v2';
+const CACHE_NAME = 'charculogic-v20261015-catalog-overrides-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-15T18:10:00+02:00';
+const RELEASED_AT = '2026-10-15T18:20:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
