@@ -7091,14 +7091,6 @@ function normalizeDateInputToDotted(value = '') {
   return '';
 }
 
-/**
- * Pflicht-Temperatur nur noch über isStrictHaccpTemperatureRequired (Metzgerei).
- * Laden/MoPro/Kühlware: bewusst keine Kategorie-Pflicht mehr.
- */
-function isTemperatureCheckRequiredForCategory(warenKategorie = '') {
-  return isMetzMeatTemperatureCategory(warenKategorie);
-}
-
 function getReceivingTemperatureInputs() {
   return {
     head: document.getElementById('we-temperature-head'),

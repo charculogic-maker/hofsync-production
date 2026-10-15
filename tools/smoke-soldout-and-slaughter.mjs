@@ -190,9 +190,9 @@ assert.equal(
 // 5) SW / App Cache
 assertIncludes(
   swSrc,
-  "CACHE_NAME = 'charculogic-v20261015-laden-temp-optional-v1'",
+  "CACHE_NAME = 'charculogic-v20261015-laden-temp-optional-v2'",
   'SW Cache-Version',
 );
-assertIncludes(appSrc, 'laden-temp-optional-v1', 'App SW Register Query');
+assertIncludes(appSrc, 'laden-temp-optional-v2', 'App SW Register Query');
 
 console.log('OK smoke-soldout-and-slaughter: Ausverkauft + Galloway/Geflügel-Realismus Verträge erfüllt.');
