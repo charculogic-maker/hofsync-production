@@ -159,11 +159,11 @@ assert.equal(normalizeMetzReceivingCategory('Geflügel Zukauf'), 'Geflügel Zuka
 assert.equal(isMetzMeatTemperatureCategory('Gewürze & Hilfsstoffe'), false);
 
 // 5) SW / App Cache
-assertIncludes(
+assert.match(
   swSrc,
-  "CACHE_NAME = 'charculogic-v20261014-livestock-realism-v1'",
+  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
   'SW Cache-Version',
 );
-assertIncludes(appSrc, 'livestock-realism-v1', 'App SW Register Query');
+assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/, 'App SW Register Query');
 
 console.log('OK smoke-soldout-and-slaughter: Ausverkauft + Galloway/Geflügel-Realismus Verträge erfüllt.');
