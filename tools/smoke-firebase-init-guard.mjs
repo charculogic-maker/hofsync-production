@@ -33,16 +33,16 @@ assert.match(initSrc, /if \(!firebaseApi\.apps\?\.length\)/);
 
 assert.match(configSrc, /window\.firebaseConfig\s*=\s*toFirebaseSdkConfig/);
 
-const firebaseSdkBlock = indexSrc.slice(
-  indexSrc.indexOf('firebase-app.js') - 120,
-  indexSrc.indexOf('html5-qrcode.min.js') + 80,
-);
-assert.doesNotMatch(firebaseSdkBlock, /\b(defer|async)\b/);
-assert.ok(
-  indexSrc.indexOf('/libs/firebase-app.js') < indexSrc.indexOf('/app.js'),
-  'Firebase SDK muss vor app.js geladen werden',
-);
-assert.match(indexSrc, /app\.js\?v=20261015-firebase-init-fix-v1/);
+const firebaseScriptTags = [...indexSrc.matchAll(/<script\b[^>]*src="[^"]*firebase[^"]*"[^>]*>/gi)]
+  .map((m) => m[0]);
+assert.ok(firebaseScriptTags.length >= 3, 'Firebase SDK Script-Tags erwartet');
+for (const tag of firebaseScriptTags) {
+  assert.doesNotMatch(tag, /\sdefer\b|\sasync\b/i, `Firebase-Script darf kein defer/async haben: ${tag}`);
+}
+const sdkPos = indexSrc.indexOf('src="/libs/firebase-app.js"');
+const appModulePos = indexSrc.indexOf('src="/app.js?v=20261015-firebase-init-fix-v1"');
+assert.ok(sdkPos >= 0 && appModulePos > sdkPos, 'Firebase SDK muss vor app.js-Modul geladen werden');
+assert.match(indexSrc, /src="\/app\.js\?v=20261015-firebase-init-fix-v1"/);
 
 assert.match(swSrc, /CACHE_NAME = 'charculogic-v20261015-firebase-init-fix-v1'/);
 assert.match(appSrc, /sw\.js\?v=20261015-firebase-init-fix-v1/);
