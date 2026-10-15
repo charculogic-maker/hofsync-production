@@ -4271,7 +4271,7 @@ if ('serviceWorker' in navigator) {
   });
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=20261015-rampe-mhd-fix-v2')
+    navigator.serviceWorker.register('./sw.js?v=20261015-firestore-perm-packliste-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

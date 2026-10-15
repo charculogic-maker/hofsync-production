@@ -1,7 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
-import { flushPendingSyncs, getPendingSyncs } from './sync.js';
+import { flushPendingSyncs, getPendingSyncs, isPermissionDeniedError } from './sync.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -423,8 +423,24 @@ const mhdAdminSearchState = {
 function getFirebase() { return mhdState.getFirebase?.() || null; }
 function isFirebaseReady() { return Boolean(mhdState.isFirebaseReady?.() || (mhdState.db && getFirebase())); }
 
+function readCachedTenantIdFallback() {
+  try {
+    return canonicalTenantId(
+      localStorage.getItem('charculogic_cached_tenant_id')
+      || sessionStorage.getItem('charculogic_cached_tenant_id')
+      || '',
+    );
+  } catch (_) {
+    return '';
+  }
+}
+
 function resolveMhdTenantId() {
-  const tenantId = canonicalTenantId(getGlobalTenantId() || mhdState.tenantId);
+  const tenantId = canonicalTenantId(
+    getGlobalTenantId()
+    || mhdState.tenantId
+    || readCachedTenantIdFallback(),
+  );
   if (!tenantId) return '';
   if (!getGlobalTenantId()) {
     setGlobalTenantId(tenantId);
@@ -672,7 +688,26 @@ function sanitizeMhdListePayload(payload) {
 }
 
 function sanitizeDeliveryPayload(payload) {
-  return pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
+  const clean = pickFirestoreFields(payload, DELIVERY_WRITE_FIELDS);
+  // Leere Optionalfelder weglassen — Rules hasOnly + saubere Pfade.
+  [
+    'warenKategorieMetzgerei',
+    'temperatur',
+    'klassifizierung',
+    'schlachtDatum',
+    'ohrmarke',
+    'schlachtgewichtKg',
+    'stueckKisten',
+    'lot',
+    'chargenNummer',
+    'meisterOverrideReason',
+  ].forEach((key) => {
+    const value = clean[key];
+    if (value === '' || value === null || Number.isNaN(value)) {
+      delete clean[key];
+    }
+  });
+  return clean;
 }
 
 function buildHiddenQueuedAuditFields() {
@@ -7398,6 +7433,39 @@ function openDeliveryDraftDb() {
   });
 }
 
+const PENDING_DELIVERIES_STORAGE_KEY = 'charculogic_pending_deliveries';
+
+async function persistPendingDeliveryFallback({
+  head = null,
+  items = [],
+  photos = [],
+  deliveryId = '',
+  tenantId = '',
+  errorMessage = '',
+} = {}) {
+  const entry = {
+    id: deliveryId || `local_${Date.now().toString(36)}`,
+    tenantId: canonicalTenantId(tenantId || resolveMhdTenantId() || ''),
+    head: head || readDeliveryHeadValues(),
+    items: Array.isArray(items) ? items : [],
+    photoCount: Array.isArray(photos) ? photos.length : 0,
+    savedAt: new Date().toISOString(),
+    errorMessage: String(errorMessage || '').slice(0, 240),
+  };
+  try {
+    const raw = localStorage.getItem(PENDING_DELIVERIES_STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const next = Array.isArray(list) ? list.filter((row) => row?.id !== entry.id) : [];
+    next.unshift(entry);
+    localStorage.setItem(PENDING_DELIVERIES_STORAGE_KEY, JSON.stringify(next.slice(0, 20)));
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] pending_deliveries localStorage fehlgeschlagen:', err);
+  }
+  // Zusätzlich IndexedDB-Entwurf (enthält Fotos) — Rampe verliert keinen Scan.
+  await persistDeliveryDraftToIndexedDB();
+  return entry;
+}
+
 async function persistDeliveryDraftToIndexedDB() {
   try {
     const db = await openDeliveryDraftDb();
@@ -8277,7 +8345,7 @@ async function saveDeliveryDraft() {
     includeItems: false,
   });
 
-  const auditedBundle = withHiddenAudit(deliveryBundle, {
+  const auditedBundle = withSanitizedDeliveryAudit(deliveryBundle, {
     ...deliveryBundle,
     updatedAt: erfassungsDatum,
   });
@@ -8537,6 +8605,8 @@ async function finalizeDelivery() {
       onlineData: deliveryBundleOnline,
       queueData: queuedBundle,
       offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
+      // Fehler-UI übernimmt finalizeDelivery (lokal sichern + ruhiger Toast).
+      silentPermissionDenied: true,
     });
 
     const catalog = await loadCatalogEanIndex();
@@ -8566,6 +8636,7 @@ async function finalizeDelivery() {
         onlineData: auditedRecord.onlineData,
         queueData: auditedRecord.queueData,
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
+        silentPermissionDenied: true,
       });
       saveProductMaster(record);
       void recordMhdMovement({
@@ -8613,10 +8684,37 @@ async function finalizeDelivery() {
   } catch (err) {
     finalizeFailed = true;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
-    const message = String(err?.message || err || 'Unbekannter Fehler');
-    window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
-    mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
-    maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
+    const isPermission = isPermissionDeniedError(err);
+    // Rampe: Scan nie verlieren — lokal sichern, ruhiger Hinweis statt Dev-Jargon.
+    try {
+      await persistPendingDeliveryFallback({
+        head,
+        items: currentDeliveryItems,
+        photos: currentDeliveryPhotos,
+        deliveryId,
+        tenantId: activeTenantId,
+        errorMessage: String(err?.message || err || ''),
+      });
+    } catch (persistErr) {
+      console.warn('[CharcuLogic MHD] Pending-Delivery-Fallback fehlgeschlagen:', persistErr);
+      await persistDeliveryDraftToIndexedDB();
+    }
+    if (isPermission) {
+      window.showToast?.(
+        '⚠️ Cloud-Sync verzögert: Lieferung lokal auf dem Gerät gesichert. Sync erfolgt automatisch.',
+        'warning',
+      );
+      mhdState.showHUD(
+        'Lokal gesichert',
+        'Die Lieferung liegt auf diesem iPhone. Sync startet, sobald die Berechtigung passt.',
+        '!',
+      );
+    } else {
+      const message = String(err?.message || err || 'Unbekannter Fehler');
+      window.showToast?.(`Speichern fehlgeschlagen: ${message}`, 'error');
+      mhdState.showHUD('Fehler', 'Lieferung konnte nicht gespeichert werden.', '!');
+      maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
+    }
   } finally {
     if (finalizeFailed) {
       await persistDeliveryDraftToIndexedDB();

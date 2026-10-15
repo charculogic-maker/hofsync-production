@@ -363,9 +363,13 @@ service cloud.firestore {
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
       allow read: if isTenantUser(tenantId);
 
+      // hasOnly muss zu web/mhd.js DELIVERY_WRITE_FIELDS passen
+      // (u. a. warenKategorieMetzgerei + Lohnschlachtungs-Felder), sonst permission-denied.
       allow create, update: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
-          'id', 'lieferant', 'warenKategorie', 'temperatur',
+          'id', 'lieferant', 'warenKategorie', 'warenKategorieMetzgerei', 'temperatur',
+          'klassifizierung', 'schlachtDatum', 'ohrmarke', 'schlachtgewichtKg',
+          'stueckKisten', 'lot', 'chargenNummer',
           'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
           'fotos', 'items', 'itemCount',
           'source', 'scannedBy', 'tenantId',

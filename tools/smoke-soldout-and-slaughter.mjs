@@ -194,7 +194,7 @@ assert.match(
   'SW Cache-Version',
 );
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^'"]+/, 'App SW Register Query');
-assertIncludes(swSrc, 'rampe-mhd-fix-v2', 'SW Cache rampe-mhd-fix-v2');
-assertIncludes(appSrc, 'rampe-mhd-fix-v2', 'App SW Register rampe-mhd-fix-v2');
+assertIncludes(swSrc, 'firestore-perm-packliste-v1', 'SW Cache firestore-perm-packliste-v1');
+assertIncludes(appSrc, 'firestore-perm-packliste-v1', 'App SW Register firestore-perm-packliste-v1');
 
 console.log('OK smoke-soldout-and-slaughter: Ausverkauft + Galloway/Geflügel-Realismus Verträge erfüllt.');
