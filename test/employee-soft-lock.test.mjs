@@ -48,10 +48,17 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/PROFILE_SESSION_IDLE_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
   });
 
-  it('loads employees from Firestore with fallback list', () => {
+  it('loads employees from canonical teamDashboard list with fallback', () => {
+    const teamConfigJs = read('web/team-config.js');
     expect(appJs).to.match(/EMPLOYEE_PICKER_FALLBACK\s*=\s*\['Paddy',\s*'Laden-Team',\s*'Küche',\s*'Metzgerei',\s*'Büro'\]/);
-    expect(appJs).to.match(/settings'\)\.doc\('employees'\)/);
     expect(appJs).to.match(/function loadEmployeePickerNamesFromFirestore/);
+    expect(appJs).to.match(/ensureTeamEmployeesLoaded/);
+    expect(appJs).to.match(/getTenantDefaultTeam/);
+    expect(appJs).to.match(/\[HofSync\] Geladene Mitarbeiter für Mandant:/);
+    expect(teamConfigJs).to.match(/TEAM_CONFIG_DOC_ID\s*=\s*'teamDashboard'/);
+    expect(teamConfigJs).to.match(/export async function ensureTeamEmployeesLoaded/);
+    expect(teamConfigJs).to.match(/export function extractActiveEmployeeNames/);
+    expect(teamConfigJs).to.match(/entry\.active\s*===\s*false/);
   });
 
   it('shows TEAM badge when anonymous and named badge otherwise', () => {
@@ -65,13 +72,16 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(ordersJs).to.match(/employeeName:\s*employee/);
   });
 
-  it('styles the centered soft-lock overlay', () => {
+  it('styles the centered soft-lock overlay with scrollable list', () => {
     expect(styleCss).to.match(/\.employee-picker-overlay/);
     expect(styleCss).to.match(/\.employee-picker-overlay\.is-open/);
     expect(styleCss).to.match(/\.employee-picker-overlay\.is-mandatory/);
+    expect(styleCss).to.match(/max-height:\s*70vh/);
+    expect(styleCss).to.match(/-webkit-overflow-scrolling:\s*touch/);
+    expect(styleCss).to.match(/#employee-picker-list/);
   });
 
-  it('bumps the service-worker cache to employee-lock-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-employee-lock-v1'");
+  it('bumps the service-worker cache to employee-list-sync-v1', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-employee-list-sync-v1'");
   });
 });

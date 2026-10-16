@@ -107,6 +107,9 @@ import {
 } from './customer-orders.js';
 import { activateOrdersHubTab, activateTeamHubTab } from './team-tab.js';
 import {
+  ensureTeamEmployeesLoaded,
+  extractActiveEmployeeNames,
+  getTeamConfigDocId,
   getTeamEmployees,
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
@@ -149,7 +152,7 @@ import {
   loadTenantEnabledModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
-import { getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
+import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
 import {
   initDevDashboard,
   isDevDashboardRoute,
@@ -1630,54 +1633,109 @@ function normalizeEmployeePickerNames(list = []) {
   return names;
 }
 
+function isPlaceholderTeamEmployeeList(list = []) {
+  const placeholders = new Set(['mitarbeiter 1', 'mitarbeiter 2']);
+  const cleaned = normalizeEmployeePickerNames(list);
+  return cleaned.length > 0
+    && cleaned.every((name) => placeholders.has(name.toLowerCase()));
+}
+
+/**
+ * Kanonische Soft-Lock-Liste = dieselbe Quelle wie Teamboard/Team-Config:
+ * tenants/{tenantId}/settings/teamDashboard.employees
+ * Ergänzend: settings/profile.defaultTeam / __tenantDefaultTeam, danach Gäste.
+ */
 async function loadEmployeePickerNamesFromFirestore() {
-  const names = [];
-  try {
-    const fromTeamConfig = getTeamEmployees();
-    names.push(...normalizeEmployeePickerNames(fromTeamConfig));
-  } catch (_) { /* noop */ }
+  const tenantId = canonicalTenantId(getGlobalTenantId() || getTenantId());
+  const sources = [];
+  let employeeList = [];
 
   try {
-    const settingsEmployeesSnap = await getTenantCollection('settings').doc('employees').get();
-    if (settingsEmployeesSnap.exists) {
-      const data = settingsEmployeesSnap.data() || {};
-      const list = Array.isArray(data.employees)
-        ? data.employees
-        : Array.isArray(data.names)
-          ? data.names
-          : Array.isArray(data.list)
-            ? data.list
-            : [];
-      names.push(...normalizeEmployeePickerNames(list));
+    const fromTeamDashboard = await ensureTeamEmployeesLoaded();
+    const active = extractActiveEmployeeNames(fromTeamDashboard);
+    if (active.length) {
+      employeeList = normalizeEmployeePickerNames(active);
+      sources.push(`settings/${getTeamConfigDocId()}`);
     }
   } catch (err) {
-    console.warn('[CharcuLogic Soft-Lock] settings/employees nicht lesbar:', err);
+    console.warn('[HofSync Soft-Lock] teamDashboard nicht lesbar:', err);
   }
 
+  // Memory-State falls One-Shot noch leer war (Listener schon gelaufen).
+  if (!employeeList.length) {
+    try {
+      const cached = extractActiveEmployeeNames(getTeamEmployees());
+      if (cached.length) {
+        employeeList = normalizeEmployeePickerNames(cached);
+        sources.push('team-config-memory');
+      }
+    } catch (_) { /* noop */ }
+  }
+
+  // Profil-DefaultTeam, wenn teamDashboard noch Platzhalter/leer ist.
+  if (!employeeList.length || isPlaceholderTeamEmployeeList(employeeList)) {
+    try {
+      const fromProfile = extractActiveEmployeeNames(getTenantDefaultTeam());
+      if (fromProfile.length && !isPlaceholderTeamEmployeeList(fromProfile)) {
+        employeeList = normalizeEmployeePickerNames([
+          ...employeeList.filter((name) => !isPlaceholderTeamEmployeeList([name])),
+          ...fromProfile,
+        ]);
+        sources.push('settings/profile.defaultTeam');
+      }
+    } catch (err) {
+      console.warn('[HofSync Soft-Lock] defaultTeam nicht lesbar:', err);
+    }
+  }
+
+  // Auth-Mitarbeiter-Collection nur als Ergänzung (aktive Einträge mit Anzeigenamen).
   try {
-    const tenantId = canonicalTenantId(getGlobalTenantId() || getTenantId());
-    const database = typeof db !== 'undefined' && db
-      ? db
-      : (typeof window !== 'undefined' && window.firebase?.firestore
-        ? window.firebase.firestore()
-        : null);
+    const database = typeof db !== 'undefined' && db ? db : null;
     if (tenantId && database) {
-      const tenantSnap = await database.collection('tenants').doc(tenantId).get();
-      if (tenantSnap.exists) {
-        const data = tenantSnap.data() || {};
-        names.push(...normalizeEmployeePickerNames(data.employees || data.defaultTeam || []));
+      const nestedSnap = await database.collection('tenants').doc(tenantId).collection('employees').get();
+      const nestedNames = [];
+      nestedSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data() || {};
+        if (data.disabled === true || data.active === false || data.status === 'inactive') return;
+        const name = String(data.displayName || data.name || '').trim();
+        if (name) nestedNames.push(name);
+      });
+      if (nestedNames.length) {
+        employeeList = normalizeEmployeePickerNames([...employeeList, ...nestedNames]);
+        sources.push('tenants/{id}/employees');
       }
     }
   } catch (err) {
-    console.warn('[CharcuLogic Soft-Lock] tenants/{id}.employees nicht lesbar:', err);
+    console.warn('[HofSync Soft-Lock] tenants/.../employees nicht lesbar:', err);
   }
 
   try {
-    names.push(...normalizeEmployeePickerNames(readProfileGuestNames()));
+    employeeList = normalizeEmployeePickerNames([
+      ...employeeList,
+      ...readProfileGuestNames(),
+    ]);
   } catch (_) { /* noop */ }
 
-  const merged = normalizeEmployeePickerNames(names);
-  return merged.length ? merged : [...EMPLOYEE_PICKER_FALLBACK];
+  // Gleiche Filter wie Profil-/PIN-Picker: keine anonymen Team-Sessions.
+  const blocked = new Set([
+    PROFILE_OTHER_LABEL.toLowerCase(),
+    resolveTeamSessionName().toLowerCase(),
+  ]);
+  employeeList = employeeList
+    .filter((name) => name && !blocked.has(name.toLowerCase()) && !isTeamSessionName(name))
+    .sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
+
+  if (!employeeList.length) {
+    employeeList = [...EMPLOYEE_PICKER_FALLBACK];
+    sources.push('fallback');
+  }
+
+  console.log('[HofSync] Geladene Mitarbeiter für Mandant:', employeeList, {
+    tenantId: tenantId || '(ohne)',
+    sources,
+  });
+
+  return employeeList;
 }
 
 function renderEmployeePickerList(names = []) {
