@@ -115,14 +115,43 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter) | nur Admin |
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
-| `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) und Galloway-Rohstofflose aus der Zerlegung | Mandanten-Nutzer; **siehe Caveat unten** |
 | `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
+| `zerlegung_ausbeute/{chargeId}` | Galloway-Ausbeuteprotokoll je Schlacht-/Zerlegecharge | Mandanten-Nutzer; **siehe Caveat unten** |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
 | `system_errors/{id}` *(global)* | Append-only Client-Telemetrie | **create:** schema-validiert; **read/update/delete:** gesperrt |
 | `priceRuns/{runId}` *(global)* | Fleischpreis-Lauf-Lifecycle | nur Admin SDK / Cloud Functions |
 
 Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehen in `firebase.rules`.
+
+### 2.1 Galloway-Zerlegung: Ausbeute, Rohstofflose und Etiketten
+
+Codepfade:
+
+| Aufgabe | Datei / Funktion |
+|---------|------------------|
+| Avery-3475-Etiketten, Cut-Katalog, lokale Ausbeute-Rechnung | `web/beef-labels.js` |
+| Speichern ins Chargenbuch und Rohstoffmagazin | `web/production.js` → `saveGallowayYieldToLogbook()` |
+| Anzeige verfügbarer R-I/R-II/R-III-Lose in der Produktion | `web/production.js` → `refreshGallowayProcessingStockPanel()` |
+
+Persistenz pro Mandant:
+
+```text
+tenants/{tenantId}/zerlegung_ausbeute/{chargeId}
+tenants/{tenantId}/inventory/galloway-{chargeId}-{ri|rii|riii}
+tenants/{tenantId}/produktion_chargen/galloway-{chargeId}-{ri|rii|riii}
+```
+
+`chargeId` wird aus der eingegebenen Charge via `getSafeFirestoreId()` abgeleitet. Das Ausbeuteprotokoll enthält Stammdaten (Ohrmarke/Pass-Nr., Schlacht-/Zerlegedatum, Herkunft, Betrieb), Gewichte, Kategorien (`edelKg`, `bratenKg`, `r1Kg`, `r2Kg`, `r3Kg`, …), Quoten und die gedruckten Positionen. Für R I/R II/R III entstehen zusätzlich `inventory`-Lose mit `source: "zerlegung_ausbeute"`, `kategorie: "R I"|"R II"|"R III"`, `batchId: chargeId` und `menge` in kg.
+
+Offline-Verhalten:
+
+- `zerlegung_ausbeute` und neue `produktion_chargen` laufen über `writeOrQueueFirestore()` und werden bei fehlender Verbindung nachträglich synchronisiert.
+- `inventory` wird zuerst direkt geschrieben; schlägt das fehl, nutzt `writeOrQueueFirestore()` dieselbe tenant-rooted Collection.
+- Nach erfolgreichem Speichern wird `flushPendingSyncs()` versucht, falls das Gerät online ist.
+
+Regel-/Test-Caveat (Stand Quelle `firebase.rules`): `inventory` und `zerlegung_ausbeute` sind aktuell weniger strikt schema-validiert als `mhd_liste`/`produktion_chargen`; `inventory` enthält zusätzlich eine rollenbasierte Freigabe. Bei Erweiterungen an diesem Workflow deshalb zuerst Rules und `test/security-rules.test.mjs` härten: Cross-Tenant-Reads/Writes müssen ausschließlich über `request.auth.token.tenantId == tenantId` erlaubt sein, und neue Felder brauchen eine `hasOnly(...)`-Validierung.
 
 ---
 
