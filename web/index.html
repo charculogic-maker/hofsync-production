@@ -76,6 +76,52 @@
       } catch (e) { /* private mode / blocked storage */ }
     })();
   </script>
+  <script>
+    /* Zero-Flicker Nav: lastEffectiveModules vor async app.js anwenden. */
+    (function bootCachedNavModules() {
+      var KEY = 'charculogic.lastEffectiveModules';
+      var TAB_TO_MODULE = {
+        teamboard: 'teamboard',
+        team: 'team',
+        orders: 'orders',
+        mhd: 'mhdMonitor',
+        receiving: 'wareneingang',
+        chargenDoku: 'chargenDoku',
+        kitchen: 'wurstkueche',
+        haccp: 'haccp',
+        knowledge: 'knowledge',
+        batches: 'batches'
+      };
+      function readCache() {
+        try {
+          var raw = localStorage.getItem(KEY);
+          if (!raw) return null;
+          var parsed = JSON.parse(raw);
+          return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+        } catch (e) { return null; }
+      }
+      function apply(modules) {
+        if (!modules) return;
+        var nodes = document.querySelectorAll('.nav-item[data-tab]');
+        for (var i = 0; i < nodes.length; i += 1) {
+          var tab = nodes[i];
+          var tabId = tab.getAttribute('data-tab');
+          var moduleKey = TAB_TO_MODULE[tabId];
+          if (!moduleKey) continue;
+          if (!(moduleKey in modules) && !(tabId in modules)) continue;
+          var enabled = modules[moduleKey] === true || modules[tabId] === true;
+          tab.hidden = !enabled;
+          tab.style.display = enabled ? '' : 'none';
+        }
+      }
+      function run() { apply(readCache()); }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run, { once: true });
+      } else {
+        run();
+      }
+    })();
+  </script>
   <script type="module" src="/branding.js"></script>
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <link rel="manifest" id="pwa-manifest" href="/manifest.json">

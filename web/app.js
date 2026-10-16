@@ -146,10 +146,14 @@ import {
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
+  applyEffectiveModulesToBranding,
+  effectiveModulesEqual,
   hasAnyAdminModuleEnabled,
   hasModule,
   isTenantModuleEnabled,
   loadTenantEnabledModules,
+  publishEffectiveModules,
+  readCachedEffectiveModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
 import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
@@ -207,6 +211,7 @@ const EMPLOYEE_ACTIVITY_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown
 /** Soft-Lock Speicherschlüssel laut Spec (zusätzlich zum mandanten-scoped Key). */
 const SOFT_LOCK_EMPLOYEE_STORAGE_KEY = 'charculogic.activeEmployee';
 const EMPLOYEE_PICKER_FALLBACK = ['Paddy', 'Laden-Team', 'Küche', 'Metzgerei', 'Büro'];
+const CACHED_EMPLOYEES_STORAGE_KEY = 'charculogic.cachedEmployees';
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
 function isEmployeePinRequired(branding = window.BRANDING) {
@@ -1735,7 +1740,32 @@ async function loadEmployeePickerNamesFromFirestore() {
     sources,
   });
 
+  writeCachedEmployeePickerList(employeeList);
   return employeeList;
+}
+
+function readCachedEmployeePickerList() {
+  try {
+    const raw = localStorage.getItem(CACHED_EMPLOYEES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return normalizeEmployeePickerNames(Array.isArray(parsed) ? parsed : []);
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeCachedEmployeePickerList(employeeList = []) {
+  const cleaned = normalizeEmployeePickerNames(employeeList);
+  if (!cleaned.length) return;
+  try {
+    localStorage.setItem(CACHED_EMPLOYEES_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch (_) { /* private mode / quota */ }
+}
+
+function employeePickerListsEqual(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((name, index) => name === right[index]);
 }
 
 function renderEmployeePickerList(names = []) {
@@ -1850,23 +1880,33 @@ function openEmployeePickerModal(options = {}) {
     employeePickerState.mandatory = mandatory;
 
     const listEl = document.getElementById('employee-picker-list');
-    if (listEl) {
+    const cachedEmployees = readCachedEmployeePickerList();
+    const hasCache = cachedEmployees.length > 0;
+
+    // Stale-While-Revalidate: Cache sofort rendern, Firestore nur im Hintergrund.
+    if (hasCache) {
+      renderEmployeePickerList(cachedEmployees);
+    } else if (listEl) {
       listEl.innerHTML = '<p class="pin-auth-scan">Lade Mitarbeiter…</p>';
     }
     syncEmployeePickerMandatoryUi(mandatory);
     modal.hidden = false;
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
+    if (hasCache) {
+      listEl?.querySelector('button')?.focus();
+    }
 
     void loadEmployeePickerNamesFromFirestore()
       .then((names) => {
         if (!isEmployeePickerOpen()) return;
+        if (hasCache && employeePickerListsEqual(cachedEmployees, names)) return;
         renderEmployeePickerList(names);
-        listEl?.querySelector('button')?.focus();
+        if (!hasCache) listEl?.querySelector('button')?.focus();
       })
       .catch((err) => {
         console.warn('[CharcuLogic Soft-Lock] Mitarbeiterliste Fallback:', err);
-        if (!isEmployeePickerOpen()) return;
+        if (!isEmployeePickerOpen() || hasCache) return;
         renderEmployeePickerList(EMPLOYEE_PICKER_FALLBACK);
       });
   });
@@ -2560,6 +2600,44 @@ window.applyBranding = applyBranding;
 
 window.applyModuleVisibility = applyModuleVisibility;
 
+/**
+ * Cache-First Modul-Sichtbarkeit: lastEffectiveModules oder Branding-Fallback.
+ * Danach erst asynchroner Firestore-Abgleich.
+ */
+function bootCachedModuleVisibility() {
+  const branding = window.BRANDING || { modules: {} };
+  if (!window.BRANDING) window.BRANDING = branding;
+  const cached = readCachedEffectiveModules();
+  if (cached) {
+    applyEffectiveModulesToBranding(cached, branding);
+  } else {
+    const { effective } = publishEffectiveModules(branding, null);
+    applyEffectiveModulesToBranding(effective, branding);
+  }
+  applyModuleVisibility(branding);
+  window.__hofsyncModulesVisibilityApplied = true;
+}
+
+/**
+ * Nach Firestore-Update: Sichtbarkeit nur bei Abweichung neu setzen.
+ * @returns {boolean} true wenn DOM aktualisiert wurde
+ */
+function applyModuleVisibilityIfChanged(branding = window.BRANDING || {}, options = {}) {
+  const force = options.force === true;
+  const firestoreSettings = options.firestoreSettings !== undefined
+    ? options.firestoreSettings
+    : (branding.enabledModules ? { enabledModules: branding.enabledModules } : null);
+  const previous = readCachedEffectiveModules();
+  const { effective } = publishEffectiveModules(branding, firestoreSettings);
+  const changed = force || !effectiveModulesEqual(previous, effective);
+  if (changed || !window.__hofsyncModulesVisibilityApplied) {
+    applyModuleVisibility(branding);
+    window.__hofsyncModulesVisibilityApplied = true;
+    return true;
+  }
+  return false;
+}
+
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
@@ -2752,11 +2830,14 @@ function applyRoleBasedUi(authSession) {
   syncAdminNavZone(authSession);
   bindTenantAdminNavGuard();
 
+  // Zuerst Modul-Sichtbarkeit — verhindert Zwischenframe mit allen Tabs.
+  applyModuleVisibility(window.BRANDING || {});
+
   const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
-    if (tab.hidden) return;
+    if (tab.hidden || tab.style.display === 'none') return;
     const tabId = tab.getAttribute('data-tab');
     if (tabId === 'batches') return;
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
@@ -2768,7 +2849,7 @@ function applyRoleBasedUi(authSession) {
       return;
     }
     const hideForHelper = isHelper && helperHiddenTabs.has(tabId);
-    tab.style.display = hideForHelper ? 'none' : '';
+    if (hideForHelper) tab.style.display = 'none';
   });
 
   if (firebaseRoleAuth) {
@@ -2788,7 +2869,6 @@ function applyRoleBasedUi(authSession) {
   const teamHub = document.getElementById('page-team');
   if (teamHub) teamHub.classList.toggle('role-helper-hidden', isHelper);
 
-  applyModuleVisibility(window.BRANDING || {});
   applyProfileCapabilityTabFilter();
   applyProfileKitchenRestrictions();
   syncBottomNavTabLayout();
@@ -4014,7 +4094,7 @@ function applyEarlyTenantShell() {
   } else {
     applyBranding();
   }
-  applyModuleVisibility(window.BRANDING);
+  bootCachedModuleVisibility();
 }
 
 function applyFixedTerminalSettings(settings = getTerminalSettings()) {
@@ -4207,8 +4287,10 @@ let tenantModulesUnsubscribe = null;
 function bindTenantModuleConfigListener(tenantId) {
   if (!tenantId || isDevDashboardRoute()) return;
   if (tenantModulesUnsubscribe) tenantModulesUnsubscribe();
-  tenantModulesUnsubscribe = subscribeTenantEnabledModules(db, tenantId, () => {
-    applyModuleVisibility(window.BRANDING);
+  tenantModulesUnsubscribe = subscribeTenantEnabledModules(db, tenantId, (_enabled, meta = {}) => {
+    if (meta.changed !== false) {
+      applyModuleVisibility(window.BRANDING);
+    }
     applyProfileCapabilityTabFilter(window.BRANDING);
     try {
       syncAdminHeaderDropdown(window.BRANDING);
@@ -4270,6 +4352,8 @@ async function startAppShell() {
   } else if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }
+  // Nach Branding: Cache erneut anwenden (Firestore kommt erst später).
+  bootCachedModuleVisibility();
   syncBottomNavTabLayout();
   updateHeaderLogoutVisibility(AppState.activeTab);
   purgeInvalidProfileSession(window.BRANDING);
@@ -4283,6 +4367,23 @@ async function startAppShell() {
     hideAppShellForAuthLockdown();
   }
 }
+
+// Zero-Flicker: Modul-Sichtbarkeit synchron bei DOMContentLoaded (Cache/Branding).
+function scheduleBootCachedModuleVisibility() {
+  const run = () => {
+    try {
+      bootCachedModuleVisibility();
+    } catch (err) {
+      console.warn('[HofSync] Boot Modul-Sichtbarkeit fehlgeschlagen:', err);
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run, { once: true });
+  } else {
+    run();
+  }
+}
+scheduleBootCachedModuleVisibility();
 
 if (!EMERGENCY_LOGOUT_REQUESTED) void startAppShell();
 
@@ -4915,7 +5016,7 @@ async function bootstrapAuthenticatedApp() {
   await loadTenantEnabledModules(db, authSession.tenantId);
   await loadTenantShopSettings(db, authSession.tenantId);
   applyFixedTerminalSettings();
-  applyModuleVisibility(window.BRANDING);
+  applyModuleVisibilityIfChanged(window.BRANDING);
 
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
@@ -4934,7 +5035,7 @@ async function bootstrapAuthenticatedApp() {
         .then(() => loadTenantShopSettings(db, nextSession.tenantId))
         .then(() => {
           applyFixedTerminalSettings();
-          applyModuleVisibility(window.BRANDING);
+          applyModuleVisibilityIfChanged(window.BRANDING);
           bindTenantModuleConfigListener(nextSession.tenantId);
           ensureActiveTabAllowed();
         });
@@ -4942,7 +5043,7 @@ async function bootstrapAuthenticatedApp() {
     if (typeof window.applyResolvedBranding === 'function') {
       window.applyResolvedBranding(nextSession?.tenantId);
     }
-    applyModuleVisibility(window.BRANDING);
+    applyModuleVisibilityIfChanged(window.BRANDING);
     applyRoleBasedUi(nextSession);
     syncFirebaseEmployeeSession(nextSession);
     refreshRetterBoxModule();

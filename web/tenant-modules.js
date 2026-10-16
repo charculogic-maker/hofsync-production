@@ -72,6 +72,9 @@ export const ENABLED_MODULE_TO_BRANDING = {
 
 const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
 
+/** Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot. */
+export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules';
+
 /**
  * Resolve chargenDoku flag with legacy `traceability` fallback.
  * @param {Record<string, boolean>|null|undefined} enabled
@@ -174,6 +177,87 @@ export function resolveEffectiveModules(tenantConfig, firestoreSettings) {
   });
 
   return resolved;
+}
+
+/**
+ * @param {Record<string, boolean>|null|undefined} left
+ * @param {Record<string, boolean>|null|undefined} right
+ * @returns {boolean}
+ */
+export function effectiveModulesEqual(left, right) {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (Boolean(left[key]) !== Boolean(right[key])) return false;
+  }
+  return true;
+}
+
+/**
+ * @returns {Record<string, boolean>|null}
+ */
+export function readCachedEffectiveModules() {
+  try {
+    const raw = localStorage.getItem(LAST_EFFECTIVE_MODULES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    /** @type {Record<string, boolean>} */
+    const cleaned = {};
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (typeof value === 'boolean') cleaned[key] = value;
+    });
+    return Object.keys(cleaned).length ? cleaned : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * @param {Record<string, boolean>|null|undefined} effectiveModules
+ */
+export function writeCachedEffectiveModules(effectiveModules) {
+  if (!effectiveModules || typeof effectiveModules !== 'object') return;
+  try {
+    localStorage.setItem(LAST_EFFECTIVE_MODULES_KEY, JSON.stringify(effectiveModules));
+  } catch (_) { /* private mode / quota */ }
+}
+
+/**
+ * Cached/resolvierte Modul-Map in Branding spiegeln (modules + enabledModules).
+ * @param {Record<string, boolean>} effectiveModules
+ * @param {object} [branding]
+ */
+export function applyEffectiveModulesToBranding(effectiveModules, branding = window.BRANDING) {
+  if (!branding || !effectiveModules || typeof effectiveModules !== 'object') return branding;
+  branding.modules = { ...(branding.modules || {}), ...effectiveModules };
+  branding.enabledModules = { ...(branding.enabledModules || {}), ...effectiveModules };
+  // Firestore-Aliase für isTenantModuleEnabled
+  const enabled = branding.enabledModules;
+  if (typeof effectiveModules.mhdMonitor === 'boolean') enabled.mhd = effectiveModules.mhdMonitor;
+  if (typeof effectiveModules.wareneingang === 'boolean') enabled.receiving = effectiveModules.wareneingang;
+  if (typeof effectiveModules.wurstkueche === 'boolean') enabled.kitchen = effectiveModules.wurstkueche;
+  if (typeof effectiveModules.teamboard === 'boolean') enabled.start = effectiveModules.teamboard;
+  if (typeof effectiveModules.batches === 'boolean') enabled.buero = effectiveModules.batches;
+  if (typeof effectiveModules.chargenDoku === 'boolean') {
+    enabled.chargenDoku = effectiveModules.chargenDoku;
+    enabled.traceability = effectiveModules.chargenDoku;
+  }
+  return branding;
+}
+
+/**
+ * Branding + optional Firestore → effektive Map, Cache schreiben, Branding aktualisieren.
+ * @returns {{ effective: Record<string, boolean>, changed: boolean }}
+ */
+export function publishEffectiveModules(tenantConfig, firestoreSettings) {
+  const effective = resolveEffectiveModules(tenantConfig, firestoreSettings);
+  const previous = readCachedEffectiveModules();
+  const changed = !effectiveModulesEqual(previous, effective);
+  writeCachedEffectiveModules(effective);
+  applyEffectiveModulesToBranding(effective, tenantConfig || window.BRANDING);
+  return { effective, changed };
 }
 
 /**
@@ -317,6 +401,9 @@ export async function loadTenantEnabledModules(db, tenantId) {
     } catch (_) { /* settings/modules optional */ }
     if (enabledModules) {
       mergeEnabledModulesIntoBranding(enabledModules);
+      publishEffectiveModules(window.BRANDING, { enabledModules });
+    } else if (window.BRANDING) {
+      publishEffectiveModules(window.BRANDING, null);
     }
     return enabledModules || null;
   } catch (err) {
@@ -331,8 +418,14 @@ export function subscribeTenantEnabledModules(db, tenantId, onChange) {
     (snap) => {
       const enabledModules = snap.data()?.enabledModules;
       if (enabledModules && typeof enabledModules === 'object') {
+        const previous = readCachedEffectiveModules();
         mergeEnabledModulesIntoBranding(enabledModules);
-        onChange(enabledModules);
+        const { effective } = publishEffectiveModules(
+          window.BRANDING,
+          { enabledModules },
+        );
+        const changed = !effectiveModulesEqual(previous, effective);
+        onChange(enabledModules, { changed, effective });
       }
     },
     (err) => console.warn('[CharcuLogic] enabledModules-Listener fehlgeschlagen:', err),
@@ -343,4 +436,6 @@ export function subscribeTenantEnabledModules(db, tenantId, onChange) {
 if (typeof window !== 'undefined') {
   window.resolveEffectiveModules = resolveEffectiveModules;
   window.CANONICAL_MODULE_KEYS = CANONICAL_MODULE_KEYS;
+  window.readCachedEffectiveModules = readCachedEffectiveModules;
+  window.publishEffectiveModules = publishEffectiveModules;
 }
