@@ -2717,8 +2717,38 @@
 
           <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(74vw, 520px); height: 96px; border: 4px solid #2E7D32; border-radius: 16px; box-shadow: 0 0 0 400px rgba(0,0,0,0.45); pointer-events: none;"></div>
 
-          <div style="position: absolute; bottom: 40px; width: 100%; text-align: center; color: white; font-weight: bold; font-family: sans-serif; padding: 0 20px; box-sizing: border-box; pointer-events: none;">
+          <div id="scanner-guide-hint" style="position: absolute; bottom: 40px; width: 100%; text-align: center; color: white; font-weight: bold; font-family: sans-serif; padding: 0 20px; box-sizing: border-box; pointer-events: none;">
             <span style="background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 8px;">15-25 cm Abstand, Barcode scharf halten</span>
+          </div>
+
+          <div id="scanner-quick-adjust" class="scanner-quick-adjust" hidden>
+            <div class="scanner-quick-adjust-product" id="scanner-qa-product">–</div>
+            <div class="scanner-quick-adjust-row scanner-quick-adjust-row--qty">
+              <button type="button" class="scanner-qa-btn" data-scanner-qa="qty-minus" aria-label="Menge verringern">−</button>
+              <div class="scanner-qa-qty" id="scanner-qa-qty" aria-live="polite">Menge: 1</div>
+              <button type="button" class="scanner-qa-btn" data-scanner-qa="qty-plus" aria-label="Menge erhöhen">+</button>
+              <button type="button" class="scanner-qa-chip" data-scanner-qa="qty-plus5">+5</button>
+              <button type="button" class="scanner-qa-chip" data-scanner-qa="qty-plus10">+10</button>
+            </div>
+            <div class="scanner-quick-adjust-row scanner-quick-adjust-row--mhd">
+              <button type="button" class="scanner-qa-mhd" id="scanner-qa-mhd-toggle" data-scanner-qa="mhd-toggle" aria-expanded="false" aria-controls="scanner-qa-mhd-panel">
+                <span class="scanner-qa-mhd-label">MHD</span>
+                <strong id="scanner-qa-mhd-value">–</strong>
+              </button>
+              <button type="button" class="btn btn-primary scanner-qa-done" data-scanner-qa="done">Übernehmen / Nächster Scan</button>
+            </div>
+            <div class="scanner-qa-mhd-panel" id="scanner-qa-mhd-panel" hidden>
+              <div class="scanner-qa-mhd-quick" role="group" aria-label="MHD Schnellwahl">
+                <button type="button" class="scanner-qa-chip" data-scanner-qa="mhd-add" data-days="7">+7 T</button>
+                <button type="button" class="scanner-qa-chip" data-scanner-qa="mhd-add" data-days="14">+14 T</button>
+                <button type="button" class="scanner-qa-chip" data-scanner-qa="mhd-add" data-days="30">+30 T</button>
+              </div>
+              <div class="scanner-qa-mhd-manual">
+                <label class="visually-hidden" for="scanner-qa-mhd-input">MHD als TT.MM</label>
+                <input id="scanner-qa-mhd-input" class="input-text-touch input-date-de scanner-qa-mhd-input" type="text" placeholder="TT.MM" inputmode="numeric" autocomplete="off" maxlength="10">
+                <button type="button" class="scanner-qa-chip scanner-qa-chip--ok" data-scanner-qa="mhd-apply">OK</button>
+              </div>
+            </div>
           </div>
 
           <div class="scanner-status-panel">

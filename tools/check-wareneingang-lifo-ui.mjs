@@ -99,8 +99,10 @@ async function main() {
       firstName: table.querySelector('.we-item-card .we-item-row-name')?.textContent || '',
       cardCount: table.querySelectorAll('.we-item-card').length,
       hasQty: Boolean(table.querySelector('[data-item-qty-edit]')),
+      hasQtyDelta: table.querySelectorAll('[data-item-qty-delta]').length,
       hasMhdQuick: table.querySelectorAll('[data-item-mhd-add]').length,
       hasRemove: Boolean(table.querySelector('[data-item-remove]')),
+      hasScannerQuickAdjust: Boolean(document.getElementById('scanner-quick-adjust')),
     };
   });
 
@@ -163,10 +165,11 @@ async function main() {
   const ok = report.firstName === 'Frische Gurke'
     && report.cardCount === 2
     && report.hasQty
+    && report.hasQtyDelta === 4
     && report.hasMhdQuick === 6
     && report.hasRemove
-    && typeof report.swCache === 'string'
-    && /^charculogic-v\d{8}-.+/.test(report.swCache);
+    && report.hasScannerQuickAdjust
+    && report.swCache === 'charculogic-v20261016-wareneingang-speed-v1';
 
   await browser.close();
   if (!ok) {

@@ -8,6 +8,12 @@ import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGerm
 
 const RECEIVING_QTY_NUMPAD_MAX_DIGITS = 4;
 const MHD_QUICK_DAYS = [3, 7, 14];
+/** MHD-Schnelltasten am Kamerascreen (Wareneingang Quick-Adjust). */
+export const SCANNER_MHD_QUICK_DAYS = [7, 14, 30];
+/** Gleicher Barcode innerhalb dieses Fensters → Menge +1 statt neuer Posten. */
+export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
+/** Ohne Interaktion schließt sich die Quick-Adjust-Leiste automatisch. */
+export const SCANNER_QUICK_ADJUST_IDLE_MS = 2000;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const MHD_FALLBACK_KEYWORDS = [
   { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
@@ -484,6 +490,56 @@ export function suggestReceivingMhd(productName, category = '', history = []) {
   }
 }
 
+/**
+ * Gleicher Barcode kurz hintereinander → bestehende Position erhöhen (kein neuer Datensatz).
+ * @param {{ barcode?: string, itemId?: string, at?: number }|null} lastScan
+ * @param {string} barcode
+ * @param {number} [now]
+ * @param {number} [windowMs]
+ */
+export function shouldMergeDuplicateReceivingScan(
+  lastScan,
+  barcode,
+  now = Date.now(),
+  windowMs = RECEIVING_DUPLICATE_SCAN_MS,
+) {
+  const code = String(barcode || '').trim();
+  if (!code || !lastScan?.itemId) return false;
+  if (String(lastScan.barcode || '').trim() !== code) return false;
+  const at = Number(lastScan.at || 0);
+  if (!Number.isFinite(at) || at <= 0) return false;
+  return (Number(now) - at) <= Math.max(0, Number(windowMs) || 0);
+}
+
+/**
+ * Schnelleingabe TT.MM / TT.MM.JJJJ für MHD am Scanner (Jahr ggf. aus heute).
+ * TT.MM wird vor dem generischen Parser geprüft (sonst wäre es Monats-MHD).
+ */
+export function parseReceivingQuickMhdInput(value = '', todayIso = startOfDayIso()) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const dayMonth = /^(\d{1,2})[.\-/](\d{1,2})$/.exec(raw);
+  if (dayMonth) {
+    const day = Number.parseInt(dayMonth[1], 10);
+    const month = Number.parseInt(dayMonth[2], 10);
+    if (!(day >= 1 && day <= 31 && month >= 1 && month <= 12)) return '';
+    const base = String(todayIso || startOfDayIso()).slice(0, 10);
+    let year = Number.parseInt(base.slice(0, 4), 10) || new Date().getFullYear();
+    let iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // Wenn TT.MM schon vorbei: nächstes Jahr (Haltbarkeit).
+    if (base && iso < base) {
+      year += 1;
+      iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    const probe = new Date(`${iso}T00:00:00`);
+    if (Number.isNaN(probe.getTime()) || probe.getDate() !== day || probe.getMonth() + 1 !== month) {
+      return '';
+    }
+    return iso;
+  }
+  return parseGermanDateToIso(raw) || '';
+}
+
 export function buildReceivingItemCardHtml(item) {
   const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
   const brandMeta = brandLabel ? `${escapeHtml(brandLabel.toUpperCase())} · ` : '';
@@ -505,11 +561,15 @@ export function buildReceivingItemCardHtml(item) {
         <button type="button" class="we-item-row-remove" data-item-remove="${itemId}" aria-label="Posten entfernen">✕</button>
       </div>
       <div class="we-item-card-actions">
-        <button type="button" class="we-item-qty-btn" data-item-qty-edit="${itemId}" aria-label="Menge korrigieren">
-          <span class="we-item-qty-label">Menge</span>
-          <span class="we-item-qty-value">${escapeHtml(String(qtyValue))}</span>
-          <span class="we-item-qty-unit">${escapeHtml(qtyUnit)}</span>
-        </button>
+        <div class="we-item-qty-stepper" role="group" aria-label="Menge anpassen">
+          <button type="button" class="we-item-qty-step" data-item-qty-delta="-1" data-item-id="${itemId}" aria-label="Menge verringern">−</button>
+          <button type="button" class="we-item-qty-btn" data-item-qty-edit="${itemId}" aria-label="Menge korrigieren">
+            <span class="we-item-qty-label">Menge</span>
+            <span class="we-item-qty-value">${escapeHtml(String(qtyValue))}</span>
+            <span class="we-item-qty-unit">${escapeHtml(qtyUnit)}</span>
+          </button>
+          <button type="button" class="we-item-qty-step" data-item-qty-delta="1" data-item-id="${itemId}" aria-label="Menge erhöhen">+</button>
+        </div>
         <div class="we-item-mhd-block">
           <button type="button" class="we-item-mhd-date" data-item-mhd-edit="${itemId}" aria-label="MHD direkt wählen">
             <span class="we-item-mhd-date-label">MHD</span>

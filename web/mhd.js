@@ -23,6 +23,7 @@ import {
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
   formatHaccpMeatTempWarning,
+  formatReceivingMhdLabel,
   getHaccpTempLimitForCategory,
   inferReceivingCategoryFromProductName,
   isBioSchweinZukaufCategory,
@@ -34,10 +35,14 @@ import {
   normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
+  parseReceivingQuickMhdInput,
+  RECEIVING_DUPLICATE_SCAN_MS,
   RECEIVING_SMART_CATEGORIES,
   resolveMetzTraceLot,
   resolveReceivingScanCategory,
+  SCANNER_QUICK_ADJUST_IDLE_MS,
   shiftIsoDateByDays,
+  shouldMergeDuplicateReceivingScan,
   sortDeliveryItemsLifo,
   suggestReceivingMhd,
 } from './receiving.js';
@@ -229,6 +234,10 @@ let currentDeliveryPhotos = [];
 let activeEditingDraftId = null;
 let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
+/** Letzter Auto-Scan im Wareneingang (für 3s-Mengen-Merge). */
+let lastReceivingAutoScan = null;
+let scannerQuickAdjustIdleTimer = null;
+let scannerQuickAdjustBound = false;
 
 const DELIVERY_STATUS_DRAFT = 'DRAFT_PENDING';
 const DELIVERY_STATUS_COMPLETED = 'COMPLETED';
@@ -2652,8 +2661,11 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
   const autoAdded = tryAutoAddScannedDeliveryItem(scannedCode, { fromScan: true });
   if (autoAdded) {
     if (keepScannerOpen) {
+      // Quick-Adjust bleibt sichtbar; Kamera hört nach kurzer Pause wieder zu (Mehrfachscan).
       mhdState.resumeScannerListening?.(900);
-      setScannerStatus('Posten erfasst – nächsten Barcode halten.');
+      if (!document.getElementById('scanner-quick-adjust') || document.getElementById('scanner-quick-adjust').hidden) {
+        setScannerStatus('Posten erfasst – nächsten Barcode halten.');
+      }
     } else {
       mhdState.closeScanner?.({ preserveScanState: true });
     }
@@ -7812,8 +7824,229 @@ async function addDeliveryItem() {
   window.showToast?.('Posten zur Lieferung hinzugefügt.', 'success');
 }
 
+function bumpCurrentDeliveryItemQuantity(itemId, delta) {
+  const item = currentDeliveryItems.find((row) => row.id === itemId);
+  if (!item) return false;
+  const current = Number(item.qtyValue ?? item.qtyKg ?? 1);
+  const step = Number(delta);
+  if (!Number.isFinite(current) || !Number.isFinite(step) || step === 0) return false;
+  const next = current + step;
+  if (next < 1) {
+    window.showToast?.('Menge bleibt mindestens 1 – Posten ggf. über ✕ entfernen.', 'warning');
+    return false;
+  }
+  return adjustCurrentDeliveryItemQuantity(itemId, next);
+}
+
+function touchReceivingAutoScan(item, barcode = item?.barcode) {
+  if (!item?.id) return;
+  lastReceivingAutoScan = {
+    barcode: cleanScannedBarcode(barcode || item.barcode || ''),
+    itemId: item.id,
+    at: Date.now(),
+  };
+}
+
+function pulseReceivingScanFeedback({ vibrateMs = 50, merged = false } = {}) {
+  try {
+    navigator.vibrate?.(vibrateMs);
+  } catch {
+    /* ignore */
+  }
+  if (merged) {
+    mhdState.playClickSound?.(1500, 0.05, 0.12);
+  } else {
+    mhdState.playFeedbackSound?.('success');
+    mhdState.playClickSound?.(1300, 0.06, 0.14);
+  }
+}
+
+function clearScannerQuickAdjustIdleTimer() {
+  if (scannerQuickAdjustIdleTimer) {
+    clearTimeout(scannerQuickAdjustIdleTimer);
+    scannerQuickAdjustIdleTimer = null;
+  }
+}
+
+function resetScannerQuickAdjustIdleTimer() {
+  clearScannerQuickAdjustIdleTimer();
+  const bar = document.getElementById('scanner-quick-adjust');
+  if (!bar || bar.hidden) return;
+  scannerQuickAdjustIdleTimer = setTimeout(() => {
+    scannerQuickAdjustIdleTimer = null;
+    hideScannerQuickAdjust({ resumeListening: true });
+  }, SCANNER_QUICK_ADJUST_IDLE_MS);
+}
+
+function syncScannerQuickAdjustUi(item) {
+  const bar = document.getElementById('scanner-quick-adjust');
+  if (!bar || !item) return;
+  const productEl = document.getElementById('scanner-qa-product');
+  const qtyEl = document.getElementById('scanner-qa-qty');
+  const mhdEl = document.getElementById('scanner-qa-mhd-value');
+  const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
+  const qtyUnit = item.qtyUnit || 'Stk';
+  if (productEl) productEl.textContent = String(item.product || 'Artikel');
+  if (qtyEl) {
+    qtyEl.textContent = qtyUnit === 'Stk'
+      ? `Menge: ${qtyValue}`
+      : `Menge: ${qtyValue} ${qtyUnit}`;
+  }
+  if (mhdEl) mhdEl.textContent = formatReceivingMhdLabel(item.mhdDate) || '–';
+  bar.dataset.itemId = item.id;
+}
+
+function setScannerQuickAdjustMhdPanelOpen(open) {
+  const panel = document.getElementById('scanner-qa-mhd-panel');
+  const toggle = document.getElementById('scanner-qa-mhd-toggle');
+  if (panel) panel.hidden = !open;
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function showScannerQuickAdjust(item) {
+  const bar = document.getElementById('scanner-quick-adjust');
+  const overlay = document.getElementById('scanner-overlay');
+  if (!bar || !item?.id) return;
+  if (!mhdState.isScannerOverlayOpen?.()) {
+    hideScannerQuickAdjust({ resumeListening: false });
+    return;
+  }
+  syncScannerQuickAdjustUi(item);
+  setScannerQuickAdjustMhdPanelOpen(false);
+  const input = document.getElementById('scanner-qa-mhd-input');
+  if (input) input.value = '';
+  bar.hidden = false;
+  overlay?.classList.add('has-quick-adjust');
+  resetScannerQuickAdjustIdleTimer();
+  bindScannerQuickAdjustOnce();
+}
+
+function hideScannerQuickAdjust({ resumeListening = false } = {}) {
+  clearScannerQuickAdjustIdleTimer();
+  const bar = document.getElementById('scanner-quick-adjust');
+  const overlay = document.getElementById('scanner-overlay');
+  if (bar) {
+    bar.hidden = true;
+    delete bar.dataset.itemId;
+  }
+  setScannerQuickAdjustMhdPanelOpen(false);
+  overlay?.classList.remove('has-quick-adjust');
+  if (resumeListening && mhdState.isScannerOverlayOpen?.()) {
+    mhdState.resumeScannerListening?.(400);
+    setScannerStatus('Bereit für den nächsten Scan.');
+  }
+}
+
+function getScannerQuickAdjustItem() {
+  const itemId = document.getElementById('scanner-quick-adjust')?.dataset?.itemId;
+  if (!itemId) return null;
+  return currentDeliveryItems.find((row) => row.id === itemId) || null;
+}
+
+function applyScannerQuickAdjustQtyDelta(delta) {
+  const item = getScannerQuickAdjustItem();
+  if (!item) return;
+  if (!bumpCurrentDeliveryItemQuantity(item.id, delta)) return;
+  const updated = currentDeliveryItems.find((row) => row.id === item.id);
+  touchReceivingAutoScan(updated || item);
+  syncScannerQuickAdjustUi(updated || item);
+  pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
+  resetScannerQuickAdjustIdleTimer();
+}
+
+function applyScannerQuickAdjustMhdDays(days) {
+  const item = getScannerQuickAdjustItem();
+  if (!item || !Number.isFinite(days) || days <= 0) return;
+  // Schnelltasten am Scanner setzen MHD ab heute (+7 T / +14 T / +30 T).
+  const iso = shiftIsoDateByDays(new Date().toISOString().slice(0, 10), days);
+  if (!iso || !setCurrentDeliveryItemMhd(item.id, iso)) return;
+  const updated = currentDeliveryItems.find((row) => row.id === item.id);
+  touchReceivingAutoScan(updated || item);
+  syncScannerQuickAdjustUi(updated || item);
+  setScannerQuickAdjustMhdPanelOpen(false);
+  mhdState.playClickSound?.(1100, 0.04, 0.12);
+  window.showToast?.(`MHD auf +${days} Tage ab heute gesetzt.`, 'success');
+  resetScannerQuickAdjustIdleTimer();
+}
+
+function applyScannerQuickAdjustMhdInput() {
+  const item = getScannerQuickAdjustItem();
+  const input = document.getElementById('scanner-qa-mhd-input');
+  if (!item || !input) return;
+  const iso = parseReceivingQuickMhdInput(input.value);
+  if (!iso) {
+    window.showToast?.('Bitte MHD als TT.MM oder TT.MM.JJJJ eintragen.', 'warning');
+    input.focus();
+    resetScannerQuickAdjustIdleTimer();
+    return;
+  }
+  if (!setCurrentDeliveryItemMhd(item.id, iso)) return;
+  const updated = currentDeliveryItems.find((row) => row.id === item.id);
+  touchReceivingAutoScan(updated || item);
+  syncScannerQuickAdjustUi(updated || item);
+  setScannerQuickAdjustMhdPanelOpen(false);
+  input.value = '';
+  mhdState.playClickSound?.(1000, 0.05, 0.12);
+  window.showToast?.('MHD übernommen.', 'success');
+  resetScannerQuickAdjustIdleTimer();
+}
+
+function bindScannerQuickAdjustOnce() {
+  if (scannerQuickAdjustBound) return;
+  const bar = document.getElementById('scanner-quick-adjust');
+  if (!bar) return;
+  scannerQuickAdjustBound = true;
+  bar.addEventListener('click', (event) => {
+    const actionBtn = event.target.closest('[data-scanner-qa]');
+    if (!actionBtn || !bar.contains(actionBtn)) return;
+    const action = actionBtn.dataset.scannerQa;
+    if (action === 'qty-minus') {
+      applyScannerQuickAdjustQtyDelta(-1);
+      return;
+    }
+    if (action === 'qty-plus') {
+      applyScannerQuickAdjustQtyDelta(1);
+      return;
+    }
+    if (action === 'qty-plus5') {
+      applyScannerQuickAdjustQtyDelta(5);
+      return;
+    }
+    if (action === 'qty-plus10') {
+      applyScannerQuickAdjustQtyDelta(10);
+      return;
+    }
+    if (action === 'mhd-toggle') {
+      const panel = document.getElementById('scanner-qa-mhd-panel');
+      setScannerQuickAdjustMhdPanelOpen(Boolean(panel?.hidden));
+      resetScannerQuickAdjustIdleTimer();
+      return;
+    }
+    if (action === 'mhd-add') {
+      applyScannerQuickAdjustMhdDays(Number(actionBtn.dataset.days));
+      return;
+    }
+    if (action === 'mhd-apply') {
+      applyScannerQuickAdjustMhdInput();
+      return;
+    }
+    if (action === 'done') {
+      hideScannerQuickAdjust({ resumeListening: true });
+    }
+  });
+  const input = document.getElementById('scanner-qa-mhd-input');
+  input?.addEventListener('input', () => resetScannerQuickAdjustIdleTimer());
+  input?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyScannerQuickAdjustMhdInput();
+    }
+  });
+}
+
 /**
  * Bekannte EAN sofort als oberste Karte einbuchen (optimistisch, lokal).
+ * Gleicher Barcode innerhalb von 3s → Menge +1 (kein neuer Datensatz).
  * Unbekannte EANs / fehlende Kategorie → false (Formular-Flow).
  * Kategorie: EAN-Gedächtnis → Keyword-Heuristik → Sticky → Trockenware.
  */
@@ -7822,6 +8055,26 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   if (!code) return false;
   const info = lookupScannedProduct(code);
   if (!info?.name) return false;
+
+  if (shouldMergeDuplicateReceivingScan(lastReceivingAutoScan, code, Date.now(), RECEIVING_DUPLICATE_SCAN_MS)) {
+    const existing = currentDeliveryItems.find((row) => row.id === lastReceivingAutoScan.itemId)
+      || currentDeliveryItems.find((row) => cleanScannedBarcode(row.barcode) === code);
+    if (existing && bumpCurrentDeliveryItemQuantity(existing.id, 1)) {
+      const updated = currentDeliveryItems.find((row) => row.id === existing.id) || existing;
+      touchReceivingAutoScan(updated, code);
+      renderReceivingStatus({ lastScan: code, status: `Menge ${updated.qtyValue ?? updated.qtyKg}` });
+      pulseReceivingScanFeedback({ vibrateMs: 50, merged: true });
+      if (fromScan && mhdState.isScannerOverlayOpen?.()) {
+        showScannerQuickAdjust(updated);
+        setScannerStatus(`Menge ${updated.qtyValue ?? updated.qtyKg} – weiter scannen oder anpassen.`);
+      }
+      window.showToast?.(
+        `${updated.product}: Menge jetzt ${updated.qtyValue ?? updated.qtyKg}.`,
+        'success',
+      );
+      return true;
+    }
+  }
 
   const productName = String(info.name).trim();
   const { category: smartCategory } = resolveCategoryForReceivingScan(productName, info.category || '');
@@ -7850,7 +8103,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     ? crypto.randomUUID()
     : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  currentDeliveryItems.unshift({
+  const newItem = {
     id: itemId,
     product: productName,
     barcode: code,
@@ -7865,7 +8118,9 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     category,
     addedAt: Date.now(),
     mhdQuelle: suggestion?.quelle || 'standard',
-  });
+  };
+  currentDeliveryItems.unshift(newItem);
+  touchReceivingAutoScan(newItem, code);
 
   currentDeliveryItemBarcode = '';
   currentDeliveryItemProduct = '';
@@ -7886,8 +8141,11 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   updateReceivingSaveButtonState();
   persistDeliveryDraftToIndexedDB();
   renderReceivingStatus({ lastScan: code, status: 'Posten erfasst' });
-  mhdState.playFeedbackSound?.('success');
-  mhdState.playClickSound?.(1300, 0.06, 0.14);
+  pulseReceivingScanFeedback({ vibrateMs: 40, merged: false });
+  if (fromScan && mhdState.isScannerOverlayOpen?.()) {
+    showScannerQuickAdjust(newItem);
+    setScannerStatus('Posten erfasst – Menge/MHD anpassen oder weiter scannen.');
+  }
   const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
   window.showToast?.(
     `${info.name}: ${qtyHint} · MHD ${formatReceivingMhdLabelSafe(mhdDate)} – oben in der Liste.`,
@@ -9104,6 +9362,19 @@ function bindReceivingControls() {
         mhdState.playClickSound?.(700, 0.04, 0.1);
         return;
       }
+      const qtyDeltaBtn = event.target.closest('[data-item-qty-delta]');
+      if (qtyDeltaBtn) {
+        const itemId = qtyDeltaBtn.dataset.itemId;
+        const delta = Number(qtyDeltaBtn.dataset.itemQtyDelta);
+        if (itemId && Number.isFinite(delta) && delta !== 0) {
+          if (bumpCurrentDeliveryItemQuantity(itemId, delta)) {
+            const updated = currentDeliveryItems.find((row) => row.id === itemId);
+            touchReceivingAutoScan(updated);
+            pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
+          }
+        }
+        return;
+      }
       const qtyEditId = event.target.closest('[data-item-qty-edit]')?.dataset.itemQtyEdit;
       if (qtyEditId) {
         const item = currentDeliveryItems.find((row) => row.id === qtyEditId);
@@ -9307,7 +9578,11 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   mhdState.getFirebase = uiCallbacks.getFirebase || mhdState.getFirebase;
   mhdState.isFirebaseReady = uiCallbacks.isFirebaseReady || mhdState.isFirebaseReady;
   mhdState.openScanner = uiCallbacks.scannerAPI?.openScanner || mhdState.openScanner;
-  mhdState.closeScanner = uiCallbacks.scannerAPI?.closeScanner || mhdState.closeScanner;
+  const closeScannerBase = uiCallbacks.scannerAPI?.closeScanner || mhdState.closeScanner;
+  mhdState.closeScanner = (...args) => {
+    hideScannerQuickAdjust({ resumeListening: false });
+    return closeScannerBase?.(...args);
+  };
   mhdState.resumeScannerListening = uiCallbacks.scannerAPI?.resumeScannerListening || mhdState.resumeScannerListening;
   mhdState.isScannerOverlayOpen = uiCallbacks.scannerAPI?.isScannerOverlayOpen || mhdState.isScannerOverlayOpen;
   mhdState.onFormSaved = typeof uiCallbacks.onFormSaved === 'function' ? uiCallbacks.onFormSaved : mhdState.onFormSaved;
@@ -9486,6 +9761,7 @@ export {
   checkMhdAnomaly,
   finalizeDelivery,
   adjustCurrentDeliveryItemQuantity,
+  bumpCurrentDeliveryItemQuantity,
   adjustCurrentDeliveryItemMhdByDays,
   setCurrentDeliveryItemMhd,
   getCurrentDeliveryItems,
@@ -9496,6 +9772,8 @@ export {
   saveManualReceiving,
   saveProductMaster,
   showMhdAnomalyWarning,
+  showScannerQuickAdjust,
+  hideScannerQuickAdjust,
   syncMhdSaveBarKeyboardOffset,
   bindMhdSaveBarViewportSync,
   closeMhdQtyNumpad,

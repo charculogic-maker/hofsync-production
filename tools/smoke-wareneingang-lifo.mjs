@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mhdSrc = readFileSync(path.join(root, 'web/mhd.js'), 'utf8');
@@ -27,11 +27,15 @@ assertIncludes(mhdSrc, 'tryAutoAddScannedDeliveryItem', 'Auto-Add nach Scan');
 // 2) Karten-Schnellaktionen
 assertIncludes(receivingSrc, 'buildReceivingItemCardHtml', 'Karten-HTML');
 assertIncludes(receivingSrc, 'data-item-qty-edit', 'Mengen-Tap');
+assertIncludes(receivingSrc, 'data-item-qty-delta', 'Mengen +/- Inline');
 assertIncludes(receivingSrc, 'data-item-mhd-add', 'MHD Schnelltasten');
 assertIncludes(receivingSrc, 'data-item-mhd-edit', 'MHD Direktauswahl');
 assertIncludes(receivingSrc, 'data-item-remove', 'Löschen-Button');
 assertIncludes(receivingSrc, 'openReceivingQtyNumpad', 'Touch-Nummernpad');
 assertIncludes(receivingSrc, 'MHD_QUICK_DAYS = [3, 7, 14]', 'MHD Schnell-Tage');
+assertIncludes(receivingSrc, 'SCANNER_MHD_QUICK_DAYS = [7, 14, 30]', 'Scanner MHD-Tage');
+assertIncludes(receivingSrc, 'shouldMergeDuplicateReceivingScan', 'Duplicate-Scan Helper');
+assertIncludes(receivingSrc, 'RECEIVING_DUPLICATE_SCAN_MS = 3000', '3s Duplicate-Fenster');
 assertIncludes(receivingSrc, '+${days} Tage', 'MHD Schnelltasten Labels');
 assertIncludes(receivingSrc, '✕', 'Entfernen ✕');
 
@@ -40,19 +44,23 @@ assertIncludes(scannerSrc, 'resumeScannerListening', 'Scanner Resume');
 assertIncludes(scannerSrc, 'isScannerOverlayOpen', 'Overlay-Check');
 assertIncludes(mhdSrc, 'resumeScannerListening', 'mhd nutzt Resume');
 assertIncludes(appSrc, 'resumeScannerListening', 'app verdrahtet Resume');
-assertIncludes(mhdSrc, "playFeedbackSound?.('success')", 'Audio-Quittung');
+assertIncludes(mhdSrc, 'showScannerQuickAdjust', 'Quick-Adjust am Scanner');
+assertIncludes(mhdSrc, 'navigator.vibrate', 'Vibrations-Feedback');
+assertIncludes(mhdSrc, 'bumpCurrentDeliveryItemQuantity', 'Mengen-Delta');
 
 // 4) CSS
 assertIncludes(cssSrc, '.we-item-card', 'Karten Styles');
 assertIncludes(cssSrc, '.we-item-qty-btn', 'Mengen-Button Styles');
+assertIncludes(cssSrc, '.we-item-qty-step', 'Mengen +/- Styles');
 assertIncludes(cssSrc, '.we-item-mhd-quick-btn', 'MHD Schnelltasten Styles');
 assertIncludes(cssSrc, '.we-item-card--newest', 'Newest Highlight');
+assertIncludes(cssSrc, '.scanner-quick-adjust', 'Scanner Quick-Adjust Styles');
 
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v\d{8}-[^']+'/,
-  'SW Cache-Version',
+  /CACHE_NAME = 'charculogic-v20261016-wareneingang-speed-v1'/,
+  'SW Cache-Version Wareneingang-Speed',
 );
 assertIncludes(swSrc, "/receiving.js", 'receiving.js im SW-Cache');
 
@@ -80,5 +88,25 @@ const ordered = sortLifo([
   { id: 'c', addedAt: 200 },
 ]);
 assert.deepEqual(ordered.map((row) => row.id), ['b', 'c', 'a']);
+
+const {
+  shouldMergeDuplicateReceivingScan,
+  parseReceivingQuickMhdInput,
+} = await import(pathToFileURL(path.join(root, 'web/receiving.js')).href);
+
+assert.equal(
+  shouldMergeDuplicateReceivingScan({ barcode: '123', itemId: 'a', at: 1000 }, '123', 2500, 3000),
+  true,
+);
+assert.equal(
+  shouldMergeDuplicateReceivingScan({ barcode: '123', itemId: 'a', at: 1000 }, '123', 4500, 3000),
+  false,
+);
+assert.equal(
+  shouldMergeDuplicateReceivingScan({ barcode: '123', itemId: 'a', at: 1000 }, '999', 1500, 3000),
+  false,
+);
+assert.equal(parseReceivingQuickMhdInput('20.10', '2026-10-16'), '2026-10-20');
+assert.equal(parseReceivingQuickMhdInput('20.10.2027'), '2027-10-20');
 
 console.log('OK smoke-wareneingang-lifo: LIFO + Schnellkorrektur + Scan-Resume Verträge erfüllt.');
