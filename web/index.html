@@ -185,6 +185,7 @@
       const pageMap = {
         teamboard: { page: 'page-teamboard', title: 'Start' },
         team: { page: 'page-team', title: 'Team' },
+        orders: { page: 'page-orders', title: 'Packtisch' },
         mhd: { page: 'page-mhd', title: 'MHD-Monitor' },
         receiving: { page: 'page-receiving', title: 'Wareneingang' },
         chargenDoku: { page: 'page-chargen-doku', title: 'Doku' },
@@ -578,7 +579,7 @@
                       <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
                         <legend>Modul-Freischaltung</legend>
                         <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
-                          MHD-Monitor, Wareneingang, Wurstküche, HACCP, Teamboard sowie Büro und Chargen.
+                          MHD-Monitor, Wareneingang, Wurstküche, HACCP, Teamboard, Team, Kundenbestellungen &amp; Packtisch sowie Büro und Chargen.
                         </p>
                         <div class="dev-dashboard-permissions-row">
                           <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
@@ -600,6 +601,14 @@
                           <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                             <input type="checkbox" data-betrieb-module="start">
                             <span>Teamboard</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="team">
+                            <span>Team</span>
+                          </label>
+                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                            <input type="checkbox" data-betrieb-module="orders">
+                            <span>Kundenbestellungen &amp; Packtisch</span>
                           </label>
                           <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                             <input type="checkbox" data-betrieb-module="buero">
@@ -693,6 +702,10 @@
                             <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                               <input id="dev-dashboard-tenant-mod-team" type="checkbox" data-module-key="team">
                               <span>Team</span>
+                            </label>
+                            <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+                              <input id="dev-dashboard-tenant-mod-orders" type="checkbox" data-module-key="orders">
+                              <span>Kundenbestellungen &amp; Packtisch</span>
                             </label>
                             <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                               <input id="dev-dashboard-tenant-mod-mhd" type="checkbox" data-module-key="mhd">
@@ -1011,19 +1024,10 @@
           </div>
 
           <!-- ============================================== -->
-          <!-- SCREEN: TEAM (Nachrichten & Bestellungen)        -->
+          <!-- SCREEN: TEAM (Nachrichten)                     -->
           <!-- ============================================== -->
           <div class="page" id="page-team">
-            <section class="team-hub-panel" aria-label="Team Kommunikation und Bestellungen">
-              <div class="team-subnav" role="tablist" aria-label="Team-Bereiche">
-                <button type="button" class="team-subnav-btn active" data-team-panel="messages" role="tab" aria-selected="true" id="team-subnav-messages">
-                  💬 Nachrichten
-                </button>
-                <button type="button" class="team-subnav-btn" data-team-panel="orders" role="tab" aria-selected="false" id="team-subnav-orders">
-                  🛒 Bestellungen
-                </button>
-              </div>
-
+            <section class="team-hub-panel" aria-label="Team Kommunikation">
               <div class="team-panel active" id="team-panel-messages" data-team-panel="messages" role="tabpanel">
                 <section class="team-push-section task-token-section" aria-label="Benachrichtigungen">
                   <h2 class="task-token-heading">Benachrichtigungen</h2>
@@ -1046,105 +1050,110 @@
                   <div id="team-info-feed" class="team-info-feed"></div>
                 </div>
               </div>
+            </section>
+          </div>
 
-              <div class="team-panel hidden" id="team-panel-orders" data-team-panel="orders" role="tabpanel" hidden>
-                <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
-                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
-                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
-                  <button type="button" class="btn btn-secondary btn-compact" data-orders-view="aufnahme" role="tab" aria-selected="false">Bestellung aufnehmen</button>
-                </div>
+          <!-- ============================================== -->
+          <!-- SCREEN: KUNDENBESTELLUNGEN & PACKTISCH         -->
+          <!-- ============================================== -->
+          <div class="page" id="page-orders">
+            <section class="team-hub-panel" id="view-orders" aria-label="Kundenbestellungen und Packtisch">
+              <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
+                <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
+                <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
+                <button type="button" class="btn btn-secondary btn-compact" data-orders-view="aufnahme" role="tab" aria-selected="false">Bestellung aufnehmen</button>
+              </div>
 
-                <div id="orders-view-zuschnitt" class="customer-order-section task-token-section hidden" hidden>
-                  <h2 class="task-token-heading">Sammel-Zuschnittliste</h2>
-                  <p class="customer-order-hint" id="zuschnittliste-summary">Aggregation für Zerlegung, Wurstküche &amp; Ladenwolf.</p>
-                  <div class="zuschnittliste-view-toolbar">
-                    <div class="zuschnittliste-day-filters">
-                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="fri">Kommender Freitag</button>
-                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="sat">Kommender Samstag</button>
-                      <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="today">Heute</button>
-                    </div>
-                    <label class="form-label" for="zuschnittliste-date">Abholtag</label>
-                    <input type="text" id="zuschnittliste-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
-                    <button type="button" class="btn btn-primary" id="zuschnittliste-print-btn">Für Metzgerei drucken (A4)</button>
+              <div id="orders-view-zuschnitt" class="customer-order-section task-token-section hidden" hidden>
+                <h2 class="task-token-heading">Sammel-Zuschnittliste</h2>
+                <p class="customer-order-hint" id="zuschnittliste-summary">Aggregation für Zerlegung, Wurstküche &amp; Ladenwolf.</p>
+                <div class="zuschnittliste-view-toolbar">
+                  <div class="zuschnittliste-day-filters">
+                    <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="fri">Kommender Freitag</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="sat">Kommender Samstag</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-zuschnitt-preset="today">Heute</button>
                   </div>
-                  <div id="zuschnittliste-body" class="zuschnittliste-body"></div>
+                  <label class="form-label" for="zuschnittliste-date">Abholtag</label>
+                  <input type="text" id="zuschnittliste-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
+                  <button type="button" class="btn btn-primary" id="zuschnittliste-print-btn">Für Metzgerei drucken (A4)</button>
                 </div>
+                <div id="zuschnittliste-body" class="zuschnittliste-body"></div>
+              </div>
 
-                <div id="orders-view-aufnahme" class="customer-order-section task-token-section hidden" hidden>
-                <div id="customer-order-section">
-                  <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
-                  <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
-                  <form id="customer-order-form" class="customer-order-form">
-                    <label class="form-label" for="order-customer-name">Name des Kunden</label>
-                    <input type="text" id="order-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+              <div id="orders-view-aufnahme" class="customer-order-section task-token-section hidden" hidden>
+              <div id="customer-order-section">
+                <h2 class="task-token-heading">Kundenbestellung aufnehmen</h2>
+                <p class="customer-order-hint">Angenommen von wird aus der Anmeldung unter Start übernommen.</p>
+                <form id="customer-order-form" class="customer-order-form">
+                  <label class="form-label" for="order-customer-name">Name des Kunden</label>
+                  <input type="text" id="order-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
 
-                    <div class="customer-order-contact-grid">
-                      <label class="form-label" for="order-callback-phone">Rückrufnummer</label>
-                      <input type="tel" id="order-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
-                      <label class="form-label" for="order-customer-email">oder E-Mail</label>
-                      <input type="email" id="order-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
-                    </div>
-
-                    <div class="customer-order-ready-grid">
-                      <label class="form-label" for="order-ready-date">Bereit am</label>
-                      <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
-                      <label class="form-label" for="order-ready-time">Uhrzeit</label>
-                      <input type="time" id="order-ready-time" class="input-text-touch" required>
-                    </div>
-
-                    <div class="customer-order-lines-head">
-                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
-                      <button type="button" class="btn btn-secondary btn-compact" id="order-add-line-btn">+ Position</button>
-                    </div>
-                    <div id="order-lines-container" class="order-lines-container"></div>
-
-                    <fieldset class="customer-order-wish-tags">
-                      <legend>Weitere Wünsche</legend>
-                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="mariniert"> mariniert</label>
-                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="vakuumiert"> vakuumiert</label>
-                      <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="TK"> TK</label>
-                    </fieldset>
-                    <label class="form-label" for="order-additional-wishes">Sonstige Hinweise</label>
-                    <textarea id="order-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. dünn geschnitten, ohne Knoblauch"></textarea>
-
-                    <div class="order-slip-upload">
-                      <label class="form-label">Bestellzettel (Foto / PDF)</label>
-                      <div class="bulletin-dropzone order-slip-dropzone" id="order-slip-dropzone" tabindex="0" role="button" aria-label="Bestellzettel hochladen">
-                        <span class="bulletin-dropzone-icon">📷</span>
-                        <span>Zettel fotografieren oder PDF wählen</span>
-                        <span class="bulletin-dropzone-hint">Übergang: Zettel reicht – Details können später ergänzt werden</span>
-                      </div>
-                      <input type="file" id="order-slip-file-input" class="visually-hidden" accept="image/*,application/pdf" multiple>
-                      <div class="bulletin-upload-preview hidden" id="order-slip-preview"></div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Bestellung speichern</button>
-                  </form>
-                </div>
-                </div>
-
-                <div id="orders-view-packtisch" class="customer-order-section task-token-section">
-                <div class="production-tasks-section" id="production-tasks-section">
-                  <h2 class="task-token-heading">Produktions-Aufträge</h2>
-                  <div class="production-tasks-grid">
-                    <section class="production-station-card" aria-label="In der Küche zu tun">
-                      <h3>Heute zu kochen (Küche)</h3>
-                      <div id="production-tasks-kitchen"></div>
-                    </section>
-                    <section class="production-station-card" aria-label="In der Metzgerei zu tun">
-                      <h3>Heute zu zerlegen/packen (Metzgerei)</h3>
-                      <div id="production-tasks-butchery"></div>
-                    </section>
+                  <div class="customer-order-contact-grid">
+                    <label class="form-label" for="order-callback-phone">Rückrufnummer</label>
+                    <input type="tel" id="order-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                    <label class="form-label" for="order-customer-email">oder E-Mail</label>
+                    <input type="email" id="order-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
                   </div>
-                </div>
 
-                <div>
-                  <h2 class="task-token-heading">Packtisch / Kisten-Kommissionierung</h2>
-                  <p class="customer-order-hint">Sortiert nach Abholtag und Zeitfenster (Theke vor SB-Kühlschrank). Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt.</p>
-                  <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
-                  <div id="customer-order-list" class="customer-order-list"></div>
+                  <div class="customer-order-ready-grid">
+                    <label class="form-label" for="order-ready-date">Bereit am</label>
+                    <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                    <label class="form-label" for="order-ready-time">Uhrzeit</label>
+                    <input type="time" id="order-ready-time" class="input-text-touch" required>
+                  </div>
+
+                  <div class="customer-order-lines-head">
+                    <h3 class="customer-order-lines-title">Bestellpositionen</h3>
+                    <button type="button" class="btn btn-secondary btn-compact" id="order-add-line-btn">+ Position</button>
+                  </div>
+                  <div id="order-lines-container" class="order-lines-container"></div>
+
+                  <fieldset class="customer-order-wish-tags">
+                    <legend>Weitere Wünsche</legend>
+                    <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="mariniert"> mariniert</label>
+                    <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="vakuumiert"> vakuumiert</label>
+                    <label class="task-routing-option"><input type="checkbox" name="order-wish-tag" value="TK"> TK</label>
+                  </fieldset>
+                  <label class="form-label" for="order-additional-wishes">Sonstige Hinweise</label>
+                  <textarea id="order-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. dünn geschnitten, ohne Knoblauch"></textarea>
+
+                  <div class="order-slip-upload">
+                    <label class="form-label">Bestellzettel (Foto / PDF)</label>
+                    <div class="bulletin-dropzone order-slip-dropzone" id="order-slip-dropzone" tabindex="0" role="button" aria-label="Bestellzettel hochladen">
+                      <span class="bulletin-dropzone-icon">📷</span>
+                      <span>Zettel fotografieren oder PDF wählen</span>
+                      <span class="bulletin-dropzone-hint">Übergang: Zettel reicht – Details können später ergänzt werden</span>
+                    </div>
+                    <input type="file" id="order-slip-file-input" class="visually-hidden" accept="image/*,application/pdf" multiple>
+                    <div class="bulletin-upload-preview hidden" id="order-slip-preview"></div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary">Bestellung speichern</button>
+                </form>
+              </div>
+              </div>
+
+              <div id="orders-view-packtisch" class="customer-order-section task-token-section">
+              <div class="production-tasks-section" id="production-tasks-section">
+                <h2 class="task-token-heading">Produktions-Aufträge</h2>
+                <div class="production-tasks-grid">
+                  <section class="production-station-card" aria-label="In der Küche zu tun">
+                    <h3>Heute zu kochen (Küche)</h3>
+                    <div id="production-tasks-kitchen"></div>
+                  </section>
+                  <section class="production-station-card" aria-label="In der Metzgerei zu tun">
+                    <h3>Heute zu zerlegen/packen (Metzgerei)</h3>
+                    <div id="production-tasks-butchery"></div>
+                  </section>
                 </div>
-                </div>
+              </div>
+
+              <div>
+                <h2 class="task-token-heading">Packtisch / Kisten-Kommissionierung</h2>
+                <p class="customer-order-hint">Sortiert nach Abholtag und Zeitfenster (Theke vor SB-Kühlschrank). Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt.</p>
+                <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
+                <div id="customer-order-list" class="customer-order-list"></div>
+              </div>
               </div>
 
               <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
@@ -1161,7 +1170,6 @@
                   <div id="avery-label-print-area"></div>
                 </div>
               </div>
-
             </section>
           </div>
 
@@ -2485,6 +2493,10 @@
               <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
                 <i>💬</i>
                 <span>Team</span>
+              </button>
+              <button class="nav-item" data-tab="orders" id="tab-orders" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('orders')">
+                <i>🛒</i>
+                <span>Packtisch</span>
               </button>
               <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
                 <i>📅</i>

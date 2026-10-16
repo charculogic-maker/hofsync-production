@@ -9846,8 +9846,9 @@ body.dev-dashboard-view .app-version-badge--footer {
 }
 
 body.role-helper #page-team,
+body.role-helper #page-orders,
 body.role-helper .admin-leitstand-panel,
-body.role-helper #team-subnav-orders {
+body.role-helper #tab-orders {
   display: none !important;
 }
 

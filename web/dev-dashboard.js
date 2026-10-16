@@ -132,13 +132,24 @@ const TIER_LABELS = {
   metzgerei_pro: 'Metzgerei Pro',
 };
 
-/** Sichtbare Schalter in „Mein Betrieb“. Aliase schreibt setTenantModules selbst mit. */
+/**
+ * Sichtbare Schalter in „Mein Betrieb“.
+ * Nur diese Keys landen im Patch — nicht aufgeführte Module bleiben in Firestore unverändert.
+ * `orders` ist eigenständig (nicht an `team` gekoppelt).
+ */
 const BETRIEB_MODULE_CONTROLS = [
   { key: 'mhd', label: 'MHD-Monitor', readKeys: ['mhd', 'mhdMonitor'] },
   { key: 'receiving', label: 'Wareneingang', readKeys: ['receiving', 'wareneingang'] },
   { key: 'kitchen', label: 'Wurstküche & Rezepte', readKeys: ['kitchen', 'wurstkueche', 'rezepte'] },
   { key: 'haccp', label: 'HACCP', readKeys: ['haccp'] },
   { key: 'start', label: 'Teamboard', readKeys: ['start', 'teamboard'] },
+  { key: 'team', label: 'Team', readKeys: ['team'] },
+  {
+    key: 'orders',
+    label: 'Kundenbestellungen & Packtisch',
+    readKeys: ['orders'],
+    writeKeys: ['orders'],
+  },
   { key: 'buero', label: 'Büro & Chargen', readKeys: ['buero', 'batches', 'chargenDoku'], writeKeys: ['chargenDoku'] },
 ];
 

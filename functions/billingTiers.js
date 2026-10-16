@@ -49,6 +49,8 @@ function expandModuleFlags(flags = {}) {
   const mhd = src.mhd === true || src.mhdMonitor === true;
   const receiving = src.receiving === true || src.wareneingang === true;
   const team = src.team === true;
+  // orders ist eigenständig — team:false darf orders:true nicht überschreiben
+  const orders = src.orders === true;
   const buero = src.buero === true || src.batches === true;
   const start = src.start === true || src.teamboard === true;
   const chargenDoku = src.chargenDoku === true || src.cutting === true;
@@ -56,7 +58,7 @@ function expandModuleFlags(flags = {}) {
     start,
     teamboard: start,
     team,
-    orders: src.orders === true || team,
+    orders,
     mhd,
     mhdMonitor: mhd,
     receiving,
@@ -123,7 +125,7 @@ const ALIAS_GROUPS = [
   ['kitchen', 'wurstkueche', 'rezepte'],
   ['mhd', 'mhdMonitor'],
   ['receiving', 'wareneingang', 'deliveryParser'],
-  ['team', 'orders'],
+  // team und orders bewusst getrennt (Packtisch ≠ Team-Nachrichten)
   ['buero', 'batches'],
   ['start', 'teamboard'],
   ['chargenDoku', 'cutting'],
