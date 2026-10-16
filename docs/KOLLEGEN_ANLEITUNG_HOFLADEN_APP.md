@@ -27,10 +27,10 @@ Das Passwort verwalten wir intern. Diese Anmeldung bleibt auf dem Laden-iPhone g
 
 Nach dem Geräte-Zugang — oder wenn unsere App danach fragt — wählen wir **unser Profil**, z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan oder Mimi. Über **Andere** können wir einen Namen eintippen, falls wir nicht in der Liste stehen.
 
-- Das gewählte Profil erscheint **oben rechts** in der App.
-- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Profil-Liste öffnet sich erneut. **Abbrechen** oder **✕** lässt den bisherigen Login unverändert.
-- Für **MHD**, **Neu** (Wareneingang) und **Herkunft** ist ein Profil **Pflicht**.
-- Nach **zwei Stunden ohne Aktivität** fragt unsere App beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut nach dem Profil.
+- Das gewählte Profil erscheint **oben rechts** in der App (👤 Name). Ohne Auswahl steht dort **👤 TEAM**.
+- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Mitarbeiter-Liste öffnet sich erneut. **✕** schließt nur, wenn bereits ein Name gewählt ist.
+- Für **MHD**, **Neu** (Wareneingang), **Packtisch** und **Herkunft** ist ein Name **Pflicht** — ohne Auswahl lässt sich das Fenster nicht schließen.
+- Nach **zehn Minuten ohne Tippen** sperrt unsere App den Bildschirm und fragt erneut nach dem Namen.
 
 **Wichtig:** Safari **nicht** im privaten Modus nutzen — sonst vergisst das Laden-iPhone den Geräte-Zugang nach dem Schließen.
 

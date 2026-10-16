@@ -52,9 +52,17 @@ export function writeScopedLocalStorageValue(baseKey, tenantId, value) {
 export function clearTeamboardTenantStorage(tenantId) {
   const prefix = normalizeTenantId(tenantId);
   if (!prefix) return;
-  [ACTIVE_EMPLOYEE_STORAGE_KEY, ACTIVE_AREA_STORAGE_KEY, LEGACY_SHIFT_STORAGE_KEY].forEach((baseKey) => {
+  [
+    ACTIVE_EMPLOYEE_STORAGE_KEY,
+    'charculogic.activeEmployee',
+    ACTIVE_AREA_STORAGE_KEY,
+    LEGACY_SHIFT_STORAGE_KEY,
+  ].forEach((baseKey) => {
     try {
       localStorage.removeItem(`${prefix}_${baseKey}`);
     } catch (_) { /* noop */ }
   });
+  try {
+    localStorage.removeItem('charculogic.activeEmployee');
+  } catch (_) { /* noop */ }
 }

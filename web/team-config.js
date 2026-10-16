@@ -61,6 +61,59 @@ export function getTeamGroups() {
   return JSON.parse(JSON.stringify(configState.groups));
 }
 
+/** Kanonischer Firestore-Pfad: tenants/{tenantId}/settings/teamDashboard */
+export function getTeamConfigDocId() {
+  return TEAM_CONFIG_DOC_ID;
+}
+
+/**
+ * Extrahiert aktive Mitarbeiternamen aus String- oder Objekt-Einträgen.
+ * Filtert `active: false` / `disabled: true` / `status: 'inactive'`.
+ */
+export function extractActiveEmployeeNames(list = []) {
+  const names = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    if (typeof entry === 'string') {
+      const cleanName = entry.trim();
+      if (cleanName) names.push(cleanName);
+      return;
+    }
+    if (!entry || typeof entry !== 'object') return;
+    if (
+      entry.active === false
+      || entry.enabled === false
+      || entry.disabled === true
+      || String(entry.status || '').toLowerCase() === 'inactive'
+    ) {
+      return;
+    }
+    const cleanName = String(
+      entry.name || entry.displayName || entry.employeeName || entry.label || '',
+    ).trim();
+    if (cleanName) names.push(cleanName);
+  });
+  return mergeEmployeeLists(names, []);
+}
+
+/**
+ * Frische One-Shot-Ladung der kanonischen Team-Liste (settings/teamDashboard).
+ * Aktualisiert den In-Memory-State von team-config — dieselbe Quelle wie Teamboard.
+ */
+export async function ensureTeamEmployeesLoaded() {
+  const ref = configRef();
+  if (!ref) {
+    return getTeamEmployees();
+  }
+  try {
+    const snap = await ref.get();
+    const config = normalizeConfig(snap.exists ? snap.data() : null);
+    applyConfig(config);
+  } catch (err) {
+    console.warn('[TeamConfig] ensureTeamEmployeesLoaded fehlgeschlagen:', err);
+  }
+  return getTeamEmployees();
+}
+
 function getVerifyPinCallable() {
   const firebase = configState.getFirebase();
   if (!firebase?.functions) return null;
@@ -174,9 +227,7 @@ function mergeEmployeeLists(primary = [], secondary = []) {
 
 function normalizeConfig(data) {
   const tenantDefaults = getTenantTeamDefaults();
-  const storedEmployees = Array.isArray(data?.employees)
-    ? data.employees.map((name) => String(name).trim()).filter(Boolean)
-    : [];
+  const storedEmployees = extractActiveEmployeeNames(data?.employees);
   let employees = storedEmployees.length
     ? mergeEmployeeLists(storedEmployees, [])
     : [...tenantDefaults.employees];
@@ -186,9 +237,7 @@ function normalizeConfig(data) {
     const key = String(id).trim();
     if (!key) return;
     const label = String(group?.label || key).trim() || key;
-    const members = Array.isArray(group?.members)
-      ? group.members.map((n) => String(n).trim()).filter(Boolean)
-      : [];
+    const members = extractActiveEmployeeNames(group?.members);
     groups[key] = { label, members };
   });
   if (Object.keys(groups).length === 0) {

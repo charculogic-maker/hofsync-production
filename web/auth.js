@@ -204,6 +204,12 @@ function clearSessionCaches() {
     clearTeamboardTenantStorage(tenantId);
     localStorage.removeItem(CACHED_TENANT_ID_KEY);
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+    localStorage.removeItem('charculogic.activeEmployee');
+    try {
+      if (tenantId) {
+        localStorage.removeItem(`${tenantId}_charculogic.activeEmployee`);
+      }
+    } catch (_) { /* noop */ }
     try { sessionStorage.removeItem(CACHED_TENANT_ID_KEY); } catch (_) { /* noop */ }
     window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
       detail: { employeeName: '' },

@@ -587,7 +587,10 @@ function buildHiddenAuditFields() {
     createdAt: serverTimestampFallback(),
     updatedAt: serverTimestampFallback(),
   };
-  if (actor) fields.scannedBy = actor;
+  if (actor) {
+    fields.scannedBy = actor;
+    fields.employeeName = actor;
+  }
   return fields;
 }
 
@@ -603,7 +606,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'erfassungsDatum', 'meisterOverrideReason',
   'vpeBarcode', 'vpeInhalt',
   'source', 'postentyp', 'wareneingangAt',
-  'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
+  'tenantId', 'updatedAt', 'createdAt', 'scannedBy', 'employeeName',
   'lastModifiedBy', 'previousQuantity',
   'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
   'rabattiert', 'rabattiertAt',
@@ -2733,6 +2736,7 @@ async function processScannedBarcode(decodedText, source = 'camera') {
     barcode: scannedCode,
     scannedAt: Date.now(),
     scannedBy: employeeName,
+    employeeName,
     source,
     handled: false
   };
@@ -8372,6 +8376,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     wareneingangAt: erfassungsDatum,
     erfassungsDatum,
     scannedBy: getActiveEmployee() || getAuditActorName(),
+    employeeName: getActiveEmployee() || getAuditActorName(),
     tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
     ...buildHiddenAuditFields(),
@@ -8503,6 +8508,7 @@ function buildDeliveryBundlePayload(head, {
     itemCount: includeItems ? currentDeliveryItems.length : 0,
     source: 'wareneingang-lieferung',
     scannedBy: getActiveEmployee() || getAuditActorName(),
+    employeeName: getActiveEmployee() || getAuditActorName(),
     tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
     ...buildHiddenAuditFields(),

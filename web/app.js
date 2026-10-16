@@ -107,6 +107,9 @@ import {
 } from './customer-orders.js';
 import { activateOrdersHubTab, activateTeamHubTab } from './team-tab.js';
 import {
+  ensureTeamEmployeesLoaded,
+  extractActiveEmployeeNames,
+  getTeamConfigDocId,
   getTeamEmployees,
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
@@ -149,7 +152,7 @@ import {
   loadTenantEnabledModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
-import { getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
+import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
 import {
   initDevDashboard,
   isDevDashboardRoute,
@@ -198,7 +201,12 @@ const AUTH_LOCAL_STORAGE_MARKERS = [
   ACTIVE_AREA_STORAGE_KEY,
   LEGACY_SHIFT_STORAGE_KEY,
 ];
-const PROFILE_SESSION_IDLE_MS = 120 * 60 * 1000;
+const PROFILE_SESSION_IDLE_MS = 10 * 60 * 1000;
+const EMPLOYEE_INACTIVITY_MS = 600_000;
+const EMPLOYEE_ACTIVITY_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
+/** Soft-Lock Speicherschlüssel laut Spec (zusätzlich zum mandanten-scoped Key). */
+const SOFT_LOCK_EMPLOYEE_STORAGE_KEY = 'charculogic.activeEmployee';
+const EMPLOYEE_PICKER_FALLBACK = ['Paddy', 'Laden-Team', 'Küche', 'Metzgerei', 'Büro'];
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
 function isEmployeePinRequired(branding = window.BRANDING) {
@@ -271,6 +279,36 @@ function clearProfileLastActionTime() {
   } catch (_) { /* noop */ }
 }
 
+function clearSoftLockEmployeeMirror() {
+  try {
+    localStorage.removeItem(SOFT_LOCK_EMPLOYEE_STORAGE_KEY);
+  } catch (_) { /* noop */ }
+  try {
+    const tenantId = normalizeTenantId(getGlobalTenantId() || getTenantId());
+    if (tenantId) {
+      localStorage.removeItem(scopedTeamboardStorageKey(SOFT_LOCK_EMPLOYEE_STORAGE_KEY, tenantId));
+    }
+  } catch (_) { /* noop */ }
+}
+
+function writeSoftLockEmployeeMirror(employeeName) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) {
+    clearSoftLockEmployeeMirror();
+    return;
+  }
+  try {
+    localStorage.setItem(SOFT_LOCK_EMPLOYEE_STORAGE_KEY, cleanName);
+  } catch (_) { /* noop */ }
+  try {
+    writeScopedLocalStorageValue(
+      SOFT_LOCK_EMPLOYEE_STORAGE_KEY,
+      resolveInventoryStorageTenantKey(),
+      cleanName,
+    );
+  } catch (_) { /* noop */ }
+}
+
 function clearProfileSession() {
   try {
     localStorage.removeItem(activeEmployeeStorageKey());
@@ -278,6 +316,7 @@ function clearProfileSession() {
   } catch (err) {
     console.warn('[CharcuLogic Profile] Session konnte nicht gelöscht werden:', err);
   }
+  clearSoftLockEmployeeMirror();
   clearProfileLastActionTime();
   window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
     detail: { employeeName: '' },
@@ -1551,26 +1590,359 @@ function openPinTeamSwitcher(options = {}) {
 }
 
 /**
- * Header-Schnellwechsler: Profil-Picker oder PIN-Modal je nach Mandanten-Auth.
- * Abbrechen / Backdrop / ✕ schließt ohne den aktuellen Login zu verlieren.
+ * Header-Schnellwechsler: Soft-Lock Modal (#modal-employee-picker).
+ * Bei PIN-Pflicht bleibt der PIN-Switcher als Fallback für geschützte Aktionen.
  */
 function showTeamSwitcher(options = {}) {
   if (isFirebaseRoleAuth()) {
     window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
     return Promise.resolve(readActiveEmployee());
   }
-  if (isProfileEmployeeAuth() && !isEmployeePinRequired()) {
-    return openProfileEmployeePicker({ mandatory: false, ...options });
-  }
-  if (isEmployeePinRequired()) {
+  if (isEmployeePinRequired() && options.preferPin === true) {
     return openPinTeamSwitcher(options);
   }
-  return openProfileEmployeePicker({ mandatory: false, ...options });
+  return openEmployeePickerModal(options);
 }
 
 function openPinModal(options = {}) {
   return showTeamSwitcher(options);
 }
+
+const employeePickerState = {
+  mandatory: false,
+  resolve: null,
+  bound: false,
+};
+
+function escapeEmployeePickerHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function normalizeEmployeePickerNames(list = []) {
+  const names = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const clean = String(entry || '').trim();
+    if (!clean) return;
+    if (names.some((name) => name.toLowerCase() === clean.toLowerCase())) return;
+    names.push(clean);
+  });
+  return names;
+}
+
+function isPlaceholderTeamEmployeeList(list = []) {
+  const placeholders = new Set(['mitarbeiter 1', 'mitarbeiter 2']);
+  const cleaned = normalizeEmployeePickerNames(list);
+  return cleaned.length > 0
+    && cleaned.every((name) => placeholders.has(name.toLowerCase()));
+}
+
+/**
+ * Kanonische Soft-Lock-Liste = dieselbe Quelle wie Teamboard/Team-Config:
+ * tenants/{tenantId}/settings/teamDashboard.employees
+ * Ergänzend: settings/profile.defaultTeam / __tenantDefaultTeam, danach Gäste.
+ */
+async function loadEmployeePickerNamesFromFirestore() {
+  const tenantId = canonicalTenantId(getGlobalTenantId() || getTenantId());
+  const sources = [];
+  let employeeList = [];
+
+  try {
+    const fromTeamDashboard = await ensureTeamEmployeesLoaded();
+    const active = extractActiveEmployeeNames(fromTeamDashboard);
+    if (active.length) {
+      employeeList = normalizeEmployeePickerNames(active);
+      sources.push(`settings/${getTeamConfigDocId()}`);
+    }
+  } catch (err) {
+    console.warn('[HofSync Soft-Lock] teamDashboard nicht lesbar:', err);
+  }
+
+  // Memory-State falls One-Shot noch leer war (Listener schon gelaufen).
+  if (!employeeList.length) {
+    try {
+      const cached = extractActiveEmployeeNames(getTeamEmployees());
+      if (cached.length) {
+        employeeList = normalizeEmployeePickerNames(cached);
+        sources.push('team-config-memory');
+      }
+    } catch (_) { /* noop */ }
+  }
+
+  // Profil-DefaultTeam, wenn teamDashboard noch Platzhalter/leer ist.
+  if (!employeeList.length || isPlaceholderTeamEmployeeList(employeeList)) {
+    try {
+      const fromProfile = extractActiveEmployeeNames(getTenantDefaultTeam());
+      if (fromProfile.length && !isPlaceholderTeamEmployeeList(fromProfile)) {
+        employeeList = normalizeEmployeePickerNames([
+          ...employeeList.filter((name) => !isPlaceholderTeamEmployeeList([name])),
+          ...fromProfile,
+        ]);
+        sources.push('settings/profile.defaultTeam');
+      }
+    } catch (err) {
+      console.warn('[HofSync Soft-Lock] defaultTeam nicht lesbar:', err);
+    }
+  }
+
+  // Auth-Mitarbeiter-Collection nur als Ergänzung (aktive Einträge mit Anzeigenamen).
+  try {
+    const database = typeof db !== 'undefined' && db ? db : null;
+    if (tenantId && database) {
+      const nestedSnap = await database.collection('tenants').doc(tenantId).collection('employees').get();
+      const nestedNames = [];
+      nestedSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data() || {};
+        if (data.disabled === true || data.active === false || data.status === 'inactive') return;
+        const name = String(data.displayName || data.name || '').trim();
+        if (name) nestedNames.push(name);
+      });
+      if (nestedNames.length) {
+        employeeList = normalizeEmployeePickerNames([...employeeList, ...nestedNames]);
+        sources.push('tenants/{id}/employees');
+      }
+    }
+  } catch (err) {
+    console.warn('[HofSync Soft-Lock] tenants/.../employees nicht lesbar:', err);
+  }
+
+  try {
+    employeeList = normalizeEmployeePickerNames([
+      ...employeeList,
+      ...readProfileGuestNames(),
+    ]);
+  } catch (_) { /* noop */ }
+
+  // Gleiche Filter wie Profil-/PIN-Picker: keine anonymen Team-Sessions.
+  const blocked = new Set([
+    PROFILE_OTHER_LABEL.toLowerCase(),
+    resolveTeamSessionName().toLowerCase(),
+  ]);
+  employeeList = employeeList
+    .filter((name) => name && !blocked.has(name.toLowerCase()) && !isTeamSessionName(name))
+    .sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
+
+  if (!employeeList.length) {
+    employeeList = [...EMPLOYEE_PICKER_FALLBACK];
+    sources.push('fallback');
+  }
+
+  console.log('[HofSync] Geladene Mitarbeiter für Mandant:', employeeList, {
+    tenantId: tenantId || '(ohne)',
+    sources,
+  });
+
+  return employeeList;
+}
+
+function renderEmployeePickerList(names = []) {
+  const listEl = document.getElementById('employee-picker-list');
+  if (!listEl) return;
+  const items = normalizeEmployeePickerNames(names);
+  listEl.innerHTML = `${items.map((name) => (
+    `<button type="button" class="btn btn-primary profile-picker-btn" data-employee-picker-name="${escapeEmployeePickerHtml(name)}">${escapeEmployeePickerHtml(name)}</button>`
+  )).join('')}
+  <button type="button" class="btn btn-secondary profile-picker-btn profile-picker-other" data-employee-picker-other="1">${escapeEmployeePickerHtml(PROFILE_OTHER_LABEL)}</button>`;
+}
+
+function promptOtherEmployeeName() {
+  const entered = window.prompt?.('Namen eintragen (Aushilfe / Gast):', '') || '';
+  const cleanName = String(entered || '').trim();
+  if (!cleanName) {
+    window.showToast?.('Bitte einen Namen eintragen.', 'warning');
+    return;
+  }
+  rememberProfileGuestName(cleanName);
+  selectEmployeeFromPicker(cleanName);
+}
+
+function isEmployeePickerOpen() {
+  const modal = document.getElementById('modal-employee-picker');
+  return Boolean(modal?.classList.contains('is-open'));
+}
+
+function syncEmployeePickerMandatoryUi(mandatory) {
+  const modal = document.getElementById('modal-employee-picker');
+  const closeBtn = document.getElementById('employee-picker-close');
+  if (!modal) return;
+  modal.classList.toggle('is-mandatory', Boolean(mandatory));
+  if (closeBtn) {
+    closeBtn.hidden = Boolean(mandatory);
+    closeBtn.disabled = Boolean(mandatory);
+  }
+}
+
+function closeEmployeePickerModal({ force = false, pickedName = '' } = {}) {
+  const modal = document.getElementById('modal-employee-picker');
+  if (!modal) return false;
+  if (employeePickerState.mandatory && !force && !readActiveEmployee()) {
+    window.showToast?.('Bitte zuerst einen Namen wählen.', 'warning');
+    return false;
+  }
+  modal.classList.remove('is-open', 'is-mandatory');
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+  employeePickerState.mandatory = false;
+  const resolve = employeePickerState.resolve;
+  employeePickerState.resolve = null;
+  if (typeof resolve === 'function') resolve(pickedName || readActiveEmployee());
+  return true;
+}
+
+function selectEmployeeFromPicker(name) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return;
+  persistActiveEmployeeSession(cleanName);
+  window.showToast?.(`Angemeldet als ${cleanName}`, 'success');
+  closeEmployeePickerModal({ force: true, pickedName: cleanName });
+}
+
+function bindEmployeePickerModalOnce() {
+  if (employeePickerState.bound) return;
+  const modal = document.getElementById('modal-employee-picker');
+  if (!modal) return;
+  employeePickerState.bound = true;
+
+  modal.addEventListener('click', (event) => {
+    const picked = event.target.closest('[data-employee-picker-name]')?.dataset?.employeePickerName;
+    if (picked) {
+      event.preventDefault();
+      selectEmployeeFromPicker(picked);
+      return;
+    }
+    if (event.target.closest('[data-employee-picker-other]')) {
+      event.preventDefault();
+      promptOtherEmployeeName();
+      return;
+    }
+    if (event.target.closest('[data-employee-picker-close]')) {
+      event.preventDefault();
+      closeEmployeePickerModal({ force: false });
+      return;
+    }
+    if (event.target === modal) {
+      event.preventDefault();
+      if (!employeePickerState.mandatory) {
+        closeEmployeePickerModal({ force: false });
+      }
+    }
+  });
+}
+
+function openEmployeePickerModal(options = {}) {
+  const mandatory = options.mandatory === true;
+  bindEmployeePickerModalOnce();
+
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modal-employee-picker');
+    if (!modal) {
+      resolve('');
+      return;
+    }
+
+    if (typeof employeePickerState.resolve === 'function') {
+      employeePickerState.resolve(readActiveEmployee());
+    }
+    employeePickerState.resolve = resolve;
+    employeePickerState.mandatory = mandatory;
+
+    const listEl = document.getElementById('employee-picker-list');
+    if (listEl) {
+      listEl.innerHTML = '<p class="pin-auth-scan">Lade Mitarbeiter…</p>';
+    }
+    syncEmployeePickerMandatoryUi(mandatory);
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    void loadEmployeePickerNamesFromFirestore()
+      .then((names) => {
+        if (!isEmployeePickerOpen()) return;
+        renderEmployeePickerList(names);
+        listEl?.querySelector('button')?.focus();
+      })
+      .catch((err) => {
+        console.warn('[CharcuLogic Soft-Lock] Mitarbeiterliste Fallback:', err);
+        if (!isEmployeePickerOpen()) return;
+        renderEmployeePickerList(EMPLOYEE_PICKER_FALLBACK);
+      });
+  });
+}
+
+function clearActiveEmployeeForSoftLock() {
+  try {
+    localStorage.removeItem(activeEmployeeStorageKey());
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+  } catch (_) { /* noop */ }
+  clearSoftLockEmployeeMirror();
+  clearProfileLastActionTime();
+  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
+    detail: { employeeName: '' },
+  }));
+  updateEmployeeSessionBadge('');
+}
+
+let employeeInactivityTimerId = null;
+let employeeInactivityTrackerBound = false;
+
+function handleEmployeeInactivityTimeout() {
+  employeeInactivityTimerId = null;
+  if (isFirebaseRoleAuth()) return;
+  clearActiveEmployeeForSoftLock();
+  updateEmployeeSessionBadge('');
+  void openEmployeePickerModal({ mandatory: true });
+}
+
+function resetEmployeeInactivityTimer() {
+  if (employeeInactivityTimerId) {
+    clearTimeout(employeeInactivityTimerId);
+    employeeInactivityTimerId = null;
+  }
+  if (isFirebaseRoleAuth()) return;
+  if (document.getElementById('auth-screen') && !document.getElementById('auth-screen')?.hidden) {
+    return;
+  }
+  employeeInactivityTimerId = setTimeout(handleEmployeeInactivityTimeout, EMPLOYEE_INACTIVITY_MS);
+}
+
+function bindEmployeeInactivityTracker() {
+  if (employeeInactivityTrackerBound) return;
+  employeeInactivityTrackerBound = true;
+  const onActivity = () => {
+    resetEmployeeInactivityTimer();
+  };
+  EMPLOYEE_ACTIVITY_EVENTS.forEach((eventName) => {
+    document.addEventListener(eventName, onActivity, { passive: true, capture: true });
+  });
+  resetEmployeeInactivityTimer();
+}
+
+/**
+ * Soft-Lock Guard: nach Login ohne activeEmployee Pflicht-Modal öffnen.
+ */
+async function ensureSoftLockEmployeeSelected() {
+  if (isFirebaseRoleAuth()) return readActiveEmployee();
+  bindEmployeeInactivityTracker();
+  const current = readActiveEmployee();
+  if (current && !isTeamSessionName(current)) {
+    updateEmployeeSessionBadge(current);
+    resetEmployeeInactivityTimer();
+    return current;
+  }
+  if (current && isTeamSessionName(current)) {
+    // Anonyme Team-Session zählt nicht als persönliche Pflichtauswahl.
+    clearActiveEmployeeForSoftLock();
+  }
+  updateEmployeeSessionBadge('');
+  return openEmployeePickerModal({ mandatory: true });
+}
+
+window.openEmployeePickerModal = openEmployeePickerModal;
+window.ensureSoftLockEmployeeSelected = ensureSoftLockEmployeeSelected;
+window.resetEmployeeInactivityTimer = resetEmployeeInactivityTimer;
 
 function resolveTerminalAuthEmail(branding = window.BRANDING) {
   const fromSettings = String(getTerminalSettings().terminalUser || '').trim();
@@ -1676,7 +2048,11 @@ async function ensureInventoryProfileReadyForWrite(branding = window.BRANDING) {
 async function requireProfileSessionForInventory(options = {}) {
   const branding = window.BRANDING || {};
   if (!isProfileEmployeeAuth(branding)) {
-    return ensureEmployeeSessionForProtectedArea(branding) || readActiveEmployee();
+    const existing = ensureEmployeeSessionForProtectedArea(branding) || readActiveEmployee();
+    if (existing && !isTeamSessionName(existing) && options.forcePicker !== true) {
+      return existing;
+    }
+    return openEmployeePickerModal({ mandatory: true });
   }
 
   const firebaseReady = await ensureTenantFirebaseAuth(branding);
@@ -1696,7 +2072,7 @@ async function requireProfileSessionForInventory(options = {}) {
     return current;
   }
 
-  const picked = await openProfileEmployeePicker({ mandatory: true });
+  const picked = await openEmployeePickerModal({ mandatory: true });
   return picked || '';
 }
 
@@ -1840,6 +2216,9 @@ function persistActiveEmployeeSession(employeeName) {
   } catch (err) {
     console.warn('[CharcuLogic Session] Team-Sitzung konnte nicht gespeichert werden:', err);
   }
+  writeSoftLockEmployeeMirror(cleanName);
+  touchProfileLastActionTime();
+  resetEmployeeInactivityTimer();
   window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
     detail: { employeeName: cleanName },
   }));
@@ -1876,7 +2255,10 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
 
   if (!isEmployeePinRequired(branding)) {
     if (teamLoginCard) teamLoginCard.hidden = true;
-    return configureTeamSessionWithoutPin(branding);
+    const current = readActiveEmployee();
+    // Soft-Lock: keine anonyme „Team …“-Session mehr automatisch setzen.
+    if (current && !isTeamSessionName(current)) return current;
+    return '';
   }
   if (teamLoginCard && document.documentElement.dataset.fixedTerminal !== '1') {
     teamLoginCard.hidden = false;
@@ -1962,6 +2344,7 @@ function clearTenantProfileLocalStorage(tenantId = '') {
 
   try {
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+    clearSoftLockEmployeeMirror();
   } catch (_) { /* noop */ }
 }
 
@@ -3375,10 +3758,21 @@ function updateHeaderLogoutVisibility(activeTab) {
 
 function readActiveEmployee() {
   try {
-    return readScopedLocalStorageValue(
+    const scoped = readScopedLocalStorageValue(
       ACTIVE_EMPLOYEE_STORAGE_KEY,
       resolveInventoryStorageTenantKey(),
     );
+    if (scoped) return scoped;
+  } catch (_) { /* noop */ }
+  try {
+    const softScoped = readScopedLocalStorageValue(
+      SOFT_LOCK_EMPLOYEE_STORAGE_KEY,
+      resolveInventoryStorageTenantKey(),
+    );
+    if (softScoped) return softScoped;
+  } catch (_) { /* noop */ }
+  try {
+    return String(localStorage.getItem(SOFT_LOCK_EMPLOYEE_STORAGE_KEY) || '').trim();
   } catch (_) {
     return '';
   }
@@ -3389,16 +3783,12 @@ function updateEmployeeSessionBadge(employeeName = readActiveEmployee()) {
     syncSidebarFacilityUserCard(employeeName);
     return;
   }
-  if (!employeeName) {
-    employeeSessionBadge.style.display = 'none';
-    employeeSessionName.textContent = '';
-    syncSidebarFacilityUserCard('');
-    return;
-  }
-  const firstName = String(employeeName).trim().split(/\s+/)[0] || employeeName;
-  employeeSessionName.textContent = `👤 ${firstName}`;
+  const cleanName = String(employeeName || '').trim();
+  const isAnonymous = !cleanName || isTeamSessionName(cleanName) || /^laden-?team$/i.test(cleanName);
+  const firstName = cleanName.split(/\s+/)[0] || cleanName;
+  employeeSessionName.textContent = isAnonymous ? '👤 TEAM' : `👤 ${firstName}`;
   employeeSessionBadge.style.display = 'inline-flex';
-  syncSidebarFacilityUserCard(employeeName);
+  syncSidebarFacilityUserCard(isAnonymous ? '' : cleanName);
 }
 
 const DESKTOP_WIDE_PAGES = new Set(['page-knowledge', 'page-batches', 'page-buero', 'page-dev-dashboard']);
@@ -3680,7 +4070,8 @@ function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
       window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
       return;
     }
-    void showTeamSwitcher({ mandatory: false });
+    // Manuell: Soft-Lock Modal; ✕ nur erlaubt wenn bereits ein Name gesetzt ist.
+    void openEmployeePickerModal({ mandatory: !readActiveEmployee() || isTeamSessionName(readActiveEmployee()) });
   };
 
   button.addEventListener('pointerdown', openSwitcher);
@@ -3884,6 +4275,10 @@ async function startAppShell() {
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
   updateEmployeeSessionBadge();
+  bindEmployeePickerModalOnce();
+  if (!isFirebaseRoleAuth(window.BRANDING)) {
+    bindEmployeeInactivityTracker();
+  }
   if (isAuthLoopBreakerActive()) {
     hideAppShellForAuthLockdown();
   }
@@ -4640,18 +5035,21 @@ async function bootstrapAuthenticatedApp() {
   purgeInvalidProfileSession(window.BRANDING);
   expireProfileSessionIfIdle(window.BRANDING);
   if (!isFirebaseRoleAuth(window.BRANDING)) {
+    bindEmployeeInactivityTracker();
     if (isProfileEmployeeAuth(window.BRANDING)) {
       await ensureTenantFirebaseAuth(window.BRANDING);
       if (INVENTORY_PROFILE_TABS.has(AppState.activeTab)) {
         await requireProfileSessionForInventory();
       }
-      const activeProfile = readActiveEmployee();
-      if (activeProfile) {
-        applyRoleBasedUi(authSession);
-        applyProfileKitchenRestrictions();
-        if (isAdvancedKaeseUpgradeEnabled(window.BRANDING)) {
-          await maybeShowBulletinAckInterceptor(activeProfile, window.BRANDING);
-        }
+    }
+    // Soft-Lock: ohne persönlichen Namen muss das Modal sofort aufpoppen.
+    await ensureSoftLockEmployeeSelected();
+    const activeProfile = readActiveEmployee();
+    if (activeProfile) {
+      applyRoleBasedUi(authSession);
+      applyProfileKitchenRestrictions();
+      if (isAdvancedKaeseUpgradeEnabled(window.BRANDING) && isProfileEmployeeAuth(window.BRANDING)) {
+        await maybeShowBulletinAckInterceptor(activeProfile, window.BRANDING);
       }
     }
   } else {
