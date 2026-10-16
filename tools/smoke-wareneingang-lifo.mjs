@@ -71,7 +71,7 @@ assertIncludes(cssSrc, '.scanner-quick-adjust', 'Scanner Quick-Adjust Styles');
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261016-vpe-buttons-v2'/,
+  /CACHE_NAME = 'charculogic-v20261016-supplier-split-v1'/,
   'SW Cache-Version VPE-Buttons',
 );
 assertIncludes(mhdSrc, 'confirmScannerQuickAdjust', 'Fertig-Bestätigung am Scanner');

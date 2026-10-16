@@ -31,19 +31,25 @@ import {
   isMetzMeatTemperatureCategory,
   isStrictHaccpTemperatureRequired,
   METZ_DEFAULT_CATEGORY,
+  normalizeDeliveryArea,
   normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
   hasReceivingItemMhd,
   parseReceivingQuickMhdInput,
+  readLastDeliveryArea,
   RECEIVING_DUPLICATE_SCAN_MS,
   RECEIVING_SCAN_MHD_EMPTY,
   RECEIVING_SMART_CATEGORIES,
+  receivingModeToDeliveryArea,
   resolveMetzTraceLot,
   resolveReceivingScanCategory,
   shiftIsoDateByDays,
   shouldMergeDuplicateReceivingScan,
   sortDeliveryItemsLifo,
+  writeLastDeliveryArea,
+  deliveryAreaToReceivingMode,
+  defaultSuppliersForArea,
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -153,24 +159,22 @@ const RECEIVING_FORM_IDS = [
 ];
 
 const SUPPLIER_SELECT_SONSTIGE = '__sonstige__';
-const NEUTRAL_SUPPLIER_OPTIONS = Object.freeze([
-  'Stautenhof',
-  'Naturverbund',
-  'Bio Hof Frohnenbruch',
-  'Eigener Wareneingang',
-  'Großhandel',
-]);
+const SUPPLIER_SELECT_SONSTIGE_LABEL = 'Sonstiger Lieferant…';
 
-function currentSupplierOptions() {
-  const fromSettings = typeof window.getTenantSupplierNames === 'function'
-    ? window.getTenantSupplierNames()
-    : [];
-  return Array.isArray(fromSettings) && fromSettings.length
-    ? fromSettings
-    : [...NEUTRAL_SUPPLIER_OPTIONS];
+function currentDeliveryArea() {
+  return receivingModeToDeliveryArea(getReceivingMode());
 }
 
-function renderSupplierSelect(selectEl) {
+function currentSupplierOptions(area = currentDeliveryArea()) {
+  const key = normalizeDeliveryArea(area);
+  if (typeof window.getTenantSupplierNames === 'function') {
+    const fromSettings = window.getTenantSupplierNames(key);
+    if (Array.isArray(fromSettings) && fromSettings.length) return fromSettings;
+  }
+  return defaultSuppliersForArea(key);
+}
+
+function renderSupplierSelect(selectEl, area = currentDeliveryArea()) {
   if (!selectEl) return;
   const previous = selectEl.value;
   const emptyLabel = '-- Lieferant wählen --';
@@ -179,7 +183,7 @@ function renderSupplierSelect(selectEl) {
   empty.value = '';
   empty.textContent = emptyLabel;
   selectEl.appendChild(empty);
-  currentSupplierOptions().forEach((name) => {
+  currentSupplierOptions(area).forEach((name) => {
     const option = document.createElement('option');
     option.value = name;
     option.textContent = name;
@@ -187,18 +191,20 @@ function renderSupplierSelect(selectEl) {
   });
   const other = document.createElement('option');
   other.value = SUPPLIER_SELECT_SONSTIGE;
-  other.textContent = 'Sonstige';
+  other.textContent = SUPPLIER_SELECT_SONSTIGE_LABEL;
   selectEl.appendChild(other);
   if ([...selectEl.options].some((option) => option.value === previous)) {
     selectEl.value = previous;
+  } else {
+    selectEl.value = '';
   }
 }
 
-function renderSupplierPickGrid() {
+function renderSupplierPickGrid(area = currentDeliveryArea()) {
   const grid = document.getElementById('supplier-pick-grid');
   if (!grid) return;
   grid.replaceChildren();
-  currentSupplierOptions().forEach((name) => {
+  currentSupplierOptions(area).forEach((name) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn btn-primary supplier-pick-option';
@@ -210,13 +216,15 @@ function renderSupplierPickGrid() {
   other.type = 'button';
   other.className = 'btn btn-secondary supplier-pick-option';
   other.dataset.supplierPick = SUPPLIER_SELECT_SONSTIGE;
-  other.textContent = 'Sonstige';
+  other.textContent = SUPPLIER_SELECT_SONSTIGE_LABEL;
   grid.appendChild(other);
 }
 
 function renderSupplierControls() {
-  renderSupplierSelect(document.getElementById('we-supplier'));
-  renderSupplierPickGrid();
+  const area = currentDeliveryArea();
+  renderSupplierSelect(document.getElementById('we-supplier'), area);
+  renderSupplierPickGrid(area);
+  syncSupplierCustomFieldVisibility();
 }
 
 window.addEventListener('charculogic:tenant-settings', () => renderSupplierControls());
@@ -7003,6 +7011,59 @@ function applySupplierToForm(supplierName = '') {
   syncSupplierCustomFieldVisibility();
 }
 
+function readActiveEmployeeNameForSupplier() {
+  try {
+    return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId()) || 'Team';
+  } catch {
+    return 'Team';
+  }
+}
+
+/**
+ * Neuen Lieferanten für den aktuellen Bereich speichern und Dropdown aktualisieren.
+ * Bekannte Namen (Defaults / Firestore) werden nur lokal übernommen.
+ */
+async function persistSupplierName(name, { toastOnCreate = false } = {}) {
+  const cleaned = String(name || '').trim();
+  if (!cleaned || /^sonstig/i.test(cleaned)) {
+    return { ok: false, reason: 'invalid' };
+  }
+  const area = currentDeliveryArea();
+  const addFn = typeof window.addTenantSupplierName === 'function'
+    ? window.addTenantSupplierName
+    : null;
+  let result = { ok: true, name: cleaned, alreadyExisted: true };
+  if (addFn) {
+    result = await addFn(area, cleaned, {
+      db: mhdState.db,
+      tenantId: resolveMhdTenantId(),
+      actor: readActiveEmployeeNameForSupplier(),
+    });
+  }
+  renderSupplierControls();
+  applySupplierToForm(cleaned);
+  updateReceivingSaveButtonState();
+  if (toastOnCreate && result?.ok && result.persisted && !result.alreadyExisted) {
+    window.showToast?.('Lieferant übernommen – bleibt für den nächsten Eingang gespeichert.', 'success');
+  } else if (toastOnCreate && result?.ok && result.offline) {
+    window.showToast?.('Lieferant übernommen. Speichern folgt, sobald WLAN da ist.', 'info');
+  }
+  return result;
+}
+
+async function confirmCustomSupplierFromInput({ toastOnCreate = true } = {}) {
+  const customEl = document.getElementById('we-supplier-custom');
+  const name = String(customEl?.value || '').trim();
+  if (!name) {
+    window.showToast?.('Bitte den Namen des Lieferanten eintippen.', 'warning');
+    customEl?.focus();
+    return '';
+  }
+  await persistSupplierName(name, { toastOnCreate });
+  persistDeliveryDraftToIndexedDB();
+  return name;
+}
+
 function readDeliveryHeadValues() {
   const selectValue = document.getElementById('we-supplier')?.value.trim() || '';
   let supplier = '';
@@ -7149,7 +7210,7 @@ async function ensureDeliverySupplierSelected({ purpose = 'finalize' } = {}) {
     document.getElementById('we-supplier')?.focus();
     return '';
   }
-  applySupplierToForm(picked);
+  await persistSupplierName(picked, { toastOnCreate: false });
   updateReceivingSaveButtonState();
   return picked;
 }
@@ -8669,6 +8730,7 @@ async function saveDeliveryDraft() {
 
   const supplier = await ensureDeliverySupplierSelected({ purpose: 'draft' });
   if (!supplier) return;
+  await persistSupplierName(supplier, { toastOnCreate: false });
 
   const head = readDeliveryHeadValues();
   if (!currentDeliveryPhotos.length) {
@@ -8885,6 +8947,7 @@ async function finalizeDelivery() {
 
   const supplier = await ensureDeliverySupplierSelected({ purpose: 'finalize' });
   if (!supplier) return;
+  await persistSupplierName(supplier, { toastOnCreate: false });
 
   const head = readDeliveryHeadValues();
 
@@ -9146,6 +9209,7 @@ function setReceivingMode(mode) {
     normalized = 'schnell';
   }
   currentReceivingMode = normalized;
+  writeLastDeliveryArea(receivingModeToDeliveryArea(normalized));
   const panels = {
     schnell: document.getElementById('receiving-panel-schnell'),
     metzgerei: document.getElementById('receiving-panel-metzgerei'),
@@ -9162,11 +9226,13 @@ function setReceivingMode(mode) {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  renderSupplierControls();
   updateReceivingTemperatureFieldUi();
+  updateReceivingSaveButtonState();
 }
 
 function bindReceivingModeSwitch() {
-  const switcher = document.querySelector('.receiving-mode-switch');
+  const switcher = document.querySelector('.receiving-mode-switch, .receiving-area-switch');
   if (!switcher || switcher.dataset.mhdBound === '1') return;
   switcher.dataset.mhdBound = '1';
   switcher.addEventListener('click', (event) => {
@@ -9175,7 +9241,7 @@ function bindReceivingModeSwitch() {
     setReceivingMode(tab.dataset.receivingMode);
     mhdState.playClickSound(900, 0.04, 0.12);
   });
-  setReceivingMode('schnell');
+  setReceivingMode(deliveryAreaToReceivingMode(readLastDeliveryArea()));
 }
 
 function bindReceivingControls() {
@@ -9463,6 +9529,18 @@ function bindReceivingControls() {
     supplierCustom.addEventListener('input', () => {
       updateReceivingSaveButtonState();
       persistDeliveryDraftToIndexedDB();
+    });
+    supplierCustom.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      confirmCustomSupplierFromInput({ toastOnCreate: true });
+    });
+  }
+  const supplierCustomApply = document.getElementById('we-supplier-custom-apply');
+  if (supplierCustomApply && supplierCustomApply.dataset.mhdBound !== '1') {
+    supplierCustomApply.dataset.mhdBound = '1';
+    supplierCustomApply.addEventListener('click', () => {
+      confirmCustomSupplierFromInput({ toastOnCreate: true });
     });
   }
   if (openDraftsList && openDraftsList.dataset.mhdBound !== '1') {

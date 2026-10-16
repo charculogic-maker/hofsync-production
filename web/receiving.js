@@ -73,14 +73,60 @@ export const METZ_RECEIVING_CATEGORIES = [
   { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
 ];
 
-/** Standard-Lieferanten für Metzgerei / Bio-Fleisch (StevesHof). */
+/** Standard-Lieferanten Laden (Fallback, wenn Firestore noch leer). */
+export const LADEN_DEFAULT_SUPPLIERS = Object.freeze([
+  'Weiling',
+  'Rapunzel',
+  'Bartke',
+]);
+
+/** Standard-Lieferanten Metzgerei (Fallback, wenn Firestore noch leer). */
 export const METZ_DEFAULT_SUPPLIERS = Object.freeze([
   'Stautenhof',
   'Naturverbund',
-  'Bio Hof Frohnenbruch',
-  'Eigener Wareneingang',
-  'Großhandel',
+  'Eigene Produktion',
 ]);
+
+/** localStorage-Schlüssel für letzten Wareneingangs-Bereich. */
+export const LAST_DELIVERY_AREA_STORAGE_KEY = 'charculogic.lastDeliveryArea';
+
+export function normalizeDeliveryArea(area = '') {
+  const raw = String(area || '').trim().toLowerCase();
+  if (raw === 'metzgerei' || raw === 'metz') return 'metzgerei';
+  return 'laden';
+}
+
+export function deliveryAreaToReceivingMode(area = 'laden') {
+  return normalizeDeliveryArea(area) === 'metzgerei' ? 'metzgerei' : 'schnell';
+}
+
+export function receivingModeToDeliveryArea(mode = 'schnell') {
+  return String(mode || '').toLowerCase() === 'metzgerei' ? 'metzgerei' : 'laden';
+}
+
+export function readLastDeliveryArea(storage = globalThis.localStorage) {
+  try {
+    return normalizeDeliveryArea(storage?.getItem?.(LAST_DELIVERY_AREA_STORAGE_KEY) || 'laden');
+  } catch {
+    return 'laden';
+  }
+}
+
+export function writeLastDeliveryArea(area, storage = globalThis.localStorage) {
+  const normalized = normalizeDeliveryArea(area);
+  try {
+    storage?.setItem?.(LAST_DELIVERY_AREA_STORAGE_KEY, normalized);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  return normalized;
+}
+
+export function defaultSuppliersForArea(area = 'laden') {
+  return normalizeDeliveryArea(area) === 'metzgerei'
+    ? [...METZ_DEFAULT_SUPPLIERS]
+    : [...LADEN_DEFAULT_SUPPLIERS];
+}
 
 export const BIO_SCHWEIN_DELIVERY_TYPES = Object.freeze([
   { value: 'Haelften', label: 'Hälften' },
