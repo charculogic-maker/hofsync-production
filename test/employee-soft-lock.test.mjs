@@ -81,7 +81,14 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(styleCss).to.match(/#employee-picker-list/);
   });
 
-  it('bumps the service-worker cache to employee-list-sync-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-employee-list-sync-v1'");
+  it('uses stale-while-revalidate cache for employee list', () => {
+    expect(appJs).to.match(/CACHED_EMPLOYEES_STORAGE_KEY\s*=\s*'charculogic\.cachedEmployees'/);
+    expect(appJs).to.match(/function readCachedEmployeePickerList/);
+    expect(appJs).to.match(/function writeCachedEmployeePickerList/);
+    expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
+  });
+
+  it('bumps the service-worker cache to instant-boot-v1', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-instant-boot-v1'");
   });
 });
