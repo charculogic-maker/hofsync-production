@@ -310,25 +310,39 @@ function loadVapidToAdminInput() {
   if (input && !input.value) input.value = getStoredVapidKey();
 }
 
+function parseSupplierAdminLines(raw = '') {
+  return String(raw || '')
+    .split(/[\n,;]+/)
+    .map((name) => name.trim())
+    .filter((name) => name && !/^sonstig/i.test(name));
+}
+
 function fillSupplierAdminField() {
-  const input = document.getElementById('tenant-suppliers');
-  if (!input || input.dataset.editing === '1') return;
-  const names = typeof window.getTenantSupplierNames === 'function'
-    ? window.getTenantSupplierNames()
-    : [];
-  if (names.length) input.value = names.join('\n');
+  const ladenInput = document.getElementById('tenant-suppliers-laden');
+  const metzInput = document.getElementById('tenant-suppliers-metzgerei');
+  if (!ladenInput && !metzInput) return;
+  if (ladenInput?.dataset.editing === '1' || metzInput?.dataset.editing === '1') return;
+  const getNames = typeof window.getTenantSupplierNames === 'function'
+    ? window.getTenantSupplierNames
+    : null;
+  if (!getNames) return;
+  if (ladenInput) ladenInput.value = getNames('laden').join('\n');
+  if (metzInput) metzInput.value = getNames('metzgerei').join('\n');
 }
 
 async function saveSuppliersFromAdmin() {
   if (!configState.tenantId) return;
-  if (!document.getElementById('tenant-suppliers')) return;
-  const names = String(document.getElementById('tenant-suppliers')?.value || '')
-    .split(/[\n,;]+/)
-    .map((name) => name.trim())
-    .filter(Boolean);
-  if (!names.length) return;
+  const ladenInput = document.getElementById('tenant-suppliers-laden');
+  const metzInput = document.getElementById('tenant-suppliers-metzgerei');
+  if (!ladenInput && !metzInput) return;
+  const laden = parseSupplierAdminLines(ladenInput?.value || '');
+  const metzgerei = parseSupplierAdminLines(metzInput?.value || '');
+  if (!laden.length && !metzgerei.length) return;
+  const names = [...new Set([...laden, ...metzgerei])];
   const firebase = configState.getFirebase();
   const payload = {
+    laden,
+    metzgerei,
     names,
     tenantId: configState.tenantId,
     updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
@@ -342,10 +356,20 @@ async function saveSuppliersFromAdmin() {
     queueData: { ...payload, updatedAt: new Date().toISOString() },
     offlineMessage: 'Lieferanten werden synchronisiert.',
   });
-  window.getTenantSupplierNames = () => [...names];
-  window.dispatchEvent(new CustomEvent('charculogic:tenant-settings', {
-    detail: { suppliers: names },
-  }));
+  if (typeof window.applyLocalSupplierLists === 'function') {
+    window.applyLocalSupplierLists({
+      laden,
+      metzgerei,
+      tenantId: configState.tenantId,
+    });
+  } else {
+    window.dispatchEvent(new CustomEvent('charculogic:tenant-settings', {
+      detail: {
+        suppliers: laden,
+        suppliersByArea: { laden, metzgerei },
+      },
+    }));
+  }
 }
 
 async function saveTeamConfigFromAdmin() {
@@ -421,9 +445,11 @@ function bindAdminTeamConfigPanel() {
   });
 
   document.getElementById('team-config-save-btn')?.addEventListener('click', () => saveTeamConfigFromAdmin());
-  const supplierInput = document.getElementById('tenant-suppliers');
-  supplierInput?.addEventListener('focusin', () => { supplierInput.dataset.editing = '1'; });
-  supplierInput?.addEventListener('focusout', () => { delete supplierInput.dataset.editing; });
+  ['tenant-suppliers-laden', 'tenant-suppliers-metzgerei'].forEach((id) => {
+    const supplierInput = document.getElementById(id);
+    supplierInput?.addEventListener('focusin', () => { supplierInput.dataset.editing = '1'; });
+    supplierInput?.addEventListener('focusout', () => { delete supplierInput.dataset.editing; });
+  });
   fillSupplierAdminField();
   window.addEventListener('charculogic:tenant-settings', fillSupplierAdminField);
   loadVapidToAdminInput();

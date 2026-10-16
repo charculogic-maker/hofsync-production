@@ -314,7 +314,9 @@ async function provisionDemoTenantInner(auth, data) {
 
 const DEFAULT_PRIMARY = '#0284c7';
 const BASELINE_TEAM = ['Betriebsleiter', 'Mitarbeiter 1'];
-const BASELINE_SUPPLIERS = ['Eigener Wareneingang', 'Großhandel'];
+const BASELINE_SUPPLIERS_LADEN = ['Weiling', 'Rapunzel', 'Bartke'];
+const BASELINE_SUPPLIERS_METZ = ['Stautenhof', 'Naturverbund', 'Eigene Produktion'];
+const BASELINE_SUPPLIERS = [...BASELINE_SUPPLIERS_LADEN, ...BASELINE_SUPPLIERS_METZ];
 
 function assertSuperAdmin(auth) {
   if (!auth) {
@@ -601,6 +603,8 @@ async function seedNewTenant(tenantRef, {
     updatedAt: now,
   });
   batch.set(tenantRef.collection('settings').doc('suppliers'), {
+    laden: BASELINE_SUPPLIERS_LADEN,
+    metzgerei: BASELINE_SUPPLIERS_METZ,
     names: BASELINE_SUPPLIERS,
     tenantId,
     updatedBy: actorUid,

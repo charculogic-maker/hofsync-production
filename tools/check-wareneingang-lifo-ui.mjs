@@ -222,7 +222,7 @@ async function main() {
     && report.hasScannerQuickAdjust
     && report.hasEmptyMhdInput
     && report.hasNoMhdQuickChips
-    && report.swCache === 'charculogic-v20261016-vpe-buttons-v2';
+    && report.swCache === 'charculogic-v20261016-supplier-split-v1';
 
   await browser.close();
   if (!ok) {

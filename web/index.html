@@ -1267,24 +1267,33 @@
               <section class="receiving-section receiving-section--supplier-head" aria-labelledby="we-supplier-head-title">
                 <h3 class="receiving-section-title" id="we-supplier-head-title">Lieferant</h3>
                 <div class="receiving-form-stack">
+                  <div class="receiving-mode-switch receiving-area-switch" role="tablist" aria-label="Wareneingang Bereich">
+                    <button type="button" class="receiving-mode-tab active" id="receiving-mode-schnell" data-receiving-mode="schnell" data-delivery-area="laden" role="tab" aria-selected="true" aria-controls="receiving-panel-schnell">
+                      🏪 Laden
+                    </button>
+                    <button type="button" class="receiving-mode-tab" id="receiving-mode-metzgerei" data-receiving-mode="metzgerei" data-delivery-area="metzgerei" role="tab" aria-selected="false" aria-controls="receiving-panel-metzgerei">
+                      🥩 Metzgerei
+                    </button>
+                  </div>
                   <div class="receiving-supplier-row">
                     <label class="receiving-field receiving-field--supplier" for="we-supplier">
                       <span>Lieferant</span>
                       <select id="we-supplier" class="gastro-input" autocomplete="organization">
                         <option value="">-- Lieferant wählen --</option>
-                        <option value="Stautenhof">Stautenhof</option>
-                        <option value="Naturverbund">Naturverbund</option>
-                        <option value="Bio Hof Frohnenbruch">Bio Hof Frohnenbruch</option>
-                        <option value="Eigener Wareneingang">Eigener Wareneingang</option>
-                        <option value="Großhandel">Großhandel</option>
-                        <option value="__sonstige__">Sonstige</option>
+                        <option value="Weiling">Weiling</option>
+                        <option value="Rapunzel">Rapunzel</option>
+                        <option value="Bartke">Bartke</option>
+                        <option value="__sonstige__">Sonstiger Lieferant…</option>
                       </select>
                     </label>
                   </div>
-                  <label class="receiving-field hidden" id="we-supplier-custom-wrap" for="we-supplier-custom">
-                    <span>Name bei Sonstige</span>
-                    <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
-                  </label>
+                  <div class="receiving-field hidden" id="we-supplier-custom-wrap">
+                    <label class="receiving-supplier-custom-label" for="we-supplier-custom">Name des Lieferanten</label>
+                    <div class="receiving-supplier-custom-row">
+                      <input type="text" id="we-supplier-custom" class="gastro-input" placeholder="Name des Lieferanten" autocomplete="organization">
+                      <button type="button" class="btn btn-primary" id="we-supplier-custom-apply">Übernehmen</button>
+                    </div>
+                  </div>
                   <div class="receiving-field receiving-temp-head" id="we-temperature-head-wrap">
                     <label class="receiving-temp-head-label" for="we-temperature-head">
                       <span>Liefertemperatur °C (Optional)</span>
@@ -1308,15 +1317,6 @@
                   </div>
                 </div>
               </section>
-
-              <div class="receiving-mode-switch" role="tablist" aria-label="Wareneingang Bereich">
-                <button type="button" class="receiving-mode-tab active" id="receiving-mode-schnell" data-receiving-mode="schnell" role="tab" aria-selected="true" aria-controls="receiving-panel-schnell">
-                  Laden
-                </button>
-                <button type="button" class="receiving-mode-tab" id="receiving-mode-metzgerei" data-receiving-mode="metzgerei" role="tab" aria-selected="false" aria-controls="receiving-panel-metzgerei">
-                  Metzgerei
-                </button>
-              </div>
 
               <div id="we-editing-draft-banner" class="receiving-editing-banner hidden" role="status" aria-live="polite"></div>
 
@@ -2174,8 +2174,10 @@
                   <textarea id="team-config-employees" class="bulletin-message-input" rows="2" placeholder="z. B. Stephan, Boris, Aushilfe"></textarea>
                   <div id="team-config-groups" class="team-config-groups"></div>
                   <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
-                  <label class="form-label" for="tenant-suppliers">Lieferanten (eine Zeile pro Name)</label>
-                  <textarea id="tenant-suppliers" class="bulletin-message-input" rows="3" placeholder="Eigener Wareneingang&#10;Großhandel"></textarea>
+                  <label class="form-label" for="tenant-suppliers-laden">Lieferanten Laden (eine Zeile pro Name)</label>
+                  <textarea id="tenant-suppliers-laden" class="bulletin-message-input" rows="3" placeholder="Weiling&#10;Rapunzel&#10;Bartke"></textarea>
+                  <label class="form-label" for="tenant-suppliers-metzgerei">Lieferanten Metzgerei (eine Zeile pro Name)</label>
+                  <textarea id="tenant-suppliers-metzgerei" class="bulletin-message-input" rows="3" placeholder="Stautenhof&#10;Naturverbund&#10;Eigene Produktion"></textarea>
                   <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
                   <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
                   <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
@@ -2552,19 +2554,6 @@
         </nav>
         </aside>
 
-        <button
-          type="button"
-          class="app-version-badge app-version-badge--footer"
-          id="app-version-badge-footer"
-          data-app-version-badge
-          aria-haspopup="dialog"
-          title="Versionsinfo"
-        >
-          <span class="app-version-dot" aria-hidden="true"></span>
-          <span class="app-version-label" data-app-version-label>v1.4.0</span>
-          <span class="app-version-status" data-app-version-status>System aktuell</span>
-        </button>
-
         <!-- Home Indicator Bar -->
         <div class="home-indicator"></div>
 
@@ -2574,14 +2563,14 @@
             <div class="supplier-pick-title" id="supplier-pick-title">Bitte Lieferant wählen</div>
             <p class="supplier-pick-desc" id="supplier-pick-desc">Ohne Lieferant können wir die Lieferung nicht abschließen.</p>
             <div class="supplier-pick-grid" id="supplier-pick-grid" role="group" aria-label="Lieferanten">
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Eigener Wareneingang">Eigener Wareneingang</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Großhandel">Großhandel</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Lieferant 1">Lieferant 1</button>
-              <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstige</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Weiling">Weiling</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Rapunzel">Rapunzel</button>
+              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Bartke">Bartke</button>
+              <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstiger Lieferant…</button>
             </div>
             <label class="receiving-field hidden" id="supplier-pick-custom-wrap" for="supplier-pick-custom">
-              <span>Name bei Sonstige</span>
-              <input type="text" id="supplier-pick-custom" class="gastro-input" placeholder="Lieferant eintippen…" autocomplete="organization">
+              <span>Name des Lieferanten</span>
+              <input type="text" id="supplier-pick-custom" class="gastro-input" placeholder="Name des Lieferanten" autocomplete="organization">
             </label>
             <div class="supplier-pick-actions">
               <button type="button" class="btn btn-primary" id="supplier-pick-confirm" hidden>Übernehmen</button>

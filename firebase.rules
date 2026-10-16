@@ -206,24 +206,34 @@ service cloud.firestore {
         && (!('bypassPin' in request.resource.data) || request.resource.data.bypassPin is bool);
     }
 
+    // Lieferanten je Bereich (Laden / Metzgerei) unter settings/suppliers.
+    // Konzeptuell tenants/{tenantId}.suppliers.{laden|metzgerei} – Root ist schreibgeschützt.
     function isSupplierSettings(docId) {
       return docId == 'suppliers'
         && request.resource.data.keys().hasOnly([
-          'names', 'suppliers', 'tenantId', 'updatedAt', 'updatedBy'
+          'names', 'suppliers', 'laden', 'metzgerei', 'tenantId', 'updatedAt', 'updatedBy'
         ])
         && (!('names' in request.resource.data) || request.resource.data.names is list)
-        && (!('suppliers' in request.resource.data) || request.resource.data.suppliers is list);
+        && (!('suppliers' in request.resource.data) || request.resource.data.suppliers is list)
+        && (!('laden' in request.resource.data) || request.resource.data.laden is list)
+        && (!('metzgerei' in request.resource.data) || request.resource.data.metzgerei is list);
     }
 
     match /tenants/{tenantId}/settings/{document} {
       allow read: if isTenantUser(tenantId);
-      allow create, update: if isAdmin(tenantId)
-        && request.resource.data.tenantId == tenantId
+      // Admin: alle Settings-Dokumente. Mitarbeiter: nur Lieferanten-Listen ergänzen.
+      allow create, update: if request.resource.data.tenantId == tenantId
         && (
-          isTeamDashboardSettings()
-          || isProfileSettings(document)
-          || isTerminalSettings(document)
-          || isSupplierSettings(document)
+          (
+            isAdmin(tenantId)
+            && (
+              isTeamDashboardSettings()
+              || isProfileSettings(document)
+              || isTerminalSettings(document)
+              || isSupplierSettings(document)
+            )
+          )
+          || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
         );
       allow delete: if isAdmin(tenantId);
     }

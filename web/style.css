@@ -5284,11 +5284,37 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-top: 0;
 }
 
-.receiving-mode-switch {
+.receiving-mode-switch,
+.receiving-area-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.receiving-supplier-custom-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--text-dark);
+}
+
+.receiving-supplier-custom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.receiving-supplier-custom-row .gastro-input {
+  min-width: 0;
+}
+
+.receiving-supplier-custom-row .btn {
+  min-height: 48px;
+  white-space: nowrap;
+  padding-inline: 14px;
 }
 
 .receiving-mode-tab {
@@ -8274,14 +8300,9 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   display: none;
 }
 
+/* Footer-Badge entfernt (überdeckte Bottom-Nav) – nur Header-Badge bleibt. */
 .app-version-badge--footer {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  z-index: 1001;
-  max-width: calc(100% - 160px);
-  background: color-mix(in srgb, var(--surface-color) 92%, transparent);
-  backdrop-filter: blur(8px);
+  display: none !important;
 }
 
 .release-toast {
