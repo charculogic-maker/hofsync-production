@@ -1,3 +1,5 @@
+import { normalizeTenantId } from './tenant-db.js';
+
 /**
  * Tenant module flags — Single Source of Truth for HofSync.
  *
@@ -74,6 +76,23 @@ const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
 
 /** Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot. */
 export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules';
+
+export function effectiveModulesStorageKey(tenantId = '') {
+  const prefix = normalizeTenantId(tenantId);
+  return prefix ? `${prefix}_${LAST_EFFECTIVE_MODULES_KEY}` : LAST_EFFECTIVE_MODULES_KEY;
+}
+
+function parseCachedEffectiveModules(raw) {
+  if (!raw) return null;
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  /** @type {Record<string, boolean>} */
+  const cleaned = {};
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (typeof value === 'boolean') cleaned[key] = value;
+  });
+  return Object.keys(cleaned).length ? cleaned : null;
+}
 
 /**
  * Resolve chargenDoku flag with legacy `traceability` fallback.
@@ -197,18 +216,9 @@ export function effectiveModulesEqual(left, right) {
 /**
  * @returns {Record<string, boolean>|null}
  */
-export function readCachedEffectiveModules() {
+export function readCachedEffectiveModules(tenantId = '') {
   try {
-    const raw = localStorage.getItem(LAST_EFFECTIVE_MODULES_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    /** @type {Record<string, boolean>} */
-    const cleaned = {};
-    Object.entries(parsed).forEach(([key, value]) => {
-      if (typeof value === 'boolean') cleaned[key] = value;
-    });
-    return Object.keys(cleaned).length ? cleaned : null;
+    return parseCachedEffectiveModules(localStorage.getItem(effectiveModulesStorageKey(tenantId)));
   } catch (_) {
     return null;
   }
@@ -217,10 +227,14 @@ export function readCachedEffectiveModules() {
 /**
  * @param {Record<string, boolean>|null|undefined} effectiveModules
  */
-export function writeCachedEffectiveModules(effectiveModules) {
+export function writeCachedEffectiveModules(effectiveModules, tenantId = '') {
   if (!effectiveModules || typeof effectiveModules !== 'object') return;
   try {
-    localStorage.setItem(LAST_EFFECTIVE_MODULES_KEY, JSON.stringify(effectiveModules));
+    const key = effectiveModulesStorageKey(tenantId);
+    localStorage.setItem(key, JSON.stringify(effectiveModules));
+    if (key !== LAST_EFFECTIVE_MODULES_KEY) {
+      localStorage.removeItem(LAST_EFFECTIVE_MODULES_KEY);
+    }
   } catch (_) { /* private mode / quota */ }
 }
 
@@ -251,11 +265,12 @@ export function applyEffectiveModulesToBranding(effectiveModules, branding = win
  * Branding + optional Firestore → effektive Map, Cache schreiben, Branding aktualisieren.
  * @returns {{ effective: Record<string, boolean>, changed: boolean }}
  */
-export function publishEffectiveModules(tenantConfig, firestoreSettings) {
+export function publishEffectiveModules(tenantConfig, firestoreSettings, options = {}) {
+  const tenantId = options?.tenantId || '';
   const effective = resolveEffectiveModules(tenantConfig, firestoreSettings);
-  const previous = readCachedEffectiveModules();
+  const previous = readCachedEffectiveModules(tenantId);
   const changed = !effectiveModulesEqual(previous, effective);
-  writeCachedEffectiveModules(effective);
+  writeCachedEffectiveModules(effective, tenantId);
   applyEffectiveModulesToBranding(effective, tenantConfig || window.BRANDING);
   return { effective, changed };
 }
@@ -401,9 +416,9 @@ export async function loadTenantEnabledModules(db, tenantId) {
     } catch (_) { /* settings/modules optional */ }
     if (enabledModules) {
       mergeEnabledModulesIntoBranding(enabledModules);
-      publishEffectiveModules(window.BRANDING, { enabledModules });
+      publishEffectiveModules(window.BRANDING, { enabledModules }, { tenantId });
     } else if (window.BRANDING) {
-      publishEffectiveModules(window.BRANDING, null);
+      publishEffectiveModules(window.BRANDING, null, { tenantId });
     }
     return enabledModules || null;
   } catch (err) {
@@ -418,11 +433,12 @@ export function subscribeTenantEnabledModules(db, tenantId, onChange) {
     (snap) => {
       const enabledModules = snap.data()?.enabledModules;
       if (enabledModules && typeof enabledModules === 'object') {
-        const previous = readCachedEffectiveModules();
+        const previous = readCachedEffectiveModules(tenantId);
         mergeEnabledModulesIntoBranding(enabledModules);
         const { effective } = publishEffectiveModules(
           window.BRANDING,
           { enabledModules },
+          { tenantId },
         );
         const changed = !effectiveModulesEqual(previous, effective);
         onChange(enabledModules, { changed, effective });

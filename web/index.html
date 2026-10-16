@@ -77,9 +77,10 @@
     })();
   </script>
   <script>
-    /* Zero-Flicker Nav: lastEffectiveModules vor async app.js anwenden. */
+    /* Zero-Flicker Nav: tenant-scoped lastEffectiveModules vor async app.js anwenden. */
     (function bootCachedNavModules() {
-      var KEY = 'charculogic.lastEffectiveModules';
+      var BASE_KEY = 'charculogic.lastEffectiveModules';
+      var TENANT_KEY = 'charculogic_cached_tenant_id';
       var TAB_TO_MODULE = {
         teamboard: 'teamboard',
         team: 'team',
@@ -92,9 +93,17 @@
         knowledge: 'knowledge',
         batches: 'batches'
       };
+      function normalizeTenantId(value) {
+        return String(value || '').trim().toLowerCase();
+      }
+      function storageKey() {
+        var tenantId = '';
+        try { tenantId = normalizeTenantId(localStorage.getItem(TENANT_KEY)); } catch (e) {}
+        return tenantId ? tenantId + '_' + BASE_KEY : BASE_KEY;
+      }
       function readCache() {
         try {
-          var raw = localStorage.getItem(KEY);
+          var raw = localStorage.getItem(storageKey());
           if (!raw) return null;
           var parsed = JSON.parse(raw);
           return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;

@@ -6,6 +6,7 @@ import {
   CANONICAL_MODULE_KEYS,
   effectiveModulesEqual,
   LAST_EFFECTIVE_MODULES_KEY,
+  effectiveModulesStorageKey,
   mergeEnabledModulesIntoBranding,
   publishEffectiveModules,
   readCachedEffectiveModules,
@@ -131,19 +132,25 @@ describe('resolveEffectiveModules', () => {
         retterBox: false,
       },
     };
-    const first = publishEffectiveModules(branding, null);
+    const first = publishEffectiveModules(branding, null, { tenantId: 'StevesHof_Hauptbetrieb' });
     expect(first.changed).to.equal(true);
-    expect(readCachedEffectiveModules().orders).to.equal(false);
-    expect(localStorage.getItem(LAST_EFFECTIVE_MODULES_KEY)).to.be.a('string');
+    expect(readCachedEffectiveModules('StevesHof_Hauptbetrieb').orders).to.equal(false);
+    expect(localStorage.getItem(effectiveModulesStorageKey('StevesHof_Hauptbetrieb'))).to.be.a('string');
+    expect(localStorage.getItem(LAST_EFFECTIVE_MODULES_KEY)).to.equal(null);
+    expect(readCachedEffectiveModules('TorFabrik')).to.equal(null);
 
-    const second = publishEffectiveModules(branding, null);
+    const second = publishEffectiveModules(branding, null, { tenantId: 'StevesHof_Hauptbetrieb' });
     expect(second.changed).to.equal(false);
     expect(effectiveModulesEqual(first.effective, second.effective)).to.equal(true);
 
-    const third = publishEffectiveModules(branding, { enabledModules: { orders: true } });
+    const third = publishEffectiveModules(
+      branding,
+      { enabledModules: { orders: true } },
+      { tenantId: 'StevesHof_Hauptbetrieb' },
+    );
     expect(third.changed).to.equal(true);
     expect(third.effective.orders).to.equal(true);
-    writeCachedEffectiveModules(third.effective);
-    expect(readCachedEffectiveModules().orders).to.equal(true);
+    writeCachedEffectiveModules(third.effective, 'StevesHof_Hauptbetrieb');
+    expect(readCachedEffectiveModules('StevesHof_Hauptbetrieb').orders).to.equal(true);
   });
 });
