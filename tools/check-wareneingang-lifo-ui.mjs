@@ -151,6 +151,46 @@ async function main() {
     mod.closeReceivingMhdEditor();
   });
 
+  // Scanner Quick-Adjust-Leiste (Kamera-Overlay ohne echte Kamera)
+  await page.evaluate(() => {
+    const overlay = document.getElementById('scanner-overlay');
+    const bar = document.getElementById('scanner-quick-adjust');
+    if (overlay) {
+      overlay.style.cssText = 'display:block;position:fixed;inset:0;width:100%;height:100%;background:#111;z-index:5000;';
+      overlay.classList.add('has-quick-adjust');
+    }
+    if (bar) {
+      bar.hidden = false;
+      bar.dataset.itemId = 'item-new';
+      const product = document.getElementById('scanner-qa-product');
+      const qty = document.getElementById('scanner-qa-qty');
+      const mhd = document.getElementById('scanner-qa-mhd-value');
+      if (product) product.textContent = 'Frische Gurke';
+      if (qty) qty.textContent = 'Menge: 3';
+      if (mhd) mhd.textContent = '23.10.2026';
+      const panel = document.getElementById('scanner-qa-mhd-panel');
+      if (panel) panel.hidden = false;
+      document.getElementById('scanner-qa-mhd-toggle')?.setAttribute('aria-expanded', 'true');
+    }
+  });
+  await page.waitForSelector('#scanner-quick-adjust:not([hidden])', { timeout: 5000 });
+  await page.locator('#scanner-quick-adjust').screenshot({
+    path: path.join(OUT, 'wareneingang-scanner-quick-adjust.png'),
+  });
+  await page.screenshot({
+    path: path.join(OUT, 'wareneingang-scanner-quick-adjust-full.png'),
+    fullPage: false,
+  });
+  await page.evaluate(() => {
+    const overlay = document.getElementById('scanner-overlay');
+    const bar = document.getElementById('scanner-quick-adjust');
+    if (bar) bar.hidden = true;
+    if (overlay) {
+      overlay.style.display = 'none';
+      overlay.classList.remove('has-quick-adjust');
+    }
+  });
+
   const report = {
     ...cardHtml,
     swCache: await page.evaluate(async () => {
