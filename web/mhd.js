@@ -40,7 +40,6 @@ import {
   RECEIVING_SMART_CATEGORIES,
   resolveMetzTraceLot,
   resolveReceivingScanCategory,
-  SCANNER_QUICK_ADJUST_IDLE_MS,
   shiftIsoDateByDays,
   shouldMergeDuplicateReceivingScan,
   sortDeliveryItemsLifo,
@@ -236,7 +235,6 @@ let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 /** Letzter Auto-Scan im Wareneingang (für 3s-Mengen-Merge). */
 let lastReceivingAutoScan = null;
-let scannerQuickAdjustIdleTimer = null;
 let scannerQuickAdjustBound = false;
 
 const DELIVERY_STATUS_DRAFT = 'DRAFT_PENDING';
@@ -7861,21 +7859,9 @@ function pulseReceivingScanFeedback({ vibrateMs = 50, merged = false } = {}) {
   }
 }
 
-function clearScannerQuickAdjustIdleTimer() {
-  if (scannerQuickAdjustIdleTimer) {
-    clearTimeout(scannerQuickAdjustIdleTimer);
-    scannerQuickAdjustIdleTimer = null;
-  }
-}
-
-function resetScannerQuickAdjustIdleTimer() {
-  clearScannerQuickAdjustIdleTimer();
+function isScannerQuickAdjustOpen() {
   const bar = document.getElementById('scanner-quick-adjust');
-  if (!bar || bar.hidden) return;
-  scannerQuickAdjustIdleTimer = setTimeout(() => {
-    scannerQuickAdjustIdleTimer = null;
-    hideScannerQuickAdjust({ resumeListening: true });
-  }, SCANNER_QUICK_ADJUST_IDLE_MS);
+  return Boolean(bar && !bar.hidden && bar.dataset.itemId);
 }
 
 function syncScannerQuickAdjustUi(item) {
@@ -7917,12 +7903,11 @@ function showScannerQuickAdjust(item) {
   if (input) input.value = '';
   bar.hidden = false;
   overlay?.classList.add('has-quick-adjust');
-  resetScannerQuickAdjustIdleTimer();
   bindScannerQuickAdjustOnce();
+  setScannerStatus('Menge/MHD anpassen, dann „Fertig“ tippen.');
 }
 
 function hideScannerQuickAdjust({ resumeListening = false } = {}) {
-  clearScannerQuickAdjustIdleTimer();
   const bar = document.getElementById('scanner-quick-adjust');
   const overlay = document.getElementById('scanner-overlay');
   if (bar) {
@@ -7951,7 +7936,6 @@ function applyScannerQuickAdjustQtyDelta(delta) {
   touchReceivingAutoScan(updated || item);
   syncScannerQuickAdjustUi(updated || item);
   pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
-  resetScannerQuickAdjustIdleTimer();
 }
 
 function applyScannerQuickAdjustMhdDays(days) {
@@ -7966,7 +7950,6 @@ function applyScannerQuickAdjustMhdDays(days) {
   setScannerQuickAdjustMhdPanelOpen(false);
   mhdState.playClickSound?.(1100, 0.04, 0.12);
   window.showToast?.(`MHD auf +${days} Tage ab heute gesetzt.`, 'success');
-  resetScannerQuickAdjustIdleTimer();
 }
 
 function applyScannerQuickAdjustMhdInput() {
@@ -7977,7 +7960,6 @@ function applyScannerQuickAdjustMhdInput() {
   if (!iso) {
     window.showToast?.('Bitte MHD als TT.MM oder TT.MM.JJJJ eintragen.', 'warning');
     input.focus();
-    resetScannerQuickAdjustIdleTimer();
     return;
   }
   if (!setCurrentDeliveryItemMhd(item.id, iso)) return;
@@ -7988,7 +7970,15 @@ function applyScannerQuickAdjustMhdInput() {
   input.value = '';
   mhdState.playClickSound?.(1000, 0.05, 0.12);
   window.showToast?.('MHD übernommen.', 'success');
-  resetScannerQuickAdjustIdleTimer();
+}
+
+function confirmScannerQuickAdjust() {
+  const item = getScannerQuickAdjustItem();
+  hideScannerQuickAdjust({ resumeListening: true });
+  if (item?.product) {
+    window.showToast?.(`${item.product} fertig – bereit für den nächsten Scan.`, 'success');
+  }
+  mhdState.playClickSound?.(900, 0.05, 0.12);
 }
 
 function bindScannerQuickAdjustOnce() {
@@ -8019,7 +8009,6 @@ function bindScannerQuickAdjustOnce() {
     if (action === 'mhd-toggle') {
       const panel = document.getElementById('scanner-qa-mhd-panel');
       setScannerQuickAdjustMhdPanelOpen(Boolean(panel?.hidden));
-      resetScannerQuickAdjustIdleTimer();
       return;
     }
     if (action === 'mhd-add') {
@@ -8031,11 +8020,10 @@ function bindScannerQuickAdjustOnce() {
       return;
     }
     if (action === 'done') {
-      hideScannerQuickAdjust({ resumeListening: true });
+      confirmScannerQuickAdjust();
     }
   });
   const input = document.getElementById('scanner-qa-mhd-input');
-  input?.addEventListener('input', () => resetScannerQuickAdjustIdleTimer());
   input?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -8056,6 +8044,22 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const info = lookupScannedProduct(code);
   if (!info?.name) return false;
 
+  // Während der Bearbeitung bleibt der aktuelle Artikel aktiv, bis „Fertig“ getippt wird.
+  // Gleicher Barcode darf die Menge weiter erhöhen; ein anderer Artikel erst danach.
+  if (
+    fromScan
+    && isScannerQuickAdjustOpen()
+    && lastReceivingAutoScan?.barcode
+    && lastReceivingAutoScan.barcode !== code
+  ) {
+    window.showToast?.(
+      'Bitte zuerst „Fertig“ tippen – danach den nächsten Artikel scannen.',
+      'info',
+    );
+    setScannerStatus('Zuerst „Fertig“ tippen, dann weiter scannen.');
+    return true;
+  }
+
   if (shouldMergeDuplicateReceivingScan(lastReceivingAutoScan, code, Date.now(), RECEIVING_DUPLICATE_SCAN_MS)) {
     const existing = currentDeliveryItems.find((row) => row.id === lastReceivingAutoScan.itemId)
       || currentDeliveryItems.find((row) => cleanScannedBarcode(row.barcode) === code);
@@ -8066,7 +8070,6 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
       pulseReceivingScanFeedback({ vibrateMs: 50, merged: true });
       if (fromScan && mhdState.isScannerOverlayOpen?.()) {
         showScannerQuickAdjust(updated);
-        setScannerStatus(`Menge ${updated.qtyValue ?? updated.qtyKg} – weiter scannen oder anpassen.`);
       }
       window.showToast?.(
         `${updated.product}: Menge jetzt ${updated.qtyValue ?? updated.qtyKg}.`,
@@ -8144,7 +8147,6 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   pulseReceivingScanFeedback({ vibrateMs: 40, merged: false });
   if (fromScan && mhdState.isScannerOverlayOpen?.()) {
     showScannerQuickAdjust(newItem);
-    setScannerStatus('Posten erfasst – Menge/MHD anpassen oder weiter scannen.');
   }
   const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
   window.showToast?.(

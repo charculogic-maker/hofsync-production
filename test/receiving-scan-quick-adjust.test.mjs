@@ -2,13 +2,19 @@
  * Unit-Tests: Duplicate-Scan-Fenster & MHD-Schnelleingabe (Wareneingang Speed).
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   parseReceivingQuickMhdInput,
   RECEIVING_DUPLICATE_SCAN_MS,
   SCANNER_MHD_QUICK_DAYS,
-  SCANNER_QUICK_ADJUST_IDLE_MS,
   shouldMergeDuplicateReceivingScan,
 } from '../web/receiving.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const mhdSrc = readFileSync(path.join(root, 'web/mhd.js'), 'utf8');
+const indexSrc = readFileSync(path.join(root, 'web/index.html'), 'utf8');
 
 describe('Wareneingang scan quick-adjust helpers', () => {
   it('merges same barcode within 3 seconds', () => {
@@ -34,8 +40,15 @@ describe('Wareneingang scan quick-adjust helpers', () => {
     assert.equal(parseReceivingQuickMhdInput(''), '');
   });
 
-  it('exposes scanner quick-day presets and idle window', () => {
+  it('exposes scanner MHD quick-day presets', () => {
     assert.deepEqual(SCANNER_MHD_QUICK_DAYS, [7, 14, 30]);
-    assert.equal(SCANNER_QUICK_ADJUST_IDLE_MS, 15000);
+  });
+
+  it('keeps quick-adjust open until explicit Fertig confirm', () => {
+    assert.equal(mhdSrc.includes('SCANNER_QUICK_ADJUST_IDLE_MS'), false);
+    assert.equal(mhdSrc.includes('resetScannerQuickAdjustIdleTimer'), false);
+    assert.ok(mhdSrc.includes('confirmScannerQuickAdjust'));
+    assert.ok(mhdSrc.includes('Bitte zuerst „Fertig“ tippen'));
+    assert.ok(indexSrc.includes('Fertig – weiter scannen'));
   });
 });

@@ -59,9 +59,12 @@ assertIncludes(cssSrc, '.scanner-quick-adjust', 'Scanner Quick-Adjust Styles');
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261016-wareneingang-speed-v2'/,
+  /CACHE_NAME = 'charculogic-v20261016-wareneingang-speed-v3'/,
   'SW Cache-Version Wareneingang-Speed',
 );
+assertIncludes(mhdSrc, 'confirmScannerQuickAdjust', 'Fertig-Bestätigung am Scanner');
+assertIncludes(mhdSrc, 'Bitte zuerst „Fertig“ tippen', 'Anderer Artikel erst nach Fertig');
+assert.equal(mhdSrc.includes('SCANNER_QUICK_ADJUST_IDLE_MS'), false, 'kein Auto-Idle-Hide');
 assertIncludes(swSrc, "/receiving.js", 'receiving.js im SW-Cache');
 
 // 6) Hilfslogik (gespiegelt)
