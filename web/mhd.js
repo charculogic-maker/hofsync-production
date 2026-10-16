@@ -1,4 +1,7 @@
 // MHD-, Bestands- und Wareneingangs-Modul
+// ARCH-GUARD: Daten-Loader (loadMhdFromCloud, Live-Sync, …) dürfen NIEMALS
+// showTab / switchTab / showPreferredStartTab / showInitialTab aufrufen —
+// nur lokalen State und den eigenen View-Container aktualisieren.
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
 import { flushPendingSyncs, getPendingSyncs, isPermissionDeniedError } from './sync.js';

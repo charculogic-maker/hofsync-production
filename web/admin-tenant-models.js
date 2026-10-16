@@ -42,7 +42,13 @@
  */
 export const TENANT_MODULE_CATALOG = Object.freeze([
   { key: 'start', label: 'Start', hint: 'Team-Leitstand / Schwarzes Brett', opsNav: true },
-  { key: 'team', label: 'Team', hint: 'Nachrichten & Bestellungen', opsNav: true },
+  { key: 'team', label: 'Team', hint: 'Nachrichten & Aufgaben', opsNav: true },
+  {
+    key: 'orders',
+    label: 'Kundenbestellungen & Packtisch',
+    hint: 'Packtisch, Zuschnittliste, Bestellaufnahme',
+    opsNav: true,
+  },
   { key: 'mhd', label: 'MHD', hint: 'Mindesthaltbarkeit prüfen', opsNav: true },
   { key: 'receiving', label: 'Wareneingang', hint: 'Lieferungen erfassen', opsNav: true },
   { key: 'kitchen', label: 'Küche', hint: 'Produktion / Wurstküche', opsNav: true },

@@ -478,15 +478,34 @@ async function handleSetTenantModules(request) {
     throw new HttpsError('not-found', 'Mandant wurde nicht gefunden.');
   }
   let enabledModules;
+  let patchInput = data.enabledModules;
+  // Dot-Path-Merge: { "enabledModules.orders": true } → { orders: true }
+  if ((!patchInput || typeof patchInput !== 'object') && data && typeof data === 'object') {
+    const fromPaths = {};
+    Object.keys(data).forEach((key) => {
+      const match = /^enabledModules\.([A-Za-z0-9_]+)$/.exec(key);
+      if (match) fromPaths[match[1]] = data[key];
+    });
+    if (Object.keys(fromPaths).length) patchInput = fromPaths;
+  }
   try {
-    enabledModules = applyModulePatch(snap.data()?.enabledModules, data.enabledModules);
+    enabledModules = applyModulePatch(snap.data()?.enabledModules, patchInput);
   } catch (err) {
     throw new HttpsError('invalid-argument', err.message || 'enabledModules ist ungültig.');
   }
-  await tenantRef.update({
-    enabledModules,
+  // Field-Path-Update: nur geänderte Keys — keine Blind-Resets anderer Module.
+  const previous = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
+    ? snap.data().enabledModules
+    : {};
+  const fieldUpdates = {
     updatedAt: firestore.FieldValue.serverTimestamp(),
+  };
+  Object.keys(enabledModules).forEach((key) => {
+    if (previous[key] !== enabledModules[key]) {
+      fieldUpdates[`enabledModules.${key}`] = enabledModules[key];
+    }
   });
+  await tenantRef.update(fieldUpdates);
   await writeModuleAudit(
     targetTenantId,
     'MODULE_UPDATE',

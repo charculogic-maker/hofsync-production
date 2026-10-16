@@ -35,6 +35,7 @@ describe('Phase 3 tariffs', () => {
     const modules = modulesForTier('hofladen_komplett');
     expect(modules.haccp).toBe(true);
     expect(modules.team).toBe(true);
+    expect(modules.orders).toBe(true);
     expect(modules.buero).toBe(true);
     expect(modules.batches).toBe(true);
     expect(modules.kitchen).toBe(false);
@@ -66,6 +67,25 @@ describe('Phase 3 tariffs', () => {
     expect(next.wurstkueche).toBe(false);
     expect(next.rezepte).toBe(false);
     expect(next.mhd).toBe(true);
+  });
+
+  test('team:false does not reset orders:true', () => {
+    const next = applyModulePatch(
+      { team: true, orders: true, mhd: true },
+      { team: false },
+    );
+    expect(next.team).toBe(false);
+    expect(next.orders).toBe(true);
+    expect(next.mhd).toBe(true);
+  });
+
+  test('orders patch does not rewrite team', () => {
+    const next = applyModulePatch(
+      { team: true, orders: false, mhd: true },
+      { orders: true },
+    );
+    expect(next.orders).toBe(true);
+    expect(next.team).toBe(true);
   });
 
   test('unknown module keys are rejected', () => {

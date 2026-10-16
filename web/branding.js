@@ -28,6 +28,7 @@ const DEFAULT_BRANDING = {
     cutGlossary: false,
     haccp: true,
     orders: false,
+    batches: true,
     retterBox: false,
     chargenDoku: true,
     employeePin: true,
@@ -37,13 +38,24 @@ const DEFAULT_BRANDING = {
 };
 
 const TENANT_BRANDING = {
-  /** Soft-Launch StevesHof – Bestell-Reiter für Metzgerei & Packtisch */
+  /**
+   * Soft-Launch StevesHof – Offline-/Boot-Fallback.
+   * Firestore enabledModules bleibt führend; team und orders sind unabhängig.
+   */
   steveshof_hauptbetrieb: {
     betriebsName: 'StevesHof Hofladen',
     appName: 'HofSync',
     modules: {
       orders: true,
       team: true,
+      teamboard: true,
+      mhdMonitor: true,
+      wareneingang: true,
+      wareneingangMetzgerei: true,
+      wurstkueche: true,
+      haccp: true,
+      batches: true,
+      retterBox: false,
     },
   },
 };

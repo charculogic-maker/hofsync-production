@@ -105,7 +105,7 @@ import {
 import {
   initCustomerOrdersModule,
 } from './customer-orders.js';
-import { activateTeamHubTab } from './team-tab.js';
+import { activateOrdersHubTab, activateTeamHubTab } from './team-tab.js';
 import {
   getTeamEmployees,
   initTeamConfigModule,
@@ -182,7 +182,7 @@ if (EMERGENCY_LOGOUT_REQUESTED) {
 installSecretLogoutGestures();
 
 
-const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
+const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
@@ -587,7 +587,7 @@ const PROFILE_TAB_ALIASES = {
   herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
@@ -595,11 +595,12 @@ const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
   team: 'team',
+  orders: 'orders',
   mhd: 'mhd',
   receiving: 'receiving',
   chargenDoku: 'chargenDoku',
@@ -704,8 +705,15 @@ function scrollActiveNavTabIntoView({ smooth = true } = {}) {
   }
 }
 
+function getAppNavRoot() {
+  return document.getElementById('bottom-nav')
+    || document.getElementById('sidebar')
+    || document.querySelector('.bottom-nav.app-nav')
+    || document.querySelector('.bottom-nav');
+}
+
 function syncBottomNavTabLayout() {
-  const nav = document.getElementById('bottom-nav') || document.querySelector('.bottom-nav');
+  const nav = getAppNavRoot();
   if (!nav) return;
 
   const visibleCount = countVisibleBottomNavTabs();
@@ -2172,9 +2180,11 @@ window.applyModuleVisibility = applyModuleVisibility;
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
+  // Desktop-Sidebar (#sidebar) enthält #bottom-nav (display:contents) — ein .nav-item-Satz für beide Layouts.
   const tabModuleMap = {
     teamboard: isTenantModuleEnabled('start', branding),
     team: isTenantModuleEnabled('team', branding),
+    orders: isTenantModuleEnabled('orders', branding),
     mhd: isTenantModuleEnabled('mhd', branding),
     receiving: isTenantModuleEnabled('receiving', branding),
     chargenDoku: hasModule('chargenDoku', branding),
@@ -2184,7 +2194,11 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     cuts: modules.cutGlossary === true,
     batches: isTenantModuleEnabled('buero', branding),
   };
-  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+  // Query über #sidebar und #bottom-nav (Sidebar hostet Bottom-Nav → ein Element pro Tab).
+  const seenNavItems = new Set();
+  document.querySelectorAll('#sidebar .nav-item[data-tab], #bottom-nav .nav-item[data-tab]').forEach((tab) => {
+    if (seenNavItems.has(tab)) return;
+    seenNavItems.add(tab);
     const tabId = tab.getAttribute('data-tab');
     if (tabId === 'batches') {
       const showOffice = isOfficeUser() && tabModuleMap.batches === true;
@@ -2285,12 +2299,13 @@ function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
 /**
  * Route-Guard: liegt der aktuelle Tab außerhalb der freigeschalteten Module,
  * auf den ersten erlaubten Bottom-Nav-Tab umleiten.
+ * Kein automatischer Tab-Wechsel solange der aktuelle Tab erlaubt ist.
  */
 function ensureActiveTabAllowed({ force = false } = {}) {
   if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) {
-    return AppState?.activeTab;
+    return getCurrentActiveTabId();
   }
-  const current = AppState?.activeTab;
+  const current = getCurrentActiveTabId();
   if (!force && isActiveTabAllowed(current)) return current;
 
   const mobileDesktopFallback = isMobileNavViewport()
@@ -2305,7 +2320,7 @@ function ensureActiveTabAllowed({ force = false } = {}) {
     window.showTab(next);
   } else {
     window.fallbackShowTab?.(next);
-    if (AppState) AppState.activeTab = next;
+    setCurrentActiveTabId(next);
   }
   return next;
 }
@@ -2314,9 +2329,18 @@ function showPreferredStartTab() {
   return ensureActiveTabAllowed({ force: true });
 }
 
+/** Genau einmal nach Auth: initialen Tab setzen. Daten-Loader dürfen das nicht aufrufen. */
+let __initialTabShown = false;
+function showInitialTab() {
+  if (__initialTabShown) return getCurrentActiveTabId();
+  __initialTabShown = true;
+  return showPreferredStartTab();
+}
+
 window.resolveDefaultBottomNavTab = resolveDefaultBottomNavTab;
 window.ensureActiveTabAllowed = ensureActiveTabAllowed;
 window.showPreferredStartTab = showPreferredStartTab;
+window.showInitialTab = showInitialTab;
 
 function resolveFirebaseEmployeeAllowedTabs(authSession) {
   const allowed = authSession?.profile?.allowedModules
@@ -2345,7 +2369,7 @@ function applyRoleBasedUi(authSession) {
   syncAdminNavZone(authSession);
   bindTenantAdminNavGuard();
 
-  const helperHiddenTabs = new Set(['team', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
+  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -2740,6 +2764,29 @@ const AppState = {
   activeTab: 'mhd',
   wetHandsMode: false,
 };
+
+/** Router-State: einziger aktiver Tab — nur User-Nav oder showInitialTab setzen ihn. */
+function getCurrentActiveTabId() {
+  return AppState.activeTab;
+}
+
+function setCurrentActiveTabId(tabId) {
+  const next = String(tabId || '').trim();
+  if (!next) return getCurrentActiveTabId();
+  AppState.activeTab = next;
+  return next;
+}
+
+Object.defineProperty(window, 'currentActiveTabId', {
+  configurable: true,
+  enumerable: true,
+  get() {
+    return getCurrentActiveTabId();
+  },
+  set(value) {
+    setCurrentActiveTabId(value);
+  },
+});
 
 const wrsState = {
   engine: null,
@@ -3444,7 +3491,7 @@ async function openAdminDropdownModule(moduleKey) {
     setAdminDropdownActiveItem(moduleKey);
 
     tabs.forEach((navTab) => navTab.classList.remove('active'));
-    AppState.activeTab = targetTab;
+    setCurrentActiveTabId(targetTab);
 
     showPage(moduleConfig.pageId);
     if (headerTitle) headerTitle.textContent = moduleConfig.title;
@@ -3675,7 +3722,7 @@ tabs.forEach(tab => {
         await ensureInventoryProfileSessionForTab(targetTab);
       }
     }
-    AppState.activeTab = targetTab;
+    setCurrentActiveTabId(targetTab);
     closeMhdQtyNumpad();
     closeReceivingQtyNumpad();
     closeReceivingMhdEditor();
@@ -3683,7 +3730,7 @@ tabs.forEach(tab => {
     // Haptischer Klick (tiefere Frequenz für Nav-Tabs)
     playClickSound(800, 0.05, 0.15);
 
-    // Navigationselemente aktualisieren
+    // Navigationselemente aktualisieren (Mobile + Desktop teilen #bottom-nav)
     tabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     scrollActiveNavTabIntoView({ smooth: true });
@@ -3696,6 +3743,9 @@ tabs.forEach(tab => {
     } else if (targetTab === 'team') {
       showPage('page-team');
       headerTitle.textContent = "Team";
+    } else if (targetTab === 'orders') {
+      showPage('page-orders');
+      headerTitle.textContent = "Packtisch";
     } else if (targetTab === 'mhd') {
       showPage('page-mhd');
       headerTitle.textContent = "MHD-Monitor";
@@ -3726,11 +3776,12 @@ tabs.forEach(tab => {
     }
     applyHeaderBrandName(brandName);
 
-    // Modul-Aktivierung defensiv: bei Fehler nicht auf Start zurückspringen.
+    // Modul-Aktivierung: nur View/State — kein showTab/showPreferredStartTab aus Loadern.
     try {
       if (targetTab !== 'chargenDoku') stopChargenDokuBookView();
       if (targetTab === 'teamboard') activateTeamboardTab();
       if (targetTab === 'team') activateTeamHubTab();
+      if (targetTab === 'orders') activateOrdersHubTab();
       if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
       if (targetTab === 'chargenDoku') activateChargenDokuTab();
@@ -4474,7 +4525,7 @@ async function bootstrapAuthenticatedApp() {
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
   applyRoleBasedUi(authSession);
-  showPreferredStartTab();
+  showInitialTab();
   refreshRetterBoxModule();
   bindOfficeAccessLock();
   bindAdminHeaderDropdown();
@@ -4607,9 +4658,7 @@ async function bootstrapAuthenticatedApp() {
     syncFirebaseEmployeeSession(authSession);
   }
 
-  if (getTerminalSettings().isFixedTerminal) {
-    showPreferredStartTab();
-  }
+  // Fixed-Terminal: kein zweiter showPreferredStartTab — showInitialTab lief bereits einmal.
   updateSyncIndicator();
   startTenantLiveDataListeners();
   if (recipeModuleEnabled) {

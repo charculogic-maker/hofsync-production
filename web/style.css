@@ -9846,8 +9846,9 @@ body.dev-dashboard-view .app-version-badge--footer {
 }
 
 body.role-helper #page-team,
+body.role-helper #page-orders,
 body.role-helper .admin-leitstand-panel,
-body.role-helper #team-subnav-orders {
+body.role-helper #tab-orders {
   display: none !important;
 }
 
@@ -10757,6 +10758,11 @@ body.role-helper #team-subnav-orders {
 /* =========================================================================
    Desktop Sidebar-Shell (ab 1024px): 280px Sidebar + 64px Topbar
    ========================================================================= */
+
+/* #sidebar wrappt #bottom-nav — kein eigenes Layout-Box, damit Grid/Sidebar-CSS greift */
+.app-sidebar-host {
+  display: contents;
+}
 
 @media (min-width: 1024px) {
   body.app-shell-sidebar {

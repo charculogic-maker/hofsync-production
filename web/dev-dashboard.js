@@ -132,13 +132,24 @@ const TIER_LABELS = {
   metzgerei_pro: 'Metzgerei Pro',
 };
 
-/** Sichtbare Schalter in „Mein Betrieb“. Aliase schreibt setTenantModules selbst mit. */
+/**
+ * Sichtbare Schalter in „Mein Betrieb“.
+ * Nur diese Keys landen im Patch — nicht aufgeführte Module bleiben in Firestore unverändert.
+ * `orders` ist eigenständig (nicht an `team` gekoppelt).
+ */
 const BETRIEB_MODULE_CONTROLS = [
   { key: 'mhd', label: 'MHD-Monitor', readKeys: ['mhd', 'mhdMonitor'] },
   { key: 'receiving', label: 'Wareneingang', readKeys: ['receiving', 'wareneingang'] },
   { key: 'kitchen', label: 'Wurstküche & Rezepte', readKeys: ['kitchen', 'wurstkueche', 'rezepte'] },
   { key: 'haccp', label: 'HACCP', readKeys: ['haccp'] },
   { key: 'start', label: 'Teamboard', readKeys: ['start', 'teamboard'] },
+  { key: 'team', label: 'Team', readKeys: ['team'] },
+  {
+    key: 'orders',
+    label: 'Kundenbestellungen & Packtisch',
+    readKeys: ['orders'],
+    writeKeys: ['orders'],
+  },
   { key: 'buero', label: 'Büro & Chargen', readKeys: ['buero', 'batches', 'chargenDoku'], writeKeys: ['chargenDoku'] },
 ];
 
@@ -239,6 +250,21 @@ function readBetriebModulePatch() {
     });
   });
   return patch;
+}
+
+/**
+ * Baut einen Merge-Patch im Field-Path-Stil (`enabledModules.orders: true`).
+ * Nicht aufgeführte Module fehlen bewusst — Backend merged ohne Blind-Reset.
+ * @param {Record<string, boolean>} modulePatch
+ * @returns {Record<string, boolean>}
+ */
+function buildEnabledModulesFieldPatch(modulePatch) {
+  const fieldPatch = {};
+  Object.entries(modulePatch || {}).forEach(([key, value]) => {
+    if (typeof value !== 'boolean') return;
+    fieldPatch[`enabledModules.${key}`] = value;
+  });
+  return fieldPatch;
 }
 
 function renderAuditTable(tenantId = dashboardState.selectedTenantId) {
@@ -894,9 +920,12 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, modulePa
   if (!callable) {
     throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
   }
+  // Merge/Patch: nur sichtbare Schalter — z. B. { "enabledModules.orders": true }
+  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
   await callable({
     targetTenantId: tenantId,
     enabledModules: modulePatch,
+    ...fieldPatch,
   });
 }
 
@@ -1418,17 +1447,13 @@ async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
   if (!callable) {
     throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
   }
-  const snap = await db.collection('tenants').doc(tenantId).get();
-  const current = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
-    ? { ...snap.data().enabledModules }
-    : {};
-  current[moduleKey] = enabled;
-  if (moduleKey === 'chargenDoku') {
-    delete current.traceability;
-  }
+  // Nur den einen Schalter patchen — kein Full-Replace von enabledModules.
+  const modulePatch = { [moduleKey]: enabled === true };
+  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
   await callable({
     targetTenantId: tenantId,
-    enabledModules: current,
+    enabledModules: modulePatch,
+    ...fieldPatch,
   });
 }
 
