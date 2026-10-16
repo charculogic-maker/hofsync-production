@@ -36,10 +36,18 @@ assertIncludes(receivingSrc, 'openReceivingQtyNumpad', 'Touch-Nummernpad');
 assertIncludes(receivingSrc, 'shouldMergeDuplicateReceivingScan', 'Duplicate-Scan Helper');
 assertIncludes(receivingSrc, 'RECEIVING_DUPLICATE_SCAN_MS = 3000', '3s Duplicate-Fenster');
 assertIncludes(receivingSrc, 'RECEIVING_SCAN_MHD_EMPTY', 'Scan-MHD leer');
+assertIncludes(receivingSrc, 'RECEIVING_VPE_QTY_DELTAS', 'VPE-Deltas 3/5/9');
 assertIncludes(receivingSrc, '✕', 'Entfernen ✕');
 assert.equal(receivingSrc.includes('data-item-mhd-add'), false, 'keine MHD-Schnelltasten auf Karte');
 assert.equal(receivingSrc.includes('SCANNER_MHD_QUICK_DAYS'), false, 'keine Scanner-MHD-Schnelltasten');
 assert.equal(indexSrc.includes('data-scanner-qa="mhd-add"'), false, 'keine +7/+14/+30 am Scanner');
+assertIncludes(indexSrc, 'data-scanner-qa="qty-plus3"', 'Scanner +3');
+assertIncludes(indexSrc, 'data-scanner-qa="qty-plus5"', 'Scanner +5');
+assertIncludes(indexSrc, 'data-scanner-qa="qty-plus9"', 'Scanner +9');
+assert.equal(indexSrc.includes('qty-plus10'), false, 'kein +10 mehr am Scanner');
+assertIncludes(mhdSrc, "qty-plus3", 'Handler +3');
+assertIncludes(mhdSrc, "qty-plus9", 'Handler +9');
+assert.equal(mhdSrc.includes('qty-plus10'), false, 'kein Handler +10');
 
 // 3) Flüssiger Scan-Flow
 assertIncludes(scannerSrc, 'resumeScannerListening', 'Scanner Resume');
@@ -63,8 +71,8 @@ assertIncludes(cssSrc, '.scanner-quick-adjust', 'Scanner Quick-Adjust Styles');
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261016-wareneingang-mhd-empty-v1'/,
-  'SW Cache-Version Wareneingang MHD-Empty',
+  /CACHE_NAME = 'charculogic-v20261016-vpe-buttons-v2'/,
+  'SW Cache-Version VPE-Buttons',
 );
 assertIncludes(mhdSrc, 'confirmScannerQuickAdjust', 'Fertig-Bestätigung am Scanner');
 assertIncludes(mhdSrc, 'Bitte zuerst „Fertig“ tippen', 'Anderer Artikel erst nach Fertig');

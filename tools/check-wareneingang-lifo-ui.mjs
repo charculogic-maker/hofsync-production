@@ -100,6 +100,9 @@ async function main() {
       cardCount: table.querySelectorAll('.we-item-card').length,
       hasQty: Boolean(table.querySelector('[data-item-qty-edit]')),
       hasQtyDelta: table.querySelectorAll('[data-item-qty-delta]').length,
+      hasVpePlus3: table.querySelectorAll('[data-item-qty-delta="3"]').length,
+      hasVpePlus5: table.querySelectorAll('[data-item-qty-delta="5"]').length,
+      hasVpePlus9: table.querySelectorAll('[data-item-qty-delta="9"]').length,
       hasMhdQuick: table.querySelectorAll('[data-item-mhd-add]').length,
       hasMhdMissing: Boolean(table.querySelector('.we-item-mhd-date--missing')),
       hasRemove: Boolean(table.querySelector('[data-item-remove]')),
@@ -209,14 +212,17 @@ async function main() {
   const ok = report.firstName === 'Frische Gurke'
     && report.cardCount === 2
     && report.hasQty
-    && report.hasQtyDelta === 4
+    && report.hasQtyDelta === 10
+    && report.hasVpePlus3 === 2
+    && report.hasVpePlus5 === 2
+    && report.hasVpePlus9 === 2
     && report.hasMhdQuick === 0
     && report.hasMhdMissing
     && report.hasRemove
     && report.hasScannerQuickAdjust
     && report.hasEmptyMhdInput
     && report.hasNoMhdQuickChips
-    && report.swCache === 'charculogic-v20261016-wareneingang-mhd-empty-v1';
+    && report.swCache === 'charculogic-v20261016-vpe-buttons-v2';
 
   await browser.close();
   if (!ok) {

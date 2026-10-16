@@ -11,6 +11,7 @@ import {
   parseReceivingQuickMhdInput,
   RECEIVING_DUPLICATE_SCAN_MS,
   RECEIVING_SCAN_MHD_EMPTY,
+  RECEIVING_VPE_QTY_DELTAS,
   shouldMergeDuplicateReceivingScan,
 } from '../web/receiving.js';
 
@@ -69,5 +70,26 @@ describe('Wareneingang scan quick-adjust helpers', () => {
     assert.ok(indexSrc.includes('Fertig – weiter scannen'));
     assert.equal(mhdSrc.includes('SCANNER_QUICK_ADJUST_IDLE_MS'), false);
     assert.ok(mhdSrc.includes('confirmScannerQuickAdjust'));
+  });
+
+  it('exposes VPE quick deltas +3/+5/+9 for 4/6/10 packs', () => {
+    assert.deepEqual([...RECEIVING_VPE_QTY_DELTAS], [3, 5, 9]);
+    assert.ok(indexSrc.includes('data-scanner-qa="qty-plus3"'));
+    assert.ok(indexSrc.includes('data-scanner-qa="qty-plus5"'));
+    assert.ok(indexSrc.includes('data-scanner-qa="qty-plus9"'));
+    assert.equal(indexSrc.includes('qty-plus10'), false);
+    assert.ok(mhdSrc.includes("action === 'qty-plus3'"));
+    assert.ok(mhdSrc.includes("action === 'qty-plus9'"));
+    assert.equal(mhdSrc.includes('qty-plus10'), false);
+    const html = buildReceivingItemCardHtml({
+      id: 'i2',
+      product: 'Kiste',
+      qtyValue: 1,
+      qtyUnit: 'Stk',
+      mhdDate: '',
+    });
+    assert.ok(html.includes('data-item-qty-delta="3"'));
+    assert.ok(html.includes('data-item-qty-delta="5"'));
+    assert.ok(html.includes('data-item-qty-delta="9"'));
   });
 });

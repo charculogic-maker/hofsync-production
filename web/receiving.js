@@ -11,6 +11,8 @@ const RECEIVING_QTY_NUMPAD_MAX_DIGITS = 4;
 export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
 /** MHD am Scan immer leer – muss von der Verpackung eingetippt werden. */
 export const RECEIVING_SCAN_MHD_EMPTY = '';
+/** VPE-Schnelltasten: 1+3=4, 1+5=6, 1+9=10 (Kisten-/Gebinde-Workflow). */
+export const RECEIVING_VPE_QTY_DELTAS = Object.freeze([3, 5, 9]);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const MHD_FALLBACK_KEYWORDS = [
   { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
@@ -563,14 +565,21 @@ export function buildReceivingItemCardHtml(item) {
         <button type="button" class="we-item-row-remove" data-item-remove="${itemId}" aria-label="Posten entfernen">✕</button>
       </div>
       <div class="we-item-card-actions">
-        <div class="we-item-qty-stepper" role="group" aria-label="Menge anpassen">
-          <button type="button" class="we-item-qty-step" data-item-qty-delta="-1" data-item-id="${itemId}" aria-label="Menge verringern">−</button>
-          <button type="button" class="we-item-qty-btn" data-item-qty-edit="${itemId}" aria-label="Menge korrigieren">
-            <span class="we-item-qty-label">Menge</span>
-            <span class="we-item-qty-value">${escapeHtml(String(qtyValue))}</span>
-            <span class="we-item-qty-unit">${escapeHtml(qtyUnit)}</span>
-          </button>
-          <button type="button" class="we-item-qty-step" data-item-qty-delta="1" data-item-id="${itemId}" aria-label="Menge erhöhen">+</button>
+        <div class="we-item-qty-block">
+          <div class="we-item-qty-stepper" role="group" aria-label="Menge anpassen">
+            <button type="button" class="we-item-qty-step" data-item-qty-delta="-1" data-item-id="${itemId}" aria-label="Menge verringern">−</button>
+            <button type="button" class="we-item-qty-btn" data-item-qty-edit="${itemId}" aria-label="Menge korrigieren">
+              <span class="we-item-qty-label">Menge</span>
+              <span class="we-item-qty-value">${escapeHtml(String(qtyValue))}</span>
+              <span class="we-item-qty-unit">${escapeHtml(qtyUnit)}</span>
+            </button>
+            <button type="button" class="we-item-qty-step" data-item-qty-delta="1" data-item-id="${itemId}" aria-label="Menge erhöhen">+</button>
+          </div>
+          <div class="we-item-qty-vpe" role="group" aria-label="VPE schnell erhöhen">
+            ${RECEIVING_VPE_QTY_DELTAS.map((delta) => (
+              `<button type="button" class="we-item-qty-vpe-btn" data-item-qty-delta="${delta}" data-item-id="${itemId}" aria-label="Menge plus ${delta}">+${delta}</button>`
+            )).join('')}
+          </div>
         </div>
         <div class="we-item-mhd-block">
           <button type="button" class="we-item-mhd-date${mhdMissingClass}" data-item-mhd-edit="${itemId}" aria-label="${hasMhd ? 'MHD ändern' : 'MHD von der Verpackung eintragen'}">
