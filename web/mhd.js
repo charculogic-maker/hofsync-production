@@ -50,6 +50,8 @@ import {
   writeLastDeliveryArea,
   deliveryAreaToReceivingMode,
   defaultSuppliersForArea,
+  LADEN_DEFAULT_SUPPLIERS,
+  METZ_DEFAULT_SUPPLIERS,
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -161,43 +163,89 @@ const RECEIVING_FORM_IDS = [
 const SUPPLIER_SELECT_SONSTIGE = '__sonstige__';
 const SUPPLIER_SELECT_SONSTIGE_LABEL = 'Sonstiger Lieferant…';
 
+/** Strikt getrennte Lieferanten-Listen im Wareneingang-UI-State. */
+let suppliersLaden = [...LADEN_DEFAULT_SUPPLIERS];
+let suppliersMetzgerei = [...METZ_DEFAULT_SUPPLIERS];
+
 function currentDeliveryArea() {
   return receivingModeToDeliveryArea(getReceivingMode());
 }
 
+function syncSupplierAreaStateFromSettings(detail = null) {
+  const fromDetailLaden = Array.isArray(detail?.suppliersLaden)
+    ? detail.suppliersLaden
+    : (Array.isArray(detail?.suppliersByArea?.laden) ? detail.suppliersByArea.laden : null);
+  const fromDetailMetz = Array.isArray(detail?.suppliersMetzgerei)
+    ? detail.suppliersMetzgerei
+    : (Array.isArray(detail?.suppliersByArea?.metzgerei) ? detail.suppliersByArea.metzgerei : null);
+
+  if (fromDetailLaden?.length) {
+    suppliersLaden = [...fromDetailLaden];
+  } else if (typeof window.getTenantSupplierNames === 'function') {
+    suppliersLaden = window.getTenantSupplierNames('laden');
+  } else {
+    suppliersLaden = defaultSuppliersForArea('laden');
+  }
+
+  if (fromDetailMetz?.length) {
+    suppliersMetzgerei = [...fromDetailMetz];
+  } else if (typeof window.getTenantSupplierNames === 'function') {
+    suppliersMetzgerei = window.getTenantSupplierNames('metzgerei');
+  } else {
+    suppliersMetzgerei = defaultSuppliersForArea('metzgerei');
+  }
+}
+
 function currentSupplierOptions(area = currentDeliveryArea()) {
   const key = normalizeDeliveryArea(area);
-  if (typeof window.getTenantSupplierNames === 'function') {
-    const fromSettings = window.getTenantSupplierNames(key);
-    if (Array.isArray(fromSettings) && fromSettings.length) return fromSettings;
-  }
+  const list = key === 'metzgerei' ? suppliersMetzgerei : suppliersLaden;
+  if (Array.isArray(list) && list.length) return [...list];
   return defaultSuppliersForArea(key);
 }
 
-function renderSupplierSelect(selectEl, area = currentDeliveryArea()) {
+/**
+ * Dropdown komplett leeren und NUR mit Lieferanten des aktiven Bereichs befüllen.
+ * @param {'laden'|'metzgerei'|string} activeArea
+ * @param {{ selectedName?: string, preserveSelection?: boolean }} [options]
+ */
+function updateSupplierDropdown(activeArea = currentDeliveryArea(), options = {}) {
+  const selectEl = document.getElementById('we-supplier');
   if (!selectEl) return;
-  const previous = selectEl.value;
-  const emptyLabel = '-- Lieferant wählen --';
+  const area = normalizeDeliveryArea(activeArea);
+  const names = currentSupplierOptions(area);
+  const previous = options.selectedName != null
+    ? String(options.selectedName || '').trim()
+    : (options.preserveSelection === false ? '' : selectEl.value);
+
   selectEl.replaceChildren();
   const empty = document.createElement('option');
   empty.value = '';
-  empty.textContent = emptyLabel;
+  empty.textContent = '-- Lieferant wählen --';
   selectEl.appendChild(empty);
-  currentSupplierOptions(area).forEach((name) => {
+
+  names.forEach((name) => {
     const option = document.createElement('option');
     option.value = name;
     option.textContent = name;
     selectEl.appendChild(option);
   });
+
   const other = document.createElement('option');
   other.value = SUPPLIER_SELECT_SONSTIGE;
   other.textContent = SUPPLIER_SELECT_SONSTIGE_LABEL;
   selectEl.appendChild(other);
-  if ([...selectEl.options].some((option) => option.value === previous)) {
+
+  if (previous && [...selectEl.options].some((option) => option.value === previous)) {
     selectEl.value = previous;
   } else {
     selectEl.value = '';
   }
+  syncSupplierCustomFieldVisibility();
+}
+
+function renderSupplierSelect(selectEl, area = currentDeliveryArea()) {
+  if (!selectEl) return;
+  updateSupplierDropdown(area, { preserveSelection: true });
 }
 
 function renderSupplierPickGrid(area = currentDeliveryArea()) {
@@ -222,12 +270,26 @@ function renderSupplierPickGrid(area = currentDeliveryArea()) {
 
 function renderSupplierControls() {
   const area = currentDeliveryArea();
-  renderSupplierSelect(document.getElementById('we-supplier'), area);
+  updateSupplierDropdown(area, { preserveSelection: true });
   renderSupplierPickGrid(area);
   syncSupplierCustomFieldVisibility();
 }
 
-window.addEventListener('charculogic:tenant-settings', () => renderSupplierControls());
+function pushSupplierToLocalArea(area, name) {
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return;
+  const key = normalizeDeliveryArea(area);
+  const target = key === 'metzgerei' ? suppliersMetzgerei : suppliersLaden;
+  if (target.some((entry) => entry.toLowerCase() === cleaned.toLowerCase())) return;
+  target.push(cleaned);
+  if (key === 'metzgerei') suppliersMetzgerei = [...target];
+  else suppliersLaden = [...target];
+}
+
+window.addEventListener('charculogic:tenant-settings', (event) => {
+  syncSupplierAreaStateFromSettings(event?.detail || null);
+  renderSupplierControls();
+});
 
 let currentDeliveryItemBarcode = '';
 let currentDeliveryItemProduct = '';
@@ -7040,7 +7102,10 @@ async function persistSupplierName(name, { toastOnCreate = false } = {}) {
       actor: readActiveEmployeeNameForSupplier(),
     });
   }
-  renderSupplierControls();
+  // Lokal strikt in den aktiven Bereich pushen, Dropdown neu befüllen, Eintrag wählen.
+  pushSupplierToLocalArea(area, cleaned);
+  updateSupplierDropdown(area, { selectedName: cleaned, preserveSelection: false });
+  renderSupplierPickGrid(area);
   applySupplierToForm(cleaned);
   updateReceivingSaveButtonState();
   if (toastOnCreate && result?.ok && result.persisted && !result.alreadyExisted) {
@@ -9226,7 +9291,10 @@ function setReceivingMode(mode) {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  renderSupplierControls();
+  // Bei jedem Bereichswechsel Dropdown strikt neu befüllen (kein Preserve über Bereiche).
+  const area = receivingModeToDeliveryArea(normalized);
+  updateSupplierDropdown(area, { preserveSelection: false });
+  renderSupplierPickGrid(area);
   updateReceivingTemperatureFieldUi();
   updateReceivingSaveButtonState();
 }
@@ -9241,6 +9309,7 @@ function bindReceivingModeSwitch() {
     setReceivingMode(tab.dataset.receivingMode);
     mhdState.playClickSound(900, 0.04, 0.12);
   });
+  syncSupplierAreaStateFromSettings();
   setReceivingMode(deliveryAreaToReceivingMode(readLastDeliveryArea()));
 }
 
