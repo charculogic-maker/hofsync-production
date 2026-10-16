@@ -27,10 +27,10 @@ Das Passwort bleibt intern. Es gehört nicht in Anleitungen oder Aushänge. Dies
 
 Nach dem Geräte-Zugang wählen wir **unser Profil** aus der Liste — z. B. Bettina, Finn, Stephie, Nicole, Heiko, Paddy, Melanie, Efecan, Mimi oder **Andere** mit freiem Namen.
 
-- Das aktive Profil steht **oben rechts** in der Kopfzeile.
-- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Profil-Liste öffnet sich erneut. **Abbrechen** oder **✕** lässt den bisherigen Login unverändert.
-- **MHD**, **Neu** und **Herkunft** verlangen ein gültiges Profil.
-- Nach **zwei Stunden ohne Aktivität** erscheint die Profil-Auswahl beim nächsten MHD-, Wareneingang- oder Herkunft-Schritt erneut.
+- Das aktive Profil steht **oben rechts** in der Kopfzeile (👤 Name). Ohne Auswahl steht dort **👤 TEAM**.
+- Zum **Schneller Wechsel** tippen wir oben rechts auf den Namens-Button (👤 …) — die Mitarbeiter-Liste öffnet sich erneut. **✕** schließt nur, wenn bereits ein Name gewählt ist.
+- **MHD**, **Neu**, **Packtisch** und **Herkunft** verlangen einen Namen — ohne Auswahl lässt sich das Fenster nicht schließen.
+- Nach **zehn Minuten ohne Tippen** sperrt unsere App den Bildschirm und fragt erneut nach dem Namen.
 - Safari **nicht** im privaten Modus — sonst geht der Geräte-Zugang nach dem Schließen verloren.
 
 ## 2. Verhalten nach dem Start

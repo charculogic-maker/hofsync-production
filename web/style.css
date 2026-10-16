@@ -641,6 +641,40 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   outline-offset: 2px;
 }
 
+/* --- Mitarbeiter Soft-Lock Modal --- */
+.employee-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background: rgba(8, 12, 18, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.employee-picker-overlay.is-open {
+  display: flex;
+}
+
+.employee-picker-overlay.is-mandatory #employee-picker-close {
+  display: none;
+}
+
+.employee-picker-card {
+  width: min(420px, 100%);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  position: relative;
+}
+
+.employee-picker-card .profile-picker-btn {
+  min-height: 56px;
+  font-size: 18px;
+}
+
 /* --- SYNC INDICATOR --- */
 .sync-indicator {
   display: flex;

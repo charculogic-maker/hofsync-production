@@ -941,12 +941,14 @@ async function markSammelPicklisteReady() {
       const onlineUpdate = {
         status: 'ready',
         readyMarkedBy: employee,
+        employeeName: employee,
         readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
         pickupPlace: 'Laden-Kühlschrank',
       };
       const queuedUpdate = {
         status: 'ready',
         readyMarkedBy: employee,
+        employeeName: employee,
         readyMarkedAt: new Date().toISOString(),
         pickupPlace: 'Laden-Kühlschrank',
       };
@@ -1288,6 +1290,7 @@ async function createOrderFromForm() {
     items,
     inputMode,
     acceptedBy: employee,
+    employeeName: employee,
     acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
     status: 'open',
     tenantId: orderState.tenantId,
@@ -1336,7 +1339,7 @@ async function updateOrderStatus(orderId, nextStatus) {
   }
 
   const firebase = orderState.getFirebase();
-  const payload = { status: nextStatus };
+  const payload = { status: nextStatus, employeeName: employee };
 
   if (nextStatus === 'in_progress') {
     payload.inProgressBy = employee;
