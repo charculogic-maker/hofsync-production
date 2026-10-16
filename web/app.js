@@ -705,8 +705,15 @@ function scrollActiveNavTabIntoView({ smooth = true } = {}) {
   }
 }
 
+function getAppNavRoot() {
+  return document.getElementById('bottom-nav')
+    || document.getElementById('sidebar')
+    || document.querySelector('.bottom-nav.app-nav')
+    || document.querySelector('.bottom-nav');
+}
+
 function syncBottomNavTabLayout() {
-  const nav = document.getElementById('bottom-nav') || document.querySelector('.bottom-nav');
+  const nav = getAppNavRoot();
   if (!nav) return;
 
   const visibleCount = countVisibleBottomNavTabs();
@@ -2173,7 +2180,7 @@ window.applyModuleVisibility = applyModuleVisibility;
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
-  // Desktop-Sidebar (#bottom-nav.app-nav) und mobile Fußleiste teilen dieselben .nav-item[data-tab].
+  // Desktop-Sidebar (#sidebar) enthält #bottom-nav (display:contents) — ein .nav-item-Satz für beide Layouts.
   const tabModuleMap = {
     teamboard: isTenantModuleEnabled('start', branding),
     team: isTenantModuleEnabled('team', branding),
@@ -2187,7 +2194,11 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     cuts: modules.cutGlossary === true,
     batches: isTenantModuleEnabled('buero', branding),
   };
-  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+  // Query über #sidebar und #bottom-nav (Sidebar hostet Bottom-Nav → ein Element pro Tab).
+  const seenNavItems = new Set();
+  document.querySelectorAll('#sidebar .nav-item[data-tab], #bottom-nav .nav-item[data-tab]').forEach((tab) => {
+    if (seenNavItems.has(tab)) return;
+    seenNavItems.add(tab);
     const tabId = tab.getAttribute('data-tab');
     if (tabId === 'batches') {
       const showOffice = isOfficeUser() && tabModuleMap.batches === true;

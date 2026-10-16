@@ -302,9 +302,20 @@ export function hasAnyAdminModuleEnabled(branding = window.BRANDING || {}) {
 export async function loadTenantEnabledModules(db, tenantId) {
   if (!db || !tenantId) return null;
   try {
-    const snap = await db.collection('tenants').doc(tenantId).get();
-    const enabledModules = snap.data()?.enabledModules;
-    if (enabledModules && typeof enabledModules === 'object') {
+    const tenantRef = db.collection('tenants').doc(tenantId);
+    const snap = await tenantRef.get();
+    let enabledModules = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
+      ? { ...snap.data().enabledModules }
+      : null;
+    // Optional: tenants/{id}/settings/modules überschreibt gezielt (Firestore führend)
+    try {
+      const settingsSnap = await tenantRef.collection('settings').doc('modules').get();
+      const fromSettings = settingsSnap.data()?.enabledModules;
+      if (fromSettings && typeof fromSettings === 'object') {
+        enabledModules = { ...(enabledModules || {}), ...fromSettings };
+      }
+    } catch (_) { /* settings/modules optional */ }
+    if (enabledModules) {
       mergeEnabledModulesIntoBranding(enabledModules);
     }
     return enabledModules || null;

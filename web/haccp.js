@@ -1,3 +1,4 @@
+// ARCH-GUARD: initHaccp / Live-Sync dürfen kein showTab / showPreferredStartTab triggern.
 import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
 import { getTeamEmployees } from './team-config.js';
 import {

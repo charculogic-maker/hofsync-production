@@ -1,6 +1,9 @@
 /**
  * Tab „Team“ – Nachrichten / Team-Infos
  * Kundenbestellungen & Packtisch leben unter data-tab="orders" (#page-orders).
+ *
+ * ARCH-GUARD: Keine Daten-Loader hier — activate* rendert nur den View.
+ * showTab nur in openTeamOrdersPanel (explizite User-/Deep-Link-Navigation).
  */
 
 import { activateTeamboardTab, mountComposeForms } from './teamboard.js';
@@ -18,7 +21,7 @@ export function activateTeamHubTab() {
   activateTeamboardTab();
 }
 
-/** Öffnet den Packtisch-Tab (kein Nested-Panel mehr unter Team). */
+/** Explizite Navigation zum Packtisch (User/Deep-Link) — kein Daten-Loader. */
 export function openTeamOrdersPanel() {
   if (typeof window.showTab === 'function') {
     window.showTab('orders');

@@ -2459,7 +2459,8 @@
           <div class="recipe-category-filter recipe-category-filter--sheet" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
         </div>
 
-        <!-- Navigation: Alltag (unten / Sidebar) + optional Verwaltung -->
+        <!-- Navigation: Mobile Fußleiste (#bottom-nav) = Desktop-Sidebar (#sidebar), ein DOM -->
+        <aside id="sidebar" class="app-sidebar-host">
         <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
           <div class="app-nav-brand" id="app-nav-brand" aria-hidden="true">
             <div class="app-nav-facility-card" id="app-nav-facility-card">
@@ -2549,6 +2550,7 @@
             </div>
           </div>
         </nav>
+        </aside>
 
         <button
           type="button"

@@ -10759,6 +10759,11 @@ body.role-helper #tab-orders {
    Desktop Sidebar-Shell (ab 1024px): 280px Sidebar + 64px Topbar
    ========================================================================= */
 
+/* #sidebar wrappt #bottom-nav — kein eigenes Layout-Box, damit Grid/Sidebar-CSS greift */
+.app-sidebar-host {
+  display: contents;
+}
+
 @media (min-width: 1024px) {
   body.app-shell-sidebar {
     align-items: stretch;

@@ -1,5 +1,6 @@
 /**
  * Digitales Schwarzes Brett + Aufgaben-Tokens (Team-Leitstand)
+ * ARCH-GUARD: subscribeTasks / Daten-Fetch ohne showTab / showPreferredStartTab.
  */
 
 import { getAuthContext, verifyAdminAction } from './auth.js';

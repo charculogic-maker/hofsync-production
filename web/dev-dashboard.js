@@ -252,6 +252,21 @@ function readBetriebModulePatch() {
   return patch;
 }
 
+/**
+ * Baut einen Merge-Patch im Field-Path-Stil (`enabledModules.orders: true`).
+ * Nicht aufgeführte Module fehlen bewusst — Backend merged ohne Blind-Reset.
+ * @param {Record<string, boolean>} modulePatch
+ * @returns {Record<string, boolean>}
+ */
+function buildEnabledModulesFieldPatch(modulePatch) {
+  const fieldPatch = {};
+  Object.entries(modulePatch || {}).forEach(([key, value]) => {
+    if (typeof value !== 'boolean') return;
+    fieldPatch[`enabledModules.${key}`] = value;
+  });
+  return fieldPatch;
+}
+
 function renderAuditTable(tenantId = dashboardState.selectedTenantId) {
   const tbody = document.getElementById('dev-dashboard-audit-body');
   if (!tbody) return;
@@ -905,9 +920,12 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, modulePa
   if (!callable) {
     throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
   }
+  // Merge/Patch: nur sichtbare Schalter — z. B. { "enabledModules.orders": true }
+  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
   await callable({
     targetTenantId: tenantId,
     enabledModules: modulePatch,
+    ...fieldPatch,
   });
 }
 
@@ -1429,17 +1447,13 @@ async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
   if (!callable) {
     throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
   }
-  const snap = await db.collection('tenants').doc(tenantId).get();
-  const current = snap.data()?.enabledModules && typeof snap.data().enabledModules === 'object'
-    ? { ...snap.data().enabledModules }
-    : {};
-  current[moduleKey] = enabled;
-  if (moduleKey === 'chargenDoku') {
-    delete current.traceability;
-  }
+  // Nur den einen Schalter patchen — kein Full-Replace von enabledModules.
+  const modulePatch = { [moduleKey]: enabled === true };
+  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
   await callable({
     targetTenantId: tenantId,
-    enabledModules: current,
+    enabledModules: modulePatch,
+    ...fieldPatch,
   });
 }
 
