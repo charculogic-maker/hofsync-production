@@ -59,7 +59,7 @@ assertIncludes(cssSrc, '.scanner-quick-adjust', 'Scanner Quick-Adjust Styles');
 // 5) SW Cache-Invalidierung
 assert.match(
   swSrc,
-  /CACHE_NAME = 'charculogic-v20261016-wareneingang-speed-v1'/,
+  /CACHE_NAME = 'charculogic-v20261016-wareneingang-speed-v2'/,
   'SW Cache-Version Wareneingang-Speed',
 );
 assertIncludes(swSrc, "/receiving.js", 'receiving.js im SW-Cache');
