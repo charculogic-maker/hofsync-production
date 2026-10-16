@@ -23,7 +23,6 @@ import {
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
   formatHaccpMeatTempWarning,
-  formatReceivingMhdLabel,
   getHaccpTempLimitForCategory,
   inferReceivingCategoryFromProductName,
   isBioSchweinZukaufCategory,
@@ -35,16 +34,16 @@ import {
   normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
+  hasReceivingItemMhd,
   parseReceivingQuickMhdInput,
   RECEIVING_DUPLICATE_SCAN_MS,
+  RECEIVING_SCAN_MHD_EMPTY,
   RECEIVING_SMART_CATEGORIES,
   resolveMetzTraceLot,
   resolveReceivingScanCategory,
-  SCANNER_QUICK_ADJUST_IDLE_MS,
   shiftIsoDateByDays,
   shouldMergeDuplicateReceivingScan,
   sortDeliveryItemsLifo,
-  suggestReceivingMhd,
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -236,7 +235,6 @@ let pendingDeliveryDrafts = [];
 let deliveryDraftsUnsubscribe = null;
 /** Letzter Auto-Scan im Wareneingang (für 3s-Mengen-Merge). */
 let lastReceivingAutoScan = null;
-let scannerQuickAdjustIdleTimer = null;
 let scannerQuickAdjustBound = false;
 
 const DELIVERY_STATUS_DRAFT = 'DRAFT_PENDING';
@@ -7861,29 +7859,17 @@ function pulseReceivingScanFeedback({ vibrateMs = 50, merged = false } = {}) {
   }
 }
 
-function clearScannerQuickAdjustIdleTimer() {
-  if (scannerQuickAdjustIdleTimer) {
-    clearTimeout(scannerQuickAdjustIdleTimer);
-    scannerQuickAdjustIdleTimer = null;
-  }
-}
-
-function resetScannerQuickAdjustIdleTimer() {
-  clearScannerQuickAdjustIdleTimer();
+function isScannerQuickAdjustOpen() {
   const bar = document.getElementById('scanner-quick-adjust');
-  if (!bar || bar.hidden) return;
-  scannerQuickAdjustIdleTimer = setTimeout(() => {
-    scannerQuickAdjustIdleTimer = null;
-    hideScannerQuickAdjust({ resumeListening: true });
-  }, SCANNER_QUICK_ADJUST_IDLE_MS);
+  return Boolean(bar && !bar.hidden && bar.dataset.itemId);
 }
 
-function syncScannerQuickAdjustUi(item) {
+function syncScannerQuickAdjustUi(item, { resetMhdInput = false } = {}) {
   const bar = document.getElementById('scanner-quick-adjust');
   if (!bar || !item) return;
   const productEl = document.getElementById('scanner-qa-product');
   const qtyEl = document.getElementById('scanner-qa-qty');
-  const mhdEl = document.getElementById('scanner-qa-mhd-value');
+  const input = document.getElementById('scanner-qa-mhd-input');
   const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
   const qtyUnit = item.qtyUnit || 'Stk';
   if (productEl) productEl.textContent = String(item.product || 'Artikel');
@@ -7892,15 +7878,19 @@ function syncScannerQuickAdjustUi(item) {
       ? `Menge: ${qtyValue}`
       : `Menge: ${qtyValue} ${qtyUnit}`;
   }
-  if (mhdEl) mhdEl.textContent = formatReceivingMhdLabel(item.mhdDate) || '–';
+  if (input) {
+    const hasMhd = hasReceivingItemMhd(item);
+    if (resetMhdInput || !hasMhd) {
+      input.value = '';
+      delete input.dataset.isoValue;
+    } else {
+      setGermanDateField(input, item.mhdDate);
+    }
+    input.classList.toggle('is-empty', !String(input.value || '').trim());
+    input.classList.toggle('is-missing', !hasMhd);
+  }
   bar.dataset.itemId = item.id;
-}
-
-function setScannerQuickAdjustMhdPanelOpen(open) {
-  const panel = document.getElementById('scanner-qa-mhd-panel');
-  const toggle = document.getElementById('scanner-qa-mhd-toggle');
-  if (panel) panel.hidden = !open;
-  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  bar.classList.toggle('has-mhd-missing', !hasReceivingItemMhd(item));
 }
 
 function showScannerQuickAdjust(item) {
@@ -7911,25 +7901,38 @@ function showScannerQuickAdjust(item) {
     hideScannerQuickAdjust({ resumeListening: false });
     return;
   }
-  syncScannerQuickAdjustUi(item);
-  setScannerQuickAdjustMhdPanelOpen(false);
+  // MHD-Eingabe immer leer starten – kein Vorschlag aus Stammdaten.
+  syncScannerQuickAdjustUi(item, { resetMhdInput: !hasReceivingItemMhd(item) });
   const input = document.getElementById('scanner-qa-mhd-input');
-  if (input) input.value = '';
+  if (!hasReceivingItemMhd(item) && input) {
+    input.value = '';
+    delete input.dataset.isoValue;
+    input.classList.add('is-empty', 'is-missing');
+  }
   bar.hidden = false;
   overlay?.classList.add('has-quick-adjust');
-  resetScannerQuickAdjustIdleTimer();
   bindScannerQuickAdjustOnce();
+  setScannerStatus('Menge prüfen, MHD von der Verpackung eintippen, dann „Fertig“.');
+  if (!hasReceivingItemMhd(item)) {
+    window.setTimeout?.(() => input?.focus(), 80);
+  }
 }
 
 function hideScannerQuickAdjust({ resumeListening = false } = {}) {
-  clearScannerQuickAdjustIdleTimer();
   const bar = document.getElementById('scanner-quick-adjust');
   const overlay = document.getElementById('scanner-overlay');
   if (bar) {
     bar.hidden = true;
     delete bar.dataset.itemId;
+    bar.classList.remove('has-mhd-missing');
   }
-  setScannerQuickAdjustMhdPanelOpen(false);
+  const input = document.getElementById('scanner-qa-mhd-input');
+  if (input) {
+    input.value = '';
+    delete input.dataset.isoValue;
+    input.classList.add('is-empty');
+    input.classList.remove('is-missing');
+  }
   overlay?.classList.remove('has-quick-adjust');
   if (resumeListening && mhdState.isScannerOverlayOpen?.()) {
     mhdState.resumeScannerListening?.(400);
@@ -7951,44 +7954,55 @@ function applyScannerQuickAdjustQtyDelta(delta) {
   touchReceivingAutoScan(updated || item);
   syncScannerQuickAdjustUi(updated || item);
   pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
-  resetScannerQuickAdjustIdleTimer();
 }
 
-function applyScannerQuickAdjustMhdDays(days) {
-  const item = getScannerQuickAdjustItem();
-  if (!item || !Number.isFinite(days) || days <= 0) return;
-  // Schnelltasten am Scanner setzen MHD ab heute (+7 T / +14 T / +30 T).
-  const iso = shiftIsoDateByDays(new Date().toISOString().slice(0, 10), days);
-  if (!iso || !setCurrentDeliveryItemMhd(item.id, iso)) return;
-  const updated = currentDeliveryItems.find((row) => row.id === item.id);
-  touchReceivingAutoScan(updated || item);
-  syncScannerQuickAdjustUi(updated || item);
-  setScannerQuickAdjustMhdPanelOpen(false);
-  mhdState.playClickSound?.(1100, 0.04, 0.12);
-  window.showToast?.(`MHD auf +${days} Tage ab heute gesetzt.`, 'success');
-  resetScannerQuickAdjustIdleTimer();
-}
-
-function applyScannerQuickAdjustMhdInput() {
+function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
   const item = getScannerQuickAdjustItem();
   const input = document.getElementById('scanner-qa-mhd-input');
-  if (!item || !input) return;
-  const iso = parseReceivingQuickMhdInput(input.value);
+  if (!item || !input) return false;
+  const iso = parseReceivingQuickMhdInput(input.value) || readGermanDateField(input);
   if (!iso) {
-    window.showToast?.('Bitte MHD als TT.MM oder TT.MM.JJJJ eintragen.', 'warning');
-    input.focus();
-    resetScannerQuickAdjustIdleTimer();
-    return;
+    if (!silent) {
+      window.showToast?.('Bitte das MHD von der Verpackung eintippen (TT.MM.JJJJ).', 'warning');
+      input.focus();
+    }
+    input.classList.add('is-missing', 'is-empty');
+    return false;
   }
-  if (!setCurrentDeliveryItemMhd(item.id, iso)) return;
+  if (!setCurrentDeliveryItemMhd(item.id, iso)) return false;
   const updated = currentDeliveryItems.find((row) => row.id === item.id);
   touchReceivingAutoScan(updated || item);
   syncScannerQuickAdjustUi(updated || item);
-  setScannerQuickAdjustMhdPanelOpen(false);
-  input.value = '';
   mhdState.playClickSound?.(1000, 0.05, 0.12);
-  window.showToast?.('MHD übernommen.', 'success');
-  resetScannerQuickAdjustIdleTimer();
+  if (!silent) window.showToast?.('MHD übernommen.', 'success');
+  return true;
+}
+
+function confirmScannerQuickAdjust() {
+  const item = getScannerQuickAdjustItem();
+  if (!item) {
+    hideScannerQuickAdjust({ resumeListening: true });
+    return;
+  }
+  // Offene Eingabe zuerst übernehmen.
+  if (!hasReceivingItemMhd(item)) {
+    const applied = applyScannerQuickAdjustMhdInput({ silent: true });
+    if (!applied) {
+      window.showToast?.('Bitte zuerst das MHD von der Verpackung eintippen.', 'warning');
+      document.getElementById('scanner-qa-mhd-input')?.focus();
+      setScannerStatus('MHD fehlt – von der Verpackung eintippen, dann „Fertig“.');
+      return;
+    }
+  }
+  const fresh = currentDeliveryItems.find((row) => row.id === item.id) || item;
+  if (!hasReceivingItemMhd(fresh)) {
+    window.showToast?.('Bitte zuerst das MHD von der Verpackung eintippen.', 'warning');
+    document.getElementById('scanner-qa-mhd-input')?.focus();
+    return;
+  }
+  hideScannerQuickAdjust({ resumeListening: true });
+  window.showToast?.(`${fresh.product} fertig – bereit für den nächsten Scan.`, 'success');
+  mhdState.playClickSound?.(900, 0.05, 0.12);
 }
 
 function bindScannerQuickAdjustOnce() {
@@ -8016,26 +8030,15 @@ function bindScannerQuickAdjustOnce() {
       applyScannerQuickAdjustQtyDelta(10);
       return;
     }
-    if (action === 'mhd-toggle') {
-      const panel = document.getElementById('scanner-qa-mhd-panel');
-      setScannerQuickAdjustMhdPanelOpen(Boolean(panel?.hidden));
-      resetScannerQuickAdjustIdleTimer();
-      return;
-    }
-    if (action === 'mhd-add') {
-      applyScannerQuickAdjustMhdDays(Number(actionBtn.dataset.days));
-      return;
-    }
-    if (action === 'mhd-apply') {
-      applyScannerQuickAdjustMhdInput();
-      return;
-    }
     if (action === 'done') {
-      hideScannerQuickAdjust({ resumeListening: true });
+      confirmScannerQuickAdjust();
     }
   });
   const input = document.getElementById('scanner-qa-mhd-input');
-  input?.addEventListener('input', () => resetScannerQuickAdjustIdleTimer());
+  input?.addEventListener('input', () => {
+    input.classList.toggle('is-empty', !String(input.value || '').trim());
+    input.classList.remove('is-missing');
+  });
   input?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -8056,6 +8059,22 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const info = lookupScannedProduct(code);
   if (!info?.name) return false;
 
+  // Während der Bearbeitung bleibt der aktuelle Artikel aktiv, bis „Fertig“ getippt wird.
+  // Gleicher Barcode darf die Menge weiter erhöhen; ein anderer Artikel erst danach.
+  if (
+    fromScan
+    && isScannerQuickAdjustOpen()
+    && lastReceivingAutoScan?.barcode
+    && lastReceivingAutoScan.barcode !== code
+  ) {
+    window.showToast?.(
+      'Bitte zuerst „Fertig“ tippen – danach den nächsten Artikel scannen.',
+      'info',
+    );
+    setScannerStatus('Zuerst „Fertig“ tippen, dann weiter scannen.');
+    return true;
+  }
+
   if (shouldMergeDuplicateReceivingScan(lastReceivingAutoScan, code, Date.now(), RECEIVING_DUPLICATE_SCAN_MS)) {
     const existing = currentDeliveryItems.find((row) => row.id === lastReceivingAutoScan.itemId)
       || currentDeliveryItems.find((row) => cleanScannedBarcode(row.barcode) === code);
@@ -8066,7 +8085,6 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
       pulseReceivingScanFeedback({ vibrateMs: 50, merged: true });
       if (fromScan && mhdState.isScannerOverlayOpen?.()) {
         showScannerQuickAdjust(updated);
-        setScannerStatus(`Menge ${updated.qtyValue ?? updated.qtyKg} – weiter scannen oder anpassen.`);
       }
       window.showToast?.(
         `${updated.product}: Menge jetzt ${updated.qtyValue ?? updated.qtyKg}.`,
@@ -8094,9 +8112,8 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const qtyValue = qtyUnit === 'Stk'
     ? Math.max(1, Math.round(packageSize))
     : Math.round(packageSize * 100) / 100;
-  const suggestion = suggestReceivingMhd(productName, category, mhdState.products || []);
-  const mhdDate = suggestion?.mhdIso || shiftIsoDateByDays(new Date().toISOString().slice(0, 10), 7);
-  if (!mhdDate) return false;
+  // Strikt: kein geratenes/Stammdaten-MHD – Mitarbeiter tippt von der Verpackung.
+  const mhdDate = RECEIVING_SCAN_MHD_EMPTY;
 
   const herstellerZusatz = String(info.brand || '').trim();
   const itemId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -8117,7 +8134,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     warenKategorie: category,
     category,
     addedAt: Date.now(),
-    mhdQuelle: suggestion?.quelle || 'standard',
+    mhdQuelle: 'manual-packaging',
   };
   currentDeliveryItems.unshift(newItem);
   touchReceivingAutoScan(newItem, code);
@@ -8144,11 +8161,10 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   pulseReceivingScanFeedback({ vibrateMs: 40, merged: false });
   if (fromScan && mhdState.isScannerOverlayOpen?.()) {
     showScannerQuickAdjust(newItem);
-    setScannerStatus('Posten erfasst – Menge/MHD anpassen oder weiter scannen.');
   }
   const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
   window.showToast?.(
-    `${info.name}: ${qtyHint} · MHD ${formatReceivingMhdLabelSafe(mhdDate)} – oben in der Liste.`,
+    `${info.name}: ${qtyHint} – bitte MHD von der Verpackung eintippen.`,
     'success',
   );
   return true;

@@ -1,14 +1,22 @@
 /**
- * Unit-Tests: Duplicate-Scan-Fenster & MHD-Schnelleingabe (Wareneingang Speed).
+ * Unit-Tests: Duplicate-Scan-Fenster & leeres MHD am Scanner (Wareneingang).
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
+  buildReceivingItemCardHtml,
+  hasReceivingItemMhd,
   parseReceivingQuickMhdInput,
   RECEIVING_DUPLICATE_SCAN_MS,
-  SCANNER_MHD_QUICK_DAYS,
-  SCANNER_QUICK_ADJUST_IDLE_MS,
+  RECEIVING_SCAN_MHD_EMPTY,
   shouldMergeDuplicateReceivingScan,
 } from '../web/receiving.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const mhdSrc = readFileSync(path.join(root, 'web/mhd.js'), 'utf8');
+const indexSrc = readFileSync(path.join(root, 'web/index.html'), 'utf8');
 
 describe('Wareneingang scan quick-adjust helpers', () => {
   it('merges same barcode within 3 seconds', () => {
@@ -34,8 +42,32 @@ describe('Wareneingang scan quick-adjust helpers', () => {
     assert.equal(parseReceivingQuickMhdInput(''), '');
   });
 
-  it('exposes scanner quick-day presets and idle window', () => {
-    assert.deepEqual(SCANNER_MHD_QUICK_DAYS, [7, 14, 30]);
-    assert.equal(SCANNER_QUICK_ADJUST_IDLE_MS, 15000);
+  it('keeps scan MHD empty and marks missing on cards', () => {
+    assert.equal(RECEIVING_SCAN_MHD_EMPTY, '');
+    assert.equal(hasReceivingItemMhd({ mhdDate: '' }), false);
+    assert.equal(hasReceivingItemMhd({ mhdDate: null }), false);
+    assert.equal(hasReceivingItemMhd({ mhdDate: '2026-11-01' }), true);
+    const html = buildReceivingItemCardHtml({
+      id: 'i1',
+      product: 'Joghurt',
+      qtyValue: 1,
+      qtyUnit: 'Stk',
+      mhdDate: '',
+    });
+    assert.ok(html.includes('we-item-mhd-date--missing'));
+    assert.ok(html.includes('fehlt – antippen'));
+    assert.equal(html.includes('data-item-mhd-add'), false);
+  });
+
+  it('requires empty MHD input without quick-day chips on scanner', () => {
+    assert.ok(mhdSrc.includes('RECEIVING_SCAN_MHD_EMPTY'));
+    assert.ok(mhdSrc.includes('manual-packaging'));
+    assert.equal(mhdSrc.includes('suggestReceivingMhd(productName'), false);
+    assert.equal(indexSrc.includes('data-scanner-qa="mhd-add"'), false);
+    assert.ok(indexSrc.includes('scanner-qa-mhd-input'));
+    assert.ok(indexSrc.includes('MHD von der Verpackung'));
+    assert.ok(indexSrc.includes('Fertig – weiter scannen'));
+    assert.equal(mhdSrc.includes('SCANNER_QUICK_ADJUST_IDLE_MS'), false);
+    assert.ok(mhdSrc.includes('confirmScannerQuickAdjust'));
   });
 });

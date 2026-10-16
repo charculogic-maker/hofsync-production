@@ -7,13 +7,10 @@
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
 
 const RECEIVING_QTY_NUMPAD_MAX_DIGITS = 4;
-const MHD_QUICK_DAYS = [3, 7, 14];
-/** MHD-Schnelltasten am Kamerascreen (Wareneingang Quick-Adjust). */
-export const SCANNER_MHD_QUICK_DAYS = [7, 14, 30];
 /** Gleicher Barcode innerhalb dieses Fensters → Menge +1 statt neuer Posten. */
 export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
-/** Ohne Interaktion schließt sich die Quick-Adjust-Leiste automatisch (Zeit für MHD/Menge). */
-export const SCANNER_QUICK_ADJUST_IDLE_MS = 15000;
+/** MHD am Scan immer leer – muss von der Verpackung eingetippt werden. */
+export const RECEIVING_SCAN_MHD_EMPTY = '';
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const MHD_FALLBACK_KEYWORDS = [
   { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
@@ -540,19 +537,24 @@ export function parseReceivingQuickMhdInput(value = '', todayIso = startOfDayIso
   return parseGermanDateToIso(raw) || '';
 }
 
+export function hasReceivingItemMhd(item) {
+  const raw = String(item?.mhdDate || '').trim();
+  if (!raw) return false;
+  return Boolean(parseGermanDateToIso(raw) || /^\d{4}-\d{2}-\d{2}$/.test(raw));
+}
+
 export function buildReceivingItemCardHtml(item) {
   const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
   const brandMeta = brandLabel ? `${escapeHtml(brandLabel.toUpperCase())} · ` : '';
   const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
   const qtyUnit = item.qtyUnit || 'Stk';
-  const mhdLabel = formatReceivingMhdLabel(item.mhdDate);
+  const hasMhd = hasReceivingItemMhd(item);
+  const mhdLabel = hasMhd ? formatReceivingMhdLabel(item.mhdDate) : 'fehlt – antippen';
   const itemId = escapeHtml(item.id);
-  const quickButtons = MHD_QUICK_DAYS.map((days) => (
-    `<button type="button" class="we-item-mhd-quick-btn" data-item-mhd-add="${days}" data-item-id="${itemId}" aria-label="MHD plus ${days} Tage">+${days} Tage</button>`
-  )).join('');
+  const mhdMissingClass = hasMhd ? '' : ' we-item-mhd-date--missing';
 
   return `
-    <article class="we-item-card" data-item-id="${itemId}">
+    <article class="we-item-card${hasMhd ? '' : ' we-item-card--mhd-missing'}" data-item-id="${itemId}">
       <div class="we-item-card-top">
         <div class="we-item-row-main">
           <div class="we-item-row-name">${escapeHtml(item.product)}</div>
@@ -571,13 +573,10 @@ export function buildReceivingItemCardHtml(item) {
           <button type="button" class="we-item-qty-step" data-item-qty-delta="1" data-item-id="${itemId}" aria-label="Menge erhöhen">+</button>
         </div>
         <div class="we-item-mhd-block">
-          <button type="button" class="we-item-mhd-date" data-item-mhd-edit="${itemId}" aria-label="MHD direkt wählen">
+          <button type="button" class="we-item-mhd-date${mhdMissingClass}" data-item-mhd-edit="${itemId}" aria-label="${hasMhd ? 'MHD ändern' : 'MHD von der Verpackung eintragen'}">
             <span class="we-item-mhd-date-label">MHD</span>
             <strong class="we-item-mhd-date-value">${escapeHtml(mhdLabel)}</strong>
           </button>
-          <div class="we-item-mhd-quick" role="group" aria-label="MHD Schnelltasten">
-            ${quickButtons}
-          </div>
         </div>
       </div>
     </article>
@@ -763,7 +762,7 @@ export function openReceivingQtyNumpad(item, options = {}) {
 }
 
 /**
- * Einfacher MHD-Dialog für Direktauswahl auf der Erfassungskarte.
+ * MHD-Dialog: nur manuelle Eingabe von der Verpackung (keine Schnelltasten).
  */
 export function openReceivingItemMhdEditor(item, options = {}) {
   if (!item?.id) return;
@@ -779,15 +778,10 @@ export function openReceivingItemMhdEditor(item, options = {}) {
   overlay.className = 'learn-mode-overlay receiving-mhd-editor-overlay';
   overlay.innerHTML = `
     <div class="learn-mode-card" role="dialog" aria-modal="true" aria-labelledby="receiving-mhd-editor-title">
-      <div class="learn-mode-title" id="receiving-mhd-editor-title">MHD anpassen</div>
+      <div class="learn-mode-title" id="receiving-mhd-editor-title">MHD von der Verpackung</div>
       <p class="learn-mode-desc">${escapeHtml(item.product || 'Artikel')}</p>
-      <label class="form-label" for="receiving-mhd-editor-input">Neues MHD</label>
+      <label class="form-label" for="receiving-mhd-editor-input">MHD eintippen</label>
       <input type="text" id="receiving-mhd-editor-input" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
-      <div class="we-item-mhd-quick receiving-mhd-editor-quick" role="group" aria-label="Schnelltasten ab heute">
-        ${MHD_QUICK_DAYS.map((days) => (
-          `<button type="button" class="we-item-mhd-quick-btn" data-receiving-mhd-today-add="${days}">+${days} Tage</button>`
-        )).join('')}
-      </div>
       <div class="receiving-mhd-editor-actions">
         <button type="button" class="btn btn-secondary" data-receiving-mhd-cmd="close">Abbrechen</button>
         <button type="button" class="btn btn-primary" data-receiving-mhd-cmd="save">Übernehmen</button>
@@ -797,8 +791,11 @@ export function openReceivingItemMhdEditor(item, options = {}) {
   document.body.appendChild(overlay);
 
   const input = document.getElementById('receiving-mhd-editor-input');
+  // Bewusst leer starten, wenn noch kein MHD gesetzt – kein geratenes Datum.
   if (currentIso) setGermanDateField(input, currentIso);
+  else if (input) input.value = '';
   initGermanDateInputs(overlay);
+  input?.focus();
 
   const close = () => {
     overlay.remove();
@@ -807,9 +804,9 @@ export function openReceivingItemMhdEditor(item, options = {}) {
   receivingMhdEditorCleanup = close;
 
   const save = () => {
-    const iso = readGermanDateField(input);
+    const iso = readGermanDateField(input) || parseReceivingQuickMhdInput(input?.value || '');
     if (!iso) {
-      window.showToast?.('Bitte ein gültiges MHD als TT.MM.JJJJ eintragen.', 'warning');
+      window.showToast?.('Bitte das MHD von der Verpackung als TT.MM.JJJJ eintippen.', 'warning');
       input?.focus();
       return;
     }
@@ -829,12 +826,6 @@ export function openReceivingItemMhdEditor(item, options = {}) {
     }
     if (cmd === 'save') {
       save();
-      return;
-    }
-    const addDays = Number(event.target.closest('[data-receiving-mhd-today-add]')?.dataset.receivingMhdTodayAdd);
-    if (Number.isFinite(addDays) && addDays > 0) {
-      const iso = shiftIsoDateByDays(startOfDayIso(), addDays);
-      if (iso) setGermanDateField(input, iso);
     }
   });
 }
@@ -844,5 +835,3 @@ export function closeReceivingMhdEditor() {
   document.getElementById('receiving-mhd-editor-overlay')?.remove();
   receivingMhdEditorCleanup = null;
 }
-
-export { MHD_QUICK_DAYS };
