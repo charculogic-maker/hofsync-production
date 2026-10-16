@@ -5690,8 +5690,10 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   gap: 2px;
-  min-height: 44px;
+  min-height: 72px;
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--border-radius-sm);
@@ -5700,6 +5702,27 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.we-item-mhd-date--missing {
+  border: 2px solid color-mix(in srgb, #c62828 75%, transparent);
+  background: color-mix(in srgb, #c62828 14%, var(--surface-color, #fff));
+  color: #8b1a1a;
+  animation: we-mhd-missing-pulse 1.6s ease-in-out infinite;
+}
+
+.we-item-mhd-date--missing .we-item-mhd-date-label,
+.we-item-mhd-date--missing .we-item-mhd-date-value {
+  color: #8b1a1a;
+}
+
+.we-item-card--mhd-missing {
+  border-color: color-mix(in srgb, #c62828 40%, transparent);
+}
+
+@keyframes we-mhd-missing-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #c62828 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, #c62828 22%, transparent); }
 }
 
 .we-item-mhd-date:active {
@@ -6908,6 +6931,20 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   align-items: stretch;
 }
 
+.scanner-quick-adjust-row--mhd {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(140px, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.scanner-qa-mhd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .scanner-qa-btn,
 .scanner-qa-chip,
 .scanner-qa-mhd,
@@ -6985,54 +7022,36 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.8;
-}
-
-.scanner-qa-mhd strong {
-  font-size: 16px;
-  font-weight: 900;
+  opacity: 0.85;
+  color: #fff;
 }
 
 .scanner-qa-done {
-  flex: 1 1 160px;
+  align-self: end;
   padding: 0 12px;
   font-size: 14px;
   line-height: 1.2;
 }
 
-.scanner-qa-mhd-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 2px;
-}
-
-.scanner-qa-mhd-panel[hidden] {
-  display: none !important;
-}
-
-.scanner-qa-mhd-quick {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.scanner-qa-mhd-manual {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px;
-  gap: 8px;
-  align-items: center;
-}
-
 .scanner-qa-mhd-input {
   min-height: 48px;
   width: 100%;
-  border: 0;
+  border: 2px solid transparent;
   border-radius: 12px;
   padding: 0 12px;
   font-size: 16px;
   font-weight: 800;
   box-sizing: border-box;
+  background: #fff;
+  color: #111;
+}
+
+.scanner-qa-mhd-input.is-empty,
+.scanner-qa-mhd-input.is-missing,
+.scanner-quick-adjust.has-mhd-missing .scanner-qa-mhd-input {
+  border-color: #e53935;
+  background: #fff5f5;
+  box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.25);
 }
 
 @media (max-width: 380px) {

@@ -87,7 +87,7 @@ async function main() {
       barcode: '4005556667778',
       qtyValue: 1,
       qtyUnit: 'Stk',
-      mhdDate: '2026-10-16',
+      mhdDate: '',
       brand: 'Hofgarten',
       addedAt: 2000,
     };
@@ -101,8 +101,11 @@ async function main() {
       hasQty: Boolean(table.querySelector('[data-item-qty-edit]')),
       hasQtyDelta: table.querySelectorAll('[data-item-qty-delta]').length,
       hasMhdQuick: table.querySelectorAll('[data-item-mhd-add]').length,
+      hasMhdMissing: Boolean(table.querySelector('.we-item-mhd-date--missing')),
       hasRemove: Boolean(table.querySelector('[data-item-remove]')),
       hasScannerQuickAdjust: Boolean(document.getElementById('scanner-quick-adjust')),
+      hasEmptyMhdInput: Boolean(document.getElementById('scanner-qa-mhd-input')),
+      hasNoMhdQuickChips: document.querySelectorAll('[data-scanner-qa="mhd-add"]').length === 0,
     };
   });
 
@@ -162,15 +165,16 @@ async function main() {
     if (bar) {
       bar.hidden = false;
       bar.dataset.itemId = 'item-new';
+      bar.classList.add('has-mhd-missing');
       const product = document.getElementById('scanner-qa-product');
       const qty = document.getElementById('scanner-qa-qty');
-      const mhd = document.getElementById('scanner-qa-mhd-value');
+      const input = document.getElementById('scanner-qa-mhd-input');
       if (product) product.textContent = 'Frische Gurke';
       if (qty) qty.textContent = 'Menge: 3';
-      if (mhd) mhd.textContent = '23.10.2026';
-      const panel = document.getElementById('scanner-qa-mhd-panel');
-      if (panel) panel.hidden = false;
-      document.getElementById('scanner-qa-mhd-toggle')?.setAttribute('aria-expanded', 'true');
+      if (input) {
+        input.value = '';
+        input.classList.add('is-empty', 'is-missing');
+      }
     }
   });
   await page.waitForSelector('#scanner-quick-adjust:not([hidden])', { timeout: 5000 });
@@ -206,10 +210,13 @@ async function main() {
     && report.cardCount === 2
     && report.hasQty
     && report.hasQtyDelta === 4
-    && report.hasMhdQuick === 6
+    && report.hasMhdQuick === 0
+    && report.hasMhdMissing
     && report.hasRemove
     && report.hasScannerQuickAdjust
-    && report.swCache === 'charculogic-v20261016-wareneingang-speed-v3';
+    && report.hasEmptyMhdInput
+    && report.hasNoMhdQuickChips
+    && report.swCache === 'charculogic-v20261016-wareneingang-mhd-empty-v1';
 
   await browser.close();
   if (!ok) {

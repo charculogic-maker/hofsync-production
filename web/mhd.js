@@ -23,7 +23,6 @@ import {
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
   formatHaccpMeatTempWarning,
-  formatReceivingMhdLabel,
   getHaccpTempLimitForCategory,
   inferReceivingCategoryFromProductName,
   isBioSchweinZukaufCategory,
@@ -35,15 +34,16 @@ import {
   normalizeMetzReceivingCategory,
   openReceivingItemMhdEditor,
   openReceivingQtyNumpad,
+  hasReceivingItemMhd,
   parseReceivingQuickMhdInput,
   RECEIVING_DUPLICATE_SCAN_MS,
+  RECEIVING_SCAN_MHD_EMPTY,
   RECEIVING_SMART_CATEGORIES,
   resolveMetzTraceLot,
   resolveReceivingScanCategory,
   shiftIsoDateByDays,
   shouldMergeDuplicateReceivingScan,
   sortDeliveryItemsLifo,
-  suggestReceivingMhd,
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
@@ -7864,12 +7864,12 @@ function isScannerQuickAdjustOpen() {
   return Boolean(bar && !bar.hidden && bar.dataset.itemId);
 }
 
-function syncScannerQuickAdjustUi(item) {
+function syncScannerQuickAdjustUi(item, { resetMhdInput = false } = {}) {
   const bar = document.getElementById('scanner-quick-adjust');
   if (!bar || !item) return;
   const productEl = document.getElementById('scanner-qa-product');
   const qtyEl = document.getElementById('scanner-qa-qty');
-  const mhdEl = document.getElementById('scanner-qa-mhd-value');
+  const input = document.getElementById('scanner-qa-mhd-input');
   const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
   const qtyUnit = item.qtyUnit || 'Stk';
   if (productEl) productEl.textContent = String(item.product || 'Artikel');
@@ -7878,15 +7878,19 @@ function syncScannerQuickAdjustUi(item) {
       ? `Menge: ${qtyValue}`
       : `Menge: ${qtyValue} ${qtyUnit}`;
   }
-  if (mhdEl) mhdEl.textContent = formatReceivingMhdLabel(item.mhdDate) || '–';
+  if (input) {
+    const hasMhd = hasReceivingItemMhd(item);
+    if (resetMhdInput || !hasMhd) {
+      input.value = '';
+      delete input.dataset.isoValue;
+    } else {
+      setGermanDateField(input, item.mhdDate);
+    }
+    input.classList.toggle('is-empty', !String(input.value || '').trim());
+    input.classList.toggle('is-missing', !hasMhd);
+  }
   bar.dataset.itemId = item.id;
-}
-
-function setScannerQuickAdjustMhdPanelOpen(open) {
-  const panel = document.getElementById('scanner-qa-mhd-panel');
-  const toggle = document.getElementById('scanner-qa-mhd-toggle');
-  if (panel) panel.hidden = !open;
-  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  bar.classList.toggle('has-mhd-missing', !hasReceivingItemMhd(item));
 }
 
 function showScannerQuickAdjust(item) {
@@ -7897,14 +7901,21 @@ function showScannerQuickAdjust(item) {
     hideScannerQuickAdjust({ resumeListening: false });
     return;
   }
-  syncScannerQuickAdjustUi(item);
-  setScannerQuickAdjustMhdPanelOpen(false);
+  // MHD-Eingabe immer leer starten – kein Vorschlag aus Stammdaten.
+  syncScannerQuickAdjustUi(item, { resetMhdInput: !hasReceivingItemMhd(item) });
   const input = document.getElementById('scanner-qa-mhd-input');
-  if (input) input.value = '';
+  if (!hasReceivingItemMhd(item) && input) {
+    input.value = '';
+    delete input.dataset.isoValue;
+    input.classList.add('is-empty', 'is-missing');
+  }
   bar.hidden = false;
   overlay?.classList.add('has-quick-adjust');
   bindScannerQuickAdjustOnce();
-  setScannerStatus('Menge/MHD anpassen, dann „Fertig“ tippen.');
+  setScannerStatus('Menge prüfen, MHD von der Verpackung eintippen, dann „Fertig“.');
+  if (!hasReceivingItemMhd(item)) {
+    window.setTimeout?.(() => input?.focus(), 80);
+  }
 }
 
 function hideScannerQuickAdjust({ resumeListening = false } = {}) {
@@ -7913,8 +7924,15 @@ function hideScannerQuickAdjust({ resumeListening = false } = {}) {
   if (bar) {
     bar.hidden = true;
     delete bar.dataset.itemId;
+    bar.classList.remove('has-mhd-missing');
   }
-  setScannerQuickAdjustMhdPanelOpen(false);
+  const input = document.getElementById('scanner-qa-mhd-input');
+  if (input) {
+    input.value = '';
+    delete input.dataset.isoValue;
+    input.classList.add('is-empty');
+    input.classList.remove('is-missing');
+  }
   overlay?.classList.remove('has-quick-adjust');
   if (resumeListening && mhdState.isScannerOverlayOpen?.()) {
     mhdState.resumeScannerListening?.(400);
@@ -7938,46 +7956,52 @@ function applyScannerQuickAdjustQtyDelta(delta) {
   pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
 }
 
-function applyScannerQuickAdjustMhdDays(days) {
-  const item = getScannerQuickAdjustItem();
-  if (!item || !Number.isFinite(days) || days <= 0) return;
-  // Schnelltasten am Scanner setzen MHD ab heute (+7 T / +14 T / +30 T).
-  const iso = shiftIsoDateByDays(new Date().toISOString().slice(0, 10), days);
-  if (!iso || !setCurrentDeliveryItemMhd(item.id, iso)) return;
-  const updated = currentDeliveryItems.find((row) => row.id === item.id);
-  touchReceivingAutoScan(updated || item);
-  syncScannerQuickAdjustUi(updated || item);
-  setScannerQuickAdjustMhdPanelOpen(false);
-  mhdState.playClickSound?.(1100, 0.04, 0.12);
-  window.showToast?.(`MHD auf +${days} Tage ab heute gesetzt.`, 'success');
-}
-
-function applyScannerQuickAdjustMhdInput() {
+function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
   const item = getScannerQuickAdjustItem();
   const input = document.getElementById('scanner-qa-mhd-input');
-  if (!item || !input) return;
-  const iso = parseReceivingQuickMhdInput(input.value);
+  if (!item || !input) return false;
+  const iso = parseReceivingQuickMhdInput(input.value) || readGermanDateField(input);
   if (!iso) {
-    window.showToast?.('Bitte MHD als TT.MM oder TT.MM.JJJJ eintragen.', 'warning');
-    input.focus();
-    return;
+    if (!silent) {
+      window.showToast?.('Bitte das MHD von der Verpackung eintippen (TT.MM.JJJJ).', 'warning');
+      input.focus();
+    }
+    input.classList.add('is-missing', 'is-empty');
+    return false;
   }
-  if (!setCurrentDeliveryItemMhd(item.id, iso)) return;
+  if (!setCurrentDeliveryItemMhd(item.id, iso)) return false;
   const updated = currentDeliveryItems.find((row) => row.id === item.id);
   touchReceivingAutoScan(updated || item);
   syncScannerQuickAdjustUi(updated || item);
-  setScannerQuickAdjustMhdPanelOpen(false);
-  input.value = '';
   mhdState.playClickSound?.(1000, 0.05, 0.12);
-  window.showToast?.('MHD übernommen.', 'success');
+  if (!silent) window.showToast?.('MHD übernommen.', 'success');
+  return true;
 }
 
 function confirmScannerQuickAdjust() {
   const item = getScannerQuickAdjustItem();
-  hideScannerQuickAdjust({ resumeListening: true });
-  if (item?.product) {
-    window.showToast?.(`${item.product} fertig – bereit für den nächsten Scan.`, 'success');
+  if (!item) {
+    hideScannerQuickAdjust({ resumeListening: true });
+    return;
   }
+  // Offene Eingabe zuerst übernehmen.
+  if (!hasReceivingItemMhd(item)) {
+    const applied = applyScannerQuickAdjustMhdInput({ silent: true });
+    if (!applied) {
+      window.showToast?.('Bitte zuerst das MHD von der Verpackung eintippen.', 'warning');
+      document.getElementById('scanner-qa-mhd-input')?.focus();
+      setScannerStatus('MHD fehlt – von der Verpackung eintippen, dann „Fertig“.');
+      return;
+    }
+  }
+  const fresh = currentDeliveryItems.find((row) => row.id === item.id) || item;
+  if (!hasReceivingItemMhd(fresh)) {
+    window.showToast?.('Bitte zuerst das MHD von der Verpackung eintippen.', 'warning');
+    document.getElementById('scanner-qa-mhd-input')?.focus();
+    return;
+  }
+  hideScannerQuickAdjust({ resumeListening: true });
+  window.showToast?.(`${fresh.product} fertig – bereit für den nächsten Scan.`, 'success');
   mhdState.playClickSound?.(900, 0.05, 0.12);
 }
 
@@ -8006,24 +8030,15 @@ function bindScannerQuickAdjustOnce() {
       applyScannerQuickAdjustQtyDelta(10);
       return;
     }
-    if (action === 'mhd-toggle') {
-      const panel = document.getElementById('scanner-qa-mhd-panel');
-      setScannerQuickAdjustMhdPanelOpen(Boolean(panel?.hidden));
-      return;
-    }
-    if (action === 'mhd-add') {
-      applyScannerQuickAdjustMhdDays(Number(actionBtn.dataset.days));
-      return;
-    }
-    if (action === 'mhd-apply') {
-      applyScannerQuickAdjustMhdInput();
-      return;
-    }
     if (action === 'done') {
       confirmScannerQuickAdjust();
     }
   });
   const input = document.getElementById('scanner-qa-mhd-input');
+  input?.addEventListener('input', () => {
+    input.classList.toggle('is-empty', !String(input.value || '').trim());
+    input.classList.remove('is-missing');
+  });
   input?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -8097,9 +8112,8 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const qtyValue = qtyUnit === 'Stk'
     ? Math.max(1, Math.round(packageSize))
     : Math.round(packageSize * 100) / 100;
-  const suggestion = suggestReceivingMhd(productName, category, mhdState.products || []);
-  const mhdDate = suggestion?.mhdIso || shiftIsoDateByDays(new Date().toISOString().slice(0, 10), 7);
-  if (!mhdDate) return false;
+  // Strikt: kein geratenes/Stammdaten-MHD – Mitarbeiter tippt von der Verpackung.
+  const mhdDate = RECEIVING_SCAN_MHD_EMPTY;
 
   const herstellerZusatz = String(info.brand || '').trim();
   const itemId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -8120,7 +8134,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     warenKategorie: category,
     category,
     addedAt: Date.now(),
-    mhdQuelle: suggestion?.quelle || 'standard',
+    mhdQuelle: 'manual-packaging',
   };
   currentDeliveryItems.unshift(newItem);
   touchReceivingAutoScan(newItem, code);
@@ -8150,7 +8164,7 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   }
   const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
   window.showToast?.(
-    `${info.name}: ${qtyHint} · MHD ${formatReceivingMhdLabelSafe(mhdDate)} – oben in der Liste.`,
+    `${info.name}: ${qtyHint} – bitte MHD von der Verpackung eintippen.`,
     'success',
   );
   return true;
