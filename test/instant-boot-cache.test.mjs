@@ -21,8 +21,10 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/scheduleBootCachedModuleVisibility/);
     expect(appJs).to.match(/DOMContentLoaded/);
     expect(tenantModulesJs).to.match(/LAST_EFFECTIVE_MODULES_KEY\s*=\s*'charculogic\.lastEffectiveModules'/);
+    expect(tenantModulesJs).to.match(/export function effectiveModulesStorageKey/);
     expect(tenantModulesJs).to.match(/export function publishEffectiveModules/);
     expect(indexHtml).to.match(/charculogic\.lastEffectiveModules/);
+    expect(indexHtml).to.match(/charculogic_cached_tenant_id/);
     expect(indexHtml).to.match(/bootCachedNavModules/);
   });
 
@@ -31,7 +33,7 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/if \(tab\.hidden \|\| tab\.style\.display === 'none'\) return;/);
   });
 
-  it('bumps SW cache to instant-boot-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-instant-boot-v1'");
+  it('bumps SW cache to tenant-cache-v1', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-tenant-cache-v1'");
   });
 });

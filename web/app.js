@@ -314,6 +314,19 @@ function writeSoftLockEmployeeMirror(employeeName) {
   } catch (_) { /* noop */ }
 }
 
+function resolveModuleCacheTenantId() {
+  return normalizeTenantId(
+    getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || '',
+  );
+}
+
+function employeePickerCacheStorageKey() {
+  return scopedTeamboardStorageKey(
+    CACHED_EMPLOYEES_STORAGE_KEY,
+    normalizeTenantId(getGlobalTenantId() || getTenantId() || window.resolveEffectiveTenantId?.() || ''),
+  );
+}
+
 function clearProfileSession() {
   try {
     localStorage.removeItem(activeEmployeeStorageKey());
@@ -1746,7 +1759,7 @@ async function loadEmployeePickerNamesFromFirestore() {
 
 function readCachedEmployeePickerList() {
   try {
-    const raw = localStorage.getItem(CACHED_EMPLOYEES_STORAGE_KEY);
+    const raw = localStorage.getItem(employeePickerCacheStorageKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return normalizeEmployeePickerNames(Array.isArray(parsed) ? parsed : []);
@@ -1759,7 +1772,11 @@ function writeCachedEmployeePickerList(employeeList = []) {
   const cleaned = normalizeEmployeePickerNames(employeeList);
   if (!cleaned.length) return;
   try {
-    localStorage.setItem(CACHED_EMPLOYEES_STORAGE_KEY, JSON.stringify(cleaned));
+    const key = employeePickerCacheStorageKey();
+    localStorage.setItem(key, JSON.stringify(cleaned));
+    if (key !== CACHED_EMPLOYEES_STORAGE_KEY) {
+      localStorage.removeItem(CACHED_EMPLOYEES_STORAGE_KEY);
+    }
   } catch (_) { /* private mode / quota */ }
 }
 
@@ -2607,11 +2624,12 @@ window.applyModuleVisibility = applyModuleVisibility;
 function bootCachedModuleVisibility() {
   const branding = window.BRANDING || { modules: {} };
   if (!window.BRANDING) window.BRANDING = branding;
-  const cached = readCachedEffectiveModules();
+  const tenantId = resolveModuleCacheTenantId();
+  const cached = readCachedEffectiveModules(tenantId);
   if (cached) {
     applyEffectiveModulesToBranding(cached, branding);
   } else {
-    const { effective } = publishEffectiveModules(branding, null);
+    const { effective } = publishEffectiveModules(branding, null, { tenantId });
     applyEffectiveModulesToBranding(effective, branding);
   }
   applyModuleVisibility(branding);
@@ -2624,11 +2642,12 @@ function bootCachedModuleVisibility() {
  */
 function applyModuleVisibilityIfChanged(branding = window.BRANDING || {}, options = {}) {
   const force = options.force === true;
+  const tenantId = normalizeTenantId(options.tenantId || resolveModuleCacheTenantId());
   const firestoreSettings = options.firestoreSettings !== undefined
     ? options.firestoreSettings
     : (branding.enabledModules ? { enabledModules: branding.enabledModules } : null);
-  const previous = readCachedEffectiveModules();
-  const { effective } = publishEffectiveModules(branding, firestoreSettings);
+  const previous = readCachedEffectiveModules(tenantId);
+  const { effective } = publishEffectiveModules(branding, firestoreSettings, { tenantId });
   const changed = force || !effectiveModulesEqual(previous, effective);
   if (changed || !window.__hofsyncModulesVisibilityApplied) {
     applyModuleVisibility(branding);

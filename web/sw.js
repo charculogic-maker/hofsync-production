@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261016-instant-boot-v1';
+const CACHE_NAME = 'charculogic-v20261016-tenant-cache-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-16T17:30:00+02:00';
