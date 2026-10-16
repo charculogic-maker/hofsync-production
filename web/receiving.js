@@ -12,8 +12,8 @@ const MHD_QUICK_DAYS = [3, 7, 14];
 export const SCANNER_MHD_QUICK_DAYS = [7, 14, 30];
 /** Gleicher Barcode innerhalb dieses Fensters → Menge +1 statt neuer Posten. */
 export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
-/** Ohne Interaktion schließt sich die Quick-Adjust-Leiste automatisch. */
-export const SCANNER_QUICK_ADJUST_IDLE_MS = 2000;
+/** Ohne Interaktion schließt sich die Quick-Adjust-Leiste automatisch (Zeit für MHD/Menge). */
+export const SCANNER_QUICK_ADJUST_IDLE_MS = 15000;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const MHD_FALLBACK_KEYWORDS = [
   { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },

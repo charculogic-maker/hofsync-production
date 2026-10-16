@@ -36,6 +36,6 @@ describe('Wareneingang scan quick-adjust helpers', () => {
 
   it('exposes scanner quick-day presets and idle window', () => {
     assert.deepEqual(SCANNER_MHD_QUICK_DAYS, [7, 14, 30]);
-    assert.equal(SCANNER_QUICK_ADJUST_IDLE_MS, 2000);
+    assert.equal(SCANNER_QUICK_ADJUST_IDLE_MS, 15000);
   });
 });
