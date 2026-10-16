@@ -1,7 +1,7 @@
 const CACHE_NAME = 'charculogic-v20261016-employee-lock-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-16T03:00:00+02:00';
+const RELEASED_AT = '2026-10-16T16:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
