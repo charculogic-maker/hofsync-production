@@ -209,7 +209,7 @@ async function main() {
     && report.hasMhdQuick === 6
     && report.hasRemove
     && report.hasScannerQuickAdjust
-    && report.swCache === 'charculogic-v20261016-wareneingang-speed-v1';
+    && report.swCache === 'charculogic-v20261016-wareneingang-speed-v2';
 
   await browser.close();
   if (!ok) {
