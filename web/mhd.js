@@ -8022,12 +8022,16 @@ function bindScannerQuickAdjustOnce() {
       applyScannerQuickAdjustQtyDelta(1);
       return;
     }
+    if (action === 'qty-plus3') {
+      applyScannerQuickAdjustQtyDelta(3);
+      return;
+    }
     if (action === 'qty-plus5') {
       applyScannerQuickAdjustQtyDelta(5);
       return;
     }
-    if (action === 'qty-plus10') {
-      applyScannerQuickAdjustQtyDelta(10);
+    if (action === 'qty-plus9') {
+      applyScannerQuickAdjustQtyDelta(9);
       return;
     }
     if (action === 'done') {
