@@ -100,6 +100,39 @@ describe('Wareneingang supplier split (Laden / Metzgerei)', () => {
     assert.deepEqual(mod.getTenantSupplierNames('metzgerei'), ['Stautenhof']);
   });
 
+  it('ignores legacy names list so areas stay strictly separated', async () => {
+    ensureDomShims();
+    const mod = await import(`${pathToFileURL(path.join(root, 'web/tenant-settings.js')).href}?t=${Date.now() + 2}`);
+    // Simuliere altes Firestore-Doc nur mit gemischtem names[] – darf NICHT beide Bereiche füllen.
+    const fakeDb = {
+      collection: () => ({
+        doc: () => ({
+          collection: () => ({
+            doc: (docId) => ({
+              get: async () => {
+                if (docId === 'suppliers') {
+                  return {
+                    exists: true,
+                    data: () => ({
+                      names: ['Weiling', 'Stautenhof', 'Rapunzel', 'Naturverbund'],
+                    }),
+                  };
+                }
+                return { exists: false, data: () => null };
+              },
+            }),
+          }),
+          get: async () => ({ exists: false, data: () => null }),
+        }),
+      }),
+    };
+    await mod.loadTenantShopSettings(fakeDb, 'StevesHof_Hauptbetrieb');
+    assert.deepEqual(mod.getTenantSupplierNames('laden'), [...LADEN_DEFAULT_SUPPLIERS]);
+    assert.deepEqual(mod.getTenantSupplierNames('metzgerei'), [...METZ_DEFAULT_SUPPLIERS]);
+    assert.equal(mod.getTenantSupplierNames('laden').includes('Stautenhof'), false);
+    assert.equal(mod.getTenantSupplierNames('metzgerei').includes('Weiling'), false);
+  });
+
   it('wires area switch, custom supplier row and removes footer version badge', () => {
     assert.ok(indexSrc.includes('receiving-area-switch'));
     assert.ok(indexSrc.includes('data-delivery-area="laden"'));
@@ -111,7 +144,11 @@ describe('Wareneingang supplier split (Laden / Metzgerei)', () => {
     assert.ok(mhdSrc.includes('persistSupplierName'));
     assert.ok(mhdSrc.includes('writeLastDeliveryArea'));
     assert.ok(mhdSrc.includes('addTenantSupplierName'));
-    assert.match(swSrc, /charculogic-v20261016-supplier-split-v1/);
+    assert.ok(mhdSrc.includes('function updateSupplierDropdown'));
+    assert.ok(mhdSrc.includes('suppliersLaden'));
+    assert.ok(mhdSrc.includes('suppliersMetzgerei'));
+    assert.ok(mhdSrc.includes('updateSupplierDropdown(area, { preserveSelection: false })'));
+    assert.match(swSrc, /charculogic-v20261016-supplier-dropdown-fix-v1/);
     assert.ok(rulesSrc.includes("'laden'"));
     assert.ok(rulesSrc.includes("'metzgerei'"));
     assert.ok(rulesSrc.includes('isEmployeeOrAdmin(tenantId) && isSupplierSettings(document)'));

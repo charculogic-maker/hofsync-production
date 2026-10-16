@@ -53,6 +53,14 @@ export function getTenantSupplierNames(area = 'laden') {
   return defaultSuppliersForArea(key);
 }
 
+/** Strikt getrennte Bereichs-Listen (ohne Cross-Area-Fallback). */
+export function getTenantSuppliersByArea() {
+  return {
+    laden: getTenantSupplierNames('laden'),
+    metzgerei: getTenantSupplierNames('metzgerei'),
+  };
+}
+
 export function getTenantDefaultTeam() {
   return defaultTeam.length ? [...defaultTeam] : [...NEUTRAL_TEAM];
 }
@@ -108,20 +116,16 @@ function applySupplierDoc(supplierDoc, rootSuppliers = null) {
   const metzFromRoot = cleanNameList(nested?.metzgerei);
   const ladenFromSettings = cleanNameList(supplierDoc?.laden);
   const metzFromSettings = cleanNameList(supplierDoc?.metzgerei);
-  const legacy = cleanNameList(supplierDoc?.names || supplierDoc?.suppliers);
 
+  // Strikte Trennung: nur area-spezifische Felder laden/metzgerei.
+  // Legacy `names`/`suppliers` wird NICHT mehr in beide Bereiche kopiert —
+  // das mischte Laden- und Metzgerei-Lieferanten im Dropdown.
   const laden = ladenFromSettings.length
     ? ladenFromSettings
     : (ladenFromRoot.length ? ladenFromRoot : []);
   const metzgerei = metzFromSettings.length
     ? metzFromSettings
     : (metzFromRoot.length ? metzFromRoot : []);
-
-  if (!laden.length && !metzgerei.length && legacy.length) {
-    supplierByArea = { laden: [...legacy], metzgerei: [...legacy] };
-    supplierAreaFromFirestore = { laden: true, metzgerei: true };
-    return;
-  }
 
   supplierByArea = {
     laden,
@@ -137,18 +141,19 @@ function publish(tenantId) {
   activeTenantId = String(tenantId || '').trim();
   window.__tenantDefaultTeam = getTenantDefaultTeam();
   window.getTenantSupplierNames = getTenantSupplierNames;
+  window.getTenantSuppliersByArea = getTenantSuppliersByArea;
   window.getTerminalSettings = getTerminalSettings;
   window.addTenantSupplierName = addTenantSupplierName;
   window.applyLocalSupplierLists = applyLocalSupplierLists;
+  const byArea = getTenantSuppliersByArea();
   window.dispatchEvent(new CustomEvent('charculogic:tenant-settings', {
     detail: {
       tenantId: activeTenantId,
       terminal: getTerminalSettings(),
-      suppliers: getTenantSupplierNames('laden'),
-      suppliersByArea: {
-        laden: getTenantSupplierNames('laden'),
-        metzgerei: getTenantSupplierNames('metzgerei'),
-      },
+      suppliers: byArea.laden,
+      suppliersByArea: byArea,
+      suppliersLaden: byArea.laden,
+      suppliersMetzgerei: byArea.metzgerei,
       defaultTeam: getTenantDefaultTeam(),
     },
   }));
