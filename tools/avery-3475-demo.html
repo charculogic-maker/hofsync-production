@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avery 3475 Demo</title>
+  <link rel="stylesheet" href="/style.css?v=20261017-avery-print-v1">
+  <link rel="stylesheet" href="/print.css?v=20261017-avery-print-v1">
+  <style>
+    body { margin: 0; background: #eef2f7; }
+    .demo-shell { max-width: 440px; margin: 0 auto; padding: 16px; }
+    .demo-note { font-size: 13px; color: #475569; margin-bottom: 12px; }
+    #print-avery-container.print-only.demo-preview {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: 72px;
+      width: 100%;
+      max-width: 440px;
+      gap: 4px;
+      margin: 12px auto 24px;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      box-sizing: border-box;
+    }
+    #print-avery-container.demo-preview .avery-label {
+      width: auto;
+      height: auto;
+      min-height: 72px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    #print-avery-container.demo-preview .avery-label-article {
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    #print-avery-container.demo-preview .avery-label-lot,
+    #print-avery-container.demo-preview .avery-label-date {
+      font-size: 11px;
+    }
+    #print-avery-container.demo-preview .avery-label {
+      border: 0.4pt dashed #94a3b8;
+    }
+    #print-avery-container.demo-preview .avery-label.empty {
+      visibility: visible;
+      opacity: 0.22;
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-shell">
+    <p class="demo-note">Lokale Demo der Avery-3475-Druckstation (ohne Firebase).</p>
+    <section class="avery-print-card" id="avery-print-card" aria-labelledby="avery-print-title">
+      <div class="section-title" id="avery-print-title">🖨️ Etikettendruck (Avery 3475)</div>
+      <p class="avery-print-hint">Reifebeutel und Teilstücke beschriften – 24 Etiketten je A4-Bogen (70×36&nbsp;mm).</p>
+      <form id="avery-print-form" class="avery-print-form" onsubmit="return false;">
+        <div class="form-group">
+          <label class="form-label" for="avery-article">Artikel / Teilstück</label>
+          <input type="text" id="avery-article" class="input-text-touch" list="avery-article-options" value="Galloway-Entrecôte">
+          <datalist id="avery-article-options"></datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="avery-lot">LOT / Charge</label>
+          <input type="text" id="avery-lot" class="input-text-touch" value="L-4210">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="avery-slaughter-date">Schlachtdatum</label>
+          <input type="date" id="avery-slaughter-date" class="input-text-touch" value="2026-10-17">
+        </div>
+        <div class="avery-print-row">
+          <div class="form-group">
+            <label class="form-label" for="avery-label-count">Anzahl Etiketten</label>
+            <input type="number" id="avery-label-count" class="input-text-touch" min="1" max="24" value="3">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="avery-start-position">Start-Position auf Bogen</label>
+            <input type="number" id="avery-start-position" class="input-text-touch" min="1" max="24" value="5">
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print">🖨️ Etiketten Drucken</button>
+      </form>
+    </section>
+    <p id="demo-status" class="demo-note" aria-live="polite"></p>
+  </div>
+  <div id="print-avery-container" class="print-only" aria-hidden="true"></div>
+  <script type="module">
+    import { initAveryPrintStation, printAvery3475Labels } from '/prod.js';
+    const status = document.getElementById('demo-status');
+    const container = document.getElementById('print-avery-container');
+    window.print = () => {
+      container.classList.add('demo-preview');
+      const empty = container.querySelectorAll('.avery-label.empty').length;
+      const filled = container.querySelectorAll('.avery-label:not(.empty)').length;
+      status.textContent = `Druck vorbereitet: ${empty} Offset-leer + ${filled} befüllt.`;
+    };
+    window.showToast = (msg, type) => {
+      status.textContent = `${type || 'info'}: ${msg}`;
+    };
+    initAveryPrintStation();
+    printAvery3475Labels();
+  </script>
+</body>
+</html>
