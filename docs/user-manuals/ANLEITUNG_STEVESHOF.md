@@ -131,8 +131,9 @@ Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8
 
 ## 6. Wissen
 
-**Wissen** öffnen wir über das **Verwaltungs-Menü**. Dort gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Verwaltungs-Menü**. Dort gibt es aufklappbare Bereiche:
 
+- **🧾 Theken-Auskunft (Allergene & Zutaten)**: Schnellsuche und Filter (z. B. Glutenfrei, Rind, Feinkost) für Kundenfragen zu Allergenen und Zutaten – Detailansicht mit LMIV-Hinweis, auch offline verfügbar.
 - **🥩 Fleisch-Lexikon (Cuts)**: Suche nach Zuschnitten, regionalen Namen, Lage und Verwendung.
 - **📋 Hofladen-Handbücher**: kurze Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
 

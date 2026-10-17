@@ -28,7 +28,7 @@ export const STEVESHOF_COUNTER_FALLBACK = [
     lactoseFree: true,
     ingredientsDeclaration:
       'Schweinefleisch*, Rinderleber*, Speck*, Wasser, Speisesalz, Zwiebeln*, Gewürze (enthält Senf, Sellerie), Dextrose. *aus ökologischer Landwirtschaft',
-    meatContent: 'Fleischanteil mind. 70 %',
+    meatContent: 'mind. 70 %',
     storageTemp: 'Gekühlt lagern bei max. +7 °C',
     consumptionNotes: 'Nach dem Öffnen zügig verbrauchen. Darm nicht essbar.',
   },
@@ -43,7 +43,7 @@ export const STEVESHOF_COUNTER_FALLBACK = [
     lactoseFree: true,
     ingredientsDeclaration:
       'Schweinespeck*, Schweineblut*, Schwarten*, Wasser, Speisesalz, Zwiebeln*, Gewürze, Dextrose. *aus ökologischer Landwirtschaft',
-    meatContent: 'Fleischanteil mind. 55 %',
+    meatContent: 'mind. 55 %',
     storageTemp: 'Gekühlt lagern bei max. +7 °C',
     consumptionNotes: 'Warm verzehrbar. Darm nicht essbar.',
   },
@@ -58,7 +58,7 @@ export const STEVESHOF_COUNTER_FALLBACK = [
     lactoseFree: true,
     ingredientsDeclaration:
       'Fleischwurst (Schweinefleisch*, Wasser, Speisesalz, Gewürze), Mayonnaise (Rapsöl*, Eigelb*, Senf*, Essig, Speisesalz), Gurken*, Zwiebeln*. *aus ökologischer Landwirtschaft',
-    meatContent: 'Fleischanteil mind. 30 %',
+    meatContent: 'mind. 30 %',
     storageTemp: 'Gekühlt lagern bei max. +7 °C',
     consumptionNotes: 'Nach dem Öffnen am selben Tag verbrauchen.',
   },
@@ -73,7 +73,7 @@ export const STEVESHOF_COUNTER_FALLBACK = [
     lactoseFree: true,
     ingredientsDeclaration:
       'Rindfleisch* (Galloway), Speck*, Wasser, Speisesalz, Gewürze, Dextrose. *aus ökologischer Landwirtschaft',
-    meatContent: 'Fleischanteil mind. 85 %',
+    meatContent: 'mind. 85 %',
     storageTemp: 'Gekühlt lagern bei max. +4 °C',
     consumptionNotes: 'Vor dem Verzehr durcherhitzen. Darm nicht essbar.',
   },
@@ -88,7 +88,7 @@ export const STEVESHOF_COUNTER_FALLBACK = [
     lactoseFree: true,
     ingredientsDeclaration:
       'Rindfleisch*, Schweinespeck*, Speisesalz, Gewürze, Dextrose, Starterkulturen, Konservierungsstoff: Natriumnitrit. *aus ökologischer Landwirtschaft',
-    meatContent: 'Fleischanteil mind. 90 %',
+    meatContent: 'mind. 90 %',
     storageTemp: 'Kühl und trocken lagern',
     consumptionNotes: 'Essfertig. Haut/Darm vor dem Verzehr entfernen, sofern nicht essbar gekennzeichnet.',
   },

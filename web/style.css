@@ -13908,6 +13908,7 @@ body.role-firebase-auth #team-login-card {
   border: 1px solid var(--border-subtle);
   background: var(--surface-color);
   text-align: left;
+  text-transform: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
