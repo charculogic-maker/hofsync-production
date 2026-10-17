@@ -48,7 +48,7 @@ describe('Architektur: Modul-SSOT & Router', () => {
     expect(dash).to.match(/key:\s*'orders'/);
   });
 
-  it('SW-Cache ist supplier-split-v1', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261016-supplier-split-v1/);
+  it('SW-Cache ist unit-kg-stk-v1', () => {
+    expect(read('web/sw.js')).to.match(/charculogic-v20261017-unit-kg-stk-v1/);
   });
 });

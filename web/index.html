@@ -2879,16 +2879,38 @@
             <span style="background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 8px;">15-25 cm Abstand, Barcode scharf halten</span>
           </div>
 
-          <div id="scanner-quick-adjust" class="scanner-quick-adjust" hidden>
+          <div id="scanner-quick-adjust" class="scanner-quick-adjust" hidden data-unit="stk">
             <div class="scanner-quick-adjust-product" id="scanner-qa-product">–</div>
-            <div class="scanner-quick-adjust-row scanner-quick-adjust-row--qty">
+            <div class="scanner-qa-unit-toggle" role="group" aria-label="Mengeneinheit">
+              <button type="button" class="scanner-qa-unit-btn is-active" data-scanner-qa="unit-stk" aria-pressed="true">STK</button>
+              <button type="button" class="scanner-qa-unit-btn" data-scanner-qa="unit-kg" aria-pressed="false">KG</button>
+            </div>
+            <div class="scanner-quick-adjust-row scanner-quick-adjust-row--qty" data-scanner-qa-mode="stk">
               <button type="button" class="scanner-qa-btn" data-scanner-qa="qty-minus" aria-label="Menge verringern">−</button>
-              <div class="scanner-qa-qty" id="scanner-qa-qty" aria-live="polite">Menge: 1</div>
+              <div class="scanner-qa-qty" id="scanner-qa-qty" aria-live="polite">Menge: 1 STK</div>
               <button type="button" class="scanner-qa-btn" data-scanner-qa="qty-plus" aria-label="Menge erhöhen">+</button>
               <span class="scanner-qa-vpe-sep" aria-hidden="true"></span>
-              <button type="button" class="scanner-qa-chip" data-scanner-qa="qty-plus3">+3</button>
-              <button type="button" class="scanner-qa-chip" data-scanner-qa="qty-plus5">+5</button>
-              <button type="button" class="scanner-qa-chip" data-scanner-qa="qty-plus9">+9</button>
+              <button type="button" class="scanner-qa-chip scanner-qa-vpe-chip" data-scanner-qa="qty-plus3">+3</button>
+              <button type="button" class="scanner-qa-chip scanner-qa-vpe-chip" data-scanner-qa="qty-plus5">+5</button>
+              <button type="button" class="scanner-qa-chip scanner-qa-vpe-chip" data-scanner-qa="qty-plus9">+9</button>
+            </div>
+            <div class="scanner-quick-adjust-row scanner-quick-adjust-row--weight" data-scanner-qa-mode="kg" hidden>
+              <label class="scanner-qa-weight-field" for="scanner-qa-weight-input">
+                <span class="scanner-qa-weight-label">Gewicht</span>
+                <span class="scanner-qa-weight-input-wrap">
+                  <input
+                    id="scanner-qa-weight-input"
+                    class="input-weight-kg scanner-qa-weight-input"
+                    type="text"
+                    inputmode="decimal"
+                    pattern="[0-9]*[.,]?[0-9]*"
+                    placeholder="0,000"
+                    autocomplete="off"
+                    aria-label="Gewicht in Kilogramm"
+                  >
+                  <span class="scanner-qa-weight-suffix" aria-hidden="true">kg</span>
+                </span>
+              </label>
             </div>
             <div class="scanner-quick-adjust-row scanner-quick-adjust-row--mhd">
               <label class="scanner-qa-mhd-field" for="scanner-qa-mhd-input">
