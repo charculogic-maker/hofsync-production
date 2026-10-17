@@ -13753,3 +13753,321 @@ body.role-firebase-auth #team-login-card {
     display: none;
   }
 }
+
+/* ==========================================================================
+   Theken-Auskunft (Wissen-Tab) — Allergene & Zutaten für Kundenberatung
+   ========================================================================== */
+
+.counter-recipes-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.counter-recipes-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.counter-recipes-kicker {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.counter-recipes-title {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.counter-recipes-lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.counter-recipes-count {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+  color: var(--primary-on-light);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.counter-recipes-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.counter-search-panel {
+  position: relative;
+}
+
+.counter-search-input {
+  width: 100%;
+  min-height: 52px;
+  padding-right: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.counter-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-color);
+  color: var(--text-muted);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.counter-quick-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.counter-quick-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.counter-quick-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid color-mix(in srgb, var(--primary-color) 22%, var(--border-subtle));
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color));
+  color: var(--primary-on-light);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.counter-quick-chip.active-category {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg);
+  color: var(--primary-on-light);
+}
+
+.counter-recipes-status {
+  margin: 0;
+}
+
+.counter-recipes-empty {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-alert, #b45309) 8%, var(--surface-color));
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
+.counter-recipes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.counter-recipe-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-color);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.counter-recipe-card:active {
+  transform: scale(0.99);
+}
+
+.counter-recipe-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.counter-recipe-name {
+  color: var(--text-dark);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.counter-recipe-category {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.counter-recipe-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.counter-allergen-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-alert, #b45309) 14%, var(--surface-color));
+  color: var(--text-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.counter-allergen-badge--free {
+  background: color-mix(in srgb, #15803d 14%, var(--surface-color));
+  color: #166534;
+}
+
+.counter-allergen-box {
+  margin: 0 0 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 2px solid color-mix(in srgb, var(--accent-alert, #b45309) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent-alert, #b45309) 10%, var(--surface-color));
+}
+
+.counter-allergen-box--free {
+  border-color: color-mix(in srgb, #15803d 40%, var(--border-subtle));
+  background: color-mix(in srgb, #15803d 12%, var(--surface-color));
+}
+
+.counter-allergen-box-label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.counter-allergen-box-values {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text-dark);
+  line-height: 1.3;
+}
+
+.counter-allergen-box-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.counter-detail-kicker {
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.counter-detail-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text-dark);
+  line-height: 1.2;
+}
+
+.counter-detail-legal {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.counter-section-heading {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text-dark);
+}
+
+.counter-ingredients-text {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-dark);
+}
+
+.counter-allergen-mark {
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.counter-extra-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.counter-extra-list li {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--surface-color));
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.counter-recipe-detail-sheet {
+  max-height: 88vh;
+}
+
+[data-theme="dark"] .counter-recipe-card,
+[data-theme="dark"] .counter-allergen-box,
+[data-theme="dark"] .counter-extra-list li {
+  background: color-mix(in srgb, var(--surface-color) 92%, #000);
+}
+
+[data-theme="dark"] .counter-allergen-badge--free {
+  color: #86efac;
+}
