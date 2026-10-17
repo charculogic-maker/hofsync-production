@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261016-counter-recipes-v1';
+const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 const RELEASED_AT = '2026-10-17T12:00:00+02:00';

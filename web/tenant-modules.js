@@ -75,6 +75,118 @@ const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
 /** Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot. */
 export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules';
 
+/** Soft-Lock Speicherschlüssel (Session-Mitarbeiter, unscoped Mirror). */
+export const ACTIVE_EMPLOYEE_SOFT_LOCK_KEY = 'charculogic.activeEmployee';
+
+/**
+ * StevesHof-Fallback: Verkaufs-/Service-Namen → PROD. (kueche) lokal ausblenden.
+ * Wortgrenzen für „Laden“, damit z. B. „Magdalena“ nicht greift.
+ */
+const KITCHEN_SALES_NAME_HINTS = Object.freeze(['laden-team', 'laden team', 'verkauf', 'service']);
+
+/** Produktion/Metzgerei-Namen → Mandanten-Einstellung für PROD. behalten. */
+const KITCHEN_PRODUCTION_NAME_HINTS = Object.freeze([
+  'paddy',
+  'metzgerei',
+  'küche',
+  'kueche',
+  'produktion',
+]);
+
+/**
+ * Liest den Soft-Lock-Mitarbeiternamen aus localStorage (unscoped Mirror).
+ * @returns {string}
+ */
+export function readActiveEmployeeFromStorage() {
+  try {
+    return String(localStorage.getItem(ACTIVE_EMPLOYEE_SOFT_LOCK_KEY) || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+/**
+ * Prüft, ob der Name ein Verkaufs-/Service-Hinweis enthält (StevesHof-Fallback).
+ * @param {string} employeeName
+ * @returns {boolean}
+ */
+export function isSalesFloorEmployeeName(employeeName) {
+  const name = String(employeeName || '').trim().toLowerCase();
+  if (!name) return false;
+  if (KITCHEN_SALES_NAME_HINTS.some((hint) => name.includes(hint))) return true;
+  // „Laden“ als eigenes Token / Team-Label (nicht Teil von Magdalena o. ä.)
+  return /(^|[\s\-_./])laden($|[\s\-_./])/i.test(name) || name === 'laden';
+}
+
+/**
+ * Prüft, ob der Name Produktion/Metzgerei/Küche signalisiert.
+ * @param {string} employeeName
+ * @returns {boolean}
+ */
+export function isProductionEmployeeName(employeeName) {
+  const name = String(employeeName || '').trim().toLowerCase();
+  if (!name) return false;
+  return KITCHEN_PRODUCTION_NAME_HINTS.some((hint) => name.includes(hint));
+}
+
+/**
+ * Role-Based Access für Modul kueche / kitchen / wurstkueche (Tab PROD.).
+ * @param {string} employeeName
+ * @param {{ role?: string }|null|undefined} [employeeRecord]
+ * @param {string} [authRole] Firebase-/Auth-Rolle (z. B. admin)
+ * @returns {'allow'|'deny'} allow = Mandanten-Einstellung behalten; deny = lokal ausblenden
+ */
+export function resolveEmployeeKitchenAccess(employeeName, employeeRecord = null, authRole = '') {
+  const role = String(employeeRecord?.role || authRole || '').trim().toLowerCase();
+  if (role === 'admin' || role === 'produktion') return 'allow';
+
+  const name = String(employeeName || '').trim();
+  if (!name) return 'deny';
+
+  if (isProductionEmployeeName(name)) return 'allow';
+  if (isSalesFloorEmployeeName(name)) return 'deny';
+
+  // Unbekannte Namen: sicher ausblenden (nur Produktion/Admin sieht PROD.)
+  return 'deny';
+}
+
+/**
+ * Session-Sichtbarkeit für PROD./Küche: Mandant aktiv UND Mitarbeiter berechtigt.
+ * Schreibt nicht in lastEffectiveModules (reine Session-Überschreibung).
+ * @param {boolean} tenantKitchenEnabled
+ * @param {{ employeeName?: string, employeeRecord?: { role?: string }|null, authRole?: string }} [options]
+ * @returns {boolean}
+ */
+export function isKitchenModuleVisibleForSession(tenantKitchenEnabled, options = {}) {
+  if (!tenantKitchenEnabled) return false;
+  const employeeName = options.employeeName !== undefined
+    ? options.employeeName
+    : readActiveEmployeeFromStorage();
+  return resolveEmployeeKitchenAccess(
+    employeeName,
+    options.employeeRecord || null,
+    options.authRole || '',
+  ) === 'allow';
+}
+
+/**
+ * Wendet die Session-RBAC-Überschreibung auf eine Modul-Map an (nur lokal, kein Cache-Write).
+ * @param {Record<string, boolean>|null|undefined} modules
+ * @param {{ employeeName?: string, employeeRecord?: { role?: string }|null, authRole?: string }} [options]
+ * @returns {Record<string, boolean>}
+ */
+export function applySessionKitchenModuleOverride(modules, options = {}) {
+  const next = { ...(modules && typeof modules === 'object' ? modules : {}) };
+  const tenantEnabled = next.wurstkueche === true
+    || next.kitchen === true
+    || next.kueche === true;
+  const visible = isKitchenModuleVisibleForSession(tenantEnabled, options);
+  next.wurstkueche = visible;
+  next.kitchen = visible;
+  next.kueche = visible;
+  return next;
+}
+
 /**
  * Resolve chargenDoku flag with legacy `traceability` fallback.
  * @param {Record<string, boolean>|null|undefined} enabled
@@ -438,4 +550,7 @@ if (typeof window !== 'undefined') {
   window.CANONICAL_MODULE_KEYS = CANONICAL_MODULE_KEYS;
   window.readCachedEffectiveModules = readCachedEffectiveModules;
   window.publishEffectiveModules = publishEffectiveModules;
+  window.isKitchenModuleVisibleForSession = isKitchenModuleVisibleForSession;
+  window.resolveEmployeeKitchenAccess = resolveEmployeeKitchenAccess;
+  window.applySessionKitchenModuleOverride = applySessionKitchenModuleOverride;
 }
