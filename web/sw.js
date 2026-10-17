@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1';
+const CACHE_NAME = 'charculogic-v20261017-avery-print-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-17T12:00:00+02:00';
+const RELEASED_AT = '2026-10-17T15:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -10,6 +10,7 @@ const CRITICAL_ASSETS = [
   '/dev-guards.js',
   '/tenant-db.js',
   '/style.css',
+  '/print.css',
   '/libs/firebase-app.js',
   '/libs/firebase-auth.js',
   '/libs/firebase-firestore.js',
@@ -42,6 +43,7 @@ const CRITICAL_ASSETS = [
   '/catalog-ean.js',
   '/haccp.js',
   '/production.js',
+  '/prod.js',
   '/rezepte.js',
   '/recipes-counter.js',
   '/production-datasheet.js',

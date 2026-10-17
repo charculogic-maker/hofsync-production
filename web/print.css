@@ -1,0 +1,109 @@
+/**
+ * Avery 3475 Etikettenbogen (24 Stück / A4, 70×36 mm, 3×8).
+ * Screen: versteckt. Print: nur #print-avery-container sichtbar.
+ */
+
+.print-only,
+#print-avery-container {
+  display: none;
+}
+
+.avery-label {
+  width: 70mm;
+  height: 36mm;
+  padding: 4mm;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-family: sans-serif;
+  color: #000;
+  background: #fff;
+}
+
+.avery-label.empty {
+  visibility: hidden;
+}
+
+.avery-label-article {
+  font-size: 12pt;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 1.5mm;
+}
+
+.avery-label-lot,
+.avery-label-date {
+  font-size: 8.5pt;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+@page avery-3475 {
+  size: A4;
+  margin: 4.5mm 0mm;
+}
+
+@media print {
+  /* Alles ausblenden – Container steht als body-Kind außerhalb der App-Shell */
+  body.print-avery-3475 * {
+    display: none !important;
+  }
+
+  body.print-avery-3475 #print-avery-container,
+  body.print-avery-3475 #print-avery-container * {
+    display: revert !important;
+  }
+
+  body.print-avery-3475 #print-avery-container {
+    display: grid !important;
+    grid-template-columns: repeat(3, 70mm);
+    grid-auto-rows: 36mm;
+    width: 210mm;
+    gap: 0;
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    page: avery-3475;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.print-avery-3475 .avery-label {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    width: 70mm;
+    height: 36mm;
+    padding: 4mm;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-family: sans-serif;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.print-avery-3475 .avery-label.empty {
+    visibility: hidden;
+  }
+
+  body.print-avery-3475 .avery-label-article {
+    display: block !important;
+    font-size: 12pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 1.5mm;
+  }
+
+  body.print-avery-3475 .avery-label-lot,
+  body.print-avery-3475 .avery-label-date {
+    display: block !important;
+    font-size: 8.5pt;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0;
+  }
+}

@@ -307,8 +307,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261017-counter-recipes-v1">
+  <link rel="stylesheet" href="/style.css?v=20261017-avery-print-v1">
   <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/print.css?v=20261017-avery-print-v1">
 </head>
 <body>
 
@@ -1815,6 +1816,79 @@
               </button>
             </div>
 
+            <section class="avery-print-card kitchen-production-zone" id="avery-print-card" aria-labelledby="avery-print-title">
+              <div class="section-title" id="avery-print-title">🖨️ Etikettendruck (Avery 3475)</div>
+              <p class="avery-print-hint">Reifebeutel und Teilstücke beschriften – 24 Etiketten je A4-Bogen (70×36&nbsp;mm). Start-Position nutzen, wenn der Bogen schon angefangen ist.</p>
+              <form id="avery-print-form" class="avery-print-form" onsubmit="return false;">
+                <div class="form-group">
+                  <label class="form-label" for="avery-article">Artikel / Teilstück</label>
+                  <input
+                    type="text"
+                    id="avery-article"
+                    class="input-text-touch"
+                    list="avery-article-options"
+                    placeholder="z. B. Galloway-Entrecôte"
+                    autocomplete="off"
+                    required
+                  >
+                  <datalist id="avery-article-options"></datalist>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="avery-lot">LOT / Charge</label>
+                  <input
+                    type="text"
+                    id="avery-lot"
+                    class="input-text-touch"
+                    placeholder="z. B. L-4210"
+                    autocomplete="off"
+                    required
+                  >
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="avery-slaughter-date">Schlachtdatum</label>
+                  <input
+                    type="date"
+                    id="avery-slaughter-date"
+                    class="input-text-touch"
+                    required
+                  >
+                </div>
+                <div class="avery-print-row">
+                  <div class="form-group">
+                    <label class="form-label" for="avery-label-count">Anzahl Etiketten</label>
+                    <input
+                      type="number"
+                      id="avery-label-count"
+                      class="input-text-touch"
+                      inputmode="numeric"
+                      min="1"
+                      max="24"
+                      step="1"
+                      value="1"
+                      required
+                    >
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="avery-start-position">Start-Position auf Bogen</label>
+                    <input
+                      type="number"
+                      id="avery-start-position"
+                      class="input-text-touch"
+                      inputmode="numeric"
+                      min="1"
+                      max="24"
+                      step="1"
+                      value="1"
+                      required
+                    >
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print">
+                  🖨️ Etiketten Drucken
+                </button>
+              </form>
+            </section>
+
             <details class="kitchen-collapsible kitchen-production-zone" id="kitchen-wrs-panel">
               <summary>WRS Kalkulation</summary>
               <section class="wrs-board" id="wrs-board" aria-labelledby="wrs-title">
@@ -3031,9 +3105,12 @@
     </form>
   </template>
 
+  <!-- Avery 3475 Print-Root: außerhalb der App-Shell, nur im Druck sichtbar -->
+  <div id="print-avery-container" class="print-only" aria-hidden="true"></div>
+
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
-  <script type="module" src="/fast-onboarding.js?v=20261017-counter-recipes-v1"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20261017-counter-recipes-v1"></script>
-  <script type="module" src="/app.js?v=20261017-counter-recipes-v1"></script>
+  <script type="module" src="/fast-onboarding.js?v=20261017-avery-print-v1"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261017-avery-print-v1"></script>
+  <script type="module" src="/app.js?v=20261017-avery-print-v1"></script>
 </body>
 </html>

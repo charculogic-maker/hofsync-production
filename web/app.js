@@ -88,6 +88,7 @@ import {
   loadRecipesFromCloud,
   syncRecipeAdminFormVisibility,
 } from './production.js';
+import { initAveryPrintStation } from './prod.js';
 import {
   BeffeCalcEngine,
   formatNumber,
@@ -1145,6 +1146,7 @@ function applyProfileKitchenRestrictions(branding = window.BRANDING) {
   [
     '#btn-document-recipe-batch',
     '#kitchen-wrs-panel',
+    '#avery-print-card',
     '.production-input-card',
     '.production-log-card',
   ].forEach((selector) => {
@@ -5150,6 +5152,7 @@ async function bootstrapAuthenticatedApp() {
   } else {
     disableProductionModule();
   }
+  initAveryPrintStation();
 
   initMhdModule(db, { writeOrQueueFirestore: writeFirestoreDocOrQueue, addPendingSync }, { playFeedbackSound, playClickSound }, {
     showHUD,
