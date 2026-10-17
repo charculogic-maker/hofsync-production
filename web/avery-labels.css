@@ -1,0 +1,413 @@
+/**
+ * Avery 3475 Zerlege- & Reife-Etikettierung — Screen + Print.
+ */
+
+.avery-suite {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 24px;
+}
+
+.avery-suite-header {
+  padding: 4px 2px 0;
+}
+
+.avery-kicker {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-suite-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text-dark, #0f172a);
+}
+
+.avery-suite-lead {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-card {
+  background: var(--surface-color, #fff);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--border-radius-lg, 14px);
+  box-shadow: var(--shadow-card, 0 4px 12px rgba(0, 0, 0, 0.03));
+  padding: 14px;
+}
+
+.avery-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avery-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.avery-header-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.avery-header-grid .form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.avery-lot-line {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.avery-preset-row,
+.avery-queue-actions,
+.avery-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.avery-tab-row {
+  margin: 0 0 8px;
+}
+
+.avery-tab-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: var(--bg-color, #f8fafc);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--text-dark, #0f172a);
+}
+
+.avery-tab-btn.is-active {
+  background: var(--primary-tint-bg, #e0f2fe);
+  border-color: var(--primary-color, #0284c7);
+  color: var(--primary-on-light, #075985);
+}
+
+.avery-tab-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-catalog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.avery-cut-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--bg-color, #f8fafc);
+  text-align: left;
+}
+
+.avery-cut-chip strong {
+  font-size: 14px;
+}
+
+.avery-cut-chip span {
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-cut-chip.is-active {
+  border-color: var(--primary-color, #0284c7);
+  background: var(--primary-tint-bg, #e0f2fe);
+}
+
+.avery-trim-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+}
+
+.avery-trim-box h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avery-queue-wrap {
+  overflow-x: auto;
+}
+
+.avery-queue-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.avery-queue-table th,
+.avery-queue-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.avery-queue-days {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-queue-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.avery-queue-qty {
+  min-width: 22px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.avery-queue-empty {
+  color: var(--text-muted, #64748b);
+  font-weight: 700;
+}
+
+.avery-queue-total {
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.avery-gauge {
+  margin-bottom: 8px;
+}
+
+.avery-gauge-track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.avery-gauge-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--primary-color, #0284c7);
+  transition: width 0.2s ease;
+}
+
+.avery-gauge-text,
+.avery-slot-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-overflow-warn {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.avery-sheet-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 10px 0 14px;
+}
+
+.avery-slot {
+  min-height: 78px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  background: #f8fafc;
+  text-align: left;
+  overflow: hidden;
+}
+
+.avery-slot.is-filled {
+  border-style: solid;
+  background: #fff;
+}
+
+.avery-slot.is-offset {
+  opacity: 0.35;
+  background: #e2e8f0;
+}
+
+.avery-slot.is-start {
+  outline: 2px solid var(--primary-color, #0284c7);
+  outline-offset: 1px;
+}
+
+.avery-slot-num {
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.avery-label-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: sans-serif;
+  color: #000;
+}
+
+.avery-label-farm {
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.avery-label-cut {
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.avery-label-lot {
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.avery-label-meta,
+.avery-label-footer {
+  font-size: 7.5px;
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.btn-avery-print {
+  width: 100%;
+  min-height: 52px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.avery-print-root {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .avery-header-grid,
+  .avery-catalog-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@page avery-3475-sheet {
+  size: A4;
+  margin: 4.5mm 0mm;
+}
+
+@media print {
+  body.print-avery-labels * {
+    visibility: hidden !important;
+  }
+
+  body.print-avery-labels .avery-print-root,
+  body.print-avery-labels .avery-print-root *,
+  body.print-avery-labels .avery-sheet,
+  body.print-avery-labels .avery-sheet * {
+    visibility: visible !important;
+  }
+
+  body.print-avery-labels .avery-print-root {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+  }
+
+  body.print-avery-labels .avery-sheet {
+    display: grid !important;
+    grid-template-columns: repeat(3, 70mm);
+    grid-auto-rows: 36mm;
+    width: 210mm;
+    gap: 0;
+    margin: 0 auto;
+    page: avery-3475-sheet;
+  }
+
+  body.print-avery-labels .avery-label {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    width: 70mm;
+    height: 36mm;
+    padding: 3.5mm 4mm;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-family: sans-serif;
+    color: #000;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.print-avery-labels .avery-label.empty {
+    visibility: hidden !important;
+  }
+
+  body.print-avery-labels .avery-label-farm {
+    font-size: 7pt;
+    font-weight: 700;
+  }
+
+  body.print-avery-labels .avery-label-cut {
+    font-size: 11pt;
+    font-weight: 900;
+    margin: 0.5mm 0;
+  }
+
+  body.print-avery-labels .avery-label-lot {
+    font-size: 8pt;
+    font-weight: 800;
+  }
+
+  body.print-avery-labels .avery-label-meta,
+  body.print-avery-labels .avery-label-footer {
+    font-size: 6.5pt;
+    font-weight: 600;
+  }
+}

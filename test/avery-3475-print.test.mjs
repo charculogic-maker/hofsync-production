@@ -1,78 +1,62 @@
 /**
- * Avery 3475 Etiketten-Druckstation – Offset, Validierung, Datumsformat.
+ * Avery 3475 Modul — LOT, Presets, Sheet-Planung, Offset.
  */
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import {
+  AVERY_CUT_CATALOG,
   AVERY_LABELS_PER_SHEET,
-  formatSlaughterDateDe,
+  AVERY_PRESETS,
+  buildAveryLot,
+  expandQueueToLabels,
+  formatDateDe,
   planAverySheet,
-  validateAveryForm,
-  escapeHtml,
-} from '../web/prod.js';
+} from '../web/avery-labels.js';
 
-describe('Avery 3475 print planner', () => {
-  it('uses 24 labels per A4 sheet', () => {
+describe('Avery 3475 labels module', () => {
+  it('exposes 24 labels per sheet and WG catalog cuts', () => {
     expect(AVERY_LABELS_PER_SHEET).to.equal(24);
+    expect(AVERY_CUT_CATALOG.length).to.be.above(20);
+    expect(AVERY_PRESETS.vv).to.have.length(10);
+    expect(AVERY_PRESETS.hv).to.have.length(11);
   });
 
-  it('plans empty offset cells from start position', () => {
-    const plan = planAverySheet({ startPosition: 5, count: 3 });
-    expect(plan).to.include({
-      emptyCount: 4,
-      filledCount: 3,
-      lastPosition: 7,
-      fitsOnSheet: true,
-    });
+  it('builds LOT as BRAND-OHR-YYYYMMDD', () => {
+    expect(buildAveryLot({
+      brand: 'SH',
+      ohrmarke: 'DE12 345',
+      schlachtDatum: '2026-10-17',
+    })).to.equal('SH-DE12345-20261017');
   });
 
-  it('defaults start position to 1', () => {
-    const plan = planAverySheet({ count: 2 });
-    expect(plan.emptyCount).to.equal(0);
-    expect(plan.filledCount).to.equal(2);
+  it('formats slaughter dates as German DD.MM.YYYY', () => {
+    expect(formatDateDe('2026-10-17')).to.equal('17.10.2026');
   });
 
-  it('rejects overflow past label 24', () => {
-    const plan = planAverySheet({ startPosition: 22, count: 5 });
-    expect(plan.fitsOnSheet).to.equal(false);
-    expect(validateAveryForm({
-      article: 'Roastbeef',
-      lot: 'L-1',
-      slaughterDateIso: '2026-10-17',
-      startPosition: 22,
-      count: 5,
-    })).to.match(/passen nur noch/);
+  it('plans empty offset cells from start slot', () => {
+    const queue = [
+      { cutId: 'vv-entrecote', qty: 2 },
+      { cutId: 'tr-r2', qty: 1 },
+    ];
+    const plan = planAverySheet({ queue, startSlot: 5 });
+    expect(plan.emptyCount).to.equal(4);
+    expect(plan.filledCount).to.equal(3);
+    expect(plan.usage).to.equal(7);
+    expect(plan.overflow).to.equal(0);
+    expect(expandQueueToLabels(queue)).to.have.length(3);
   });
 
-  it('requires article, lot and slaughter date', () => {
-    expect(validateAveryForm({
-      article: '',
-      lot: 'L-1',
-      slaughterDateIso: '2026-10-17',
-      startPosition: 1,
-      count: 1,
-    })).to.match(/Artikel/);
-    expect(validateAveryForm({
-      article: 'Filet',
-      lot: '',
-      slaughterDateIso: '2026-10-17',
-      startPosition: 1,
-      count: 1,
-    })).to.match(/LOT/);
-    expect(validateAveryForm({
-      article: 'Filet',
-      lot: 'L-1',
-      slaughterDateIso: '',
-      startPosition: 1,
-      count: 1,
-    })).to.match(/Schlachtdatum/);
+  it('reports overflow when queue exceeds remaining sheet capacity', () => {
+    const queue = [{ cutId: 'tr-r2', qty: 10 }];
+    const plan = planAverySheet({ queue, startSlot: 20 });
+    expect(plan.capacity).to.equal(5);
+    expect(plan.filledCount).to.equal(5);
+    expect(plan.overflow).to.equal(5);
   });
 
-  it('formats ISO slaughter date as German DD.MM.YYYY', () => {
-    expect(formatSlaughterDateDe('2026-10-17')).to.equal('17.10.2026');
-  });
-
-  it('escapes HTML in label text helpers', () => {
-    expect(escapeHtml('A & B <C>')).to.equal('A &amp; B &lt;C&gt;');
+  it('includes VV/HV/frisch/innereien tabs and trim grades', () => {
+    const tabs = new Set(AVERY_CUT_CATALOG.map((cut) => cut.tab));
+    expect([...tabs].sort()).to.deep.equal(['frisch', 'hv', 'innereien', 'vv']);
+    expect(AVERY_CUT_CATALOG.filter((cut) => cut.trim)).to.have.length(5);
   });
 });

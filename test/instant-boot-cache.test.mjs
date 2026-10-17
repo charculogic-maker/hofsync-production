@@ -31,8 +31,8 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/if \(tab\.hidden \|\| tab\.style\.display === 'none'\) return;/);
   });
 
-  it('bumps SW cache for role-based nav release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1'");
+  it('bumps SW cache for Avery labels module release', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-avery-module-v1'");
   });
 
   it('applies employee kitchen RBAC during zero-flicker boot', () => {
@@ -40,5 +40,7 @@ describe('Instant-Boot Cache-First', () => {
     expect(indexHtml).to.match(/charculogic\.activeEmployee/);
     expect(tenantModulesJs).to.match(/export function isKitchenModuleVisibleForSession/);
     expect(appJs).to.match(/function resolveKitchenNavEnabled/);
+    expect(appJs).to.match(/function resolveAveryLabelsNavEnabled/);
+    expect(indexHtml).to.match(/avery:\s*'averyLabels'/);
   });
 });

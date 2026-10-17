@@ -4227,55 +4227,6 @@ html.mhd-qty-numpad-open body {
   color: var(--primary-on-light);
 }
 
-.avery-print-card {
-  background-color: var(--surface-color);
-  border-radius: var(--border-radius-lg);
-  padding: 16px;
-  margin: 12px 0 16px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: var(--shadow-card);
-}
-
-.avery-print-card .section-title {
-  margin-top: 0;
-}
-
-.avery-print-hint {
-  margin: 0 0 14px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.avery-print-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.avery-print-form .form-group {
-  margin: 0;
-}
-
-.avery-print-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.avery-print-form .btn-avery-print {
-  margin-top: 4px;
-  min-height: 52px;
-  font-size: 17px;
-  font-weight: 800;
-}
-
-@media (max-width: 420px) {
-  .avery-print-row {
-    grid-template-columns: 1fr;
-  }
-}
-
 .production-datasheet-card {
   background-color: var(--surface-color);
   border-radius: var(--border-radius-lg);
@@ -5518,7 +5469,6 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   line-height: 1.35;
 }
 
-body.profile-kitchen-readonly #avery-print-card,
 body.profile-kitchen-readonly #recipe-detail-panel .production-input-card,
 body.profile-kitchen-readonly #recipe-detail-panel .production-log-card,
 body.profile-kitchen-readonly #btn-document-recipe-batch {
@@ -7537,7 +7487,6 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 [data-theme="dark"] .ingredients-card,
 [data-theme="dark"] .instructions-card,
 [data-theme="dark"] .production-log-card,
-[data-theme="dark"] .avery-print-card,
 [data-theme="dark"] .production-datasheet-card,
 [data-theme="dark"] .wrs-board,
 [data-theme="dark"] .haccp-card,

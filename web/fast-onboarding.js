@@ -12,7 +12,7 @@ const MODULE_DEFS = [
   { key: 'wareneingang', label: 'Wareneingang (Barcode-Scan)' },
   { key: 'wurstkueche', label: 'Wurstküche & BEFFE-Kalkulation' },
   { key: 'haccp', label: 'HACCP-Tageskontrollen' },
-  { key: 'zerlegung', label: 'Galloway-Zerlegung & Avery 3475 Etiketten' },
+  { key: 'averyLabels', label: 'Galloway-Zerlegung & Avery 3475 Etiketten' },
 ];
 
 let provisionCallable = null;
