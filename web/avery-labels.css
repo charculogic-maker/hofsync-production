@@ -148,18 +148,75 @@
   background: var(--primary-tint-bg, #e0f2fe);
 }
 
-.avery-trim-box {
+.avery-trim-box,
+.avery-custom-box {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px dashed rgba(15, 23, 42, 0.12);
 }
 
-.avery-trim-box h3 {
+.avery-trim-box h3,
+.avery-custom-box h3 {
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.avery-trim-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.avery-trim-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: var(--bg-color, #f8fafc);
+}
+
+.avery-trim-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.avery-trim-art {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-trim-input {
+  min-height: 44px;
+}
+
+.avery-custom-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (min-width: 520px) {
+  .avery-custom-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  }
+}
+
+.avery-queue-custom {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .avery-queue-wrap {
@@ -328,7 +385,8 @@
 
 @media (max-width: 420px) {
   .avery-header-grid,
-  .avery-catalog-grid {
+  .avery-catalog-grid,
+  .avery-trim-grid {
     grid-template-columns: 1fr;
   }
 }

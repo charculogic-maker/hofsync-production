@@ -1,76 +1,109 @@
 /**
  * Avery 3475 Zerlege- & Reife-Etikettierung (Modul averyLabels).
- * WG 0460 · Live-A4-Vorschau · Druckliste · Start-Slot für angefangene Bögen.
+ * Hof-Praxis: Schulter (+Hals/Brust), Rücken, Keule, Lappen, Innereien + Freifeld.
  */
 
 export const AVERY_LABELS_PER_SHEET = 24;
 export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
-const STORAGE_KEY = 'charculogic.averyLabels.draft.v1';
+const STORAGE_KEY = 'charculogic.averyLabels.draft.v2';
 
-/** @typedef {{ id: string, name: string, days: number, tab: 'vv'|'hv'|'frisch'|'innereien', trim?: boolean }} AveryCut */
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   days: number,
+ *   tab: 'schulter'|'ruecken'|'keule'|'lappen'|'innereien'|null,
+ *   trim?: boolean,
+ *   artNr?: string,
+ * }} AveryCut
+ */
 
-/** Katalog WG 0460 – Reifetage je Teilstück */
-export const AVERY_CUT_CATALOG = Object.freeze([
-  // VV · 2 Wochen
-  { id: 'vv-entrecote', name: 'Entrecôte', days: 14, tab: 'vv' },
-  { id: 'vv-flat-iron', name: 'Flat Iron', days: 14, tab: 'vv' },
-  { id: 'vv-denver', name: 'Denver Cut', days: 14, tab: 'vv' },
-  { id: 'vv-hochrippe', name: 'Hochrippe / Rostbraten', days: 14, tab: 'vv' },
-  { id: 'vv-fehlrippe', name: 'Fehlrippe', days: 14, tab: 'vv' },
-  { id: 'vv-brust', name: 'Brust', days: 14, tab: 'vv' },
-  { id: 'vv-bug', name: 'Bug / Schulter', days: 14, tab: 'vv' },
-  { id: 'vv-nacken', name: 'Nacken', days: 14, tab: 'vv' },
-  { id: 'vv-baeckchen', name: 'Bäckchen', days: 14, tab: 'vv' },
-  { id: 'vv-vorderhesse', name: 'Vorderhesse', days: 14, tab: 'vv' },
-  // HV · 4 Wochen
-  { id: 'hv-rumpsteak', name: 'Rumpsteak / Roastbeef', days: 28, tab: 'hv' },
-  { id: 'hv-filet', name: 'Filet', days: 28, tab: 'hv' },
-  { id: 'hv-tafelspitz', name: 'Tafelspitz', days: 28, tab: 'hv' },
-  { id: 'hv-hueftsteak', name: 'Hüftsteak', days: 28, tab: 'hv' },
-  { id: 'hv-buergermeister', name: 'Bürgermeisterstück', days: 28, tab: 'hv' },
-  { id: 'hv-falsches-filet', name: 'Falsches Filet', days: 28, tab: 'hv' },
-  { id: 'hv-flank', name: 'Flanksteak', days: 28, tab: 'hv' },
-  { id: 'hv-keule', name: 'Keule Braten', days: 28, tab: 'hv' },
-  { id: 'hv-schmorbraten', name: 'Schmorbraten', days: 28, tab: 'hv' },
-  { id: 'hv-oberschale', name: 'Oberschale', days: 28, tab: 'hv' },
-  { id: 'hv-unterschale', name: 'Unterschale', days: 28, tab: 'hv' },
-  // Frisch / Sonder · Tag 0
-  { id: 'fr-gulasch', name: 'Gulasch (frisch)', days: 0, tab: 'frisch' },
-  { id: 'fr-rouladen', name: 'Rouladen', days: 0, tab: 'frisch' },
-  { id: 'fr-beinscheibe', name: 'Beinscheibe', days: 0, tab: 'frisch' },
-  { id: 'fr-suppenfleisch', name: 'Suppenfleisch', days: 0, tab: 'frisch' },
-  { id: 'fr-sonder', name: 'Sonderzuschnitt', days: 0, tab: 'frisch' },
-  // Innereien & BARF
-  { id: 'in-leber', name: 'Leber', days: 0, tab: 'innereien' },
-  { id: 'in-herz', name: 'Herz', days: 0, tab: 'innereien' },
-  { id: 'in-niere', name: 'Niere', days: 0, tab: 'innereien' },
-  { id: 'in-zunge', name: 'Zunge', days: 0, tab: 'innereien' },
-  { id: 'in-knochen', name: 'Markknochen / BARF', days: 0, tab: 'innereien' },
-  // Trimmings R I–R V
-  { id: 'tr-r1', name: 'R I Gulasch', days: 0, tab: 'frisch', trim: true },
-  { id: 'tr-r2', name: 'R II Hackfleisch', days: 0, tab: 'frisch', trim: true },
-  { id: 'tr-r3', name: 'R III Bratwurst', days: 0, tab: 'frisch', trim: true },
-  { id: 'tr-r4', name: 'R IV Fett', days: 0, tab: 'frisch', trim: true },
-  { id: 'tr-r5', name: 'R V Kernfett', days: 0, tab: 'frisch', trim: true },
-]);
-
-export const AVERY_PRESETS = Object.freeze({
-  vv: Object.freeze([
-    'vv-entrecote', 'vv-flat-iron', 'vv-denver', 'vv-hochrippe', 'vv-fehlrippe',
-    'vv-brust', 'vv-bug', 'vv-nacken', 'vv-baeckchen', 'vv-vorderhesse',
+/**
+ * Praxis-Katalog nach Zerlege-Baugruppen (kein VV/HV).
+ * Hals/Brust laufen mit der Schulter am selben Tisch; Brust nicht unter Lappen.
+ */
+export const GALLOWAY_CATALOG = Object.freeze({
+  schultern: Object.freeze([
+    { id: 'sch-bug', name: 'Bug', days: 14, tab: 'schulter' },
+    { id: 'sch-falsches-filet', name: 'Falsches Filet', days: 14, tab: 'schulter' },
+    { id: 'sch-schaufel', name: 'Schaufelstück', days: 14, tab: 'schulter' },
+    { id: 'sch-dicke-rippe', name: 'Dicke Rippe', days: 14, tab: 'schulter' },
+    { id: 'sch-nacken', name: 'Nacken / Hals / Zungenstück', days: 14, tab: 'schulter' },
+    { id: 'sch-brust', name: 'Brust / Brisket', days: 14, tab: 'schulter' },
   ]),
-  hv: Object.freeze([
-    'hv-rumpsteak', 'hv-filet', 'hv-tafelspitz', 'hv-hueftsteak', 'hv-buergermeister',
-    'hv-falsches-filet', 'hv-flank', 'hv-keule', 'hv-schmorbraten', 'hv-oberschale', 'hv-unterschale',
+  ruecken: Object.freeze([
+    { id: 'rue-entrecote', name: 'Entrecôte', days: 21, tab: 'ruecken' },
+    { id: 'rue-roastbeef', name: 'Roastbeef', days: 28, tab: 'ruecken' },
+    { id: 'rue-filet', name: 'Filet', days: 28, tab: 'ruecken' },
+  ]),
+  keule: Object.freeze([
+    { id: 'keu-oberschale', name: 'Oberschale', days: 28, tab: 'keule' },
+    { id: 'keu-unterschale', name: 'Unterschale', days: 28, tab: 'keule' },
+    { id: 'keu-nuss', name: 'Nuss', days: 28, tab: 'keule' },
+    { id: 'keu-huefte', name: 'Hüfte', days: 28, tab: 'keule' },
+    { id: 'keu-tafelspitz', name: 'Tafelspitz', days: 28, tab: 'keule' },
+    { id: 'keu-buergermeister', name: 'Bürgermeisterstück', days: 28, tab: 'keule' },
+    { id: 'keu-wade', name: 'Wade', days: 21, tab: 'keule' },
+  ]),
+  lappen: Object.freeze([
+    { id: 'lap-duennung', name: 'Dünnung', days: 14, tab: 'lappen' },
+    { id: 'lap-flank', name: 'Flank', days: 14, tab: 'lappen' },
+    { id: 'lap-skirt', name: 'Skirt', days: 14, tab: 'lappen' },
+    { id: 'lap-spannrippe', name: 'Spannrippe', days: 14, tab: 'lappen' },
+  ]),
+  innereien: Object.freeze([
+    { id: 'inn-leber', name: 'Leber', days: 0, tab: 'innereien' },
+    { id: 'inn-herz', name: 'Herz', days: 0, tab: 'innereien' },
+    { id: 'inn-zunge', name: 'Zunge', days: 0, tab: 'innereien' },
+    { id: 'inn-ochsenschwanz', name: 'Ochsenschwanz', days: 0, tab: 'innereien' },
+    { id: 'inn-backen', name: 'Backen', days: 0, tab: 'innereien' },
+    { id: 'inn-markknochen', name: 'Markknochen', days: 0, tab: 'innereien' },
+    { id: 'inn-suppenknochen', name: 'Suppenknochen', days: 0, tab: 'innereien' },
   ]),
 });
 
+/** Abschnitte / Trimmings – betriebsnahe Rezepturen */
+export const AVERY_TRIMMINGS = Object.freeze([
+  { id: 'tr-r1-mager', name: 'R I Mager', days: 0, tab: null, trim: true, artNr: '504' },
+  { id: 'tr-r1-spiesse', name: 'R I Spieße', days: 0, tab: null, trim: true, artNr: '543' },
+  { id: 'tr-r2-hack', name: 'R II Hack', days: 0, tab: null, trim: true, artNr: '503' },
+  { id: 'tr-r3-wurst', name: 'R III Wurst', days: 0, tab: null, trim: true, artNr: '530' },
+  { id: 'tr-fett', name: 'Fett', days: 0, tab: null, trim: true, artNr: '449' },
+]);
+
+export const AVERY_CUT_CATALOG = Object.freeze([
+  ...GALLOWAY_CATALOG.schultern,
+  ...GALLOWAY_CATALOG.ruecken,
+  ...GALLOWAY_CATALOG.keule,
+  ...GALLOWAY_CATALOG.lappen,
+  ...GALLOWAY_CATALOG.innereien,
+  ...AVERY_TRIMMINGS,
+]);
+
+/** Reife-Optionen für Freifeld / Spezial-Teilstück */
+export const CUSTOM_AGING_OPTIONS = Object.freeze([
+  { days: 0, label: 'Tag 0 (Frisch)' },
+  { days: 14, label: '14 Tage (Wet-Aging)' },
+  { days: 21, label: '21 Tage' },
+  { days: 28, label: '28 Tage (Dry-Aging)' },
+]);
+
 const TAB_META = Object.freeze({
-  vv: { label: 'VV (2 Wochen)', hint: 'Vorderviertel · Standardreife 14 Tage' },
-  hv: { label: 'HV (4 Wochen)', hint: 'Hinterviertel · Standardreife 28 Tage' },
-  frisch: { label: 'Frisch / Sonder', hint: 'Tag 0 · ohne Reifebeutel' },
-  innereien: { label: 'Innereien & BARF', hint: 'Innereien und BARF-Zuschnitte' },
+  schultern: { label: 'Schulter', hint: 'Bug, Schaufel, dicke Rippe – inkl. Nacken/Hals und Brust am Schultertisch' },
+  ruecken: { label: 'Rücken', hint: 'Entrecôte, Roastbeef, Filet – ohne Nacken' },
+  keule: { label: 'Keule', hint: 'Oberschale bis Wade' },
+  lappen: { label: 'Lappen', hint: 'Dünnung, Flank, Skirt, Spannrippe – ohne Brust' },
+  innereien: { label: 'Innereien & Knochen', hint: 'Leber, Herz, Zunge, Knochen' },
+});
+
+/** Map UI tab key → GALLOWAY_CATALOG key */
+const TAB_TO_CATALOG_KEY = Object.freeze({
+  schultern: 'schultern',
+  ruecken: 'ruecken',
+  keule: 'keule',
+  lappen: 'lappen',
+  innereien: 'innereien',
 });
 
 const DEFAULT_HEADER = Object.freeze({
@@ -84,12 +117,22 @@ const DEFAULT_HEADER = Object.freeze({
   brand: 'SH',
 });
 
-/** @type {{ header: Record<string, string>, queue: Array<{cutId: string, qty: number}>, startSlot: number, activeTab: string, initialized: boolean }} */
+/**
+ * @typedef {{
+ *   cutId: string,
+ *   qty: number,
+ *   isCustom?: boolean,
+ *   name?: string,
+ *   days?: number,
+ * }} AveryQueueRow
+ */
+
+/** @type {{ header: Record<string, string>, queue: AveryQueueRow[], startSlot: number, activeTab: string, initialized: boolean }} */
 const state = {
   header: { ...DEFAULT_HEADER },
   queue: [],
   startSlot: 1,
-  activeTab: 'vv',
+  activeTab: 'schultern',
   initialized: false,
 };
 
@@ -118,6 +161,19 @@ export function formatDateDe(iso) {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+/** @param {string} iso @param {number} days */
+export function addDaysIso(iso, days) {
+  const raw = String(iso || '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  d.setDate(d.getDate() + (Number(days) || 0));
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
 /** @param {string} iso */
 export function formatLotDateStamp(iso) {
   const raw = String(iso || '').trim();
@@ -141,11 +197,32 @@ export function getCutById(cutId) {
   return AVERY_CUT_CATALOG.find((cut) => cut.id === cutId) || null;
 }
 
+/**
+ * Löst Queue-Zeile zu einem Etiketten-Cut auf (Katalog oder Freifeld).
+ * @param {AveryQueueRow} row
+ * @returns {AveryCut|null}
+ */
+export function resolveQueueCut(row) {
+  if (!row) return null;
+  if (row.isCustom) {
+    const name = String(row.name || '').trim();
+    if (!name) return null;
+    return {
+      id: row.cutId || `custom-${name}`,
+      name,
+      days: Number.isFinite(Number(row.days)) ? Number(row.days) : 0,
+      tab: null,
+      isCustom: true,
+    };
+  }
+  return getCutById(row.cutId);
+}
+
 export function expandQueueToLabels(queue = []) {
   /** @type {AveryCut[]} */
   const labels = [];
   queue.forEach((entry) => {
-    const cut = getCutById(entry.cutId);
+    const cut = resolveQueueCut(entry);
     if (!cut) return;
     const qty = Math.max(0, Number.parseInt(String(entry.qty), 10) || 0);
     for (let i = 0; i < qty; i += 1) labels.push(cut);
@@ -155,7 +232,7 @@ export function expandQueueToLabels(queue = []) {
 
 /**
  * Plant Offset + Labels für den aktiven Bogen (max. 24 Nutzen).
- * @param {{ queue?: Array<{cutId: string, qty: number}>, startSlot?: number }} input
+ * @param {{ queue?: AveryQueueRow[], startSlot?: number }} input
  */
 export function planAverySheet(input = {}) {
   const startSlot = Math.min(AVERY_LABELS_PER_SHEET, Math.max(1, Number.parseInt(String(input.startSlot ?? 1), 10) || 1));
@@ -187,9 +264,30 @@ function persistDraft() {
   } catch (_) { /* private mode */ }
 }
 
+function normalizeQueueRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const qty = Math.max(0, Number.parseInt(String(row.qty), 10) || 0);
+  if (qty <= 0) return null;
+  if (row.isCustom) {
+    const name = String(row.name || '').trim();
+    if (!name) return null;
+    return {
+      cutId: String(row.cutId || `custom-${Date.now()}`),
+      qty,
+      isCustom: true,
+      name,
+      days: Number.isFinite(Number(row.days)) ? Number(row.days) : 0,
+    };
+  }
+  const cutId = String(row.cutId || '');
+  if (!cutId || !getCutById(cutId)) return null;
+  return { cutId, qty };
+}
+
 function restoreDraft() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY)
+      || localStorage.getItem('charculogic.averyLabels.draft.v1');
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
@@ -197,17 +295,23 @@ function restoreDraft() {
       state.header = { ...DEFAULT_HEADER, ...parsed.header };
     }
     if (Array.isArray(parsed.queue)) {
-      state.queue = parsed.queue
-        .map((row) => ({
-          cutId: String(row.cutId || ''),
-          qty: Math.max(0, Number.parseInt(String(row.qty), 10) || 0),
-        }))
-        .filter((row) => row.cutId && getCutById(row.cutId) && row.qty > 0);
+      state.queue = parsed.queue.map(normalizeQueueRow).filter(Boolean);
     }
     if (parsed.startSlot != null) {
       state.startSlot = Math.min(24, Math.max(1, Number.parseInt(String(parsed.startSlot), 10) || 1));
     }
-    if (parsed.activeTab && TAB_META[parsed.activeTab]) state.activeTab = parsed.activeTab;
+    const legacyTabMap = {
+      vv: 'schultern',
+      hv: 'keule',
+      frisch: 'lappen',
+      schultern: 'schultern',
+      ruecken: 'ruecken',
+      keule: 'keule',
+      lappen: 'lappen',
+      innereien: 'innereien',
+    };
+    const mapped = legacyTabMap[parsed.activeTab] || parsed.activeTab;
+    if (mapped && TAB_META[mapped]) state.activeTab = mapped;
   } catch (_) { /* ignore */ }
 }
 
@@ -233,9 +337,14 @@ function queueTotalQty() {
   return state.queue.reduce((sum, row) => sum + (Number(row.qty) || 0), 0);
 }
 
+function queueRowKey(row) {
+  if (row.isCustom) return `custom:${row.cutId}`;
+  return `cut:${row.cutId}`;
+}
+
 function setQueueQty(cutId, qty) {
   const nextQty = Math.max(0, Math.min(999, Number.parseInt(String(qty), 10) || 0));
-  const idx = state.queue.findIndex((row) => row.cutId === cutId);
+  const idx = state.queue.findIndex((row) => !row.isCustom && row.cutId === cutId);
   if (nextQty <= 0) {
     if (idx >= 0) state.queue.splice(idx, 1);
   } else if (idx >= 0) {
@@ -247,21 +356,34 @@ function setQueueQty(cutId, qty) {
   renderAll();
 }
 
-function addPreset(presetKey) {
-  const ids = AVERY_PRESETS[presetKey] || [];
-  ids.forEach((cutId) => {
-    const existing = state.queue.find((row) => row.cutId === cutId);
-    if (existing) existing.qty += 1;
-    else state.queue.push({ cutId, qty: 1 });
-  });
+/**
+ * Trimmings-Schnelleingabe: Menge setzen ohne Katalog neu zu mounten
+ * (Fokus im Zahlenfeld bleibt erhalten).
+ */
+export function updateTrimCount(trimId, qty) {
+  const nextQty = Math.max(0, Math.min(999, Number.parseInt(String(qty), 10) || 0));
+  const idx = state.queue.findIndex((row) => !row.isCustom && row.cutId === trimId);
+  if (nextQty <= 0) {
+    if (idx >= 0) state.queue.splice(idx, 1);
+  } else if (idx >= 0) {
+    state.queue[idx].qty = nextQty;
+  } else if (getCutById(trimId)) {
+    state.queue.push({ cutId: trimId, qty: nextQty });
+  }
   persistDraft();
-  renderAll();
-  window.showToast?.(
-    presetKey === 'vv'
-      ? 'Komplettes VV (10 Teilstücke) zur Druckliste.'
-      : 'Komplettes HV (11 Teilstücke) zur Druckliste.',
-    'success',
-  );
+  syncTrimInputs();
+  renderQueue();
+  renderSheetPreview();
+}
+
+export function syncTrimInputs() {
+  AVERY_TRIMMINGS.forEach((trim) => {
+    const input = document.getElementById(`avery-trim-${trim.id}`);
+    if (!(input instanceof HTMLInputElement)) return;
+    if (document.activeElement === input) return;
+    const qty = state.queue.find((row) => !row.isCustom && row.cutId === trim.id)?.qty || 0;
+    if (String(input.value) !== String(qty)) input.value = String(qty);
+  });
 }
 
 function fillRestWithHack() {
@@ -271,17 +393,54 @@ function fillRestWithHack() {
     window.showToast?.('Dieser Bogen ist schon voll.', 'info');
     return;
   }
-  const existing = state.queue.find((row) => row.cutId === 'tr-r2');
+  const hackId = 'tr-r2-hack';
+  const existing = state.queue.find((row) => !row.isCustom && row.cutId === hackId);
   if (existing) existing.qty += free;
-  else state.queue.push({ cutId: 'tr-r2', qty: free });
+  else state.queue.push({ cutId: hackId, qty: free });
   persistDraft();
   renderAll();
   window.showToast?.(`Rest mit R II Hack aufgefüllt (+${free}).`, 'success');
 }
 
+/**
+ * Freifeld → Queue
+ * @param {string} name
+ * @param {number} days
+ */
+export function addCustomCutToQueue(name, days) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) {
+    window.showToast?.('Bitte eine Bezeichnung für das Spezial-Teilstück eintragen.', 'warning');
+    return false;
+  }
+  const agingDays = Number.parseInt(String(days), 10);
+  const safeDays = CUSTOM_AGING_OPTIONS.some((opt) => opt.days === agingDays) ? agingDays : 0;
+  const cutId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  state.queue.push({
+    cutId,
+    qty: 1,
+    isCustom: true,
+    name: cleanName,
+    days: safeDays,
+  });
+  persistDraft();
+  renderAll();
+  const ripeIso = addDaysIso(state.header.zerlegeDatum || todayIsoLocal(), safeDays);
+  window.showToast?.(
+    safeDays > 0
+      ? `${cleanName} auf den Bogen · Reife bis ${formatDateDe(ripeIso)}.`
+      : `${cleanName} (frisch) auf den Bogen.`,
+    'success',
+  );
+  return true;
+}
+
 function buildLabelHtml(cut, header, lot) {
+  const ripeIso = cut.days > 0
+    ? addDaysIso(header.zerlegeDatum || header.schlachtDatum || todayIsoLocal(), cut.days)
+    : '';
   const reife = cut.days > 0
-    ? `Reife ${cut.days} Tage`
+    ? `Reife ${cut.days} Tage · bereit ${formatDateDe(ripeIso)}`
     : (header.reifehinweis || 'Frisch');
   return `
     <div class="avery-label-cell">
@@ -313,7 +472,6 @@ function renderSheetPreview() {
       ? plan.labelsOnSheet[labelIndex]
       : null;
     const used = Boolean(cut);
-    const free = !isEmptyOffset && !used;
     let cls = 'avery-slot';
     if (isEmptyOffset) cls += ' is-offset';
     else if (used) cls += ' is-filled';
@@ -361,13 +519,16 @@ function renderQueue() {
     tbody.innerHTML = '<tr><td colspan="3" class="avery-queue-empty">Noch keine Teilstücke in der Druckliste.</td></tr>';
   } else {
     tbody.innerHTML = state.queue.map((row) => {
-      const cut = getCutById(row.cutId);
-      const name = cut?.name || row.cutId;
+      const cut = resolveQueueCut(row);
+      const name = cut?.name || row.name || row.cutId;
       const days = cut ? (cut.days > 0 ? `${cut.days} T` : 'frisch') : '';
+      const key = queueRowKey(row);
+      const badge = row.isCustom ? '<span class="avery-queue-custom">Freifeld</span>' : '';
       return `
-        <tr data-queue-cut="${escapeHtml(row.cutId)}">
+        <tr data-queue-key="${escapeHtml(key)}">
           <td>
             <strong>${escapeHtml(name)}</strong>
+            ${badge}
             <span class="avery-queue-days">${escapeHtml(days)}</span>
           </td>
           <td class="avery-queue-stepper">
@@ -388,12 +549,12 @@ function renderQueue() {
 function renderCatalog() {
   const host = document.getElementById('avery-catalog');
   if (!host) return;
-  const cuts = AVERY_CUT_CATALOG.filter((cut) => cut.tab === state.activeTab && !cut.trim);
-  const trims = AVERY_CUT_CATALOG.filter((cut) => cut.trim);
+  const catalogKey = TAB_TO_CATALOG_KEY[state.activeTab] || 'schultern';
+  const cuts = GALLOWAY_CATALOG[catalogKey] || [];
   host.innerHTML = `
     <div class="avery-catalog-grid">
       ${cuts.map((cut) => {
-        const qty = state.queue.find((row) => row.cutId === cut.id)?.qty || 0;
+        const qty = state.queue.find((row) => !row.isCustom && row.cutId === cut.id)?.qty || 0;
         return `
           <button type="button" class="avery-cut-chip${qty ? ' is-active' : ''}" data-avery-add="${escapeHtml(cut.id)}">
             <strong>${escapeHtml(cut.name)}</strong>
@@ -402,21 +563,51 @@ function renderCatalog() {
         `;
       }).join('')}
     </div>
+
     <div class="avery-trim-box">
-      <h3>Trimmings R I–R V</h3>
-      <div class="avery-catalog-grid avery-catalog-grid--trim">
-        ${trims.map((cut) => {
-          const qty = state.queue.find((row) => row.cutId === cut.id)?.qty || 0;
+      <h3>Abschnitte / Trimmings</h3>
+      <div class="avery-trim-grid">
+        ${AVERY_TRIMMINGS.map((trim) => {
+          const qty = state.queue.find((row) => !row.isCustom && row.cutId === trim.id)?.qty || 0;
           return `
-            <button type="button" class="avery-cut-chip avery-cut-chip--trim${qty ? ' is-active' : ''}" data-avery-add="${escapeHtml(cut.id)}">
-              <strong>${escapeHtml(cut.name)}</strong>
-              <span>${qty ? `${qty}×` : 'hinzufügen'}</span>
-            </button>
+            <label class="avery-trim-field" for="avery-trim-${escapeHtml(trim.id)}">
+              <span class="avery-trim-name">${escapeHtml(trim.name)}</span>
+              <span class="avery-trim-art">Art. ${escapeHtml(trim.artNr || '–')}</span>
+              <input
+                type="number"
+                id="avery-trim-${escapeHtml(trim.id)}"
+                class="input-text-touch avery-trim-input"
+                data-avery-trim="${escapeHtml(trim.id)}"
+                inputmode="numeric"
+                min="0"
+                max="999"
+                step="1"
+                value="${qty}"
+              >
+            </label>
           `;
         }).join('')}
       </div>
     </div>
+
+    <div class="avery-custom-box">
+      <h3>Spezial-Teilstück (Freifeld)</h3>
+      <div class="avery-custom-row">
+        <label class="form-label" for="avery-custom-name">Bezeichnung
+          <input id="avery-custom-name" class="input-text-touch" type="text" placeholder="z. B. Tomahawk-Steak, Picanha am Stück" autocomplete="off">
+        </label>
+        <label class="form-label" for="avery-custom-aging">Reifung
+          <select id="avery-custom-aging" class="input-text-touch">
+            ${CUSTOM_AGING_OPTIONS.map((opt) => `
+              <option value="${opt.days}">${escapeHtml(opt.label)}</option>
+            `).join('')}
+          </select>
+        </label>
+        <button type="button" class="btn btn-primary btn-compact" id="btn-avery-custom-add">[+] Bogen</button>
+      </div>
+    </div>
   `;
+  syncTrimInputs();
 }
 
 function syncHeaderInputs() {
@@ -490,14 +681,35 @@ export function printAveryLabelsSheet() {
   return true;
 }
 
+function adjustQueueByKey(key, deltaOrRemove) {
+  const idx = state.queue.findIndex((row) => queueRowKey(row) === key);
+  if (idx < 0) return;
+  if (deltaOrRemove === 'remove') {
+    state.queue.splice(idx, 1);
+  } else {
+    const next = (state.queue[idx].qty || 0) + deltaOrRemove;
+    if (next <= 0) state.queue.splice(idx, 1);
+    else state.queue[idx].qty = next;
+  }
+  persistDraft();
+  renderAll();
+}
+
 function bindEvents(root) {
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
 
   root.addEventListener('input', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+      return;
+    }
+    if (target.dataset.averyTrim) {
+      updateTrimCount(target.dataset.averyTrim, target.value);
+      return;
+    }
     if (!target.id?.startsWith('avery-')) return;
+    if (target.id === 'avery-custom-name' || target.id === 'avery-custom-aging') return;
     readHeaderFromDom();
     persistDraft();
     const lotEl = document.getElementById('avery-lot-preview');
@@ -511,23 +723,27 @@ function bindEvents(root) {
 
     const tabBtn = target.closest('[data-avery-tab]');
     if (tabBtn) {
-      state.activeTab = tabBtn.getAttribute('data-avery-tab') || 'vv';
+      state.activeTab = tabBtn.getAttribute('data-avery-tab') || 'schultern';
       persistDraft();
       renderAll();
-      return;
-    }
-
-    const presetBtn = target.closest('[data-avery-preset]');
-    if (presetBtn) {
-      addPreset(presetBtn.getAttribute('data-avery-preset'));
       return;
     }
 
     const addBtn = target.closest('[data-avery-add]');
     if (addBtn) {
       const cutId = addBtn.getAttribute('data-avery-add');
-      const current = state.queue.find((row) => row.cutId === cutId)?.qty || 0;
+      const current = state.queue.find((row) => !row.isCustom && row.cutId === cutId)?.qty || 0;
       setQueueQty(cutId, current + 1);
+      return;
+    }
+
+    if (target.closest('#btn-avery-custom-add')) {
+      const name = document.getElementById('avery-custom-name')?.value || '';
+      const days = document.getElementById('avery-custom-aging')?.value || '0';
+      if (addCustomCutToQueue(name, days)) {
+        const nameInput = document.getElementById('avery-custom-name');
+        if (nameInput) nameInput.value = '';
+      }
       return;
     }
 
@@ -541,18 +757,17 @@ function bindEvents(root) {
       return;
     }
 
-    const row = target.closest('[data-queue-cut]');
+    const row = target.closest('[data-queue-key]');
     if (row) {
-      const cutId = row.getAttribute('data-queue-cut');
-      const current = state.queue.find((entry) => entry.cutId === cutId)?.qty || 0;
+      const key = row.getAttribute('data-queue-key');
       if (target.closest('[data-avery-remove]')) {
-        setQueueQty(cutId, 0);
+        adjustQueueByKey(key, 'remove');
         return;
       }
       const stepBtn = target.closest('[data-avery-qty]');
       if (stepBtn) {
         const delta = Number.parseInt(stepBtn.getAttribute('data-avery-qty') || '0', 10) || 0;
-        setQueueQty(cutId, current + delta);
+        adjustQueueByKey(key, delta);
       }
     }
   });
@@ -573,7 +788,7 @@ function buildShellHtml() {
         <div>
           <p class="avery-kicker">WG 0460 · Avery 3475</p>
           <h2 class="avery-suite-title">🏷️ Zerlege- &amp; Reife-Etiketten</h2>
-          <p class="avery-suite-lead">Betriebsdaten, Teilstücke und Live-Bogenvorschau – inkl. Start-Slot für angefangene Bögen.</p>
+          <p class="avery-suite-lead">Nach Baugruppe zerlegen – Schulter inkl. Hals/Brust, Rücken, Keule, Lappen, Innereien und Freifeld.</p>
         </div>
       </header>
 
@@ -610,13 +825,9 @@ function buildShellHtml() {
 
       <section class="avery-card" aria-labelledby="avery-catalog-title">
         <div class="avery-card-head">
-          <h3 id="avery-catalog-title" class="avery-card-title">Teilstücke &amp; Presets</h3>
-          <div class="avery-preset-row">
-            <button type="button" class="btn btn-secondary btn-compact" data-avery-preset="vv">Komplettes VV (10)</button>
-            <button type="button" class="btn btn-secondary btn-compact" data-avery-preset="hv">Komplettes HV (11)</button>
-          </div>
+          <h3 id="avery-catalog-title" class="avery-card-title">Teilstücke nach Baugruppe</h3>
         </div>
-        <div class="avery-tab-row" role="tablist" aria-label="Teilstück-Gruppen">
+        <div class="avery-tab-row" role="tablist" aria-label="Zerlege-Baugruppen">
           ${Object.entries(TAB_META).map(([key, meta]) => `
             <button type="button" class="avery-tab-btn" data-avery-tab="${key}" role="tab">${escapeHtml(meta.label)}</button>
           `).join('')}
@@ -688,3 +899,6 @@ export function activateAveryLabelsTab() {
 export function disableAveryLabelsModule() {
   /* no live subscriptions yet */
 }
+
+/** Alias für ältere Imports / Tests */
+export const AVERY_CUT_CATALOG_FLAT = AVERY_CUT_CATALOG;

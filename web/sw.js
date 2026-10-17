@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261017-avery-module-v1';
+const CACHE_NAME = 'charculogic-v20261017-avery-custom-cuts-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-const RELEASED_AT = '2026-10-17T18:30:00+02:00';
+const RELEASED_AT = '2026-10-17T19:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
