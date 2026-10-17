@@ -115,6 +115,7 @@ import {
   extractActiveEmployeeNames,
   getTeamConfigDocId,
   getTeamEmployees,
+  getTeamGroups,
   initTeamConfigModule,
   refreshAdminTeamConfigPanel,
   syncPushRegistration,
@@ -154,9 +155,11 @@ import {
   effectiveModulesEqual,
   hasAnyAdminModuleEnabled,
   hasModule,
+  isKitchenModuleVisibleForSession,
   isTenantModuleEnabled,
   loadTenantEnabledModules,
   publishEffectiveModules,
+  readActiveEmployeeFromStorage,
   readCachedEffectiveModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
@@ -1830,6 +1833,9 @@ function selectEmployeeFromPicker(name) {
   const cleanName = String(name || '').trim();
   if (!cleanName) return;
   persistActiveEmployeeSession(cleanName);
+  // PROD.-Tab sofort an Mitarbeiter-RBAC koppeln (kein Warten auf async Listener).
+  applyModuleVisibility(window.BRANDING || {});
+  ensureActiveTabAllowed({ force: true });
   window.showToast?.(`Angemeldet als ${cleanName}`, 'success');
   closeEmployeePickerModal({ force: true, pickedName: cleanName });
 }
@@ -1927,6 +1933,9 @@ function clearActiveEmployeeForSoftLock() {
     detail: { employeeName: '' },
   }));
   updateEmployeeSessionBadge('');
+  // Sicherer Fallback: PROD. ausblenden, bis wieder jemand mit Rechten gewählt wird.
+  applyModuleVisibility(window.BRANDING || {});
+  ensureActiveTabAllowed({ force: true });
 }
 
 let employeeInactivityTimerId = null;
@@ -2642,9 +2651,60 @@ function applyModuleVisibilityIfChanged(branding = window.BRANDING || {}, option
   return false;
 }
 
+/**
+ * Team-/Rollen-Kontext für PROD.-Tab (kueche): explizite role am Eintrag oder Gruppe „produktion“.
+ * @param {string} employeeName
+ * @returns {{ role?: string, name?: string }|null}
+ */
+function resolveActiveEmployeeKitchenRecord(employeeName) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) return null;
+  const needle = cleanName.toLowerCase();
+
+  try {
+    const groups = typeof getTeamGroups === 'function' ? getTeamGroups() : {};
+    const produktionMembers = groups?.produktion?.members;
+    if (Array.isArray(produktionMembers)
+      && produktionMembers.some((member) => String(member || '').trim().toLowerCase() === needle)) {
+      return { name: cleanName, role: 'produktion' };
+    }
+  } catch (_) { /* team-config optional beim Boot */ }
+
+  try {
+    const rawList = window.__tenantDefaultTeam;
+    if (Array.isArray(rawList)) {
+      const match = rawList.find((entry) => {
+        if (!entry || typeof entry !== 'object') return false;
+        const entryName = String(
+          entry.name || entry.displayName || entry.employeeName || entry.label || '',
+        ).trim().toLowerCase();
+        return entryName === needle;
+      });
+      if (match && match.role) return { name: cleanName, role: String(match.role) };
+    }
+  } catch (_) { /* noop */ }
+
+  return null;
+}
+
+/**
+ * Effektive PROD./kitchen-Sichtbarkeit: Mandant + aktiver Mitarbeiter (RBAC).
+ * Ohne berechtigten Mitarbeiter → sicher ausblenden (Timeout / Kaltstart).
+ */
+function resolveKitchenNavEnabled(branding = window.BRANDING || {}) {
+  const tenantEnabled = isTenantModuleEnabled('kitchen', branding);
+  const employeeName = readActiveEmployee() || readActiveEmployeeFromStorage();
+  const authRole = String(getAuthContext()?.role || '').trim();
+  return isKitchenModuleVisibleForSession(tenantEnabled, {
+    employeeName,
+    employeeRecord: resolveActiveEmployeeKitchenRecord(employeeName),
+    authRole,
+  });
+}
+
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
-  const kitchenEnabled = isTenantModuleEnabled('kitchen', branding);
+  const kitchenEnabled = resolveKitchenNavEnabled(branding);
   // Desktop-Sidebar (#sidebar) enthält #bottom-nav (display:contents) — ein .nav-item-Satz für beide Layouts.
   const tabModuleMap = {
     teamboard: isTenantModuleEnabled('start', branding),
@@ -2718,6 +2778,9 @@ function isNavTabElementVisible(tabId) {
 function isTabAllowedByModules(tabId, branding = window.BRANDING || {}) {
   const moduleKey = TAB_ID_TO_MODULE_KEY[tabId];
   if (!moduleKey) return false;
+  if (tabId === 'kitchen' || moduleKey === 'kitchen') {
+    return resolveKitchenNavEnabled(branding);
+  }
   return isTenantModuleEnabled(moduleKey, branding);
 }
 
@@ -4122,6 +4185,9 @@ function applyFixedTerminalSettings(settings = getTerminalSettings()) {
 window.addEventListener('charculogic:active-employee-changed', (event) => {
   const employeeName = event.detail?.employeeName || readActiveEmployee();
   updateEmployeeSessionBadge(employeeName);
+  // Mitarbeiterwechsel → PROD.-Tab synchron an RBAC anpassen.
+  applyModuleVisibility(window.BRANDING || {});
+  ensureActiveTabAllowed({ force: true });
   if (isProfileEmployeeAuth() && isNamedProfileSession(employeeName)) {
     touchProfileLastActionTime();
     applyRoleBasedUi(getAuthContext());
@@ -4187,8 +4253,13 @@ tabs.forEach(tab => {
     if (isAdminHeaderModuleActive()) {
       clearAdminModuleViewState();
     }
-    if (targetTab === 'kitchen' && !isTenantModuleEnabled('kitchen')) {
-      showToast('Das Produktionsmodul ist für diesen Betrieb nicht freigeschaltet.', 'warning');
+    if (targetTab === 'kitchen' && !resolveKitchenNavEnabled()) {
+      showToast(
+        isTenantModuleEnabled('kitchen')
+          ? 'Prod. ist für dieses Profil nicht freigeschaltet.'
+          : 'Das Produktionsmodul ist für diesen Betrieb nicht freigeschaltet.',
+        'warning',
+      );
       return;
     }
     expireProfileSessionIfIdle();

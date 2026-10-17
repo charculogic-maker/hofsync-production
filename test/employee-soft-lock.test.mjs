@@ -88,7 +88,15 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache to counter-recipes-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-counter-recipes-v1'");
+  it('bumps the service-worker cache to role-based-nav-v1', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1'");
+  });
+
+  it('re-applies module visibility when employee is picked or cleared', () => {
+    expect(appJs).to.match(/function selectEmployeeFromPicker/);
+    expect(appJs).to.match(/applyModuleVisibility\(window\.BRANDING/);
+    expect(appJs).to.match(/function clearActiveEmployeeForSoftLock/);
+    expect(appJs).to.match(/resolveKitchenNavEnabled/);
+    expect(appJs).to.match(/charculogic:active-employee-changed/);
   });
 });

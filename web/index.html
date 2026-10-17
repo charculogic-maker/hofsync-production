@@ -77,9 +77,11 @@
     })();
   </script>
   <script>
-    /* Zero-Flicker Nav: lastEffectiveModules vor async app.js anwenden. */
+    /* Zero-Flicker Nav: lastEffectiveModules vor async app.js anwenden.
+       PROD./kitchen zusätzlich an Soft-Lock-Mitarbeiter koppeln (kein Aufblitzen). */
     (function bootCachedNavModules() {
       var KEY = 'charculogic.lastEffectiveModules';
+      var EMPLOYEE_KEY = 'charculogic.activeEmployee';
       var TAB_TO_MODULE = {
         teamboard: 'teamboard',
         team: 'team',
@@ -100,16 +102,50 @@
           return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
         } catch (e) { return null; }
       }
+      function readActiveEmployee() {
+        try {
+          return String(localStorage.getItem(EMPLOYEE_KEY) || '').trim();
+        } catch (e) { return ''; }
+      }
+      /** StevesHof-Fallback: Verkauf → PROD. aus; Produktion/Admin-Namen → Mandant behalten. */
+      function isKitchenAllowedForEmployee(employeeName) {
+        var name = String(employeeName || '').trim().toLowerCase();
+        if (!name) return false;
+        if (
+          name.indexOf('paddy') !== -1
+          || name.indexOf('metzgerei') !== -1
+          || name.indexOf('küche') !== -1
+          || name.indexOf('kueche') !== -1
+          || name.indexOf('produktion') !== -1
+        ) {
+          return true;
+        }
+        if (
+          name.indexOf('laden-team') !== -1
+          || name.indexOf('laden team') !== -1
+          || name.indexOf('verkauf') !== -1
+          || name.indexOf('service') !== -1
+          || name === 'laden'
+          || /(^|[\s\-_./])laden($|[\s\-_./])/.test(name)
+        ) {
+          return false;
+        }
+        return false;
+      }
       function apply(modules) {
         if (!modules) return;
+        var employeeName = readActiveEmployee();
+        var kitchenTenantOn = modules.wurstkueche === true || modules.kitchen === true || modules.kueche === true;
+        var kitchenEnabled = kitchenTenantOn && isKitchenAllowedForEmployee(employeeName);
         var nodes = document.querySelectorAll('.nav-item[data-tab]');
         for (var i = 0; i < nodes.length; i += 1) {
           var tab = nodes[i];
           var tabId = tab.getAttribute('data-tab');
           var moduleKey = TAB_TO_MODULE[tabId];
           if (!moduleKey) continue;
-          if (!(moduleKey in modules) && !(tabId in modules)) continue;
+          if (!(moduleKey in modules) && !(tabId in modules) && tabId !== 'kitchen') continue;
           var enabled = modules[moduleKey] === true || modules[tabId] === true;
+          if (tabId === 'kitchen') enabled = kitchenEnabled;
           tab.hidden = !enabled;
           tab.style.display = enabled ? '' : 'none';
         }
