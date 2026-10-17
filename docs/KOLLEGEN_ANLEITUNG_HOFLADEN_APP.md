@@ -109,7 +109,7 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben w�
 5. Bei bekannter EAN: der Posten erscheint sofort als **oberste Karte** (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit.
 6. Bei unbekannter EAN den **Produktnamen** ergänzen, Menge/MHD setzen und **➕ Posten hinzufügen**.
 7. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
-8. Auf der Karte Menge (Tap → Nummernpad), MHD (+3/+7/+14 oder Datum tippen) oder **✕** zum Entfernen nutzen.
+8. Am Scanner **STK** / **KG** umschalten (Wiegeware mit Komma-Gewicht, z. B. 1,886 kg). Auf der Karte Menge/Gewicht tippen, MHD von der Verpackung eintragen oder **✕** zum Entfernen nutzen.
 9. Den nächsten Artikel scannen — ohne nach unten zu scrollen.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
 11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.

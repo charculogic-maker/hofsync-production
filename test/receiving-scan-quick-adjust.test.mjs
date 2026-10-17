@@ -92,4 +92,11 @@ describe('Wareneingang scan quick-adjust helpers', () => {
     assert.ok(html.includes('data-item-qty-delta="5"'));
     assert.ok(html.includes('data-item-qty-delta="9"'));
   });
+
+  it('exposes STK/KG unit toggle on scanner quick-adjust', () => {
+    assert.ok(indexSrc.includes('data-scanner-qa="unit-stk"'));
+    assert.ok(indexSrc.includes('data-scanner-qa="unit-kg"'));
+    assert.ok(indexSrc.includes('scanner-qa-weight-input'));
+    assert.ok(mhdSrc.includes('switchScannerQuickAdjustUnit'));
+  });
 });

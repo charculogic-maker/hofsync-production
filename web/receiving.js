@@ -13,6 +13,13 @@ export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
 export const RECEIVING_SCAN_MHD_EMPTY = '';
 /** VPE-Schnelltasten: 1+3=4, 1+5=6, 1+9=10 (Kisten-/Gebinde-Workflow). */
 export const RECEIVING_VPE_QTY_DELTAS = Object.freeze([3, 5, 9]);
+/** Kanonische Mengeneinheiten am Wareneingangs-Posten. */
+export const RECEIVING_UNIT_STK = 'stk';
+export const RECEIVING_UNIT_KG = 'kg';
+/** Inhouse-/Waagen-EAN-Präfixe (DE-Handel, typisch 21/28). */
+export const RECEIVING_WEIGHT_EAN_PREFIXES = Object.freeze([
+  '20', '21', '22', '23', '24', '25', '26', '27', '28', '29',
+]);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 const MHD_FALLBACK_KEYWORDS = [
   { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
@@ -591,33 +598,209 @@ export function hasReceivingItemMhd(item) {
   return Boolean(parseGermanDateToIso(raw) || /^\d{4}-\d{2}-\d{2}$/.test(raw));
 }
 
+/** Inhouse-/Waagen-EAN (Präfix 20–29, typisch 21/28). */
+export function isReceivingWeightEan(rawCode = '') {
+  const digits = String(rawCode || '').replace(/\D/g, '');
+  if (digits.length < 8) return false;
+  return RECEIVING_WEIGHT_EAN_PREFIXES.some((prefix) => digits.startsWith(prefix));
+}
+
+/**
+ * Normalisiert Anzeige-/Legacy-Einheiten auf 'stk' | 'kg'.
+ * @param {unknown} unit
+ * @returns {'stk'|'kg'}
+ */
+export function normalizeReceivingUnit(unit = '') {
+  const raw = String(unit || '').trim().toLowerCase()
+    .replace(/\./g, '')
+    .replace(/ü/g, 'ue');
+  if (!raw) return RECEIVING_UNIT_STK;
+  if (
+    raw === 'kg'
+    || raw === 'kilo'
+    || raw === 'kilogramm'
+    || raw === 'gewicht'
+    || raw.startsWith('kg')
+  ) {
+    return RECEIVING_UNIT_KG;
+  }
+  return RECEIVING_UNIT_STK;
+}
+
+/**
+ * Standard-Einheit: Stammdaten unit===kg oder Inhouse-Gewichts-EAN → kg, sonst stk.
+ * @param {{ unit?: string, barcode?: string, product?: Record<string, unknown> }} [opts]
+ * @returns {'stk'|'kg'}
+ */
+export function resolveDefaultReceivingUnit({ unit, barcode, product } = {}) {
+  const productUnit = unit
+    || product?.unit
+    || product?.einheit
+    || product?.mengeEinheit
+    || product?.qtyUnit
+    || '';
+  if (normalizeReceivingUnit(productUnit) === RECEIVING_UNIT_KG) {
+    return RECEIVING_UNIT_KG;
+  }
+  const code = String(barcode || product?.barcode || product?.ean || '').trim();
+  if (isReceivingWeightEan(code)) return RECEIVING_UNIT_KG;
+  return RECEIVING_UNIT_STK;
+}
+
+/** Gewicht robust parsen (Komma/Punkt), auf 3 Nachkommastellen runden. */
+export function parseReceivingWeightKg(rawValue) {
+  const trimmed = String(rawValue ?? '').trim().replace(/\s+/g, '');
+  if (!trimmed) return Number.NaN;
+  const normalized = trimmed.replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return Number.NaN;
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return Number.NaN;
+  return Math.round(parsed * 1000) / 1000;
+}
+
+/** Stückzahl robust parsen (≥ 1, ganzzahlig). */
+export function parseReceivingStkQty(rawValue) {
+  const trimmed = String(rawValue ?? '').trim().replace(',', '.');
+  if (!trimmed) return 1;
+  const parsed = Number.parseFloat(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return Number.NaN;
+  return Math.max(1, Math.round(parsed));
+}
+
+export function parseReceivingQuantity(rawValue, unit = RECEIVING_UNIT_STK) {
+  return normalizeReceivingUnit(unit) === RECEIVING_UNIT_KG
+    ? parseReceivingWeightKg(rawValue)
+    : parseReceivingStkQty(rawValue);
+}
+
+export function roundReceivingQuantity(quantity, unit = RECEIVING_UNIT_STK) {
+  const value = Number(quantity);
+  if (!Number.isFinite(value) || value <= 0) return Number.NaN;
+  if (normalizeReceivingUnit(unit) === RECEIVING_UNIT_KG) {
+    return Math.round(value * 1000) / 1000;
+  }
+  return Math.max(1, Math.round(value));
+}
+
+export function getReceivingItemUnit(item) {
+  return normalizeReceivingUnit(item?.unit || item?.qtyUnit || RECEIVING_UNIT_STK);
+}
+
+export function getReceivingItemQuantity(item) {
+  const raw = item?.quantity ?? item?.qtyValue ?? item?.qtyKg;
+  if (raw == null || raw === '') {
+    return getReceivingItemUnit(item) === RECEIVING_UNIT_KG ? Number.NaN : 1;
+  }
+  return roundReceivingQuantity(raw, getReceivingItemUnit(item));
+}
+
+/**
+ * Legacy-kompatible Felder (qtyValue/qtyUnit/qtyKg) + kanonisch quantity/unit.
+ * Für kg ohne gültige Zahl bleibt quantity null (Feld leer zum Eintippen).
+ */
+export function buildReceivingQuantityFields(quantity, unit = RECEIVING_UNIT_STK) {
+  const normalizedUnit = normalizeReceivingUnit(unit);
+  const rounded = roundReceivingQuantity(quantity, normalizedUnit);
+  if (!Number.isFinite(rounded)) {
+    if (normalizedUnit === RECEIVING_UNIT_KG) {
+      return {
+        quantity: null,
+        unit: normalizedUnit,
+        qtyValue: null,
+        qtyUnit: 'kg',
+        qtyKg: null,
+      };
+    }
+    return {
+      quantity: 1,
+      unit: RECEIVING_UNIT_STK,
+      qtyValue: 1,
+      qtyUnit: 'Stk',
+      qtyKg: 1,
+    };
+  }
+  return {
+    quantity: rounded,
+    unit: normalizedUnit,
+    qtyValue: rounded,
+    qtyUnit: normalizedUnit === RECEIVING_UNIT_KG ? 'kg' : 'Stk',
+    qtyKg: rounded,
+  };
+}
+
+/** Anzeige: „10 STK“ bzw. „1,886 kg“. */
+export function formatReceivingQuantityLabel(quantity, unit = RECEIVING_UNIT_STK) {
+  const normalizedUnit = normalizeReceivingUnit(unit);
+  const rounded = roundReceivingQuantity(quantity, normalizedUnit);
+  if (!Number.isFinite(rounded)) {
+    return normalizedUnit === RECEIVING_UNIT_KG ? '0,000 kg' : '1 STK';
+  }
+  if (normalizedUnit === RECEIVING_UNIT_KG) {
+    return `${rounded.toLocaleString('de-DE', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    })} kg`;
+  }
+  return `${Math.round(rounded)} STK`;
+}
+
+export function formatReceivingWeightInputValue(quantity) {
+  const rounded = roundReceivingQuantity(quantity, RECEIVING_UNIT_KG);
+  if (!Number.isFinite(rounded)) return '';
+  return rounded.toLocaleString('de-DE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+}
+
 export function buildReceivingItemCardHtml(item) {
   const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
   const brandMeta = brandLabel ? `${escapeHtml(brandLabel.toUpperCase())} · ` : '';
-  const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
-  const qtyUnit = item.qtyUnit || 'Stk';
+  const unit = getReceivingItemUnit(item);
+  const qtyValue = getReceivingItemQuantity(item);
   const hasMhd = hasReceivingItemMhd(item);
   const mhdLabel = hasMhd ? formatReceivingMhdLabel(item.mhdDate) : 'fehlt – antippen';
   const itemId = escapeHtml(item.id);
   const mhdMissingClass = hasMhd ? '' : ' we-item-mhd-date--missing';
+  const isKg = unit === RECEIVING_UNIT_KG;
+  const qtyLabel = formatReceivingQuantityLabel(qtyValue, unit);
+  const weightDisplay = isKg
+    ? (Number.isFinite(qtyValue)
+      ? qtyValue.toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+      : '—,—')
+    : String(Number.isFinite(qtyValue) ? qtyValue : 1);
 
-  return `
-    <article class="we-item-card${hasMhd ? '' : ' we-item-card--mhd-missing'}" data-item-id="${itemId}">
-      <div class="we-item-card-top">
-        <div class="we-item-row-main">
-          <div class="we-item-row-name">${escapeHtml(item.product)}</div>
-          <div class="we-item-row-meta">${brandMeta}${item.barcode ? `EAN ${escapeHtml(item.barcode)}` : 'ohne EAN'}</div>
-        </div>
-        <button type="button" class="we-item-row-remove" data-item-remove="${itemId}" aria-label="Posten entfernen">✕</button>
-      </div>
-      <div class="we-item-card-actions">
-        <div class="we-item-qty-block">
+  const qtyBlock = isKg
+    ? `
+        <div class="we-item-qty-block we-item-qty-block--kg" data-item-unit="kg">
+          <button type="button" class="we-item-qty-btn we-item-qty-btn--weight" data-item-qty-edit="${itemId}" aria-label="Gewicht korrigieren">
+            <span class="we-item-qty-label">Gewicht</span>
+            <span class="we-item-qty-value">${escapeHtml(weightDisplay)}</span>
+            <span class="we-item-qty-unit">kg</span>
+          </button>
+          <div class="we-item-qty-weight-edit" hidden data-item-weight-edit="${itemId}">
+            <input
+              type="text"
+              class="input-weight-kg we-item-weight-input"
+              inputmode="decimal"
+              pattern="[0-9]*[.,]?[0-9]*"
+              placeholder="0,000"
+              value="${escapeHtml(formatReceivingWeightInputValue(qtyValue))}"
+              aria-label="Gewicht in Kilogramm"
+              data-item-weight-input="${itemId}"
+            >
+            <span class="we-item-weight-suffix" aria-hidden="true">kg</span>
+            <button type="button" class="btn btn-primary we-item-weight-save" data-item-weight-save="${itemId}">OK</button>
+          </div>
+        </div>`
+    : `
+        <div class="we-item-qty-block" data-item-unit="stk">
           <div class="we-item-qty-stepper" role="group" aria-label="Menge anpassen">
             <button type="button" class="we-item-qty-step" data-item-qty-delta="-1" data-item-id="${itemId}" aria-label="Menge verringern">−</button>
             <button type="button" class="we-item-qty-btn" data-item-qty-edit="${itemId}" aria-label="Menge korrigieren">
               <span class="we-item-qty-label">Menge</span>
               <span class="we-item-qty-value">${escapeHtml(String(qtyValue))}</span>
-              <span class="we-item-qty-unit">${escapeHtml(qtyUnit)}</span>
+              <span class="we-item-qty-unit">STK</span>
             </button>
             <button type="button" class="we-item-qty-step" data-item-qty-delta="1" data-item-id="${itemId}" aria-label="Menge erhöhen">+</button>
           </div>
@@ -626,7 +809,19 @@ export function buildReceivingItemCardHtml(item) {
               `<button type="button" class="we-item-qty-vpe-btn" data-item-qty-delta="${delta}" data-item-id="${itemId}" aria-label="Menge plus ${delta}">+${delta}</button>`
             )).join('')}
           </div>
+        </div>`;
+
+  return `
+    <article class="we-item-card${hasMhd ? '' : ' we-item-card--mhd-missing'}" data-item-id="${itemId}" data-item-unit="${unit}">
+      <div class="we-item-card-top">
+        <div class="we-item-row-main">
+          <div class="we-item-row-name">${escapeHtml(item.product)}</div>
+          <div class="we-item-row-meta">${brandMeta}${item.barcode ? `EAN ${escapeHtml(item.barcode)}` : 'ohne EAN'}</div>
         </div>
+        <button type="button" class="we-item-row-remove" data-item-remove="${itemId}" aria-label="Posten entfernen">✕</button>
+      </div>
+      <div class="we-item-card-actions">
+        ${qtyBlock}
         <div class="we-item-mhd-block">
           <button type="button" class="we-item-mhd-date${mhdMissingClass}" data-item-mhd-edit="${itemId}" aria-label="${hasMhd ? 'MHD ändern' : 'MHD von der Verpackung eintragen'}">
             <span class="we-item-mhd-date-label">MHD</span>
@@ -634,6 +829,7 @@ export function buildReceivingItemCardHtml(item) {
           </button>
         </div>
       </div>
+      <span class="visually-hidden">${escapeHtml(qtyLabel)}</span>
     </article>
   `;
 }

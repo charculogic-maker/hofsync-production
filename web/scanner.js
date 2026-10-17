@@ -128,6 +128,20 @@ function cleanScannedBarcode(rawCode) {
   return String(rawCode || '').trim().replace(/[^0-9]/g, '');
 }
 
+/**
+ * Inhouse-/Waagen-EANs (DE-Handel): Präfixe 20–29, typisch 21/28 für Wiegeware.
+ * Reine Erkennung – Gewicht wird am Kamerascreen manuell eingetippt.
+ */
+export const INHOUSE_WEIGHT_EAN_PREFIXES = Object.freeze([
+  '20', '21', '22', '23', '24', '25', '26', '27', '28', '29',
+]);
+
+export function isInhouseWeightEan(rawCode = '') {
+  const digits = cleanScannedBarcode(rawCode);
+  if (digits.length < 8) return false;
+  return INHOUSE_WEIGHT_EAN_PREFIXES.some((prefix) => digits.startsWith(prefix));
+}
+
 function isMhdMonitorPageActive() {
   return Boolean(document.getElementById('page-mhd')?.classList.contains('active'));
 }

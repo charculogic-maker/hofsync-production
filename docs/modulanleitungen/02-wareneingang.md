@@ -70,7 +70,10 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 ![EAN erkannt und Posten in der Lieferung](./screenshots/02c-posten-erkannt.png)
 
 - Bekannte EAN: Quittungston und neue Karte ganz oben
-- Auf der Karte: Menge tippen, MHD mit +3/+7/+14 anpassen oder Posten mit **✕** entfernen
+- Am Kamerascreen: Einheit mit **STK** / **KG** umschalten (Wiegeware z. B. Käse mit Komma-Gewicht)
+- Stückware: Menge mit **+** / **−** und VPE-Tasten **+3** / **+5** / **+9**
+- Gewichtsware: großes kg-Feld (z. B. `1,886`), VPE-Tasten ausgeblendet
+- Auf der Karte: Menge/Gewicht tippen, MHD von der Verpackung eintragen oder Posten mit **✕** entfernen
 
 ---
 

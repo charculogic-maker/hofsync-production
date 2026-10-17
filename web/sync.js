@@ -168,7 +168,7 @@ const MHD_LISTE_SYNC_FIELDS = new Set([
   'produkt', 'name', 'marke', 'brand',
   'mhd', 'mhdDate', 'mhdText', 'mhdTimestamp', 'date',
   'tage', 'resttage', 'status',
-  'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit',
+  'qty', 'menge', 'eingangMenge', 'mengeEinheit', 'einheit', 'quantity', 'unit',
   'kategorie', 'warenKategorie', 'soldOut',
   'archived', 'active', 'actionTimestamp', 'lastActionBy',
   'lot', 'chargenNummer', 'lieferant', 'temperatur',
