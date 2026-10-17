@@ -40,15 +40,23 @@ describe('Kitchen / PROD. role-based nav', () => {
   });
 
   it('overrides module map locally without requiring tenant kitchen off', () => {
-    const base = { wurstkueche: true, mhdMonitor: true, kitchen: true, kueche: true };
+    const base = {
+      wurstkueche: true,
+      mhdMonitor: true,
+      kitchen: true,
+      kueche: true,
+      averyLabels: true,
+    };
     const hidden = applySessionKitchenModuleOverride(base, { employeeName: 'Laden-Team' });
     expect(hidden.wurstkueche).to.equal(false);
     expect(hidden.kitchen).to.equal(false);
     expect(hidden.kueche).to.equal(false);
+    expect(hidden.averyLabels).to.equal(false);
     expect(hidden.mhdMonitor).to.equal(true);
 
     const shown = applySessionKitchenModuleOverride(base, { employeeName: 'Paddy' });
     expect(shown.wurstkueche).to.equal(true);
     expect(shown.kitchen).to.equal(true);
+    expect(shown.averyLabels).to.equal(true);
   });
 });

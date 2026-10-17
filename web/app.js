@@ -88,7 +88,11 @@ import {
   loadRecipesFromCloud,
   syncRecipeAdminFormVisibility,
 } from './production.js';
-import { initAveryPrintStation } from './prod.js';
+import {
+  activateAveryLabelsTab,
+  disableAveryLabelsModule,
+  initAveryLabelsModule,
+} from './avery-labels.js';
 import {
   BeffeCalcEngine,
   formatNumber,
@@ -639,7 +643,7 @@ const PROFILE_TAB_ALIASES = {
   herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery']);
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
@@ -647,7 +651,7 @@ const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen'];
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
@@ -657,6 +661,7 @@ const TAB_ID_TO_MODULE_KEY = {
   receiving: 'receiving',
   chargenDoku: 'chargenDoku',
   kitchen: 'kitchen',
+  avery: 'averyLabels',
   haccp: 'haccp',
   knowledge: 'knowledge',
   cuts: 'knowledge',
@@ -1146,7 +1151,6 @@ function applyProfileKitchenRestrictions(branding = window.BRANDING) {
   [
     '#btn-document-recipe-batch',
     '#kitchen-wrs-panel',
-    '#avery-print-card',
     '.production-input-card',
     '.production-log-card',
   ].forEach((selector) => {
@@ -2704,9 +2708,22 @@ function resolveKitchenNavEnabled(branding = window.BRANDING || {}) {
   });
 }
 
+/** Avery-Etiketten: Modul-Flag + gleiches RBAC wie PROD./Metzgerei. */
+function resolveAveryLabelsNavEnabled(branding = window.BRANDING || {}) {
+  const tenantEnabled = isTenantModuleEnabled('averyLabels', branding);
+  const employeeName = readActiveEmployee() || readActiveEmployeeFromStorage();
+  const authRole = String(getAuthContext()?.role || '').trim();
+  return isKitchenModuleVisibleForSession(tenantEnabled, {
+    employeeName,
+    employeeRecord: resolveActiveEmployeeKitchenRecord(employeeName),
+    authRole,
+  });
+}
+
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = resolveKitchenNavEnabled(branding);
+  const averyEnabled = resolveAveryLabelsNavEnabled(branding);
   // Desktop-Sidebar (#sidebar) enthält #bottom-nav (display:contents) — ein .nav-item-Satz für beide Layouts.
   const tabModuleMap = {
     teamboard: isTenantModuleEnabled('start', branding),
@@ -2716,6 +2733,7 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     receiving: isTenantModuleEnabled('receiving', branding),
     chargenDoku: hasModule('chargenDoku', branding),
     kitchen: kitchenEnabled,
+    avery: averyEnabled,
     haccp: isTenantModuleEnabled('haccp', branding),
     knowledge: isTenantModuleEnabled('knowledge', branding),
     cuts: modules.cutGlossary === true,
@@ -2752,6 +2770,15 @@ function applyModuleVisibility(branding = window.BRANDING || {}) {
     }
   }
 
+  const averyPage = document.getElementById('page-avery');
+  if (averyPage) {
+    averyPage.hidden = !averyEnabled;
+    if (!averyEnabled) {
+      averyPage.classList.remove('active');
+      averyPage.style.display = 'none';
+    }
+  }
+
   if (typeof applyReceivingMetzgereiVisibility === 'function') {
     applyReceivingMetzgereiVisibility(branding);
   }
@@ -2782,6 +2809,9 @@ function isTabAllowedByModules(tabId, branding = window.BRANDING || {}) {
   if (!moduleKey) return false;
   if (tabId === 'kitchen' || moduleKey === 'kitchen') {
     return resolveKitchenNavEnabled(branding);
+  }
+  if (tabId === 'avery' || moduleKey === 'averyLabels') {
+    return resolveAveryLabelsNavEnabled(branding);
   }
   return isTenantModuleEnabled(moduleKey, branding);
 }
@@ -2882,6 +2912,7 @@ function resolveFirebaseEmployeeAllowedTabs(authSession) {
   const tabs = new Set(['chargenDoku']);
   if (allowed.mhd !== false) tabs.add('mhd');
   if (allowed.kitchen !== false) tabs.add('kitchen');
+  if (allowed.averyLabels !== false && allowed.avery !== false) tabs.add('avery');
   if (allowed.buero !== false) tabs.add('batches');
   return tabs;
 }
@@ -2902,7 +2933,7 @@ function applyRoleBasedUi(authSession) {
   // Zuerst Modul-Sichtbarkeit — verhindert Zwischenframe mit allen Tabs.
   applyModuleVisibility(window.BRANDING || {});
 
-  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'haccp', 'knowledge', 'cuts', 'batches']);
+  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'avery', 'haccp', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
@@ -4264,6 +4295,15 @@ tabs.forEach(tab => {
       );
       return;
     }
+    if (targetTab === 'avery' && !resolveAveryLabelsNavEnabled()) {
+      showToast(
+        isTenantModuleEnabled('averyLabels')
+          ? 'Etiketten ist für dieses Profil nicht freigeschaltet.'
+          : 'Das Etiketten-Modul ist für diesen Betrieb nicht freigeschaltet.',
+        'warning',
+      );
+      return;
+    }
     expireProfileSessionIfIdle();
     if (!isFirebaseRoleAuth()) {
       if (PIN_PROTECTED_TABS.has(targetTab) || INVENTORY_PROFILE_TABS.has(targetTab)) {
@@ -4309,6 +4349,9 @@ tabs.forEach(tab => {
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
+    } else if (targetTab === 'avery') {
+      showPage('page-avery');
+      headerTitle.textContent = "Etiketten";
     } else if (targetTab === 'haccp') {
       showPage('page-haccp');
       headerTitle.textContent = "HACCP-Protokoll";
@@ -4337,6 +4380,7 @@ tabs.forEach(tab => {
       if (targetTab === 'receiving') await activateReceivingTab();
       if (targetTab === 'chargenDoku') activateChargenDokuTab();
       if (targetTab === 'kitchen') activateKitchenTab();
+      if (targetTab === 'avery') activateAveryLabelsTab();
       if (targetTab === 'haccp') activateHaccpTab();
       if (targetTab === 'knowledge') {
         activateCounterRecipesTab();
@@ -5152,7 +5196,12 @@ async function bootstrapAuthenticatedApp() {
   } else {
     disableProductionModule();
   }
-  initAveryPrintStation();
+
+  if (isTenantModuleEnabled('averyLabels', window.BRANDING)) {
+    initAveryLabelsModule();
+  } else {
+    disableAveryLabelsModule();
+  }
 
   initMhdModule(db, { writeOrQueueFirestore: writeFirestoreDocOrQueue, addPendingSync }, { playFeedbackSound, playClickSound }, {
     showHUD,

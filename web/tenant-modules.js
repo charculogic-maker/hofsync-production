@@ -18,6 +18,7 @@ export const CANONICAL_MODULE_KEYS = Object.freeze([
   'wareneingang',
   'wareneingangMetzgerei',
   'wurstkueche',
+  'averyLabels',
   'haccp',
   'teamboard',
   'team',
@@ -37,6 +38,7 @@ export const TENANT_MODULE_KEYS = [
   'mhd',
   'receiving',
   'kitchen',
+  'averyLabels',
   'haccp',
   'knowledge',
   'buero',
@@ -62,6 +64,10 @@ export const ENABLED_MODULE_TO_BRANDING = {
   wareneingangMetzgerei: 'wareneingangMetzgerei',
   kitchen: 'wurstkueche',
   wurstkueche: 'wurstkueche',
+  averyLabels: 'averyLabels',
+  avery: 'averyLabels',
+  zerlegung: 'averyLabels',
+  cutting: 'averyLabels',
   haccp: 'haccp',
   knowledge: 'knowledge',
   buero: 'batches',
@@ -184,6 +190,16 @@ export function applySessionKitchenModuleOverride(modules, options = {}) {
   next.wurstkueche = visible;
   next.kitchen = visible;
   next.kueche = visible;
+
+  // Avery-Etiketten: gleiches RBAC wie PROD./Metzgerei (Verkauf ausblenden)
+  const averyTenantOn = next.averyLabels === true
+    || next.avery === true
+    || next.zerlegung === true
+    || next.cutting === true;
+  const averyVisible = isKitchenModuleVisibleForSession(averyTenantOn, options);
+  next.averyLabels = averyVisible;
+  next.avery = averyVisible;
+  next.zerlegung = averyVisible;
   return next;
 }
 
@@ -264,6 +280,7 @@ export function resolveEffectiveModules(tenantConfig, firestoreSettings) {
       ['wareneingang', ['wareneingang', 'receiving']],
       ['wareneingangMetzgerei', ['wareneingangMetzgerei']],
       ['wurstkueche', ['wurstkueche', 'kitchen', 'rezepte']],
+      ['averyLabels', ['averyLabels', 'avery', 'zerlegung', 'cutting']],
       ['haccp', ['haccp']],
       ['teamboard', ['teamboard', 'start']],
       ['team', ['team']],
@@ -350,6 +367,10 @@ export function applyEffectiveModulesToBranding(effectiveModules, branding = win
   if (typeof effectiveModules.mhdMonitor === 'boolean') enabled.mhd = effectiveModules.mhdMonitor;
   if (typeof effectiveModules.wareneingang === 'boolean') enabled.receiving = effectiveModules.wareneingang;
   if (typeof effectiveModules.wurstkueche === 'boolean') enabled.kitchen = effectiveModules.wurstkueche;
+  if (typeof effectiveModules.averyLabels === 'boolean') {
+    enabled.averyLabels = effectiveModules.averyLabels;
+    enabled.zerlegung = effectiveModules.averyLabels;
+  }
   if (typeof effectiveModules.teamboard === 'boolean') enabled.start = effectiveModules.teamboard;
   if (typeof effectiveModules.batches === 'boolean') enabled.buero = effectiveModules.batches;
   if (typeof effectiveModules.chargenDoku === 'boolean') {
@@ -386,6 +407,7 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
     ['wareneingang', ['wareneingang', 'receiving']],
     ['wareneingangMetzgerei', ['wareneingangMetzgerei']],
     ['wurstkueche', ['wurstkueche', 'kitchen', 'rezepte']],
+    ['averyLabels', ['averyLabels', 'avery', 'zerlegung', 'cutting']],
     ['haccp', ['haccp']],
     ['teamboard', ['teamboard', 'start']],
     ['team', ['team']],
@@ -427,6 +449,9 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
       wareneingangMetzgerei: ['wareneingangMetzgerei'],
       kitchen: ['kitchen', 'wurstkueche', 'rezepte'],
       wurstkueche: ['wurstkueche', 'kitchen', 'rezepte'],
+      averyLabels: ['averyLabels', 'avery', 'zerlegung', 'cutting'],
+      avery: ['averyLabels', 'avery', 'zerlegung', 'cutting'],
+      zerlegung: ['averyLabels', 'avery', 'zerlegung', 'cutting'],
       haccp: ['haccp'],
       knowledge: ['knowledge'],
       buero: ['buero', 'batches'],
@@ -460,6 +485,10 @@ export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {
     case 'kitchen':
     case 'wurstkueche':
       return modules.wurstkueche !== false;
+    case 'averyLabels':
+    case 'avery':
+    case 'zerlegung':
+      return modules.averyLabels === true;
     case 'retterBox':
       return modules.retterBox === true;
     case 'deliveryParser':

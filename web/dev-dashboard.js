@@ -141,6 +141,12 @@ const BETRIEB_MODULE_CONTROLS = [
   { key: 'mhd', label: 'MHD-Monitor', readKeys: ['mhd', 'mhdMonitor'] },
   { key: 'receiving', label: 'Wareneingang', readKeys: ['receiving', 'wareneingang'] },
   { key: 'kitchen', label: 'Wurstküche & Rezepte', readKeys: ['kitchen', 'wurstkueche', 'rezepte'] },
+  {
+    key: 'averyLabels',
+    label: 'Avery-Etiketten (Zerlege/Reife)',
+    readKeys: ['averyLabels', 'avery'],
+    writeKeys: ['averyLabels'],
+  },
   { key: 'haccp', label: 'HACCP', readKeys: ['haccp'] },
   { key: 'start', label: 'Teamboard', readKeys: ['start', 'teamboard'] },
   { key: 'team', label: 'Team', readKeys: ['team'] },
