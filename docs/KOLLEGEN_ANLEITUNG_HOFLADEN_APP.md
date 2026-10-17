@@ -180,8 +180,9 @@ Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schne
 
 ## 4. Wissen nachlesen
 
-**Wissen** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort gibt es zwei aufklappbare Bereiche:
+**Wissen** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort gibt es aufklappbare Bereiche:
 
+- **🧾 Theken-Auskunft (Allergene & Zutaten)**: Wir suchen Artikel oder Zutaten und tippen einen Treffer an – Allergene, Verkehrsbezeichnung und kundenkonforme Zutatenliste erscheinen sofort (auch offline aus dem gespeicherten Katalog).
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
 - **📋 Hofladen-Handbücher**: Wir lesen die kurzen Anleitungen zu MHD-Ablauf-Regeln, Reinigung der Wurstküche und HACCP-Erklärung.
 

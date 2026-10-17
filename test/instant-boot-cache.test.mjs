@@ -31,7 +31,7 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/if \(tab\.hidden \|\| tab\.style\.display === 'none'\) return;/);
   });
 
-  it('bumps SW cache to instant-boot-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-instant-boot-v1'");
+  it('bumps SW cache for counter-recipes release', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261016-counter-recipes-v1'");
   });
 });

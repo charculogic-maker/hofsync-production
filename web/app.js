@@ -98,6 +98,10 @@ import {
   initCutGlossaryModule,
 } from './cuts.js';
 import {
+  activateCounterRecipesTab,
+  initCounterRecipesModule,
+} from './recipes-counter.js';
+import {
   activateTeamboardTab,
   initTeamboardModule,
   refreshTeamboardAdminPanel,
@@ -3921,8 +3925,11 @@ const ADMIN_DROPDOWN_MODULES = {
     tabId: 'knowledge',
     pageId: 'page-knowledge',
     title: 'Wissen',
-    subtitle: 'Handbücher & Fleisch-Lexikon',
-    activate: () => activateCutGlossaryTab(),
+    subtitle: 'Theken-Auskunft & Fleisch-Lexikon',
+    activate: () => {
+      activateCounterRecipesTab();
+      activateCutGlossaryTab();
+    },
   },
   buero: {
     tabId: 'batches',
@@ -4258,7 +4265,10 @@ tabs.forEach(tab => {
       if (targetTab === 'chargenDoku') activateChargenDokuTab();
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'haccp') activateHaccpTab();
-      if (targetTab === 'knowledge') activateCutGlossaryTab();
+      if (targetTab === 'knowledge') {
+        activateCounterRecipesTab();
+        activateCutGlossaryTab();
+      }
       if (targetTab === 'cuts') activateCutGlossaryTab();
       if (targetTab === 'batches') {
         activateBatchesTab();
@@ -5128,6 +5138,7 @@ async function bootstrapAuthenticatedApp() {
     getFirebase: () => firebase,
   });
   initCutGlossaryModule();
+  initCounterRecipesModule();
   refreshTeamboardAdminPanel();
   refreshAdminTeamConfigPanel();
   syncPushRegistration();

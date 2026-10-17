@@ -271,7 +271,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/style.css?v=20261017-counter-recipes-v1">
   <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
 </head>
 <body>
@@ -1919,6 +1919,49 @@
           <div class="page" id="page-knowledge">
             <section class="knowledge-panel" aria-label="Wissensdatenbank">
               <details class="knowledge-accordion" open>
+                <summary>🧾 Theken-Auskunft (Allergene &amp; Zutaten)</summary>
+                <div class="knowledge-accordion-body">
+                  <div class="counter-recipes-shell" id="counter-recipes-shell" aria-label="Theken-Auskunft">
+                    <div class="counter-recipes-intro">
+                      <div>
+                        <p class="counter-recipes-kicker">Kundenberatung</p>
+                        <h2 class="counter-recipes-title">Allergene &amp; Zutaten</h2>
+                        <p class="counter-recipes-lead">Artikel oder Zutat suchen – sofort die kundenkonforme Auskunft.</p>
+                      </div>
+                      <span class="counter-recipes-count" id="counter-recipes-count">0 von 0</span>
+                    </div>
+
+                    <div class="counter-recipes-tools">
+                      <div class="counter-search-panel">
+                        <input
+                          type="search"
+                          id="counter-recipes-search"
+                          class="input-text-touch counter-search-input"
+                          placeholder="🔍 Artikel oder Zutat suchen..."
+                          autocomplete="off"
+                          aria-label="Artikel oder Zutat suchen"
+                        >
+                        <button type="button" class="counter-search-clear" id="counter-recipes-clear" hidden aria-label="Suche leeren">×</button>
+                      </div>
+
+                      <div class="counter-quick-filter" id="counter-recipes-filters" role="group" aria-label="Schnellfilter Theken-Auskunft">
+                        <button type="button" class="counter-quick-chip active-category" data-counter-filter="all" aria-pressed="true">Alle</button>
+                        <button type="button" class="counter-quick-chip" data-counter-filter="glutenfrei" aria-pressed="false">🌾 Glutenfrei</button>
+                        <button type="button" class="counter-quick-chip" data-counter-filter="laktosefrei" aria-pressed="false">🥛 Laktosefrei</button>
+                        <button type="button" class="counter-quick-chip" data-counter-filter="rind" aria-pressed="false">🥩 Rind</button>
+                        <button type="button" class="counter-quick-chip" data-counter-filter="schwein" aria-pressed="false">🐷 Schwein</button>
+                        <button type="button" class="counter-quick-chip" data-counter-filter="feinkost" aria-pressed="false">🥗 Feinkost</button>
+                      </div>
+                    </div>
+
+                    <p class="counter-recipes-status learn-mode-desc" id="counter-recipes-status" aria-live="polite">Katalog wird geladen…</p>
+                    <p class="counter-recipes-empty" id="counter-recipes-empty" hidden>Kein passender Artikel gefunden.</p>
+                    <div class="counter-recipes-list" id="counter-recipes-list" role="list"></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="knowledge-accordion">
                 <summary>🥩 Fleisch-Lexikon (Cuts)</summary>
                 <div class="knowledge-accordion-body">
                   <div class="cut-glossary-shell" aria-label="Fleisch-Lexikon">
@@ -2507,6 +2550,24 @@
           <div class="recipe-category-filter recipe-category-filter--sheet" id="recipe-category-filter" role="group" aria-label="Rezept-Kategorien"></div>
         </div>
 
+        <div class="sheet-backdrop counter-recipe-backdrop hidden" id="counter-recipe-backdrop" hidden></div>
+        <div
+          class="bottom-sheet counter-recipe-detail-sheet hidden"
+          id="counter-recipe-detail-sheet"
+          hidden
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="counter-recipe-detail-title"
+          aria-hidden="true"
+        >
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-header">
+            <h3 id="counter-recipe-detail-heading">Artikel-Auskunft</h3>
+            <button type="button" class="sheet-close-btn" id="counter-recipe-detail-close">Schließen</button>
+          </div>
+          <div id="counter-recipe-detail" class="counter-recipe-detail"></div>
+        </div>
+
         <!-- Navigation: Mobile Fußleiste (#bottom-nav) = Desktop-Sidebar (#sidebar), ein DOM -->
         <aside id="sidebar" class="app-sidebar-host">
         <nav class="bottom-nav app-nav bottom-nav--compact" id="bottom-nav" aria-label="Hauptnavigation">
@@ -2935,8 +2996,8 @@
   </template>
 
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
-  <script type="module" src="/fast-onboarding.js?v=20261015-livestock-update-notice"></script>
-  <script type="module" src="/tenant-admin-auth.js?v=20261015-livestock-update-notice"></script>
-  <script type="module" src="/app.js?v=20261015-livestock-update-notice"></script>
+  <script type="module" src="/fast-onboarding.js?v=20261017-counter-recipes-v1"></script>
+  <script type="module" src="/tenant-admin-auth.js?v=20261017-counter-recipes-v1"></script>
+  <script type="module" src="/app.js?v=20261017-counter-recipes-v1"></script>
 </body>
 </html>
