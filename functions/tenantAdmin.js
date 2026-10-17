@@ -18,14 +18,15 @@ const REGION = 'europe-west3';
 
 const DEFAULT_CONTINUE_URL = 'https://hofsync-production.web.app/';
 
-const MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'cutting', 'haccp'];
+const MODULE_KEYS = ['mhd', 'receiving', 'kitchen', 'cutting', 'averyLabels', 'haccp'];
 
 /** Frontend may send friendly keys (mhdMonitor, wareneingang, …) or internal keys. */
 const MODULE_ALIASES = {
   mhd: ['mhd', 'mhdMonitor'],
   receiving: ['receiving', 'wareneingang'],
   kitchen: ['kitchen', 'wurstkueche'],
-  cutting: ['cutting', 'zerlegung'],
+  cutting: ['cutting'],
+  averyLabels: ['averyLabels', 'avery', 'zerlegung'],
   haccp: ['haccp'],
 };
 
@@ -96,6 +97,8 @@ function buildEnabledModules(modules) {
     buero: modules.buero === true,
     chargenDoku: modules.cutting === true || modules.chargenDoku === true,
     cutting: modules.cutting === true,
+    averyLabels: modules.averyLabels === true || modules.zerlegung === true,
+    zerlegung: modules.averyLabels === true || modules.zerlegung === true,
     retterBox: modules.retterBox === true,
   };
 }
