@@ -2,7 +2,7 @@
 
 Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodell, das Rollen-/Rechtemodell (Firestore- & Storage-Rules), App Check, die Cloud Functions (inkl. Gemini-Fleischpreislauf), Build/Deploy-Pipeline und Security-Tests.
 
-> **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
+> **Stand:** Oktober 2026 — inkl. LMIV-Herkunftsmodul (`chargendoku` / Thekenbuch), Theken-Auskunft im Wissen-Modul und P0-Security-/Multi-Tenancy-Refactor.
 
 Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
@@ -104,7 +104,8 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `audit_logs/{id}` | optionales Alias-Protokoll derselben Bewegungen | analog `mhd_audit` |
 | `product_master/{ean}` | Gemeinsamer Artikelname je EAN (künftige Wareneingänge) | read: Mandanten-Nutzer; create/update: Employee/Admin; delete: Admin |
 | `wareneingang_lieferungen/{id}` | Lieferungen (Kopf, Posten, Fotos) | Mandanten-Nutzer (schema-validiert) |
-| `rezepte/{id}` | Rezepturen (Betriebswissen) | nur Admin |
+| `rezepte/{id}` | Rezepturen (Betriebswissen); Firestore-Fallback für Theken-Auskunft | read: Mandanten-Nutzer + `wurstkueche`; write: Admin |
+| `recipes/{id}` / `products/{id}` | vom Client als Theken-Auskunft-Alias versucht | aktuell keine explizite Rule (Default-Deny) |
 | `produktion_chargen/{id}` | Produktions-/Chargen-Doku | create: Nutzer; update/delete: Admin |
 | `haccp_geraete/{id}` | HACCP-Geräte/Messpunkte | nur Admin |
 | `haccp_logs/{id}` | HACCP-Protokolle | create: Nutzer; **update/delete: gesperrt** (unveränderlich) |
@@ -123,6 +124,38 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `priceRuns/{runId}` *(global)* | Fleischpreis-Lauf-Lifecycle | nur Admin SDK / Cloud Functions |
 
 Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehen in `firebase.rules`.
+
+---
+
+### 2.1 Theken-Auskunft-Katalog (`web/recipes-counter.js`)
+
+Das Wissen-Modul lädt kundenkonforme Artikelinformationen für die Theke mandantenbezogen, aber ohne Callable:
+
+1. `loadCounterRecipesCatalog()` liest nacheinander `tenants/{tenantId}/recipes`, `products`, `rezepte` über `getTenantCollection()`.
+2. Jedes Dokument wird mit `normalizeCounterItem()` auf diesen Anzeigevertrag reduziert:
+   - `id`
+   - `name`
+   - `verkehrsbezeichnung`
+   - `category`
+   - `allergens` / `allergene`
+   - `ingredientsDeclaration` / `zutatenDeklaration` / `zutatenliste`
+   - `glutenFree` / `glutenfrei`
+   - `lactoseFree` / `laktosefrei`
+   - `meatContent`, `storageTemp`, `consumptionNotes`
+3. Wenn nur Produktionszutaten (`ingredients[]`) vorhanden sind, erzeugt der Client eine reine Namensliste. Prozent- und Grammangaben werden nicht in der Kundenansicht angezeigt.
+4. Erfolgreich geladene Kataloge werden je Mandant in `localStorage` unter `charculogic.cachedCounterRecipes.{normalizeTenantId(tenantId)}` gespeichert.
+5. Bei fehlender Firestore-Leseberechtigung, leerem Katalog oder Offline-Start nutzt das Modul zuerst Cache und danach `STEVESHOF_COUNTER_FALLBACK`.
+
+**Rules-Status:** `firebase.rules` erlaubt derzeit nur `rezepte` und koppelt den Lesezugriff an `hasModule(tenantId, 'wurstkueche')`; Schreibzugriff bleibt Admin-only. `recipes` und `products` sind bewusst als künftige Alias-Quellen dokumentiert, aber ohne eigene Rules gesperrt. Bevor ein Betrieb seine Theken-Auskunft aus `recipes` oder `products` bedienen soll, müssen Firestore Rules und Rules-Tests für diese Collections ergänzt werden.
+
+**Smoke-Tests:**
+
+```bash
+node tools/smoke-recipes-counter.mjs
+APP_URL=http://127.0.0.1:5173/index.html node tools/smoke-recipes-counter-ui.mjs
+```
+
+Der UI-Smoke schreibt Screenshots nach `/opt/cursor/artifacts/` und prüft Fallback-Katalog, Suche, Schnellfilter und Detail-Sheet.
 
 ---
 
@@ -541,10 +574,11 @@ Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `te
 
 ---
 
-## 7. Offene technische Punkte (Stand: Juni 2026)
+## 7. Offene technische Punkte (Stand: Oktober 2026)
 
 1. **Custom Claims produktiv setzen** und Token-Refresh erzwingen (Firestore-Profil-Fallback in Storage perspektivisch entfernen).
 2. **App Check Enforcement** in Firebase Console für alle Zielressourcen aktivieren, sobald Site Keys in allen Umgebungen live sind.
 3. **Rules- + Security-Tests in CI** — `npm run test:rules` (JDK 21+) und `npm run test:functions:security` in Pipeline verankern.
 4. **Fleischpreislauf:** GCP-Alert-Policy gemäß §4.6 in Produktion anlegen (`alert-policy.json` als Vorlage).
 5. **MHD-Datenladen ohne `limit()`:** Pagination bei wachsenden Beständen.
+6. **Theken-Auskunft:** Wenn `recipes` oder `products` als produktive Katalogquellen genutzt werden, passende Firestore Rules + Emulator-Tests ergänzen; bis dahin bleibt `rezepte` der einzige erlaubte Firestore-Katalog.
