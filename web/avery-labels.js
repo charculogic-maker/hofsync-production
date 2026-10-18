@@ -8,6 +8,9 @@ export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
 const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
+/** Vorbereitetes Druck-HTML (ohne DOM-Bau im Klick) – für iOS/PWA window.open */
+let cachedPrintDocumentHtml = '';
+
 
 /**
  * @typedef {{
@@ -376,8 +379,7 @@ function setQueueQty(cutId, qty) {
 }
 
 /**
- * Trimmings-Schnelleingabe: Menge setzen ohne Katalog neu zu mounten
- * (Fokus im Zahlenfeld bleibt erhalten).
+ * Trimmings-Menge setzen (API/Tests). UI nutzt jetzt Chip-Buttons wie Teilstücke.
  */
 export function updateTrimCount(trimId, qty) {
   const nextQty = Math.max(0, Math.min(999, Number.parseInt(String(qty), 10) || 0));
@@ -390,19 +392,25 @@ export function updateTrimCount(trimId, qty) {
     state.queue.push({ cutId: trimId, qty: nextQty });
   }
   persistDraft();
-  syncTrimInputs();
   renderQueue();
   renderSheetPreview();
 }
 
+/** @deprecated Trimmings sind Chip-Buttons – kein Zahlenfeld mehr. */
 export function syncTrimInputs() {
-  AVERY_TRIMMINGS.forEach((trim) => {
-    const input = document.getElementById(`avery-trim-${trim.id}`);
-    if (!(input instanceof HTMLInputElement)) return;
-    if (document.activeElement === input) return;
-    const qty = state.queue.find((row) => !row.isCustom && row.cutId === trim.id)?.qty || 0;
-    if (String(input.value) !== String(qty)) input.value = String(qty);
-  });
+  /* no-op: Abschnitte/Trimmings sind anklickbare Chips */
+}
+
+/**
+ * Etikettenbogen zurücksetzen: Druckliste leeren, Start-Slot 1, Vorschau neu.
+ * Kopfdaten (Ohrmarke, Daten) bleiben erhalten.
+ */
+export function resetAverySheet() {
+  state.queue = [];
+  state.startSlot = 1;
+  persistDraft();
+  renderAll();
+  window.showToast?.('Etikettenbogen zurückgesetzt.', 'success');
 }
 
 function fillRestWithHack() {
@@ -575,6 +583,7 @@ function renderSheetPreview() {
     printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
   }
   printHost.innerHTML = printCells.join('');
+  cachedPrintDocumentHtml = buildAveryPrintDocumentHtml(printCells.join(''));
 
   const usagePct = Math.round((plan.usage / AVERY_LABELS_PER_SHEET) * 100);
   if (gaugeFill) gaugeFill.style.width = `${Math.min(100, usagePct)}%`;
@@ -653,8 +662,87 @@ function syncPrintReadyState(plan = null) {
   }
 }
 
+function isIosOrStandalonePwa() {
+  try {
+    const ua = String(navigator.userAgent || '');
+    const iOS = /iPad|iPhone|iPod/i.test(ua)
+      || (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1);
+    const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches
+      || window.navigator.standalone === true;
+    return Boolean(iOS || standalone);
+  } catch (_) {
+    return false;
+  }
+}
+
 /**
- * Druck anfordern: fehlende Vorbereitung → Toast; ready → nur synchrones window.print().
+ * Eigenständiges Druckdokument (A4 Avery 3475) – für iOS/PWA ohne In-Page-Print.
+ * @param {string} sheetInnerHtml
+ */
+function buildAveryPrintDocumentHtml(sheetInnerHtml) {
+  return `<!DOCTYPE html>
+<html lang="de"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avery 3475 Etikettenbogen</title>
+<style>
+  @page { size: A4 portrait; margin: 4.5mm 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { padding: 4.5mm 0; }
+  .avery-sheet {
+    display: grid;
+    grid-template-columns: repeat(3, 70mm);
+    grid-auto-rows: 36mm;
+    width: 210mm;
+    margin: 0 auto;
+    gap: 0;
+  }
+  .avery-label {
+    box-sizing: border-box;
+    width: 70mm;
+    height: 36mm;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .avery-label.empty { visibility: hidden; }
+  .label-card {
+    width: 70mm; height: 36mm;
+    padding: 1.8mm 2.6mm 1.4mm;
+    box-sizing: border-box;
+    display: flex; flex-direction: column;
+    font-family: Helvetica, Arial, sans-serif;
+    color: #000; background: #fff;
+  }
+  .lbl-farm { font-size: 5pt; font-weight: 700; margin-bottom: 0.4mm; }
+  .lbl-hero { flex: 1 1 55%; padding: 0.4mm 0.5mm; }
+  .lbl-title { font-size: 12pt; font-weight: 900; line-height: 1.15; }
+  .lbl-meta {
+    display: flex; justify-content: space-between; gap: 2mm;
+    margin-top: 0.4mm; padding-top: 1mm; border-top: 0.6pt solid #000;
+  }
+  .lbl-meta-main, .lbl-meta-sub {
+    font-size: 5.5pt; font-weight: 700; line-height: 1.25; white-space: nowrap;
+  }
+  .lbl-foot {
+    margin-top: 0.5mm; padding-top: 0.5mm;
+    border-top: 0.3pt dashed #64748b;
+    font-size: 4.8pt; font-weight: 600; color: #1e293b;
+  }
+</style>
+</head><body>
+<div class="avery-sheet">${sheetInnerHtml}</div>
+<script>
+  window.addEventListener('load', function () {
+    try { window.focus(); window.print(); } catch (e) {}
+  });
+<\/script>
+</body></html>`;
+}
+
+/**
+ * Druck anfordern: fehlende Vorbereitung → Toast.
+ * Ready: iOS/PWA → synchron window.open mit vorbereitetem HTML;
+ * Desktop → window.print() auf der vorbereiteten Print-Area.
  * @returns {boolean}
  */
 function requestAveryPrintFromClick() {
@@ -668,7 +756,34 @@ function requestAveryPrintFromClick() {
     }
     return false;
   }
-  // iOS: ab hier keine DOM-Generierung / async / setTimeout vor window.print()
+
+  // iOS / Standalone-PWA: In-Page window.print() öffnet oft kein Menü.
+  // Fenster sofort im User-Gesture öffnen; HTML ist bereits gecacht.
+  if (isIosOrStandalonePwa()) {
+    const html = cachedPrintDocumentHtml
+      || buildAveryPrintDocumentHtml(document.getElementById('avery-sheet-print')?.innerHTML || '');
+    if (!html || !/avery-label/.test(html)) {
+      window.showToast?.('Druckbogen ist noch nicht bereit. Bitte kurz warten und noch einmal tippen.', 'warning');
+      return false;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      window.showToast?.('Druckfenster wurde blockiert. Bitte Pop-ups erlauben und noch einmal tippen.', 'warning');
+      window.print();
+      return false;
+    }
+    try {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+    } catch (err) {
+      console.error('[Avery Print] Druckfenster konnte nicht geschrieben werden:', err);
+      try { printWindow.close(); } catch (_) { /* ignore */ }
+      window.print();
+    }
+    return true;
+  }
+
   window.print();
   return true;
 }
@@ -728,25 +843,15 @@ function renderCatalog() {
 
     <div class="avery-trim-box">
       <h3>Abschnitte / Trimmings</h3>
-      <div class="avery-trim-grid">
+      <p class="avery-trim-hint">Antippen = +1 auf den Bogen (wie bei den Teilstücken).</p>
+      <div class="avery-trim-grid avery-catalog-grid">
         ${AVERY_TRIMMINGS.map((trim) => {
           const qty = state.queue.find((row) => !row.isCustom && row.cutId === trim.id)?.qty || 0;
           return `
-            <label class="avery-trim-field" for="avery-trim-${escapeHtml(trim.id)}">
-              <span class="avery-trim-name">${escapeHtml(trim.name)}</span>
-              <span class="avery-trim-art">Art. ${escapeHtml(trim.artNr || '–')}</span>
-              <input
-                type="number"
-                id="avery-trim-${escapeHtml(trim.id)}"
-                class="input-text-touch avery-trim-input"
-                data-avery-trim="${escapeHtml(trim.id)}"
-                inputmode="numeric"
-                min="0"
-                max="999"
-                step="1"
-                value="${qty}"
-              >
-            </label>
+            <button type="button" class="avery-cut-chip avery-trim-chip${qty ? ' is-active' : ''}" data-avery-add="${escapeHtml(trim.id)}">
+              <strong>${escapeHtml(trim.name)}</strong>
+              <span>Art. ${escapeHtml(trim.artNr || '–')}${qty ? ` · ${qty}×` : ''}</span>
+            </button>
           `;
         }).join('')}
       </div>
@@ -769,7 +874,6 @@ function renderCatalog() {
       </div>
     </div>
   `;
-  syncTrimInputs();
 }
 
 function syncHeaderInputs() {
@@ -896,10 +1000,6 @@ function bindEvents(root) {
     if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
       return;
     }
-    if (target.dataset.averyTrim) {
-      updateTrimCount(target.dataset.averyTrim, target.value);
-      return;
-    }
     if (!target.id?.startsWith('avery-')) return;
     if (target.id === 'avery-custom-name' || target.id === 'avery-custom-aging') return;
     readHeaderFromDom();
@@ -960,10 +1060,13 @@ function bindEvents(root) {
       return;
     }
 
+    if (target.closest('#btn-avery-reset-sheet') || target.closest('[data-avery-reset]')) {
+      resetAverySheet();
+      return;
+    }
+
     if (target.closest('#btn-avery-clear-queue')) {
-      state.queue = [];
-      persistDraft();
-      renderAll();
+      resetAverySheet();
       return;
     }
 
@@ -1078,9 +1181,14 @@ function buildShellHtml() {
           <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
         </div>
         <p class="avery-print-hint" id="avery-print-hint" hidden></p>
-        <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet" data-avery-print>
-          🖨️ Etikettenbogen drucken
-        </button>
+        <div class="avery-print-actions">
+          <button type="button" class="btn btn-secondary btn-avery-reset" id="btn-avery-reset-sheet" data-avery-reset>
+            Bogen zurücksetzen
+          </button>
+          <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet" data-avery-print>
+            🖨️ Etikettenbogen drucken
+          </button>
+        </div>
       </section>
     </section>
   `;

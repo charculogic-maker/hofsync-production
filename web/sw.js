@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-ios-print-v151';
+const CACHE_NAME = 'charculogic-v20261018-ios-print-v152';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release v1.5.0 – Avery-Print-Button Fix (Toast statt disabled) */
-const RELEASED_AT = '2026-10-18T14:05:00+02:00';
+/** Release v1.5.0 – iOS Druckfenster + Trimmings-Chips + Bogen-Reset */
+const RELEASED_AT = '2026-10-18T14:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -352,3 +352,4 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => cached || fetch(request))
   );
 });
+
