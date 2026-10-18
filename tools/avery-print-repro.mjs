@@ -131,6 +131,11 @@ const afterIosPrint = await page.evaluate(() => ({
   openCalled: Boolean(window.__openCalled),
   htmlHasLabels: /avery-label/.test(window.__openedHtml || ''),
   htmlHasClose: /Fenster schließen/.test(window.__openedHtml || ''),
+  htmlHasPrintBtn: /Jetzt drucken/.test(window.__openedHtml || ''),
+  htmlTitleCentered: /lbl-title[^}]*text-align:\s*center/.test(window.__openedHtml || '')
+    || /\.lbl-title\s*\{[^}]*text-align:\s*center/.test(window.__openedHtml || ''),
+  htmlHeroCentered: /lbl-hero[^}]*justify-content:\s*center/.test(window.__openedHtml || '')
+    || /\.lbl-hero\s*\{[^}]*justify-content:\s*center/.test(window.__openedHtml || ''),
   htmlHasSheets: /avery-sheet/.test(window.__openedHtml || ''),
   inPagePrinted: Boolean(window.__printed),
   help: document.getElementById('avery-ios-print-help')?.textContent || '',
@@ -138,6 +143,9 @@ const afterIosPrint = await page.evaluate(() => ({
 }));
 if (!afterIosPrint.openCalled || !afterIosPrint.htmlHasLabels || !afterIosPrint.htmlHasClose) {
   throw new Error(`iOS Drucken should window.open print HTML: ${JSON.stringify(afterIosPrint)}`);
+}
+if (!afterIosPrint.htmlHasPrintBtn || !afterIosPrint.htmlHeroCentered || !afterIosPrint.htmlTitleCentered) {
+  throw new Error(`iOS print HTML missing print btn or centering: ${JSON.stringify(afterIosPrint)}`);
 }
 if (afterIosPrint.inPagePrinted) {
   throw new Error('iOS Drucken must not rely on in-page window.print alone');
