@@ -152,130 +152,21 @@ const FLY_PREVENTION_CLEANING_TASK = {
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 const WEEKDAY_LABELS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const HACCP_BEREICHE = ['Verkauf', 'Lager'];
-const HACCP_DEVICE_TYPES = [
-  { value: 'manual_temp', label: 'Manuelle Temperatur' },
+
+/** Fallback nur wenn Cloud noch leer ist (Migration). */
+const DEFAULT_CLEANING_TASK_DOCS = [
+  { id: 'verkaufstheke-waagen', name: 'Verkaufstheke & Waagen gereinigt', category: 'Täglich', period: 'day', sortOrder: 10, isProductionOnly: false },
+  { id: 'wurstkueche', name: 'Wurstküche gereinigt & desinfiziert', category: 'Nach Nutzung', period: 'day', sortOrder: 20, isProductionOnly: true },
+  { id: 'messer-werkzeuge', name: 'Messer & Werkzeuge sterilisiert', category: 'Nach Nutzung', period: 'day', sortOrder: 30, isProductionOnly: true },
+  { id: 'rauch-kochanlagen', name: 'Rauch- und Kochanlagen gereinigt', category: 'Nach Nutzung', period: 'day', sortOrder: 40, isProductionOnly: true },
+  { id: 'kuehlhaus-grundreinigung', name: 'Kühlhaus Grundreinigung', category: 'Wöchentlich', period: 'week', sortOrder: 50, isProductionOnly: false },
 ];
 
-/** StevesHof Pilot: 8 Laden-/Lager-Prüfstellen (kein Obergeschoss). */
-const STEVESHOF_STANDARD_TEMP_DEVICES = [
-  {
-    name: 'Fleischtheke',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 0,
-    tempMax: 2,
-    unit: '°C',
-    activeDays: [4, 5, 6],
-    sortOrder: 10,
-    isActive: true,
-  },
-  {
-    name: 'Käsetheke (SB)',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 2,
-    tempMax: 7,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 20,
-    isActive: true,
-  },
-  {
-    name: 'SB-Theke Fleisch & Wurst',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 0,
-    tempMax: 4,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 30,
-    isActive: true,
-  },
-  {
-    name: 'SB-Kühlschrank Frische & MoPro',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 2,
-    tempMax: 6,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 40,
-    isActive: true,
-  },
-  {
-    name: 'SB-TK Obst & Eis',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: -24,
-    tempMax: -18,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 50,
-    isActive: true,
-  },
-  {
-    name: 'SB-TK Gemüse',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: -24,
-    tempMax: -18,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 60,
-    isActive: true,
-  },
-  {
-    name: 'SB-TK Fleisch, Pizza & Brot',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: -24,
-    tempMax: -18,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 70,
-    isActive: true,
-  },
-  {
-    name: 'Lager-TK-Truhe Aufbackbrötchen',
-    bereich: 'Lager',
-    type: 'manual_temp',
-    tempMin: -22,
-    tempMax: -16,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 80,
-    isActive: true,
-  },
-];
-
-const HACCP_CLEANING_GROUPS = [
-  {
-    id: 'daily-shop',
-    title: 'TÄGLICH (IM LADENBETRIEB)',
-    period: 'day',
-    tasks: [
-      { id: 'verkaufstheke-waagen', name: 'Verkaufstheke & Waagen gereinigt' },
-    ],
-  },
-  {
-    id: 'production-days',
-    title: 'NACH NUTZUNG (PRODUKTION)',
-    period: 'day',
-    tasks: [
-      { id: 'wurstkueche', name: 'Wurstküche gereinigt & desinfiziert' },
-      { id: 'messer-werkzeuge', name: 'Messer & Werkzeuge sterilisiert' },
-      { id: 'rauch-kochanlagen', name: 'Rauch- und Kochanlagen gereinigt' },
-    ],
-  },
-  {
-    id: 'weekly',
-    title: 'WÖCHENTLICH',
-    period: 'week',
-    tasks: [
-      { id: 'kuehlhaus-grundreinigung', name: 'Kühlhaus Grundreinigung' },
-    ],
-  },
-];
+const CLEANING_CATEGORY_META = {
+  Täglich: { id: 'daily-shop', title: 'TÄGLICH (IM LADENBETRIEB)', period: 'day', sort: 10 },
+  'Nach Nutzung': { id: 'production-days', title: 'NACH NUTZUNG (PRODUKTION)', period: 'day', sort: 20 },
+  Wöchentlich: { id: 'weekly', title: 'WÖCHENTLICH', period: 'week', sort: 30 },
+};
 
 const haccpState = {
   db: null,
@@ -289,15 +180,15 @@ const haccpState = {
   playClickSound: () => {},
   mode: 'temperatur',
   devices: [],
+  cleaningTasks: [],
   logs: [],
   cleaningDoneBy: '',
   /** @type {Set<string>} */
   pendingCleaningTaskIds: new Set(),
   /** @type {Record<string, { value: number|null, note: string }>} */
   roundEntries: {},
-  editingDeviceId: '',
-  seedingStevesHof: false,
   devicesUnsubscribe: null,
+  cleaningTasksUnsubscribe: null,
   logsUnsubscribe: null,
   initialized: false,
 };
@@ -359,8 +250,8 @@ export function startHaccpLiveSync() {
   if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
   loadHaccpDevicesFromCloud();
+  loadHaccpCleaningTasksFromCloud();
   loadHaccpLogsFromCloud();
-  void seedDefaultHaccpDevicesIfEmpty();
 }
 
 export function activateHaccpTab() {
@@ -387,6 +278,16 @@ function haccpDevicesCollectionPath() {
   if (!tenantId) return null;
   try {
     return getTenantCollectionPath('haccp_geraete');
+  } catch {
+    return null;
+  }
+}
+
+function haccpCleaningTasksCollectionPath() {
+  const tenantId = resolveHaccpTenantId();
+  if (!tenantId) return null;
+  try {
+    return getTenantCollectionPath('haccp_cleaning_tasks');
   } catch {
     return null;
   }
@@ -458,20 +359,65 @@ function isAdvancedHaccpFlyUpgradeEnabled() {
   return resolveCurrentTenantBranding()?.advancedKaeseUpgrade === true;
 }
 
+function cleaningCategoryMeta(category) {
+  const key = String(category || '').trim();
+  if (CLEANING_CATEGORY_META[key]) return CLEANING_CATEGORY_META[key];
+  return {
+    id: slugCategoryId(key || 'weitere'),
+    title: key ? key.toUpperCase() : 'WEITERE',
+    period: 'day',
+    sort: 90,
+  };
+}
+
+function slugCategoryId(value) {
+  return String(value || 'weitere')
+    .toLowerCase()
+    .replace(/[^a-z0-9äöüß]+/gi, '-')
+    .replace(/^-+|-+$/g, '') || 'weitere';
+}
+
+function resolveActiveCleaningTaskDocs() {
+  const cloud = (haccpState.cleaningTasks || [])
+    .filter((task) => task && task.isActive !== false && String(task.name || '').trim());
+  if (cloud.length) return cloud;
+  if (!isAdvancedHaccpFlyUpgradeEnabled()) return DEFAULT_CLEANING_TASK_DOCS;
+  return [
+    ...DEFAULT_CLEANING_TASK_DOCS,
+    { ...FLY_PREVENTION_CLEANING_TASK, category: 'Wöchentlich', period: 'week', sortOrder: 60, isProductionOnly: false },
+  ];
+}
+
 function resolveHaccpCleaningGroups() {
-  if (!isAdvancedHaccpFlyUpgradeEnabled()) return HACCP_CLEANING_GROUPS;
-  return HACCP_CLEANING_GROUPS.map((group) => {
-    if (group.id !== 'weekly') return group;
-    const hasFlyTask = group.tasks.some((task) => task.id === FLY_PREVENTION_CLEANING_TASK.id);
-    if (hasFlyTask) return group;
-    return {
-      ...group,
-      tasks: [
-        ...group.tasks,
-        { ...FLY_PREVENTION_CLEANING_TASK },
-      ],
-    };
+  const byCategory = new Map();
+  resolveActiveCleaningTaskDocs().forEach((task) => {
+    const category = String(task.category || 'Täglich').trim() || 'Täglich';
+    const meta = cleaningCategoryMeta(category);
+    if (!byCategory.has(category)) {
+      byCategory.set(category, {
+        id: meta.id,
+        title: meta.title,
+        period: task.period === 'week' || meta.period === 'week' ? 'week' : 'day',
+        category,
+        sort: meta.sort,
+        tasks: [],
+      });
+    }
+    const group = byCategory.get(category);
+    group.tasks.push({
+      id: String(task.id || haccpDeviceDocId(task.name)),
+      name: String(task.name || '').trim(),
+      sortOrder: Number(task.sortOrder) || 100,
+      isProductionOnly: task.isProductionOnly === true,
+    });
   });
+
+  return Array.from(byCategory.values())
+    .map((group) => ({
+      ...group,
+      tasks: group.tasks.sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name, 'de')),
+    }))
+    .sort((a, b) => (a.sort - b.sort) || a.title.localeCompare(b.title, 'de'));
 }
 
 function resolveVisibleHaccpDevices() {
@@ -578,34 +524,6 @@ function ensureRoundEntry(deviceId) {
     haccpState.roundEntries[deviceId] = { value: null, note: '' };
   }
   return haccpState.roundEntries[deviceId];
-}
-
-function buildStevesHofDevicePayload(device) {
-  const tempMin = device.tempMin != null ? Number(device.tempMin) : null;
-  const tempMax = device.tempMax != null ? Number(device.tempMax) : null;
-  const docId = haccpDeviceDocId(device.name);
-  return {
-    id: docId,
-    name: device.name,
-    bereich: device.bereich,
-    type: 'manual_temp',
-    tempMin,
-    tempMax,
-    unit: device.unit || '°C',
-    activeDays: Array.isArray(device.activeDays) ? device.activeDays : null,
-    sortOrder: device.sortOrder ?? 100,
-    isActive: true,
-    protokollTyp: 'temperatur',
-    geraeteTyp: Number(tempMax) <= -10 ? 'tk' : 'kuehlung',
-    sollMin: tempMin,
-    sollMax: tempMax,
-    einheit: device.unit || '°C',
-    intervall: 'taeglich',
-    aktiv: true,
-    tenantId: resolveHaccpTenantId(),
-    seedVersion: 3,
-    updatedBy: 'haccp-in-app-seed',
-  };
 }
 
 function temperatureRoundLogDocId(dateKey = localDateKey()) {
@@ -768,31 +686,6 @@ function activeHaccpDevices(type) {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
 }
 
-function resolveDefaultHaccpDevicesForSeed() {
-  if (!isAdvancedHaccpFlyUpgradeEnabled()) return DEFAULT_HACCP_DEVICES;
-  return [...DEFAULT_HACCP_DEVICES, ...FLY_PREVENTION_HACCP_DEVICES];
-}
-
-async function seedDefaultHaccpDevicesIfEmpty() {
-  if (!canStartHaccpFirestoreLiveSync()) return;
-  if (!haccpState.db) return;
-  const path = haccpDevicesCollectionPath();
-  if (!path) return;
-  const snap = await haccpState.db.collection(path).limit(1).get();
-  if (!snap.empty) return;
-  try {
-    const batch = haccpState.db.batch();
-    resolveDefaultHaccpDevicesForSeed().forEach((device) => {
-      const ref = haccpState.db.collection(path).doc(haccpDeviceDocId(device.name));
-      batch.set(ref, { ...device, tenantId: resolveHaccpTenantId(), createdAt: serverTimestamp() });
-    });
-    await batch.commit();
-  } catch (err) {
-    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-    console.warn('[CharcuLogic HACCP] Standard-Geräte konnten nicht geseedet werden:', err);
-  }
-}
-
 function loadHaccpDevicesFromCloud() {
   if (!canStartHaccpFirestoreLiveSync()) return;
   if (!haccpState.db) return;
@@ -829,6 +722,24 @@ function loadHaccpLogsFromCloud() {
   });
 }
 
+function loadHaccpCleaningTasksFromCloud() {
+  if (!canStartHaccpFirestoreLiveSync()) return;
+  if (!haccpState.db) return;
+  const path = haccpCleaningTasksCollectionPath();
+  if (!path) return;
+  if (haccpState.cleaningTasksUnsubscribe) {
+    haccpState.cleaningTasksUnsubscribe();
+    haccpState.cleaningTasksUnsubscribe = null;
+  }
+  haccpState.cleaningTasksUnsubscribe = haccpState.db.collection(path).onSnapshot((snapshot) => {
+    haccpState.cleaningTasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    if (haccpState.mode === 'reinigung') renderHaccpDaily();
+  }, (err) => {
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+    console.error('[CharcuLogic HACCP] Reinigungsaufgaben-Sync Fehler:', err);
+  });
+}
+
 function temperatureStatus(device, value) {
   const normalized = normalizeHaccpDevice(device);
   const inRange = tempInRange(normalized, value);
@@ -844,12 +755,6 @@ function requireHaccpDoneBy() {
   }
   syncCharcuLogicActiveEmployee(doneBy);
   return doneBy;
-}
-
-function hasStevesHofStandardDevices() {
-  const requiredIds = STEVESHOF_STANDARD_TEMP_DEVICES.map((device) => haccpDeviceDocId(device.name));
-  const existing = new Set((haccpState.devices || []).map((device) => String(device.id || '')));
-  return requiredIds.every((id) => existing.has(id));
 }
 
 function createHaccpLogId(entry) {
@@ -979,73 +884,6 @@ function stepRoundTemp(deviceId, delta) {
   renderHaccpDaily();
 }
 
-async function seedStevesHofStandardDevices() {
-  const path = haccpDevicesCollectionPath();
-  if (!path || !haccpState.db) {
-    haccpState.showHUD('Offline', 'Einrichten klappt erst wieder mit Verbindung.', '!');
-    return;
-  }
-  if (haccpState.seedingStevesHof) return;
-  if (hasStevesHofStandardDevices()) {
-    haccpState.showHUD('Schon angelegt', 'Die StevesHof-Standardstellen sind bereits vorhanden.');
-    renderHaccpDaily();
-    return;
-  }
-
-  haccpState.verifyAdminAction(async () => {
-    haccpState.seedingStevesHof = true;
-    renderHaccpDaily();
-    try {
-      const tenantId = resolveHaccpTenantId();
-      if (!tenantId) {
-        haccpState.showHUD('Mandant fehlt', 'Bitte zuerst anmelden und den Betrieb wählen.', '!');
-        return;
-      }
-
-      const batch = haccpState.db.batch();
-      const nowIso = new Date().toISOString();
-      const seeded = [];
-      STEVESHOF_STANDARD_TEMP_DEVICES.forEach((device) => {
-        const payload = buildStevesHofDevicePayload(device);
-        const { id, ...docData } = payload;
-        const ref = haccpState.db.collection(path).doc(id);
-        const onlineData = {
-          ...docData,
-          isActive: true,
-          aktiv: true,
-          sortOrder: payload.sortOrder,
-          activeDays: payload.activeDays,
-          updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-        };
-        batch.set(ref, onlineData, { merge: true });
-        seeded.push({ id, ...docData, isActive: true, aktiv: true, updatedAt: nowIso, createdAt: nowIso });
-      });
-      await batch.commit();
-
-      const byId = new Map((haccpState.devices || []).map((entry) => [entry.id, entry]));
-      seeded.forEach((entry) => {
-        byId.set(entry.id, { ...(byId.get(entry.id) || {}), ...entry });
-      });
-      haccpState.devices = Array.from(byId.values());
-
-      haccpState.playClickSound?.();
-      haccpState.showHUD(
-        'Geräte angelegt',
-        `${STEVESHOF_STANDARD_TEMP_DEVICES.length} Laden- und Lager-Kühlstellen sind bereit.`,
-      );
-      renderHaccpDaily();
-    } catch (err) {
-      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-      console.error('[CharcuLogic HACCP] StevesHof-Seed fehlgeschlagen:', err);
-      haccpState.showHUD('Hat nicht geklappt', 'Standard-Geräte konnten nicht angelegt werden. Bitte Rechte prüfen.', '!');
-    } finally {
-      haccpState.seedingStevesHof = false;
-      renderHaccpDaily();
-    }
-  });
-}
-
 async function saveTemperatureRound() {
   if (temperatureRoundSavedToday()) {
     haccpState.showHUD('Schon erledigt', 'Der Temperatur-Rundgang ist für heute bereits gespeichert.');
@@ -1053,7 +891,7 @@ async function saveTemperatureRound() {
   }
   const devices = sortedTemperatureDevices();
   if (!devices.length) {
-    haccpState.showHUD('Keine Kühlstellen', 'Bitte zuerst unter „+“ die Messpunkte einrichten.', '!');
+    haccpState.showHUD('Keine Kühlstellen', 'Bitte im Büro unter „Mein Betrieb“ die Messpunkte einrichten.', '!');
     return;
   }
   if (!allRequiredDevicesCaptured()) {
@@ -1316,154 +1154,6 @@ async function saveLegacyCleaningCheck(deviceId) {
   }
 }
 
-function deactivateHaccpDevice(deviceId) {
-  deactivateHaccpDeviceNormalized(deviceId);
-}
-
-function readActiveDaysFromForm() {
-  const boxes = Array.from(document.querySelectorAll('[data-haccp-active-day]'));
-  if (!boxes.length) return null;
-  const checked = boxes
-    .filter((box) => box.checked)
-    .map((box) => Number(box.dataset.haccpActiveDay))
-    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
-    .sort((a, b) => a - b);
-  // Alle oder keine Haken = jeden Tag aktiv
-  if (checked.length === 0 || checked.length === 7) return null;
-  return checked;
-}
-
-function addHaccpDeviceFromForm() {
-  const path = haccpDevicesCollectionPath();
-  if (!path || !haccpState.writeOrQueueFirestore) {
-    haccpState.showHUD('Offline', 'Einrichten klappt erst wieder mit Verbindung.', '!');
-    return;
-  }
-  const name = document.getElementById('haccp-device-name')?.value.trim();
-  if (!name) {
-    haccpState.showHUD('Name fehlt', 'Bitte Kühlstelle eintragen.', '!');
-    return;
-  }
-  haccpState.verifyAdminAction(async () => {
-    const type = document.getElementById('haccp-device-type')?.value || 'manual_temp';
-    const bereich = document.getElementById('haccp-device-area')?.value.trim() || 'Verkauf';
-    const tempMinRaw = document.getElementById('haccp-device-min')?.value;
-    const tempMaxRaw = document.getElementById('haccp-device-max')?.value;
-    const sortRaw = document.getElementById('haccp-device-sort')?.value;
-    const editingId = haccpState.editingDeviceId || haccpDeviceDocId(name);
-    const tempMin = tempMinRaw === '' ? null : Number(tempMinRaw);
-    const tempMax = tempMaxRaw === '' ? null : Number(tempMaxRaw);
-    const activeDays = readActiveDaysFromForm();
-    const payload = {
-      id: editingId,
-      name,
-      bereich,
-      type,
-      tempMin,
-      tempMax,
-      unit: '°C',
-      activeDays,
-      sortOrder: sortRaw === '' || sortRaw == null ? 100 : Number(sortRaw),
-      isActive: true,
-      protokollTyp: 'temperatur',
-      geraeteTyp: Number(tempMax) <= -10 ? 'tk' : 'kuehlung',
-      sollMin: tempMin,
-      sollMax: tempMax,
-      einheit: '°C',
-      intervall: 'taeglich',
-      aktiv: true,
-      tenantId: resolveHaccpTenantId(),
-    };
-    try {
-      await haccpState.writeOrQueueFirestore({
-        collectionPath: path,
-        docId: editingId,
-        op: 'set',
-        onlineData: { ...payload, updatedAt: serverTimestamp() },
-        queueData: { ...payload, updatedAt: new Date().toISOString() },
-        offlineMessage: 'Kühlstelle wird nachträglich synchronisiert.',
-      });
-      haccpState.showHUD('Gespeichert', `${name} ist für den Temperatur-Rundgang eingerichtet.`);
-      haccpState.editingDeviceId = '';
-      ['haccp-device-name', 'haccp-device-min', 'haccp-device-max', 'haccp-device-sort'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-      });
-      document.querySelectorAll('[data-haccp-active-day]').forEach((box) => {
-        box.checked = true;
-      });
-      renderHaccpDaily();
-    } catch (err) {
-      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-      console.error('[CharcuLogic HACCP] Gerät anlegen fehlgeschlagen:', err);
-      haccpState.showHUD('Hat nicht geklappt', 'Kühlstelle konnte nicht gespeichert werden.', '!');
-    }
-  });
-}
-
-function editHaccpDevice(deviceId) {
-  const device = resolveVisibleHaccpDevices()
-    .map((entry) => normalizeHaccpDevice(entry))
-    .find((entry) => entry.id === deviceId);
-  if (!device) return;
-  haccpState.editingDeviceId = device.id;
-  haccpState.mode = 'geraete';
-  document.querySelectorAll('.haccp-mode-tab').forEach((entry) => {
-    entry.classList.toggle('active-haccp-mode', entry.dataset.haccpMode === 'geraete');
-  });
-  renderHaccpDaily();
-  requestAnimationFrame(() => {
-    const nameEl = document.getElementById('haccp-device-name');
-    const typeEl = document.getElementById('haccp-device-type');
-    const areaEl = document.getElementById('haccp-device-area');
-    const minEl = document.getElementById('haccp-device-min');
-    const maxEl = document.getElementById('haccp-device-max');
-    const sortEl = document.getElementById('haccp-device-sort');
-    if (nameEl) nameEl.value = device.name || '';
-    if (typeEl) typeEl.value = 'manual_temp';
-    if (areaEl) areaEl.value = device.bereich || 'Verkauf';
-    if (minEl) minEl.value = device.tempMin == null ? '' : String(device.tempMin);
-    if (maxEl) maxEl.value = device.tempMax == null ? '' : String(device.tempMax);
-    if (sortEl) sortEl.value = String(device.sortOrder ?? 100);
-    const days = Array.isArray(device.activeDays) && device.activeDays.length
-      ? device.activeDays
-      : [0, 1, 2, 3, 4, 5, 6];
-    document.querySelectorAll('[data-haccp-active-day]').forEach((box) => {
-      box.checked = days.includes(Number(box.dataset.haccpActiveDay));
-    });
-  });
-}
-
-function deactivateHaccpDeviceNormalized(deviceId) {
-  haccpState.verifyAdminAction(async () => {
-    try {
-      const path = haccpDevicesCollectionPath();
-      if (!path || !haccpState.writeOrQueueFirestore) return;
-      const nowIso = new Date().toISOString();
-      await haccpState.writeOrQueueFirestore({
-        collectionPath: path,
-        docId: deviceId,
-        onlineData: {
-          aktiv: false,
-          isActive: false,
-          updatedAt: serverTimestamp(),
-        },
-        queueData: {
-          aktiv: false,
-          isActive: false,
-          updatedAt: nowIso,
-        },
-        offlineMessage: 'Änderung wird nachträglich synchronisiert.',
-      });
-      haccpState.showHUD('Deaktiviert', 'Kühlstelle wurde deaktiviert.');
-    } catch (err) {
-      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-      console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-      haccpState.showHUD('Hat nicht geklappt', 'Kühlstelle konnte nicht deaktiviert werden. Bitte im Büro prüfen.', '!');
-    }
-  });
-}
-
 function restoreHaccpDraftFields() {
   const container = document.getElementById('haccp-daily-container');
   if (!container) return;
@@ -1509,15 +1199,18 @@ function renderCleaningTaskButton(task, group) {
 }
 
 function renderCleaningChecks() {
+  const groups = resolveHaccpCleaningGroups();
   const pendingCount = haccpState.pendingCleaningTaskIds?.size || 0;
+  const fromCloud = (haccpState.cleaningTasks || []).some((task) => task?.isActive !== false);
   return `
     <div class="haccp-daily-intro">
       <strong>Reinigung</strong>
       <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
     </div>
     ${renderActiveEmployeeChip()}
+    ${groups.length ? `
     <div class="haccp-cleaning-groups">
-      ${resolveHaccpCleaningGroups().map((group) => `
+      ${groups.map((group) => `
         <section class="haccp-cleaning-group" aria-label="${escapeHtml(group.title)}">
           <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
           <div class="haccp-cleaning-group-list">
@@ -1527,7 +1220,7 @@ function renderCleaningChecks() {
       `).join('')}
     </div>
     <div class="haccp-round-footer">
-      <div class="haccp-round-progress">${pendingCount} Punkt${pendingCount === 1 ? '' : 'e'} zum Speichern markiert</div>
+      <div class="haccp-round-progress">${pendingCount} Punkt${pendingCount === 1 ? '' : 'e'} zum Speichern markiert${!fromCloud ? ' · Standardliste (noch nicht im Büro hinterlegt)' : ''}</div>
       <button
         type="button"
         class="btn btn-primary btn-submit-haccp"
@@ -1536,26 +1229,18 @@ function renderCleaningChecks() {
         REINIGUNG SPEICHERN
       </button>
     </div>
+    ` : `
+    <div class="haccp-daily-intro">
+      <strong>Keine Aufgaben</strong>
+      <span>Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ Reinigungsaufgaben anlegen.</span>
+    </div>
+    `}
   `;
 }
 
 function renderAmpelClass(inRange) {
   if (inRange == null) return '';
   return inRange ? ' haccp-task-card--ampel-ok' : ' haccp-task-card--ampel-bad';
-}
-
-function renderStevesHofSeedButton({ prominent = false } = {}) {
-  if (hasStevesHofStandardDevices()) return '';
-  const busy = haccpState.seedingStevesHof;
-  return `
-    <button
-      type="button"
-      class="btn btn-primary haccp-seed-btn${prominent ? ' haccp-seed-btn--prominent' : ''}"
-      data-haccp-seed-steveshof="1"
-      ${busy ? 'disabled' : ''}>
-      ${busy ? 'Wird angelegt…' : '⚡ StevesHof Standard-Geräte initial anlegen'}
-    </button>
-  `;
 }
 
 function renderManualDeviceCard(device, { locked = false } = {}) {
@@ -1624,14 +1309,8 @@ function renderManualSections(locked) {
         <strong>Laden &amp; Lager</strong>
         <span>${anyConfigured
     ? 'Heute sind laut Plan keine Kühlstellen aktiv (z. B. Fleischtheke nur Do–Sa).'
-    : 'Noch keine Messpunkte. Unter „+“ oder mit dem StevesHof-Button legen wir sie an.'}</span>
+    : 'Noch keine Messpunkte. Im Büro unter „Mein Betrieb → HACCP & Hygiene Setup“ einrichten.'}</span>
       </div>
-      ${anyConfigured || hasStevesHofStandardDevices() ? '' : `
-        <div class="haccp-seed-panel">
-          ${renderStevesHofSeedButton({ prominent: true })}
-          <p class="haccp-seed-hint">Legt die 8 Laden- und Lager-Kühlstellen mit Sollwerten und Wochentagen an (nur Admin).</p>
-        </div>
-      `}
     `;
   }
   const byArea = HACCP_BEREICHE
@@ -1666,11 +1345,7 @@ function renderTemperatureChecks() {
     return `
       <div class="haccp-daily-intro">
         <strong>Temperatur-Rundgang</strong>
-        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Mit dem Button unten legen wir die StevesHof-Standardstellen an – oder unter „+“ einzeln.</span>
-      </div>
-      <div class="haccp-seed-panel">
-        ${renderStevesHofSeedButton({ prominent: true })}
-        <p class="haccp-seed-hint">8 Laden- und Lager-Kühlstellen inkl. Fleischtheke (Do–Sa). Nur mit Admin-Recht.</p>
+        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ die Messpunkte anlegen.</span>
       </div>
     `;
   }
@@ -1704,13 +1379,6 @@ function renderHaccpDaily() {
   const container = document.getElementById('haccp-daily-container');
   if (!container) return;
 
-  if (haccpState.mode === 'temperatur') {
-    container.innerHTML = renderTemperatureChecks();
-    bindRenderedHaccpActions(container);
-    restoreHaccpDraftFields();
-    return;
-  }
-
   if (haccpState.mode === 'reinigung') {
     container.innerHTML = renderCleaningChecks();
     bindRenderedHaccpActions(container);
@@ -1718,79 +1386,11 @@ function renderHaccpDaily() {
     return;
   }
 
-  const setupDevices = resolveVisibleHaccpDevices()
-    .map((entry) => normalizeHaccpDevice(entry))
-    .sort((a, b) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name), 'de'));
-
-  container.innerHTML = `
-    <div class="haccp-device-form">
-      <div class="haccp-setup-note">
-        <strong>Kühlstellen einrichten</strong>
-        <span>${haccpState.editingDeviceId ? 'Bestehende Kühlstelle bearbeiten.' : 'Neue Messpunkte für den Temperatur-Rundgang anlegen. Nur ändern, wenn im Laden etwas neu dazukommt.'}</span>
-      </div>
-      ${hasStevesHofStandardDevices() ? '' : `
-      <div class="haccp-seed-panel">
-        ${renderStevesHofSeedButton({ prominent: true })}
-        <p class="haccp-seed-hint">Schreibt die 8 StevesHof-Prüfstellen (Laden &amp; Lager) mit Sollwerten und Wochentagen in diesen Betrieb.</p>
-      </div>
-      `}
-      <input id="haccp-device-name" class="input-text-touch" placeholder="Name der Kühlstelle" autocomplete="off">
-      <div class="batch-input-grid">
-        <select id="haccp-device-type" class="input-text-touch" aria-label="Gerätetyp">
-          ${HACCP_DEVICE_TYPES.map((entry) => `<option value="${escapeHtml(entry.value)}">${escapeHtml(entry.label)}</option>`).join('')}
-        </select>
-        <select id="haccp-device-area" class="input-text-touch" aria-label="Bereich">
-          ${HACCP_BEREICHE.map((bereich) => `<option value="${escapeHtml(bereich)}">${escapeHtml(bereich)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="batch-input-grid">
-        <input id="haccp-device-min" type="number" inputmode="decimal" class="input-text-touch" step="0.5" placeholder="Min °C">
-        <input id="haccp-device-max" type="number" inputmode="decimal" class="input-text-touch" step="0.5" placeholder="Max °C">
-      </div>
-      <input id="haccp-device-sort" type="number" inputmode="numeric" class="input-text-touch" step="1" placeholder="Reihenfolge (z. B. 10)">
-      <div class="haccp-weekday-grid" role="group" aria-label="Aktive Wochentage">
-        <div class="haccp-weekday-label">Aktive Tage (leer/alle = jeden Tag)</div>
-        <div class="haccp-weekday-checks">
-          ${WEEKDAY_LABELS.map((label, day) => `
-            <label class="haccp-weekday-check">
-              <input type="checkbox" data-haccp-active-day="${day}" checked>
-              <span>${escapeHtml(label)}</span>
-            </label>
-          `).join('')}
-        </div>
-      </div>
-      <button class="btn btn-primary" type="button" id="btn-add-haccp-device">
-        ${haccpState.editingDeviceId ? 'Änderung speichern' : 'Einrichtung speichern'}
-      </button>
-      ${haccpState.editingDeviceId ? '<button class="btn" type="button" id="btn-cancel-haccp-edit">Abbrechen</button>' : ''}
-      <div class="utility-list">
-        ${setupDevices.map((device) => `
-          <div class="utility-row">
-            <div class="utility-row-title">${escapeHtml(device.name)}</div>
-            <div class="utility-row-meta">
-              ${escapeHtml(device.type || device.protokollTyp || '')}
-              · ${escapeHtml(device.bereich || '')}
-              · ${escapeHtml(formatSollRange(device))}
-              · ${escapeHtml(formatActiveDaysLabel(device))}
-              · ${device.localFlyFallback ? 'lokal (Upgrade)' : (device.isActive === false ? 'inaktiv' : 'aktiv')}
-            </div>
-            ${device.isActive === false ? '' : `
-              <div class="utility-row-actions">
-                ${isTemperatureDeviceType(device.type) ? `<button class="btn-danger-small" type="button" data-haccp-edit="${escapeHtml(device.id)}">Bearbeiten</button>` : ''}
-                <button class="btn-danger-small" type="button" data-haccp-deactivate="${escapeHtml(device.id)}">Deaktivieren</button>
-              </div>
-            `}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-  document.getElementById('btn-add-haccp-device')?.addEventListener('click', addHaccpDeviceFromForm);
-  document.getElementById('btn-cancel-haccp-edit')?.addEventListener('click', () => {
-    haccpState.editingDeviceId = '';
-    renderHaccpDaily();
-  });
+  // PWA: nur Temperatur / Reinigung – Geräte-Setup liegt im Dev-Dashboard.
+  haccpState.mode = 'temperatur';
+  container.innerHTML = renderTemperatureChecks();
   bindRenderedHaccpActions(container);
+  restoreHaccpDraftFields();
 }
 
 function updateHaccpTemperatureAmpel(deviceId) {
@@ -1829,12 +1429,6 @@ function bindRenderedHaccpActions(container) {
   container.querySelectorAll('[data-haccp-temp-input]').forEach((input) => {
     updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
   });
-  container.querySelectorAll('[data-haccp-deactivate]').forEach((button) => {
-    button.addEventListener('click', () => deactivateHaccpDevice(button.dataset.haccpDeactivate));
-  });
-  container.querySelectorAll('[data-haccp-edit]').forEach((button) => {
-    button.addEventListener('click', () => editHaccpDevice(button.dataset.haccpEdit));
-  });
 }
 
 function bindStaticHaccpControls() {
@@ -1842,11 +1436,6 @@ function bindStaticHaccpControls() {
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
     dailyContainer.dataset.haccpDelegated = '1';
     dailyContainer.addEventListener('click', (event) => {
-      const seedBtn = event.target.closest('[data-haccp-seed-steveshof]');
-      if (seedBtn) {
-        void seedStevesHofStandardDevices();
-        return;
-      }
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');
       if (saveRoundBtn) {
         void saveTemperatureRound();

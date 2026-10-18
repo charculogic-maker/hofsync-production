@@ -458,6 +458,27 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // HACCP REINIGUNGS-AUFGABEN – Admin schreibt, Laden liest
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_cleaning_tasks/{document} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isAdmin(tenantId)
+        && hasOnly([
+          'id', 'name', 'category', 'period',
+          'sortOrder', 'isProductionOnly', 'isActive',
+          'tenantId', 'updatedAt', 'createdAt',
+          'updatedBy'
+        ])
+        && isNonEmptyString(request.resource.data.name)
+        && isNonEmptyString(request.resource.data.category)
+        && request.resource.data.tenantId == tenantId;
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
     // HACCP-LOGS – Validierte Protokolleinträge (unveränderlich nach Anlage)
     // =========================================================================
 

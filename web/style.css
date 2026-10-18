@@ -4892,7 +4892,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .haccp-mode-tabs {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -14474,4 +14474,95 @@ body.role-firebase-auth #team-login-card {
 
 [data-theme="dark"] .counter-allergen-badge--free {
   color: #86efac;
+}
+
+/* ===== Dev-Dashboard HACCP Admin ===== */
+.dev-dashboard-haccp-grid {
+  display: grid;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.dev-dashboard-haccp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--light-bg, #f8fafc);
+}
+
+.dev-dashboard-haccp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dev-dashboard-haccp-form-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.dev-dashboard-haccp-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.dev-dashboard-haccp-form-actions,
+.dev-dashboard-haccp-actions,
+.dev-dashboard-haccp-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dev-dashboard-haccp-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dev-dashboard-haccp-meta {
+  margin-top: 2px;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
+.dev-dashboard-secondary-btn,
+.dev-dashboard-danger-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--surface-color, #fff);
+  color: var(--text-dark, #0f172a);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dev-dashboard-danger-btn {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+}
+
+.dev-dashboard-field select {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: #fff;
+}
+
+@media (min-width: 960px) {
+  .dev-dashboard-haccp-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
 }

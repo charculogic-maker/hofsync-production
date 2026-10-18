@@ -43,6 +43,10 @@ import { getNamedTenantCollection, initTenantDb } from './tenant-db.js';
 import { persistProductMasterToFirestore } from './product-master.js';
 import { sanitizeProductName } from './utils.js';
 import {
+  refreshDevDashboardHaccpAdmin,
+  syncDevDashboardHaccpAdmin,
+} from './dev-dashboard-haccp.js';
+import {
   AUDIT_LOGS_COLLECTION,
   MHD_AUDIT_COLLECTION,
   berlinAddDaysIso,
@@ -2412,6 +2416,15 @@ function bindTenantSelector(dashboardStateRef, tenants) {
     renderOverviewCards(dashboardStateRef);
     renderAuditTable(dashboardStateRef.selectedTenantId);
     void refreshEmployeeTable(dashboardStateRef);
+    if (dashboardStateRef.activeTab === 'settings') {
+      syncDevDashboardHaccpAdmin({
+        db: dashboardStateRef.db,
+        tenantId: dashboardStateRef.selectedTenantId,
+        recordAudit,
+      });
+    } else {
+      refreshDevDashboardHaccpAdmin();
+    }
   });
 }
 
@@ -2496,6 +2509,11 @@ function setDevDashboardTab(tabKey = 'overview') {
   }
   if (nextTab === 'settings') {
     fillSettingsForm(dashboardState);
+    syncDevDashboardHaccpAdmin({
+      db: dashboardState.db,
+      tenantId: dashboardState.selectedTenantId,
+      recordAudit,
+    });
   }
   if (nextTab === 'audit') {
     bindMovementReportControls();
@@ -2596,7 +2614,14 @@ function subscribeSingleTenant(db, tenantId, statusEl) {
         ? { ...data.enabledModules }
         : {};
       renderOverviewCards(dashboardState);
-      if (dashboardState.activeTab === 'settings') fillSettingsForm(dashboardState);
+      if (dashboardState.activeTab === 'settings') {
+        fillSettingsForm(dashboardState);
+        syncDevDashboardHaccpAdmin({
+          db: dashboardState.db,
+          tenantId: dashboardState.selectedTenantId,
+          recordAudit,
+        });
+      }
       if (statusEl) statusEl.textContent = `Betrieb: ${dashboardState.tenantDisplayName}`;
     },
     (err) => {
@@ -2679,6 +2704,11 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindDevDashboardTabs();
     bindOverviewJumpLinks();
     bindSettingsForm(dashboardState);
+    syncDevDashboardHaccpAdmin({
+      db,
+      tenantId: dashboardState.selectedTenantId,
+      recordAudit,
+    });
     bindMhdCardUiModuleToggles(dashboardState);
     bindUserFilters(dashboardState);
     bindMovementReportControls();

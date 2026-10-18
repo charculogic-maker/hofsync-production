@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-cleaning-v1';
+const CACHE_NAME = 'charculogic-v20261018-haccp-admin-dashboard-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – HACCP Tab Sichtbarkeit + Modul-Toggle Sanitize */
-const RELEASED_AT = '2026-10-18T17:45:00+02:00';
+/** Release – HACCP Admin im Dev-Dashboard, PWA ohne Geräte-Setup */
+const RELEASED_AT = '2026-10-18T18:30:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -55,6 +55,7 @@ const CRITICAL_ASSETS = [
   '/traceability.js',
   '/tenant-modules.js',
   '/dev-dashboard.js',
+  '/dev-dashboard-haccp.js',
   '/fast-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',
