@@ -1844,7 +1844,7 @@ function generateHaccpPrintView() {
           <td>${escapeHtml(entry.doneBy || '-')}</td>
           <td class="${row.status === 'ok' || row.status === 'ruhetag' ? 'status-ok' : 'status-warn'}">${escapeHtml(row.status === 'ok' ? 'OK' : (row.status || 'Erfasst'))}</td>
           <td>${escapeHtml(row.massnahme || '-')}</td>
-        </tr>`;
+        </tr>`);
     }
     return [`
     <tr>
