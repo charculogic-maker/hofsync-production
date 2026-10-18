@@ -16,6 +16,7 @@ import {
   formatDateDe,
   formatLabelTitle,
   planAverySheet,
+  planAverySheets,
   resolveQueueCut,
   storageFootLine,
   storageHintForCut,
@@ -83,6 +84,25 @@ describe('Avery 3475 labels module', () => {
     expect(plan.capacity).to.equal(5);
     expect(plan.filledCount).to.equal(5);
     expect(plan.overflow).to.equal(5);
+    expect(plan.sheetCount).to.equal(2);
+  });
+
+  it('splits overflow into additional sheets (startSlot only on sheet 1)', () => {
+    const queue = [{ cutId: 'tr-r2-hack', qty: 27 }];
+    const multi = planAverySheets({ queue, startSlot: 1 });
+    expect(multi.sheetCount).to.equal(2);
+    expect(multi.totalQueued).to.equal(27);
+    expect(multi.sheets[0].filledCount).to.equal(24);
+    expect(multi.sheets[0].full).to.equal(true);
+    expect(multi.sheets[1].startSlot).to.equal(1);
+    expect(multi.sheets[1].filledCount).to.equal(3);
+    expect(multi.sheets[1].full).to.equal(false);
+
+    const partial = planAverySheets({ queue: [{ cutId: 'tr-r2-hack', qty: 10 }], startSlot: 20 });
+    expect(partial.sheetCount).to.equal(2);
+    expect(partial.sheets[0].emptyCount).to.equal(19);
+    expect(partial.sheets[0].filledCount).to.equal(5);
+    expect(partial.sheets[1].filledCount).to.equal(5);
   });
 
   it('uses colder storage hint for Innereien', () => {
