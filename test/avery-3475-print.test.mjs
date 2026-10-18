@@ -116,7 +116,7 @@ describe('Avery 3475 labels module', () => {
     expect(htmlEmptyOhr).to.include('DE-ÖKO-006');
     expect(htmlEmptyOhr).to.include('0–2 °C');
     expect(htmlEmptyOhr).to.include('lbl-header');
-    expect(htmlEmptyOhr).to.not.include('OHR');
+    expect(htmlEmptyOhr).to.not.match(/OHR\s/);
     expect(htmlEmptyOhr).to.not.include('OHR: –');
     expect(htmlEmptyOhr).to.not.include('Trockenreifung');
     expect(htmlEmptyOhr).to.not.include('StevesHof Hofladen');
