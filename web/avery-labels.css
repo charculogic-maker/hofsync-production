@@ -310,16 +310,6 @@
   color: var(--text-muted, #64748b);
 }
 
-.avery-overflow-warn {
-  margin: 8px 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b;
-  font-weight: 800;
-  font-size: 13px;
-}
-
 /*
  * Live-Vorschau: stabiles A4-Raster, horizontal scrollbar auf dem Handy.
  * min-width 640px verhindert Zusammendrücken / LOT-Ellipsis.
