@@ -8,10 +8,6 @@ export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
 const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
-/** Vorbereitetes Druck-HTML (ohne DOM-Bau im Klick) – für iOS/PWA window.open */
-let cachedPrintDocumentHtml = '';
-
-
 /**
  * @typedef {{
  *   id: string,
@@ -21,6 +17,19 @@ let cachedPrintDocumentHtml = '';
  *   trim?: boolean,
  *   artNr?: string,
  * }} AveryCut
+ */
+
+/**
+ * @typedef {{
+ *   sheetIndex: number,
+ *   startSlot: number,
+ *   emptyCount: number,
+ *   labelsOnSheet: AveryCut[],
+ *   filledCount: number,
+ *   usage: number,
+ *   full: boolean,
+ *   capacity: number,
+ * }} AverySheetPlan
  */
 
 /**
@@ -134,11 +143,12 @@ const DEFAULT_HEADER = Object.freeze({
  * }} AveryQueueRow
  */
 
-/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, activeTab: string, initialized: boolean }} */
+/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean }} */
 const state = {
   header: { ...DEFAULT_HEADER },
   queue: [],
   startSlot: 1,
+  previewSheetIndex: 0,
   activeTab: 'schultern',
   initialized: false,
 };
@@ -238,26 +248,97 @@ export function expandQueueToLabels(queue = []) {
 }
 
 /**
- * Plant Offset + Labels für den aktiven Bogen (max. 24 Nutzen).
+ * Zerlegt die Druckliste in einen oder mehrere Avery-Bögen (je 24 Nutzen).
+ * Bogen 1 respektiert startSlot (angefangener Bogen); Folge-Bögen starten bei 1.
+ * @param {{ queue?: AveryQueueRow[], startSlot?: number }} input
+ */
+export function planAverySheets(input = {}) {
+  const startSlot = Math.min(
+    AVERY_LABELS_PER_SHEET,
+    Math.max(1, Number.parseInt(String(input.startSlot ?? 1), 10) || 1),
+  );
+  const allLabels = expandQueueToLabels(input.queue || []);
+  /** @type {AverySheetPlan[]} */
+  const sheets = [];
+  let offset = 0;
+
+  const firstCapacity = AVERY_LABELS_PER_SHEET - startSlot + 1;
+  const firstLabels = allLabels.slice(offset, offset + firstCapacity);
+  offset += firstLabels.length;
+  sheets.push({
+    sheetIndex: 0,
+    startSlot,
+    emptyCount: startSlot - 1,
+    labelsOnSheet: firstLabels,
+    filledCount: firstLabels.length,
+    usage: startSlot - 1 + firstLabels.length,
+    full: startSlot - 1 + firstLabels.length >= AVERY_LABELS_PER_SHEET,
+    capacity: firstCapacity,
+  });
+
+  while (offset < allLabels.length) {
+    const labelsOnSheet = allLabels.slice(offset, offset + AVERY_LABELS_PER_SHEET);
+    offset += labelsOnSheet.length;
+    sheets.push({
+      sheetIndex: sheets.length,
+      startSlot: 1,
+      emptyCount: 0,
+      labelsOnSheet,
+      filledCount: labelsOnSheet.length,
+      usage: labelsOnSheet.length,
+      full: labelsOnSheet.length >= AVERY_LABELS_PER_SHEET,
+      capacity: AVERY_LABELS_PER_SHEET,
+    });
+  }
+
+  return {
+    sheets,
+    sheetCount: sheets.length,
+    totalQueued: allLabels.length,
+    startSlot,
+  };
+}
+
+/**
+ * Plant den ersten Bogen (+ overflow = Etiketten auf Folge-Bögen).
  * @param {{ queue?: AveryQueueRow[], startSlot?: number }} input
  */
 export function planAverySheet(input = {}) {
-  const startSlot = Math.min(AVERY_LABELS_PER_SHEET, Math.max(1, Number.parseInt(String(input.startSlot ?? 1), 10) || 1));
-  const allLabels = expandQueueToLabels(input.queue || []);
-  const capacity = AVERY_LABELS_PER_SHEET - startSlot + 1;
-  const onSheet = allLabels.slice(0, capacity);
-  const overflow = Math.max(0, allLabels.length - capacity);
+  const multi = planAverySheets(input);
+  const first = multi.sheets[0];
+  const overflow = Math.max(0, multi.totalQueued - first.filledCount);
   return {
-    startSlot,
-    emptyCount: startSlot - 1,
-    filledCount: onSheet.length,
-    labelsOnSheet: onSheet,
-    totalQueued: allLabels.length,
-    capacity,
+    startSlot: first.startSlot,
+    emptyCount: first.emptyCount,
+    filledCount: first.filledCount,
+    labelsOnSheet: first.labelsOnSheet,
+    totalQueued: multi.totalQueued,
+    capacity: first.capacity,
     overflow,
-    usage: startSlot - 1 + onSheet.length,
-    full: startSlot - 1 + onSheet.length >= AVERY_LABELS_PER_SHEET,
+    usage: first.usage,
+    full: first.full,
+    sheetCount: multi.sheetCount,
+    sheets: multi.sheets,
   };
+}
+
+/**
+ * @param {AverySheetPlan} sheetPlan
+ * @param {Record<string, string|boolean>} header
+ * @param {string} lot
+ */
+function buildSheetPrintCellsHtml(sheetPlan, header, lot) {
+  const printCells = [];
+  for (let i = 0; i < sheetPlan.emptyCount; i += 1) {
+    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
+  }
+  sheetPlan.labelsOnSheet.forEach((cut) => {
+    printCells.push(`<div class="avery-label">${buildLabelHtml(cut, header, lot)}</div>`);
+  });
+  while (printCells.length < AVERY_LABELS_PER_SHEET) {
+    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
+  }
+  return printCells.join('');
 }
 
 function persistDraft() {
@@ -408,14 +489,20 @@ export function syncTrimInputs() {
 export function resetAverySheet() {
   state.queue = [];
   state.startSlot = 1;
+  state.previewSheetIndex = 0;
   persistDraft();
   renderAll();
   window.showToast?.('Etikettenbogen zurückgesetzt.', 'success');
 }
 
 function fillRestWithHack() {
-  const plan = planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-  const free = AVERY_LABELS_PER_SHEET - plan.usage;
+  const multi = planAverySheets({ queue: state.queue, startSlot: state.startSlot });
+  let sheet = multi.sheets[Math.min(state.previewSheetIndex, multi.sheets.length - 1)] || multi.sheets[0];
+  // Voller Vorschau-Bogen → letzten (angebrochenen) Bogen füllen
+  if (sheet.full) {
+    sheet = multi.sheets[multi.sheets.length - 1];
+  }
+  const free = AVERY_LABELS_PER_SHEET - sheet.usage;
   if (free <= 0) {
     window.showToast?.('Dieser Bogen ist schon voll.', 'info');
     return;
@@ -545,15 +632,41 @@ function renderSheetPreview() {
   const sheet = document.getElementById('avery-sheet-preview');
   const gaugeFill = document.getElementById('avery-gauge-fill');
   const gaugeText = document.getElementById('avery-gauge-text');
-  const overflowEl = document.getElementById('avery-overflow-warn');
+  const statusEl = document.getElementById('avery-overflow-warn');
+  const sheetTabs = document.getElementById('avery-sheet-tabs');
   if (!sheet) return;
 
   const lot = buildAveryLot(state.header);
-  const plan = planAverySheet({ queue: state.queue, startSlot: state.startSlot });
+  const multi = planAverySheets({ queue: state.queue, startSlot: state.startSlot });
+  if (state.previewSheetIndex >= multi.sheetCount) {
+    state.previewSheetIndex = Math.max(0, multi.sheetCount - 1);
+  }
+  const previewIdx = state.previewSheetIndex;
+  const plan = multi.sheets[previewIdx] || multi.sheets[0];
+  const isFirstSheet = plan.sheetIndex === 0;
+
+  if (sheetTabs) {
+    if (multi.sheetCount <= 1) {
+      sheetTabs.hidden = true;
+      sheetTabs.innerHTML = '';
+    } else {
+      sheetTabs.hidden = false;
+      sheetTabs.innerHTML = multi.sheets.map((s) => `
+        <button
+          type="button"
+          class="avery-sheet-tab${s.sheetIndex === previewIdx ? ' is-active' : ''}"
+          data-avery-sheet-tab="${s.sheetIndex}"
+          aria-pressed="${s.sheetIndex === previewIdx ? 'true' : 'false'}"
+        >Bogen ${s.sheetIndex + 1} · ${s.filledCount}/${AVERY_LABELS_PER_SHEET}</button>
+      `).join('');
+    }
+  }
+
   const cells = [];
   for (let i = 1; i <= AVERY_LABELS_PER_SHEET; i += 1) {
-    const isEmptyOffset = i < state.startSlot;
-    const labelIndex = i - state.startSlot;
+    const slotStart = plan.startSlot;
+    const isEmptyOffset = i < slotStart;
+    const labelIndex = i - slotStart;
     const cut = !isEmptyOffset && labelIndex < plan.labelsOnSheet.length
       ? plan.labelsOnSheet[labelIndex]
       : null;
@@ -562,59 +675,77 @@ function renderSheetPreview() {
     if (isEmptyOffset) cls += ' is-offset';
     else if (used) cls += ' is-filled';
     else cls += ' is-free';
-    if (i === state.startSlot) cls += ' is-start';
+    if (isFirstSheet && i === state.startSlot) cls += ' is-start';
     const inner = cut
       ? buildLabelHtml(cut, state.header, lot)
       : `<span class="avery-slot-num">${i}</span>`;
-    cells.push(`<button type="button" class="${cls}" data-avery-slot="${i}" aria-label="Start-Slot ${i}">${inner}</button>`);
+    // Start-Slot nur auf Bogen 1 setzen
+    if (isFirstSheet) {
+      cells.push(`<button type="button" class="${cls}" data-avery-slot="${i}" aria-label="Start-Slot ${i}">${inner}</button>`);
+    } else {
+      cells.push(`<div class="${cls}" aria-hidden="true">${inner}</div>`);
+    }
   }
   sheet.innerHTML = cells.join('');
 
   const printArea = ensureAveryPrintArea();
-  const printHost = printArea.querySelector('.avery-sheet') || printArea;
-  const printCells = [];
-  for (let i = 0; i < plan.emptyCount; i += 1) {
-    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
-  }
-  plan.labelsOnSheet.forEach((cut) => {
-    printCells.push(`<div class="avery-label">${buildLabelHtml(cut, state.header, lot)}</div>`);
-  });
-  while (printCells.length < AVERY_LABELS_PER_SHEET) {
-    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
-  }
-  printHost.innerHTML = printCells.join('');
-  cachedPrintDocumentHtml = buildAveryPrintDocumentHtml(printCells.join(''));
+  printArea.innerHTML = multi.sheets.map((sheetPlan, idx) => {
+    const cellsHtml = buildSheetPrintCellsHtml(sheetPlan, state.header, lot);
+    const cont = idx > 0 ? ' avery-sheet-continued' : '';
+    const idAttr = idx === 0 ? ' id="avery-sheet-print"' : '';
+    return `<div class="avery-sheet${cont}"${idAttr}>${cellsHtml}</div>`;
+  }).join('');
 
   const usagePct = Math.round((plan.usage / AVERY_LABELS_PER_SHEET) * 100);
   if (gaugeFill) gaugeFill.style.width = `${Math.min(100, usagePct)}%`;
   if (gaugeText) {
-    gaugeText.textContent = `${plan.usage} / ${AVERY_LABELS_PER_SHEET} Nutzen · Start ${state.startSlot}`;
+    const sheetLabel = multi.sheetCount > 1
+      ? `Bogen ${previewIdx + 1}/${multi.sheetCount}`
+      : 'Bogen';
+    gaugeText.textContent = `${sheetLabel}: ${plan.usage} / ${AVERY_LABELS_PER_SHEET} Nutzen`
+      + (isFirstSheet ? ` · Start ${state.startSlot}` : '');
   }
-  if (overflowEl) {
-    if (plan.overflow > 0) {
-      overflowEl.hidden = false;
-      overflowEl.textContent = `Überlauf: ${plan.overflow} Etikett${plan.overflow === 1 ? '' : 'en'} passen nicht mehr auf diesen Bogen.`;
+  if (statusEl) {
+    if (multi.sheetCount > 1) {
+      statusEl.hidden = false;
+      statusEl.classList.add('is-multi');
+      statusEl.textContent = `${multi.sheetCount} Bögen · ${multi.totalQueued} Etiketten — wir drucken alle Bögen nacheinander.`;
     } else {
-      overflowEl.hidden = true;
-      overflowEl.textContent = '';
+      statusEl.hidden = true;
+      statusEl.classList.remove('is-multi');
+      statusEl.textContent = '';
     }
   }
 
-  // iOS Safari: Druckbogen + body-Klasse vor dem Klick fertig machen
+  const printBtn = document.getElementById('btn-avery-print-sheet');
+  if (printBtn) {
+    printBtn.textContent = multi.sheetCount > 1
+      ? `🖨️ ${multi.sheetCount} Bögen drucken`
+      : '🖨️ Etikettenbogen drucken';
+  }
+
   syncPrintReadyState(plan);
 }
 
 /**
  * DOM-Ohrmarke ist Quelle der Wahrheit (verhindert state/DOM-Drift).
- * @param {ReturnType<typeof planAverySheet>|null} [plan]
+ * @param {AverySheetPlan|null} [plan]
  */
 function getAveryPrintReadiness(plan = null) {
   const ohrDom = String(document.getElementById('avery-ohrmarke')?.value || '').trim();
   state.header.ohrmarke = ohrDom;
-  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-  const hasLabels = sheetPlan.filledCount > 0;
+  const multi = planAverySheets({ queue: state.queue, startSlot: state.startSlot });
+  const sheetPlan = plan || multi.sheets[0];
+  const hasLabels = multi.totalQueued > 0;
   const hasOhr = Boolean(ohrDom);
-  return { ready: hasLabels && hasOhr, hasLabels, hasOhr, sheetPlan, ohrDom };
+  return {
+    ready: hasLabels && hasOhr,
+    hasLabels,
+    hasOhr,
+    sheetPlan,
+    ohrDom,
+    multi,
+  };
 }
 
 /**
@@ -675,78 +806,61 @@ function isIosOrStandalonePwa() {
   }
 }
 
-/**
- * Eigenständiges Druckdokument (A4 Avery 3475) – für iOS/PWA ohne In-Page-Print.
- * @param {string} sheetInnerHtml
- */
-function buildAveryPrintDocumentHtml(sheetInnerHtml) {
-  return `<!DOCTYPE html>
-<html lang="de"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Avery 3475 Etikettenbogen</title>
-<style>
-  @page { size: A4 portrait; margin: 4.5mm 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  body { padding: 4.5mm 0; }
-  .avery-sheet {
-    display: grid;
-    grid-template-columns: repeat(3, 70mm);
-    grid-auto-rows: 36mm;
-    width: 210mm;
-    margin: 0 auto;
-    gap: 0;
+function ensureIosPrintOverlay() {
+  let overlay = document.getElementById('avery-ios-print-overlay');
+  if (overlay instanceof HTMLElement) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'avery-ios-print-overlay';
+  overlay.className = 'avery-ios-print-overlay';
+  overlay.hidden = true;
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'avery-ios-print-title');
+  overlay.innerHTML = `
+    <div class="avery-ios-print-card">
+      <h3 id="avery-ios-print-title" class="avery-ios-print-title">Etiketten bereit</h3>
+      <p class="avery-ios-print-summary" id="avery-ios-print-summary"></p>
+      <p class="avery-ios-print-help">Tippe auf Drucken — danach mit Fertig zurück in die Etiketten.</p>
+      <button type="button" class="btn btn-primary btn-avery-ios-print" id="btn-avery-ios-print-now" data-avery-ios-print>
+        Drucken
+      </button>
+      <button type="button" class="btn btn-secondary btn-avery-ios-done" id="btn-avery-ios-print-done" data-avery-ios-done>
+        Fertig
+      </button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function openIosPrintOverlay(multi) {
+  const overlay = ensureIosPrintOverlay();
+  const summary = document.getElementById('avery-ios-print-summary');
+  if (summary) {
+    const n = multi?.sheetCount || 1;
+    const labels = multi?.totalQueued || 0;
+    summary.textContent = n > 1
+      ? `${n} Bögen · ${labels} Etiketten sind vorbereitet.`
+      : `1 Bogen · ${labels} Etiketten sind vorbereitet.`;
   }
-  .avery-label {
-    box-sizing: border-box;
-    width: 70mm;
-    height: 36mm;
-    overflow: hidden;
-    page-break-inside: avoid;
-  }
-  .avery-label.empty { visibility: hidden; }
-  .label-card {
-    width: 70mm; height: 36mm;
-    padding: 1.8mm 2.6mm 1.4mm;
-    box-sizing: border-box;
-    display: flex; flex-direction: column;
-    font-family: Helvetica, Arial, sans-serif;
-    color: #000; background: #fff;
-  }
-  .lbl-farm { font-size: 5pt; font-weight: 700; margin-bottom: 0.4mm; }
-  .lbl-hero { flex: 1 1 55%; padding: 0.4mm 0.5mm; }
-  .lbl-title { font-size: 12pt; font-weight: 900; line-height: 1.15; }
-  .lbl-meta {
-    display: flex; justify-content: space-between; gap: 2mm;
-    margin-top: 0.4mm; padding-top: 1mm; border-top: 0.6pt solid #000;
-  }
-  .lbl-meta-main, .lbl-meta-sub {
-    font-size: 5.5pt; font-weight: 700; line-height: 1.25; white-space: nowrap;
-  }
-  .lbl-foot {
-    margin-top: 0.5mm; padding-top: 0.5mm;
-    border-top: 0.3pt dashed #64748b;
-    font-size: 4.8pt; font-weight: 600; color: #1e293b;
-  }
-</style>
-</head><body>
-<div class="avery-sheet">${sheetInnerHtml}</div>
-<script>
-  window.addEventListener('load', function () {
-    try { window.focus(); window.print(); } catch (e) {}
-  });
-<\/script>
-</body></html>`;
+  overlay.hidden = false;
+  document.body.classList.add('avery-ios-print-open');
+}
+
+function closeIosPrintOverlay() {
+  const overlay = document.getElementById('avery-ios-print-overlay');
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove('avery-ios-print-open');
 }
 
 /**
  * Druck anfordern: fehlende Vorbereitung → Toast.
- * Ready: iOS/PWA → synchron window.open mit vorbereitetem HTML;
- * Desktop → window.print() auf der vorbereiteten Print-Area.
+ * iOS/PWA → In-App-Overlay (Drucken / Fertig), kein window.open.
+ * Desktop → synchrones window.print() auf der vorbereiteten Print-Area.
  * @returns {boolean}
  */
 function requestAveryPrintFromClick() {
-  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness();
+  const { ready, hasLabels, hasOhr, multi } = getAveryPrintReadiness();
   if (!ready) {
     if (!hasLabels) {
       window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
@@ -757,30 +871,15 @@ function requestAveryPrintFromClick() {
     return false;
   }
 
-  // iOS / Standalone-PWA: In-Page window.print() öffnet oft kein Menü.
-  // Fenster sofort im User-Gesture öffnen; HTML ist bereits gecacht.
+  const area = document.getElementById('avery-print-area');
+  if (!(area instanceof HTMLElement) || !area.querySelector('.avery-label:not(.empty)')) {
+    window.showToast?.('Druckbogen ist noch nicht bereit. Bitte kurz warten und noch einmal tippen.', 'warning');
+    return false;
+  }
+
+  // iOS / PWA: Overlay im Modul – kein separates Fenster (Sackgasse-Vorschau).
   if (isIosOrStandalonePwa()) {
-    const html = cachedPrintDocumentHtml
-      || buildAveryPrintDocumentHtml(document.getElementById('avery-sheet-print')?.innerHTML || '');
-    if (!html || !/avery-label/.test(html)) {
-      window.showToast?.('Druckbogen ist noch nicht bereit. Bitte kurz warten und noch einmal tippen.', 'warning');
-      return false;
-    }
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      window.showToast?.('Druckfenster wurde blockiert. Bitte Pop-ups erlauben und noch einmal tippen.', 'warning');
-      window.print();
-      return false;
-    }
-    try {
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-    } catch (err) {
-      console.error('[Avery Print] Druckfenster konnte nicht geschrieben werden:', err);
-      try { printWindow.close(); } catch (_) { /* ignore */ }
-      window.print();
-    }
+    openIosPrintOverlay(multi);
     return true;
   }
 
@@ -946,14 +1045,10 @@ export function ensureAveryPrintArea() {
     area.id = 'avery-print-area';
     area.className = 'avery-print-root';
     area.setAttribute('aria-hidden', 'true');
-    area.innerHTML = '<div class="avery-sheet" id="avery-sheet-print"></div>';
   }
   if (area.parentElement !== document.body) {
     document.body.appendChild(area);
   }
-  // Legacy-ID für bestehende Selektoren / Tests
-  const sheet = area.querySelector('.avery-sheet');
-  if (sheet && !sheet.id) sheet.id = 'avery-sheet-print';
   return area;
 }
 
@@ -985,13 +1080,32 @@ function bindEvents(root) {
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
 
-  // iOS Safari: bei ready nur synchron window.print() – sonst Toast.
+  ensureIosPrintOverlay();
+
+  // Print-Button: iOS → Overlay, Desktop → window.print(); stopPropagation gegen Doppel-Fire
   const printBtn = document.getElementById('btn-avery-print-sheet');
   if (printBtn instanceof HTMLButtonElement && printBtn.dataset.averyPrintBound !== '1') {
     printBtn.dataset.averyPrintBound = '1';
     printBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       requestAveryPrintFromClick();
+    });
+  }
+
+  const iosPrintNow = document.getElementById('btn-avery-ios-print-now');
+  if (iosPrintNow instanceof HTMLButtonElement && iosPrintNow.dataset.averyPrintBound !== '1') {
+    iosPrintNow.dataset.averyPrintBound = '1';
+    iosPrintNow.addEventListener('click', (event) => {
+      event.stopPropagation();
+      window.print();
+    });
+  }
+  const iosPrintDone = document.getElementById('btn-avery-ios-print-done');
+  if (iosPrintDone instanceof HTMLButtonElement && iosPrintDone.dataset.averyDoneBound !== '1') {
+    iosPrintDone.dataset.averyDoneBound = '1';
+    iosPrintDone.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeIosPrintOverlay();
     });
   }
 
@@ -1039,19 +1153,39 @@ function bindEvents(root) {
       return;
     }
 
+    const sheetTab = target.closest('[data-avery-sheet-tab]');
+    if (sheetTab) {
+      const idx = Number.parseInt(sheetTab.getAttribute('data-avery-sheet-tab') || '0', 10) || 0;
+      state.previewSheetIndex = Math.max(0, idx);
+      renderSheetPreview();
+      return;
+    }
+
     const slotBtn = target.closest('[data-avery-slot]');
     if (slotBtn) {
       const slot = Number.parseInt(slotBtn.getAttribute('data-avery-slot') || '1', 10);
       state.startSlot = Math.min(24, Math.max(1, slot || 1));
+      state.previewSheetIndex = 0;
       persistDraft();
       renderSheetPreview();
       window.showToast?.(`Start-Slot ${state.startSlot} gesetzt.`, 'info');
       return;
     }
 
-    // Backup-Delegation (falls Direkt-Listener fehlt) – gleiche iOS-sichere Pfadlogik
+    // Backup-Delegation (falls Direkt-Listener fehlt)
     if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
       requestAveryPrintFromClick();
+      return;
+    }
+
+    if (target.closest('#btn-avery-ios-print-now') || target.closest('[data-avery-ios-print]')) {
+      // iOS: nur synchrones window.print() im User-Gesture
+      window.print();
+      return;
+    }
+
+    if (target.closest('#btn-avery-ios-print-done') || target.closest('[data-avery-ios-done]')) {
+      closeIosPrintOverlay();
       return;
     }
 
@@ -1171,12 +1305,13 @@ function buildShellHtml() {
           <h3 id="avery-preview-title" class="avery-card-title">Live-A4-Vorschau (24 Nutzen)</h3>
           <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-fill-hack">⚡ Rest mit R II Hack füllen</button>
         </div>
+        <div class="avery-sheet-tabs" id="avery-sheet-tabs" hidden role="tablist" aria-label="Etikettenbögen"></div>
         <div class="avery-gauge" aria-label="Bogen-Auslastung">
           <div class="avery-gauge-track"><div class="avery-gauge-fill" id="avery-gauge-fill"></div></div>
           <p class="avery-gauge-text" id="avery-gauge-text">0 / 24 Nutzen</p>
         </div>
         <p class="avery-overflow-warn" id="avery-overflow-warn" hidden></p>
-        <p class="avery-slot-hint">Tipp: Freien oder verbrauchten Slot antippen = Start-Position für angefangene Bögen. Querformat wie der echte A4-Bogen – bei Bedarf seitlich scrollen.</p>
+        <p class="avery-slot-hint">Tipp: Auf Bogen 1 freien Slot antippen = Start-Position für angefangene Bögen. Folge-Bögen starten automatisch bei Nutzen 1.</p>
         <div class="sheet-scroll-wrapper avery-sheet-scroll">
           <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
         </div>

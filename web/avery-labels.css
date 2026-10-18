@@ -509,6 +509,46 @@
   overflow: visible;
 }
 
+.avery-sheet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.avery-sheet-tab {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: var(--bg-color, #f8fafc);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-dark, #0f172a);
+}
+
+.avery-sheet-tab.is-active {
+  border-color: var(--primary-color, #0284c7);
+  background: var(--primary-tint-bg, #e0f2fe);
+  color: var(--primary-color, #0284c7);
+}
+
+.avery-overflow-warn {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.avery-overflow-warn.is-multi {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
 .avery-print-hint {
   margin: 0 0 10px;
   padding: 10px 12px;
@@ -518,6 +558,55 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
+}
+
+.avery-ios-print-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.avery-ios-print-overlay[hidden] {
+  display: none !important;
+}
+
+.avery-ios-print-card {
+  width: min(420px, 100%);
+  padding: 18px 16px 16px;
+  border-radius: 16px 16px 12px 12px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
+}
+
+.avery-ios-print-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.avery-ios-print-summary,
+.avery-ios-print-help {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.btn-avery-ios-print,
+.btn-avery-ios-done {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+  font-weight: 800;
+}
+
+body.avery-ios-print-open {
+  overflow: hidden;
 }
 
 .avery-print-actions {
@@ -604,7 +693,8 @@
     left: 0 !important;
     top: 0 !important;
     width: 210mm !important;
-    height: 297mm !important;
+    height: auto !important;
+    min-height: 297mm !important;
     margin: 0 !important;
     padding: 4.5mm 0 !important;
     background: #ffffff !important;
@@ -621,6 +711,16 @@
     margin: 0 auto;
     page: avery-3475-sheet;
     background: #ffffff !important;
+  }
+
+  body.print-avery-labels .avery-sheet-continued {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  body.print-avery-labels .avery-ios-print-overlay {
+    display: none !important;
+    visibility: hidden !important;
   }
 
   body.print-avery-labels .avery-label {
