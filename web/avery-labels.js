@@ -8,6 +8,7 @@ export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
 const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
+
 /**
  * @typedef {{
  *   id: string,
@@ -595,19 +596,30 @@ function renderSheetPreview() {
 }
 
 /**
- * Hält #avery-print-area und print-avery-labels synchron zur Auswahl,
- * damit der Druck-Button nur noch window.print() auslösen muss (iOS).
+ * DOM-Ohrmarke ist Quelle der Wahrheit (verhindert state/DOM-Drift).
+ * @param {ReturnType<typeof planAverySheet>|null} [plan]
+ */
+function getAveryPrintReadiness(plan = null) {
+  const ohrDom = String(document.getElementById('avery-ohrmarke')?.value || '').trim();
+  state.header.ohrmarke = ohrDom;
+  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
+  const hasLabels = sheetPlan.filledCount > 0;
+  const hasOhr = Boolean(ohrDom);
+  return { ready: hasLabels && hasOhr, hasLabels, hasOhr, sheetPlan, ohrDom };
+}
+
+/**
+ * Hält #avery-print-area und print-avery-labels synchron zur Auswahl.
+ * Button bleibt klickbar (Toast bei fehlender Vorbereitung) – iOS: bei ready nur window.print().
  * @param {ReturnType<typeof planAverySheet>|null} [plan]
  */
 function syncPrintReadyState(plan = null) {
-  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-  const hasLabels = sheetPlan.filledCount > 0;
-  const hasOhr = Boolean(String(state.header.ohrmarke || '').trim());
-  const ready = hasLabels && hasOhr;
+  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness(plan);
 
   const btn = document.getElementById('btn-avery-print-sheet');
   if (btn instanceof HTMLButtonElement) {
-    btn.disabled = !ready;
+    // Nie stumm disabled – sonst wirkt der Drucken-Button „kaputt“ (H1).
+    btn.disabled = false;
     if (!hasLabels) {
       btn.title = 'Bitte zuerst Teilstücke zur Druckliste hinzufügen.';
     } else if (!hasOhr) {
@@ -639,6 +651,26 @@ function syncPrintReadyState(plan = null) {
     document.body.classList.remove(PRINT_BODY_CLASS);
     area?.setAttribute('aria-hidden', 'true');
   }
+}
+
+/**
+ * Druck anfordern: fehlende Vorbereitung → Toast; ready → nur synchrones window.print().
+ * @returns {boolean}
+ */
+function requestAveryPrintFromClick() {
+  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness();
+  if (!ready) {
+    if (!hasLabels) {
+      window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
+    } else if (!hasOhr) {
+      window.showToast?.('Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.', 'warning');
+      document.getElementById('avery-ohrmarke')?.focus?.();
+    }
+    return false;
+  }
+  // iOS: ab hier keine DOM-Generierung / async / setTimeout vor window.print()
+  window.print();
+  return true;
 }
 
 function renderQueue() {
@@ -822,13 +854,13 @@ export function ensureAveryPrintArea() {
 }
 
 /**
- * iOS-sicherer Drucktrigger: ausschließlich synchrones window.print().
+ * iOS-sicherer Drucktrigger.
+ * Nicht ready → Toast (Laden-iPhone-Wording). Ready → nur synchrones window.print().
  * Druckbogen (#avery-print-area) und body.print-avery-labels werden
  * bereits bei Auswahländerungen in renderSheetPreview/syncPrintReadyState vorbereitet.
  */
 export function printAveryLabelsSheet() {
-  window.print();
-  return true;
+  return requestAveryPrintFromClick();
 }
 
 function adjustQueueByKey(key, deltaOrRemove) {
@@ -849,13 +881,13 @@ function bindEvents(root) {
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
 
-  // iOS Safari: Click darf NUR synchron window.print() ausführen –
-  // keine DOM-Generierung, kein async/await, kein setTimeout davor.
+  // iOS Safari: bei ready nur synchron window.print() – sonst Toast.
   const printBtn = document.getElementById('btn-avery-print-sheet');
   if (printBtn instanceof HTMLButtonElement && printBtn.dataset.averyPrintBound !== '1') {
     printBtn.dataset.averyPrintBound = '1';
-    printBtn.addEventListener('click', () => {
-      window.print();
+    printBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      requestAveryPrintFromClick();
     });
   }
 
@@ -914,6 +946,12 @@ function bindEvents(root) {
       persistDraft();
       renderSheetPreview();
       window.showToast?.(`Start-Slot ${state.startSlot} gesetzt.`, 'info');
+      return;
+    }
+
+    // Backup-Delegation (falls Direkt-Listener fehlt) – gleiche iOS-sichere Pfadlogik
+    if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
+      requestAveryPrintFromClick();
       return;
     }
 

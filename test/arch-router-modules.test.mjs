@@ -52,7 +52,7 @@ describe('Architektur: Modul-SSOT & Router', () => {
     expect(dash).to.not.include('readBetriebModulePatch');
   });
 
-  it('SW-Cache ist aktueller iOS-Print-v1.5.0-Build', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261018-ios-print-v150/);
+  it('SW-Cache ist aktueller iOS-Print-v151-Build', () => {
+    expect(read('web/sw.js')).to.match(/charculogic-v20261018-ios-print-v151/);
   });
 });
