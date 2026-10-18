@@ -11,10 +11,12 @@ import {
   GALLOWAY_CATALOG,
   addDaysIso,
   buildAveryLot,
+  buildLabelHtml,
   expandQueueToLabels,
   formatDateDe,
   planAverySheet,
   resolveQueueCut,
+  storageHintForCut,
 } from '../web/avery-labels.js';
 
 describe('Avery 3475 labels module', () => {
@@ -79,5 +81,47 @@ describe('Avery 3475 labels module', () => {
     expect(plan.capacity).to.equal(5);
     expect(plan.filledCount).to.equal(5);
     expect(plan.overflow).to.equal(5);
+  });
+
+  it('uses colder storage hint for Innereien', () => {
+    expect(storageHintForCut(GALLOWAY_CATALOG.innereien[0])).to.equal('≤ 3 °C');
+    expect(storageHintForCut(AVERY_TRIMMINGS[0])).to.equal('0–2 °C');
+  });
+
+  it('builds decluttered landscape label HTML without Reifebeutel text', () => {
+    const cut = AVERY_TRIMMINGS.find((t) => t.id === 'tr-r1-spiesse');
+    const html = buildLabelHtml(cut, {
+      betrieb: 'StevesHof Hofladen',
+      oeko: 'DE-ÖKO-006',
+      schlachthof: 'Bio-Schlachthof Stautenhof Willich',
+      ohrmarke: 'DE123',
+      schlachtDatum: '2026-10-18',
+      zerlegeDatum: '2026-10-18',
+      printBetrieb: false,
+      printSchlachthof: false,
+    }, 'SH-DE123-20261018');
+    expect(html).to.include('label-card');
+    expect(html).to.include('label-card-hero');
+    expect(html).to.include('R I Spieße');
+    expect(html).to.include('Art. 543');
+    expect(html).to.include('DE-ÖKO-006');
+    expect(html).to.include('0–2 °C');
+    expect(html).to.not.include('Trockenreifung');
+    expect(html).to.not.include('Reifebeutel');
+    expect(html).to.not.include('StevesHof Hofladen');
+    expect(html).to.not.include('Schlachtung:');
+
+    const withFlags = buildLabelHtml(cut, {
+      betrieb: 'StevesHof Hofladen',
+      oeko: 'DE-ÖKO-006',
+      schlachthof: 'Bio-Schlachthof Stautenhof Willich',
+      ohrmarke: 'DE123',
+      schlachtDatum: '2026-10-18',
+      zerlegeDatum: '2026-10-18',
+      printBetrieb: true,
+      printSchlachthof: true,
+    }, 'SH-DE123-20261018');
+    expect(withFlags).to.include('StevesHof Hofladen');
+    expect(withFlags).to.include('Schlachtung: Bio-Schlachthof Stautenhof Willich');
   });
 });
