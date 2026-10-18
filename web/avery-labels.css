@@ -365,9 +365,10 @@
   min-height: 0;
   height: auto;
   padding: 0;
-  border-radius: 6px;
-  border: 1px dashed rgba(15, 23, 42, 0.22);
-  background: #f8fafc;
+  border-radius: 4px;
+  border: 1px dashed #cbd5e1;
+  background: #ffffff;
+  color-scheme: only light;
   text-align: left;
   overflow: hidden;
   display: flex;
@@ -376,13 +377,13 @@
 }
 
 .avery-slot.is-filled {
-  border-style: solid;
-  background: #fff;
+  border-style: dashed;
+  background: #ffffff;
 }
 
 .avery-slot.is-offset {
-  opacity: 0.35;
-  background: #e2e8f0;
+  opacity: 0.4;
+  background: #f1f5f9;
 }
 
 .avery-slot.is-start {
@@ -400,112 +401,159 @@
   color: #64748b;
 }
 
-/* Inhalts-Deklaration: Header / Hero / Meta */
+/*
+ * WYSIWYG Papier-Etikett: immer weiß / schwarz, 3 Zonen, 70×36.
+ * color-scheme + !important schützen vor Dark-Mode der App-Shell.
+ */
 .label-card {
   box-sizing: border-box;
   container-type: size;
+  color-scheme: only light;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   width: 100%;
   height: 100%;
   aspect-ratio: 70 / 36;
   overflow: hidden;
-  padding: 4px 5px 3px;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: #000;
-  background: #fff;
+  padding: 3px 4px 2px;
+  border: 1px dashed #cbd5e1;
+  font-family: Helvetica, Arial, "Helvetica Neue", sans-serif;
+  background: #ffffff !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000;
 }
 
-.label-card-head {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
-  gap: 2px;
-  min-height: 0;
+.lbl-header {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 0;
+  font-size: 6px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: #000000 !important;
 }
 
-.label-card-art {
-  font-size: 7px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.01em;
-  color: #334155;
-  justify-self: start;
-}
-
-.label-card-farm {
-  font-size: 6.5px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-align: center;
-  color: #475569;
-  justify-self: center;
-  max-width: 100%;
+.lbl-art {
+  flex: 1 1 0;
+  text-align: left;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.lbl-storage {
+  flex: 0 1 auto;
+  text-align: center;
+  font-weight: 600;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155;
   white-space: nowrap;
 }
 
-.label-card-oeko {
-  font-size: 7px;
-  font-weight: 700;
-  line-height: 1.1;
-  color: #334155;
-  justify-self: end;
+.lbl-oeko {
+  flex: 1 1 0;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.label-card-hero {
+.lbl-farm {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 5.5px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  color: #000000 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Zone 2 – Hero: kein Font-Clipping (Padding + line-height) */
+.lbl-title {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   min-height: 0;
-  margin: 1px 0;
-  font-size: clamp(10px, 11cqi, 13px);
+  margin: 0;
+  padding: 2px 1px;
+  overflow: hidden;
+}
+
+.lbl-title-text {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
+  padding: 2px 1px;
+  font-size: clamp(11px, 20cqi, 14px);
   font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-  overflow: hidden;
-  word-break: break-word;
-}
-
-.label-card-meta {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 0;
-}
-
-.label-card-line {
-  font-size: 6.5px;
-  font-weight: 700;
   line-height: 1.2;
-  color: #0f172a;
-  overflow: hidden;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-transform: uppercase;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  /* Clipping vermeiden: Padding + line-height, kein hard crop am Glyph */
+  overflow: visible;
 }
 
-.label-card-sep {
-  opacity: 0.45;
-  padding: 0 1px;
+.lbl-title-text.is-long {
+  font-size: clamp(9px, 15cqi, 11px);
+  line-height: 1.18;
+  padding: 2px 0;
 }
 
-.label-card-slaughter {
-  font-weight: 600;
-  color: #334155;
-}
-
-.label-card-storage {
+/* Zone 3 – Footer-Raster mit Haarlinie */
+.lbl-footer {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 6px;
   margin-top: 1px;
-  font-size: 6px;
+  padding-top: 2px;
+  border-top: 1px solid #000000;
+  color: #000000 !important;
+}
+
+.lbl-meta-col {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lbl-meta-right {
+  text-align: right;
+}
+
+.lbl-meta-main {
+  font-size: 5.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lbl-meta-sub {
+  font-size: 5px;
   font-weight: 600;
-  line-height: 1.15;
-  color: #64748b;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lbl-slaughter {
+  margin-top: 1px;
 }
 
 .btn-avery-print {
@@ -584,38 +632,63 @@
     width: 70mm;
     height: 36mm;
     aspect-ratio: auto;
-    padding: 2.2mm 3mm 1.8mm;
+    padding: 2mm 2.8mm 1.6mm;
+    border: none;
+    background: #ffffff !important;
+    color: #000000 !important;
     font-family: Helvetica, Arial, sans-serif;
   }
 
-  body.print-avery-labels .label-card-art,
-  body.print-avery-labels .label-card-oeko {
-    font-size: 6pt;
-    font-weight: 700;
-  }
-
-  body.print-avery-labels .label-card-farm {
+  body.print-avery-labels .lbl-header {
     font-size: 5.5pt;
     font-weight: 700;
+    line-height: 1.15;
   }
 
-  body.print-avery-labels .label-card-hero {
-    font-size: 13.5pt;
-    font-weight: 900;
-    line-height: 1.02;
-    margin: 0.4mm 0;
-    max-height: 14mm;
-  }
-
-  body.print-avery-labels .label-card-line {
-    font-size: 5.8pt;
-    font-weight: 700;
-    line-height: 1.18;
-  }
-
-  body.print-avery-labels .label-card-storage {
+  body.print-avery-labels .lbl-storage {
     font-size: 5.5pt;
     font-weight: 600;
-    margin-top: 0.3mm;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000;
+  }
+
+  body.print-avery-labels .lbl-farm {
+    font-size: 5pt;
+    font-weight: 700;
+  }
+
+  body.print-avery-labels .lbl-title {
+    padding: 0.6mm 0.4mm;
+  }
+
+  body.print-avery-labels .lbl-title-text {
+    font-size: 14pt;
+    font-weight: 900;
+    line-height: 1.12;
+    padding: 0.5mm 0.2mm;
+  }
+
+  body.print-avery-labels .lbl-title-text.is-long {
+    font-size: 11pt;
+    line-height: 1.15;
+  }
+
+  body.print-avery-labels .lbl-footer {
+    margin-top: 0.4mm;
+    padding-top: 1mm;
+    border-top: 0.3pt solid #000;
+    gap: 0.6mm 2mm;
+  }
+
+  body.print-avery-labels .lbl-meta-main {
+    font-size: 5.5pt;
+    font-weight: 800;
+    line-height: 1.15;
+  }
+
+  body.print-avery-labels .lbl-meta-sub {
+    font-size: 5pt;
+    font-weight: 600;
+    line-height: 1.15;
   }
 }

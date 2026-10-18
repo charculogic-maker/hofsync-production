@@ -466,33 +466,61 @@ export function storageHintForCut(cut) {
 }
 
 /**
- * Inhalts-Deklaration auf 70×36 mm Querformat.
+ * Titel für Etikett: R-Abschnitte mit Mittelpunkt („R I · Spieße“).
+ * @param {string} name
+ */
+export function formatLabelTitle(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return '';
+  const m = /^(R\s+(?:I{1,3}|IV|V))\s+(.+)$/i.exec(raw);
+  if (m) return `${m[1].toUpperCase().replace(/\s+/g, ' ')} · ${m[2].trim()}`;
+  return raw;
+}
+
+/**
+ * Inhalts-Deklaration auf 70×36 mm Querformat (3 Zonen: Header / Hero / Footer).
  * @param {AveryCut} cut
  * @param {Record<string, string|boolean>} header
  * @param {string} lot
  */
 export function buildLabelHtml(cut, header, lot) {
-  const art = cut.artNr ? `Art. ${cut.artNr}` : '';
+  const art = cut.artNr ? `ART. ${cut.artNr}` : '';
   const oeko = String(header.oeko || '').trim();
   const showBetrieb = Boolean(header.printBetrieb) && String(header.betrieb || '').trim();
   const showSchlachthof = Boolean(header.printSchlachthof) && String(header.schlachthof || '').trim();
-  const ohr = String(header.ohrmarke || '').trim() || '–';
-  const schl = formatDateDe(header.schlachtDatum) || '–';
-  const zerl = formatDateDe(header.zerlegeDatum) || '–';
+  const ohr = String(header.ohrmarke || '').trim();
+  const schl = formatDateDe(header.schlachtDatum) || '';
+  const zerl = formatDateDe(header.zerlegeDatum) || '';
   const storage = storageHintForCut(cut);
+  const title = formatLabelTitle(cut.name);
+  const titleLong = title.length > 16 || /\//.test(title);
+  const ohrRow = ohr
+    ? `<div class="lbl-meta-sub">OHR ${escapeHtml(ohr)}</div>`
+    : '';
+  const schlRow = schl
+    ? `<div class="lbl-meta-sub">Schl. ${escapeHtml(schl)}</div>`
+    : '';
   return `
     <div class="label-card">
-      <div class="label-card-head">
-        <span class="label-card-art">${escapeHtml(art)}</span>
-        ${showBetrieb ? `<span class="label-card-farm">${escapeHtml(String(header.betrieb).trim())}</span>` : '<span class="label-card-farm" aria-hidden="true"></span>'}
-        <span class="label-card-oeko">${escapeHtml(oeko)}</span>
+      <div class="lbl-header">
+        <span class="lbl-art">${escapeHtml(art)}</span>
+        <span class="lbl-storage">${escapeHtml(storage)}</span>
+        <span class="lbl-oeko">${escapeHtml(oeko)}</span>
       </div>
-      <div class="label-card-hero">${escapeHtml(cut.name)}</div>
-      <div class="label-card-meta">
-        <div class="label-card-line">LOT: ${escapeHtml(lot)} <span class="label-card-sep">|</span> Ohr: ${escapeHtml(ohr)}</div>
-        <div class="label-card-line">Schl: ${escapeHtml(schl)} <span class="label-card-sep">|</span> Zerl: ${escapeHtml(zerl)}</div>
-        ${showSchlachthof ? `<div class="label-card-line label-card-slaughter">Schlachtung: ${escapeHtml(String(header.schlachthof).trim())}</div>` : ''}
-        <div class="label-card-storage">${escapeHtml(storage)}</div>
+      ${showBetrieb ? `<div class="lbl-farm">${escapeHtml(String(header.betrieb).trim())}</div>` : ''}
+      <div class="lbl-title">
+        <span class="lbl-title-text${titleLong ? ' is-long' : ''}">${escapeHtml(title)}</span>
+      </div>
+      <div class="lbl-footer">
+        <div class="lbl-meta-col lbl-meta-left">
+          <div class="lbl-meta-main">LOT ${escapeHtml(lot)}</div>
+          ${ohrRow}
+        </div>
+        <div class="lbl-meta-col lbl-meta-right">
+          <div class="lbl-meta-main">${zerl ? `Zerl. ${escapeHtml(zerl)}` : ''}</div>
+          ${schlRow}
+          ${showSchlachthof ? `<div class="lbl-meta-sub lbl-slaughter">${escapeHtml(String(header.schlachthof).trim())}</div>` : ''}
+        </div>
       </div>
     </div>
   `;

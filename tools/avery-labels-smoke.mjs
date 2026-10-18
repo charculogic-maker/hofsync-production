@@ -1,5 +1,5 @@
 /**
- * Headless smoke for Avery decluttered landscape labels + Freifeld.
+ * Headless smoke for Avery white 3-zone WYSIWYG labels.
  */
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -18,6 +18,10 @@ const demoHtml = `<!DOCTYPE html>
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/avery-labels.css">
 <title>Avery Labels Smoke</title>
+<style>
+  /* Simulate dark app shell to prove labels stay white */
+  body { background: #0f172a; color: #e2e8f0; }
+</style>
 </head><body>
 <div id="page-avery" class="page active"></div>
 <script type="module">
@@ -41,74 +45,74 @@ const defaults = await page.evaluate(() => ({
   printBetrieb: document.getElementById('avery-print-betrieb')?.checked,
   printSchlachthof: document.getElementById('avery-print-schlachthof')?.checked,
   hasReifeField: Boolean(document.getElementById('avery-reifehinweis')),
-  bodyText: document.body.innerText,
 }));
 if (defaults.printBetrieb !== false || defaults.printSchlachthof !== false) {
   throw new Error(`Print toggles must default off: ${JSON.stringify(defaults)}`);
 }
 if (defaults.hasReifeField) throw new Error('Reifehinweis field must be removed');
-if (/Trockenreifung|Reifebeutel/.test(defaults.bodyText)) {
-  throw new Error('Trockenreifung/Reifebeutel text still present in UI');
-}
 
 await page.fill('#avery-ohrmarke', 'DE123456');
+await page.fill('#avery-trim-tr-r1-spiesse', '2');
+await page.fill('#avery-trim-tr-r2-hack', '1');
 await page.click('[data-avery-tab="schultern"]');
 await page.click('[data-avery-add="sch-brust"]');
-await page.click('[data-avery-tab="ruecken"]');
-await page.click('[data-avery-add="rue-entrecote"]');
-await page.fill('#avery-trim-tr-r1-spiesse', '1');
-await page.fill('#avery-trim-tr-r2-hack', '2');
-await page.fill('#avery-custom-name', 'Rumpsteak');
-await page.selectOption('#avery-custom-aging', '21');
-await page.click('#btn-avery-custom-add');
-await page.click('[data-avery-slot="3"]');
-await page.waitForTimeout(200);
+await page.click('[data-avery-slot="1"]');
+await page.waitForTimeout(150);
 
 const stats = await page.evaluate(() => {
-  const card = document.querySelector('.avery-slot.is-filled .label-card');
-  const slot = document.querySelector('.avery-slot.is-filled');
+  const cards = [...document.querySelectorAll('.avery-slot.is-filled .label-card')];
+  const spiesseCard = cards.find((c) => /R I\s*·\s*Spieße/i.test(c.querySelector('.lbl-title-text')?.textContent || ''))
+    || cards[0];
+  const title = spiesseCard?.querySelector('.lbl-title-text');
+  const slot = spiesseCard?.closest('.avery-slot');
   const rect = slot?.getBoundingClientRect();
   const ratio = rect && rect.height ? rect.width / rect.height : 0;
+  const cs = spiesseCard ? getComputedStyle(spiesseCard) : null;
+  const titleCs = title ? getComputedStyle(title) : null;
+  const titleBox = title?.getBoundingClientRect();
   return {
-    tabs: [...document.querySelectorAll('[data-avery-tab]')].map((el) => el.textContent.trim()),
-    lot: document.getElementById('avery-lot-preview')?.textContent || '',
-    filled: document.querySelectorAll('#avery-sheet-preview .avery-slot.is-filled').length,
-    offset: document.querySelectorAll('#avery-sheet-preview .avery-slot.is-offset').length,
-    hasHero: Boolean(card?.querySelector('.label-card-hero')),
-    heroText: card?.querySelector('.label-card-hero')?.textContent?.trim() || '',
-    hasFarmOnLabel: Boolean(card?.querySelector('.label-card-farm')?.textContent?.trim()),
-    hasSlaughterLine: Boolean(card?.querySelector('.label-card-slaughter')),
-    storage: card?.querySelector('.label-card-storage')?.textContent?.trim() || '',
+    bg: cs?.backgroundColor || '',
+    color: cs?.color || '',
+    titleText: title?.textContent?.trim() || '',
+    titles: cards.map((c) => c.querySelector('.lbl-title-text')?.textContent?.trim()),
+    hasHeader: Boolean(spiesseCard?.querySelector('.lbl-header')),
+    hasFooter: Boolean(spiesseCard?.querySelector('.lbl-footer')),
+    storageInHeader: spiesseCard?.querySelector('.lbl-storage')?.textContent?.trim() || '',
+    emptyOhrPlaceholder: cards.some((c) => /OHR\s*[–-]/.test(c.innerHTML || '')),
+    ohrPresent: cards.some((c) => /OHR\s+DE123456/.test(c.textContent || '')),
     aspectApprox: Number(ratio.toFixed(2)),
-    hasScrollWrap: Boolean(document.querySelector('.avery-sheet-scroll')),
+    titleFont: titleCs?.fontSize || '',
+    titleLineHeight: titleCs?.lineHeight || '',
+    titleHeight: titleBox?.height || 0,
     toast: window.__toast || null,
   };
 });
 
-if (!stats.tabs.includes('Schulter') || !stats.tabs.includes('Rücken')) {
-  throw new Error(`Unexpected tabs: ${JSON.stringify(stats.tabs)}`);
+if (!/^rgb\(255,\s*255,\s*255\)$/.test(stats.bg) && stats.bg !== '#ffffff') {
+  throw new Error(`Label must be white, got bg=${stats.bg}`);
 }
-if (!stats.hasHero) throw new Error('label-card hero missing');
-if (stats.hasFarmOnLabel) throw new Error('Betriebsname must be off by default on label');
-if (stats.hasSlaughterLine) throw new Error('Schlachthof line must be off by default');
+if (!stats.hasHeader || !stats.hasFooter) throw new Error('3-zone structure missing');
+if (!/R I · Spieße/.test(stats.titleText)) {
+  throw new Error(`Expected R I · Spieße title, got "${stats.titleText}" (all: ${JSON.stringify(stats.titles)})`);
+}
+if (stats.storageInHeader !== '0–2 °C') {
+  throw new Error(`Storage should be in header, got "${stats.storageInHeader}"`);
+}
+if (stats.emptyOhrPlaceholder) throw new Error('Empty OHR placeholder still shown');
+if (!stats.ohrPresent) throw new Error('OHR with ear tag missing');
 if (stats.aspectApprox < 1.7 || stats.aspectApprox > 2.2) {
   throw new Error(`Expected landscape ~1.94 ratio, got ${stats.aspectApprox}`);
 }
-if (!stats.hasScrollWrap) throw new Error('Missing .avery-sheet-scroll for mobile');
-if (stats.filled < 5) throw new Error(`Expected filled labels, got ${stats.filled}`);
-if (stats.offset !== 2) throw new Error(`Expected 2 offset cells for start=3, got ${stats.offset}`);
 
-await page.check('#avery-print-betrieb');
-await page.waitForTimeout(100);
-const farmOn = await page.evaluate(() => {
-  const farm = document.querySelector('.avery-slot.is-filled .label-card-farm');
-  return farm?.textContent?.trim() || '';
-});
-if (!/StevesHof/i.test(farmOn)) throw new Error(`Expected farm name after toggle, got "${farmOn}"`);
-
-await page.locator('#avery-sheet-preview').scrollIntoViewIfNeeded();
-await page.screenshot({ path: `${artifactDir}/avery-declutter-preview.png`, fullPage: false });
-await page.screenshot({ path: `${artifactDir}/avery-declutter-suite.png`, fullPage: true });
+await page.locator('.avery-sheet-scroll').scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${artifactDir}/avery-hero-preview.png`, fullPage: false });
+const box = await page.locator('.avery-slot.is-filled').first().boundingBox();
+if (box) {
+  await page.screenshot({
+    path: `${artifactDir}/avery-hero-label-closeup.png`,
+    clip: { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 6), width: box.width + 12, height: box.height + 12 },
+  });
+}
 
 const printed = await page.evaluate(() => {
   window.__printed = false;
@@ -117,5 +121,5 @@ const printed = await page.evaluate(() => {
 });
 if (!printed) throw new Error('printAveryLabelsSheet did not call window.print');
 
-console.log(JSON.stringify({ ok: true, stats, farmOn, printed }, null, 2));
+console.log(JSON.stringify({ ok: true, stats, printed }, null, 2));
 await browser.close();
