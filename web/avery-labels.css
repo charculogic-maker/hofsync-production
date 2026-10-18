@@ -632,9 +632,21 @@ body.avery-ios-print-open {
   }
 }
 
+/*
+ * Avery 3475: 3×8 × 70×36 mm auf A4.
+ * Rand NUR über @page (4.5 mm oben/unten, 0 seitlich) —
+ * kein zusätzliches body/sheet-Padding (verschiebt sonst den 1. Bogen).
+ */
 @page avery-3475-sheet {
   size: A4 portrait;
   margin: 4.5mm 0mm;
+  marks: none;
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
 }
 
 /*
@@ -684,9 +696,9 @@ body.avery-ios-print-open {
     top: 0 !important;
     width: 210mm !important;
     height: auto !important;
-    min-height: 297mm !important;
+    min-height: 0 !important;
     margin: 0 !important;
-    padding: 4.5mm 0 !important;
+    padding: 0 !important;
     background: #ffffff !important;
     z-index: 99999 !important;
     overflow: visible !important;
@@ -697,10 +709,20 @@ body.avery-ios-print-open {
     grid-template-columns: repeat(3, 70mm);
     grid-auto-rows: 36mm;
     width: 210mm;
+    height: 288mm;
     gap: 0;
-    margin: 0 auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box;
     page: avery-3475-sheet;
+    page-break-after: always !important;
+    break-after: page !important;
     background: #ffffff !important;
+  }
+
+  body.print-avery-labels .avery-sheet:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   body.print-avery-labels .avery-sheet-continued {

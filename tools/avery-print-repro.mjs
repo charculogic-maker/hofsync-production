@@ -141,6 +141,10 @@ const afterIosPrint = await page.evaluate(() => ({
   htmlHasClose: /Fenster schließen/.test(window.__openedHtml || ''),
   htmlHasPrintBtn: /Jetzt drucken/.test(window.__openedHtml || ''),
   htmlInlineOnclick: /onclick\s*=\s*["'][^"']*window\.print\(\)/.test(window.__openedHtml || ''),
+  htmlEmptyTitle: /<title>\s*<\/title>/.test(window.__openedHtml || ''),
+  htmlFooterHint: /Kopf- und Fußzeilen/.test(window.__openedHtml || ''),
+  htmlNoBodyPrintPadding: !(/@media print\s*\{[^}]*body\s*\{[^}]*padding:\s*4\.5mm/.test(window.__openedHtml || '')),
+  htmlSheetNoExtraMargin: /\.avery-sheet\s*\{[^}]*margin:\s*0/.test(window.__openedHtml || ''),
   htmlTitleCentered: /lbl-title[^}]*text-align:\s*center/.test(window.__openedHtml || '')
     || /\.lbl-title\s*\{[^}]*text-align:\s*center/.test(window.__openedHtml || ''),
   htmlHeroCentered: /lbl-hero[^}]*justify-content:\s*center/.test(window.__openedHtml || '')
@@ -156,6 +160,10 @@ if (!afterIosPrint.openCalled || !afterIosPrint.openedBlob || !afterIosPrint.htm
 if (!afterIosPrint.htmlHasPrintBtn || !afterIosPrint.htmlInlineOnclick
   || !afterIosPrint.htmlHeroCentered || !afterIosPrint.htmlTitleCentered) {
   throw new Error(`iOS print HTML missing print btn/onclick or centering: ${JSON.stringify(afterIosPrint)}`);
+}
+if (!afterIosPrint.htmlEmptyTitle || !afterIosPrint.htmlFooterHint
+  || !afterIosPrint.htmlNoBodyPrintPadding || !afterIosPrint.htmlSheetNoExtraMargin) {
+  throw new Error(`iOS print HTML margin/footer guards failed: ${JSON.stringify(afterIosPrint)}`);
 }
 if (afterIosPrint.inPagePrinted) {
   throw new Error('iOS Drucken must not rely on in-page window.print alone');

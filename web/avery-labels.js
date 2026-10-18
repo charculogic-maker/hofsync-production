@@ -815,13 +815,25 @@ function isIosOrStandalonePwa() {
  * @param {string} sheetsInnerHtml
  */
 function buildIosPrintDocumentHtml(sheetsInnerHtml) {
+  // Leerer Title: weniger Safari-Kopfzeile. Rand nur über @page (kein body/sheet-Padding),
+  // sonst verschiebt sich der erste Bogen und Nutzzeilen rutschen auf Folgeseiten.
   return `<!DOCTYPE html>
 <html lang="de"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Avery 3475 Etikettenbogen</title>
+<title></title>
 <style>
-  @page { size: A4 portrait; margin: 4.5mm 0; }
+  @page {
+    size: A4 portrait;
+    margin: 4.5mm 0mm;
+    marks: none;
+    @top-left { content: none; }
+    @top-center { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-center { content: none; }
+    @bottom-right { content: none; }
+  }
   html, body { margin: 0; padding: 0; background: #fff; }
   .ios-print-bar {
     position: sticky; top: 0; z-index: 10;
@@ -830,6 +842,9 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
     font-family: -apple-system, Helvetica, Arial, sans-serif;
   }
   .ios-print-bar p { margin: 0; font-size: 14px; line-height: 1.35; }
+  .ios-print-bar .ios-print-hint {
+    font-size: 13px; font-weight: 700; color: #fde68a;
+  }
   .ios-print-bar .ios-print-actions {
     display: flex; flex-direction: column; gap: 8px;
   }
@@ -851,13 +866,22 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
     grid-template-columns: repeat(3, 70mm);
     grid-auto-rows: 36mm;
     width: 210mm;
-    margin: 4.5mm auto;
+    height: 288mm;
+    margin: 0;
+    padding: 0;
     gap: 0;
+    box-sizing: border-box;
+    page-break-after: always;
+    break-after: page;
+  }
+  .avery-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
   .avery-sheet-continued { page-break-before: always; break-before: page; }
   .avery-label {
     box-sizing: border-box; width: 70mm; height: 36mm;
-    overflow: hidden; page-break-inside: avoid;
+    overflow: hidden; page-break-inside: avoid; break-inside: avoid;
   }
   .avery-label.empty { visibility: hidden; }
   .label-card {
@@ -910,12 +934,13 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
   @media print {
     .ios-print-bar { display: none !important; }
     .ios-print-scroll { overflow: visible !important; }
-    body { padding: 4.5mm 0; }
+    html, body { margin: 0 !important; padding: 0 !important; }
   }
 </style>
 </head><body>
 <div class="ios-print-bar">
-  <p>Tippe auf <strong>Jetzt drucken</strong> — der Druckdialog kommt von Safari. Danach Fenster schließen und in der App auf Fertig tippen.</p>
+  <p>Tippe auf <strong>Jetzt drucken</strong>. Danach Fenster schließen und in der App auf Fertig tippen.</p>
+  <p class="ios-print-hint">Wichtig: Im Druckdialog <strong>Kopf- und Fußzeilen aus</strong> — sonst verschiebt Safari den Bogen.</p>
   <div class="ios-print-actions">
     <!-- onclick inline: iOS behält den User-Gesture zuverlässiger als addEventListener -->
     <button type="button" class="ios-print-go" id="ios-print-go"
@@ -969,7 +994,7 @@ function openIosPrintOverlay(multi) {
       : `1 Bogen · ${labels} Etiketten sind vorbereitet.`;
   }
   if (help) {
-    help.textContent = 'Tippe auf Drucken — der Druck öffnet sich in Safari. Danach hier auf Fertig.';
+    help.textContent = 'Tippe auf Drucken — in Safari Jetzt drucken, Kopf-/Fußzeilen aus, dann hier Fertig.';
   }
   overlay.hidden = false;
   document.body.classList.add('avery-ios-print-open');
@@ -1027,9 +1052,9 @@ function triggerIosPrintNow() {
 
   const help = document.getElementById('avery-ios-print-help');
   if (help) {
-    help.textContent = 'Druckvorschau ist offen. Auf Jetzt drucken tippen, Fenster schließen, dann hier Fertig.';
+    help.textContent = 'Druckvorschau offen: Jetzt drucken, Kopf-/Fußzeilen aus, Fenster schließen, dann Fertig.';
   }
-  window.showToast?.('Druckvorschau geöffnet — dort auf Jetzt drucken tippen.', 'success');
+  window.showToast?.('Druckvorschau geöffnet — Kopf- und Fußzeilen im Druckdialog ausschalten.', 'success');
   return true;
 }
 
