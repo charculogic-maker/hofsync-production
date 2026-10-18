@@ -1,5 +1,5 @@
 /**
- * Headless smoke for Avery white 3-zone WYSIWYG labels.
+ * Headless smoke for Avery Inhalt-zuerst hero-v2 labels.
  */
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -18,10 +18,7 @@ const demoHtml = `<!DOCTYPE html>
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/avery-labels.css">
 <title>Avery Labels Smoke</title>
-<style>
-  /* Simulate dark app shell to prove labels stay white */
-  body { background: #0f172a; color: #e2e8f0; }
-</style>
+<style>body { background: #0f172a; color: #e2e8f0; }</style>
 </head><body>
 <div id="page-avery" class="page active"></div>
 <script type="module">
@@ -41,76 +38,99 @@ const page = await browser.newPage({ viewport: { width: 390, height: 1100 } });
 await page.goto(`${BASE}/avery-labels-smoke.html`, { waitUntil: 'networkidle' });
 await page.waitForSelector('#avery-sheet-preview');
 
-const defaults = await page.evaluate(() => ({
-  printBetrieb: document.getElementById('avery-print-betrieb')?.checked,
-  printSchlachthof: document.getElementById('avery-print-schlachthof')?.checked,
-  hasReifeField: Boolean(document.getElementById('avery-reifehinweis')),
-}));
-if (defaults.printBetrieb !== false || defaults.printSchlachthof !== false) {
-  throw new Error(`Print toggles must default off: ${JSON.stringify(defaults)}`);
-}
-if (defaults.hasReifeField) throw new Error('Reifehinweis field must be removed');
-
 await page.fill('#avery-ohrmarke', 'DE123456');
-await page.fill('#avery-trim-tr-r1-spiesse', '2');
-await page.fill('#avery-trim-tr-r2-hack', '1');
+await page.fill('#avery-trim-tr-r1-spiesse', '1');
 await page.click('[data-avery-tab="schultern"]');
-await page.click('[data-avery-add="sch-brust"]');
+await page.click('[data-avery-add="sch-falsches-filet"]');
+await page.click('[data-avery-add="sch-schaufel"]');
 await page.click('[data-avery-slot="1"]');
 await page.waitForTimeout(150);
 
 const stats = await page.evaluate(() => {
   const cards = [...document.querySelectorAll('.avery-slot.is-filled .label-card')];
-  const spiesseCard = cards.find((c) => /R I\s*·\s*Spieße/i.test(c.querySelector('.lbl-title-text')?.textContent || ''))
+  const card = cards.find((c) => /Falsches Filet/i.test(c.querySelector('.lbl-title')?.textContent || ''))
     || cards[0];
-  const title = spiesseCard?.querySelector('.lbl-title-text');
-  const slot = spiesseCard?.closest('.avery-slot');
+  const title = card?.querySelector('.lbl-title');
+  const slot = card?.closest('.avery-slot');
+  const sheet = document.querySelector('.avery-sheet-preview');
+  const wrap = document.querySelector('.sheet-scroll-wrapper');
   const rect = slot?.getBoundingClientRect();
-  const ratio = rect && rect.height ? rect.width / rect.height : 0;
-  const cs = spiesseCard ? getComputedStyle(spiesseCard) : null;
-  const titleCs = title ? getComputedStyle(title) : null;
   const titleBox = title?.getBoundingClientRect();
+  const heroBox = card?.querySelector('.lbl-hero')?.getBoundingClientRect();
+  const lotText = card?.querySelector('.lbl-meta-main')?.textContent?.trim() || '';
+  const lotCs = card?.querySelector('.lbl-meta-main')
+    ? getComputedStyle(card.querySelector('.lbl-meta-main'))
+    : null;
+  const cs = card ? getComputedStyle(card) : null;
   return {
     bg: cs?.backgroundColor || '',
-    color: cs?.color || '',
+    titles: cards.map((c) => c.querySelector('.lbl-title')?.textContent?.trim()),
     titleText: title?.textContent?.trim() || '',
-    titles: cards.map((c) => c.querySelector('.lbl-title-text')?.textContent?.trim()),
-    hasHeader: Boolean(spiesseCard?.querySelector('.lbl-header')),
-    hasFooter: Boolean(spiesseCard?.querySelector('.lbl-footer')),
-    storageInHeader: spiesseCard?.querySelector('.lbl-storage')?.textContent?.trim() || '',
-    emptyOhrPlaceholder: cards.some((c) => /OHR\s*[–-]/.test(c.innerHTML || '')),
-    ohrPresent: cards.some((c) => /OHR\s+DE123456/.test(c.textContent || '')),
-    aspectApprox: Number(ratio.toFixed(2)),
-    titleFont: titleCs?.fontSize || '',
-    titleLineHeight: titleCs?.lineHeight || '',
     titleHeight: titleBox?.height || 0,
-    toast: window.__toast || null,
+    heroHeight: heroBox?.height || 0,
+    slotRatio: rect && rect.height ? Number((rect.width / rect.height).toFixed(2)) : 0,
+    slotWidth: rect?.width || 0,
+    hasArt: /ART\./i.test(card?.textContent || ''),
+    hasHeader: Boolean(card?.querySelector('.lbl-header')),
+    hasHero: Boolean(card?.querySelector('.lbl-hero')),
+    hasMeta: Boolean(card?.querySelector('.lbl-meta')),
+    hasFoot: Boolean(card?.querySelector('.lbl-foot')),
+    foot: card?.querySelector('.lbl-foot')?.textContent?.trim() || '',
+    lotText,
+    lotEllipsis: lotCs?.textOverflow === 'ellipsis',
+    lotOverflow: lotCs?.overflow || '',
+    sheetMinWidth: sheet ? getComputedStyle(sheet).minWidth : '',
+    sheetWidth: sheet?.getBoundingClientRect().width || 0,
+    hasScrollWrap: Boolean(wrap),
+    noEmptyOhr: !cards.some((c) => /OHR\s*[–-]/.test(c.innerHTML || '')),
   };
 });
 
-if (!/^rgb\(255,\s*255,\s*255\)$/.test(stats.bg) && stats.bg !== '#ffffff') {
-  throw new Error(`Label must be white, got bg=${stats.bg}`);
+if (!/^rgb\(255,\s*255,\s*255\)$/.test(stats.bg)) {
+  throw new Error(`Label must be white, got ${stats.bg}`);
 }
-if (!stats.hasHeader || !stats.hasFooter) throw new Error('3-zone structure missing');
-if (!/R I · Spieße/.test(stats.titleText)) {
-  throw new Error(`Expected R I · Spieße title, got "${stats.titleText}" (all: ${JSON.stringify(stats.titles)})`);
+if (stats.hasArt || stats.hasHeader) throw new Error('Art./header must be removed from label');
+if (!stats.hasHero || !stats.hasMeta || !stats.hasFoot) {
+  throw new Error(`Inhalt-zuerst zones missing: ${JSON.stringify(stats)}`);
 }
-if (stats.storageInHeader !== '0–2 °C') {
-  throw new Error(`Storage should be in header, got "${stats.storageInHeader}"`);
+if (!/Falsches Filet/i.test(stats.titleText)) {
+  throw new Error(`Expected Falsches Filet, got "${stats.titleText}"`);
 }
-if (stats.emptyOhrPlaceholder) throw new Error('Empty OHR placeholder still shown');
-if (!stats.ohrPresent) throw new Error('OHR with ear tag missing');
-if (stats.aspectApprox < 1.7 || stats.aspectApprox > 2.2) {
-  throw new Error(`Expected landscape ~1.94 ratio, got ${stats.aspectApprox}`);
+if (stats.titleHeight < 20) {
+  throw new Error(`Two-line title too short/clipped: h=${stats.titleHeight}`);
+}
+if (!/Gekühlt bei 0–2 °C lagern/.test(stats.foot)) {
+  throw new Error(`Foot line wrong: ${stats.foot}`);
+}
+if (stats.lotEllipsis) throw new Error('LOT must not use text-overflow ellipsis');
+if (stats.slotWidth < 180) {
+  throw new Error(`Preview slot too narrow (mobile squash): ${stats.slotWidth}px`);
+}
+if (stats.sheetWidth < 640) {
+  throw new Error(`Sheet must keep min ~640px width, got ${stats.sheetWidth}`);
+}
+if (!stats.hasScrollWrap) throw new Error('sheet-scroll-wrapper missing');
+if (stats.slotRatio < 1.7 || stats.slotRatio > 2.2) {
+  throw new Error(`Expected ~1.94 ratio, got ${stats.slotRatio}`);
 }
 
-await page.locator('.avery-sheet-scroll').scrollIntoViewIfNeeded();
-await page.screenshot({ path: `${artifactDir}/avery-hero-preview.png`, fullPage: false });
-const box = await page.locator('.avery-slot.is-filled').first().boundingBox();
+await page.locator('.sheet-scroll-wrapper').scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${artifactDir}/avery-hero-v2-preview.png`, fullPage: false });
+
+const falsches = page.locator('.avery-slot.is-filled').filter({ hasText: 'Falsches Filet' }).first();
+const box = await falsches.boundingBox();
 if (box) {
   await page.screenshot({
-    path: `${artifactDir}/avery-hero-label-closeup.png`,
-    clip: { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 6), width: box.width + 12, height: box.height + 12 },
+    path: `${artifactDir}/avery-hero-v2-falsches-filet.png`,
+    clip: { x: Math.max(0, box.x - 4), y: Math.max(0, box.y - 4), width: box.width + 8, height: box.height + 8 },
+  });
+}
+const spiesse = page.locator('.avery-slot.is-filled').filter({ hasText: 'Spieße' }).first();
+const sbox = await spiesse.boundingBox();
+if (sbox) {
+  await page.screenshot({
+    path: `${artifactDir}/avery-hero-v2-spiesse.png`,
+    clip: { x: Math.max(0, sbox.x - 4), y: Math.max(0, sbox.y - 4), width: sbox.width + 8, height: sbox.height + 8 },
   });
 }
 
