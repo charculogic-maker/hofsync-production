@@ -20,6 +20,9 @@ const MODULE_FLAG_KEYS = [
   'buero',
   'chargenDoku',
   'cutting',
+  'averyLabels',
+  'avery',
+  'zerlegung',
   'retterBox',
   'deliveryParser',
   'mhdMonitor',
@@ -54,6 +57,7 @@ function expandModuleFlags(flags = {}) {
   const buero = src.buero === true || src.batches === true;
   const start = src.start === true || src.teamboard === true;
   const chargenDoku = src.chargenDoku === true || src.cutting === true;
+  const averyLabels = src.averyLabels === true || src.avery === true || src.zerlegung === true;
   return {
     start,
     teamboard: start,
@@ -73,6 +77,9 @@ function expandModuleFlags(flags = {}) {
     batches: buero,
     chargenDoku,
     cutting: src.cutting === true || chargenDoku,
+    averyLabels,
+    avery: averyLabels,
+    zerlegung: averyLabels,
     retterBox: src.retterBox === true,
     wareneingangMetzgerei: src.wareneingangMetzgerei === true,
     rezeptAudit: src.rezeptAudit === true,
@@ -129,6 +136,7 @@ const ALIAS_GROUPS = [
   ['buero', 'batches'],
   ['start', 'teamboard'],
   ['chargenDoku', 'cutting'],
+  ['averyLabels', 'avery', 'zerlegung'],
 ];
 
 function applyModulePatch(current = {}, patch = {}) {

@@ -1546,11 +1546,12 @@ function bindTenantToggleHandlers(db, statusEl) {
       );
       if (statusEl) statusEl.textContent = `Gespeichert: ${tenantId} · ${MODULE_LABELS[moduleKey] || moduleKey}`;
       window.showToast?.('Module für Mandant erfolgreich aktualisiert.', 'success');
-    } catch (err) {
+    } catch (error) {
       input.checked = previous;
-      console.error('[Dev-Dashboard] Modul-Toggle fehlgeschlagen:', err);
-      if (statusEl) statusEl.textContent = `Fehler: ${err?.message || 'Speichern fehlgeschlagen'}`;
-      window.showToast?.('Modul konnte nicht gespeichert werden.', 'error');
+      console.error('[Dev-Dashboard] Modul Toggle fehlgeschlagen:', error);
+      const detail = String(error?.message || error || 'Unbekannter Fehler').trim();
+      if (statusEl) statusEl.textContent = `Fehler: ${detail}`;
+      window.showToast?.(`Speichern fehlgeschlagen: ${detail}`, 'error');
     } finally {
       input.disabled = false;
     }

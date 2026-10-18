@@ -85,6 +85,9 @@ function assertProvisionAccess(auth) {
 
 function buildEnabledModules(modules) {
   const kitchen = modules.kitchen === true || modules.wurstkueche === true;
+  const averyLabels = modules.averyLabels === true
+    || modules.avery === true
+    || modules.zerlegung === true;
   return {
     start: modules.start === true,
     team: modules.team === true,
@@ -97,9 +100,11 @@ function buildEnabledModules(modules) {
     buero: modules.buero === true,
     chargenDoku: modules.cutting === true || modules.chargenDoku === true,
     cutting: modules.cutting === true,
-    averyLabels: modules.averyLabels === true || modules.zerlegung === true,
-    zerlegung: modules.averyLabels === true || modules.zerlegung === true,
+    averyLabels,
+    avery: averyLabels,
+    zerlegung: averyLabels,
     retterBox: modules.retterBox === true,
+    rezeptAudit: modules.rezeptAudit === true,
   };
 }
 

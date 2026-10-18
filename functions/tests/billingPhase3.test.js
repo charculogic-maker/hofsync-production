@@ -91,6 +91,19 @@ describe('Phase 3 tariffs', () => {
   test('unknown module keys are rejected', () => {
     expect(() => applyModulePatch({}, { notAModule: true })).toThrow(/Unbekanntes Modul/);
   });
+
+  test('averyLabels / retterBox / rezeptAudit are accepted module keys', () => {
+    const next = applyModulePatch(
+      { mhd: true },
+      { averyLabels: true, retterBox: true, rezeptAudit: false },
+    );
+    expect(next.averyLabels).toBe(true);
+    expect(next.avery).toBe(true);
+    expect(next.zerlegung).toBe(true);
+    expect(next.retterBox).toBe(true);
+    expect(next.rezeptAudit).toBe(false);
+    expect(next.mhd).toBe(true);
+  });
 });
 
 describe('Phase 3 webhook signatures', () => {
