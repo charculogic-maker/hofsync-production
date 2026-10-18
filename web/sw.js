@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-v2';
+const CACHE_NAME = 'charculogic-v20261018-haccp-v3';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – HACCP Temperatur-Rundgang + iOS In-Page-Druck (merge main) */
-const RELEASED_AT = '2026-10-18T16:45:00+02:00';
+/** Release – HACCP Laden/Lager ohne OG + In-App-Seed */
+const RELEASED_AT = '2026-10-18T17:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

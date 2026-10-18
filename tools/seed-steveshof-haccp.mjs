@@ -1,21 +1,19 @@
 /**
  * Seed / Upsert der StevesHof HACCP-Messpunkte (Temperatur-Rundgang).
+ * Nur Laden & Lager (8 Prüfstellen) — kein Obergeschoss / keine Verbundanlage.
  *
- * Schreibt nach: tenants/StevesHof_Hauptbetrieb/haccp_geraete/{deterministicId}
- *
- * Beispiele:
- *   node tools/seed-steveshof-haccp.mjs
- *   node tools/seed-steveshof-haccp.mjs --project=hofsync-production
+ * Bevorzugt In-App-Seeding im HACCP-Setup (authentifiziertes Client-SDK).
+ * Dieses Script bleibt für Admin-SDK-Läufe mit Credentials:
  *   node tools/seed-steveshof-haccp.mjs --dry-run
+ *   node tools/seed-steveshof-haccp.mjs --project=hofsync-production
  */
 import admin from 'firebase-admin';
 
 const TENANT_ID = 'StevesHof_Hauptbetrieb';
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 
 /** @type {Array<Record<string, unknown>>} */
-const STEVESHOF_HACCP_DEVICES = [
-  // Verkauf – manuelle Temperatur
+export const STEVESHOF_HACCP_DEVICES = [
   {
     name: 'Fleischtheke',
     bereich: 'Verkauf',
@@ -93,7 +91,6 @@ const STEVESHOF_HACCP_DEVICES = [
     sortOrder: 70,
     isActive: true,
   },
-  // Lager
   {
     name: 'Lager-TK-Truhe Aufbackbrötchen',
     bereich: 'Lager',
@@ -103,73 +100,6 @@ const STEVESHOF_HACCP_DEVICES = [
     unit: '°C',
     activeDays: null,
     sortOrder: 80,
-    isActive: true,
-  },
-  // Obergeschoss – Verbundanlage (Zentralsteuerung)
-  {
-    name: 'Tiefkühlhaus OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: -24,
-    tempMax: -18,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 100,
-    isActive: true,
-  },
-  {
-    name: 'Kühlhaus MoPro OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: 2,
-    tempMax: 6,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 110,
-    isActive: true,
-  },
-  {
-    name: 'Gemüsekühlhaus OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: 4,
-    tempMax: 8,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 120,
-    isActive: true,
-  },
-  {
-    name: 'Zerlegeraum OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: 2,
-    tempMax: 6,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 130,
-    isActive: true,
-  },
-  {
-    name: 'Fleischkühlhaus OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: 0,
-    tempMax: 2,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 140,
-    isActive: true,
-  },
-  {
-    name: 'Galloway-Reiferaum OG',
-    bereich: 'Obergeschoss',
-    type: 'digital_verbund',
-    tempMin: 0,
-    tempMax: 2,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 150,
     isActive: true,
   },
 ];
@@ -201,16 +131,15 @@ export function buildStevesHofHaccpPayload(device, tenantId = TENANT_ID) {
     id: haccpDeviceDocId(device.name),
     name: device.name,
     bereich: device.bereich,
-    type: device.type,
+    type: 'manual_temp',
     tempMin: device.tempMin,
     tempMax: device.tempMax,
     unit: device.unit || '°C',
     activeDays: device.activeDays == null ? null : device.activeDays,
     sortOrder: device.sortOrder,
     isActive: device.isActive !== false,
-    // Legacy-Kompatibilität für ältere Clients / Rules-Übergang
     protokollTyp: 'temperatur',
-    geraeteTyp: device.type === 'digital_verbund' ? 'verbund' : (Number(device.tempMax) <= -10 ? 'tk' : 'kuehlung'),
+    geraeteTyp: Number(device.tempMax) <= -10 ? 'tk' : 'kuehlung',
     sollMin: device.tempMin,
     sollMax: device.tempMax,
     einheit: device.unit || '°C',

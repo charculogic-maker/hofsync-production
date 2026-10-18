@@ -152,10 +152,101 @@ const FLY_PREVENTION_CLEANING_TASK = {
 
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
 const WEEKDAY_LABELS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const HACCP_BEREICHE = ['Verkauf', 'Obergeschoss', 'Lager'];
+const HACCP_BEREICHE = ['Verkauf', 'Lager'];
 const HACCP_DEVICE_TYPES = [
   { value: 'manual_temp', label: 'Manuelle Temperatur' },
-  { value: 'digital_verbund', label: 'Verbundanlage (Zentral)' },
+];
+
+/** StevesHof Pilot: 8 Laden-/Lager-Prüfstellen (kein Obergeschoss). */
+const STEVESHOF_STANDARD_TEMP_DEVICES = [
+  {
+    name: 'Fleischtheke',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 0,
+    tempMax: 2,
+    unit: '°C',
+    activeDays: [4, 5, 6],
+    sortOrder: 10,
+    isActive: true,
+  },
+  {
+    name: 'Käsetheke (SB)',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 2,
+    tempMax: 7,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 20,
+    isActive: true,
+  },
+  {
+    name: 'SB-Theke Fleisch & Wurst',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 0,
+    tempMax: 4,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 30,
+    isActive: true,
+  },
+  {
+    name: 'SB-Kühlschrank Frische & MoPro',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 2,
+    tempMax: 6,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 40,
+    isActive: true,
+  },
+  {
+    name: 'SB-TK Obst & Eis',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: -24,
+    tempMax: -18,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 50,
+    isActive: true,
+  },
+  {
+    name: 'SB-TK Gemüse',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: -24,
+    tempMax: -18,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 60,
+    isActive: true,
+  },
+  {
+    name: 'SB-TK Fleisch, Pizza & Brot',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: -24,
+    tempMax: -18,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 70,
+    isActive: true,
+  },
+  {
+    name: 'Lager-TK-Truhe Aufbackbrötchen',
+    bereich: 'Lager',
+    type: 'manual_temp',
+    tempMin: -22,
+    tempMax: -16,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 80,
+    isActive: true,
+  },
 ];
 
 function getCleaningTeam() {
@@ -208,10 +299,10 @@ const haccpState = {
   devices: [],
   logs: [],
   cleaningDoneBy: '',
-  /** @type {Record<string, { value: number|null, centralOk: boolean, note: string }>} */
+  /** @type {Record<string, { value: number|null, note: string }>} */
   roundEntries: {},
-  centralDetailsOpen: false,
   editingDeviceId: '',
+  seedingStevesHof: false,
   devicesUnsubscribe: null,
   logsUnsubscribe: null,
   initialized: false,
@@ -454,7 +545,7 @@ function normalizeHaccpDevice(raw = {}) {
 }
 
 function isTemperatureDeviceType(type) {
-  return type === 'manual_temp' || type === 'digital_verbund';
+  return type === 'manual_temp';
 }
 
 function isDeviceRequiredToday(device, day = new Date().getDay()) {
@@ -477,19 +568,45 @@ function sortedTemperatureDevices() {
     .sort((a, b) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name), 'de'));
 }
 
-function verbundDevices() {
-  return sortedTemperatureDevices().filter((device) => device.type === 'digital_verbund');
-}
-
-function manualTemperatureDevices() {
-  return sortedTemperatureDevices().filter((device) => device.type === 'manual_temp');
+function manualTemperatureDevices({ includeRestDays = false } = {}) {
+  return sortedTemperatureDevices()
+    .filter((device) => device.type === 'manual_temp')
+    .filter((device) => includeRestDays || !isDeviceRestDay(device));
 }
 
 function ensureRoundEntry(deviceId) {
   if (!haccpState.roundEntries[deviceId]) {
-    haccpState.roundEntries[deviceId] = { value: null, centralOk: false, note: '' };
+    haccpState.roundEntries[deviceId] = { value: null, note: '' };
   }
   return haccpState.roundEntries[deviceId];
+}
+
+function buildStevesHofDevicePayload(device) {
+  const tempMin = device.tempMin != null ? Number(device.tempMin) : null;
+  const tempMax = device.tempMax != null ? Number(device.tempMax) : null;
+  const docId = haccpDeviceDocId(device.name);
+  return {
+    id: docId,
+    name: device.name,
+    bereich: device.bereich,
+    type: 'manual_temp',
+    tempMin,
+    tempMax,
+    unit: device.unit || '°C',
+    activeDays: Array.isArray(device.activeDays) ? device.activeDays : null,
+    sortOrder: device.sortOrder ?? 100,
+    isActive: true,
+    protokollTyp: 'temperatur',
+    geraeteTyp: Number(tempMax) <= -10 ? 'tk' : 'kuehlung',
+    sollMin: tempMin,
+    sollMax: tempMax,
+    einheit: device.unit || '°C',
+    intervall: 'taeglich',
+    aktiv: true,
+    tenantId: resolveHaccpTenantId(),
+    seedVersion: 3,
+    updatedBy: 'haccp-in-app-seed',
+  };
 }
 
 function temperatureRoundLogDocId(dateKey = localDateKey()) {
@@ -585,10 +702,6 @@ function isDeviceCapturedInRound(device) {
   const saved = temperatureCompletionForDevice(device);
   if (saved) return true;
   const entry = ensureRoundEntry(device.id);
-  if (device.type === 'digital_verbund') {
-    if (entry.centralOk) return true;
-    return entry.value != null && Number.isFinite(Number(entry.value));
-  }
   return entry.value != null && Number.isFinite(Number(entry.value));
 }
 
@@ -795,22 +908,6 @@ function buildMeasurementPayload(device) {
       massnahme: 'Ruhetag / Ausgeschaltet',
     };
   }
-  if (device.type === 'digital_verbund' && entry.centralOk && (entry.value == null || entry.value === '')) {
-    return {
-      deviceId: device.id,
-      deviceName: device.name,
-      bereich: device.bereich,
-      type: device.type,
-      wert: null,
-      value: null,
-      status: 'ok',
-      source: 'central',
-      tempMin: device.tempMin,
-      tempMax: device.tempMax,
-      einheit: device.unit || '°C',
-      massnahme: 'OK (Zentralsteuerung)',
-    };
-  }
   const numericValue = Number(entry.value);
   const inRange = tempInRange(device, numericValue);
   return {
@@ -821,27 +918,12 @@ function buildMeasurementPayload(device) {
     wert: numericValue,
     value: numericValue,
     status: inRange ? 'ok' : 'abweichung',
-    source: device.type === 'digital_verbund' ? 'central_override' : 'manual',
+    source: 'manual',
     tempMin: device.tempMin,
     tempMax: device.tempMax,
     einheit: device.unit || '°C',
     massnahme: entry.note || '',
   };
-}
-
-function markCentralControlVerified() {
-  if (temperatureRoundSavedToday()) {
-    haccpState.showHUD('Schon erledigt', 'Der Temperatur-Rundgang ist für heute bereits gespeichert.');
-    return;
-  }
-  verbundDevices().forEach((device) => {
-    const entry = ensureRoundEntry(device.id);
-    entry.centralOk = true;
-    if (entry.value == null || entry.value === '') entry.value = null;
-  });
-  haccpState.playClickSound?.();
-  haccpState.showHUD('Zentralsteuerung geprüft', 'Alle OG-Kühlstellen sind als i.O. vermerkt.');
-  renderHaccpDaily();
 }
 
 function setRoundTempValue(deviceId, rawValue) {
@@ -852,7 +934,6 @@ function setRoundTempValue(deviceId, rawValue) {
     const numeric = Number(rawValue);
     entry.value = Number.isFinite(numeric) ? numeric : null;
   }
-  if (entry.value != null) entry.centralOk = false;
 }
 
 function stepRoundTemp(deviceId, delta) {
@@ -862,8 +943,54 @@ function stepRoundTemp(deviceId, delta) {
   const current = Number.isFinite(Number(entry.value)) ? Number(entry.value) : defaultStepperValue(device);
   const next = Math.round((current + Number(delta)) * 2) / 2;
   entry.value = next;
-  entry.centralOk = false;
   renderHaccpDaily();
+}
+
+async function seedStevesHofStandardDevices() {
+  const path = haccpDevicesCollectionPath();
+  if (!path || !haccpState.writeOrQueueFirestore) {
+    haccpState.showHUD('Offline', 'Einrichten klappt erst wieder mit Verbindung.', '!');
+    return;
+  }
+  if (haccpState.seedingStevesHof) return;
+
+  haccpState.verifyAdminAction(async () => {
+    haccpState.seedingStevesHof = true;
+    try {
+      const tenantId = resolveHaccpTenantId();
+      if (!tenantId) {
+        haccpState.showHUD('Mandant fehlt', 'Bitte zuerst anmelden und den Betrieb wählen.', '!');
+        return;
+      }
+      for (const device of STEVESHOF_STANDARD_TEMP_DEVICES) {
+        const payload = buildStevesHofDevicePayload(device);
+        await haccpState.writeOrQueueFirestore({
+          collectionPath: path,
+          docId: payload.id,
+          op: 'set',
+          onlineData: { ...payload, updatedAt: serverTimestamp(), createdAt: serverTimestamp() },
+          queueData: {
+            ...payload,
+            updatedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          },
+          offlineMessage: 'StevesHof-Kühlstellen werden nachträglich synchronisiert.',
+        });
+      }
+      haccpState.playClickSound?.();
+      haccpState.showHUD(
+        'Geräte angelegt',
+        `${STEVESHOF_STANDARD_TEMP_DEVICES.length} Laden- und Lager-Kühlstellen sind bereit.`,
+      );
+      renderHaccpDaily();
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] StevesHof-Seed fehlgeschlagen:', err);
+      haccpState.showHUD('Hat nicht geklappt', 'Standard-Geräte konnten nicht angelegt werden. Bitte Rechte prüfen.', '!');
+    } finally {
+      haccpState.seedingStevesHof = false;
+    }
+  });
 }
 
 async function saveTemperatureRound() {
@@ -877,7 +1004,7 @@ async function saveTemperatureRound() {
     return;
   }
   if (!allRequiredDevicesCaptured()) {
-    haccpState.showHUD('Noch nicht fertig', 'Bitte alle heute aktiven Kühlstellen erfassen oder die Zentralsteuerung quittieren.', '!');
+    haccpState.showHUD('Noch nicht fertig', 'Bitte alle heute aktiven Kühlstellen erfassen.', '!');
     return;
   }
   const doneBy = requireHaccpDoneBy();
@@ -885,11 +1012,6 @@ async function saveTemperatureRound() {
   rememberCleaningPerson(doneBy);
 
   const measurements = devices.map((device) => buildMeasurementPayload(device));
-  const centralControlVerified = verbundDevices().length > 0
-    && verbundDevices().every((device) => {
-      const row = measurements.find((entry) => entry.deviceId === device.id);
-      return row && (row.source === 'central' || row.source === 'central_override' || row.source === 'rest_day');
-    });
 
   const dateKey = localDateKey();
   const roundDocId = temperatureRoundLogDocId(dateKey);
@@ -904,7 +1026,7 @@ async function saveTemperatureRound() {
       bereich: 'Tageskontrolle',
       deviceName: 'Temperatur-Rundgang',
       status: measurements.some((row) => row.status === 'abweichung') ? 'abweichung' : 'ok',
-      centralControlVerified: Boolean(centralControlVerified),
+      centralControlVerified: false,
       measurements,
       massnahme: '',
     });
@@ -951,7 +1073,7 @@ async function saveTemperatureRound() {
       bereich: 'Tageskontrolle',
       deviceName: 'Temperatur-Rundgang',
       status: measurements.some((row) => row.status === 'abweichung') ? 'abweichung' : 'ok',
-      centralControlVerified: Boolean(centralControlVerified),
+      centralControlVerified: false,
       measurements,
       tenantId: resolveHaccpTenantId(),
       datum: dateKey,
@@ -1147,7 +1269,7 @@ function addHaccpDeviceFromForm() {
       sortOrder: sortRaw === '' || sortRaw == null ? 100 : Number(sortRaw),
       isActive: true,
       protokollTyp: 'temperatur',
-      geraeteTyp: type === 'digital_verbund' ? 'verbund' : (Number(tempMax) <= -10 ? 'tk' : 'kuehlung'),
+      geraeteTyp: Number(tempMax) <= -10 ? 'tk' : 'kuehlung',
       sollMin: tempMin,
       sollMax: tempMax,
       einheit: '°C',
@@ -1201,7 +1323,7 @@ function editHaccpDevice(deviceId) {
     const maxEl = document.getElementById('haccp-device-max');
     const sortEl = document.getElementById('haccp-device-sort');
     if (nameEl) nameEl.value = device.name || '';
-    if (typeEl) typeEl.value = device.type === 'digital_verbund' ? 'digital_verbund' : 'manual_temp';
+    if (typeEl) typeEl.value = 'manual_temp';
     if (areaEl) areaEl.value = device.bereich || 'Verkauf';
     if (minEl) minEl.value = device.tempMin == null ? '' : String(device.tempMin);
     if (maxEl) maxEl.value = device.tempMax == null ? '' : String(device.tempMax);
@@ -1317,17 +1439,25 @@ function renderCleaningChecks() {
   `;
 }
 
-function renderRestDayBadge() {
-  return '<span class="haccp-badge haccp-badge--rest">Ruhetag / Ausgeschaltet</span>';
-}
-
 function renderAmpelClass(inRange) {
   if (inRange == null) return '';
   return inRange ? ' haccp-task-card--ampel-ok' : ' haccp-task-card--ampel-bad';
 }
 
+function renderStevesHofSeedButton({ prominent = false } = {}) {
+  const busy = haccpState.seedingStevesHof;
+  return `
+    <button
+      type="button"
+      class="btn btn-primary haccp-seed-btn${prominent ? ' haccp-seed-btn--prominent' : ''}"
+      data-haccp-seed-steveshof="1"
+      ${busy ? 'disabled' : ''}>
+      ${busy ? 'Wird angelegt…' : '⚡ StevesHof Standard-Geräte initial anlegen'}
+    </button>
+  `;
+}
+
 function renderManualDeviceCard(device, { locked = false } = {}) {
-  const restDay = isDeviceRestDay(device);
   const completion = temperatureCompletionForDevice(device);
   const entry = ensureRoundEntry(device.id);
   const value = completion
@@ -1335,138 +1465,72 @@ function renderManualDeviceCard(device, { locked = false } = {}) {
     : entry.value;
   const hasValue = value != null && value !== '' && Number.isFinite(Number(value));
   const inRange = hasValue ? tempInRange(device, value) : null;
-  const done = Boolean(completion) || (restDay && locked);
+  const done = Boolean(completion);
   const presets = tempPresetsForDevice(device);
-  const disabled = locked || Boolean(completion) || restDay;
+  const disabled = locked || Boolean(completion);
 
   return `
-    <div class="haccp-task-card${done || restDay ? ' haccp-task-card--done' : ''}${renderAmpelClass(inRange)}" data-haccp-device-card="${escapeHtml(device.id)}">
+    <div class="haccp-task-card${done ? ' haccp-task-card--done' : ''}${renderAmpelClass(inRange)}" data-haccp-device-card="${escapeHtml(device.id)}">
       <div class="haccp-task-title-row">
         <div class="haccp-task-title">${escapeHtml(device.name)}</div>
-        ${restDay ? renderRestDayBadge() : ''}
       </div>
       <div class="haccp-task-meta">
         ${escapeHtml(formatSollRange(device))}
         · ${escapeHtml(device.bereich)}
         ${Array.isArray(device.activeDays) && device.activeDays.length ? ` · Aktiv: ${escapeHtml(formatActiveDaysLabel(device))}` : ''}
       </div>
-      ${restDay ? `
-        <div class="haccp-rest-note">Heute keine Prüfung nötig – die Theke ist laut Plan aus.</div>
-      ` : `
-        <div class="haccp-stepper-row">
-          <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad weniger">−</button>
-          <input
-            id="temp-${safeDomId(device.id)}"
-            type="number"
-            inputmode="decimal"
-            class="input-text-touch haccp-temp-input"
-            step="0.5"
-            min="-40"
-            max="40"
-            placeholder="°C"
-            data-haccp-temp-input="${escapeHtml(device.id)}"
-            value="${hasValue ? escapeHtml(value) : ''}"
-            ${disabled ? 'disabled' : ''}>
-          <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad mehr">+</button>
-        </div>
-        ${presets.length && !disabled ? `
-          <div class="haccp-preset-row" role="group" aria-label="Schnellwerte">
-            ${presets.map((preset) => `
-              <button type="button" class="btn haccp-preset-btn" data-haccp-preset="${escapeHtml(device.id)}" data-haccp-preset-value="${preset}">
-                ${String(preset).replace('.', ',')} ${escapeHtml(device.unit || '°C')}
-              </button>
-            `).join('')}
-          </div>
-        ` : ''}
-        ${hasValue ? `
-          <div class="haccp-ampel-label ${inRange ? 'haccp-ampel-label--ok' : 'haccp-ampel-label--bad'}" role="status">
-            ${inRange ? 'Im Sollbereich' : 'Außerhalb – bitte Kühlung prüfen'}
-          </div>
-        ` : ''}
-        ${completion ? `<div class="haccp-task-meta">Heute gespeichert${completion.doneBy ? ` · ${escapeHtml(completion.doneBy)}` : ''}</div>` : ''}
-      `}
-    </div>
-  `;
-}
-
-function renderVerbundOverrideRow(device, { locked = false } = {}) {
-  const completion = temperatureCompletionForDevice(device);
-  const entry = ensureRoundEntry(device.id);
-  const value = completion
-    ? (completion.value != null ? completion.value : completion.wert)
-    : entry.value;
-  const hasValue = value != null && value !== '' && Number.isFinite(Number(value));
-  const inRange = hasValue ? tempInRange(device, value) : null;
-  const centralOk = Boolean(completion?.source === 'central' || entry.centralOk);
-  const disabled = locked || Boolean(completion);
-
-  return `
-    <div class="haccp-verbund-row${centralOk && !hasValue ? ' haccp-verbund-row--ok' : ''}${renderAmpelClass(inRange)}">
-      <div class="haccp-verbund-row-head">
-        <strong>${escapeHtml(device.name)}</strong>
-        <span>${escapeHtml(formatSollRange(device))}</span>
-      </div>
-      <div class="haccp-stepper-row haccp-stepper-row--compact">
-        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''}>−</button>
+      <div class="haccp-stepper-row">
+        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad weniger">−</button>
         <input
           id="temp-${safeDomId(device.id)}"
           type="number"
           inputmode="decimal"
           class="input-text-touch haccp-temp-input"
           step="0.5"
-          placeholder="Ist °C"
+          min="-40"
+          max="40"
+          placeholder="°C"
           data-haccp-temp-input="${escapeHtml(device.id)}"
           value="${hasValue ? escapeHtml(value) : ''}"
           ${disabled ? 'disabled' : ''}>
-        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''}>+</button>
+        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad mehr">+</button>
       </div>
-      <div class="haccp-verbund-row-meta">
-        ${centralOk && !hasValue ? 'OK (Zentralsteuerung)' : (hasValue ? (inRange ? 'Einzelwert im Soll' : 'Einzelwert außerhalb') : 'Optional: abweichenden Ist-Wert eintragen')}
-      </div>
+      ${presets.length && !disabled ? `
+        <div class="haccp-preset-row" role="group" aria-label="Schnellwerte">
+          ${presets.map((preset) => `
+            <button type="button" class="btn haccp-preset-btn" data-haccp-preset="${escapeHtml(device.id)}" data-haccp-preset-value="${preset}">
+              ${String(preset).replace('.', ',')} ${escapeHtml(device.unit || '°C')}
+            </button>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${hasValue ? `
+        <div class="haccp-ampel-label ${inRange ? 'haccp-ampel-label--ok' : 'haccp-ampel-label--bad'}" role="status">
+          ${inRange ? 'Im Sollbereich' : 'Außerhalb – bitte Kühlung prüfen'}
+        </div>
+      ` : ''}
+      ${completion ? `<div class="haccp-task-meta">Heute gespeichert${completion.doneBy ? ` · ${escapeHtml(completion.doneBy)}` : ''}</div>` : ''}
     </div>
   `;
 }
 
-function renderCentralVerbundSection(locked) {
-  const devices = verbundDevices();
-  if (!devices.length) return '';
-  const allCentral = devices.every((device) => {
-    const entry = ensureRoundEntry(device.id);
-    const completion = temperatureCompletionForDevice(device);
-    return Boolean(completion) || entry.centralOk || isDeviceRestDay(device);
-  });
-  return `
-    <section class="haccp-temp-group" aria-label="Obergeschoss Verbundanlage">
-      <div class="haccp-cleaning-group-title">Obergeschoss · Verbundanlage</div>
-      <div class="haccp-central-card">
-        <div class="haccp-task-title">Zentralsteuerung Verbundanlage OG (${devices.length} Kühlstellen)</div>
-        <div class="haccp-task-meta">Ein Tipp quittiert alle OG-Stellen als geprüft und normgerecht. Abweichende Kammern können unten einzeln nachgetragen werden.</div>
-        <button
-          type="button"
-          class="btn btn-primary haccp-central-btn${allCentral ? ' haccp-central-btn--done' : ''}"
-          data-haccp-central-verify="1"
-          ${locked || allCentral ? 'disabled' : ''}>
-          ${allCentral ? '✓ Zentraldisplay geprüft & alle Werte normgerecht' : '✅ Zentraldisplay geprüft & alle Werte normgerecht'}
-        </button>
-        <details class="haccp-collapsible haccp-central-details"${haccpState.centralDetailsOpen ? ' open' : ''}>
-          <summary>Einzelne Soll-/Ist-Korrektur</summary>
-          <div class="haccp-collapsible-body haccp-verbund-list">
-            ${devices.map((device) => renderVerbundOverrideRow(device, { locked })).join('')}
-          </div>
-        </details>
-      </div>
-    </section>
-  `;
-}
-
 function renderManualSections(locked) {
-  const devices = manualTemperatureDevices();
+  const devices = manualTemperatureDevices({ includeRestDays: false });
   if (!devices.length) {
+    const anyConfigured = sortedTemperatureDevices().length > 0;
     return `
       <div class="haccp-daily-intro">
         <strong>Laden &amp; Lager</strong>
-        <span>Noch keine manuellen Messpunkte. Unter „+“ können wir Kühlstellen anlegen.</span>
+        <span>${anyConfigured
+    ? 'Heute sind laut Plan keine Kühlstellen aktiv (z. B. Fleischtheke nur Do–Sa).'
+    : 'Noch keine Messpunkte. Unter „+“ oder mit dem StevesHof-Button legen wir sie an.'}</span>
       </div>
+      ${anyConfigured ? '' : `
+        <div class="haccp-seed-panel">
+          ${renderStevesHofSeedButton({ prominent: true })}
+          <p class="haccp-seed-hint">Legt die 8 Laden- und Lager-Kühlstellen mit Sollwerten und Wochentagen an (nur Admin).</p>
+        </div>
+      `}
     `;
   }
   const byArea = HACCP_BEREICHE
@@ -1490,10 +1554,11 @@ function renderManualSections(locked) {
 
 function renderTemperatureChecks() {
   const devices = sortedTemperatureDevices();
+  const visibleDevices = manualTemperatureDevices({ includeRestDays: false });
   const savedRound = temperatureRoundSavedToday();
   const locked = Boolean(savedRound);
   const employee = readActiveEmployeeName();
-  const ready = allRequiredDevicesCaptured() && !locked;
+  const ready = allRequiredDevicesCaptured() && !locked && visibleDevices.length > 0;
   const requiredCount = devices.filter((device) => isDeviceRequiredToday(device)).length;
   const capturedCount = devices.filter((device) => isDeviceRequiredToday(device) && isDeviceCapturedInRound(device)).length;
 
@@ -1501,7 +1566,11 @@ function renderTemperatureChecks() {
     return `
       <div class="haccp-daily-intro">
         <strong>Temperatur-Rundgang</strong>
-        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Unter „+“ richten wir die Messpunkte ein – oder wir spielen den StevesHof-Seed ein.</span>
+        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Mit dem Button unten legen wir die StevesHof-Standardstellen an – oder unter „+“ einzeln.</span>
+      </div>
+      <div class="haccp-seed-panel">
+        ${renderStevesHofSeedButton({ prominent: true })}
+        <p class="haccp-seed-hint">8 Laden- und Lager-Kühlstellen inkl. Fleischtheke (Do–Sa). Nur mit Admin-Recht.</p>
       </div>
     `;
   }
@@ -1509,15 +1578,15 @@ function renderTemperatureChecks() {
   return `
     <div class="haccp-daily-intro">
       <strong>Temperatur-Rundgang</strong>
-      <span>Wir prüfen Zentralsteuerung und Laden-Kühlstellen. Ruhetage brauchen keinen Messwert.</span>
+      <span>Wir tragen die Temperaturen unserer Laden- und Lager-Kühlstellen ein. Ruhetage (z. B. Fleischtheke So–Mi) bleiben ausgeblendet.</span>
     </div>
     <div class="haccp-employee-chip" aria-live="polite">
       Aktiver Mitarbeiter: <strong>${escapeHtml(employee || 'Noch nicht gewählt')}</strong>
     </div>
     <div class="haccp-temp-groups">
-      ${renderCentralVerbundSection(locked)}
       ${renderManualSections(locked)}
     </div>
+    ${visibleDevices.length ? `
     <div class="haccp-round-footer">
       <div class="haccp-round-progress">${capturedCount} von ${requiredCount} heute aktiven Stellen erfasst</div>
       <button
@@ -1529,6 +1598,7 @@ function renderTemperatureChecks() {
       </button>
       ${locked ? `<div class="haccp-task-meta">Heute bereits gespeichert${savedRound.doneBy ? ` von ${escapeHtml(savedRound.doneBy)}` : ''}.</div>` : ''}
     </div>
+    ` : ''}
   `;
 }
 
@@ -1559,6 +1629,10 @@ function renderHaccpDaily() {
       <div class="haccp-setup-note">
         <strong>Kühlstellen einrichten</strong>
         <span>${haccpState.editingDeviceId ? 'Bestehende Kühlstelle bearbeiten.' : 'Neue Messpunkte für den Temperatur-Rundgang anlegen. Nur ändern, wenn im Laden etwas neu dazukommt.'}</span>
+      </div>
+      <div class="haccp-seed-panel">
+        ${renderStevesHofSeedButton({ prominent: true })}
+        <p class="haccp-seed-hint">Schreibt die 8 StevesHof-Prüfstellen (Laden &amp; Lager) mit Sollwerten und Wochentagen in diesen Betrieb.</p>
       </div>
       <input id="haccp-device-name" class="input-text-touch" placeholder="Name der Kühlstelle" autocomplete="off">
       <div class="batch-input-grid">
@@ -1629,8 +1703,8 @@ function bindHaccpPersonPicker(container) {
 function updateHaccpTemperatureAmpel(deviceId) {
   const device = sortedTemperatureDevices().find((entry) => entry.id === deviceId);
   const input = document.getElementById(`temp-${safeDomId(deviceId)}`);
-  const card = document.querySelector(`[data-haccp-device-card="${CSS.escape?.(deviceId) || deviceId}"]`)
-    || input?.closest('.haccp-task-card, .haccp-verbund-row');
+  const card = document.querySelector(`[data-haccp-device-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(deviceId) : deviceId}"]`)
+    || input?.closest('.haccp-task-card');
   if (!device || !input) return;
   setRoundTempValue(deviceId, input.value);
   const hasValue = input.value !== '' && Number.isFinite(Number(input.value));
@@ -1668,9 +1742,6 @@ function bindRenderedHaccpActions(container) {
   container.querySelectorAll('[data-haccp-edit]').forEach((button) => {
     button.addEventListener('click', () => editHaccpDevice(button.dataset.haccpEdit));
   });
-  container.querySelector('.haccp-central-details')?.addEventListener('toggle', (event) => {
-    haccpState.centralDetailsOpen = Boolean(event.target.open);
-  });
 }
 
 function bindStaticHaccpControls() {
@@ -1678,9 +1749,9 @@ function bindStaticHaccpControls() {
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
     dailyContainer.dataset.haccpDelegated = '1';
     dailyContainer.addEventListener('click', (event) => {
-      const centralBtn = event.target.closest('[data-haccp-central-verify]');
-      if (centralBtn) {
-        markCentralControlVerified();
+      const seedBtn = event.target.closest('[data-haccp-seed-steveshof]');
+      if (seedBtn) {
+        void seedStevesHofStandardDevices();
         return;
       }
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');
@@ -1769,10 +1840,10 @@ function generateHaccpPrintView() {
           <td>${formatDate(entry.datum)}</td>
           <td>${escapeHtml(row.deviceName || '-')}</td>
           <td>${escapeHtml(row.bereich || entry.bereich || '-')}</td>
-          <td>${escapeHtml(row.value != null ? row.value : (row.wert != null ? row.wert : (row.source === 'central' ? 'Zentral OK' : '-')))} ${escapeHtml(row.einheit || '°C')}</td>
+          <td>${escapeHtml(row.value != null ? row.value : (row.wert != null ? row.wert : '-'))} ${escapeHtml(row.einheit || '°C')}</td>
           <td>${escapeHtml(entry.doneBy || '-')}</td>
           <td class="${row.status === 'ok' || row.status === 'ruhetag' ? 'status-ok' : 'status-warn'}">${escapeHtml(row.status === 'ok' ? 'OK' : (row.status || 'Erfasst'))}</td>
-          <td>${escapeHtml(row.massnahme || (entry.centralControlVerified ? 'Zentralsteuerung geprüft' : '-'))}</td>
+          <td>${escapeHtml(row.massnahme || '-')}</td>
         </tr>`;
     }
     return [`

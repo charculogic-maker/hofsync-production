@@ -1,17 +1,24 @@
 /**
- * Unit tests for StevesHof HACCP seed + weekday / Ampel helpers.
+ * Unit tests for StevesHof HACCP seed + weekday / Ampel helpers (Laden & Lager only).
  */
 import { expect } from 'chai';
 import {
+  STEVESHOF_HACCP_DEVICES,
   buildStevesHofHaccpPayload,
   haccpDeviceDocId,
 } from '../tools/seed-steveshof-haccp.mjs';
 
 function isDeviceRequiredToday(device, day) {
   if (!device?.isActive) return false;
-  if (device.type !== 'manual_temp' && device.type !== 'digital_verbund') return false;
+  if (device.type !== 'manual_temp') return false;
   if (!Array.isArray(device.activeDays) || device.activeDays.length === 0) return true;
   return device.activeDays.includes(day);
+}
+
+function isDeviceRestDay(device, day) {
+  if (!device?.isActive || device.type !== 'manual_temp') return false;
+  if (!Array.isArray(device.activeDays) || device.activeDays.length === 0) return false;
+  return !device.activeDays.includes(day);
 }
 
 function tempInRange(device, value) {
@@ -22,7 +29,13 @@ function tempInRange(device, value) {
   return minOk && maxOk;
 }
 
-describe('StevesHof HACCP seed', () => {
+describe('StevesHof HACCP seed (Laden & Lager)', () => {
+  it('enthält genau 8 Prüfstellen ohne Obergeschoss', () => {
+    expect(STEVESHOF_HACCP_DEVICES).to.have.length(8);
+    expect(STEVESHOF_HACCP_DEVICES.every((d) => d.type === 'manual_temp')).to.equal(true);
+    expect(STEVESHOF_HACCP_DEVICES.some((d) => /OG|Obergeschoss|digital_verbund/i.test(`${d.name}${d.bereich}${d.type}`))).to.equal(false);
+  });
+
   it('baut deterministische IDs und das neue Datenmodell', () => {
     const payload = buildStevesHofHaccpPayload({
       name: 'Fleischtheke',
@@ -44,38 +57,13 @@ describe('StevesHof HACCP seed', () => {
     expect(payload.tenantId).to.equal('StevesHof_Hauptbetrieb');
   });
 
-  it('Fleischtheke ist nur Do–Sa aktiv', () => {
-    const fleisch = buildStevesHofHaccpPayload({
-      name: 'Fleischtheke',
-      bereich: 'Verkauf',
-      type: 'manual_temp',
-      tempMin: 0,
-      tempMax: 2,
-      unit: '°C',
-      activeDays: [4, 5, 6],
-      sortOrder: 10,
-      isActive: true,
-    });
+  it('Fleischtheke ist nur Do–Sa aktiv (So–Mi Ruhetag / ausgeblendet)', () => {
+    const fleisch = buildStevesHofHaccpPayload(STEVESHOF_HACCP_DEVICES[0]);
+    expect(isDeviceRequiredToday(fleisch, 0)).to.equal(false); // So
     expect(isDeviceRequiredToday(fleisch, 2)).to.equal(false); // Di
+    expect(isDeviceRestDay(fleisch, 0)).to.equal(true);
     expect(isDeviceRequiredToday(fleisch, 4)).to.equal(true); // Do
     expect(isDeviceRequiredToday(fleisch, 6)).to.equal(true); // Sa
-  });
-
-  it('OG-Verbund ohne activeDays ist jeden Tag aktiv', () => {
-    const og = buildStevesHofHaccpPayload({
-      name: 'Tiefkühlhaus OG',
-      bereich: 'Obergeschoss',
-      type: 'digital_verbund',
-      tempMin: -24,
-      tempMax: -18,
-      unit: '°C',
-      activeDays: null,
-      sortOrder: 100,
-      isActive: true,
-    });
-    expect(og.type).to.equal('digital_verbund');
-    expect(isDeviceRequiredToday(og, 0)).to.equal(true);
-    expect(isDeviceRequiredToday(og, 3)).to.equal(true);
   });
 
   it('Ampel: Wert im/außerhalb Sollbereich', () => {

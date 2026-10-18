@@ -4881,6 +4881,37 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   font-weight: 700;
 }
 
+.haccp-seed-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 12px;
+  border-radius: var(--border-radius-md);
+  background: var(--light-bg);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.haccp-seed-btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.haccp-seed-btn--prominent {
+  min-height: 56px;
+}
+
+.haccp-seed-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
 .haccp-task-title-row {
   display: flex;
   align-items: flex-start;
