@@ -8,9 +8,6 @@ export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
 const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
-/** Vorbereitetes Mehrseiten-HTML für iOS (window.open im User-Gesture) */
-let cachedIosPrintHtml = '';
-
 /**
  * @typedef {{
  *   id: string,
@@ -698,7 +695,6 @@ function renderSheetPreview() {
     const idAttr = idx === 0 ? ' id="avery-sheet-print"' : '';
     return `<div class="avery-sheet${cont}"${idAttr}>${cellsHtml}</div>`;
   }).join('');
-  cachedIosPrintHtml = buildIosPrintDocumentHtml(printArea.innerHTML);
 
   const usagePct = Math.round((plan.usage / AVERY_LABELS_PER_SHEET) * 100);
   if (gaugeFill) gaugeFill.style.width = `${Math.min(100, usagePct)}%`;
@@ -797,249 +793,34 @@ function syncPrintReadyState(plan = null) {
   }
 }
 
-function isIosOrStandalonePwa() {
-  try {
-    const ua = String(navigator.userAgent || '');
-    const iOS = /iPad|iPhone|iPod/i.test(ua)
-      || (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1);
-    const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches
-      || window.navigator.standalone === true;
-    return Boolean(iOS || standalone);
-  } catch (_) {
-    return false;
-  }
-}
-
 /**
- * Eigenständiges Druckdokument für iOS/Safari (Mehrseiten + Schließen-Leiste).
- * @param {string} sheetsInnerHtml
+ * Synchron: Druckfläche aus aktuellem State füllen und an body hängen.
+ * Kein async — muss im selben Klick-Thread vor window.print() laufen.
+ * @returns {HTMLElement}
  */
-function buildIosPrintDocumentHtml(sheetsInnerHtml) {
-  return `<!DOCTYPE html>
-<html lang="de"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Avery 3475 Etikettenbogen</title>
-<style>
-  @page { size: A4 portrait; margin: 4.5mm 0; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  .ios-print-bar {
-    position: sticky; top: 0; z-index: 10;
-    display: flex; flex-direction: column; gap: 8px;
-    padding: 12px 14px; background: #0f172a; color: #f8fafc;
-    font-family: -apple-system, Helvetica, Arial, sans-serif;
-  }
-  .ios-print-bar p { margin: 0; font-size: 14px; line-height: 1.35; }
-  .ios-print-bar .ios-print-actions {
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  .ios-print-bar button {
-    min-height: 48px; border: 0; border-radius: 10px;
-    font-weight: 800; font-size: 16px; width: 100%;
-  }
-  .ios-print-bar .ios-print-go {
-    background: #f59e0b; color: #0f172a;
-  }
-  .ios-print-bar .ios-print-close {
-    background: #f8fafc; color: #0f172a;
-  }
-  .ios-print-scroll {
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
-  }
-  .avery-sheet {
-    display: grid;
-    grid-template-columns: repeat(3, 70mm);
-    grid-auto-rows: 36mm;
-    width: 210mm;
-    margin: 4.5mm auto;
-    gap: 0;
-  }
-  .avery-sheet-continued { page-break-before: always; break-before: page; }
-  .avery-label {
-    box-sizing: border-box; width: 70mm; height: 36mm;
-    overflow: hidden; page-break-inside: avoid;
-  }
-  .avery-label.empty { visibility: hidden; }
-  .label-card {
-    width: 70mm; height: 36mm; padding: 1.8mm 2.6mm 1.4mm;
-    box-sizing: border-box; display: flex; flex-direction: column;
-    font-family: Helvetica, Arial, sans-serif; color: #000; background: #fff;
-  }
-  .lbl-farm {
-    font-size: 5pt; font-weight: 700; margin-bottom: 0.4mm;
-    text-align: center; text-transform: uppercase;
-  }
-  .lbl-hero {
-    flex: 1 1 55%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    min-height: 0;
-    padding: 0.4mm 0.5mm;
-  }
-  .lbl-title {
-    display: block;
-    max-width: 100%;
-    font-size: 12pt;
-    font-weight: 900;
-    line-height: 1.15;
-    text-align: center;
-    text-transform: uppercase;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-  .lbl-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.4mm 2mm;
-    margin-top: 0.4mm;
-    padding-top: 1mm;
-    border-top: 0.6pt solid #000;
-  }
-  .lbl-meta-right { text-align: right; }
-  .lbl-meta-main, .lbl-meta-sub {
-    font-size: 5.5pt; font-weight: 700; line-height: 1.25; white-space: nowrap;
-  }
-  .lbl-foot {
-    margin-top: 0.5mm; padding-top: 0.5mm;
-    border-top: 0.3pt dashed #64748b;
-    font-size: 4.8pt; font-weight: 600; color: #1e293b;
-    text-align: center;
-  }
-  @media print {
-    .ios-print-bar { display: none !important; }
-    .ios-print-scroll { overflow: visible !important; }
-    body { padding: 4.5mm 0; }
-  }
-</style>
-</head><body>
-<div class="ios-print-bar">
-  <p>Tippe auf <strong>Jetzt drucken</strong>. Danach dieses Fenster schließen und in der App auf Fertig tippen.</p>
-  <div class="ios-print-actions">
-    <button type="button" class="ios-print-go" id="ios-print-go">Jetzt drucken</button>
-    <button type="button" class="ios-print-close" id="ios-print-close">Fenster schließen</button>
-  </div>
-</div>
-<div class="ios-print-scroll">
-${sheetsInnerHtml}
-</div>
-<script>
-  function runPrint() {
-    try { window.focus(); window.print(); } catch (e) {}
-  }
-  document.getElementById('ios-print-go')?.addEventListener('click', function (ev) {
-    ev.preventDefault();
-    runPrint();
-  });
-  document.getElementById('ios-print-close')?.addEventListener('click', function () {
-    try { window.close(); } catch (e) {}
-  });
-  // Auto-Versuch; Fallback bleibt der sichtbare Button „Jetzt drucken“
-  window.addEventListener('load', function () {
-    setTimeout(runPrint, 350);
-  });
-<\/script>
-</body></html>`;
-}
-
-function ensureIosPrintOverlay() {
-  let overlay = document.getElementById('avery-ios-print-overlay');
-  if (overlay instanceof HTMLElement) return overlay;
-  overlay = document.createElement('div');
-  overlay.id = 'avery-ios-print-overlay';
-  overlay.className = 'avery-ios-print-overlay';
-  overlay.hidden = true;
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-labelledby', 'avery-ios-print-title');
-  overlay.innerHTML = `
-    <div class="avery-ios-print-card">
-      <h3 id="avery-ios-print-title" class="avery-ios-print-title">Etiketten bereit</h3>
-      <p class="avery-ios-print-summary" id="avery-ios-print-summary"></p>
-      <p class="avery-ios-print-help" id="avery-ios-print-help">Tippe auf Drucken — der Druck öffnet sich in Safari. Danach hier auf Fertig.</p>
-      <button type="button" class="btn btn-primary btn-avery-ios-print" id="btn-avery-ios-print-now" data-avery-ios-print>
-        Drucken
-      </button>
-      <button type="button" class="btn btn-secondary btn-avery-ios-done" id="btn-avery-ios-print-done" data-avery-ios-done>
-        Fertig
-      </button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  return overlay;
-}
-
-function openIosPrintOverlay(multi) {
-  const overlay = ensureIosPrintOverlay();
-  const summary = document.getElementById('avery-ios-print-summary');
-  const help = document.getElementById('avery-ios-print-help');
-  if (summary) {
-    const n = multi?.sheetCount || 1;
-    const labels = multi?.totalQueued || 0;
-    summary.textContent = n > 1
-      ? `${n} Bögen · ${labels} Etiketten sind vorbereitet.`
-      : `1 Bogen · ${labels} Etiketten sind vorbereitet.`;
-  }
-  if (help) {
-    help.textContent = 'Tippe auf Drucken — der Druck öffnet sich in Safari. Danach hier auf Fertig.';
-  }
-  overlay.hidden = false;
-  document.body.classList.add('avery-ios-print-open');
-}
-
-function closeIosPrintOverlay() {
-  const overlay = document.getElementById('avery-ios-print-overlay');
-  if (overlay) overlay.hidden = true;
-  document.body.classList.remove('avery-ios-print-open');
-}
-
-/**
- * iOS: window.print() im PWA-Kontext oft wirkungslos.
- * Deshalb synchron window.open mit vorbereitetem HTML (User-Gesture).
- * @returns {boolean}
- */
-function triggerIosPrintNow() {
-  const areaHtml = document.getElementById('avery-print-area')?.innerHTML || '';
-  const html = cachedIosPrintHtml || buildIosPrintDocumentHtml(areaHtml);
-  if (!html || !/avery-label/.test(html)) {
-    window.showToast?.('Druckbogen ist noch nicht bereit. Bitte kurz warten und noch einmal tippen.', 'warning');
-    return false;
-  }
-
-  // Muss synchron im Klick bleiben — sonst blockiert iOS das Fenster.
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    window.showToast?.('Bitte Pop-ups erlauben, damit wir den Druck öffnen können.', 'warning');
-    try { window.print(); } catch (_) { /* ignore */ }
-    return false;
-  }
-  try {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-  } catch (err) {
-    console.error('[Avery Print] iOS Druckfenster:', err);
-    try { printWindow.close(); } catch (_) { /* ignore */ }
-    window.showToast?.('Druckfenster konnte nicht geöffnet werden. Bitte noch einmal tippen.', 'warning');
-    return false;
-  }
-
-  const help = document.getElementById('avery-ios-print-help');
-  if (help) {
-    help.textContent = 'Druckvorschau ist offen. Fenster schließen, dann hier auf Fertig tippen.';
-  }
-  window.showToast?.('Druckvorschau geöffnet.', 'success');
-  return true;
+function syncAveryPrintAreaFromState() {
+  readHeaderFromDom();
+  const multi = planAverySheets({ queue: state.queue, startSlot: state.startSlot });
+  const lot = buildAveryLot(state.header);
+  const printArea = ensureAveryPrintArea();
+  printArea.innerHTML = multi.sheets.map((sheetPlan, idx) => {
+    const cellsHtml = buildSheetPrintCellsHtml(sheetPlan, state.header, lot);
+    const cont = idx > 0 ? ' avery-sheet-continued' : '';
+    const idAttr = idx === 0 ? ' id="avery-sheet-print"' : '';
+    return `<div class="avery-sheet${cont}"${idAttr}>${cellsHtml}</div>`;
+  }).join('');
+  document.body.classList.add(PRINT_BODY_CLASS);
+  printArea.setAttribute('aria-hidden', 'false');
+  return printArea;
 }
 
 /**
  * Druck anfordern: fehlende Vorbereitung → Toast.
- * iOS/PWA → Overlay; Drucken öffnet Safari-Druckfenster. Desktop → window.print().
+ * Sonst synchron DOM aktualisieren und sofort window.print() (iOS Safari User-Gesture).
  * @returns {boolean}
  */
 function requestAveryPrintFromClick() {
-  const { ready, hasLabels, hasOhr, multi } = getAveryPrintReadiness();
+  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness();
   if (!ready) {
     if (!hasLabels) {
       window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
@@ -1050,16 +831,10 @@ function requestAveryPrintFromClick() {
     return false;
   }
 
-  const area = document.getElementById('avery-print-area');
+  const area = syncAveryPrintAreaFromState();
   if (!(area instanceof HTMLElement) || !area.querySelector('.avery-label:not(.empty)')) {
     window.showToast?.('Druckbogen ist noch nicht bereit. Bitte kurz warten und noch einmal tippen.', 'warning');
     return false;
-  }
-
-  // iOS / PWA: Overlay bleibt als Rückweg; eigentlicher Druck erst bei „Drucken“.
-  if (isIosOrStandalonePwa()) {
-    openIosPrintOverlay(multi);
-    return true;
   }
 
   window.print();
@@ -1232,10 +1007,7 @@ export function ensureAveryPrintArea() {
 }
 
 /**
- * iOS-sicherer Drucktrigger.
- * Nicht ready → Toast (Laden-iPhone-Wording). Ready → nur synchrones window.print().
- * Druckbogen (#avery-print-area) und body.print-avery-labels werden
- * bereits bei Auswahländerungen in renderSheetPreview/syncPrintReadyState vorbereitet.
+ * Drucktrigger: synchrones window.print() im Haupt-DOM (iOS Safari User-Gesture).
  */
 export function printAveryLabelsSheet() {
   return requestAveryPrintFromClick();
@@ -1259,33 +1031,13 @@ function bindEvents(root) {
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
 
-  ensureIosPrintOverlay();
-
-  // Print-Button: iOS → Overlay, Desktop → window.print(); stopPropagation gegen Doppel-Fire
+  // Print-Button: synchron DOM + window.print() im selben Klick (iOS Safari)
   const printBtn = document.getElementById('btn-avery-print-sheet');
   if (printBtn instanceof HTMLButtonElement && printBtn.dataset.averyPrintBound !== '1') {
     printBtn.dataset.averyPrintBound = '1';
     printBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       requestAveryPrintFromClick();
-    });
-  }
-
-  const iosPrintNow = document.getElementById('btn-avery-ios-print-now');
-  if (iosPrintNow instanceof HTMLButtonElement && iosPrintNow.dataset.averyPrintBound !== '1') {
-    iosPrintNow.dataset.averyPrintBound = '1';
-    iosPrintNow.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      triggerIosPrintNow();
-    });
-  }
-  const iosPrintDone = document.getElementById('btn-avery-ios-print-done');
-  if (iosPrintDone instanceof HTMLButtonElement && iosPrintDone.dataset.averyDoneBound !== '1') {
-    iosPrintDone.dataset.averyDoneBound = '1';
-    iosPrintDone.addEventListener('click', (event) => {
-      event.stopPropagation();
-      closeIosPrintOverlay();
     });
   }
 
@@ -1355,16 +1107,6 @@ function bindEvents(root) {
     // Backup-Delegation (falls Direkt-Listener fehlt)
     if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
       requestAveryPrintFromClick();
-      return;
-    }
-
-    if (target.closest('#btn-avery-ios-print-now') || target.closest('[data-avery-ios-print]')) {
-      triggerIosPrintNow();
-      return;
-    }
-
-    if (target.closest('#btn-avery-ios-print-done') || target.closest('[data-avery-ios-done]')) {
-      closeIosPrintOverlay();
       return;
     }
 

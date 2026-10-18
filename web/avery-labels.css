@@ -550,55 +550,6 @@
   line-height: 1.35;
 }
 
-.avery-ios-print-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.avery-ios-print-overlay[hidden] {
-  display: none !important;
-}
-
-.avery-ios-print-card {
-  width: min(420px, 100%);
-  padding: 18px 16px 16px;
-  border-radius: 16px 16px 12px 12px;
-  background: #fff;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.25);
-}
-
-.avery-ios-print-title {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.avery-ios-print-summary,
-.avery-ios-print-help {
-  margin: 0 0 10px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: #334155;
-}
-
-.btn-avery-ios-print,
-.btn-avery-ios-done {
-  width: 100%;
-  min-height: 48px;
-  margin-top: 8px;
-  font-weight: 800;
-}
-
-body.avery-ios-print-open {
-  overflow: hidden;
-}
-
 .avery-print-actions {
   display: flex;
   flex-direction: column;
@@ -632,17 +583,17 @@ body.avery-ios-print-open {
   }
 }
 
-@page avery-3475-sheet {
+/*
+ * Avery 3475 In-Page-Druck (iOS Safari): window.print() im Haupt-DOM.
+ * @page margin 0 + 4.5mm Padding am Print-Container = Avery-Rand.
+ * Scoped auf body.print-avery-labels, damit andere Druckwege (Kisten-Zettel) intakt bleiben.
+ */
+/* Named page: kein globales @page (sonst Kisten-Zettel o. ä. betroffen) */
+@page avery-inpage {
   size: A4 portrait;
-  margin: 4.5mm 0mm;
+  margin: 0;
 }
 
-/*
- * Avery-Druck: überschreibt style.css
- * `body > *:not(.preview-container) { display:none }` indem die
- * Druckfläche als body-Kind (#avery-print-area) liegt und gezielt
- * wieder eingeblendet wird. Child-Kombinator + ID für WebKit.
- */
 @media print {
   body.print-avery-labels {
     background: #ffffff !important;
@@ -650,35 +601,16 @@ body.avery-ios-print-open {
     padding: 0 !important;
   }
 
-  body.print-avery-labels * {
-    visibility: hidden !important;
-  }
-
+  /* Verstecke ALLES im Body außer dem Print-Container (schlägt style.css preview-container-Regel) */
   body.print-avery-labels > *:not(#avery-print-area) {
     display: none !important;
     visibility: hidden !important;
   }
 
-  /* Explizit gegen style.css Hide-All (WebKit/iOS) */
   body.print-avery-labels > #avery-print-area,
-  body.print-avery-labels > #avery-print-area.avery-print-root {
+  body.print-avery-labels #avery-print-area {
     display: block !important;
     visibility: visible !important;
-  }
-
-  body.print-avery-labels #avery-print-area,
-  body.print-avery-labels #avery-print-area *,
-  body.print-avery-labels .avery-print-root,
-  body.print-avery-labels .avery-print-root *,
-  body.print-avery-labels .avery-sheet,
-  body.print-avery-labels .avery-sheet * {
-    visibility: visible !important;
-  }
-
-  body.print-avery-labels > #avery-print-area,
-  body.print-avery-labels #avery-print-area,
-  body.print-avery-labels .avery-print-root {
-    display: block !important;
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -692,25 +624,36 @@ body.avery-ios-print-open {
     overflow: visible !important;
   }
 
+  body.print-avery-labels #avery-print-area *,
+  body.print-avery-labels .avery-sheet,
+  body.print-avery-labels .avery-sheet * {
+    visibility: visible !important;
+  }
+
   body.print-avery-labels .avery-sheet {
     display: grid !important;
     grid-template-columns: repeat(3, 70mm);
     grid-auto-rows: 36mm;
     width: 210mm;
+    height: 288mm;
     gap: 0;
-    margin: 0 auto;
-    page: avery-3475-sheet;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box;
+    page: avery-inpage;
+    page-break-after: always !important;
+    break-after: page !important;
     background: #ffffff !important;
+  }
+
+  body.print-avery-labels .avery-sheet:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   body.print-avery-labels .avery-sheet-continued {
     page-break-before: always !important;
     break-before: page !important;
-  }
-
-  body.print-avery-labels .avery-ios-print-overlay {
-    display: none !important;
-    visibility: hidden !important;
   }
 
   body.print-avery-labels .avery-label {
@@ -726,7 +669,6 @@ body.avery-ios-print-open {
     background: #ffffff !important;
   }
 
-  /* Leere Nutzen: weiße Kachel bleibt im Raster (kein Crash / kein Layout-Shift) */
   body.print-avery-labels .avery-label.empty {
     visibility: hidden !important;
     background: #ffffff !important;
@@ -747,10 +689,15 @@ body.avery-ios-print-open {
     font-size: 5pt;
     font-weight: 700;
     margin-bottom: 0.4mm;
+    text-align: center;
   }
 
   body.print-avery-labels .lbl-hero {
     flex: 1 1 55%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
     padding: 0.4mm 0.5mm;
     overflow: visible;
   }
@@ -759,14 +706,21 @@ body.avery-ios-print-open {
     font-size: 12pt;
     font-weight: 900;
     line-height: 1.15;
+    text-align: center;
     overflow: visible;
   }
 
   body.print-avery-labels .lbl-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     margin-top: 0.4mm;
     padding-top: 1mm;
     border-top: 0.6pt solid #000;
     gap: 0.4mm 2mm;
+  }
+
+  body.print-avery-labels .lbl-meta-right {
+    text-align: right;
   }
 
   body.print-avery-labels .lbl-meta-main,
@@ -785,6 +739,7 @@ body.avery-ios-print-open {
     border-top: 0.3pt dashed #64748b;
     font-size: 4.8pt;
     font-weight: 600;
+    text-align: center;
     color: #1e293b !important;
     -webkit-text-fill-color: #1e293b;
   }

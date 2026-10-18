@@ -31,8 +31,8 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/if \(tab\.hidden \|\| tab\.style\.display === 'none'\) return;/);
   });
 
-  it('bumps SW cache for Avery iOS print v155 release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261018-ios-print-v155'");
+  it('bumps SW cache for Avery iOS in-page print release', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261018-ios-inpage-print'");
   });
 
   it('applies employee kitchen RBAC during zero-flicker boot', () => {

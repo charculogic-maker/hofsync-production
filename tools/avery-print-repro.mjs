@@ -1,5 +1,5 @@
 /**
- * Headless verify: multi-sheet planning UI + iOS print overlay (no window.open).
+ * Headless verify: multi-sheet planning UI + in-page window.print (iOS & Desktop).
  * Requires: node tools/avery-print-debug-server.mjs (port 4173)
  */
 import { chromium } from 'playwright';
@@ -26,7 +26,6 @@ for (const id of [
   'keu-oberschale', 'keu-unterschale', 'keu-nuss', 'keu-huefte',
   'keu-tafelspitz', 'keu-buergermeister', 'keu-wade',
 ]) {
-  // add several each
   for (let n = 0; n < 3; n += 1) await page.click(`[data-avery-add="${id}"]`);
 }
 await page.waitForTimeout(200);
@@ -48,6 +47,7 @@ const multiUi = await page.evaluate(() => {
     filledTotal: printArea
       ? printArea.querySelectorAll('.avery-label:not(.empty)').length
       : 0,
+    printAreaParent: printArea?.parentElement?.tagName || null,
   };
 });
 
@@ -56,6 +56,9 @@ if (multiUi.tabCount < 2 || multiUi.printSheetCount < 2 || !multiUi.statusMulti)
 }
 if (!/Bögen drucken/i.test(multiUi.printBtn)) {
   throw new Error(`Print button should mention Bögen: ${multiUi.printBtn}`);
+}
+if (multiUi.printAreaParent !== 'BODY') {
+  throw new Error(`#avery-print-area must be body child: ${JSON.stringify(multiUi)}`);
 }
 
 // Switch to sheet 2 tab
@@ -73,37 +76,40 @@ if (onSheet2.activeTab !== '1' || !/Bogen 2\//.test(onSheet2.gauge)) {
   throw new Error(`Sheet tab switch failed: ${JSON.stringify(onSheet2)}`);
 }
 
-// Desktop print still uses window.print
-await page.evaluate(() => { window.__printed = false; window.__toast = null; });
+// Desktop: primary button → in-page window.print, no overlay/blob
+await page.evaluate(() => {
+  window.__printed = false;
+  window.__openCalled = false;
+  window.__toast = null;
+  window.open = () => {
+    window.__openCalled = true;
+    return null;
+  };
+});
 await page.click('#btn-avery-print-sheet');
 await page.waitForTimeout(80);
 const desktopPrint = await page.evaluate(() => ({
   printed: Boolean(window.__printed),
-  overlayHidden: document.getElementById('avery-ios-print-overlay')?.hidden !== false,
+  openCalled: Boolean(window.__openCalled),
+  bodyClass: document.body.classList.contains('print-avery-labels'),
+  overlayExists: Boolean(document.getElementById('avery-ios-print-overlay')),
+  printAreaParent: document.getElementById('avery-print-area')?.parentElement?.tagName || null,
+  filled: document.querySelectorAll('#avery-print-area .avery-label:not(.empty)').length,
 }));
-if (!desktopPrint.printed || !desktopPrint.overlayHidden) {
-  throw new Error(`Desktop print failed: ${JSON.stringify(desktopPrint)}`);
+if (!desktopPrint.printed || desktopPrint.openCalled || desktopPrint.overlayExists) {
+  throw new Error(`Desktop in-page print failed: ${JSON.stringify(desktopPrint)}`);
+}
+if (desktopPrint.printAreaParent !== 'BODY' || desktopPrint.filled < 2) {
+  throw new Error(`Print area not ready: ${JSON.stringify(desktopPrint)}`);
 }
 
-// iOS: first tap opens overlay; Drucken opens Safari print window (not in-page print)
+// iOS UA: same path — immediate window.print(), no blob/overlay
 await page.evaluate(() => {
-  window.__openCalled = false;
-  window.__openedHtml = '';
   window.__printed = false;
-  const fakeDoc = {
-    _html: '',
-    open() {},
-    write(html) { this._html = String(html || ''); window.__openedHtml = this._html; },
-    close() {},
-  };
+  window.__openCalled = false;
   window.open = () => {
     window.__openCalled = true;
-    return {
-      document: fakeDoc,
-      focus() {},
-      print() { window.__childPrinted = true; },
-      close() {},
-    };
+    return null;
   };
   Object.defineProperty(navigator, 'userAgent', {
     configurable: true,
@@ -111,56 +117,21 @@ await page.evaluate(() => {
   });
 });
 await page.click('#btn-avery-print-sheet');
-await page.waitForTimeout(100);
-const iosOverlay = await page.evaluate(() => {
-  const overlay = document.getElementById('avery-ios-print-overlay');
-  return {
-    openCalled: Boolean(window.__openCalled),
-    overlayVisible: overlay ? !overlay.hidden : false,
-    summary: document.getElementById('avery-ios-print-summary')?.textContent || '',
-    printed: Boolean(window.__printed),
-  };
-});
-if (iosOverlay.openCalled || !iosOverlay.overlayVisible || iosOverlay.printed) {
-  throw new Error(`iOS overlay open failed: ${JSON.stringify(iosOverlay)}`);
-}
-
-await page.click('#btn-avery-ios-print-now');
-await page.waitForTimeout(100);
-const afterIosPrint = await page.evaluate(() => ({
-  openCalled: Boolean(window.__openCalled),
-  htmlHasLabels: /avery-label/.test(window.__openedHtml || ''),
-  htmlHasClose: /Fenster schließen/.test(window.__openedHtml || ''),
-  htmlHasPrintBtn: /Jetzt drucken/.test(window.__openedHtml || ''),
-  htmlTitleCentered: /lbl-title[^}]*text-align:\s*center/.test(window.__openedHtml || '')
-    || /\.lbl-title\s*\{[^}]*text-align:\s*center/.test(window.__openedHtml || ''),
-  htmlHeroCentered: /lbl-hero[^}]*justify-content:\s*center/.test(window.__openedHtml || '')
-    || /\.lbl-hero\s*\{[^}]*justify-content:\s*center/.test(window.__openedHtml || ''),
-  htmlHasSheets: /avery-sheet/.test(window.__openedHtml || ''),
-  inPagePrinted: Boolean(window.__printed),
-  help: document.getElementById('avery-ios-print-help')?.textContent || '',
-  toast: window.__toast || null,
-}));
-if (!afterIosPrint.openCalled || !afterIosPrint.htmlHasLabels || !afterIosPrint.htmlHasClose) {
-  throw new Error(`iOS Drucken should window.open print HTML: ${JSON.stringify(afterIosPrint)}`);
-}
-if (!afterIosPrint.htmlHasPrintBtn || !afterIosPrint.htmlHeroCentered || !afterIosPrint.htmlTitleCentered) {
-  throw new Error(`iOS print HTML missing print btn or centering: ${JSON.stringify(afterIosPrint)}`);
-}
-if (afterIosPrint.inPagePrinted) {
-  throw new Error('iOS Drucken must not rely on in-page window.print alone');
-}
-
-await page.click('#btn-avery-ios-print-done');
 await page.waitForTimeout(80);
-const afterDone = await page.evaluate(() => ({
-  overlayHidden: document.getElementById('avery-ios-print-overlay')?.hidden === true,
-  bodyClass: document.body.classList.contains('avery-ios-print-open'),
+const iosPrint = await page.evaluate(() => ({
+  printed: Boolean(window.__printed),
+  openCalled: Boolean(window.__openCalled),
+  overlayExists: Boolean(document.getElementById('avery-ios-print-overlay')),
+  bodyClass: document.body.classList.contains('print-avery-labels'),
+  sheets: document.querySelectorAll('#avery-print-area .avery-sheet').length,
 }));
-if (!afterDone.overlayHidden || afterDone.bodyClass) {
-  throw new Error(`iOS Fertig failed: ${JSON.stringify(afterDone)}`);
+if (!iosPrint.printed || iosPrint.openCalled || iosPrint.overlayExists) {
+  throw new Error(`iOS must use in-page window.print only: ${JSON.stringify(iosPrint)}`);
+}
+if (iosPrint.sheets < 2) {
+  throw new Error(`iOS print area missing sheets: ${JSON.stringify(iosPrint)}`);
 }
 
-await page.screenshot({ path: `${artifactDir}/avery-multi-sheet-ios-overlay.png`, fullPage: true });
-console.log(JSON.stringify({ ok: true, multiUi, onSheet2, desktopPrint, iosOverlay, afterIosPrint, afterDone }, null, 2));
+await page.screenshot({ path: `${artifactDir}/avery-inpage-print-repro.png`, fullPage: true });
+console.log(JSON.stringify({ ok: true, multiUi, onSheet2, desktopPrint, iosPrint }, null, 2));
 await browser.close();
