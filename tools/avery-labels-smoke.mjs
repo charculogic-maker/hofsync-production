@@ -18,12 +18,24 @@ const demoHtml = `<!DOCTYPE html>
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/avery-labels.css">
 <title>Avery Labels Smoke</title>
-<style>body { background: #0f172a; color: #e2e8f0; }</style>
+<style>
+  body { background: #0f172a; color: #e2e8f0; }
+  /* Simulate the conflicting global print rule from style.css */
+  @media print {
+    body > *:not(.preview-container) { display: none !important; }
+  }
+</style>
 </head><body>
-<div id="page-avery" class="page active"></div>
+<div class="preview-container"><div id="page-avery" class="page active"></div></div>
 <script type="module">
   import { initAveryLabelsModule, printAveryLabelsSheet } from '/avery-labels.js';
-  window.print = () => { window.__printed = true; };
+  window.print = () => {
+    window.__printed = true;
+    window.__printBodyClass = document.body.classList.contains('print-avery-labels');
+    window.__printAreaParent = document.getElementById('avery-print-area')?.parentElement?.tagName || null;
+    window.__printLabelCount = document.querySelectorAll('#avery-print-area .avery-label').length;
+    window.__printFilled = document.querySelectorAll('#avery-print-area .avery-label:not(.empty)').length;
+  };
   window.showToast = (msg, type) => { window.__toast = { msg, type }; };
   window.BRANDING = { betriebsName: 'StevesHof Hofladen' };
   initAveryLabelsModule();
