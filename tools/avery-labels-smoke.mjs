@@ -158,12 +158,29 @@ if (sbox) {
   });
 }
 
-const printed = await page.evaluate(() => {
-  window.__printed = false;
-  window.__print();
-  return window.__printed;
-});
-if (!printed) throw new Error('printAveryLabelsSheet did not call window.print');
+// Druck-Button per Delegation (nicht nur Direktaufruf)
+await page.evaluate(() => { window.__printed = false; });
+await page.click('#btn-avery-print-sheet');
+await page.waitForTimeout(100);
+const printStats = await page.evaluate(() => ({
+  printed: Boolean(window.__printed),
+  bodyClass: Boolean(window.__printBodyClass),
+  areaParent: window.__printAreaParent || null,
+  labelCount: window.__printLabelCount || 0,
+  filled: window.__printFilled || 0,
+  areaOnBody: document.getElementById('avery-print-area')?.parentElement === document.body,
+  toast: window.__toast || null,
+}));
+if (!printStats.printed) throw new Error('Print button did not call window.print');
+if (!printStats.bodyClass) throw new Error('print-avery-labels class missing at print time');
+if (!printStats.areaOnBody || printStats.areaParent !== 'BODY') {
+  throw new Error(`#avery-print-area must be body child, got parent=${printStats.areaParent}`);
+}
+if (printStats.labelCount !== 24) {
+  throw new Error(`Expected 24 print cells (incl. empty), got ${printStats.labelCount}`);
+}
+if (printStats.filled < 1) throw new Error('No filled labels on print sheet');
 
-console.log(JSON.stringify({ ok: true, stats, printed }, null, 2));
+await page.screenshot({ path: `${artifactDir}/avery-print-fix-suite.png`, fullPage: true });
+console.log(JSON.stringify({ ok: true, stats, printStats }, null, 2));
 await browser.close();
