@@ -8,50 +8,6 @@ export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
 const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
-// #region agent log
-/** Temporary debug NDJSON → window.__AVERY_DBG + console; optional POST (never await). */
-function averyDbg(hypothesisId, location, message, data = {}, opts = {}) {
-  const payload = {
-    id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    timestamp: Date.now(),
-    hypothesisId,
-    location,
-    message,
-    data,
-  };
-  try {
-    window.__AVERY_DBG = window.__AVERY_DBG || [];
-    window.__AVERY_DBG.push(payload);
-  } catch (_) { /* ignore */ }
-  try {
-    console.log('[AVERY-DEBUG]', JSON.stringify(payload));
-  } catch (_) { /* ignore */ }
-  // Skip network on print click path (iOS user-gesture must stay sync before window.print)
-  if (opts.syncOnly) return payload;
-  try {
-    fetch('/__debug_log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    }).catch(() => {});
-  } catch (_) { /* ignore */ }
-  return payload;
-}
-function averyDbgFlush() {
-  try {
-    const logs = window.__AVERY_DBG || [];
-    for (const payload of logs.slice(-12)) {
-      fetch('/__debug_log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      }).catch(() => {});
-    }
-  } catch (_) { /* ignore */ }
-}
-// #endregion
 
 /**
  * @typedef {{
@@ -640,20 +596,30 @@ function renderSheetPreview() {
 }
 
 /**
- * Hält #avery-print-area und print-avery-labels synchron zur Auswahl,
- * damit der Druck-Button nur noch window.print() auslösen muss (iOS).
+ * DOM-Ohrmarke ist Quelle der Wahrheit (verhindert state/DOM-Drift).
+ * @param {ReturnType<typeof planAverySheet>|null} [plan]
+ */
+function getAveryPrintReadiness(plan = null) {
+  const ohrDom = String(document.getElementById('avery-ohrmarke')?.value || '').trim();
+  state.header.ohrmarke = ohrDom;
+  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
+  const hasLabels = sheetPlan.filledCount > 0;
+  const hasOhr = Boolean(ohrDom);
+  return { ready: hasLabels && hasOhr, hasLabels, hasOhr, sheetPlan, ohrDom };
+}
+
+/**
+ * Hält #avery-print-area und print-avery-labels synchron zur Auswahl.
+ * Button bleibt klickbar (Toast bei fehlender Vorbereitung) – iOS: bei ready nur window.print().
  * @param {ReturnType<typeof planAverySheet>|null} [plan]
  */
 function syncPrintReadyState(plan = null) {
-  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-  const hasLabels = sheetPlan.filledCount > 0;
-  const hasOhr = Boolean(String(state.header.ohrmarke || '').trim());
-  const ready = hasLabels && hasOhr;
-  const ohrDom = String(document.getElementById('avery-ohrmarke')?.value || '').trim();
+  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness(plan);
 
   const btn = document.getElementById('btn-avery-print-sheet');
   if (btn instanceof HTMLButtonElement) {
-    btn.disabled = !ready;
+    // Nie stumm disabled – sonst wirkt der Drucken-Button „kaputt“ (H1).
+    btn.disabled = false;
     if (!hasLabels) {
       btn.title = 'Bitte zuerst Teilstücke zur Druckliste hinzufügen.';
     } else if (!hasOhr) {
@@ -685,24 +651,26 @@ function syncPrintReadyState(plan = null) {
     document.body.classList.remove(PRINT_BODY_CLASS);
     area?.setAttribute('aria-hidden', 'true');
   }
+}
 
-  // #region agent log
-  averyDbg('H1', 'avery-labels.js:syncPrintReadyState', 'print ready sync', {
-    ready,
-    hasLabels,
-    hasOhr,
-    filledCount: sheetPlan.filledCount,
-    queueLen: state.queue.length,
-    ohrStateLen: String(state.header.ohrmarke || '').trim().length,
-    ohrDomLen: ohrDom.length,
-    ohrStateDomMismatch: Boolean(ohrDom) !== hasOhr,
-    btnDisabled: btn instanceof HTMLButtonElement ? btn.disabled : null,
-    btnFound: btn instanceof HTMLButtonElement,
-    bodyClass: document.body.classList.contains(PRINT_BODY_CLASS),
-    areaParent: area?.parentElement?.tagName || null,
-    areaFilled: area ? area.querySelectorAll('.avery-label:not(.empty)').length : 0,
-  });
-  // #endregion
+/**
+ * Druck anfordern: fehlende Vorbereitung → Toast; ready → nur synchrones window.print().
+ * @returns {boolean}
+ */
+function requestAveryPrintFromClick() {
+  const { ready, hasLabels, hasOhr } = getAveryPrintReadiness();
+  if (!ready) {
+    if (!hasLabels) {
+      window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
+    } else if (!hasOhr) {
+      window.showToast?.('Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.', 'warning');
+      document.getElementById('avery-ohrmarke')?.focus?.();
+    }
+    return false;
+  }
+  // iOS: ab hier keine DOM-Generierung / async / setTimeout vor window.print()
+  window.print();
+  return true;
 }
 
 function renderQueue() {
@@ -869,54 +837,30 @@ function readHeaderFromDom() {
  */
 export function ensureAveryPrintArea() {
   let area = document.getElementById('avery-print-area');
-  let created = false;
   if (!(area instanceof HTMLElement)) {
-    created = true;
     area = document.createElement('div');
     area.id = 'avery-print-area';
     area.className = 'avery-print-root';
     area.setAttribute('aria-hidden', 'true');
     area.innerHTML = '<div class="avery-sheet" id="avery-sheet-print"></div>';
   }
-  const moved = area.parentElement !== document.body;
-  if (moved) {
+  if (area.parentElement !== document.body) {
     document.body.appendChild(area);
   }
   // Legacy-ID für bestehende Selektoren / Tests
   const sheet = area.querySelector('.avery-sheet');
   if (sheet && !sheet.id) sheet.id = 'avery-sheet-print';
-  // #region agent log
-  averyDbg('H3', 'avery-labels.js:ensureAveryPrintArea', 'print area ensure', {
-    created,
-    moved,
-    parent: area.parentElement?.tagName || null,
-    labelCount: area.querySelectorAll('.avery-label').length,
-    filledCount: area.querySelectorAll('.avery-label:not(.empty)').length,
-    bodyClass: document.body.classList.contains(PRINT_BODY_CLASS),
-  });
-  // #endregion
   return area;
 }
 
 /**
- * iOS-sicherer Drucktrigger: ausschließlich synchrones window.print().
+ * iOS-sicherer Drucktrigger.
+ * Nicht ready → Toast (Laden-iPhone-Wording). Ready → nur synchrones window.print().
  * Druckbogen (#avery-print-area) und body.print-avery-labels werden
  * bereits bei Auswahländerungen in renderSheetPreview/syncPrintReadyState vorbereitet.
  */
 export function printAveryLabelsSheet() {
-  // #region agent log
-  const area = document.getElementById('avery-print-area');
-  const btn = document.getElementById('btn-avery-print-sheet');
-  averyDbg('H3', 'avery-labels.js:printAveryLabelsSheet', 'printAveryLabelsSheet called', {
-    bodyClass: document.body.classList.contains(PRINT_BODY_CLASS),
-    areaParent: area?.parentElement?.tagName || null,
-    labelCount: area ? area.querySelectorAll('.avery-label').length : 0,
-    filledCount: area ? area.querySelectorAll('.avery-label:not(.empty)').length : 0,
-    btnDisabled: btn instanceof HTMLButtonElement ? btn.disabled : null,
-  });
-  // #endregion
-  window.print();
-  return true;
+  return requestAveryPrintFromClick();
 }
 
 function adjustQueueByKey(key, deltaOrRemove) {
@@ -934,58 +878,17 @@ function adjustQueueByKey(key, deltaOrRemove) {
 }
 
 function bindEvents(root) {
-  // #region agent log
-  averyDbg('H2', 'avery-labels.js:bindEvents', 'bindEvents enter', {
-    hasRoot: Boolean(root),
-    alreadyBound: root?.dataset?.averyBound === '1',
-    rootId: root?.id || null,
-  });
-  // #endregion
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
 
-  // iOS Safari: Click darf NUR synchron window.print() ausführen –
-  // keine DOM-Generierung, kein async/await, kein setTimeout davor.
+  // iOS Safari: bei ready nur synchron window.print() – sonst Toast.
   const printBtn = document.getElementById('btn-avery-print-sheet');
-  // #region agent log
-  averyDbg('H2', 'avery-labels.js:bindEvents', 'print listener attach attempt', {
-    btnFound: printBtn instanceof HTMLButtonElement,
-    alreadyPrintBound: printBtn instanceof HTMLButtonElement
-      ? printBtn.dataset.averyPrintBound === '1'
-      : null,
-    btnDisabled: printBtn instanceof HTMLButtonElement ? printBtn.disabled : null,
-  });
-  // #endregion
   if (printBtn instanceof HTMLButtonElement && printBtn.dataset.averyPrintBound !== '1') {
     printBtn.dataset.averyPrintBound = '1';
-    printBtn.addEventListener('click', () => {
-      // #region agent log
-      // Sync-only capture BEFORE print (iOS: no fetch/async before window.print)
-      const area = document.getElementById('avery-print-area');
-      averyDbg('H5', 'avery-labels.js:printBtn.click', 'print button click fired', {
-        btnDisabled: printBtn.disabled,
-        bodyClass: document.body.classList.contains(PRINT_BODY_CLASS),
-        areaParent: area?.parentElement?.tagName || null,
-        labelCount: area ? area.querySelectorAll('.avery-label').length : 0,
-        filledCount: area ? area.querySelectorAll('.avery-label:not(.empty)').length : 0,
-        ohrStateLen: String(state.header.ohrmarke || '').trim().length,
-        queueLen: state.queue.length,
-      }, { syncOnly: true });
-      averyDbg('H4', 'avery-labels.js:printBtn.click', 'body class immediately before window.print', {
-        bodyClass: document.body.classList.contains(PRINT_BODY_CLASS),
-        bodyClassList: [...document.body.classList],
-      }, { syncOnly: true });
-      // #endregion
-      window.print();
-      // #region agent log
-      averyDbgFlush();
-      // #endregion
+    printBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      requestAveryPrintFromClick();
     });
-    // #region agent log
-    averyDbg('H2', 'avery-labels.js:bindEvents', 'print listener attached', {
-      averyPrintBound: printBtn.dataset.averyPrintBound === '1',
-    });
-    // #endregion
   }
 
   root.addEventListener('input', (event) => {
@@ -1043,6 +946,12 @@ function bindEvents(root) {
       persistDraft();
       renderSheetPreview();
       window.showToast?.(`Start-Slot ${state.startSlot} gesetzt.`, 'info');
+      return;
+    }
+
+    // Backup-Delegation (falls Direkt-Listener fehlt) – gleiche iOS-sichere Pfadlogik
+    if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
+      requestAveryPrintFromClick();
       return;
     }
 

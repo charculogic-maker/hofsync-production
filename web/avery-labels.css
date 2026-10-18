@@ -567,7 +567,7 @@
  * Avery-Druck: überschreibt style.css
  * `body > *:not(.preview-container) { display:none }` indem die
  * Druckfläche als body-Kind (#avery-print-area) liegt und gezielt
- * wieder eingeblendet wird.
+ * wieder eingeblendet wird. Child-Kombinator + ID für WebKit.
  */
 @media print {
   body.print-avery-labels {
@@ -582,6 +582,14 @@
 
   body.print-avery-labels > *:not(#avery-print-area) {
     display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Explizit gegen style.css Hide-All (WebKit/iOS) */
+  body.print-avery-labels > #avery-print-area,
+  body.print-avery-labels > #avery-print-area.avery-print-root {
+    display: block !important;
+    visibility: visible !important;
   }
 
   body.print-avery-labels #avery-print-area,
@@ -593,6 +601,7 @@
     visibility: visible !important;
   }
 
+  body.print-avery-labels > #avery-print-area,
   body.print-avery-labels #avery-print-area,
   body.print-avery-labels .avery-print-root {
     display: block !important;
