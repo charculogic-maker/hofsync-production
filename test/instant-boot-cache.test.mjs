@@ -32,7 +32,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for Avery labels module release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-avery-custom-cuts-v2'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261018-avery-declutter-v1'");
   });
 
   it('applies employee kitchen RBAC during zero-flicker boot', () => {

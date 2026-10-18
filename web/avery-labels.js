@@ -6,7 +6,7 @@
 export const AVERY_LABELS_PER_SHEET = 24;
 export const AVERY_MODULE_KEY = 'averyLabels';
 const PRINT_BODY_CLASS = 'print-avery-labels';
-const STORAGE_KEY = 'charculogic.averyLabels.draft.v2';
+const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
 
 /**
  * @typedef {{
@@ -113,8 +113,11 @@ const DEFAULT_HEADER = Object.freeze({
   ohrmarke: '',
   schlachtDatum: '',
   zerlegeDatum: '',
-  reifehinweis: 'Trockenreifung im Reifebeutel',
   brand: 'SH',
+  /** @type {boolean} Betriebsname auf Etikett (Default aus) */
+  printBetrieb: false,
+  /** @type {boolean} Schlachthof auf Etikett (Default aus) */
+  printSchlachthof: false,
 });
 
 /**
@@ -127,7 +130,7 @@ const DEFAULT_HEADER = Object.freeze({
  * }} AveryQueueRow
  */
 
-/** @type {{ header: Record<string, string>, queue: AveryQueueRow[], startSlot: number, activeTab: string, initialized: boolean }} */
+/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, activeTab: string, initialized: boolean }} */
 const state = {
   header: { ...DEFAULT_HEADER },
   queue: [],
@@ -284,15 +287,30 @@ function normalizeQueueRow(row) {
   return { cutId, qty };
 }
 
+function coercePrintFlag(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  return fallback;
+}
+
 function restoreDraft() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
+      || localStorage.getItem('charculogic.averyLabels.draft.v2')
       || localStorage.getItem('charculogic.averyLabels.draft.v1');
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
     if (parsed.header && typeof parsed.header === 'object') {
-      state.header = { ...DEFAULT_HEADER, ...parsed.header };
+      const { reifehinweis: _drop, ...restHeader } = parsed.header;
+      state.header = {
+        ...DEFAULT_HEADER,
+        ...restHeader,
+        printBetrieb: coercePrintFlag(restHeader.printBetrieb, false),
+        printSchlachthof: coercePrintFlag(restHeader.printSchlachthof, false),
+      };
+      delete state.header.reifehinweis;
     }
     if (Array.isArray(parsed.queue)) {
       state.queue = parsed.queue.map(normalizeQueueRow).filter(Boolean);
@@ -435,21 +453,47 @@ export function addCustomCutToQueue(name, days) {
   return true;
 }
 
-function buildLabelHtml(cut, header, lot) {
-  const ripeIso = cut.days > 0
-    ? addDaysIso(header.zerlegeDatum || header.schlachtDatum || todayIsoLocal(), cut.days)
-    : '';
-  const reife = cut.days > 0
-    ? `Reife ${cut.days} Tage · bereit ${formatDateDe(ripeIso)}`
-    : (header.reifehinweis || 'Frisch');
+/**
+ * Lagerhinweis je Teilstück (Innereien kühler).
+ * @param {AveryCut|null|undefined} cut
+ */
+export function storageHintForCut(cut) {
+  if (!cut) return '0–2 °C';
+  if (cut.tab === 'innereien' || String(cut.id || '').startsWith('inn-')) {
+    return '≤ 3 °C';
+  }
+  return '0–2 °C';
+}
+
+/**
+ * Inhalts-Deklaration auf 70×36 mm Querformat.
+ * @param {AveryCut} cut
+ * @param {Record<string, string|boolean>} header
+ * @param {string} lot
+ */
+export function buildLabelHtml(cut, header, lot) {
+  const art = cut.artNr ? `Art. ${cut.artNr}` : '';
+  const oeko = String(header.oeko || '').trim();
+  const showBetrieb = Boolean(header.printBetrieb) && String(header.betrieb || '').trim();
+  const showSchlachthof = Boolean(header.printSchlachthof) && String(header.schlachthof || '').trim();
+  const ohr = String(header.ohrmarke || '').trim() || '–';
+  const schl = formatDateDe(header.schlachtDatum) || '–';
+  const zerl = formatDateDe(header.zerlegeDatum) || '–';
+  const storage = storageHintForCut(cut);
   return `
-    <div class="avery-label-cell">
-      <div class="avery-label-farm">${escapeHtml(header.betrieb || '')}</div>
-      <div class="avery-label-cut">${escapeHtml(cut.name)}</div>
-      <div class="avery-label-lot">LOT ${escapeHtml(lot)}</div>
-      <div class="avery-label-meta">Ohr ${escapeHtml(header.ohrmarke || '–')} · Schlacht ${escapeHtml(formatDateDe(header.schlachtDatum))}</div>
-      <div class="avery-label-meta">Zerlegt ${escapeHtml(formatDateDe(header.zerlegeDatum))} · ${escapeHtml(reife)}</div>
-      <div class="avery-label-footer">${escapeHtml(header.oeko || '')} · ${escapeHtml(header.schlachthof || '')}</div>
+    <div class="label-card">
+      <div class="label-card-head">
+        <span class="label-card-art">${escapeHtml(art)}</span>
+        ${showBetrieb ? `<span class="label-card-farm">${escapeHtml(String(header.betrieb).trim())}</span>` : '<span class="label-card-farm" aria-hidden="true"></span>'}
+        <span class="label-card-oeko">${escapeHtml(oeko)}</span>
+      </div>
+      <div class="label-card-hero">${escapeHtml(cut.name)}</div>
+      <div class="label-card-meta">
+        <div class="label-card-line">LOT: ${escapeHtml(lot)} <span class="label-card-sep">|</span> Ohr: ${escapeHtml(ohr)}</div>
+        <div class="label-card-line">Schl: ${escapeHtml(schl)} <span class="label-card-sep">|</span> Zerl: ${escapeHtml(zerl)}</div>
+        ${showSchlachthof ? `<div class="label-card-line label-card-slaughter">Schlachtung: ${escapeHtml(String(header.schlachthof).trim())}</div>` : ''}
+        <div class="label-card-storage">${escapeHtml(storage)}</div>
+      </div>
     </div>
   `;
 }
@@ -618,13 +662,20 @@ function syncHeaderInputs() {
     'avery-ohrmarke': 'ohrmarke',
     'avery-schlacht-datum': 'schlachtDatum',
     'avery-zerlege-datum': 'zerlegeDatum',
-    'avery-reifehinweis': 'reifehinweis',
     'avery-brand': 'brand',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el && el.value !== state.header[key]) el.value = state.header[key] || '';
   });
+  const printBetrieb = document.getElementById('avery-print-betrieb');
+  if (printBetrieb instanceof HTMLInputElement) {
+    printBetrieb.checked = Boolean(state.header.printBetrieb);
+  }
+  const printSchlachthof = document.getElementById('avery-print-schlachthof');
+  if (printSchlachthof instanceof HTMLInputElement) {
+    printSchlachthof.checked = Boolean(state.header.printSchlachthof);
+  }
   const lotEl = document.getElementById('avery-lot-preview');
   if (lotEl) lotEl.textContent = buildAveryLot(state.header);
 }
@@ -654,8 +705,12 @@ function readHeaderFromDom() {
   state.header.ohrmarke = String(document.getElementById('avery-ohrmarke')?.value || '').trim();
   state.header.schlachtDatum = String(document.getElementById('avery-schlacht-datum')?.value || '').trim();
   state.header.zerlegeDatum = String(document.getElementById('avery-zerlege-datum')?.value || '').trim();
-  state.header.reifehinweis = String(document.getElementById('avery-reifehinweis')?.value || '').trim();
   state.header.brand = String(document.getElementById('avery-brand')?.value || 'SH').trim().toUpperCase();
+  const printBetrieb = document.getElementById('avery-print-betrieb');
+  state.header.printBetrieb = printBetrieb instanceof HTMLInputElement ? printBetrieb.checked : false;
+  const printSchlachthof = document.getElementById('avery-print-schlachthof');
+  state.header.printSchlachthof = printSchlachthof instanceof HTMLInputElement ? printSchlachthof.checked : false;
+  delete state.header.reifehinweis;
 }
 
 export function printAveryLabelsSheet() {
@@ -788,7 +843,7 @@ function buildShellHtml() {
         <div>
           <p class="avery-kicker">WG 0460 · Avery 3475</p>
           <h2 class="avery-suite-title">🏷️ Zerlege- &amp; Reife-Etiketten</h2>
-          <p class="avery-suite-lead">Nach Baugruppe zerlegen – Schulter inkl. Hals/Brust, Rücken, Keule, Lappen, Innereien und Freifeld.</p>
+          <p class="avery-suite-lead">Klare Inhalts-Deklaration auf Avery 3475 (70×36&nbsp;mm Querformat) – nach Baugruppe und Freifeld.</p>
         </div>
       </header>
 
@@ -816,8 +871,15 @@ function buildShellHtml() {
           <label class="form-label" for="avery-zerlege-datum">Zerlegedatum
             <input id="avery-zerlege-datum" class="input-text-touch" type="date">
           </label>
-          <label class="form-label" for="avery-reifehinweis">Reifehinweis
-            <input id="avery-reifehinweis" class="input-text-touch" type="text" autocomplete="off">
+        </div>
+        <div class="avery-print-toggles" role="group" aria-label="Was auf dem Etikett erscheint">
+          <label class="avery-toggle" for="avery-print-betrieb">
+            <input id="avery-print-betrieb" type="checkbox">
+            <span>Betriebsname auf Etikett drucken</span>
+          </label>
+          <label class="avery-toggle" for="avery-print-schlachthof">
+            <input id="avery-print-schlachthof" type="checkbox">
+            <span>Schlachthof auf Etikett drucken</span>
           </label>
         </div>
         <p class="avery-lot-line">LOT: <strong id="avery-lot-preview">–</strong></p>
@@ -864,8 +926,10 @@ function buildShellHtml() {
           <p class="avery-gauge-text" id="avery-gauge-text">0 / 24 Nutzen</p>
         </div>
         <p class="avery-overflow-warn" id="avery-overflow-warn" hidden></p>
-        <p class="avery-slot-hint">Tipp: Freien oder verbrauchten Slot antippen = Start-Position für angefangene Bögen.</p>
-        <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
+        <p class="avery-slot-hint">Tipp: Freien oder verbrauchten Slot antippen = Start-Position für angefangene Bögen. Querformat wie der echte A4-Bogen – bei Bedarf seitlich scrollen.</p>
+        <div class="avery-sheet-scroll">
+          <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
+        </div>
         <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet">🖨️ Etikettenbogen drucken</button>
       </section>
     </section>
