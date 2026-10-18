@@ -14,6 +14,7 @@ import {
   buildLabelHtml,
   expandQueueToLabels,
   formatDateDe,
+  formatLabelTitle,
   planAverySheet,
   resolveQueueCut,
   storageHintForCut,
@@ -88,30 +89,39 @@ describe('Avery 3475 labels module', () => {
     expect(storageHintForCut(AVERY_TRIMMINGS[0])).to.equal('0–2 °C');
   });
 
-  it('builds decluttered landscape label HTML without Reifebeutel text', () => {
+  it('formats R-Abschnitt titles with middle dot', () => {
+    expect(formatLabelTitle('R I Spieße')).to.equal('R I · Spieße');
+    expect(formatLabelTitle('R II Hack')).to.equal('R II · Hack');
+    expect(formatLabelTitle('R III Wurst')).to.equal('R III · Wurst');
+    expect(formatLabelTitle('Brust / Brisket')).to.equal('Brust / Brisket');
+  });
+
+  it('builds white 3-zone label HTML without empty OHR placeholder', () => {
     const cut = AVERY_TRIMMINGS.find((t) => t.id === 'tr-r1-spiesse');
-    const html = buildLabelHtml(cut, {
+    const htmlEmptyOhr = buildLabelHtml(cut, {
       betrieb: 'StevesHof Hofladen',
       oeko: 'DE-ÖKO-006',
       schlachthof: 'Bio-Schlachthof Stautenhof Willich',
-      ohrmarke: 'DE123',
+      ohrmarke: '',
       schlachtDatum: '2026-10-18',
       zerlegeDatum: '2026-10-18',
       printBetrieb: false,
       printSchlachthof: false,
-    }, 'SH-DE123-20261018');
-    expect(html).to.include('label-card');
-    expect(html).to.include('label-card-hero');
-    expect(html).to.include('R I Spieße');
-    expect(html).to.include('Art. 543');
-    expect(html).to.include('DE-ÖKO-006');
-    expect(html).to.include('0–2 °C');
-    expect(html).to.not.include('Trockenreifung');
-    expect(html).to.not.include('Reifebeutel');
-    expect(html).to.not.include('StevesHof Hofladen');
-    expect(html).to.not.include('Schlachtung:');
+    }, 'SH-OHR-20261018');
+    expect(htmlEmptyOhr).to.include('label-card');
+    expect(htmlEmptyOhr).to.include('lbl-title');
+    expect(htmlEmptyOhr).to.include('lbl-footer');
+    expect(htmlEmptyOhr).to.include('R I · Spieße');
+    expect(htmlEmptyOhr).to.include('ART. 543');
+    expect(htmlEmptyOhr).to.include('DE-ÖKO-006');
+    expect(htmlEmptyOhr).to.include('0–2 °C');
+    expect(htmlEmptyOhr).to.include('lbl-header');
+    expect(htmlEmptyOhr).to.not.include('OHR');
+    expect(htmlEmptyOhr).to.not.include('OHR: –');
+    expect(htmlEmptyOhr).to.not.include('Trockenreifung');
+    expect(htmlEmptyOhr).to.not.include('StevesHof Hofladen');
 
-    const withFlags = buildLabelHtml(cut, {
+    const htmlWithOhr = buildLabelHtml(cut, {
       betrieb: 'StevesHof Hofladen',
       oeko: 'DE-ÖKO-006',
       schlachthof: 'Bio-Schlachthof Stautenhof Willich',
@@ -121,7 +131,8 @@ describe('Avery 3475 labels module', () => {
       printBetrieb: true,
       printSchlachthof: true,
     }, 'SH-DE123-20261018');
-    expect(withFlags).to.include('StevesHof Hofladen');
-    expect(withFlags).to.include('Schlachtung: Bio-Schlachthof Stautenhof Willich');
+    expect(htmlWithOhr).to.include('OHR DE123');
+    expect(htmlWithOhr).to.include('StevesHof Hofladen');
+    expect(htmlWithOhr).to.include('Bio-Schlachthof Stautenhof Willich');
   });
 });
