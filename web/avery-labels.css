@@ -333,39 +333,37 @@
   font-size: 13px;
 }
 
-/* —— Live-Vorschau: echtes 70×36 Querformat, kein Hochformat-Aufblähen —— */
+/*
+ * Live-Vorschau: stabiles A4-Raster, horizontal scrollbar auf dem Handy.
+ * min-width 640px verhindert Zusammendrücken / LOT-Ellipsis.
+ */
+.sheet-scroll-wrapper,
 .avery-sheet-scroll {
   margin: 10px 0 14px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  padding-bottom: 12px;
 }
 
 .avery-sheet-preview {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  width: 100%;
-  min-width: min(100%, 360px);
-}
-
-@media (max-width: 520px) {
-  .avery-sheet-preview {
-    /* Feste Spaltenbreite ≈ echter Bogen-Maßstab, horizontal scrollbar */
-    grid-template-columns: repeat(3, 118px);
-    width: max-content;
-    min-width: calc(3 * 118px + 2 * 4px);
-  }
+  grid-template-columns: repeat(3, 210px);
+  grid-auto-rows: calc(210px * 36 / 70);
+  gap: 6px;
+  width: max-content;
+  min-width: 640px;
+  box-sizing: border-box;
 }
 
 .avery-slot {
   aspect-ratio: 70 / 36;
   width: 100%;
+  height: 100%;
   min-height: 0;
-  height: auto;
   padding: 0;
-  border-radius: 4px;
+  border-radius: 3px;
   border: 1px dashed #cbd5e1;
   background: #ffffff;
   color-scheme: only light;
@@ -402,12 +400,11 @@
 }
 
 /*
- * WYSIWYG Papier-Etikett: immer weiß / schwarz, 3 Zonen, 70×36.
- * color-scheme + !important schützen vor Dark-Mode der App-Shell.
+ * Inhalt zuerst: optional Farm · Hero (~55%) · Meta (~35%) · Pflicht-Fuß.
+ * Immer weiß/schwarz (WYSIWYG Papier).
  */
 .label-card {
   box-sizing: border-box;
-  container-type: size;
   color-scheme: only light;
   display: flex;
   flex-direction: column;
@@ -415,7 +412,7 @@
   height: 100%;
   aspect-ratio: 70 / 36;
   overflow: hidden;
-  padding: 3px 4px 2px;
+  padding: 2.5px 4px 2px;
   border: 1px dashed #cbd5e1;
   font-family: Helvetica, Arial, "Helvetica Neue", sans-serif;
   background: #ffffff !important;
@@ -423,111 +420,65 @@
   -webkit-text-fill-color: #000000;
 }
 
-.lbl-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  min-height: 0;
-  font-size: 6px;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0.02em;
-  color: #000000 !important;
-}
-
-.lbl-art {
-  flex: 1 1 0;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lbl-storage {
-  flex: 0 1 auto;
-  text-align: center;
-  font-weight: 600;
-  color: #334155 !important;
-  -webkit-text-fill-color: #334155;
-  white-space: nowrap;
-}
-
-.lbl-oeko {
-  flex: 1 1 0;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .lbl-farm {
   flex: 0 0 auto;
-  margin-top: 1px;
-  font-size: 5.5px;
+  margin: 0 0 1px;
+  font-size: 5px;
   font-weight: 700;
   line-height: 1.1;
+  letter-spacing: 0.04em;
   text-align: center;
+  text-transform: uppercase;
   color: #000000 !important;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 
-/* Zone 2 – Hero: kein Font-Clipping (Padding + line-height) */
-.lbl-title {
-  flex: 1 1 auto;
+/* Zone 1 – Hero: ~55%, zweizeilige Namen ohne Clipping */
+.lbl-hero {
+  flex: 1 1 55%;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   min-height: 0;
-  margin: 0;
-  padding: 2px 1px;
-  overflow: hidden;
+  padding: 1px 2px;
+  overflow: visible;
 }
 
-.lbl-title-text {
+.lbl-title {
   display: block;
   max-width: 100%;
-  max-height: 100%;
   box-sizing: border-box;
-  padding: 2px 1px;
-  font-size: clamp(11px, 20cqi, 14px);
+  padding: 1px 0;
+  font-size: clamp(10pt, 3.5vw, 13pt);
   font-weight: 900;
-  line-height: 1.2;
+  line-height: 1.15;
   letter-spacing: 0.01em;
   text-align: center;
   text-transform: uppercase;
   color: #000000 !important;
   -webkit-text-fill-color: #000000;
-  overflow-wrap: anywhere;
   word-break: break-word;
-  /* Clipping vermeiden: Padding + line-height, kein hard crop am Glyph */
+  overflow-wrap: anywhere;
   overflow: visible;
 }
 
-.lbl-title-text.is-long {
-  font-size: clamp(9px, 15cqi, 11px);
-  line-height: 1.18;
-  padding: 2px 0;
-}
-
-/* Zone 3 – Footer-Raster mit Haarlinie */
-.lbl-footer {
+/* Zone 2 – Meta: ~35%, kein Ellipsis (voller Text im Vorschau-Maßstab) */
+.lbl-meta {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2px 6px;
+  gap: 1px 8px;
   margin-top: 1px;
-  padding-top: 2px;
-  border-top: 1px solid #000000;
+  padding-top: 3px;
+  border-top: 0.6pt solid #000000;
   color: #000000 !important;
 }
 
 .lbl-meta-col {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .lbl-meta-right {
@@ -536,24 +487,39 @@
 
 .lbl-meta-main {
   font-size: 5.5px;
-  font-weight: 800;
-  line-height: 1.2;
+  font-weight: 700;
+  line-height: 1.25;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 
 .lbl-meta-sub {
-  font-size: 5px;
-  font-weight: 600;
-  line-height: 1.2;
+  font-size: 5.5px;
+  font-weight: 700;
+  line-height: 1.25;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
 }
 
 .lbl-slaughter {
   margin-top: 1px;
+  font-weight: 600;
+}
+
+/* Zone 3 – Pflicht-Fuß: Öko + Kühlhinweis */
+.lbl-foot {
+  flex: 0 0 auto;
+  margin-top: 0.5mm;
+  padding-top: 0.5mm;
+  border-top: 0.3pt dashed #64748b;
+  font-size: 4.8px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .btn-avery-print {
@@ -632,63 +598,56 @@
     width: 70mm;
     height: 36mm;
     aspect-ratio: auto;
-    padding: 2mm 2.8mm 1.6mm;
+    padding: 1.8mm 2.6mm 1.4mm;
     border: none;
     background: #ffffff !important;
     color: #000000 !important;
     font-family: Helvetica, Arial, sans-serif;
   }
 
-  body.print-avery-labels .lbl-header {
-    font-size: 5.5pt;
-    font-weight: 700;
-    line-height: 1.15;
-  }
-
-  body.print-avery-labels .lbl-storage {
-    font-size: 5.5pt;
-    font-weight: 600;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000;
-  }
-
   body.print-avery-labels .lbl-farm {
     font-size: 5pt;
     font-weight: 700;
+    margin-bottom: 0.4mm;
+  }
+
+  body.print-avery-labels .lbl-hero {
+    flex: 1 1 55%;
+    padding: 0.4mm 0.5mm;
+    overflow: visible;
   }
 
   body.print-avery-labels .lbl-title {
-    padding: 0.6mm 0.4mm;
-  }
-
-  body.print-avery-labels .lbl-title-text {
-    font-size: 14pt;
+    font-size: 12pt;
     font-weight: 900;
-    line-height: 1.12;
-    padding: 0.5mm 0.2mm;
-  }
-
-  body.print-avery-labels .lbl-title-text.is-long {
-    font-size: 11pt;
     line-height: 1.15;
+    overflow: visible;
   }
 
-  body.print-avery-labels .lbl-footer {
+  body.print-avery-labels .lbl-meta {
     margin-top: 0.4mm;
     padding-top: 1mm;
-    border-top: 0.3pt solid #000;
-    gap: 0.6mm 2mm;
+    border-top: 0.6pt solid #000;
+    gap: 0.4mm 2mm;
   }
 
-  body.print-avery-labels .lbl-meta-main {
-    font-size: 5.5pt;
-    font-weight: 800;
-    line-height: 1.15;
-  }
-
+  body.print-avery-labels .lbl-meta-main,
   body.print-avery-labels .lbl-meta-sub {
-    font-size: 5pt;
+    font-size: 5.5pt;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  body.print-avery-labels .lbl-foot {
+    margin-top: 0.5mm;
+    padding-top: 0.5mm;
+    border-top: 0.3pt dashed #64748b;
+    font-size: 4.8pt;
     font-weight: 600;
-    line-height: 1.15;
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b;
   }
 }

@@ -478,22 +478,32 @@ export function formatLabelTitle(name) {
 }
 
 /**
- * Inhalts-Deklaration auf 70×36 mm Querformat (3 Zonen: Header / Hero / Footer).
+ * Pflicht-Fußzeile: Öko + Lagerhinweis.
+ * @param {AveryCut} cut
+ * @param {string} oeko
+ */
+export function storageFootLine(cut, oeko) {
+  const code = String(oeko || '').trim() || 'DE-ÖKO-006';
+  const temp = storageHintForCut(cut);
+  return `${code} · Gekühlt bei ${temp} lagern`;
+}
+
+/**
+ * Inhalts-zuerst: Hero (~55%) / Meta (~35%) / Pflicht-Fuß.
+ * Keine Art.-Nr. im Druckbild.
  * @param {AveryCut} cut
  * @param {Record<string, string|boolean>} header
  * @param {string} lot
  */
 export function buildLabelHtml(cut, header, lot) {
-  const art = cut.artNr ? `ART. ${cut.artNr}` : '';
   const oeko = String(header.oeko || '').trim();
   const showBetrieb = Boolean(header.printBetrieb) && String(header.betrieb || '').trim();
   const showSchlachthof = Boolean(header.printSchlachthof) && String(header.schlachthof || '').trim();
   const ohr = String(header.ohrmarke || '').trim();
   const schl = formatDateDe(header.schlachtDatum) || '';
   const zerl = formatDateDe(header.zerlegeDatum) || '';
-  const storage = storageHintForCut(cut);
   const title = formatLabelTitle(cut.name);
-  const titleLong = title.length > 16 || /\//.test(title);
+  const foot = storageFootLine(cut, oeko);
   const ohrRow = ohr
     ? `<div class="lbl-meta-sub">OHR ${escapeHtml(ohr)}</div>`
     : '';
@@ -502,16 +512,11 @@ export function buildLabelHtml(cut, header, lot) {
     : '';
   return `
     <div class="label-card">
-      <div class="lbl-header">
-        <span class="lbl-art">${escapeHtml(art)}</span>
-        <span class="lbl-storage">${escapeHtml(storage)}</span>
-        <span class="lbl-oeko">${escapeHtml(oeko)}</span>
-      </div>
       ${showBetrieb ? `<div class="lbl-farm">${escapeHtml(String(header.betrieb).trim())}</div>` : ''}
-      <div class="lbl-title">
-        <span class="lbl-title-text${titleLong ? ' is-long' : ''}">${escapeHtml(title)}</span>
+      <div class="lbl-hero">
+        <span class="lbl-title">${escapeHtml(title)}</span>
       </div>
-      <div class="lbl-footer">
+      <div class="lbl-meta">
         <div class="lbl-meta-col lbl-meta-left">
           <div class="lbl-meta-main">LOT ${escapeHtml(lot)}</div>
           ${ohrRow}
@@ -522,6 +527,7 @@ export function buildLabelHtml(cut, header, lot) {
           ${showSchlachthof ? `<div class="lbl-meta-sub lbl-slaughter">${escapeHtml(String(header.schlachthof).trim())}</div>` : ''}
         </div>
       </div>
+      <div class="lbl-foot">${escapeHtml(foot)}</div>
     </div>
   `;
 }
@@ -955,7 +961,7 @@ function buildShellHtml() {
         </div>
         <p class="avery-overflow-warn" id="avery-overflow-warn" hidden></p>
         <p class="avery-slot-hint">Tipp: Freien oder verbrauchten Slot antippen = Start-Position für angefangene Bögen. Querformat wie der echte A4-Bogen – bei Bedarf seitlich scrollen.</p>
-        <div class="avery-sheet-scroll">
+        <div class="sheet-scroll-wrapper avery-sheet-scroll">
           <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
         </div>
         <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet">🖨️ Etikettenbogen drucken</button>

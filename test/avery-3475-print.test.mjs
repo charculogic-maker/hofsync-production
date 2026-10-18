@@ -17,6 +17,7 @@ import {
   formatLabelTitle,
   planAverySheet,
   resolveQueueCut,
+  storageFootLine,
   storageHintForCut,
 } from '../web/avery-labels.js';
 
@@ -96,8 +97,12 @@ describe('Avery 3475 labels module', () => {
     expect(formatLabelTitle('Brust / Brisket')).to.equal('Brust / Brisket');
   });
 
-  it('builds white 3-zone label HTML without empty OHR placeholder', () => {
+  it('builds Inhalt-zuerst label HTML without Art.-Nr. or empty OHR', () => {
     const cut = AVERY_TRIMMINGS.find((t) => t.id === 'tr-r1-spiesse');
+    expect(storageFootLine(cut, 'DE-ÖKO-006')).to.equal('DE-ÖKO-006 · Gekühlt bei 0–2 °C lagern');
+    expect(storageFootLine(GALLOWAY_CATALOG.innereien[0], 'DE-ÖKO-006'))
+      .to.equal('DE-ÖKO-006 · Gekühlt bei ≤ 3 °C lagern');
+
     const htmlEmptyOhr = buildLabelHtml(cut, {
       betrieb: 'StevesHof Hofladen',
       oeko: 'DE-ÖKO-006',
@@ -109,30 +114,29 @@ describe('Avery 3475 labels module', () => {
       printSchlachthof: false,
     }, 'SH-OHR-20261018');
     expect(htmlEmptyOhr).to.include('label-card');
-    expect(htmlEmptyOhr).to.include('lbl-title');
-    expect(htmlEmptyOhr).to.include('lbl-footer');
+    expect(htmlEmptyOhr).to.include('lbl-hero');
+    expect(htmlEmptyOhr).to.include('lbl-meta');
+    expect(htmlEmptyOhr).to.include('lbl-foot');
     expect(htmlEmptyOhr).to.include('R I · Spieße');
-    expect(htmlEmptyOhr).to.include('ART. 543');
-    expect(htmlEmptyOhr).to.include('DE-ÖKO-006');
-    expect(htmlEmptyOhr).to.include('0–2 °C');
-    expect(htmlEmptyOhr).to.include('lbl-header');
+    expect(htmlEmptyOhr).to.include('Gekühlt bei 0–2 °C lagern');
+    expect(htmlEmptyOhr).to.not.include('ART.');
+    expect(htmlEmptyOhr).to.not.include('lbl-header');
     expect(htmlEmptyOhr).to.not.match(/OHR\s/);
-    expect(htmlEmptyOhr).to.not.include('OHR: –');
-    expect(htmlEmptyOhr).to.not.include('Trockenreifung');
     expect(htmlEmptyOhr).to.not.include('StevesHof Hofladen');
 
-    const htmlWithOhr = buildLabelHtml(cut, {
-      betrieb: 'StevesHof Hofladen',
+    const longCut = GALLOWAY_CATALOG.schultern.find((c) => c.id === 'sch-falsches-filet');
+    const longHtml = buildLabelHtml(longCut, {
+      betrieb: 'StevesHof Galloway',
       oeko: 'DE-ÖKO-006',
-      schlachthof: 'Bio-Schlachthof Stautenhof Willich',
       ohrmarke: 'DE123',
       schlachtDatum: '2026-10-18',
       zerlegeDatum: '2026-10-18',
       printBetrieb: true,
-      printSchlachthof: true,
+      printSchlachthof: false,
     }, 'SH-DE123-20261018');
-    expect(htmlWithOhr).to.include('OHR DE123');
-    expect(htmlWithOhr).to.include('StevesHof Hofladen');
-    expect(htmlWithOhr).to.include('Bio-Schlachthof Stautenhof Willich');
+    expect(longHtml).to.include('Falsches Filet');
+    expect(longHtml).to.include('lbl-farm');
+    expect(longHtml).to.include('StevesHof Galloway');
+    expect(longHtml).to.include('OHR DE123');
   });
 });
