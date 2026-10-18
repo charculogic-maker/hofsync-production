@@ -132,20 +132,27 @@ const TIER_LABELS = {
   metzgerei_pro: 'Metzgerei Pro',
 };
 
+/** UI-Labels für Plattform-Tabelle und Read-Only-Badges in „Mein Betrieb“. */
+const MODULE_LABELS = {
+  ...TENANT_MODULE_LABELS,
+  averyLabels: 'Avery Etiketten',
+  retterBox: 'Retter-Box',
+  rezeptAudit: 'Rezept-Audit',
+};
+
 /**
- * Sichtbare Schalter in „Mein Betrieb“.
- * Nur diese Keys landen im Patch — nicht aufgeführte Module bleiben in Firestore unverändert.
+ * Anzeige-Reihenfolge der aktiven Module in „Mein Betrieb“ (nur Lesen).
+ * Schalten bleibt exklusiv bei Super-Admin → „Plattform & Mandanten“.
  * `orders` ist eigenständig (nicht an `team` gekoppelt).
  */
-const BETRIEB_MODULE_CONTROLS = [
+const BETRIEB_MODULE_DISPLAY = [
   { key: 'mhd', label: 'MHD-Monitor', readKeys: ['mhd', 'mhdMonitor'] },
   { key: 'receiving', label: 'Wareneingang', readKeys: ['receiving', 'wareneingang'] },
   { key: 'kitchen', label: 'Wurstküche & Rezepte', readKeys: ['kitchen', 'wurstkueche', 'rezepte'] },
   {
     key: 'averyLabels',
-    label: 'Avery-Etiketten (Zerlege/Reife)',
+    label: 'Avery Etiketten',
     readKeys: ['averyLabels', 'avery'],
-    writeKeys: ['averyLabels'],
   },
   { key: 'haccp', label: 'HACCP', readKeys: ['haccp'] },
   { key: 'start', label: 'Teamboard', readKeys: ['start', 'teamboard'] },
@@ -154,9 +161,9 @@ const BETRIEB_MODULE_CONTROLS = [
     key: 'orders',
     label: 'Kundenbestellungen & Packtisch',
     readKeys: ['orders'],
-    writeKeys: ['orders'],
   },
-  { key: 'buero', label: 'Büro & Chargen', readKeys: ['buero', 'batches', 'chargenDoku'], writeKeys: ['chargenDoku'] },
+  { key: 'buero', label: 'Büro & Chargen', readKeys: ['buero', 'batches', 'chargenDoku'] },
+  { key: 'retterBox', label: 'Retter-Box', readKeys: ['retterBox'] },
 ];
 
 function escapeHtml(value) {
@@ -220,7 +227,7 @@ function preferredBetriebName(dashboardStateRef) {
   return live || draft || fallback;
 }
 
-function betriebModuleChecked(enabledModules, control) {
+function betriebModuleActive(enabledModules, control) {
   const mods = enabledModules && typeof enabledModules === 'object' ? enabledModules : {};
   if (!Object.keys(mods).length) return isTenantModuleEnabled(control.key);
   const present = control.readKeys.filter((key) => Object.prototype.hasOwnProperty.call(mods, key));
@@ -228,34 +235,33 @@ function betriebModuleChecked(enabledModules, control) {
   return present.some((key) => mods[key] === true);
 }
 
+/**
+ * Read-only Badges der aktiven Module in „Mein Betrieb“.
+ * Keine Checkboxen — Schalten nur unter „Plattform & Mandanten“.
+ */
 function fillBetriebModuleToggles(dashboardStateRef = dashboardState) {
-  const mods = dashboardStateRef.tenantModules;
+  const listEl = document.getElementById('dev-dashboard-betrieb-modules-list');
   const hint = document.getElementById('dev-dashboard-betrieb-modules-hint');
-  BETRIEB_MODULE_CONTROLS.forEach((control) => {
-    const input = document.querySelector(`[data-betrieb-module="${control.key}"]`);
-    if (!(input instanceof HTMLInputElement)) return;
-    input.checked = betriebModuleChecked(mods, control);
-    input.disabled = !dashboardStateRef.isSuperAdmin;
-  });
   if (hint) {
     hint.textContent = dashboardStateRef.isSuperAdmin
-      ? 'Gilt für den ausgewählten Betrieb. Ein leeres Modul-Feld nutzt die Standard-Freischaltung.'
-      : 'Die Freischaltung siehst du hier. Änderungen nimmt die Plattform-Verwaltung vor.';
+      ? 'Nur Anzeige. Module schaltest du unter „Plattform & Mandanten“.'
+      : 'Nur Anzeige. Freischaltungen nimmt die Plattform-Verwaltung vor.';
   }
-}
+  if (!listEl) return;
 
-function readBetriebModulePatch() {
-  const patch = {};
-  BETRIEB_MODULE_CONTROLS.forEach((control) => {
-    const input = document.querySelector(`[data-betrieb-module="${control.key}"]`);
-    if (!(input instanceof HTMLInputElement) || input.disabled) return;
-    const on = input.checked === true;
-    patch[control.key] = on;
-    (control.writeKeys || []).forEach((key) => {
-      patch[key] = on;
-    });
-  });
-  return patch;
+  const active = BETRIEB_MODULE_DISPLAY.filter((control) => (
+    betriebModuleActive(dashboardStateRef.tenantModules, control)
+  ));
+
+  if (!active.length) {
+    listEl.innerHTML = '<p class="dev-dashboard-module-badges-empty">Keine Module freigeschaltet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = active.map((control) => {
+    const label = MODULE_LABELS[control.key] || control.label || control.key;
+    return `<span class="dev-dashboard-module-badge" role="listitem">${escapeHtml(label)}</span>`;
+  }).join('');
 }
 
 /**
@@ -897,7 +903,11 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
   applySettingsPreview();
 }
 
-async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, modulePatch) {
+/**
+ * Speichert Firmenname + Logo. Module bleiben unberührt
+ * (Schalten nur über Plattform-Tabelle / setTenantModules).
+ */
+async function persistTenantBetrieb(db, tenantId, displayName, logoUrl) {
   if (!db || !tenantId) return;
   const tenantRef = db.collection('tenants').doc(tenantId);
   const payload = { displayName };
@@ -920,19 +930,6 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, modulePa
     if (stamp) profilePayload.updatedAt = stamp;
     await settingsCollection.doc('profile').set(profilePayload, { merge: true });
   }
-  const moduleKeys = Object.keys(modulePatch || {});
-  if (!moduleKeys.length || !dashboardState.isSuperAdmin) return;
-  const callable = getSetTenantModulesCallable();
-  if (!callable) {
-    throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
-  }
-  // Merge/Patch: nur sichtbare Schalter — z. B. { "enabledModules.orders": true }
-  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
-  await callable({
-    targetTenantId: tenantId,
-    enabledModules: modulePatch,
-    ...fieldPatch,
-  });
 }
 
 function applyBrandingFromSettingsDraft(tenantId, draft) {
@@ -1043,16 +1040,8 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
     recordAudit('settings', `Betriebseinstellungen gespeichert (${displayName})`, 'change');
     setSettingsFormStatus('Einstellungen gespeichert.', 'success');
     window.showToast?.('Betriebseinstellungen gespeichert.', 'success');
-    const modulePatch = readBetriebModulePatch();
-    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, modulePatch)
+    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl)
       .then(() => {
-        if (Object.keys(modulePatch).length) {
-          dashboardStateRef.tenantModules = {
-            ...(dashboardStateRef.tenantModules || {}),
-            ...modulePatch,
-          };
-          renderOverviewCards(dashboardStateRef);
-        }
         setSettingsFormStatus('Betrieb gespeichert.', 'success');
       })
       .catch((err) => {
@@ -1132,10 +1121,6 @@ function bindOverviewJumpLinks() {
     setDevDashboardTab(btn.getAttribute('data-dev-jump') || 'overview');
   });
 }
-
-const MODULE_LABELS = {
-  ...TENANT_MODULE_LABELS,
-};
 
 const EMPLOYEE_PERMISSION_KEYS = ['mhd', 'kitchen', 'buero'];
 
@@ -1348,15 +1333,16 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
     if (key === 'chargenDoku' && !('chargenDoku' in enabled) && enabled.traceability === true) {
       checked = true;
     }
+    const label = MODULE_LABELS[key] || key;
     return `
-      <label class="dev-dashboard-toggle" title="${MODULE_LABELS[key]}">
+      <label class="dev-dashboard-toggle" title="${escapeHtml(label)}">
         <input
           type="checkbox"
           data-tenant-id="${tenantId}"
           data-module-key="${key}"
           ${checked ? 'checked' : ''}
         >
-        <span>${MODULE_LABELS[key]}</span>
+        <span>${escapeHtml(label)}</span>
       </label>
     `;
   }).join('');
