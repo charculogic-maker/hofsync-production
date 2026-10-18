@@ -820,6 +820,23 @@
                               <input id="dev-dashboard-haccp-task-sort" type="number" step="1" value="100" inputmode="numeric">
                             </label>
                           </div>
+                          <label
+                            class="dev-dashboard-field"
+                            for="dev-dashboard-haccp-task-day"
+                            id="dev-dashboard-haccp-task-day-wrap"
+                            hidden
+                          >
+                            <span>Wochentag</span>
+                            <select id="dev-dashboard-haccp-task-day" aria-label="Wochentag für wöchentliche Aufgabe">
+                              <option value="1">Montag</option>
+                              <option value="2">Dienstag</option>
+                              <option value="3">Mittwoch</option>
+                              <option value="4">Donnerstag</option>
+                              <option value="5">Freitag</option>
+                              <option value="6">Samstag</option>
+                              <option value="0">Sonntag</option>
+                            </select>
+                          </label>
                           <label class="dev-dashboard-toggle" for="dev-dashboard-haccp-task-production">
                             <input id="dev-dashboard-haccp-task-production" type="checkbox">
                             <span>Nur an Produktionstagen</span>
