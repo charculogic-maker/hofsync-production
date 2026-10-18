@@ -52,7 +52,7 @@ describe('Architektur: Modul-SSOT & Router', () => {
     expect(dash).to.not.include('readBetriebModulePatch');
   });
 
-  it('SW-Cache ist supplier-split-v1', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261016-supplier-split-v1/);
+  it('SW-Cache ist aktueller Dev-Dashboard-Modules-RO-Build', () => {
+    expect(read('web/sw.js')).to.match(/charculogic-v20261018-dev-dashboard-modules-ro/);
   });
 });
