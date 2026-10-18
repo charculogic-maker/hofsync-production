@@ -4761,10 +4761,133 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   margin-bottom: 10px;
 }
 
-.btn-haccp-print {
+.btn-haccp-print,
+.btn-haccp-history {
   width: 100%;
   min-height: 56px;
   font-size: 15px;
+}
+
+.haccp-history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+}
+
+.haccp-history-modal.is-open,
+.haccp-history-modal:not([hidden]) {
+  display: flex;
+}
+
+.haccp-history-modal[hidden] {
+  display: none !important;
+}
+
+.haccp-history-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.haccp-history-modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: auto;
+  background: var(--surface-color);
+  color: var(--text-dark);
+  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+  padding: 14px 14px 18px;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+}
+
+.haccp-history-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.haccp-history-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.haccp-history-close {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dark);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.haccp-history-hint {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.haccp-history-empty {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.haccp-history-table-wrap {
+  overflow-x: auto;
+}
+
+.haccp-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.haccp-history-table th,
+.haccp-history-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  vertical-align: top;
+}
+
+.haccp-history-table th {
+  font-weight: 900;
+  color: var(--primary-on-light, #1b5e20);
+  background: var(--primary-tint-bg, rgba(46, 125, 50, 0.08));
+}
+
+.haccp-history-type {
+  font-weight: 800;
+}
+
+.haccp-history-detail {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.haccp-cleaning-check--pending {
+  border-color: var(--primary-color);
+  background: var(--primary-tint-bg, rgba(46, 125, 50, 0.1));
+}
+
+.haccp-cleaning-check--pending .haccp-cleaning-check-icon {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #fff;
 }
 
 .haccp-mode-tabs {
@@ -11337,7 +11460,8 @@ body.role-helper #tab-orders {
 }
 
 .btn-submit-haccp,
-.btn-haccp-print {
+.btn-haccp-print,
+.btn-haccp-history {
   min-height: 54px;
   height: auto;
   font-size: 14px;

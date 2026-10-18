@@ -509,7 +509,7 @@ const uiResult = await page.evaluate(async () => {
   steps.push({
     name: 'office-stammdaten-controls-exist',
     pass: Boolean(officePanel) && Boolean(masterBtn) && Boolean(teamConfig)
-      && Boolean(document.getElementById('btn-haccp-print'))
+      && Boolean(document.getElementById('btn-haccp-history'))
       && Boolean(document.getElementById('btn-office-master-data')),
   });
   steps.push({

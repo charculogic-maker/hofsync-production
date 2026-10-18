@@ -1912,13 +1912,25 @@
             </div>
 
             <div class="haccp-card haccp-export-card">
-              <div class="section-title">Protokolle drucken</div>
-              <p class="learn-mode-desc">Temperatur- und Reinigungsnachweise der letzten 7 Tage als druckbare Übersicht – z. B. für Behördenkontrollen.</p>
-              <button type="button" class="btn btn-primary btn-haccp-print" id="btn-haccp-print">
-                🖨️ Druckansicht öffnen
+              <div class="section-title">Protokolle &amp; Historie</div>
+              <p class="learn-mode-desc">Alle Temperatur- und Reinigungsnachweise werden revisionssicher in der Cloud gespeichert und können hier für Behördenkontrollen abgerufen werden.</p>
+              <button type="button" class="btn btn-primary btn-haccp-history" id="btn-haccp-history">
+                Letzte 7 Tage anzeigen
               </button>
             </div>
 
+          </div>
+
+          <div id="haccp-history-modal" class="haccp-history-modal" hidden>
+            <div class="haccp-history-modal-backdrop" data-haccp-history-close></div>
+            <div class="haccp-history-modal-card" role="dialog" aria-modal="true" aria-labelledby="haccp-history-title">
+              <div class="haccp-history-modal-header">
+                <h2 id="haccp-history-title">Protokolle &amp; Historie</h2>
+                <button type="button" class="haccp-history-close" data-haccp-history-close aria-label="Schließen">×</button>
+              </div>
+              <p class="haccp-history-hint">Schreibgeschützte Übersicht der letzten 7 Tage – Temperaturen und Reinigung.</p>
+              <div id="haccp-history-body" class="haccp-history-body"></div>
+            </div>
           </div>
 
           <!-- ============================================== -->
