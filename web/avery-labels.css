@@ -492,10 +492,10 @@
   max-width: 100%;
   max-height: 100%;
   box-sizing: border-box;
-  padding: 1px 0;
-  font-size: clamp(11px, 22cqi, 14px);
+  padding: 2px 1px;
+  font-size: clamp(11px, 20cqi, 14px);
   font-weight: 900;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: 0.01em;
   text-align: center;
   text-transform: uppercase;
@@ -503,8 +503,14 @@
   -webkit-text-fill-color: #000000;
   overflow-wrap: anywhere;
   word-break: break-word;
-  /* Clipping vermeiden: Höhe über line-height + Padding, nicht über overflow-crop */
+  /* Clipping vermeiden: Padding + line-height, kein hard crop am Glyph */
   overflow: visible;
+}
+
+.lbl-title-text.is-long {
+  font-size: clamp(9px, 15cqi, 11px);
+  line-height: 1.18;
+  padding: 2px 0;
 }
 
 /* Zone 3 – Footer-Raster mit Haarlinie */
@@ -658,8 +664,13 @@
   body.print-avery-labels .lbl-title-text {
     font-size: 14pt;
     font-weight: 900;
-    line-height: 1.1;
-    padding: 0.3mm 0;
+    line-height: 1.12;
+    padding: 0.5mm 0.2mm;
+  }
+
+  body.print-avery-labels .lbl-title-text.is-long {
+    font-size: 11pt;
+    line-height: 1.15;
   }
 
   body.print-avery-labels .lbl-footer {

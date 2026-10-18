@@ -493,6 +493,7 @@ export function buildLabelHtml(cut, header, lot) {
   const zerl = formatDateDe(header.zerlegeDatum) || '';
   const storage = storageHintForCut(cut);
   const title = formatLabelTitle(cut.name);
+  const titleLong = title.length > 16 || /\//.test(title);
   const ohrRow = ohr
     ? `<div class="lbl-meta-sub">OHR ${escapeHtml(ohr)}</div>`
     : '';
@@ -508,7 +509,7 @@ export function buildLabelHtml(cut, header, lot) {
       </div>
       ${showBetrieb ? `<div class="lbl-farm">${escapeHtml(String(header.betrieb).trim())}</div>` : ''}
       <div class="lbl-title">
-        <span class="lbl-title-text">${escapeHtml(title)}</span>
+        <span class="lbl-title-text${titleLong ? ' is-long' : ''}">${escapeHtml(title)}</span>
       </div>
       <div class="lbl-footer">
         <div class="lbl-meta-col lbl-meta-left">
