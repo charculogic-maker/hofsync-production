@@ -246,7 +246,15 @@ function startHaccpAdminLiveSync() {
     renderTasksTable();
   }, (err) => {
     console.error('[Dev-Dashboard HACCP] Aufgaben-Sync:', err);
-    setStatus('dev-dashboard-haccp-tasks-status', 'Reinigungsaufgaben konnten nicht geladen werden.', 'error');
+    const permission = String(err?.code || '').includes('permission')
+      || /insufficient permissions/i.test(String(err?.message || ''));
+    setStatus(
+      'dev-dashboard-haccp-tasks-status',
+      permission
+        ? 'Keine Berechtigung für Reinigungsaufgaben. Bitte Firestore-Rules prüfen bzw. neu ausrollen.'
+        : 'Reinigungsaufgaben konnten nicht geladen werden.',
+      'error',
+    );
   });
 }
 
@@ -365,7 +373,14 @@ async function saveTaskFromForm(event) {
     resetTaskForm();
   } catch (err) {
     console.error('[Dev-Dashboard HACCP] Aufgabe speichern:', err);
-    window.showToast?.('Aufgabe konnte nicht gespeichert werden.', 'error');
+    const permission = String(err?.code || '').includes('permission')
+      || /insufficient permissions/i.test(String(err?.message || ''));
+    window.showToast?.(
+      permission
+        ? 'Speichern blockiert: Rechte für Reinigungsaufgaben fehlen noch (Rules).'
+        : 'Aufgabe konnte nicht gespeichert werden.',
+      'error',
+    );
   }
 }
 
@@ -489,7 +504,14 @@ async function seedDefaultCleaningTasks() {
     window.showToast?.('5 Standard-Reinigungsaufgaben angelegt.', 'success');
   } catch (err) {
     console.error('[Dev-Dashboard HACCP] Aufgaben-Seed:', err);
-    window.showToast?.('Standard-Aufgaben konnten nicht angelegt werden.', 'error');
+    const permission = String(err?.code || '').includes('permission')
+      || /insufficient permissions/i.test(String(err?.message || ''));
+    window.showToast?.(
+      permission
+        ? 'Anlegen blockiert: Rechte für Reinigungsaufgaben fehlen noch (Rules).'
+        : 'Standard-Aufgaben konnten nicht angelegt werden.',
+      'error',
+    );
   }
 }
 

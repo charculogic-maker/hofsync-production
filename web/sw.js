@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-admin-dashboard-v1';
+const CACHE_NAME = 'charculogic-v20261018-haccp-admin-dashboard-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 /** Release – HACCP Admin im Dev-Dashboard, PWA ohne Geräte-Setup */
