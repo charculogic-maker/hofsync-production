@@ -1,6 +1,5 @@
 // ARCH-GUARD: initHaccp / Live-Sync dürfen kein showTab / showPreferredStartTab triggern.
 import { canonicalTenantId, getGlobalTenantId, getTenantCollectionPath } from './tenant-db.js';
-import { getTeamEmployees } from './team-config.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   readScopedLocalStorageValue,
@@ -249,13 +248,6 @@ const STEVESHOF_STANDARD_TEMP_DEVICES = [
   },
 ];
 
-function getCleaningTeam() {
-  const fromTeam = getTeamEmployees()
-    .map((name) => String(name || '').trim())
-    .filter(Boolean);
-  return fromTeam.length ? fromTeam : ['Mitarbeiter 1', 'Mitarbeiter 2'];
-}
-
 const HACCP_CLEANING_GROUPS = [
   {
     id: 'daily-shop',
@@ -267,7 +259,7 @@ const HACCP_CLEANING_GROUPS = [
   },
   {
     id: 'production-days',
-    title: 'NACH NUTZUNG (NUR AN PRODUKTIONSTAGEN)',
+    title: 'NACH NUTZUNG (PRODUKTION)',
     period: 'day',
     tasks: [
       { id: 'wurstkueche', name: 'Wurstküche gereinigt & desinfiziert' },
@@ -299,6 +291,8 @@ const haccpState = {
   devices: [],
   logs: [],
   cleaningDoneBy: '',
+  /** @type {Set<string>} */
+  pendingCleaningTaskIds: new Set(),
   /** @type {Record<string, { value: number|null, note: string }>} */
   roundEntries: {},
   editingDeviceId: '',
@@ -308,30 +302,35 @@ const haccpState = {
   initialized: false,
 };
 
-function restoreCleaningPerson() {
-  if (haccpState.cleaningDoneBy) return;
+function syncCharcuLogicActiveEmployee(name) {
   try {
-    const stored = localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
-      || readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId())
-      || '';
-    haccpState.cleaningDoneBy = getCleaningTeam().includes(stored) ? stored : '';
+    window.charculogic = window.charculogic || {};
+    if (name) window.charculogic.activeEmployee = name;
   } catch (_) { /* noop */ }
 }
 
+function restoreCleaningPerson() {
+  if (haccpState.cleaningDoneBy) return;
+  const fromSession = readActiveEmployeeName();
+  if (fromSession) {
+    haccpState.cleaningDoneBy = fromSession;
+    syncCharcuLogicActiveEmployee(fromSession);
+  }
+}
+
 function rememberCleaningPerson(name) {
-  haccpState.cleaningDoneBy = getCleaningTeam().includes(name) ? name : '';
+  const clean = String(name || '').trim();
+  haccpState.cleaningDoneBy = clean;
+  syncCharcuLogicActiveEmployee(clean);
   try {
-    if (haccpState.cleaningDoneBy) {
-      localStorage.setItem(HACCP_CLEANING_PERSON_KEY, haccpState.cleaningDoneBy);
-      writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId(), haccpState.cleaningDoneBy);
+    if (clean) {
+      localStorage.setItem(HACCP_CLEANING_PERSON_KEY, clean);
+      writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId(), clean);
     } else {
       localStorage.removeItem(HACCP_CLEANING_PERSON_KEY);
       localStorage.removeItem(scopedTeamboardStorageKey(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveHaccpTenantId()));
     }
   } catch (_) { /* noop */ }
-  window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
-    detail: { employeeName: haccpState.cleaningDoneBy },
-  }));
 }
 
 export function initHaccpModule(databaseInstance, writeOrQueueFirestoreFunction, showHudCallback, verifyAdminActionCallback, options = {}) {
@@ -711,17 +710,48 @@ function allRequiredDevicesCaptured() {
     .every((device) => isDeviceCapturedInRound(device));
 }
 
-function readActiveEmployeeName() {
-  const selected = selectedHaccpPerson();
-  if (selected) return selected;
+function readAuthProfileEmployeeName() {
   try {
-    const tenantId = resolveHaccpTenantId();
-    const scoped = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
-    if (scoped) return scoped;
-    return localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || localStorage.getItem('charculogic.activeEmployee') || '';
+    const firebaseApi = haccpState.getFirebase?.() || (typeof firebase !== 'undefined' ? firebase : null);
+    const user = firebaseApi?.auth?.()?.currentUser;
+    const fromDisplay = String(user?.displayName || '').trim();
+    if (fromDisplay) return fromDisplay;
+    const emailLocal = String(user?.email || '').split('@')[0].trim();
+    return emailLocal || '';
   } catch (_) {
     return '';
   }
+}
+
+function readActiveEmployeeName() {
+  try {
+    const fromGlobal = String(window.charculogic?.activeEmployee || '').trim();
+    if (fromGlobal) return fromGlobal;
+  } catch (_) { /* noop */ }
+  try {
+    const tenantId = resolveHaccpTenantId();
+    const scoped = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+    if (scoped) return String(scoped).trim();
+  } catch (_) { /* noop */ }
+  try {
+    const legacy = localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY)
+      || localStorage.getItem('charculogic.activeEmployee')
+      || localStorage.getItem(HACCP_CLEANING_PERSON_KEY)
+      || '';
+    if (legacy) return String(legacy).trim();
+  } catch (_) { /* noop */ }
+  const fromAuth = readAuthProfileEmployeeName();
+  if (fromAuth) return fromAuth;
+  return String(haccpState.cleaningDoneBy || '').trim();
+}
+
+function renderActiveEmployeeChip() {
+  const employee = readActiveEmployeeName();
+  return `
+    <div class="haccp-employee-chip" aria-live="polite">
+      Aktiver Mitarbeiter: <strong>${escapeHtml(employee || 'Noch nicht gewählt')}</strong>
+    </div>
+  `;
 }
 
 function haccpDeviceDocId(name) {
@@ -806,17 +836,20 @@ function temperatureStatus(device, value) {
   return inRange ? { ok: true, label: 'OK' } : { ok: false, label: 'Abweichung' };
 }
 
-function selectedHaccpPerson() {
-  return document.getElementById('haccp-cleaning-person')?.value || haccpState.cleaningDoneBy || '';
-}
-
 function requireHaccpDoneBy() {
-  const doneBy = String(selectedHaccpPerson() || '').trim();
-  if (!doneBy || doneBy === 'Name auswählen' || !getCleaningTeam().includes(doneBy)) {
-    haccpState.showHUD('Hinweis', 'Bitte wähle zuerst oben aus, wer die Prüfung durchgeführt hat!', '!');
+  const doneBy = String(readActiveEmployeeName() || '').trim();
+  if (!doneBy) {
+    haccpState.showHUD('Mitarbeiter fehlt', 'Bitte zuerst den aktiven Mitarbeiter in der Session wählen.', '!');
     return '';
   }
+  syncCharcuLogicActiveEmployee(doneBy);
   return doneBy;
+}
+
+function hasStevesHofStandardDevices() {
+  const requiredIds = STEVESHOF_STANDARD_TEMP_DEVICES.map((device) => haccpDeviceDocId(device.name));
+  const existing = new Set((haccpState.devices || []).map((device) => String(device.id || '')));
+  return requiredIds.every((id) => existing.has(id));
 }
 
 function createHaccpLogId(entry) {
@@ -948,35 +981,54 @@ function stepRoundTemp(deviceId, delta) {
 
 async function seedStevesHofStandardDevices() {
   const path = haccpDevicesCollectionPath();
-  if (!path || !haccpState.writeOrQueueFirestore) {
+  if (!path || !haccpState.db) {
     haccpState.showHUD('Offline', 'Einrichten klappt erst wieder mit Verbindung.', '!');
     return;
   }
   if (haccpState.seedingStevesHof) return;
+  if (hasStevesHofStandardDevices()) {
+    haccpState.showHUD('Schon angelegt', 'Die StevesHof-Standardstellen sind bereits vorhanden.');
+    renderHaccpDaily();
+    return;
+  }
 
   haccpState.verifyAdminAction(async () => {
     haccpState.seedingStevesHof = true;
+    renderHaccpDaily();
     try {
       const tenantId = resolveHaccpTenantId();
       if (!tenantId) {
         haccpState.showHUD('Mandant fehlt', 'Bitte zuerst anmelden und den Betrieb wählen.', '!');
         return;
       }
-      for (const device of STEVESHOF_STANDARD_TEMP_DEVICES) {
+
+      const batch = haccpState.db.batch();
+      const nowIso = new Date().toISOString();
+      const seeded = [];
+      STEVESHOF_STANDARD_TEMP_DEVICES.forEach((device) => {
         const payload = buildStevesHofDevicePayload(device);
-        await haccpState.writeOrQueueFirestore({
-          collectionPath: path,
-          docId: payload.id,
-          op: 'set',
-          onlineData: { ...payload, updatedAt: serverTimestamp(), createdAt: serverTimestamp() },
-          queueData: {
-            ...payload,
-            updatedAt: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          offlineMessage: 'StevesHof-Kühlstellen werden nachträglich synchronisiert.',
-        });
-      }
+        const { id, ...docData } = payload;
+        const ref = haccpState.db.collection(path).doc(id);
+        const onlineData = {
+          ...docData,
+          isActive: true,
+          aktiv: true,
+          sortOrder: payload.sortOrder,
+          activeDays: payload.activeDays,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        };
+        batch.set(ref, onlineData, { merge: true });
+        seeded.push({ id, ...docData, isActive: true, aktiv: true, updatedAt: nowIso, createdAt: nowIso });
+      });
+      await batch.commit();
+
+      const byId = new Map((haccpState.devices || []).map((entry) => [entry.id, entry]));
+      seeded.forEach((entry) => {
+        byId.set(entry.id, { ...(byId.get(entry.id) || {}), ...entry });
+      });
+      haccpState.devices = Array.from(byId.values());
+
       haccpState.playClickSound?.();
       haccpState.showHUD(
         'Geräte angelegt',
@@ -989,6 +1041,7 @@ async function seedStevesHofStandardDevices() {
       haccpState.showHUD('Hat nicht geklappt', 'Standard-Geräte konnten nicht angelegt werden. Bitte Rechte prüfen.', '!');
     } finally {
       haccpState.seedingStevesHof = false;
+      renderHaccpDaily();
     }
   });
 }
@@ -1099,11 +1152,20 @@ async function saveTemperatureRound() {
   }
 }
 
+function cleaningEntryIncludesTask(entry, task) {
+  if (!entry || !task) return false;
+  if (entry.taskId === task.id || entry.task === task.name || entry.deviceName === task.name) return true;
+  if (!Array.isArray(entry.tasks)) return false;
+  return entry.tasks.some((item) => {
+    if (typeof item === 'string') return item === task.id || item === task.name;
+    return item?.id === task.id || item?.name === task.name;
+  });
+}
+
 function entryMatchesCleaningPeriod(entry, task, group) {
   const periodKey = periodKeyForCleaning(group);
-  const sameTask = entry.taskId === task.id || entry.task === task.name || entry.deviceName === task.name;
   const isCleaning = entry.type === 'cleaning' || entry.logTyp === 'reinigung';
-  if (!isCleaning || !sameTask) return false;
+  if (!isCleaning || !cleaningEntryIncludesTask(entry, task)) return false;
   if (entry.periodKey) return entry.periodKey === periodKey;
 
   if (group.period === 'week') {
@@ -1129,35 +1191,67 @@ function upsertLocalCleaningLog(log) {
   if (haccpState.mode === 'reinigung') renderHaccpDaily();
 }
 
-async function saveCleaningCheck(taskId) {
+function togglePendingCleaningTask(taskId) {
   const task = cleaningTaskById(taskId);
   const group = resolveHaccpCleaningGroups().find((entry) => entry.id === task?.groupId);
   if (!task || !group) return;
   if (cleaningCompletionForTask(task, group)) {
-    haccpState.showHUD("Schon erledigt", "Dieser Punkt ist bereits abgehakt.");
+    haccpState.showHUD('Schon erledigt', 'Dieser Punkt ist bereits abgehakt.');
+    return;
+  }
+  if (!haccpState.pendingCleaningTaskIds) {
+    haccpState.pendingCleaningTaskIds = new Set();
+  }
+  if (haccpState.pendingCleaningTaskIds.has(taskId)) {
+    haccpState.pendingCleaningTaskIds.delete(taskId);
+  } else {
+    haccpState.pendingCleaningTaskIds.add(taskId);
+  }
+  renderHaccpDaily();
+}
+
+async function saveCleaningBatch() {
+  const activeName = requireHaccpDoneBy();
+  if (!activeName) return;
+
+  const pendingIds = Array.from(haccpState.pendingCleaningTaskIds || []);
+  if (!pendingIds.length) {
+    haccpState.showHUD('Nichts ausgewählt', 'Bitte zuerst die erledigten Punkte abhaken.', '!');
     return;
   }
 
-  const selectedPerson = requireHaccpDoneBy();
-  if (!selectedPerson) return;
+  const tasks = pendingIds
+    .map((taskId) => cleaningTaskById(taskId))
+    .filter(Boolean)
+    .map((task) => ({
+      id: task.id,
+      name: task.name,
+      groupId: task.groupId,
+      period: task.period,
+    }));
 
-  rememberCleaningPerson(selectedPerson);
-  const periodKey = periodKeyForCleaning(group);
-  const docId = cleaningLogDocId(task, periodKey);
+  if (!tasks.length) {
+    haccpState.showHUD('Nichts ausgewählt', 'Bitte zuerst die erledigten Punkte abhaken.', '!');
+    return;
+  }
+
+  rememberCleaningPerson(activeName);
+  const dateKey = localDateKey();
+  const docId = ['cleaning_batch', dateKey, Date.now().toString(36)].join('_');
   const nowIso = new Date().toISOString();
   const payload = {
     docId,
     logTyp: 'reinigung',
     type: 'cleaning',
-    taskId: task.id,
-    task: task.name,
-    doneBy: selectedPerson,
-    periodType: group.period,
-    periodKey,
-    deviceName: task.name,
-    bereich: group.title,
+    tasks,
+    user: activeName,
+    doneBy: activeName,
+    deviceName: 'Reinigungsnachweis',
+    bereich: 'Reinigung',
     status: 'erledigt',
-    massnahme: selectedPerson,
+    periodType: 'day',
+    periodKey: dateKey,
+    massnahme: `${tasks.length} Punkte`,
   };
 
   try {
@@ -1166,24 +1260,27 @@ async function saveCleaningCheck(taskId) {
       ...payload,
       id: docId,
       tenantId: resolveHaccpTenantId(),
-      datum: localDateKey(),
+      datum: dateKey,
       timestamp: nowIso,
       createdAt: nowIso,
     });
+    haccpState.pendingCleaningTaskIds = new Set();
     if (result === 'queued') {
-      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfÃ¼gbar ist.");
+      haccpState.showHUD('Lokal vorgemerkt', 'Wird automatisch synchronisiert, sobald WLAN verfügbar ist.');
+      renderHaccpDaily();
       return;
     }
-    haccpState.showHUD("Reinigung erfasst", `${task.name} ist abgehakt.`);
+    haccpState.showHUD('Reinigung erfasst', `${tasks.length} Punkte sind abgehakt.`);
+    renderHaccpDaily();
   } catch (err) {
     const code = err?.code || '';
     if (code === 'already-exists') {
-      haccpState.showHUD("Bereits erfasst", "Dieses Reinigungsprotokoll existiert bereits auf dem Server.");
+      haccpState.showHUD('Bereits erfasst', 'Dieses Reinigungsprotokoll existiert bereits auf dem Server.');
       return;
     }
     if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
     console.error('[CharcuLogic HACCP] Reinigung speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+    haccpState.showHUD('Hat nicht geklappt', 'Reinigung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.', '!');
   }
 }
 
@@ -1376,56 +1473,49 @@ function restoreHaccpDraftFields() {
   haccpState.restoreDraftFields(fieldIds);
 }
 
-function renderHaccpPersonPicker() {
-  const selected = haccpState.cleaningDoneBy;
-  return `
-    <div class="haccp-cleaning-person">
-      <label class="haccp-cleaning-person-label" for="haccp-cleaning-person">Wer trägt gerade ein?</label>
-      <select id="haccp-cleaning-person" class="input-text-touch haccp-cleaning-select" aria-label="Name auswählen">
-        <option value="">Name auswählen</option>
-        ${getCleaningTeam().map((name) => `<option value="${escapeHtml(name)}"${selected === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}
-      </select>
-    </div>
-  `;
-}
-
 function renderHaccpOperatorSelector() {
   const container = document.getElementById('haccp-operator-container');
   if (!container) return;
-  container.innerHTML = renderHaccpPersonPicker();
-  bindHaccpPersonPicker(container);
+  container.innerHTML = renderActiveEmployeeChip();
 }
 
-function cleaningDoneText(entry) {
-  if (!entry) return 'Abhaken';
-  return entry.doneBy ? `Erledigt: ${entry.doneBy}` : 'Erledigt';
+function cleaningDoneText(entry, pending) {
+  if (entry) {
+    const who = entry.user || entry.doneBy;
+    return who ? `Erledigt: ${who}` : 'Erledigt';
+  }
+  if (pending) return 'Zum Speichern markiert';
+  return 'Abhaken';
 }
 
 function renderCleaningTaskButton(task, group) {
   const completion = cleaningCompletionForTask(task, group);
   const done = Boolean(completion);
+  const pending = !done && Boolean(haccpState.pendingCleaningTaskIds?.has(task.id));
   return `
     <button
       type="button"
-      class="haccp-cleaning-check${done ? ' haccp-cleaning-check--done' : ''}"
-      data-haccp-save-clean="${escapeHtml(task.id)}"
-      aria-pressed="${done ? 'true' : 'false'}"
+      class="haccp-cleaning-check${done ? ' haccp-cleaning-check--done' : ''}${pending ? ' haccp-cleaning-check--pending' : ''}"
+      data-haccp-toggle-clean="${escapeHtml(task.id)}"
+      aria-pressed="${done || pending ? 'true' : 'false'}"
       ${done ? 'disabled' : ''}>
-      <span class="haccp-cleaning-check-icon" aria-hidden="true">${done ? '✓' : ''}</span>
+      <span class="haccp-cleaning-check-icon" aria-hidden="true">${done || pending ? '✓' : ''}</span>
       <span class="haccp-cleaning-check-main">
         <span class="haccp-cleaning-check-title">${escapeHtml(task.name)}</span>
-        <span class="haccp-cleaning-check-state">${escapeHtml(cleaningDoneText(completion))}</span>
+        <span class="haccp-cleaning-check-state">${escapeHtml(cleaningDoneText(completion, pending))}</span>
       </span>
     </button>
   `;
 }
 
 function renderCleaningChecks() {
+  const pendingCount = haccpState.pendingCleaningTaskIds?.size || 0;
   return `
     <div class="haccp-daily-intro">
       <strong>Reinigung</strong>
       <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
     </div>
+    ${renderActiveEmployeeChip()}
     <div class="haccp-cleaning-groups">
       ${resolveHaccpCleaningGroups().map((group) => `
         <section class="haccp-cleaning-group" aria-label="${escapeHtml(group.title)}">
@@ -1436,6 +1526,16 @@ function renderCleaningChecks() {
         </section>
       `).join('')}
     </div>
+    <div class="haccp-round-footer">
+      <div class="haccp-round-progress">${pendingCount} Punkt${pendingCount === 1 ? '' : 'e'} zum Speichern markiert</div>
+      <button
+        type="button"
+        class="btn btn-primary btn-submit-haccp"
+        data-haccp-save-cleaning-batch="1"
+        ${pendingCount ? '' : 'disabled'}>
+        REINIGUNG SPEICHERN
+      </button>
+    </div>
   `;
 }
 
@@ -1445,6 +1545,7 @@ function renderAmpelClass(inRange) {
 }
 
 function renderStevesHofSeedButton({ prominent = false } = {}) {
+  if (hasStevesHofStandardDevices()) return '';
   const busy = haccpState.seedingStevesHof;
   return `
     <button
@@ -1525,7 +1626,7 @@ function renderManualSections(locked) {
     ? 'Heute sind laut Plan keine Kühlstellen aktiv (z. B. Fleischtheke nur Do–Sa).'
     : 'Noch keine Messpunkte. Unter „+“ oder mit dem StevesHof-Button legen wir sie an.'}</span>
       </div>
-      ${anyConfigured ? '' : `
+      ${anyConfigured || hasStevesHofStandardDevices() ? '' : `
         <div class="haccp-seed-panel">
           ${renderStevesHofSeedButton({ prominent: true })}
           <p class="haccp-seed-hint">Legt die 8 Laden- und Lager-Kühlstellen mit Sollwerten und Wochentagen an (nur Admin).</p>
@@ -1557,7 +1658,6 @@ function renderTemperatureChecks() {
   const visibleDevices = manualTemperatureDevices({ includeRestDays: false });
   const savedRound = temperatureRoundSavedToday();
   const locked = Boolean(savedRound);
-  const employee = readActiveEmployeeName();
   const ready = allRequiredDevicesCaptured() && !locked && visibleDevices.length > 0;
   const requiredCount = devices.filter((device) => isDeviceRequiredToday(device)).length;
   const capturedCount = devices.filter((device) => isDeviceRequiredToday(device) && isDeviceCapturedInRound(device)).length;
@@ -1580,9 +1680,7 @@ function renderTemperatureChecks() {
       <strong>Temperatur-Rundgang</strong>
       <span>Wir tragen die Temperaturen unserer Laden- und Lager-Kühlstellen ein. Ruhetage (z. B. Fleischtheke So–Mi) bleiben ausgeblendet.</span>
     </div>
-    <div class="haccp-employee-chip" aria-live="polite">
-      Aktiver Mitarbeiter: <strong>${escapeHtml(employee || 'Noch nicht gewählt')}</strong>
-    </div>
+    ${renderActiveEmployeeChip()}
     <div class="haccp-temp-groups">
       ${renderManualSections(locked)}
     </div>
@@ -1630,10 +1728,12 @@ function renderHaccpDaily() {
         <strong>Kühlstellen einrichten</strong>
         <span>${haccpState.editingDeviceId ? 'Bestehende Kühlstelle bearbeiten.' : 'Neue Messpunkte für den Temperatur-Rundgang anlegen. Nur ändern, wenn im Laden etwas neu dazukommt.'}</span>
       </div>
+      ${hasStevesHofStandardDevices() ? '' : `
       <div class="haccp-seed-panel">
         ${renderStevesHofSeedButton({ prominent: true })}
         <p class="haccp-seed-hint">Schreibt die 8 StevesHof-Prüfstellen (Laden &amp; Lager) mit Sollwerten und Wochentagen in diesen Betrieb.</p>
       </div>
+      `}
       <input id="haccp-device-name" class="input-text-touch" placeholder="Name der Kühlstelle" autocomplete="off">
       <div class="batch-input-grid">
         <select id="haccp-device-type" class="input-text-touch" aria-label="Gerätetyp">
@@ -1693,13 +1793,6 @@ function renderHaccpDaily() {
   bindRenderedHaccpActions(container);
 }
 
-function bindHaccpPersonPicker(container) {
-  container.querySelector('#haccp-cleaning-person')?.addEventListener('change', (event) => {
-    rememberCleaningPerson(event.target.value);
-    renderHaccpDaily();
-  });
-}
-
 function updateHaccpTemperatureAmpel(deviceId) {
   const device = sortedTemperatureDevices().find((entry) => entry.id === deviceId);
   const input = document.getElementById(`temp-${safeDomId(deviceId)}`);
@@ -1730,8 +1823,8 @@ function updateHaccpTemperatureAmpel(deviceId) {
 }
 
 function bindRenderedHaccpActions(container) {
-  container.querySelectorAll('[data-haccp-save-clean]').forEach((button) => {
-    button.addEventListener('click', () => saveCleaningCheck(button.dataset.haccpSaveClean));
+  container.querySelectorAll('[data-haccp-toggle-clean]').forEach((button) => {
+    button.addEventListener('click', () => togglePendingCleaningTask(button.dataset.haccpToggleClean));
   });
   container.querySelectorAll('[data-haccp-temp-input]').forEach((input) => {
     updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
@@ -1757,6 +1850,11 @@ function bindStaticHaccpControls() {
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');
       if (saveRoundBtn) {
         void saveTemperatureRound();
+        return;
+      }
+      const saveCleaningBtn = event.target.closest('[data-haccp-save-cleaning-batch]');
+      if (saveCleaningBtn) {
+        void saveCleaningBatch();
         return;
       }
       const stepBtn = event.target.closest('[data-haccp-step]');
@@ -1794,7 +1892,16 @@ function bindStaticHaccpControls() {
     });
   });
 
-  document.getElementById('btn-haccp-print')?.addEventListener('click', generateHaccpPrintView);
+  document.getElementById('btn-haccp-history')?.addEventListener('click', openHaccpHistoryModal);
+  document.querySelectorAll('[data-haccp-history-close]').forEach((el) => {
+    el.addEventListener('click', closeHaccpHistoryModal);
+  });
+  window.addEventListener('charculogic:active-employee-changed', () => {
+    renderHaccpOperatorSelector();
+    if (document.getElementById('page-haccp') && !document.getElementById('page-haccp').hidden) {
+      renderHaccpDaily();
+    }
+  });
 }
 
 function logMomentMillis(entry) {
@@ -1811,120 +1918,116 @@ function logMomentMillis(entry) {
   return Number.isFinite(fromDate) ? fromDate : 0;
 }
 
-function generateHaccpPrintView() {
-  const days = 7;
+function formatHaccpHistoryDate(date) {
+  if (!date) return '-';
+  const parts = String(date).split('-');
+  return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : date;
+}
+
+function collectHaccpHistoryRows(days = 7) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const logs = (haccpState.logs || [])
+    .filter((entry) => (entry.datum || '') >= cutoffStr)
+    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a) || String(b.datum || '').localeCompare(String(a.datum || '')));
 
-  const logs = (haccpState.logs || []).filter((entry) => (entry.datum || '') >= cutoffStr);
-  const tempLogs = logs.filter((entry) => (
-    entry.logTyp === 'temperatur'
-    || entry.logTyp === 'temperatur_rundgang'
-    || entry.logTyp === 'protokoll'
-    || entry.type === 'temperature'
-    || entry.type === 'temperature_round'
-  ));
-  const cleanLogs = logs.filter((entry) => entry.logTyp === 'reinigung' || entry.type === 'cleaning');
+  const rows = [];
+  logs.forEach((entry) => {
+    const isTempRound = entry.type === 'temperature_round' || entry.logTyp === 'temperatur_rundgang';
+    const isTemp = entry.type === 'temperature' || entry.logTyp === 'temperatur' || entry.logTyp === 'protokoll' || isTempRound;
+    const isClean = entry.type === 'cleaning' || entry.logTyp === 'reinigung';
+    const who = entry.user || entry.doneBy || '-';
 
-  const formatDate = (date) => {
-    if (!date) return '-';
-    const parts = String(date).split('-');
-    return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : date;
-  };
-
-  const tempRows = tempLogs.flatMap((entry) => {
-    if ((entry.type === 'temperature_round' || entry.logTyp === 'temperatur_rundgang') && Array.isArray(entry.measurements)) {
-      return entry.measurements.map((row) => `
-        <tr>
-          <td>${formatDate(entry.datum)}</td>
-          <td>${escapeHtml(row.deviceName || '-')}</td>
-          <td>${escapeHtml(row.bereich || entry.bereich || '-')}</td>
-          <td>${escapeHtml(row.value != null ? row.value : (row.wert != null ? row.wert : '-'))} ${escapeHtml(row.einheit || '°C')}</td>
-          <td>${escapeHtml(entry.doneBy || '-')}</td>
-          <td class="${row.status === 'ok' || row.status === 'ruhetag' ? 'status-ok' : 'status-warn'}">${escapeHtml(row.status === 'ok' ? 'OK' : (row.status || 'Erfasst'))}</td>
-          <td>${escapeHtml(row.massnahme || '-')}</td>
-        </tr>`);
+    if (isTempRound && Array.isArray(entry.measurements)) {
+      rows.push({
+        datum: entry.datum,
+        typ: 'Temperatur-Rundgang',
+        mitarbeiter: who,
+        status: entry.status === 'abweichung' ? 'Abweichung' : (entry.status || 'OK'),
+        detail: `${entry.measurements.length} Kühlstellen`,
+      });
+      return;
     }
-    return [`
-    <tr>
-      <td>${formatDate(entry.datum)}</td>
-      <td>${escapeHtml(entry.facility || entry.deviceName || entry.chargenNummer || '-')}</td>
-      <td>${escapeHtml(entry.bereich || '-')}</td>
-      <td>${escapeHtml(entry.value != null ? entry.value : (entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '-')))} ${escapeHtml(entry.einheit || entry.unit || '°C')}</td>
-      <td>${escapeHtml(entry.doneBy || (entry.ph != null ? entry.ph : '-'))}</td>
-      <td class="${entry.status === 'ok' ? 'status-ok' : 'status-warn'}">${escapeHtml(entry.status === 'ok' ? 'OK' : (entry.status || 'Erfasst'))}</td>
-      <td>${escapeHtml(entry.massnahme || '-')}</td>
-    </tr>`];
-  }).join('');
+    if (isTemp) {
+      const value = entry.value != null ? entry.value : (entry.wert != null ? entry.wert : entry.temperatur);
+      rows.push({
+        datum: entry.datum,
+        typ: 'Temperatur',
+        mitarbeiter: who,
+        status: entry.status === 'ok' ? 'OK' : (entry.status || 'Erfasst'),
+        detail: `${entry.facility || entry.deviceName || '-'} ${value != null ? `${value} ${entry.einheit || entry.unit || '°C'}` : ''}`.trim(),
+      });
+      return;
+    }
+    if (isClean) {
+      let detail = entry.task || entry.deviceName || 'Reinigung';
+      if (Array.isArray(entry.tasks) && entry.tasks.length) {
+        detail = entry.tasks
+          .map((item) => (typeof item === 'string' ? item : (item?.name || item?.id || '')))
+          .filter(Boolean)
+          .join(', ');
+      }
+      rows.push({
+        datum: entry.datum,
+        typ: 'Reinigung',
+        mitarbeiter: who,
+        status: entry.status || 'Erledigt',
+        detail,
+      });
+    }
+  });
+  return rows;
+}
 
-  const cleanRows = cleanLogs.map((entry) => `
-    <tr>
-      <td>${formatDate(entry.datum)}</td>
-      <td>${escapeHtml(entry.task || entry.deviceName || '-')}</td>
-      <td>${escapeHtml(entry.bereich || '-')}</td>
-      <td>${escapeHtml(entry.doneBy || entry.massnahme || '-')}</td>
-      <td>${escapeHtml(entry.status || 'Erledigt')}</td>
-    </tr>`).join('');
-
-  const html = `<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<title>HACCP-Protokoll - Druckansicht</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; padding: 20mm; }
-  h1 { font-size: 16pt; margin-bottom: 4px; }
-  .meta { font-size: 10pt; color: #555; margin-bottom: 16px; }
-  h2 { font-size: 13pt; margin: 18px 0 6px; border-bottom: 2px solid #2E7D32; padding-bottom: 3px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10pt; }
-  th { background: #E8F5E9; color: #1B5E20; text-align: left; padding: 6px 8px; border: 1px solid #c8e6c9; font-weight: 700; }
-  td { padding: 5px 8px; border: 1px solid #ddd; }
-  tr:nth-child(even) td { background: #fafafa; }
-  .status-ok { color: #2E7D32; font-weight: 700; }
-  .status-warn { color: #E65100; font-weight: 700; }
-  .footer { margin-top: 30px; font-size: 9pt; color: #888; border-top: 1px solid #ccc; padding-top: 8px; display: flex; justify-content: space-between; }
-  .sig-line { margin-top: 40px; display: flex; gap: 60px; }
-  .sig-line > div { flex: 1; border-top: 1px solid #333; padding-top: 4px; font-size: 10pt; }
-  @media print { body { padding: 15mm; } }
-</style>
-</head>
-<body>
-  <h1>HACCP-Protokoll - ${escapeHtml(haccpState.tenantId || 'Betrieb')}</h1>
-  <div class="meta">Zeitraum: Letzte ${days} Tage (ab ${formatDate(cutoffStr)}) &middot; Erstellt: ${new Date().toLocaleString('de-DE')}</div>
-
-  <h2>Temperatur- & Messprotokolle (${tempLogs.length} Einträge)</h2>
-  ${tempLogs.length ? `<table>
-    <thead><tr><th>Datum</th><th>Gerät / Charge</th><th>Bereich</th><th>Temperatur</th><th>Bearbeiter</th><th>Status</th><th>Maßnahme</th></tr></thead>
-    <tbody>${tempRows}</tbody>
-  </table>` : '<p style="color:#888;margin:8px 0;">Keine Temperaturprotokolle im Zeitraum.</p>'}
-
-  <h2>Reinigungsprotokolle (${cleanLogs.length} Einträge)</h2>
-  ${cleanLogs.length ? `<table>
-    <thead><tr><th>Datum</th><th>Aufgabe</th><th>Bereich</th><th>Erledigt von</th><th>Status</th></tr></thead>
-    <tbody>${cleanRows}</tbody>
-  </table>` : '<p style="color:#888;margin:8px 0;">Keine Reinigungsprotokolle im Zeitraum.</p>'}
-
-  <div class="sig-line">
-    <div>Datum / Unterschrift Verantwortlicher</div>
-    <div>Datum / Unterschrift Kontrolle</div>
-  </div>
-
-  <div class="footer">
-    <span>CharcuLogic HACCP-System</span>
-    <span>Seite 1</span>
-  </div>
-
-  <script>window.onload = () => window.print();</script>
-</body>
-</html>`;
-
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-  } else {
-    haccpState.showHUD("Popup blockiert", "Bitte Popup-Blocker für diese Seite deaktivieren.", "!");
+function renderHaccpHistoryTable(rows) {
+  if (!rows.length) {
+    return '<p class="haccp-history-empty">In den letzten 7 Tagen sind noch keine Nachweise gespeichert.</p>';
   }
+  return `
+    <div class="haccp-history-table-wrap">
+      <table class="haccp-history-table" aria-label="HACCP-Historie letzte 7 Tage">
+        <thead>
+          <tr>
+            <th>Datum</th>
+            <th>Typ</th>
+            <th>Mitarbeiter</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(formatHaccpHistoryDate(row.datum))}</td>
+              <td>
+                <div class="haccp-history-type">${escapeHtml(row.typ)}</div>
+                <div class="haccp-history-detail">${escapeHtml(row.detail || '')}</div>
+              </td>
+              <td>${escapeHtml(row.mitarbeiter || '-')}</td>
+              <td>${escapeHtml(row.status || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function closeHaccpHistoryModal() {
+  const modal = document.getElementById('haccp-history-modal');
+  if (!modal) return;
+  modal.hidden = true;
+  modal.classList.remove('is-open');
+}
+
+function openHaccpHistoryModal() {
+  const modal = document.getElementById('haccp-history-modal');
+  const body = document.getElementById('haccp-history-body');
+  if (!modal || !body) {
+    haccpState.showHUD('Historie fehlt', 'Die Protokollansicht ist gerade nicht verfügbar.', '!');
+    return;
+  }
+  body.innerHTML = renderHaccpHistoryTable(collectHaccpHistoryRows(7));
+  modal.hidden = false;
+  modal.classList.add('is-open');
 }

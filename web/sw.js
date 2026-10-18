@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-tab-v4';
+const CACHE_NAME = 'charculogic-v20261018-haccp-cleaning-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 /** Release – HACCP Tab Sichtbarkeit + Modul-Toggle Sanitize */

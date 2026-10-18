@@ -468,14 +468,14 @@ service cloud.firestore {
         && hasOnly([
           'logTyp', 'type',
           'deviceId', 'deviceName', 'stationId', 'facility',
-          'bereich', 'doneBy',
+          'bereich', 'doneBy', 'user',
           'wert', 'value', 'temperatur', 'ph',
           'einheit', 'unit',
           'sollMin', 'sollMax', 'tempMin', 'tempMax', 'thresholdMax',
           'status', 'massnahme', 'source',
           'chargenNummer',
           'centralControlVerified', 'measurements',
-          'periodType', 'periodKey', 'taskId', 'task',
+          'periodType', 'periodKey', 'taskId', 'task', 'tasks',
           'tenantId', 'datum', 'createdAt', 'timestamp'
         ])
         && isNonEmptyString(request.resource.data.logTyp)
@@ -485,6 +485,7 @@ service cloud.firestore {
         && isNumericOrNull(request.resource.data.value)
         && isNumericOrNull(request.resource.data.temperatur)
         && isNumericOrNull(request.resource.data.ph)
+        && isOptionalString(request.resource.data.user)
         && (
           request.resource.data.createdAt == request.time
           || (
