@@ -432,7 +432,11 @@ export function mergeEnabledModulesIntoBranding(enabledModules, branding = windo
 export function isTenantModuleEnabled(moduleKey, branding = window.BRANDING || {}) {
   const key = moduleKey === LEGACY_CHARGEN_DOKU_KEY ? 'chargenDoku' : moduleKey;
   const enabled = branding.enabledModules;
-  if (key === 'chargenDoku') {
+  // Legacy: enabledModules als Array von Keys
+  if (Array.isArray(enabled)) {
+    const aliases = key === 'haccp' ? ['haccp'] : [key];
+    if (aliases.some((alias) => enabled.includes(alias))) return true;
+  } else if (key === 'chargenDoku') {
     const fromEnabled = resolveChargenDokuEnabled(enabled);
     if (typeof fromEnabled === 'boolean') return fromEnabled;
   } else if (enabled && typeof enabled === 'object') {

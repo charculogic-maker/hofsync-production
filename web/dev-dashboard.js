@@ -141,6 +141,101 @@ const MODULE_LABELS = {
 };
 
 /**
+ * Erlaubte Modul-Keys für setTenantModules (freundliche + interne Aliase).
+ * Unbekannte Keys (z. B. wissen) werden vor dem Callable verworfen.
+ */
+const VALID_BACKEND_MODULES = Object.freeze([
+  'mhdMonitor',
+  'wareneingang',
+  'wurstkueche',
+  'haccp',
+  'teamboard',
+  'team',
+  'orders',
+  'batches',
+  'averyLabels',
+  'retterBox',
+  'rezeptAudit',
+  // Interne Keys der Plattform-Tabelle (ebenfalls von applyModulePatch akzeptiert)
+  'mhd',
+  'receiving',
+  'kitchen',
+  'start',
+  'buero',
+  'knowledge',
+  'chargenDoku',
+]);
+
+const VALID_BACKEND_MODULE_SET = new Set(VALID_BACKEND_MODULES);
+
+/** UI-/Legacy-Key → kanonischer Payload-Key (bevorzugt freundliche Aliase). */
+const MODULE_KEY_TO_BACKEND = Object.freeze({
+  mhd: 'mhdMonitor',
+  mhdMonitor: 'mhdMonitor',
+  receiving: 'wareneingang',
+  wareneingang: 'wareneingang',
+  kitchen: 'wurstkueche',
+  wurstkueche: 'wurstkueche',
+  start: 'teamboard',
+  teamboard: 'teamboard',
+  buero: 'batches',
+  batches: 'batches',
+  haccp: 'haccp',
+  team: 'team',
+  orders: 'orders',
+  averyLabels: 'averyLabels',
+  avery: 'averyLabels',
+  retterBox: 'retterBox',
+  rezeptAudit: 'rezeptAudit',
+  knowledge: 'knowledge',
+  wissen: 'knowledge',
+  chargenDoku: 'chargenDoku',
+  traceability: 'chargenDoku',
+});
+
+/**
+ * Filtert enabledModules auf VALID_BACKEND_MODULES und liefert parallel `modules`.
+ * @param {string[]|Record<string, boolean>|null|undefined} enabledModules
+ * @returns {{ enabledModules: Record<string, boolean>, modules: Record<string, boolean> }}
+ */
+function sanitizeEnabledModulesPayload(enabledModules) {
+  /** @type {Record<string, boolean>} */
+  const modules = {};
+
+  if (Array.isArray(enabledModules)) {
+    enabledModules.forEach((rawKey) => {
+      const mapped = MODULE_KEY_TO_BACKEND[rawKey] || String(rawKey || '').trim();
+      if (!mapped || !VALID_BACKEND_MODULE_SET.has(mapped)) return;
+      modules[mapped] = true;
+    });
+  } else if (enabledModules && typeof enabledModules === 'object') {
+    Object.entries(enabledModules).forEach(([rawKey, value]) => {
+      if (typeof value !== 'boolean') return;
+      const mapped = MODULE_KEY_TO_BACKEND[rawKey] || rawKey;
+      if (!VALID_BACKEND_MODULE_SET.has(mapped)) return;
+      modules[mapped] = value;
+    });
+  }
+
+  return {
+    enabledModules: { ...modules },
+    modules: { ...modules },
+  };
+}
+
+function formatCallableErrorMessage(error) {
+  const parts = [
+    error?.message,
+    error?.details,
+    error?.code,
+    typeof error === 'string' ? error : '',
+  ]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean);
+  return parts.length ? parts.join(' — ') : 'Unbekannter Fehler';
+}
+
+/**
  * Anzeige-Reihenfolge der aktiven Module in „Mein Betrieb“ (nur Lesen).
  * Schalten bleibt exklusiv bei Super-Admin → „Plattform & Mandanten“.
  * `orders` ist eigenständig (nicht an `team` gekoppelt).
@@ -1419,12 +1514,21 @@ async function toggleTenantModule(db, tenantId, moduleKey, enabled) {
   if (!callable) {
     throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
   }
+  const mappedKey = MODULE_KEY_TO_BACKEND[moduleKey] || moduleKey;
+  if (!VALID_BACKEND_MODULE_SET.has(mappedKey)) {
+    throw new Error(`Modul „${moduleKey}“ ist für setTenantModules nicht freigegeben.`);
+  }
   // Nur den einen Schalter patchen — kein Full-Replace von enabledModules.
-  const modulePatch = { [moduleKey]: enabled === true };
-  const fieldPatch = buildEnabledModulesFieldPatch(modulePatch);
+  const modulePatch = { [mappedKey]: enabled === true };
+  const sanitized = sanitizeEnabledModulesPayload(modulePatch);
+  if (!Object.keys(sanitized.enabledModules).length) {
+    throw new Error(`Modul „${moduleKey}“ wurde beim Sanitizing verworfen.`);
+  }
+  const fieldPatch = buildEnabledModulesFieldPatch(sanitized.enabledModules);
   await callable({
     targetTenantId: tenantId,
-    enabledModules: modulePatch,
+    enabledModules: sanitized.enabledModules,
+    modules: sanitized.modules,
     ...fieldPatch,
   });
 }
@@ -1529,8 +1633,9 @@ function bindTenantToggleHandlers(db, statusEl) {
     } catch (error) {
       input.checked = previous;
       console.error('[Dev-Dashboard] Modul Toggle fehlgeschlagen:', error);
-      const detail = String(error?.message || error || 'Unbekannter Fehler').trim();
+      const detail = formatCallableErrorMessage(error);
       if (statusEl) statusEl.textContent = `Fehler: ${detail}`;
+      // Volle Fehlermeldung — nicht kürzen (Debug von 400/invalid-argument).
       window.showToast?.(`Speichern fehlgeschlagen: ${detail}`, 'error');
     } finally {
       input.disabled = false;
@@ -1591,12 +1696,12 @@ function setTenantFormStatus(message = '', tone = 'info') {
 }
 
 function readCreateTenantEnabledModules() {
-  const enabledModules = {};
+  const raw = {};
   TENANT_MODULE_KEYS.forEach((key) => {
     const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
-    enabledModules[key] = input instanceof HTMLInputElement ? input.checked : false;
+    raw[key] = input instanceof HTMLInputElement ? input.checked : false;
   });
-  return enabledModules;
+  return sanitizeEnabledModulesPayload(raw).enabledModules;
 }
 
 function resetTenantCreateForm() {
@@ -1665,6 +1770,7 @@ function bindTenantCreateForm(db) {
         displayName,
         status: 'active',
         enabledModules,
+        modules: { ...enabledModules },
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });

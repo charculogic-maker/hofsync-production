@@ -643,15 +643,16 @@ const PROFILE_TAB_ALIASES = {
   herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery']);
-const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['haccp', 'knowledge', 'cuts']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp']);
+/** Admin-only in der Fußleiste: HACCP ist Alltag für alle Rollen → nicht hier. */
+const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['knowledge', 'cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
 const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery'];
+const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
@@ -1119,10 +1120,17 @@ function applyProfileCapabilityTabFilter(branding = window.BRANDING) {
   if (!allowedTabs.length) return;
 
   const allowed = resolveProfileAllowedTabIds(allowedTabs);
+  const haccpModuleOn = isModuleEnabledForUi('haccp', branding);
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden) return;
     const tabId = tab.getAttribute('data-tab');
     if (tabId === 'batches') return;
+    // HACCP bleibt für alle Profile sichtbar, wenn das Modul freigeschaltet ist.
+    if (tabId === 'haccp') {
+      tab.style.display = haccpModuleOn ? '' : 'none';
+      tab.hidden = !haccpModuleOn;
+      return;
+    }
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;
@@ -2720,24 +2728,67 @@ function resolveAveryLabelsNavEnabled(branding = window.BRANDING || {}) {
   });
 }
 
+/**
+ * Modul-Flag für UI: Array enabledModules, Objekt modules/enabledModules, Branding-Fallback.
+ * @param {string} moduleKey
+ * @param {object} [branding]
+ * @returns {boolean}
+ */
+function isModuleEnabledForUi(moduleKey, branding = window.BRANDING || {}) {
+  const key = String(moduleKey || '').trim();
+  if (!key) return false;
+
+  const enabledModules = branding?.enabledModules;
+  if (Array.isArray(enabledModules)) {
+    if (enabledModules.includes(key)) return true;
+    if (key === 'haccp' && enabledModules.includes('haccp')) return true;
+  } else if (enabledModules && typeof enabledModules === 'object') {
+    if (Object.prototype.hasOwnProperty.call(enabledModules, key)) {
+      return enabledModules[key] === true;
+    }
+  }
+
+  if (branding?.modules && typeof branding.modules === 'object'
+    && Object.prototype.hasOwnProperty.call(branding.modules, key)) {
+    return branding.modules[key] === true;
+  }
+
+  // Soft-Launch / Offline: TENANT_BRANDING[tenantId].modules
+  try {
+    const tenantId = String(
+      branding?.tenantId
+      || (typeof window.resolveEffectiveTenantId === 'function' ? window.resolveEffectiveTenantId() : '')
+      || '',
+    ).trim();
+    const index = window.TENANT_BRANDING_INDEX || {};
+    const normalized = tenantId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const tenantMods = index[normalized]?.modules || window.TENANT_BRANDING?.[normalized]?.modules;
+    if (tenantMods && typeof tenantMods === 'object' && Object.prototype.hasOwnProperty.call(tenantMods, key)) {
+      return tenantMods[key] === true;
+    }
+  } catch (_) { /* noop */ }
+
+  return isTenantModuleEnabled(key, branding);
+}
+
 function applyModuleVisibility(branding = window.BRANDING || {}) {
   const modules = branding.modules || {};
   const kitchenEnabled = resolveKitchenNavEnabled(branding);
   const averyEnabled = resolveAveryLabelsNavEnabled(branding);
   // Desktop-Sidebar (#sidebar) enthält #bottom-nav (display:contents) — ein .nav-item-Satz für beide Layouts.
   const tabModuleMap = {
-    teamboard: isTenantModuleEnabled('start', branding),
-    team: isTenantModuleEnabled('team', branding),
-    orders: isTenantModuleEnabled('orders', branding),
-    mhd: isTenantModuleEnabled('mhd', branding),
-    receiving: isTenantModuleEnabled('receiving', branding),
+    teamboard: isModuleEnabledForUi('start', branding) || isTenantModuleEnabled('start', branding),
+    team: isModuleEnabledForUi('team', branding),
+    orders: isModuleEnabledForUi('orders', branding),
+    mhd: isModuleEnabledForUi('mhd', branding) || isTenantModuleEnabled('mhd', branding),
+    receiving: isModuleEnabledForUi('receiving', branding) || isTenantModuleEnabled('receiving', branding),
     chargenDoku: hasModule('chargenDoku', branding),
     kitchen: kitchenEnabled,
     avery: averyEnabled,
-    haccp: isTenantModuleEnabled('haccp', branding),
-    knowledge: isTenantModuleEnabled('knowledge', branding),
+    haccp: isModuleEnabledForUi('haccp', branding),
+    knowledge: isModuleEnabledForUi('knowledge', branding) || isTenantModuleEnabled('knowledge', branding),
     cuts: modules.cutGlossary === true,
-    batches: isTenantModuleEnabled('buero', branding),
+    batches: isModuleEnabledForUi('buero', branding) || isTenantModuleEnabled('buero', branding),
   };
   // Query über #sidebar und #bottom-nav (Sidebar hostet Bottom-Nav → ein Element pro Tab).
   const seenNavItems = new Set();
@@ -2813,8 +2864,18 @@ function isTabAllowedByModules(tabId, branding = window.BRANDING || {}) {
   if (tabId === 'avery' || moduleKey === 'averyLabels') {
     return resolveAveryLabelsNavEnabled(branding);
   }
+  if (tabId === 'haccp' || moduleKey === 'haccp') {
+    return isModuleEnabledForUi('haccp', branding);
+  }
   return isTenantModuleEnabled(moduleKey, branding);
 }
+
+/** Alias laut Anforderung — Array/Objekt/Branding-Fallback. */
+function isModuleEnabled(moduleKey, branding = window.BRANDING || {}) {
+  return isModuleEnabledForUi(moduleKey, branding);
+}
+window.isModuleEnabled = isModuleEnabled;
+window.isModuleEnabledForUi = isModuleEnabledForUi;
 
 /** Erster sichtbarer Bottom-Nav-Tab; sonst erstes freigeschaltetes Modul. */
 function resolveDefaultBottomNavTab(branding = window.BRANDING || {}) {
@@ -2907,13 +2968,14 @@ function resolveFirebaseEmployeeAllowedTabs(authSession) {
     || authSession?.claims?.allowedModules
     || null;
   if (!allowed || typeof allowed !== 'object') {
-    return new Set(['mhd', 'receiving', 'chargenDoku']);
+    return new Set(['mhd', 'receiving', 'chargenDoku', 'haccp']);
   }
-  const tabs = new Set(['chargenDoku']);
+  const tabs = new Set(['chargenDoku', 'haccp']);
   if (allowed.mhd !== false) tabs.add('mhd');
   if (allowed.kitchen !== false) tabs.add('kitchen');
   if (allowed.averyLabels !== false && allowed.avery !== false) tabs.add('avery');
   if (allowed.buero !== false) tabs.add('batches');
+  if (allowed.haccp === false) tabs.delete('haccp');
   return tabs;
 }
 
@@ -2933,13 +2995,21 @@ function applyRoleBasedUi(authSession) {
   // Zuerst Modul-Sichtbarkeit — verhindert Zwischenframe mit allen Tabs.
   applyModuleVisibility(window.BRANDING || {});
 
-  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'avery', 'haccp', 'knowledge', 'cuts', 'batches']);
+  // HACCP bewusst NICHT in helperHiddenTabs — Tageskontrollen für alle Rollen / Terminal.
+  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'avery', 'knowledge', 'cuts', 'batches']);
   const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
+  const haccpModuleOn = isModuleEnabledForUi('haccp', window.BRANDING || {});
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden || tab.style.display === 'none') return;
     const tabId = tab.getAttribute('data-tab');
     if (tabId === 'batches') return;
+    // HACCP: nie per Rollen-Filter ausblenden, solange das Modul freigeschaltet ist.
+    if (tabId === 'haccp') {
+      tab.style.display = haccpModuleOn ? '' : 'none';
+      tab.hidden = !haccpModuleOn;
+      return;
+    }
     if (!BOTTOM_NAV_TAB_IDS.has(tabId)) {
       tab.style.display = 'none';
       return;

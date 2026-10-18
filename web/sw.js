@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-v4';
+const CACHE_NAME = 'charculogic-v20261018-haccp-tab-v4';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – HACCP syntax fix print map + Laden/Lager */
-const RELEASED_AT = '2026-10-18T17:15:00+02:00';
+/** Release – HACCP Tab Sichtbarkeit + Modul-Toggle Sanitize */
+const RELEASED_AT = '2026-10-18T17:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
