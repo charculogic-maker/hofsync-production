@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-ios-print-v157';
+const CACHE_NAME = 'charculogic-v20261018-ios-inpage-print';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release v1.5.0 – Avery Randfix + keine Browser-Fusszeilen */
-const RELEASED_AT = '2026-10-18T16:00:00+02:00';
+/** Release v1.5.0 – iOS In-Page window.print (kein Blob/Overlay) */
+const RELEASED_AT = '2026-10-18T16:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
