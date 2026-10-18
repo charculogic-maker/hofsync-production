@@ -476,7 +476,8 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.category)
         && request.resource.data.tenantId == tenantId
         && (
-          request.resource.data.targetDay == null
+          !('targetDay' in request.resource.data)
+          || request.resource.data.targetDay == null
           || (
             (request.resource.data.targetDay is int || request.resource.data.targetDay is float)
             && request.resource.data.targetDay >= 0
