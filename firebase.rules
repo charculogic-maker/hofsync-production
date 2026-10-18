@@ -89,6 +89,13 @@ service cloud.firestore {
       return field == null || field is int || field is float;
     }
 
+    function isOptionalNumericField(data, fieldName) {
+      return !data.keys().hasAny([fieldName])
+        || data[fieldName] == null
+        || data[fieldName] is int
+        || data[fieldName] is float;
+    }
+
     function isIntGteZero(field) {
       return (field is int || field is float) && field >= 0;
     }
@@ -464,7 +471,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/haccp_logs/{document} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isEmployeeOrAdmin(tenantId)
+      allow create: if isTenantMember(tenantId)
         && hasOnly([
           'logTyp', 'type',
           'deviceId', 'deviceName', 'stationId', 'facility',
@@ -481,10 +488,10 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
-        && isNumericOrNull(request.resource.data.wert)
-        && isNumericOrNull(request.resource.data.value)
-        && isNumericOrNull(request.resource.data.temperatur)
-        && isNumericOrNull(request.resource.data.ph)
+        && isOptionalNumericField(request.resource.data, 'wert')
+        && isOptionalNumericField(request.resource.data, 'value')
+        && isOptionalNumericField(request.resource.data, 'temperatur')
+        && isOptionalNumericField(request.resource.data, 'ph')
         && (
           request.resource.data.createdAt == request.time
           || (
