@@ -915,31 +915,18 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
 </style>
 </head><body>
 <div class="ios-print-bar">
-  <p>Tippe auf <strong>Jetzt drucken</strong>. Danach dieses Fenster schließen und in der App auf Fertig tippen.</p>
+  <p>Tippe auf <strong>Jetzt drucken</strong> — der Druckdialog kommt von Safari. Danach Fenster schließen und in der App auf Fertig tippen.</p>
   <div class="ios-print-actions">
-    <button type="button" class="ios-print-go" id="ios-print-go">Jetzt drucken</button>
-    <button type="button" class="ios-print-close" id="ios-print-close">Fenster schließen</button>
+    <!-- onclick inline: iOS behält den User-Gesture zuverlässiger als addEventListener -->
+    <button type="button" class="ios-print-go" id="ios-print-go"
+      onclick="try{window.focus();}catch(e){} try{window.print();}catch(e){} return false;">Jetzt drucken</button>
+    <button type="button" class="ios-print-close" id="ios-print-close"
+      onclick="try{window.close();}catch(e){} return false;">Fenster schließen</button>
   </div>
 </div>
 <div class="ios-print-scroll">
 ${sheetsInnerHtml}
 </div>
-<script>
-  function runPrint() {
-    try { window.focus(); window.print(); } catch (e) {}
-  }
-  document.getElementById('ios-print-go')?.addEventListener('click', function (ev) {
-    ev.preventDefault();
-    runPrint();
-  });
-  document.getElementById('ios-print-close')?.addEventListener('click', function () {
-    try { window.close(); } catch (e) {}
-  });
-  // Auto-Versuch; Fallback bleibt der sichtbare Button „Jetzt drucken“
-  window.addEventListener('load', function () {
-    setTimeout(runPrint, 350);
-  });
-<\/script>
 </body></html>`;
 }
 
@@ -996,7 +983,8 @@ function closeIosPrintOverlay() {
 
 /**
  * iOS: window.print() im PWA-Kontext oft wirkungslos.
- * Deshalb synchron window.open mit vorbereitetem HTML (User-Gesture).
+ * Öffnet synchron ein Blob-URL-Fenster (kein about:blank + document.write —
+ * dort ist window.print() auf iOS Safari häufig ein stiller No-Op).
  * @returns {boolean}
  */
 function triggerIosPrintNow() {
@@ -1007,29 +995,41 @@ function triggerIosPrintNow() {
     return false;
   }
 
-  // Muss synchron im Klick bleiben — sonst blockiert iOS das Fenster.
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    window.showToast?.('Bitte Pop-ups erlauben, damit wir den Druck öffnen können.', 'warning');
-    try { window.print(); } catch (_) { /* ignore */ }
-    return false;
-  }
+  let blobUrl = '';
+  let printWindow = null;
   try {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const blob = new Blob([html], { type: 'text/html' });
+    blobUrl = URL.createObjectURL(blob);
+    // Muss synchron im Klick bleiben — sonst blockiert iOS das Fenster.
+    printWindow = window.open(blobUrl, '_blank');
   } catch (err) {
-    console.error('[Avery Print] iOS Druckfenster:', err);
-    try { printWindow.close(); } catch (_) { /* ignore */ }
+    console.error('[Avery Print] iOS Blob-Druckfenster:', err);
+    if (blobUrl) {
+      try { URL.revokeObjectURL(blobUrl); } catch (_) { /* ignore */ }
+    }
     window.showToast?.('Druckfenster konnte nicht geöffnet werden. Bitte noch einmal tippen.', 'warning');
     return false;
   }
 
+  if (!printWindow) {
+    if (blobUrl) {
+      try { URL.revokeObjectURL(blobUrl); } catch (_) { /* ignore */ }
+    }
+    window.showToast?.('Bitte Pop-ups erlauben, damit wir den Druck öffnen können.', 'warning');
+    try { window.print(); } catch (_) { /* ignore */ }
+    return false;
+  }
+
+  // Blob erst später freigeben, damit Safari das Dokument laden kann.
+  window.setTimeout(() => {
+    try { URL.revokeObjectURL(blobUrl); } catch (_) { /* ignore */ }
+  }, 120000);
+
   const help = document.getElementById('avery-ios-print-help');
   if (help) {
-    help.textContent = 'Druckvorschau ist offen. Fenster schließen, dann hier auf Fertig tippen.';
+    help.textContent = 'Druckvorschau ist offen. Auf Jetzt drucken tippen, Fenster schließen, dann hier Fertig.';
   }
-  window.showToast?.('Druckvorschau geöffnet.', 'success');
+  window.showToast?.('Druckvorschau geöffnet — dort auf Jetzt drucken tippen.', 'success');
   return true;
 }
 
