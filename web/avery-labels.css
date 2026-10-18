@@ -195,34 +195,21 @@
   letter-spacing: 0.04em;
 }
 
+.avery-trim-hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  line-height: 1.35;
+}
+
 .avery-trim-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.avery-trim-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: var(--bg-color, #f8fafc);
-}
-
-.avery-trim-name {
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.avery-trim-art {
-  font-size: 11px;
-  color: var(--text-muted, #64748b);
-}
-
-.avery-trim-input {
-  min-height: 44px;
+.avery-trim-chip {
+  min-height: 58px;
 }
 
 .avery-custom-row {
@@ -533,16 +520,24 @@
   line-height: 1.35;
 }
 
+.avery-print-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-avery-reset {
+  width: 100%;
+  min-height: 48px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .btn-avery-print {
   width: 100%;
   min-height: 52px;
   font-size: 17px;
   font-weight: 900;
-}
-
-.btn-avery-print:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .avery-print-root,
