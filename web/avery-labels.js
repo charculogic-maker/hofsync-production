@@ -534,7 +534,6 @@ export function buildLabelHtml(cut, header, lot) {
 
 function renderSheetPreview() {
   const sheet = document.getElementById('avery-sheet-preview');
-  const printSheet = document.getElementById('avery-sheet-print');
   const gaugeFill = document.getElementById('avery-gauge-fill');
   const gaugeText = document.getElementById('avery-gauge-text');
   const overflowEl = document.getElementById('avery-overflow-warn');
@@ -562,16 +561,19 @@ function renderSheetPreview() {
   }
   sheet.innerHTML = cells.join('');
 
-  if (printSheet) {
-    const printCells = [];
-    for (let i = 0; i < plan.emptyCount; i += 1) {
-      printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
-    }
-    plan.labelsOnSheet.forEach((cut) => {
-      printCells.push(`<div class="avery-label">${buildLabelHtml(cut, state.header, lot)}</div>`);
-    });
-    printSheet.innerHTML = printCells.join('');
+  const printArea = ensureAveryPrintArea();
+  const printHost = printArea.querySelector('.avery-sheet') || printArea;
+  const printCells = [];
+  for (let i = 0; i < plan.emptyCount; i += 1) {
+    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
   }
+  plan.labelsOnSheet.forEach((cut) => {
+    printCells.push(`<div class="avery-label">${buildLabelHtml(cut, state.header, lot)}</div>`);
+  });
+  while (printCells.length < AVERY_LABELS_PER_SHEET) {
+    printCells.push('<div class="avery-label empty" aria-hidden="true"></div>');
+  }
+  printHost.innerHTML = printCells.join('');
 
   const usagePct = Math.round((plan.usage / AVERY_LABELS_PER_SHEET) * 100);
   if (gaugeFill) gaugeFill.style.width = `${Math.min(100, usagePct)}%`;
@@ -747,27 +749,79 @@ function readHeaderFromDom() {
   delete state.header.reifehinweis;
 }
 
+/**
+ * Druckfläche als direktes body-Kind (überlebt style.css
+ * `body > *:not(.preview-container) { display:none }` im Print).
+ */
+export function ensureAveryPrintArea() {
+  let area = document.getElementById('avery-print-area');
+  if (!(area instanceof HTMLElement)) {
+    area = document.createElement('div');
+    area.id = 'avery-print-area';
+    area.className = 'avery-print-root';
+    area.setAttribute('aria-hidden', 'true');
+    area.innerHTML = '<div class="avery-sheet" id="avery-sheet-print"></div>';
+  }
+  if (area.parentElement !== document.body) {
+    document.body.appendChild(area);
+  }
+  // Legacy-ID für bestehende Selektoren / Tests
+  const sheet = area.querySelector('.avery-sheet');
+  if (sheet && !sheet.id) sheet.id = 'avery-sheet-print';
+  return area;
+}
+
 export function printAveryLabelsSheet() {
-  readHeaderFromDom();
-  const plan = planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-  if (!plan.filledCount) {
-    window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
-    return false;
-  }
-  if (!state.header.ohrmarke) {
-    window.showToast?.('Bitte die Ohrmarke eintragen.', 'warning');
-    return false;
-  }
-  renderSheetPreview();
-  document.body.classList.add(PRINT_BODY_CLASS);
-  const cleanup = () => {
+  try {
+    console.log('[Avery Print] Starte Druckaufbereitung...');
+    readHeaderFromDom();
+    const plan = planAverySheet({ queue: state.queue, startSlot: state.startSlot });
+    if (!plan.filledCount) {
+      window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
+      return false;
+    }
+    if (!state.header.ohrmarke) {
+      window.showToast?.('Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.', 'warning');
+      document.getElementById('avery-ohrmarke')?.focus?.();
+      return false;
+    }
+
+    ensureAveryPrintArea();
+    renderSheetPreview();
+
+    const area = document.getElementById('avery-print-area');
+    if (!(area instanceof HTMLElement) || !area.querySelector('.avery-label:not(.empty)')) {
+      throw new Error('Druckbogen konnte nicht aufgebaut werden.');
+    }
+
+    document.body.classList.add(PRINT_BODY_CLASS);
+    area.setAttribute('aria-hidden', 'false');
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove(PRINT_BODY_CLASS);
+      area.setAttribute('aria-hidden', 'true');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    // Native Druckdialog – kein iframe / window.open
+    window.print();
+    // Fallback falls afterprint ausbleibt (manche WebViews)
+    setTimeout(cleanup, 60_000);
+    console.log('[Avery Print] window.print() ausgelöst.');
+    return true;
+  } catch (err) {
+    console.error('[Avery Print] Fehler beim Drucken:', err);
     document.body.classList.remove(PRINT_BODY_CLASS);
-    window.removeEventListener('afterprint', cleanup);
-  };
-  window.addEventListener('afterprint', cleanup);
-  window.print();
-  setTimeout(cleanup, 1500);
-  return true;
+    const message = err instanceof Error ? err.message : String(err);
+    window.showToast?.(`Druckfehler: ${message}`, 'error');
+    try {
+      window.alert(`Druckfehler: ${message}`);
+    } catch (_) { /* headless */ }
+    return false;
+  }
 }
 
 function adjustQueueByKey(key, deltaOrRemove) {
@@ -846,6 +900,23 @@ function bindEvents(root) {
       return;
     }
 
+    if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
+      printAveryLabelsSheet();
+      return;
+    }
+
+    if (target.closest('#btn-avery-fill-hack')) {
+      fillRestWithHack();
+      return;
+    }
+
+    if (target.closest('#btn-avery-clear-queue')) {
+      state.queue = [];
+      persistDraft();
+      renderAll();
+      return;
+    }
+
     const row = target.closest('[data-queue-key]');
     if (row) {
       const key = row.getAttribute('data-queue-key');
@@ -859,14 +930,6 @@ function bindEvents(root) {
         adjustQueueByKey(key, delta);
       }
     }
-  });
-
-  document.getElementById('btn-avery-fill-hack')?.addEventListener('click', () => fillRestWithHack());
-  document.getElementById('btn-avery-print-sheet')?.addEventListener('click', () => printAveryLabelsSheet());
-  document.getElementById('btn-avery-clear-queue')?.addEventListener('click', () => {
-    state.queue = [];
-    persistDraft();
-    renderAll();
   });
 }
 
@@ -964,13 +1027,11 @@ function buildShellHtml() {
         <div class="sheet-scroll-wrapper avery-sheet-scroll">
           <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
         </div>
-        <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet">🖨️ Etikettenbogen drucken</button>
+        <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet" data-avery-print>
+          🖨️ Etikettenbogen drucken
+        </button>
       </section>
     </section>
-
-    <div id="avery-print-root" class="avery-print-root" aria-hidden="true">
-      <div class="avery-sheet" id="avery-sheet-print"></div>
-    </div>
   `;
 }
 
@@ -981,10 +1042,14 @@ export function initAveryLabelsModule() {
     restoreDraft();
     ensureHeaderDefaults();
     page.innerHTML = buildShellHtml();
+    ensureAveryPrintArea();
     bindEvents(page);
     state.initialized = true;
   } else {
     ensureHeaderDefaults();
+    ensureAveryPrintArea();
+    // Falls DOM neu gemountet wurde: Binding wiederherstellen
+    if (page.dataset.averyBound !== '1') bindEvents(page);
   }
   renderAll();
 }

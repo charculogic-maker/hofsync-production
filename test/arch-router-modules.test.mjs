@@ -53,6 +53,6 @@ describe('Architektur: Modul-SSOT & Router', () => {
   });
 
   it('SW-Cache ist aktueller Users-Cleanup-Build', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261018-users-cleanup/);
+    expect(read('web/sw.js')).to.match(/charculogic-v20261018-print-fix-v1/);
   });
 });
