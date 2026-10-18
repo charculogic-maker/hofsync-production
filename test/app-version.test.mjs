@@ -7,16 +7,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 
 describe('app-version release notice', () => {
-  it('exports v1.4.0 constants and today\'s highlights', async () => {
+  it('exports v1.5.0 constants and today\'s highlights', async () => {
     const mod = await import(pathToFileURL(path.join(root, 'web/app-version.js')).href);
-    assert.equal(mod.APP_VERSION, '1.4.0');
-    assert.equal(mod.APP_VERSION_LABEL, 'v1.4.0');
-    assert.equal(mod.APP_VERSION_TAG, 'v1.4.0-20260915');
+    assert.equal(mod.APP_VERSION, '1.5.0');
+    assert.equal(mod.APP_VERSION_LABEL, 'v1.5.0');
+    assert.equal(mod.APP_VERSION_TAG, 'v1.5.0-20261018');
+    assert.equal(mod.APP_RELEASE_DATE, '2026-10-18');
     assert.match(mod.RELEASE_TOAST_MESSAGE, /HofSync aktualisiert/);
     assert.ok(mod.RELEASE_HIGHLIGHTS.length >= 5);
-    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /Auto-VPE/i.test(item)));
-    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /LIFO/i.test(item)));
-    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /2029/.test(item)));
+    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /Avery 3475/i.test(item)));
+    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /Inhalt Zuerst/i.test(item)));
+    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /STK vs\. KG/i.test(item)));
+    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /Mitarbeiter-Schnellwechsler/i.test(item)));
+    assert.ok(mod.RELEASE_HIGHLIGHTS.some((item) => /Dev-Dashboard/i.test(item)));
   });
 
   it('remembers seen release versions in localStorage', async () => {
@@ -43,25 +46,27 @@ describe('app-version release notice', () => {
     globalThis.requestAnimationFrame = (cb) => cb();
 
     const mod = await import(`${pathToFileURL(path.join(root, 'web/app-version.js')).href}?t=${Date.now()}`);
-    assert.equal(mod.hasSeenReleaseToast('1.4.0'), false);
-    mod.markReleaseToastSeen('1.4.0');
-    assert.equal(mod.hasSeenReleaseToast('1.4.0'), true);
-    assert.equal(store.get('hofsync_seen_release_version'), '1.4.0');
+    assert.equal(mod.hasSeenReleaseToast('1.5.0'), false);
+    mod.markReleaseToastSeen('1.5.0');
+    assert.equal(mod.hasSeenReleaseToast('1.5.0'), true);
+    assert.equal(store.get('hofsync_seen_release_version'), '1.5.0');
   });
 
   it('keeps skipWaiting and clientsClaim in the service worker', async () => {
     const swSource = await readFile(path.join(root, 'web/sw.js'), 'utf8');
     assert.match(swSource, /self\.skipWaiting\s*\(/);
     assert.match(swSource, /clients\.claim\s*\(/);
-    assert.match(swSource, /charculogic-v20261016-counter-recipes-v1/);
+    assert.match(swSource, /charculogic-v20261018-release-v150/);
     assert.match(swSource, /\/app-version\.js/);
   });
 
   it('wires version badge markup into the app shell', async () => {
     const html = await readFile(path.join(root, 'web/index.html'), 'utf8');
     assert.match(html, /data-app-version-badge/);
+    assert.match(html, /data-app-version-label>v1\.5\.0</);
     assert.match(html, /id="release-toast"/);
     assert.match(html, /id="version-changelog-modal"/);
-    assert.match(html, /Gebindegrößen-Erkennung/);
+    assert.match(html, /v1\.5\.0 · 2026-10-18/);
+    assert.match(html, /Avery 3475 Galloway-Zerlegesuite/);
   });
 });

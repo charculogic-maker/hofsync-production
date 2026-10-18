@@ -4,6 +4,23 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [v1.5.0] - 2026-10-18
+
+### Hinzugefügt
+
+- **Avery 3475 Galloway-Zerlegesuite:** Schulter inkl. Brust/Hals, Rücken, Keule, Lappen, Trimmings R I–Fett & Freifeld.
+- **Etiketten-Design „Inhalt Zuerst“:** Optimierte Lesbarkeit auf 70×36 mm.
+- **Mengen-Umschaltung im Wareneingang:** STK vs. KG mit 3 Nachkommastellen.
+- **Mitarbeiter-Schnellwechsler** & feingranulare Rollensichtbarkeit.
+- **Dev-Dashboard SaaS-Refactoring:** Read-Only Mandantenansicht & saubere Nutzerverwaltung.
+
+### PWA
+
+- Versions-Badge und Changelog auf `v1.5.0 · 2026-10-18`.
+- Service Worker Cache: `charculogic-v20261018-release-v150`.
+
+---
+
 ## [v1.4.0] - 2026-09-15
 
 ### Hinzugefügt (Wareneingang & MHD)
