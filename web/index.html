@@ -687,6 +687,168 @@
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
                   </section>
+
+                  <section class="dev-dashboard-panel" id="dev-dashboard-haccp-setup" aria-label="HACCP und Hygiene Setup">
+                    <h2 class="dev-dashboard-section-title">HACCP &amp; Hygiene Setup</h2>
+                    <p class="dev-dashboard-intro">
+                      Temperatur-Messpunkte und Reinigungsaufgaben für das Laden-iPhone verwalten.
+                      Im Laden werden nur noch Messwerte und Abhakungen erfasst.
+                    </p>
+
+                    <div class="dev-dashboard-haccp-grid">
+                      <div class="dev-dashboard-haccp-panel" aria-label="Temperatur-Messpunkte verwalten">
+                        <h3 class="dev-dashboard-subsection-title">Temperatur-Messpunkte verwalten</h3>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-haccp-devices-status" aria-live="polite">
+                          Liste wird geladen…
+                        </p>
+                        <div class="dev-dashboard-haccp-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-seed-devices">
+                            StevesHof Standard-Geräte anlegen
+                          </button>
+                        </div>
+                        <div class="dev-dashboard-table-wrap">
+                          <table class="dev-dashboard-table" aria-label="Temperatur-Messpunkte">
+                            <thead>
+                              <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Bereich</th>
+                                <th scope="col">Min/Max °C</th>
+                                <th scope="col">Sortierung</th>
+                                <th scope="col">Aktionen</th>
+                              </tr>
+                            </thead>
+                            <tbody id="dev-dashboard-haccp-devices-body"></tbody>
+                          </table>
+                        </div>
+                        <form id="dev-dashboard-haccp-device-form" class="dev-dashboard-haccp-form">
+                          <input type="hidden" id="dev-dashboard-haccp-device-edit-id" value="">
+                          <h4 class="dev-dashboard-haccp-form-title" id="dev-dashboard-haccp-device-form-title">Neuen Messpunkt anlegen</h4>
+                          <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-name">
+                            <span>Name</span>
+                            <input id="dev-dashboard-haccp-device-name" type="text" maxlength="80" required autocomplete="off">
+                          </label>
+                          <div class="dev-dashboard-haccp-form-row">
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-area">
+                              <span>Bereich</span>
+                              <select id="dev-dashboard-haccp-device-area">
+                                <option value="Verkauf">Verkauf</option>
+                                <option value="Lager">Lager</option>
+                              </select>
+                            </label>
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-type">
+                              <span>Typ</span>
+                              <select id="dev-dashboard-haccp-device-type">
+                                <option value="manual_temp">Manuelle Temperatur</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div class="dev-dashboard-haccp-form-row">
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-min">
+                              <span>Min-Temp °C</span>
+                              <input id="dev-dashboard-haccp-device-min" type="number" step="0.5" inputmode="decimal">
+                            </label>
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-max">
+                              <span>Max-Temp °C</span>
+                              <input id="dev-dashboard-haccp-device-max" type="number" step="0.5" inputmode="decimal">
+                            </label>
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-device-sort">
+                              <span>Sortiernummer</span>
+                              <input id="dev-dashboard-haccp-device-sort" type="number" step="1" value="100" inputmode="numeric">
+                            </label>
+                          </div>
+                          <fieldset class="dev-dashboard-permissions-fieldset">
+                            <legend>Wochentage (alle = jeden Tag)</legend>
+                            <div class="dev-dashboard-haccp-weekdays" id="dev-dashboard-haccp-device-days" role="group" aria-label="Aktive Wochentage">
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="0" checked><span>So</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="1" checked><span>Mo</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="2" checked><span>Di</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="3" checked><span>Mi</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="4" checked><span>Do</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="5" checked><span>Fr</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-admin-day="6" checked><span>Sa</span></label>
+                            </div>
+                          </fieldset>
+                          <div class="dev-dashboard-haccp-form-actions">
+                            <button type="submit" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-device-submit">Messpunkt speichern</button>
+                            <button type="button" class="dev-dashboard-secondary-btn" id="dev-dashboard-haccp-device-cancel" hidden>Abbrechen</button>
+                          </div>
+                        </form>
+                      </div>
+
+                      <div class="dev-dashboard-haccp-panel" aria-label="Reinigungs-Aufgaben verwalten">
+                        <h3 class="dev-dashboard-subsection-title">Reinigungs-Aufgaben verwalten</h3>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-haccp-tasks-status" aria-live="polite">
+                          Liste wird geladen…
+                        </p>
+                        <div class="dev-dashboard-haccp-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-seed-tasks">
+                            Standard-Reinigungsaufgaben anlegen
+                          </button>
+                        </div>
+                        <div class="dev-dashboard-table-wrap">
+                          <table class="dev-dashboard-table" aria-label="Reinigungsaufgaben">
+                            <thead>
+                              <tr>
+                                <th scope="col">Aufgabe</th>
+                                <th scope="col">Kategorie</th>
+                                <th scope="col">Sortierung</th>
+                                <th scope="col">Produktion</th>
+                                <th scope="col">Aktionen</th>
+                              </tr>
+                            </thead>
+                            <tbody id="dev-dashboard-haccp-tasks-body"></tbody>
+                          </table>
+                        </div>
+                        <form id="dev-dashboard-haccp-task-form" class="dev-dashboard-haccp-form">
+                          <input type="hidden" id="dev-dashboard-haccp-task-edit-id" value="">
+                          <h4 class="dev-dashboard-haccp-form-title" id="dev-dashboard-haccp-task-form-title">Neue Aufgabe anlegen</h4>
+                          <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-name">
+                            <span>Name / Beschreibung</span>
+                            <input id="dev-dashboard-haccp-task-name" type="text" maxlength="120" required autocomplete="off">
+                          </label>
+                          <div class="dev-dashboard-haccp-form-row">
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-category">
+                              <span>Kategorie</span>
+                              <select id="dev-dashboard-haccp-task-category">
+                                <option value="Täglich">Täglich</option>
+                                <option value="Nach Nutzung">Nach Nutzung</option>
+                                <option value="Wöchentlich">Wöchentlich</option>
+                              </select>
+                            </label>
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-sort">
+                              <span>Sortiernummer</span>
+                              <input id="dev-dashboard-haccp-task-sort" type="number" step="1" value="100" inputmode="numeric">
+                            </label>
+                          </div>
+                          <label
+                            class="dev-dashboard-field"
+                            for="dev-dashboard-haccp-task-day"
+                            id="dev-dashboard-haccp-task-day-wrap"
+                            hidden
+                          >
+                            <span>Wochentag</span>
+                            <select id="dev-dashboard-haccp-task-day" aria-label="Wochentag für wöchentliche Aufgabe">
+                              <option value="1">Montag</option>
+                              <option value="2">Dienstag</option>
+                              <option value="3">Mittwoch</option>
+                              <option value="4">Donnerstag</option>
+                              <option value="5">Freitag</option>
+                              <option value="6">Samstag</option>
+                              <option value="0">Sonntag</option>
+                            </select>
+                          </label>
+                          <label class="dev-dashboard-toggle" for="dev-dashboard-haccp-task-production">
+                            <input id="dev-dashboard-haccp-task-production" type="checkbox">
+                            <span>Nur an Produktionstagen</span>
+                          </label>
+                          <div class="dev-dashboard-haccp-form-actions">
+                            <button type="submit" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-task-submit">Aufgabe speichern</button>
+                            <button type="button" class="dev-dashboard-secondary-btn" id="dev-dashboard-haccp-task-cancel" hidden>Abbrechen</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </section>
                 </div>
               </div>
 
@@ -1906,7 +2068,6 @@
               <div class="haccp-mode-tabs" role="group" aria-label="HACCP Bereiche">
                 <button type="button" class="haccp-mode-tab active-haccp-mode" data-haccp-mode="temperatur">Temperaturen</button>
                 <button type="button" class="haccp-mode-tab" data-haccp-mode="reinigung">Reinigung</button>
-                <button type="button" class="haccp-mode-tab haccp-mode-tab-setup" data-haccp-mode="geraete" aria-label="Geräte einrichten" title="Geräte einrichten">+</button>
               </div>
               <div id="haccp-daily-container"></div>
             </div>

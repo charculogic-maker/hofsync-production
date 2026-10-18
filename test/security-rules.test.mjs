@@ -905,6 +905,68 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 9b: HACCP cleaning tasks admin write / tenant read', () => {
+    const taskPath = tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'verkaufstheke-waagen');
+    const taskPayload = {
+      name: 'Verkaufstheke & Waagen gereinigt',
+      category: 'Täglich',
+      period: 'day',
+      sortOrder: 10,
+      isProductionOnly: false,
+      isActive: true,
+      tenantId: TENANTS.STEVES_HOF,
+      createdAt: '2026-10-18T12:00:00.000Z',
+      updatedAt: '2026-10-18T12:00:00.000Z',
+    };
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, taskPath, taskPayload);
+    });
+
+    it('allows tenant users to read cleaning tasks and admin to create/update/delete', async () => {
+      const admin = authContext(testEnv, 'sh-admin-haccp-clean', TENANTS.STEVES_HOF, 'admin');
+      const employee = authContext(testEnv, 'sh-employee-haccp-clean', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreAllow(admin, taskPath, 'read');
+      await expectFirestoreAllow(employee, taskPath, 'read');
+      await expectFirestoreAllow(
+        admin,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'neue-aufgabe'),
+        'create',
+        { ...taskPayload, name: 'Metzgerei reinigen und desinfizieren', category: 'Nach Nutzung' },
+      );
+      await expectFirestoreAllow(
+        admin,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'woechentlich-mittwoch'),
+        'create',
+        {
+          ...taskPayload,
+          name: 'Kühlhaus Grundreinigung',
+          category: 'Wöchentlich',
+          period: 'week',
+          targetDay: 3,
+        },
+      );
+      await expectFirestoreAllow(admin, taskPath, 'update', { sortOrder: 20 });
+      await expectFirestoreAllow(admin, taskPath, 'update', { targetDay: 1, category: 'Wöchentlich', period: 'week' });
+      await expectFirestoreDeny(admin, taskPath, 'update', { targetDay: 7 });
+      await expectFirestoreAllow(admin, taskPath, 'delete');
+    });
+
+    it('denies employee write and cross-tenant admin access on cleaning tasks', async () => {
+      const employee = authContext(testEnv, 'sh-employee-haccp-clean-w', TENANTS.STEVES_HOF, 'employee');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-haccp-clean', TENANTS.TORFABRIK, 'admin');
+      await expectFirestoreDeny(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'employee-inject'),
+        'create',
+        taskPayload,
+      );
+      await expectFirestoreDeny(employee, taskPath, 'delete');
+      await expectFirestoreDeny(foreignAdmin, taskPath, 'read');
+      await expectFirestoreDeny(foreignAdmin, taskPath, 'update', { name: 'Cross Tenant' });
+    });
+  });
+
   describe('TEST CASE 10: mhd_audit / audit_logs tenant isolation', () => {
     const collections = ['mhd_audit', 'audit_logs'];
 
