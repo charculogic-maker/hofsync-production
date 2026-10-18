@@ -52,7 +52,7 @@ describe('Architektur: Modul-SSOT & Router', () => {
     expect(dash).to.not.include('readBetriebModulePatch');
   });
 
-  it('SW-Cache ist aktueller Modul-Toggle-Error-Build', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261018-module-toggle-errors/);
+  it('SW-Cache ist aktueller Users-Cleanup-Build', () => {
+    expect(read('web/sw.js')).to.match(/charculogic-v20261018-users-cleanup/);
   });
 });
