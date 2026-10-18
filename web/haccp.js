@@ -377,15 +377,27 @@ function slugCategoryId(value) {
     .replace(/^-+|-+$/g, '') || 'weitere';
 }
 
+function isCleaningTaskDueToday(task) {
+  const category = String(task?.category || '').trim();
+  if (category !== 'Wöchentlich') return true;
+  // Alte Einträge ohne targetDay bleiben sichtbar (Fallback).
+  if (task?.targetDay == null || task.targetDay === '') return true;
+  const today = new Date().getDay();
+  return Number(task.targetDay) === today;
+}
+
 function resolveActiveCleaningTaskDocs() {
   const cloud = (haccpState.cleaningTasks || [])
-    .filter((task) => task && task.isActive !== false && String(task.name || '').trim());
+    .filter((task) => task && task.isActive !== false && String(task.name || '').trim())
+    .filter(isCleaningTaskDueToday);
   if (cloud.length) return cloud;
-  if (!isAdvancedHaccpFlyUpgradeEnabled()) return DEFAULT_CLEANING_TASK_DOCS;
-  return [
-    ...DEFAULT_CLEANING_TASK_DOCS,
-    { ...FLY_PREVENTION_CLEANING_TASK, category: 'Wöchentlich', period: 'week', sortOrder: 60, isProductionOnly: false },
-  ];
+  const fallback = !isAdvancedHaccpFlyUpgradeEnabled()
+    ? DEFAULT_CLEANING_TASK_DOCS
+    : [
+      ...DEFAULT_CLEANING_TASK_DOCS,
+      { ...FLY_PREVENTION_CLEANING_TASK, category: 'Wöchentlich', period: 'week', sortOrder: 60, isProductionOnly: false },
+    ];
+  return fallback.filter(isCleaningTaskDueToday);
 }
 
 function resolveHaccpCleaningGroups() {

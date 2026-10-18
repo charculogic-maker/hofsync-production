@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-admin-dashboard-v2';
+const CACHE_NAME = 'charculogic-v20261018-haccp-weekly-filter-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – HACCP Admin im Dev-Dashboard, PWA ohne Geräte-Setup */
-const RELEASED_AT = '2026-10-18T18:30:00+02:00';
+/** Release – HACCP wöchentliche Reinigung nach Wochentag */
+const RELEASED_AT = '2026-10-18T19:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

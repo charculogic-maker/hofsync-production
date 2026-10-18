@@ -468,12 +468,21 @@ service cloud.firestore {
         && hasOnly([
           'id', 'name', 'category', 'period',
           'sortOrder', 'isProductionOnly', 'isActive',
+          'targetDay',
           'tenantId', 'updatedAt', 'createdAt',
           'updatedBy'
         ])
         && isNonEmptyString(request.resource.data.name)
         && isNonEmptyString(request.resource.data.category)
-        && request.resource.data.tenantId == tenantId;
+        && request.resource.data.tenantId == tenantId
+        && (
+          request.resource.data.targetDay == null
+          || (
+            (request.resource.data.targetDay is int || request.resource.data.targetDay is float)
+            && request.resource.data.targetDay >= 0
+            && request.resource.data.targetDay <= 6
+          )
+        );
 
       allow delete: if isAdmin(tenantId);
     }

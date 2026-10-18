@@ -63,6 +63,31 @@ function periodForCategory(category) {
   return String(category || '') === 'Wöchentlich' ? 'week' : 'day';
 }
 
+function isWeeklyCategory(category) {
+  return String(category || '') === 'Wöchentlich';
+}
+
+function parseTargetDay(value) {
+  if (value === '' || value == null) return null;
+  const day = Number(value);
+  return Number.isInteger(day) && day >= 0 && day <= 6 ? day : null;
+}
+
+function syncTaskDayFieldVisibility() {
+  const category = document.getElementById('dev-dashboard-haccp-task-category')?.value;
+  const wrap = document.getElementById('dev-dashboard-haccp-task-day-wrap');
+  if (!wrap) return;
+  wrap.hidden = !isWeeklyCategory(category);
+}
+
+function formatTaskCategory(task) {
+  const category = task?.category || '—';
+  if (!isWeeklyCategory(category)) return category;
+  const day = parseTargetDay(task?.targetDay);
+  if (day == null) return category;
+  return `${category} (${WEEKDAY_LABELS[day]})`;
+}
+
 function tenantCollection(name) {
   const tenantId = canonicalTenantId(haccpAdminState.tenantId);
   if (!haccpAdminState.db || !tenantId) return null;
@@ -143,8 +168,11 @@ function resetTaskForm() {
   if (category) category.value = 'Täglich';
   const sort = document.getElementById('dev-dashboard-haccp-task-sort');
   if (sort) sort.value = '100';
+  const day = document.getElementById('dev-dashboard-haccp-task-day');
+  if (day) day.value = '1';
   const production = document.getElementById('dev-dashboard-haccp-task-production');
   if (production) production.checked = false;
+  syncTaskDayFieldVisibility();
 }
 
 function renderDevicesTable() {
@@ -196,7 +224,7 @@ function renderTasksTable() {
   body.innerHTML = rows.map((task) => `
     <tr data-task-id="${escapeHtml(task.id)}">
       <td><strong>${escapeHtml(task.name || '—')}</strong></td>
-      <td>${escapeHtml(task.category || '—')}</td>
+      <td>${escapeHtml(formatTaskCategory(task))}</td>
       <td>${escapeHtml(task.sortOrder ?? '—')}</td>
       <td>${task.isProductionOnly ? 'Ja' : 'Nein'}</td>
       <td class="dev-dashboard-haccp-row-actions">
@@ -294,6 +322,10 @@ function buildTaskPayload(formValues, editingId) {
     : Number(formValues.sortOrder);
   const category = formValues.category || 'Täglich';
   const id = editingId || slugId(formValues.name);
+  const weekly = isWeeklyCategory(category);
+  const targetDay = weekly
+    ? (parseTargetDay(formValues.targetDay) ?? 1)
+    : null;
   return {
     id,
     name: formValues.name,
@@ -302,6 +334,7 @@ function buildTaskPayload(formValues, editingId) {
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : 100,
     isProductionOnly: formValues.isProductionOnly === true,
     isActive: true,
+    targetDay,
     tenantId: canonicalTenantId(haccpAdminState.tenantId),
     updatedAt: serverTimestamp(),
   };
@@ -360,6 +393,7 @@ async function saveTaskFromForm(event) {
     name,
     category: document.getElementById('dev-dashboard-haccp-task-category')?.value,
     sortOrder: document.getElementById('dev-dashboard-haccp-task-sort')?.value,
+    targetDay: document.getElementById('dev-dashboard-haccp-task-day')?.value,
     isProductionOnly: Boolean(document.getElementById('dev-dashboard-haccp-task-production')?.checked),
   }, editingId);
   const { id, ...data } = payload;
@@ -407,7 +441,10 @@ function fillTaskForm(task) {
   document.getElementById('dev-dashboard-haccp-task-name').value = task.name || '';
   document.getElementById('dev-dashboard-haccp-task-category').value = task.category || 'Täglich';
   document.getElementById('dev-dashboard-haccp-task-sort').value = String(task.sortOrder ?? 100);
+  const day = parseTargetDay(task.targetDay);
+  document.getElementById('dev-dashboard-haccp-task-day').value = String(day == null ? 1 : day);
   document.getElementById('dev-dashboard-haccp-task-production').checked = task.isProductionOnly === true;
+  syncTaskDayFieldVisibility();
   document.getElementById('dev-dashboard-haccp-task-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -527,10 +564,13 @@ function bindHaccpAdminControls() {
     ?.addEventListener('click', () => resetDeviceForm());
   document.getElementById('dev-dashboard-haccp-task-cancel')
     ?.addEventListener('click', () => resetTaskForm());
+  document.getElementById('dev-dashboard-haccp-task-category')
+    ?.addEventListener('change', () => syncTaskDayFieldVisibility());
   document.getElementById('dev-dashboard-haccp-seed-devices')
     ?.addEventListener('click', () => { void seedStevesHofDevices(); });
   document.getElementById('dev-dashboard-haccp-seed-tasks')
     ?.addEventListener('click', () => { void seedDefaultCleaningTasks(); });
+  syncTaskDayFieldVisibility();
 
   document.getElementById('dev-dashboard-haccp-devices-body')
     ?.addEventListener('click', (event) => {
