@@ -1,5 +1,5 @@
 /**
- * Avery 3475 Zerlege- & Reife-Etikettierung — Screen + Print.
+ * Avery 3475 Zerlege-Etiketten — Screen + Print (70×36 mm Querformat).
  */
 
 .avery-suite {
@@ -72,6 +72,37 @@
   flex-direction: column;
   gap: 6px;
   margin: 0;
+}
+
+.avery-print-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-color, #f8fafc);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.avery-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark, #0f172a);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.avery-toggle input {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  accent-color: var(--primary-color, #0284c7);
 }
 
 .avery-lot-line {
@@ -302,21 +333,46 @@
   font-size: 13px;
 }
 
+/* —— Live-Vorschau: echtes 70×36 Querformat, kein Hochformat-Aufblähen —— */
+.avery-sheet-scroll {
+  margin: 10px 0 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 .avery-sheet-preview {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
-  margin: 10px 0 14px;
+  width: 100%;
+  min-width: min(100%, 360px);
+}
+
+@media (max-width: 520px) {
+  .avery-sheet-preview {
+    /* Feste Spaltenbreite ≈ echter Bogen-Maßstab, horizontal scrollbar */
+    grid-template-columns: repeat(3, 118px);
+    width: max-content;
+    min-width: calc(3 * 118px + 2 * 4px);
+  }
 }
 
 .avery-slot {
-  min-height: 78px;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px dashed rgba(15, 23, 42, 0.2);
+  aspect-ratio: 70 / 36;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px dashed rgba(15, 23, 42, 0.22);
   background: #f8fafc;
   text-align: left;
   overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 .avery-slot.is-filled {
@@ -335,41 +391,121 @@
 }
 
 .avery-slot-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   font-size: 12px;
   font-weight: 800;
   color: #64748b;
 }
 
-.avery-label-cell {
+/* Inhalts-Deklaration: Header / Hero / Meta */
+.label-card {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  font-family: sans-serif;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 70 / 36;
+  overflow: hidden;
+  padding: 4px 5px 3px;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #000;
+  background: #fff;
 }
 
-.avery-label-farm {
-  font-size: 8px;
+.label-card-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 2px;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.label-card-art {
+  font-size: 7px;
   font-weight: 700;
   line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: #334155;
+  justify-self: start;
 }
 
-.avery-label-cut {
-  font-size: 11px;
-  font-weight: 900;
+.label-card-farm {
+  font-size: 6.5px;
+  font-weight: 700;
   line-height: 1.1;
+  text-align: center;
+  color: #475569;
+  justify-self: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.avery-label-lot {
-  font-size: 9px;
-  font-weight: 800;
+.label-card-oeko {
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #334155;
+  justify-self: end;
+  text-align: right;
 }
 
-.avery-label-meta,
-.avery-label-footer {
-  font-size: 7.5px;
-  line-height: 1.15;
+.label-card-hero {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 0;
+  margin: 1px 0;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.label-card-meta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+.label-card-line {
+  font-size: 6.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label-card-sep {
+  opacity: 0.45;
+  padding: 0 1px;
+}
+
+.label-card-slaughter {
   font-weight: 600;
+  color: #334155;
+}
+
+.label-card-storage {
+  margin-top: 1px;
+  font-size: 6px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #64748b;
 }
 
 .btn-avery-print {
@@ -392,7 +528,7 @@
 }
 
 @page avery-3475-sheet {
-  size: A4;
+  size: A4 portrait;
   margin: 4.5mm 0mm;
 }
 
@@ -429,16 +565,13 @@
   }
 
   body.print-avery-labels .avery-label {
-    display: flex !important;
-    flex-direction: column;
-    justify-content: center;
+    display: block !important;
+    box-sizing: border-box;
     width: 70mm;
     height: 36mm;
-    padding: 3.5mm 4mm;
-    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
-    font-family: sans-serif;
-    color: #000;
     page-break-inside: avoid;
     break-inside: avoid;
   }
@@ -447,25 +580,41 @@
     visibility: hidden !important;
   }
 
-  body.print-avery-labels .avery-label-farm {
-    font-size: 7pt;
+  body.print-avery-labels .label-card {
+    width: 70mm;
+    height: 36mm;
+    aspect-ratio: auto;
+    padding: 2.2mm 3mm 1.8mm;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  body.print-avery-labels .label-card-art,
+  body.print-avery-labels .label-card-oeko {
+    font-size: 6pt;
     font-weight: 700;
   }
 
-  body.print-avery-labels .avery-label-cut {
-    font-size: 11pt;
+  body.print-avery-labels .label-card-farm {
+    font-size: 5.5pt;
+    font-weight: 700;
+  }
+
+  body.print-avery-labels .label-card-hero {
+    font-size: 14pt;
     font-weight: 900;
-    margin: 0.5mm 0;
+    line-height: 1.02;
+    margin: 0.4mm 0;
   }
 
-  body.print-avery-labels .avery-label-lot {
-    font-size: 8pt;
-    font-weight: 800;
+  body.print-avery-labels .label-card-line {
+    font-size: 6pt;
+    font-weight: 700;
+    line-height: 1.15;
   }
 
-  body.print-avery-labels .avery-label-meta,
-  body.print-avery-labels .avery-label-footer {
-    font-size: 6.5pt;
+  body.print-avery-labels .label-card-storage {
+    font-size: 5.5pt;
     font-weight: 600;
+    margin-top: 0.3mm;
   }
 }
