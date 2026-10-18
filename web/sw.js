@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-ios-print-v155';
+const CACHE_NAME = 'charculogic-v20261018-haccp-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release v1.5.0 – iOS Jetzt-drucken + zentrierte Titel */
-const RELEASED_AT = '2026-10-18T15:30:00+02:00';
+/** Release – HACCP Temperatur-Rundgang Multi-Tenant */
+const RELEASED_AT = '2026-10-18T16:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

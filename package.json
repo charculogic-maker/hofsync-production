@@ -6,6 +6,8 @@
     "deploy": "npm run build && firebase deploy",
     "dev:local": "node tools/local-dev-orchestrator.mjs",
     "seed:tenant": "node tools/seed-tenant-bootstrap.mjs",
+    "seed:haccp:steveshof": "node tools/seed-steveshof-haccp.mjs",
+    "test:haccp": "mocha test/haccp-rundgang.test.mjs",
     "claims:sync": "node tools/set-user-claims.mjs",
     "preview": "vite preview",
     "test:rules": "firebase emulators:exec --only firestore,storage \"mocha test/security-rules.test.mjs --timeout 15000\"",

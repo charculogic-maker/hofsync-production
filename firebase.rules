@@ -440,9 +440,16 @@ service cloud.firestore {
 
       allow create, update: if isAdmin(tenantId)
         && hasOnly([
-          'name', 'protokollTyp', 'bereich', 'geraeteTyp',
+          // Neues Temperatur-Rundgang-Modell
+          'id', 'name', 'bereich', 'type',
+          'tempMin', 'tempMax', 'unit',
+          'activeDays', 'sortOrder', 'isActive',
+          // Legacy-Felder (Übergang / Reinigungsgeräte)
+          'protokollTyp', 'geraeteTyp',
           'sollMin', 'sollMax', 'einheit', 'intervall',
-          'aktiv', 'tenantId', 'updatedAt', 'createdAt'
+          'aktiv',
+          'tenantId', 'updatedAt', 'createdAt',
+          'seedVersion', 'updatedBy'
         ])
         && isNonEmptyString(request.resource.data.name)
         && request.resource.data.tenantId == tenantId;
@@ -459,17 +466,23 @@ service cloud.firestore {
 
       allow create: if isEmployeeOrAdmin(tenantId)
         && hasOnly([
-          'logTyp', 'deviceId', 'deviceName', 'bereich',
-          'wert', 'temperatur', 'ph',
-          'einheit', 'sollMin', 'sollMax',
-          'status', 'massnahme',
+          'logTyp', 'type',
+          'deviceId', 'deviceName', 'stationId', 'facility',
+          'bereich', 'doneBy',
+          'wert', 'value', 'temperatur', 'ph',
+          'einheit', 'unit',
+          'sollMin', 'sollMax', 'tempMin', 'tempMax', 'thresholdMax',
+          'status', 'massnahme', 'source',
           'chargenNummer',
-          'tenantId', 'datum', 'createdAt'
+          'centralControlVerified', 'measurements',
+          'periodType', 'periodKey', 'taskId', 'task',
+          'tenantId', 'datum', 'createdAt', 'timestamp'
         ])
         && isNonEmptyString(request.resource.data.logTyp)
         && isNonEmptyString(request.resource.data.datum)
         && request.resource.data.tenantId == tenantId
         && isNumericOrNull(request.resource.data.wert)
+        && isNumericOrNull(request.resource.data.value)
         && isNumericOrNull(request.resource.data.temperatur)
         && isNumericOrNull(request.resource.data.ph)
         && (

@@ -42,16 +42,107 @@ function canStartHaccpFirestoreLiveSync() {
 }
 
 const DEFAULT_HACCP_DEVICES = [
-  { name: 'Kühlauslage Hofladen', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
-  { name: 'MoPro-Kühlung', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'kuehlung', sollMin: 0, sollMax: 7, einheit: '°C', intervall: 'taeglich', aktiv: true },
-  { name: 'TK-Truhe', bereich: 'Hofladen', protokollTyp: 'temperatur', geraeteTyp: 'tk', sollMin: null, sollMax: -18, einheit: '°C', intervall: 'taeglich', aktiv: true },
-  { name: 'Schneidemaschine', bereich: 'Produktion', protokollTyp: 'reinigung', geraeteTyp: 'geraet', intervall: 'nach_benutzung', aktiv: true },
-  { name: 'Vakuumierer', bereich: 'Produktion', protokollTyp: 'reinigung', geraeteTyp: 'geraet', intervall: 'nach_benutzung', aktiv: true },
+  {
+    name: 'Kühlauslage Hofladen',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 0,
+    tempMax: 7,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 10,
+    isActive: true,
+    protokollTyp: 'temperatur',
+    geraeteTyp: 'kuehlung',
+    sollMin: 0,
+    sollMax: 7,
+    einheit: '°C',
+    intervall: 'taeglich',
+    aktiv: true,
+  },
+  {
+    name: 'MoPro-Kühlung',
+    bereich: 'Verkauf',
+    type: 'manual_temp',
+    tempMin: 0,
+    tempMax: 7,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 20,
+    isActive: true,
+    protokollTyp: 'temperatur',
+    geraeteTyp: 'kuehlung',
+    sollMin: 0,
+    sollMax: 7,
+    einheit: '°C',
+    intervall: 'taeglich',
+    aktiv: true,
+  },
+  {
+    name: 'TK-Truhe',
+    bereich: 'Lager',
+    type: 'manual_temp',
+    tempMin: -24,
+    tempMax: -18,
+    unit: '°C',
+    activeDays: null,
+    sortOrder: 30,
+    isActive: true,
+    protokollTyp: 'temperatur',
+    geraeteTyp: 'tk',
+    sollMin: -24,
+    sollMax: -18,
+    einheit: '°C',
+    intervall: 'taeglich',
+    aktiv: true,
+  },
+  {
+    name: 'Schneidemaschine',
+    bereich: 'Produktion',
+    type: 'cleaning',
+    protokollTyp: 'reinigung',
+    geraeteTyp: 'geraet',
+    intervall: 'nach_benutzung',
+    aktiv: true,
+    isActive: true,
+    sortOrder: 900,
+  },
+  {
+    name: 'Vakuumierer',
+    bereich: 'Produktion',
+    type: 'cleaning',
+    protokollTyp: 'reinigung',
+    geraeteTyp: 'geraet',
+    intervall: 'nach_benutzung',
+    aktiv: true,
+    isActive: true,
+    sortOrder: 910,
+  },
 ];
 
 const FLY_PREVENTION_HACCP_DEVICES = [
-  { name: 'Fliegengitter Verkaufsraum', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
-  { name: 'UV-Insektenlampe Käse-Theke', bereich: 'Hofladen', protokollTyp: 'reinigung', geraeteTyp: 'hygiene', intervall: 'woechentlich', aktiv: true },
+  {
+    name: 'Fliegengitter Verkaufsraum',
+    bereich: 'Hofladen',
+    type: 'cleaning',
+    protokollTyp: 'reinigung',
+    geraeteTyp: 'hygiene',
+    intervall: 'woechentlich',
+    aktiv: true,
+    isActive: true,
+    sortOrder: 920,
+  },
+  {
+    name: 'UV-Insektenlampe Käse-Theke',
+    bereich: 'Hofladen',
+    type: 'cleaning',
+    protokollTyp: 'reinigung',
+    geraeteTyp: 'hygiene',
+    intervall: 'woechentlich',
+    aktiv: true,
+    isActive: true,
+    sortOrder: 930,
+  },
 ];
 
 const FLY_PREVENTION_CLEANING_TASK = {
@@ -60,6 +151,12 @@ const FLY_PREVENTION_CLEANING_TASK = {
 };
 
 const HACCP_CLEANING_PERSON_KEY = 'charculogic.haccp.cleaning.doneBy';
+const WEEKDAY_LABELS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const HACCP_BEREICHE = ['Verkauf', 'Obergeschoss', 'Lager'];
+const HACCP_DEVICE_TYPES = [
+  { value: 'manual_temp', label: 'Manuelle Temperatur' },
+  { value: 'digital_verbund', label: 'Verbundanlage (Zentral)' },
+];
 
 function getCleaningTeam() {
   const fromTeam = getTeamEmployees()
@@ -67,44 +164,6 @@ function getCleaningTeam() {
     .filter(Boolean);
   return fromTeam.length ? fromTeam : ['Mitarbeiter 1', 'Mitarbeiter 2'];
 }
-
-const HACCP_TEMPERATURE_GROUPS = [
-  {
-    id: 'deep-freeze',
-    title: 'TIEF-KÜHLUNG',
-    warnAbove: -15,
-    unit: '°C',
-    stations: [
-      'TK-Truhe für Brötchen (Vorrat)',
-      'SB-TK-Schrank Fleisch',
-      'SB-TK-Schrank 2',
-      'SB-TK-Schrank 3',
-    ],
-  },
-  {
-    id: 'fresh-cooling',
-    title: 'FRISCHE-KÜHLUNG',
-    warnAbove: 7,
-    unit: '°C',
-    stations: [
-      'SB-Kühlschrank Frische und MoPro',
-      'Käse-Theke',
-      'Kühlvitrine Kuchen (Saisonal)',
-    ],
-  },
-  {
-    id: 'counters',
-    title: 'DYNAMISCHE THEKEN',
-    warnAbove: 7,
-    unit: '°C',
-    optionalDays: [0, 1, 2, 3],
-    optionalHint: 'Theke laut Plan leer - Messung optional',
-    stations: [
-      'Wurst-Theke',
-      'Fleisch-Theke',
-    ],
-  },
-];
 
 const HACCP_CLEANING_GROUPS = [
   {
@@ -149,6 +208,10 @@ const haccpState = {
   devices: [],
   logs: [],
   cleaningDoneBy: '',
+  /** @type {Record<string, { value: number|null, centralOk: boolean, note: string }>} */
+  roundEntries: {},
+  centralDetailsOpen: false,
+  editingDeviceId: '',
   devicesUnsubscribe: null,
   logsUnsubscribe: null,
   initialized: false,
@@ -344,38 +407,208 @@ function cleaningLogDocId(task, periodKey) {
   return ['cleaning', task.id, periodKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
-function allTemperatureStations() {
-  return HACCP_TEMPERATURE_GROUPS.flatMap((group) =>
-    group.stations.map((name) => ({
-      id: safeDomId(`${group.id}-${name}`).toLowerCase(),
-      name,
-      groupId: group.id,
-      groupTitle: group.title,
-      warnAbove: group.warnAbove,
-      unit: group.unit || '°C',
-      optionalHint: group.optionalDays?.includes(new Date().getDay()) ? group.optionalHint : '',
-    }))
-  );
+/**
+ * Normalisiert Geräte-Dokumente (neues Modell + Legacy-Felder).
+ * @param {Record<string, unknown>} raw
+ */
+function normalizeHaccpDevice(raw = {}) {
+  const name = String(raw.name || '').trim();
+  const id = String(raw.id || haccpDeviceDocId(name));
+  const tempMin = raw.tempMin != null ? Number(raw.tempMin)
+    : (raw.sollMin != null ? Number(raw.sollMin) : null);
+  const tempMax = raw.tempMax != null ? Number(raw.tempMax)
+    : (raw.sollMax != null ? Number(raw.sollMax) : null);
+  const unit = String(raw.unit || raw.einheit || '°C');
+  let type = String(raw.type || '').trim();
+  if (!type) {
+    if (raw.protokollTyp === 'reinigung') type = 'cleaning';
+    else type = 'manual_temp';
+  }
+  const isActive = raw.isActive !== false && raw.aktiv !== false;
+  let activeDays = null;
+  if (Array.isArray(raw.activeDays)) {
+    activeDays = raw.activeDays.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+  } else if (raw.activeDays === null || raw.activeDays === undefined || raw.activeDays === '') {
+    activeDays = null;
+  }
+  const sortOrder = Number.isFinite(Number(raw.sortOrder)) ? Number(raw.sortOrder) : 999;
+  const bereich = String(raw.bereich || 'Verkauf').trim() || 'Verkauf';
+  return {
+    ...raw,
+    id,
+    name,
+    bereich,
+    type,
+    tempMin: Number.isFinite(tempMin) ? tempMin : null,
+    tempMax: Number.isFinite(tempMax) ? tempMax : null,
+    unit,
+    activeDays,
+    sortOrder,
+    isActive,
+    protokollTyp: raw.protokollTyp || (type === 'cleaning' ? 'reinigung' : 'temperatur'),
+    sollMin: Number.isFinite(tempMin) ? tempMin : (raw.sollMin ?? null),
+    sollMax: Number.isFinite(tempMax) ? tempMax : (raw.sollMax ?? null),
+    einheit: unit,
+    aktiv: isActive,
+  };
 }
 
-function temperatureStationById(stationId) {
-  return allTemperatureStations().find((station) => station.id === stationId) || null;
+function isTemperatureDeviceType(type) {
+  return type === 'manual_temp' || type === 'digital_verbund';
 }
 
-function temperatureLogDocId(station, dateKey = localDateKey()) {
-  return ['temperature', station.id, dateKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
+function isDeviceRequiredToday(device, day = new Date().getDay()) {
+  if (!device?.isActive) return false;
+  if (!isTemperatureDeviceType(device.type)) return false;
+  if (!Array.isArray(device.activeDays) || device.activeDays.length === 0) return true;
+  return device.activeDays.includes(day);
 }
 
-function entryMatchesTemperatureToday(entry, station) {
-  const sameStation = entry.facility === station.name || entry.deviceName === station.name || entry.stationId === station.id;
-  const isTemperature = entry.type === 'temperature' || entry.logTyp === 'temperatur';
+function isDeviceRestDay(device, day = new Date().getDay()) {
+  if (!device?.isActive || !isTemperatureDeviceType(device.type)) return false;
+  if (!Array.isArray(device.activeDays) || device.activeDays.length === 0) return false;
+  return !device.activeDays.includes(day);
+}
+
+function sortedTemperatureDevices() {
+  return resolveVisibleHaccpDevices()
+    .map((entry) => normalizeHaccpDevice(entry))
+    .filter((device) => device.isActive && isTemperatureDeviceType(device.type) && device.name)
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name), 'de'));
+}
+
+function verbundDevices() {
+  return sortedTemperatureDevices().filter((device) => device.type === 'digital_verbund');
+}
+
+function manualTemperatureDevices() {
+  return sortedTemperatureDevices().filter((device) => device.type === 'manual_temp');
+}
+
+function ensureRoundEntry(deviceId) {
+  if (!haccpState.roundEntries[deviceId]) {
+    haccpState.roundEntries[deviceId] = { value: null, centralOk: false, note: '' };
+  }
+  return haccpState.roundEntries[deviceId];
+}
+
+function temperatureRoundLogDocId(dateKey = localDateKey()) {
+  return ['temperature_round', dateKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function temperatureLogDocId(device, dateKey = localDateKey()) {
+  return ['temperature', device.id, dateKey].join('_').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function entryMatchesTemperatureToday(entry, device) {
+  const sameStation = entry.facility === device.name
+    || entry.deviceName === device.name
+    || entry.stationId === device.id
+    || entry.deviceId === device.id;
+  const isTemperature = entry.type === 'temperature'
+    || entry.logTyp === 'temperatur'
+    || entry.type === 'temperature_round'
+    || entry.logTyp === 'temperatur_rundgang';
   return isTemperature && sameStation && (entry.datum || '') === localDateKey();
 }
 
-function temperatureCompletionForStation(station) {
+function temperatureRoundSavedToday() {
   return (haccpState.logs || [])
-    .filter((entry) => entryMatchesTemperatureToday(entry, station))
+    .filter((entry) => (
+      (entry.type === 'temperature_round' || entry.logTyp === 'temperatur_rundgang')
+      && (entry.datum || '') === localDateKey()
+    ))
     .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
+}
+
+function temperatureCompletionForDevice(device) {
+  const fromRound = temperatureRoundSavedToday();
+  if (fromRound && Array.isArray(fromRound.measurements)) {
+    const hit = fromRound.measurements.find((row) => row.deviceId === device.id || row.deviceName === device.name);
+    if (hit) return { ...fromRound, ...hit, fromRound: true };
+  }
+  return (haccpState.logs || [])
+    .filter((entry) => entryMatchesTemperatureToday(entry, device) && entry.type !== 'temperature_round' && entry.logTyp !== 'temperatur_rundgang')
+    .sort((a, b) => logMomentMillis(b) - logMomentMillis(a))[0] || null;
+}
+
+function formatSollRange(device) {
+  const unit = device.unit || '°C';
+  const min = device.tempMin;
+  const max = device.tempMax;
+  if (min == null && max == null) return `Soll: — ${unit}`;
+  if (min == null) return `Soll: bis ${max} ${unit}`;
+  if (max == null) return `Soll: ab ${min} ${unit}`;
+  return `Soll: ${min} bis ${max} ${unit}`;
+}
+
+function formatActiveDaysLabel(device) {
+  if (!Array.isArray(device.activeDays) || device.activeDays.length === 0) return 'Jeden Tag';
+  return device.activeDays
+    .slice()
+    .sort((a, b) => a - b)
+    .map((day) => WEEKDAY_LABELS[day] || String(day))
+    .join(', ');
+}
+
+function tempInRange(device, value) {
+  const temp = Number(value);
+  if (!Number.isFinite(temp)) return null;
+  const minOk = device.tempMin == null || temp >= Number(device.tempMin);
+  const maxOk = device.tempMax == null || temp <= Number(device.tempMax);
+  return minOk && maxOk;
+}
+
+function tempPresetsForDevice(device) {
+  const min = Number(device.tempMin);
+  const max = Number(device.tempMax);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [];
+  const mid = Math.round(((min + max) / 2) * 2) / 2;
+  const low = Math.round((min + (max - min) * 0.25) * 2) / 2;
+  const high = Math.round((min + (max - min) * 0.75) * 2) / 2;
+  return [...new Set([low, mid, high])]
+    .filter((value) => value >= min && value <= max)
+    .slice(0, 3);
+}
+
+function defaultStepperValue(device) {
+  const presets = tempPresetsForDevice(device);
+  if (presets.length) return presets[Math.floor(presets.length / 2)];
+  if (Number.isFinite(Number(device.tempMin)) && Number.isFinite(Number(device.tempMax))) {
+    return Math.round(((Number(device.tempMin) + Number(device.tempMax)) / 2) * 2) / 2;
+  }
+  return 0;
+}
+
+function isDeviceCapturedInRound(device) {
+  if (isDeviceRestDay(device)) return true;
+  const saved = temperatureCompletionForDevice(device);
+  if (saved) return true;
+  const entry = ensureRoundEntry(device.id);
+  if (device.type === 'digital_verbund') {
+    if (entry.centralOk) return true;
+    return entry.value != null && Number.isFinite(Number(entry.value));
+  }
+  return entry.value != null && Number.isFinite(Number(entry.value));
+}
+
+function allRequiredDevicesCaptured() {
+  return sortedTemperatureDevices()
+    .filter((device) => isDeviceRequiredToday(device))
+    .every((device) => isDeviceCapturedInRound(device));
+}
+
+function readActiveEmployeeName() {
+  const selected = selectedHaccpPerson();
+  if (selected) return selected;
+  try {
+    const tenantId = resolveHaccpTenantId();
+    const scoped = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+    if (scoped) return scoped;
+    return localStorage.getItem(ACTIVE_EMPLOYEE_STORAGE_KEY) || localStorage.getItem('charculogic.activeEmployee') || '';
+  } catch (_) {
+    return '';
+  }
 }
 
 function haccpDeviceDocId(name) {
@@ -454,21 +687,14 @@ function loadHaccpLogsFromCloud() {
 }
 
 function temperatureStatus(device, value) {
-  const temp = Number(value);
-  if (!Number.isFinite(temp)) return { ok: false, label: 'Wert fehlt' };
-  const minOk = device.sollMin == null || temp >= Number(device.sollMin);
-  const maxOk = device.sollMax == null || temp <= Number(device.sollMax);
-  return minOk && maxOk ? { ok: true, label: 'OK' } : { ok: false, label: 'Abweichung' };
+  const normalized = normalizeHaccpDevice(device);
+  const inRange = tempInRange(normalized, value);
+  if (inRange == null) return { ok: false, label: 'Wert fehlt' };
+  return inRange ? { ok: true, label: 'OK' } : { ok: false, label: 'Abweichung' };
 }
 
 function selectedHaccpPerson() {
   return document.getElementById('haccp-cleaning-person')?.value || haccpState.cleaningDoneBy || '';
-}
-
-function isTemperatureTooWarm(value, warnAbove) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || warnAbove == null) return false;
-  return numericValue > Number(warnAbove);
 }
 
 function requireHaccpDoneBy() {
@@ -550,122 +776,204 @@ function upsertLocalTemperatureLog(log) {
   renderHaccpDaily();
 }
 
-async function saveTemperatureCheck(stationId) {
-  const station = temperatureStationById(stationId);
-  if (!station) return;
-  if (temperatureCompletionForStation(station)) {
-    haccpState.showHUD("Schon eingetragen", "Dieser Wert ist für heute bereits gespeichert.");
+function buildMeasurementPayload(device) {
+  const restDay = isDeviceRestDay(device);
+  const entry = ensureRoundEntry(device.id);
+  if (restDay) {
+    return {
+      deviceId: device.id,
+      deviceName: device.name,
+      bereich: device.bereich,
+      type: device.type,
+      wert: null,
+      value: null,
+      status: 'ruhetag',
+      source: 'rest_day',
+      tempMin: device.tempMin,
+      tempMax: device.tempMax,
+      einheit: device.unit || '°C',
+      massnahme: 'Ruhetag / Ausgeschaltet',
+    };
+  }
+  if (device.type === 'digital_verbund' && entry.centralOk && (entry.value == null || entry.value === '')) {
+    return {
+      deviceId: device.id,
+      deviceName: device.name,
+      bereich: device.bereich,
+      type: device.type,
+      wert: null,
+      value: null,
+      status: 'ok',
+      source: 'central',
+      tempMin: device.tempMin,
+      tempMax: device.tempMax,
+      einheit: device.unit || '°C',
+      massnahme: 'OK (Zentralsteuerung)',
+    };
+  }
+  const numericValue = Number(entry.value);
+  const inRange = tempInRange(device, numericValue);
+  return {
+    deviceId: device.id,
+    deviceName: device.name,
+    bereich: device.bereich,
+    type: device.type,
+    wert: numericValue,
+    value: numericValue,
+    status: inRange ? 'ok' : 'abweichung',
+    source: device.type === 'digital_verbund' ? 'central_override' : 'manual',
+    tempMin: device.tempMin,
+    tempMax: device.tempMax,
+    einheit: device.unit || '°C',
+    massnahme: entry.note || '',
+  };
+}
+
+function markCentralControlVerified() {
+  if (temperatureRoundSavedToday()) {
+    haccpState.showHUD('Schon erledigt', 'Der Temperatur-Rundgang ist für heute bereits gespeichert.');
     return;
   }
-  const value = document.getElementById(`temp-${safeDomId(stationId)}`)?.value;
-  const numericValue = Number(value);
-  if (value === '' || value == null || !Number.isFinite(numericValue)) {
-    haccpState.showHUD("Wert fehlt", "Bitte zuerst die Temperatur eintragen.", "!");
+  verbundDevices().forEach((device) => {
+    const entry = ensureRoundEntry(device.id);
+    entry.centralOk = true;
+    if (entry.value == null || entry.value === '') entry.value = null;
+  });
+  haccpState.playClickSound?.();
+  haccpState.showHUD('Zentralsteuerung geprüft', 'Alle OG-Kühlstellen sind als i.O. vermerkt.');
+  renderHaccpDaily();
+}
+
+function setRoundTempValue(deviceId, rawValue) {
+  const entry = ensureRoundEntry(deviceId);
+  if (rawValue === '' || rawValue == null) {
+    entry.value = null;
+  } else {
+    const numeric = Number(rawValue);
+    entry.value = Number.isFinite(numeric) ? numeric : null;
+  }
+  if (entry.value != null) entry.centralOk = false;
+}
+
+function stepRoundTemp(deviceId, delta) {
+  const device = sortedTemperatureDevices().find((entry) => entry.id === deviceId);
+  if (!device) return;
+  const entry = ensureRoundEntry(deviceId);
+  const current = Number.isFinite(Number(entry.value)) ? Number(entry.value) : defaultStepperValue(device);
+  const next = Math.round((current + Number(delta)) * 2) / 2;
+  entry.value = next;
+  entry.centralOk = false;
+  renderHaccpDaily();
+}
+
+async function saveTemperatureRound() {
+  if (temperatureRoundSavedToday()) {
+    haccpState.showHUD('Schon erledigt', 'Der Temperatur-Rundgang ist für heute bereits gespeichert.');
+    return;
+  }
+  const devices = sortedTemperatureDevices();
+  if (!devices.length) {
+    haccpState.showHUD('Keine Kühlstellen', 'Bitte zuerst unter „+“ die Messpunkte einrichten.', '!');
+    return;
+  }
+  if (!allRequiredDevicesCaptured()) {
+    haccpState.showHUD('Noch nicht fertig', 'Bitte alle heute aktiven Kühlstellen erfassen oder die Zentralsteuerung quittieren.', '!');
     return;
   }
   const doneBy = requireHaccpDoneBy();
   if (!doneBy) return;
   rememberCleaningPerson(doneBy);
-  const status = isTemperatureTooWarm(numericValue, station.warnAbove) ? 'abweichung' : 'ok';
-  const docId = temperatureLogDocId(station);
+
+  const measurements = devices.map((device) => buildMeasurementPayload(device));
+  const centralControlVerified = verbundDevices().length > 0
+    && verbundDevices().every((device) => {
+      const row = measurements.find((entry) => entry.deviceId === device.id);
+      return row && (row.source === 'central' || row.source === 'central_override' || row.source === 'rest_day');
+    });
+
+  const dateKey = localDateKey();
+  const roundDocId = temperatureRoundLogDocId(dateKey);
   const nowIso = new Date().toISOString();
+
   try {
     const result = await saveHaccpLog({
-      docId,
-      logTyp: 'temperatur',
-      type: 'temperature',
-      stationId: station.id,
-      deviceId: station.id,
-      facility: station.name,
-      deviceName: station.name,
+      docId: roundDocId,
+      logTyp: 'temperatur_rundgang',
+      type: 'temperature_round',
       doneBy,
-      value: numericValue,
-      wert: numericValue,
-      einheit: station.unit || '°C',
-      thresholdMax: station.warnAbove,
-      sollMax: station.warnAbove,
-      bereich: station.groupTitle,
-      status,
+      bereich: 'Tageskontrolle',
+      deviceName: 'Temperatur-Rundgang',
+      status: measurements.some((row) => row.status === 'abweichung') ? 'abweichung' : 'ok',
+      centralControlVerified: Boolean(centralControlVerified),
+      measurements,
       massnahme: '',
     });
-    haccpState.onFormSaved([`temp-${safeDomId(stationId)}`]);
+
+    // Einzelwerte für Druckansicht / Tagesübersicht (unveränderlich)
+    for (const row of measurements) {
+      if (row.source === 'rest_day') continue;
+      const device = devices.find((entry) => entry.id === row.deviceId);
+      if (!device) continue;
+      try {
+        await saveHaccpLog({
+          docId: temperatureLogDocId(device, dateKey),
+          logTyp: 'temperatur',
+          type: 'temperature',
+          stationId: device.id,
+          deviceId: device.id,
+          facility: device.name,
+          deviceName: device.name,
+          doneBy,
+          value: row.value,
+          wert: row.wert,
+          einheit: row.einheit,
+          unit: row.einheit,
+          tempMin: row.tempMin,
+          tempMax: row.tempMax,
+          sollMin: row.tempMin,
+          sollMax: row.tempMax,
+          bereich: device.bereich,
+          status: row.status,
+          source: row.source,
+          massnahme: row.massnahme || '',
+        });
+      } catch (detailErr) {
+        if (detailErr?.code === 'already-exists') continue;
+        console.warn('[CharcuLogic HACCP] Einzelwert-Protokoll:', detailErr);
+      }
+    }
+
     upsertLocalTemperatureLog({
-      id: docId,
-      logTyp: 'temperatur',
-      type: 'temperature',
-      stationId: station.id,
-      deviceId: station.id,
-      facility: station.name,
-      deviceName: station.name,
+      id: roundDocId,
+      logTyp: 'temperatur_rundgang',
+      type: 'temperature_round',
       doneBy,
-      value: numericValue,
-      wert: numericValue,
-      einheit: station.unit || '°C',
-      thresholdMax: station.warnAbove,
-      sollMax: station.warnAbove,
-      bereich: station.groupTitle,
-      status,
+      bereich: 'Tageskontrolle',
+      deviceName: 'Temperatur-Rundgang',
+      status: measurements.some((row) => row.status === 'abweichung') ? 'abweichung' : 'ok',
+      centralControlVerified: Boolean(centralControlVerified),
+      measurements,
       tenantId: resolveHaccpTenantId(),
-      datum: localDateKey(),
+      datum: dateKey,
       timestamp: nowIso,
       createdAt: nowIso,
     });
-    if (result === 'queued') {
-      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
-      return;
-    }
-    haccpState.showHUD(status === 'ok' ? "Temperatur gespeichert" : "Wert gespeichert", `${station.name}: ${value} ${station.unit || '°C'}`);
-  } catch (err) {
-    const code = err?.code || '';
-    if (code === 'already-exists') {
-      haccpState.onFormSaved([`temp-${safeDomId(stationId)}`]);
-      haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
-      return;
-    }
-    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-    console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
-  }
-}
+    haccpState.roundEntries = {};
 
-async function saveLegacyTemperatureCheck(deviceId) {
-  const device = haccpState.devices.find((entry) => entry.id === deviceId);
-  if (!device) return;
-  const value = document.getElementById(`temp-${safeDomId(deviceId)}`)?.value;
-  const note = document.getElementById(`note-${safeDomId(deviceId)}`)?.value || '';
-  const doneBy = requireHaccpDoneBy();
-  if (!doneBy) return;
-  const status = temperatureStatus(device, value);
-  try {
-    const result = await saveHaccpLog({
-      logTyp: 'temperatur',
-      deviceId,
-      deviceName: device.name,
-      doneBy,
-      bereich: device.bereich || '',
-      wert: Number(value),
-      einheit: device.einheit || '°C',
-      sollMin: device.sollMin ?? null,
-      sollMax: device.sollMax ?? null,
-      status: status.ok ? 'ok' : 'abweichung',
-      massnahme: note,
-    });
-    haccpState.onFormSaved([`temp-${safeDomId(deviceId)}`, `note-${safeDomId(deviceId)}`]);
     if (result === 'queued') {
-      haccpState.showHUD("Lokal vorgemerkt", "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.");
+      haccpState.showHUD('Lokal vorgemerkt', 'Wird automatisch synchronisiert, sobald WLAN verfügbar ist.');
       return;
     }
-    haccpState.showHUD(status.ok ? "Temperatur geprüft" : "Abweichung gespeichert", `${device.name}: ${value} ${device.einheit || '°C'}`);
+    haccpState.showHUD('Rundgang gespeichert', `${doneBy} hat den Temperatur-Rundgang protokolliert.`);
   } catch (err) {
     const code = err?.code || '';
     if (code === 'already-exists') {
-      haccpState.onFormSaved([`temp-${safeDomId(deviceId)}`, `note-${safeDomId(deviceId)}`]);
-      haccpState.showHUD("Bereits erfasst", "Dieser Messwert existiert bereits auf dem Server.");
+      haccpState.showHUD('Bereits erfasst', 'Dieser Rundgang existiert bereits auf dem Server.');
       return;
     }
     if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-    console.error('[CharcuLogic HACCP] Temperatur speichern fehlgeschlagen:', err);
-    haccpState.showHUD("Hat nicht geklappt", "Temperatur konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.", "!");
+    console.error('[CharcuLogic HACCP] Rundgang speichern fehlgeschlagen:', err);
+    haccpState.showHUD('Hat nicht geklappt', 'Rundgang konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.', '!');
   }
 }
 
@@ -790,6 +1098,124 @@ async function saveLegacyCleaningCheck(deviceId) {
 }
 
 function deactivateHaccpDevice(deviceId) {
+  deactivateHaccpDeviceNormalized(deviceId);
+}
+
+function readActiveDaysFromForm() {
+  const boxes = Array.from(document.querySelectorAll('[data-haccp-active-day]'));
+  if (!boxes.length) return null;
+  const checked = boxes
+    .filter((box) => box.checked)
+    .map((box) => Number(box.dataset.haccpActiveDay))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((a, b) => a - b);
+  // Alle oder keine Haken = jeden Tag aktiv
+  if (checked.length === 0 || checked.length === 7) return null;
+  return checked;
+}
+
+function addHaccpDeviceFromForm() {
+  const path = haccpDevicesCollectionPath();
+  if (!path || !haccpState.writeOrQueueFirestore) {
+    haccpState.showHUD('Offline', 'Einrichten klappt erst wieder mit Verbindung.', '!');
+    return;
+  }
+  const name = document.getElementById('haccp-device-name')?.value.trim();
+  if (!name) {
+    haccpState.showHUD('Name fehlt', 'Bitte Kühlstelle eintragen.', '!');
+    return;
+  }
+  haccpState.verifyAdminAction(async () => {
+    const type = document.getElementById('haccp-device-type')?.value || 'manual_temp';
+    const bereich = document.getElementById('haccp-device-area')?.value.trim() || 'Verkauf';
+    const tempMinRaw = document.getElementById('haccp-device-min')?.value;
+    const tempMaxRaw = document.getElementById('haccp-device-max')?.value;
+    const sortRaw = document.getElementById('haccp-device-sort')?.value;
+    const editingId = haccpState.editingDeviceId || haccpDeviceDocId(name);
+    const tempMin = tempMinRaw === '' ? null : Number(tempMinRaw);
+    const tempMax = tempMaxRaw === '' ? null : Number(tempMaxRaw);
+    const activeDays = readActiveDaysFromForm();
+    const payload = {
+      id: editingId,
+      name,
+      bereich,
+      type,
+      tempMin,
+      tempMax,
+      unit: '°C',
+      activeDays,
+      sortOrder: sortRaw === '' || sortRaw == null ? 100 : Number(sortRaw),
+      isActive: true,
+      protokollTyp: 'temperatur',
+      geraeteTyp: type === 'digital_verbund' ? 'verbund' : (Number(tempMax) <= -10 ? 'tk' : 'kuehlung'),
+      sollMin: tempMin,
+      sollMax: tempMax,
+      einheit: '°C',
+      intervall: 'taeglich',
+      aktiv: true,
+      tenantId: resolveHaccpTenantId(),
+    };
+    try {
+      await haccpState.writeOrQueueFirestore({
+        collectionPath: path,
+        docId: editingId,
+        op: 'set',
+        onlineData: { ...payload, updatedAt: serverTimestamp() },
+        queueData: { ...payload, updatedAt: new Date().toISOString() },
+        offlineMessage: 'Kühlstelle wird nachträglich synchronisiert.',
+      });
+      haccpState.showHUD('Gespeichert', `${name} ist für den Temperatur-Rundgang eingerichtet.`);
+      haccpState.editingDeviceId = '';
+      ['haccp-device-name', 'haccp-device-min', 'haccp-device-max', 'haccp-device-sort'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      document.querySelectorAll('[data-haccp-active-day]').forEach((box) => {
+        box.checked = true;
+      });
+      renderHaccpDaily();
+    } catch (err) {
+      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
+      console.error('[CharcuLogic HACCP] Gerät anlegen fehlgeschlagen:', err);
+      haccpState.showHUD('Hat nicht geklappt', 'Kühlstelle konnte nicht gespeichert werden.', '!');
+    }
+  });
+}
+
+function editHaccpDevice(deviceId) {
+  const device = resolveVisibleHaccpDevices()
+    .map((entry) => normalizeHaccpDevice(entry))
+    .find((entry) => entry.id === deviceId);
+  if (!device) return;
+  haccpState.editingDeviceId = device.id;
+  haccpState.mode = 'geraete';
+  document.querySelectorAll('.haccp-mode-tab').forEach((entry) => {
+    entry.classList.toggle('active-haccp-mode', entry.dataset.haccpMode === 'geraete');
+  });
+  renderHaccpDaily();
+  requestAnimationFrame(() => {
+    const nameEl = document.getElementById('haccp-device-name');
+    const typeEl = document.getElementById('haccp-device-type');
+    const areaEl = document.getElementById('haccp-device-area');
+    const minEl = document.getElementById('haccp-device-min');
+    const maxEl = document.getElementById('haccp-device-max');
+    const sortEl = document.getElementById('haccp-device-sort');
+    if (nameEl) nameEl.value = device.name || '';
+    if (typeEl) typeEl.value = device.type === 'digital_verbund' ? 'digital_verbund' : 'manual_temp';
+    if (areaEl) areaEl.value = device.bereich || 'Verkauf';
+    if (minEl) minEl.value = device.tempMin == null ? '' : String(device.tempMin);
+    if (maxEl) maxEl.value = device.tempMax == null ? '' : String(device.tempMax);
+    if (sortEl) sortEl.value = String(device.sortOrder ?? 100);
+    const days = Array.isArray(device.activeDays) && device.activeDays.length
+      ? device.activeDays
+      : [0, 1, 2, 3, 4, 5, 6];
+    document.querySelectorAll('[data-haccp-active-day]').forEach((box) => {
+      box.checked = days.includes(Number(box.dataset.haccpActiveDay));
+    });
+  });
+}
+
+function deactivateHaccpDeviceNormalized(deviceId) {
   haccpState.verifyAdminAction(async () => {
     try {
       const path = haccpDevicesCollectionPath();
@@ -798,65 +1224,23 @@ function deactivateHaccpDevice(deviceId) {
       await haccpState.writeOrQueueFirestore({
         collectionPath: path,
         docId: deviceId,
-        onlineData: { aktiv: false, updatedAt: serverTimestamp() },
-        queueData: { aktiv: false, updatedAt: nowIso },
-        offlineMessage: "Änderung wird nachträglich synchronisiert.",
+        onlineData: {
+          aktiv: false,
+          isActive: false,
+          updatedAt: serverTimestamp(),
+        },
+        queueData: {
+          aktiv: false,
+          isActive: false,
+          updatedAt: nowIso,
+        },
+        offlineMessage: 'Änderung wird nachträglich synchronisiert.',
       });
-      haccpState.showHUD("Deaktiviert", "Kühlstelle oder Aufgabe wurde deaktiviert.");
+      haccpState.showHUD('Deaktiviert', 'Kühlstelle wurde deaktiviert.');
     } catch (err) {
       if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
       console.error('[CharcuLogic HACCP] Deaktivieren fehlgeschlagen:', err);
-      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht deaktiviert werden. Bitte im Büro prüfen.", "!");
-    }
-  });
-}
-
-function addHaccpDeviceFromForm() {
-  const path = haccpDevicesCollectionPath();
-  if (!path || !haccpState.writeOrQueueFirestore) {
-    haccpState.showHUD("Offline", "Einrichten klappt erst wieder mit Verbindung.", "!");
-    return;
-  }
-  const name = document.getElementById('haccp-device-name')?.value.trim();
-  if (!name) {
-    haccpState.showHUD("Name fehlt", "Bitte Kühlstelle oder Aufgabe eintragen.", "!");
-    return;
-  }
-  haccpState.verifyAdminAction(async () => {
-    const protokollTyp = document.getElementById('haccp-device-type')?.value || 'temperatur';
-    const bereich = document.getElementById('haccp-device-area')?.value.trim() || 'Hofladen';
-    const sollMinRaw = document.getElementById('haccp-device-min')?.value;
-    const sollMaxRaw = document.getElementById('haccp-device-max')?.value;
-    const payload = {
-      name,
-      protokollTyp,
-      bereich,
-      geraeteTyp: protokollTyp === 'temperatur' ? 'kuehlung' : 'geraet',
-      sollMin: sollMinRaw === '' ? null : Number(sollMinRaw),
-      sollMax: sollMaxRaw === '' ? null : Number(sollMaxRaw),
-      einheit: protokollTyp === 'temperatur' ? '°C' : '',
-      intervall: protokollTyp === 'temperatur' ? 'taeglich' : 'nach_benutzung',
-      aktiv: true,
-      tenantId: resolveHaccpTenantId(),
-    };
-    try {
-      await haccpState.writeOrQueueFirestore({
-        collectionPath: path,
-        docId: haccpDeviceDocId(name),
-        op: 'set',
-        onlineData: { ...payload, updatedAt: serverTimestamp() },
-        queueData: { ...payload, updatedAt: new Date().toISOString() },
-        offlineMessage: "Kühlstelle oder Aufgabe wird nachträglich synchronisiert.",
-      });
-      haccpState.showHUD("Gespeichert", `${name} ist für HACCP eingerichtet.`);
-      ['haccp-device-name', 'haccp-device-area', 'haccp-device-min', 'haccp-device-max'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-      });
-    } catch (err) {
-      if (maybeResetOnFirestorePermissionError(err, 'HACCP-Save')) return;
-      console.error('[CharcuLogic HACCP] Gerät anlegen fehlgeschlagen:', err);
-      haccpState.showHUD("Hat nicht geklappt", "Kühlstelle oder Aufgabe konnte nicht gespeichert werden.", "!");
+      haccpState.showHUD('Hat nicht geklappt', 'Kühlstelle konnte nicht deaktiviert werden. Bitte im Büro prüfen.', '!');
     }
   });
 }
@@ -933,64 +1317,217 @@ function renderCleaningChecks() {
   `;
 }
 
-function temperatureDoneText(entry, station) {
-  if (!entry) return `Gut bis ${station.warnAbove} ${station.unit || '°C'}`;
-  const value = entry.value != null ? entry.value : entry.wert;
-  const unit = entry.einheit || station.unit || '°C';
-  return `Heute gespeichert: ${value} ${unit}`;
+function renderRestDayBadge() {
+  return '<span class="haccp-badge haccp-badge--rest">Ruhetag / Ausgeschaltet</span>';
 }
 
-function renderTemperatureStationCard(station) {
-  const completion = temperatureCompletionForStation(station);
-  const done = Boolean(completion);
-  const warnId = `temp-warn-${safeDomId(station.id)}`;
+function renderAmpelClass(inRange) {
+  if (inRange == null) return '';
+  return inRange ? ' haccp-task-card--ampel-ok' : ' haccp-task-card--ampel-bad';
+}
+
+function renderManualDeviceCard(device, { locked = false } = {}) {
+  const restDay = isDeviceRestDay(device);
+  const completion = temperatureCompletionForDevice(device);
+  const entry = ensureRoundEntry(device.id);
+  const value = completion
+    ? (completion.value != null ? completion.value : completion.wert)
+    : entry.value;
+  const hasValue = value != null && value !== '' && Number.isFinite(Number(value));
+  const inRange = hasValue ? tempInRange(device, value) : null;
+  const done = Boolean(completion) || (restDay && locked);
+  const presets = tempPresetsForDevice(device);
+  const disabled = locked || Boolean(completion) || restDay;
+
   return `
-    <div class="haccp-task-card${done ? ' haccp-task-card--done' : ''}">
-      <div class="haccp-task-title">${escapeHtml(station.name)}</div>
+    <div class="haccp-task-card${done || restDay ? ' haccp-task-card--done' : ''}${renderAmpelClass(inRange)}" data-haccp-device-card="${escapeHtml(device.id)}">
+      <div class="haccp-task-title-row">
+        <div class="haccp-task-title">${escapeHtml(device.name)}</div>
+        ${restDay ? renderRestDayBadge() : ''}
+      </div>
       <div class="haccp-task-meta">
-        ${escapeHtml(temperatureDoneText(completion, station))}
-        ${station.optionalHint ? `<span class="haccp-temp-optional">${escapeHtml(station.optionalHint)}</span>` : ''}
+        ${escapeHtml(formatSollRange(device))}
+        · ${escapeHtml(device.bereich)}
+        ${Array.isArray(device.activeDays) && device.activeDays.length ? ` · Aktiv: ${escapeHtml(formatActiveDaysLabel(device))}` : ''}
       </div>
-      <div class="haccp-task-actions">
-        <input
-          id="temp-${safeDomId(station.id)}"
-          type="number"
-          inputmode="decimal"
-          class="input-text-touch haccp-temp-input"
-          step="0.1"
-          min="-40"
-          placeholder="Messwert in ${escapeHtml(station.unit || '°C')}"
-          data-haccp-temp-input="${escapeHtml(station.id)}"
-          ${done ? `value="${escapeHtml(completion.value != null ? completion.value : completion.wert)}" disabled` : ''}>
-        <button
-          class="btn btn-primary haccp-save-wide"
-          type="button"
-          data-haccp-save-temp="${escapeHtml(station.id)}"
-          ${done ? 'disabled' : ''}>${done ? '✓ Gespeichert' : 'Speichern'}</button>
-      </div>
-      <div class="haccp-team-warn" id="${warnId}" role="status" aria-live="polite" hidden>Wert erhöht. Bitte Kühlung prüfen.</div>
+      ${restDay ? `
+        <div class="haccp-rest-note">Heute keine Prüfung nötig – die Theke ist laut Plan aus.</div>
+      ` : `
+        <div class="haccp-stepper-row">
+          <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad weniger">−</button>
+          <input
+            id="temp-${safeDomId(device.id)}"
+            type="number"
+            inputmode="decimal"
+            class="input-text-touch haccp-temp-input"
+            step="0.5"
+            min="-40"
+            max="40"
+            placeholder="°C"
+            data-haccp-temp-input="${escapeHtml(device.id)}"
+            value="${hasValue ? escapeHtml(value) : ''}"
+            ${disabled ? 'disabled' : ''}>
+          <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad mehr">+</button>
+        </div>
+        ${presets.length && !disabled ? `
+          <div class="haccp-preset-row" role="group" aria-label="Schnellwerte">
+            ${presets.map((preset) => `
+              <button type="button" class="btn haccp-preset-btn" data-haccp-preset="${escapeHtml(device.id)}" data-haccp-preset-value="${preset}">
+                ${String(preset).replace('.', ',')} ${escapeHtml(device.unit || '°C')}
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+        ${hasValue ? `
+          <div class="haccp-ampel-label ${inRange ? 'haccp-ampel-label--ok' : 'haccp-ampel-label--bad'}" role="status">
+            ${inRange ? 'Im Sollbereich' : 'Außerhalb – bitte Kühlung prüfen'}
+          </div>
+        ` : ''}
+        ${completion ? `<div class="haccp-task-meta">Heute gespeichert${completion.doneBy ? ` · ${escapeHtml(completion.doneBy)}` : ''}</div>` : ''}
+      `}
     </div>
   `;
 }
 
+function renderVerbundOverrideRow(device, { locked = false } = {}) {
+  const completion = temperatureCompletionForDevice(device);
+  const entry = ensureRoundEntry(device.id);
+  const value = completion
+    ? (completion.value != null ? completion.value : completion.wert)
+    : entry.value;
+  const hasValue = value != null && value !== '' && Number.isFinite(Number(value));
+  const inRange = hasValue ? tempInRange(device, value) : null;
+  const centralOk = Boolean(completion?.source === 'central' || entry.centralOk);
+  const disabled = locked || Boolean(completion);
+
+  return `
+    <div class="haccp-verbund-row${centralOk && !hasValue ? ' haccp-verbund-row--ok' : ''}${renderAmpelClass(inRange)}">
+      <div class="haccp-verbund-row-head">
+        <strong>${escapeHtml(device.name)}</strong>
+        <span>${escapeHtml(formatSollRange(device))}</span>
+      </div>
+      <div class="haccp-stepper-row haccp-stepper-row--compact">
+        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''}>−</button>
+        <input
+          id="temp-${safeDomId(device.id)}"
+          type="number"
+          inputmode="decimal"
+          class="input-text-touch haccp-temp-input"
+          step="0.5"
+          placeholder="Ist °C"
+          data-haccp-temp-input="${escapeHtml(device.id)}"
+          value="${hasValue ? escapeHtml(value) : ''}"
+          ${disabled ? 'disabled' : ''}>
+        <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''}>+</button>
+      </div>
+      <div class="haccp-verbund-row-meta">
+        ${centralOk && !hasValue ? 'OK (Zentralsteuerung)' : (hasValue ? (inRange ? 'Einzelwert im Soll' : 'Einzelwert außerhalb') : 'Optional: abweichenden Ist-Wert eintragen')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCentralVerbundSection(locked) {
+  const devices = verbundDevices();
+  if (!devices.length) return '';
+  const allCentral = devices.every((device) => {
+    const entry = ensureRoundEntry(device.id);
+    const completion = temperatureCompletionForDevice(device);
+    return Boolean(completion) || entry.centralOk || isDeviceRestDay(device);
+  });
+  return `
+    <section class="haccp-temp-group" aria-label="Obergeschoss Verbundanlage">
+      <div class="haccp-cleaning-group-title">Obergeschoss · Verbundanlage</div>
+      <div class="haccp-central-card">
+        <div class="haccp-task-title">Zentralsteuerung Verbundanlage OG (${devices.length} Kühlstellen)</div>
+        <div class="haccp-task-meta">Ein Tipp quittiert alle OG-Stellen als geprüft und normgerecht. Abweichende Kammern können unten einzeln nachgetragen werden.</div>
+        <button
+          type="button"
+          class="btn btn-primary haccp-central-btn${allCentral ? ' haccp-central-btn--done' : ''}"
+          data-haccp-central-verify="1"
+          ${locked || allCentral ? 'disabled' : ''}>
+          ${allCentral ? '✓ Zentraldisplay geprüft & alle Werte normgerecht' : '✅ Zentraldisplay geprüft & alle Werte normgerecht'}
+        </button>
+        <details class="haccp-collapsible haccp-central-details"${haccpState.centralDetailsOpen ? ' open' : ''}>
+          <summary>Einzelne Soll-/Ist-Korrektur</summary>
+          <div class="haccp-collapsible-body haccp-verbund-list">
+            ${devices.map((device) => renderVerbundOverrideRow(device, { locked })).join('')}
+          </div>
+        </details>
+      </div>
+    </section>
+  `;
+}
+
+function renderManualSections(locked) {
+  const devices = manualTemperatureDevices();
+  if (!devices.length) {
+    return `
+      <div class="haccp-daily-intro">
+        <strong>Laden &amp; Lager</strong>
+        <span>Noch keine manuellen Messpunkte. Unter „+“ können wir Kühlstellen anlegen.</span>
+      </div>
+    `;
+  }
+  const byArea = HACCP_BEREICHE
+    .map((bereich) => ({
+      bereich,
+      devices: devices.filter((device) => device.bereich === bereich),
+    }))
+    .filter((group) => group.devices.length);
+  const other = devices.filter((device) => !HACCP_BEREICHE.includes(device.bereich));
+  if (other.length) byArea.push({ bereich: 'Weitere', devices: other });
+
+  return byArea.map((group) => `
+    <section class="haccp-temp-group" aria-label="${escapeHtml(group.bereich)}">
+      <div class="haccp-cleaning-group-title">${escapeHtml(group.bereich === 'Verkauf' || group.bereich === 'Lager' ? `${group.bereich} · Manuelle Messpunkte` : group.bereich)}</div>
+      <div class="haccp-task-list">
+        ${group.devices.map((device) => renderManualDeviceCard(device, { locked })).join('')}
+      </div>
+    </section>
+  `).join('');
+}
+
 function renderTemperatureChecks() {
+  const devices = sortedTemperatureDevices();
+  const savedRound = temperatureRoundSavedToday();
+  const locked = Boolean(savedRound);
+  const employee = readActiveEmployeeName();
+  const ready = allRequiredDevicesCaptured() && !locked;
+  const requiredCount = devices.filter((device) => isDeviceRequiredToday(device)).length;
+  const capturedCount = devices.filter((device) => isDeviceRequiredToday(device) && isDeviceCapturedInRound(device)).length;
+
+  if (!devices.length) {
+    return `
+      <div class="haccp-daily-intro">
+        <strong>Temperatur-Rundgang</strong>
+        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Unter „+“ richten wir die Messpunkte ein – oder wir spielen den StevesHof-Seed ein.</span>
+      </div>
+    `;
+  }
+
   return `
     <div class="haccp-daily-intro">
-      <strong>Kühlstellen im Verkauf</strong>
-      <span>Wir tragen die Werte unserer Kühlstellen ein. Bereits gespeicherte Werte bleiben für heute abgehakt.</span>
+      <strong>Temperatur-Rundgang</strong>
+      <span>Wir prüfen Zentralsteuerung und Laden-Kühlstellen. Ruhetage brauchen keinen Messwert.</span>
+    </div>
+    <div class="haccp-employee-chip" aria-live="polite">
+      Aktiver Mitarbeiter: <strong>${escapeHtml(employee || 'Noch nicht gewählt')}</strong>
     </div>
     <div class="haccp-temp-groups">
-      ${HACCP_TEMPERATURE_GROUPS.map((group) => `
-        <section class="haccp-temp-group" aria-label="${escapeHtml(group.title)}">
-          <div class="haccp-cleaning-group-title">${escapeHtml(group.title)}</div>
-          <div class="haccp-task-list">
-            ${allTemperatureStations()
-              .filter((station) => station.groupId === group.id)
-              .map(renderTemperatureStationCard)
-              .join('')}
-          </div>
-        </section>
-      `).join('')}
+      ${renderCentralVerbundSection(locked)}
+      ${renderManualSections(locked)}
+    </div>
+    <div class="haccp-round-footer">
+      <div class="haccp-round-progress">${capturedCount} von ${requiredCount} heute aktiven Stellen erfasst</div>
+      <button
+        type="button"
+        class="btn btn-primary btn-submit-haccp"
+        data-haccp-save-round="1"
+        ${ready ? '' : 'disabled'}>
+        RUNDGANG ABSPEICHERN &amp; PROTOKOLLIEREN
+      </button>
+      ${locked ? `<div class="haccp-task-meta">Heute bereits gespeichert${savedRound.doneBy ? ` von ${escapeHtml(savedRound.doneBy)}` : ''}.</div>` : ''}
     </div>
   `;
 }
@@ -1013,37 +1550,72 @@ function renderHaccpDaily() {
     return;
   }
 
+  const setupDevices = resolveVisibleHaccpDevices()
+    .map((entry) => normalizeHaccpDevice(entry))
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name), 'de'));
+
   container.innerHTML = `
     <div class="haccp-device-form">
       <div class="haccp-setup-note">
-        <strong>Kühlstellen & Aufgaben einrichten</strong>
-        <span>Nur ändern, wenn im Laden oder in der Produktion etwas neu dazukommt. Die Tageskontrolle bleibt vorne.</span>
+        <strong>Kühlstellen einrichten</strong>
+        <span>${haccpState.editingDeviceId ? 'Bestehende Kühlstelle bearbeiten.' : 'Neue Messpunkte für den Temperatur-Rundgang anlegen. Nur ändern, wenn im Laden etwas neu dazukommt.'}</span>
       </div>
-      <input id="haccp-device-name" class="input-text-touch" placeholder="Kühlstelle oder Aufgabe">
+      <input id="haccp-device-name" class="input-text-touch" placeholder="Name der Kühlstelle" autocomplete="off">
       <div class="batch-input-grid">
-        <select id="haccp-device-type" class="input-text-touch">
-          <option value="temperatur">Temperatur</option>
-          <option value="reinigung">Reinigung</option>
+        <select id="haccp-device-type" class="input-text-touch" aria-label="Gerätetyp">
+          ${HACCP_DEVICE_TYPES.map((entry) => `<option value="${escapeHtml(entry.value)}">${escapeHtml(entry.label)}</option>`).join('')}
         </select>
-        <input id="haccp-device-area" class="input-text-touch" placeholder="Bereich">
+        <select id="haccp-device-area" class="input-text-touch" aria-label="Bereich">
+          ${HACCP_BEREICHE.map((bereich) => `<option value="${escapeHtml(bereich)}">${escapeHtml(bereich)}</option>`).join('')}
+        </select>
       </div>
       <div class="batch-input-grid">
-        <input id="haccp-device-min" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Soll min">
-        <input id="haccp-device-max" type="number" inputmode="decimal" class="input-text-touch" step="0.1" placeholder="Soll max">
+        <input id="haccp-device-min" type="number" inputmode="decimal" class="input-text-touch" step="0.5" placeholder="Min °C">
+        <input id="haccp-device-max" type="number" inputmode="decimal" class="input-text-touch" step="0.5" placeholder="Max °C">
       </div>
-      <button class="btn btn-primary" type="button" id="btn-add-haccp-device">Einrichtung speichern</button>
+      <input id="haccp-device-sort" type="number" inputmode="numeric" class="input-text-touch" step="1" placeholder="Reihenfolge (z. B. 10)">
+      <div class="haccp-weekday-grid" role="group" aria-label="Aktive Wochentage">
+        <div class="haccp-weekday-label">Aktive Tage (leer/alle = jeden Tag)</div>
+        <div class="haccp-weekday-checks">
+          ${WEEKDAY_LABELS.map((label, day) => `
+            <label class="haccp-weekday-check">
+              <input type="checkbox" data-haccp-active-day="${day}" checked>
+              <span>${escapeHtml(label)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <button class="btn btn-primary" type="button" id="btn-add-haccp-device">
+        ${haccpState.editingDeviceId ? 'Änderung speichern' : 'Einrichtung speichern'}
+      </button>
+      ${haccpState.editingDeviceId ? '<button class="btn" type="button" id="btn-cancel-haccp-edit">Abbrechen</button>' : ''}
       <div class="utility-list">
-        ${resolveVisibleHaccpDevices().map((device) => `
+        ${setupDevices.map((device) => `
           <div class="utility-row">
             <div class="utility-row-title">${escapeHtml(device.name)}</div>
-            <div class="utility-row-meta">${escapeHtml(device.protokollTyp || '')} · ${escapeHtml(device.bereich || '')} · ${device.localFlyFallback ? 'lokal (Upgrade)' : device.aktiv === false ? 'inaktiv' : 'aktiv'}</div>
-            ${device.aktiv === false ? '' : `<div class="utility-row-actions"><button class="btn-danger-small" type="button" data-haccp-deactivate="${escapeHtml(device.id)}">Deaktivieren</button></div>`}
+            <div class="utility-row-meta">
+              ${escapeHtml(device.type || device.protokollTyp || '')}
+              · ${escapeHtml(device.bereich || '')}
+              · ${escapeHtml(formatSollRange(device))}
+              · ${escapeHtml(formatActiveDaysLabel(device))}
+              · ${device.localFlyFallback ? 'lokal (Upgrade)' : (device.isActive === false ? 'inaktiv' : 'aktiv')}
+            </div>
+            ${device.isActive === false ? '' : `
+              <div class="utility-row-actions">
+                ${isTemperatureDeviceType(device.type) ? `<button class="btn-danger-small" type="button" data-haccp-edit="${escapeHtml(device.id)}">Bearbeiten</button>` : ''}
+                <button class="btn-danger-small" type="button" data-haccp-deactivate="${escapeHtml(device.id)}">Deaktivieren</button>
+              </div>
+            `}
           </div>
         `).join('')}
       </div>
     </div>
   `;
   document.getElementById('btn-add-haccp-device')?.addEventListener('click', addHaccpDeviceFromForm);
+  document.getElementById('btn-cancel-haccp-edit')?.addEventListener('click', () => {
+    haccpState.editingDeviceId = '';
+    renderHaccpDaily();
+  });
   bindRenderedHaccpActions(container);
 }
 
@@ -1054,15 +1626,33 @@ function bindHaccpPersonPicker(container) {
   });
 }
 
-function updateHaccpTemperatureWarning(stationId) {
-  const station = temperatureStationById(stationId);
-  const input = document.getElementById(`temp-${safeDomId(stationId)}`);
-  const warn = document.getElementById(`temp-warn-${safeDomId(stationId)}`);
-  if (!station || !input || !warn) return;
+function updateHaccpTemperatureAmpel(deviceId) {
+  const device = sortedTemperatureDevices().find((entry) => entry.id === deviceId);
+  const input = document.getElementById(`temp-${safeDomId(deviceId)}`);
+  const card = document.querySelector(`[data-haccp-device-card="${CSS.escape?.(deviceId) || deviceId}"]`)
+    || input?.closest('.haccp-task-card, .haccp-verbund-row');
+  if (!device || !input) return;
+  setRoundTempValue(deviceId, input.value);
   const hasValue = input.value !== '' && Number.isFinite(Number(input.value));
-  const tooWarm = hasValue && isTemperatureTooWarm(input.value, station.warnAbove);
-  input.classList.toggle('haccp-input--warn', tooWarm);
-  warn.hidden = !tooWarm;
+  const inRange = hasValue ? tempInRange(device, input.value) : null;
+  input.classList.toggle('haccp-input--warn', inRange === false);
+  input.classList.toggle('haccp-input--ok', inRange === true);
+  if (card) {
+    card.classList.toggle('haccp-task-card--ampel-ok', inRange === true);
+    card.classList.toggle('haccp-task-card--ampel-bad', inRange === false);
+  }
+  const saveBtn = document.querySelector('[data-haccp-save-round]');
+  if (saveBtn) {
+    const locked = Boolean(temperatureRoundSavedToday());
+    saveBtn.disabled = locked || !allRequiredDevicesCaptured();
+  }
+  const progress = document.querySelector('.haccp-round-progress');
+  if (progress) {
+    const devices = sortedTemperatureDevices();
+    const requiredCount = devices.filter((entry) => isDeviceRequiredToday(entry)).length;
+    const capturedCount = devices.filter((entry) => isDeviceRequiredToday(entry) && isDeviceCapturedInRound(entry)).length;
+    progress.textContent = `${capturedCount} von ${requiredCount} heute aktiven Stellen erfasst`;
+  }
 }
 
 function bindRenderedHaccpActions(container) {
@@ -1070,10 +1660,16 @@ function bindRenderedHaccpActions(container) {
     button.addEventListener('click', () => saveCleaningCheck(button.dataset.haccpSaveClean));
   });
   container.querySelectorAll('[data-haccp-temp-input]').forEach((input) => {
-    updateHaccpTemperatureWarning(input.dataset.haccpTempInput);
+    updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
   });
   container.querySelectorAll('[data-haccp-deactivate]').forEach((button) => {
     button.addEventListener('click', () => deactivateHaccpDevice(button.dataset.haccpDeactivate));
+  });
+  container.querySelectorAll('[data-haccp-edit]').forEach((button) => {
+    button.addEventListener('click', () => editHaccpDevice(button.dataset.haccpEdit));
+  });
+  container.querySelector('.haccp-central-details')?.addEventListener('toggle', (event) => {
+    haccpState.centralDetailsOpen = Boolean(event.target.open);
   });
 }
 
@@ -1082,15 +1678,38 @@ function bindStaticHaccpControls() {
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
     dailyContainer.dataset.haccpDelegated = '1';
     dailyContainer.addEventListener('click', (event) => {
-      const saveBtn = event.target.closest('[data-haccp-save-temp]');
-      if (saveBtn?.dataset.haccpSaveTemp) {
-        saveTemperatureCheck(saveBtn.dataset.haccpSaveTemp);
+      const centralBtn = event.target.closest('[data-haccp-central-verify]');
+      if (centralBtn) {
+        markCentralControlVerified();
+        return;
+      }
+      const saveRoundBtn = event.target.closest('[data-haccp-save-round]');
+      if (saveRoundBtn) {
+        void saveTemperatureRound();
+        return;
+      }
+      const stepBtn = event.target.closest('[data-haccp-step]');
+      if (stepBtn?.dataset.haccpStep) {
+        stepRoundTemp(stepBtn.dataset.haccpStep, Number(stepBtn.dataset.haccpStepDelta || 0));
+        return;
+      }
+      const presetBtn = event.target.closest('[data-haccp-preset]');
+      if (presetBtn?.dataset.haccpPreset) {
+        setRoundTempValue(presetBtn.dataset.haccpPreset, Number(presetBtn.dataset.haccpPresetValue));
+        renderHaccpDaily();
       }
     });
     dailyContainer.addEventListener('input', (event) => {
       const input = event.target.closest('[data-haccp-temp-input]');
       if (input?.dataset.haccpTempInput) {
-        updateHaccpTemperatureWarning(input.dataset.haccpTempInput);
+        updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
+      }
+    });
+    dailyContainer.addEventListener('change', (event) => {
+      const input = event.target.closest('[data-haccp-temp-input]');
+      if (input?.dataset.haccpTempInput) {
+        updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
+        renderHaccpDaily();
       }
     });
   }
@@ -1128,8 +1747,14 @@ function generateHaccpPrintView() {
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
   const logs = (haccpState.logs || []).filter((entry) => (entry.datum || '') >= cutoffStr);
-  const tempLogs = logs.filter((entry) => entry.logTyp === 'temperatur' || entry.logTyp === 'protokoll');
-  const cleanLogs = logs.filter((entry) => entry.logTyp === 'reinigung');
+  const tempLogs = logs.filter((entry) => (
+    entry.logTyp === 'temperatur'
+    || entry.logTyp === 'temperatur_rundgang'
+    || entry.logTyp === 'protokoll'
+    || entry.type === 'temperature'
+    || entry.type === 'temperature_round'
+  ));
+  const cleanLogs = logs.filter((entry) => entry.logTyp === 'reinigung' || entry.type === 'cleaning');
 
   const formatDate = (date) => {
     if (!date) return '-';
@@ -1137,16 +1762,30 @@ function generateHaccpPrintView() {
     return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : date;
   };
 
-  const tempRows = tempLogs.map((entry) => `
+  const tempRows = tempLogs.flatMap((entry) => {
+    if ((entry.type === 'temperature_round' || entry.logTyp === 'temperatur_rundgang') && Array.isArray(entry.measurements)) {
+      return entry.measurements.map((row) => `
+        <tr>
+          <td>${formatDate(entry.datum)}</td>
+          <td>${escapeHtml(row.deviceName || '-')}</td>
+          <td>${escapeHtml(row.bereich || entry.bereich || '-')}</td>
+          <td>${escapeHtml(row.value != null ? row.value : (row.wert != null ? row.wert : (row.source === 'central' ? 'Zentral OK' : '-')))} ${escapeHtml(row.einheit || '°C')}</td>
+          <td>${escapeHtml(entry.doneBy || '-')}</td>
+          <td class="${row.status === 'ok' || row.status === 'ruhetag' ? 'status-ok' : 'status-warn'}">${escapeHtml(row.status === 'ok' ? 'OK' : (row.status || 'Erfasst'))}</td>
+          <td>${escapeHtml(row.massnahme || (entry.centralControlVerified ? 'Zentralsteuerung geprüft' : '-'))}</td>
+        </tr>`;
+    }
+    return [`
     <tr>
       <td>${formatDate(entry.datum)}</td>
       <td>${escapeHtml(entry.facility || entry.deviceName || entry.chargenNummer || '-')}</td>
       <td>${escapeHtml(entry.bereich || '-')}</td>
-      <td>${escapeHtml(entry.value != null ? entry.value : (entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '-')))} ${escapeHtml(entry.einheit || '°C')}</td>
-      <td>${escapeHtml(entry.ph != null ? entry.ph : '-')}</td>
+      <td>${escapeHtml(entry.value != null ? entry.value : (entry.wert != null ? entry.wert : (entry.temperatur != null ? entry.temperatur : '-')))} ${escapeHtml(entry.einheit || entry.unit || '°C')}</td>
+      <td>${escapeHtml(entry.doneBy || (entry.ph != null ? entry.ph : '-'))}</td>
       <td class="${entry.status === 'ok' ? 'status-ok' : 'status-warn'}">${escapeHtml(entry.status === 'ok' ? 'OK' : (entry.status || 'Erfasst'))}</td>
       <td>${escapeHtml(entry.massnahme || '-')}</td>
-    </tr>`).join('');
+    </tr>`];
+  }).join('');
 
   const cleanRows = cleanLogs.map((entry) => `
     <tr>
@@ -1186,7 +1825,7 @@ function generateHaccpPrintView() {
 
   <h2>Temperatur- & Messprotokolle (${tempLogs.length} Einträge)</h2>
   ${tempLogs.length ? `<table>
-    <thead><tr><th>Datum</th><th>Gerät / Charge</th><th>Bereich</th><th>Temperatur</th><th>pH</th><th>Status</th><th>Maßnahme</th></tr></thead>
+    <thead><tr><th>Datum</th><th>Gerät / Charge</th><th>Bereich</th><th>Temperatur</th><th>Bearbeiter</th><th>Status</th><th>Maßnahme</th></tr></thead>
     <tbody>${tempRows}</tbody>
   </table>` : '<p style="color:#888;margin:8px 0;">Keine Temperaturprotokolle im Zeitraum.</p>'}
 
