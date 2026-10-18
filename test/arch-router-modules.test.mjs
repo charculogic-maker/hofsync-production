@@ -38,14 +38,18 @@ describe('Architektur: Modul-SSOT & Router', () => {
     expect(html).to.match(/id="page-orders"/);
     expect(html).to.match(/id="view-orders"/);
     expect(html).to.match(/data-tab="orders"/);
-    expect(html).to.match(/data-betrieb-module="orders"/);
+    expect(html).to.match(/data-module-key="orders"/);
+    expect(html).to.match(/id="dev-dashboard-betrieb-modules-list"/);
+    expect(html).to.not.match(/data-betrieb-module=/);
   });
 
-  it('persistiert orders als Merge-Patch im Dev-Dashboard', () => {
+  it('persistiert orders als Merge-Patch im Dev-Dashboard (Plattform)', () => {
     const dash = read('web/dev-dashboard.js');
     expect(dash).to.include('buildEnabledModulesFieldPatch');
     expect(dash).to.include('enabledModules.${key}');
     expect(dash).to.match(/key:\s*'orders'/);
+    expect(dash).to.match(/averyLabels:\s*'Avery Etiketten'/);
+    expect(dash).to.not.include('readBetriebModulePatch');
   });
 
   it('SW-Cache ist supplier-split-v1', () => {

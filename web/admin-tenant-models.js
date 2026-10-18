@@ -52,6 +52,12 @@ export const TENANT_MODULE_CATALOG = Object.freeze([
   { key: 'mhd', label: 'MHD', hint: 'Mindesthaltbarkeit prüfen', opsNav: true },
   { key: 'receiving', label: 'Wareneingang', hint: 'Lieferungen erfassen', opsNav: true },
   { key: 'kitchen', label: 'Küche', hint: 'Produktion / Wurstküche', opsNav: true },
+  {
+    key: 'averyLabels',
+    label: 'Avery Etiketten',
+    hint: 'Zerlege- & Reife-Etiketten (Avery 3475)',
+    opsNav: true,
+  },
   { key: 'haccp', label: 'HACCP', hint: 'Tageskontrollen (Verwaltung)', opsNav: false },
   { key: 'knowledge', label: 'Wissen', hint: 'Handbücher & Lexikon', opsNav: false },
   { key: 'buero', label: 'Büro', hint: 'Produktionschargen', opsNav: false },
@@ -61,6 +67,8 @@ export const TENANT_MODULE_CATALOG = Object.freeze([
     hint: 'Thekenbuch / LMIV-Herkunft (Laden-Alltag)',
     opsNav: true,
   },
+  { key: 'retterBox', label: 'Retter-Box', hint: 'Abverkauf / Retter-Box', opsNav: false },
+  { key: 'rezeptAudit', label: 'Rezept-Audit', hint: 'Rezept-Prüfung', opsNav: false },
 ]);
 
 /** @type {Readonly<Record<string, string>>} */

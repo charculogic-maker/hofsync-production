@@ -646,7 +646,7 @@
                   <section class="dev-dashboard-panel" aria-label="Betriebseinstellungen">
                     <h2 class="dev-dashboard-section-title">Mein Betrieb</h2>
                     <p class="dev-dashboard-intro">
-                      Firmenname, Logo und freigeschaltete Module für den ausgewählten Betrieb.
+                      Firmenname, Logo und Übersicht der freigeschalteten Module für den ausgewählten Betrieb.
                     </p>
                     <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
                       <label class="dev-dashboard-field" for="dev-dashboard-settings-name">
@@ -665,48 +665,16 @@
                         </div>
                       </div>
                       <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
-                        <legend>Modul-Freischaltung</legend>
+                        <legend>Aktive Module</legend>
                         <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
-                          MHD-Monitor, Wareneingang, Wurstküche, Avery-Etiketten, HACCP, Teamboard, Team, Kundenbestellungen &amp; Packtisch sowie Büro und Chargen.
+                          Nur Anzeige. Freischaltungen nimmt die Plattform-Verwaltung unter „Plattform &amp; Mandanten“ vor.
                         </p>
-                        <div class="dev-dashboard-permissions-row">
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="mhd">
-                            <span>MHD-Monitor</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="receiving">
-                            <span>Wareneingang</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="kitchen">
-                            <span>Wurstküche &amp; Rezepte</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="averyLabels">
-                            <span>Avery-Etiketten (Zerlege/Reife)</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="haccp">
-                            <span>HACCP</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="start">
-                            <span>Teamboard</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="team">
-                            <span>Team</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="orders">
-                            <span>Kundenbestellungen &amp; Packtisch</span>
-                          </label>
-                          <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                            <input type="checkbox" data-betrieb-module="buero">
-                            <span>Büro &amp; Chargen</span>
-                          </label>
-                        </div>
+                        <div
+                          class="dev-dashboard-module-badges"
+                          id="dev-dashboard-betrieb-modules-list"
+                          role="list"
+                          aria-live="polite"
+                        ></div>
                       </fieldset>
                       <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>MHD-Karten-Aktionen</legend>

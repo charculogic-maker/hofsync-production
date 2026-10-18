@@ -12182,6 +12182,33 @@ body.dev-dashboard-view[hidden] {
   gap: 8px 12px;
 }
 
+.dev-dashboard-module-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.dev-dashboard-module-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #1b5e20) 28%, #cbd5e1);
+  background: color-mix(in srgb, var(--primary-color, #1b5e20) 10%, #fff);
+  color: var(--primary-color, #1b5e20);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.dev-dashboard-module-badges-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
 .dev-dashboard-employee-name strong {
   display: block;
 }
