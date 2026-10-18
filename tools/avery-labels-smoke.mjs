@@ -62,12 +62,21 @@ const stats = await page.evaluate(() => {
     ? getComputedStyle(card.querySelector('.lbl-meta-main'))
     : null;
   const cs = card ? getComputedStyle(card) : null;
+  const titleClipped = title
+    ? title.scrollHeight > title.clientHeight + 1
+    : true;
+  const anyTitleClipped = cards.some((c) => {
+    const t = c.querySelector('.lbl-title');
+    return t ? t.scrollHeight > t.clientHeight + 1 : false;
+  });
   return {
     bg: cs?.backgroundColor || '',
     titles: cards.map((c) => c.querySelector('.lbl-title')?.textContent?.trim()),
     titleText: title?.textContent?.trim() || '',
     titleHeight: titleBox?.height || 0,
     heroHeight: heroBox?.height || 0,
+    titleClipped,
+    anyTitleClipped,
     slotRatio: rect && rect.height ? Number((rect.width / rect.height).toFixed(2)) : 0,
     slotWidth: rect?.width || 0,
     hasArt: /ART\./i.test(card?.textContent || ''),
@@ -77,6 +86,7 @@ const stats = await page.evaluate(() => {
     hasFoot: Boolean(card?.querySelector('.lbl-foot')),
     foot: card?.querySelector('.lbl-foot')?.textContent?.trim() || '',
     lotText,
+    lotHasEllipsisChars: /\.\.\./.test(lotText),
     lotEllipsis: lotCs?.textOverflow === 'ellipsis',
     lotOverflow: lotCs?.overflow || '',
     sheetMinWidth: sheet ? getComputedStyle(sheet).minWidth : '',
@@ -96,13 +106,15 @@ if (!stats.hasHero || !stats.hasMeta || !stats.hasFoot) {
 if (!/Falsches Filet/i.test(stats.titleText)) {
   throw new Error(`Expected Falsches Filet, got "${stats.titleText}"`);
 }
-if (stats.titleHeight < 20) {
-  throw new Error(`Two-line title too short/clipped: h=${stats.titleHeight}`);
+if (stats.titleClipped || stats.anyTitleClipped) {
+  throw new Error(`Title clipped (scrollHeight > clientHeight): ${JSON.stringify(stats.titles)}`);
 }
 if (!/Gekühlt bei 0–2 °C lagern/.test(stats.foot)) {
   throw new Error(`Foot line wrong: ${stats.foot}`);
 }
-if (stats.lotEllipsis) throw new Error('LOT must not use text-overflow ellipsis');
+if (stats.lotEllipsis || stats.lotHasEllipsisChars) {
+  throw new Error(`LOT must not be ellipsized: "${stats.lotText}" overflow=${stats.lotOverflow}`);
+}
 if (stats.slotWidth < 180) {
   throw new Error(`Preview slot too narrow (mobile squash): ${stats.slotWidth}px`);
 }
