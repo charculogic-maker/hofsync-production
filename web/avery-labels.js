@@ -830,9 +830,21 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
     font-family: -apple-system, Helvetica, Arial, sans-serif;
   }
   .ios-print-bar p { margin: 0; font-size: 14px; line-height: 1.35; }
+  .ios-print-bar .ios-print-actions {
+    display: flex; flex-direction: column; gap: 8px;
+  }
   .ios-print-bar button {
-    min-height: 44px; border: 0; border-radius: 10px;
-    background: #f8fafc; color: #0f172a; font-weight: 800; font-size: 16px;
+    min-height: 48px; border: 0; border-radius: 10px;
+    font-weight: 800; font-size: 16px; width: 100%;
+  }
+  .ios-print-bar .ios-print-go {
+    background: #f59e0b; color: #0f172a;
+  }
+  .ios-print-bar .ios-print-close {
+    background: #f8fafc; color: #0f172a;
+  }
+  .ios-print-scroll {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .avery-sheet {
     display: grid;
@@ -853,13 +865,39 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
     box-sizing: border-box; display: flex; flex-direction: column;
     font-family: Helvetica, Arial, sans-serif; color: #000; background: #fff;
   }
-  .lbl-farm { font-size: 5pt; font-weight: 700; margin-bottom: 0.4mm; }
-  .lbl-hero { flex: 1 1 55%; padding: 0.4mm 0.5mm; }
-  .lbl-title { font-size: 12pt; font-weight: 900; line-height: 1.15; }
-  .lbl-meta {
-    display: flex; justify-content: space-between; gap: 2mm;
-    margin-top: 0.4mm; padding-top: 1mm; border-top: 0.6pt solid #000;
+  .lbl-farm {
+    font-size: 5pt; font-weight: 700; margin-bottom: 0.4mm;
+    text-align: center; text-transform: uppercase;
   }
+  .lbl-hero {
+    flex: 1 1 55%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 0;
+    padding: 0.4mm 0.5mm;
+  }
+  .lbl-title {
+    display: block;
+    max-width: 100%;
+    font-size: 12pt;
+    font-weight: 900;
+    line-height: 1.15;
+    text-align: center;
+    text-transform: uppercase;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .lbl-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4mm 2mm;
+    margin-top: 0.4mm;
+    padding-top: 1mm;
+    border-top: 0.6pt solid #000;
+  }
+  .lbl-meta-right { text-align: right; }
   .lbl-meta-main, .lbl-meta-sub {
     font-size: 5.5pt; font-weight: 700; line-height: 1.25; white-space: nowrap;
   }
@@ -867,24 +905,39 @@ function buildIosPrintDocumentHtml(sheetsInnerHtml) {
     margin-top: 0.5mm; padding-top: 0.5mm;
     border-top: 0.3pt dashed #64748b;
     font-size: 4.8pt; font-weight: 600; color: #1e293b;
+    text-align: center;
   }
   @media print {
     .ios-print-bar { display: none !important; }
+    .ios-print-scroll { overflow: visible !important; }
     body { padding: 4.5mm 0; }
   }
 </style>
 </head><body>
 <div class="ios-print-bar">
-  <p>Druckdialog öffnet sich automatisch. Danach dieses Fenster schließen und in der App auf Fertig tippen.</p>
-  <button type="button" id="ios-print-close">Fenster schließen</button>
+  <p>Tippe auf <strong>Jetzt drucken</strong>. Danach dieses Fenster schließen und in der App auf Fertig tippen.</p>
+  <div class="ios-print-actions">
+    <button type="button" class="ios-print-go" id="ios-print-go">Jetzt drucken</button>
+    <button type="button" class="ios-print-close" id="ios-print-close">Fenster schließen</button>
+  </div>
 </div>
+<div class="ios-print-scroll">
 ${sheetsInnerHtml}
+</div>
 <script>
+  function runPrint() {
+    try { window.focus(); window.print(); } catch (e) {}
+  }
+  document.getElementById('ios-print-go')?.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    runPrint();
+  });
   document.getElementById('ios-print-close')?.addEventListener('click', function () {
     try { window.close(); } catch (e) {}
   });
+  // Auto-Versuch; Fallback bleibt der sichtbare Button „Jetzt drucken“
   window.addEventListener('load', function () {
-    try { window.focus(); window.print(); } catch (e) {}
+    setTimeout(runPrint, 350);
   });
 <\/script>
 </body></html>`;
