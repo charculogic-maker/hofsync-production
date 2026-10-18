@@ -3,20 +3,20 @@
  * Zentrale Konstanten für Badge, einmaligen Update-Toast und Changelog-Popover.
  */
 
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
-export const APP_VERSION_TAG = `v${APP_VERSION}-20260915`;
-export const APP_RELEASE_DATE = '2026-09-15';
+export const APP_VERSION_TAG = `v${APP_VERSION}-20261018`;
+export const APP_RELEASE_DATE = '2026-10-18';
 
 export const RELEASE_TOAST_MESSAGE =
-  'HofSync aktualisiert: VPE-Lernlogik, LIFO-Scan & MHD-Parser geladen.';
+  'HofSync aktualisiert: Avery-Zerlegesuite, neues Etiketten-Design & Mitarbeiter-Schnellwechsler.';
 
 export const RELEASE_HIGHLIGHTS = [
-  'Gebindegrößen-Erkennung (Auto-VPE)',
-  'LIFO-Reihenfolge im Wareneingang (neuester Scan oben)',
-  'Flexible 2-stellige MHD-Eingabe (29 → 2029)',
-  'Auto-Kategorienerkennung',
-  'Fixes für Lieferantenauswahl & PDF-Upload',
+  'Avery 3475 Galloway-Zerlegesuite (Schulter inkl. Brust/Hals, Rücken, Keule, Lappen, Trimmings R I–Fett & Freifeld)',
+  'Neues Etiketten-Design („Inhalt Zuerst“ mit optimierter Lesbarkeit auf 70×36 mm)',
+  'Mengen-Umschaltung im Wareneingang (STK vs. KG mit 3 Nachkommastellen)',
+  'Neuer Mitarbeiter-Schnellwechsler & feingranulare Rollensichtbarkeit',
+  'Dev-Dashboard SaaS-Refactoring (Read-Only Mandantenansicht & saubere Nutzerverwaltung)',
 ];
 
 const SEEN_RELEASE_STORAGE_KEY = 'hofsync_seen_release_version';
