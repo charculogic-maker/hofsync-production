@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-ios-print-v153';
+const CACHE_NAME = 'charculogic-v20261018-ios-print-v154';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release v1.5.0 – Multi-Bogen + iOS Print-Overlay */
-const RELEASED_AT = '2026-10-18T15:10:00+02:00';
+/** Release v1.5.0 – iOS Overlay-Drucken via Safari-Fenster */
+const RELEASED_AT = '2026-10-18T15:20:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -352,5 +352,6 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => cached || fetch(request))
   );
 });
+
 
 
