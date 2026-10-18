@@ -546,7 +546,8 @@
                       <div>
                         <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
                         <p class="dev-dashboard-intro">
-                          Nutzer suchen, Rollen setzen (Mitarbeiter / Admin) und neue Zugänge anlegen.
+                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe) und neue Zugänge anlegen.
+                          Module gehören zum Betrieb — nicht zu einzelnen Nutzern.
                         </p>
                       </div>
                       <label class="dev-dashboard-tenant-select-field" id="dev-dashboard-tenant-select-wrap" hidden>
@@ -592,23 +593,6 @@
                             <span>Startpasswort</span>
                             <input id="dev-dashboard-employee-password" type="password" required autocomplete="new-password" minlength="6">
                           </label>
-                          <fieldset class="dev-dashboard-permissions-fieldset">
-                            <legend>App-Sichtbarkeit (Start)</legend>
-                            <div class="dev-dashboard-permissions-row">
-                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                                <input id="dev-dashboard-create-mod-mhd" type="checkbox" checked>
-                                <span>MHD</span>
-                              </label>
-                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                                <input id="dev-dashboard-create-mod-kitchen" type="checkbox" checked>
-                                <span>Küche</span>
-                              </label>
-                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
-                                <input id="dev-dashboard-create-mod-buero" type="checkbox" checked>
-                                <span>Büro</span>
-                              </label>
-                            </div>
-                          </fieldset>
                           <div class="dev-dashboard-form-actions">
                             <button type="submit" class="dev-dashboard-submit-btn">Nutzer anlegen</button>
                             <button type="button" class="dev-dashboard-action-btn" id="dev-dashboard-invite-cancel-btn">Abbrechen</button>
@@ -628,7 +612,6 @@
                               <tr>
                                 <th scope="col">Person</th>
                                 <th scope="col">Rolle</th>
-                                <th scope="col">Module</th>
                                 <th scope="col">Aktionen</th>
                               </tr>
                             </thead>

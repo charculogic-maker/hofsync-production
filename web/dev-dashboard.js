@@ -1122,14 +1122,6 @@ function bindOverviewJumpLinks() {
   });
 }
 
-const EMPLOYEE_PERMISSION_KEYS = ['mhd', 'kitchen', 'buero'];
-
-const EMPLOYEE_MODULE_LABELS = {
-  mhd: 'MHD',
-  kitchen: 'Küche',
-  buero: 'Büro',
-};
-
 async function signOutFromDashboard() {
   await signOutAndShowLogin();
 }
@@ -1274,18 +1266,6 @@ const PERMISSION_DENIED_MESSAGE = 'Kein Zugriff auf diesen Betrieb. Bitte Admin 
 function isPermissionDeniedError(err) {
   const code = String(err?.code || '').toLowerCase();
   return code === 'permission-denied' || code.includes('permission');
-}
-
-function normalizeAllowedModules(value) {
-  const result = {};
-  EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
-    if (value && typeof value === 'object' && key in value) {
-      result[key] = value[key] !== false;
-    } else {
-      result[key] = true;
-    }
-  });
-  return result;
 }
 
 function hideMainAppChrome() {
@@ -1752,7 +1732,6 @@ function namesToProfileEmployees(names, tenantId) {
       displayName,
       role: 'employee',
       tenantId,
-      allowedModules: { mhd: true, kitchen: true, buero: true },
       status: 'active',
       disabled: false,
       source: 'profile',
@@ -1772,7 +1751,6 @@ async function loadEmployeeProfileFallback(tenantId, db) {
           displayName: String(data.displayName || data.name || '').trim(),
           role: String(data.role || 'employee').trim() || 'employee',
           tenantId,
-          allowedModules: data.allowedModules,
           status: data.disabled === true ? 'inactive' : 'active',
           disabled: data.disabled === true,
           source: 'employees',
@@ -1811,15 +1789,6 @@ function setEmployeeFormStatus(message = '', tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
-function readCreateFormAllowedModules() {
-  const allowedModules = {};
-  EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
-    const input = document.getElementById(`dev-dashboard-create-mod-${key}`);
-    allowedModules[key] = input instanceof HTMLInputElement ? input.checked : true;
-  });
-  return allowedModules;
-}
-
 function bindEmployeeCreateForm(dashboardState) {
   const form = document.getElementById('dev-dashboard-employee-form');
   if (!form || form.dataset.bound === '1') return;
@@ -1853,22 +1822,18 @@ function bindEmployeeCreateForm(dashboardState) {
 
     try {
       await waitForAppCheckReady();
+      // Module gehören zum Mandanten — Nutzer bekommen nur Rolle (employee).
       const result = await callable({
         name,
         email,
         password,
         tenantId,
-        allowedModules: readCreateFormAllowedModules(),
       });
       const createdEmail = result?.data?.email || email;
       setEmployeeFormStatus(`Nutzer ${createdEmail} angelegt.`, 'success');
       window.showToast?.(`Nutzer ${name} wurde angelegt.`, 'success');
       recordAudit('user_create', `Nutzer angelegt: ${name} (${createdEmail})`, 'security');
       form.reset();
-      EMPLOYEE_PERMISSION_KEYS.forEach((key) => {
-        const input = document.getElementById(`dev-dashboard-create-mod-${key}`);
-        if (input instanceof HTMLInputElement) input.checked = true;
-      });
       const createPanel = document.getElementById('dev-dashboard-employee-create');
       if (createPanel) createPanel.hidden = true;
       await refreshEmployeeTable(dashboardState);
@@ -1883,30 +1848,72 @@ function bindEmployeeCreateForm(dashboardState) {
   });
 }
 
-function renderEmployeePermissionToggles(uid, allowedModules = {}, tenantId) {
-  const safeUid = escapeHtml(uid);
-  const safeTenantId = escapeHtml(tenantId);
-  return EMPLOYEE_PERMISSION_KEYS.map((key) => {
-    const checked = allowedModules[key] !== false;
-    const safeKey = escapeHtml(key);
-    return `
-      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="${escapeHtml(EMPLOYEE_MODULE_LABELS[key])}">
-        <input
-          type="checkbox"
-          data-employee-uid="${safeUid}"
-          data-employee-tenant="${safeTenantId}"
-          data-permission-key="${safeKey}"
-          ${checked ? 'checked' : ''}
-        >
-        <span>${escapeHtml(EMPLOYEE_MODULE_LABELS[key])}</span>
-      </label>
-    `;
-  }).join('');
+function employeeRowRoleLabel(role) {
+  if (role === 'admin') return 'Admin';
+  if (role === 'helper') return 'Aushilfe';
+  return 'Mitarbeiter';
+}
+
+/**
+ * Dedupliziert Nutzer für die Tabelle: Auth-UID vor Profil-Stub,
+ * sonst E-Mail / Anzeigename. Verhindert Doppelzeilen wie 2× „Paddy“.
+ * @param {Array<object>} employees
+ * @returns {Array<object>}
+ */
+function dedupeEmployeesForDisplay(employees) {
+  const list = Array.isArray(employees) ? employees : [];
+  const byKey = new Map();
+  const preferScore = (entry) => {
+    const uid = String(entry?.uid || '');
+    if (uid && !isProfileEmployeeUid(uid) && entry?.source !== 'profile') return 3;
+    if (String(entry?.email || '').trim()) return 2;
+    return 1;
+  };
+  list.forEach((entry) => {
+    if (!entry) return;
+    const uid = String(entry.uid || '').trim();
+    const email = String(entry.email || '').trim().toLowerCase();
+    const name = String(entry.displayName || '').trim().toLowerCase();
+    let key = '';
+    if (uid && !isProfileEmployeeUid(uid)) key = `uid:${uid}`;
+    else if (email) key = `email:${email}`;
+    else if (name) key = `name:${name}`;
+    else if (uid) key = `uid:${uid}`;
+    else return;
+    const existing = byKey.get(key);
+    if (!existing || preferScore(entry) > preferScore(existing)) {
+      byKey.set(key, entry);
+      return;
+    }
+    // Zweiter Treffer unter gleichem Namen/E-Mail: Auth-Konto gewinnt.
+    if (preferScore(entry) === preferScore(existing) && email && !String(existing.email || '').trim()) {
+      byKey.set(key, entry);
+    }
+  });
+  // Zweiter Pass: Profil-Stubs entfernen, wenn gleicher Name schon als Auth-User da ist.
+  const authNames = new Set();
+  const authEmails = new Set();
+  byKey.forEach((entry) => {
+    if (isProfileEmployeeUid(entry.uid) || entry.source === 'profile') return;
+    const name = String(entry.displayName || '').trim().toLowerCase();
+    const email = String(entry.email || '').trim().toLowerCase();
+    if (name) authNames.add(name);
+    if (email) authEmails.add(email);
+  });
+  [...byKey.entries()].forEach(([key, entry]) => {
+    if (!(isProfileEmployeeUid(entry.uid) || entry.source === 'profile')) return;
+    const name = String(entry.displayName || '').trim().toLowerCase();
+    const email = String(entry.email || '').trim().toLowerCase();
+    if ((name && authNames.has(name)) || (email && authEmails.has(email))) {
+      byKey.delete(key);
+    }
+  });
+  return [...byKey.values()];
 }
 
 function renderEmployeeRow(employee, currentUserUid) {
   const role = String(employee.role || 'employee');
-  const roleLabel = role === 'admin' ? 'Admin' : role === 'helper' ? 'Aushilfe' : 'Mitarbeiter';
+  const roleLabel = employeeRowRoleLabel(role);
   const isSelf = employee.uid === currentUserUid;
   const isDisabled = employee.disabled === true || employee.status === 'inactive';
   const isProfile = isProfileEmployeeUid(employee.uid) || employee.source === 'profile';
@@ -1923,14 +1930,11 @@ function renderEmployeeRow(employee, currentUserUid) {
     <tr data-employee-row="${safeUid}" ${isDisabled ? 'data-employee-inactive="1"' : ''}>
       <td class="dev-dashboard-employee-name">
         <strong>${safeDisplayName}</strong>
-        <span class="dev-dashboard-tenant-sub">${safeEmail}</span>
+        <span class="dev-dashboard-tenant-sub">${safeEmail || '—'}</span>
       </td>
       <td>
         <span class="dev-dashboard-role-badge dev-dashboard-role-badge--${escapeHtml(role)}">${escapeHtml(roleLabel)}</span>
         ${isDisabled ? '<span class="dev-dashboard-role-badge dev-dashboard-role-badge--inactive">Deaktiviert</span>' : ''}
-      </td>
-      <td class="dev-dashboard-employee-perms">
-        ${renderEmployeePermissionToggles(employee.uid, employee.allowedModules, employee.tenantId)}
       </td>
       <td class="dev-dashboard-employee-actions">
         <button
@@ -1972,9 +1976,10 @@ function renderEmployeeRow(employee, currentUserUid) {
 function renderEmployeeTableLoading() {
   const tbody = document.getElementById('dev-dashboard-employee-body');
   if (!tbody) return;
+  tbody.innerHTML = '';
   tbody.innerHTML = `
     <tr>
-      <td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
+      <td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
         <span class="dev-dashboard-table-spinner" aria-hidden="true"></span>
         Nutzer werden geladen…
       </td>
@@ -1985,16 +1990,19 @@ function renderEmployeeTableLoading() {
 function renderEmployeeTable(employees, currentUserUid) {
   const tbody = document.getElementById('dev-dashboard-employee-body');
   if (!tbody) return;
-  const filtered = filterTenantUsers(employees, {
+  // Immer zuerst leeren — verhindert Doppelzeilen bei erneutem Render.
+  tbody.innerHTML = '';
+  const deduped = dedupeEmployeesForDisplay(employees);
+  const filtered = filterTenantUsers(deduped, {
     query: dashboardState.userQuery,
     role: dashboardState.userRoleFilter,
   });
-  if (!employees.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
+  if (!deduped.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map((emp) => renderEmployeeRow(emp, currentUserUid)).join('');
@@ -2003,7 +2011,8 @@ function renderEmployeeTable(employees, currentUserUid) {
 function renderEmployeeTableError(message) {
   const tbody = document.getElementById('dev-dashboard-employee-body');
   if (!tbody) return;
-  tbody.innerHTML = `<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
+  tbody.innerHTML = '';
+  tbody.innerHTML = `<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
 }
 
 async function refreshEmployeeTable(dashboardStateRef) {
@@ -2022,7 +2031,9 @@ async function refreshEmployeeTable(dashboardStateRef) {
       region: FUNCTIONS_REGION,
       tenantId,
     });
-    const fallback = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
+    const fallback = dedupeEmployeesForDisplay(
+      await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db),
+    );
     dashboardStateRef.employees = fallback;
     renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
@@ -2047,10 +2058,11 @@ async function refreshEmployeeTable(dashboardStateRef) {
       console.warn('[Dev-Dashboard] Callable list leer — Profil-Fallback', { tenantId, region: FUNCTIONS_REGION });
       employees = await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db);
     }
-    dashboardStateRef.employees = employees;
-    renderEmployeeTable(employees, dashboardStateRef.currentUserUid);
+    const deduped = dedupeEmployeesForDisplay(employees);
+    dashboardStateRef.employees = deduped;
+    renderEmployeeTable(deduped, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
-    if (statusEl) statusEl.textContent = `${employees.length} Nutzer`;
+    if (statusEl) statusEl.textContent = `${deduped.length} Nutzer`;
   } catch (err) {
     console.error('[Dev-Dashboard] Mitarbeiter-Liste fehlgeschlagen', {
       code: err?.code || '',
@@ -2067,10 +2079,11 @@ async function refreshEmployeeTable(dashboardStateRef) {
     } catch (fallbackErr) {
       console.error('[Dev-Dashboard] Profil-Fallback fehlgeschlagen', fallbackErr);
     }
-    dashboardStateRef.employees = fallback;
-    if (fallback.length) {
-      renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
-      if (statusEl) statusEl.textContent = `${fallback.length} Team-Profile — ${message}`;
+    const dedupedFallback = dedupeEmployeesForDisplay(fallback);
+    dashboardStateRef.employees = dedupedFallback;
+    if (dedupedFallback.length) {
+      renderEmployeeTable(dedupedFallback, dashboardStateRef.currentUserUid);
+      if (statusEl) statusEl.textContent = `${dedupedFallback.length} Team-Profile — ${message}`;
     } else {
       renderEmployeeTableError(message);
       if (statusEl) statusEl.textContent = message;
@@ -2085,53 +2098,34 @@ function bindEmployeeTableActions(dashboardState) {
   if (!section || section.dataset.bound === '1') return;
   section.dataset.bound = '1';
 
-  section.addEventListener('change', async (event) => {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement) || input.type !== 'checkbox') return;
-    const uid = input.getAttribute('data-employee-uid');
-    const tenantId = input.getAttribute('data-employee-tenant');
-    const permissionKey = input.getAttribute('data-permission-key');
-    if (!uid || !tenantId || !permissionKey) return;
-
-    const employee = dashboardState.employees?.find((e) => e.uid === uid);
-    const allowedModules = normalizeAllowedModules(employee?.allowedModules);
-    allowedModules[permissionKey] = input.checked;
-
-    const callable = getManageEmployeesCallable();
-    if (!callable) return;
-
-    const previous = !input.checked;
-    input.disabled = true;
-    try {
-      await waitForAppCheckReady();
-      await callable({ action: 'update', uid, tenantId, allowedModules });
-      if (employee) employee.allowedModules = allowedModules;
-      window.showToast?.('Berechtigung gespeichert.', 'success');
-    } catch (err) {
-      input.checked = previous;
-      console.error('[Dev-Dashboard] Berechtigung speichern fehlgeschlagen:', err);
-      window.showToast?.('Berechtigung konnte nicht gespeichert werden.', 'error');
-    } finally {
-      input.disabled = false;
-    }
-  });
-
+  // Keine Modul-Checkboxen mehr — Nutzer haben nur Rollen (Module = Mandant).
   section.addEventListener('click', async (event) => {
     const btn = event.target.closest('[data-action]');
-    if (!(btn instanceof HTMLButtonElement)) return;
+    if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
 
     const action = btn.getAttribute('data-action');
-    const uid = btn.getAttribute('data-uid');
-    const tenantId = btn.getAttribute('data-tenant-id');
-    if (!uid || !tenantId) return;
+    const uid = String(btn.getAttribute('data-uid') || '').trim();
+    const tenantId = String(btn.getAttribute('data-tenant-id') || '').trim();
+    if (!uid || !tenantId) {
+      console.error('[Dev-Dashboard] Nutzer-Aktion ohne uid/tenantId', { action, uid, tenantId });
+      window.showToast?.('Aktion nicht möglich: Nutzer oder Betrieb fehlt.', 'error');
+      return;
+    }
+    if (isProfileEmployeeUid(uid)) {
+      window.showToast?.('Team-Profil — bitte zuerst ein Anmeldekonto anlegen.', 'error');
+      return;
+    }
 
     const callable = getManageEmployeesCallable();
-    if (!callable) return;
+    if (!callable) {
+      window.showToast?.('Nutzerverwaltung ist gerade nicht erreichbar.', 'error');
+      return;
+    }
 
     if (action === 'toggle-role') {
-      const nextRole = btn.getAttribute('data-next-role');
+      const nextRole = String(btn.getAttribute('data-next-role') || '').trim();
       if (!nextRole) return;
-      const nextLabel = nextRole === 'admin' ? 'Admin' : 'Mitarbeiter';
+      const nextLabel = employeeRowRoleLabel(nextRole);
       btn.disabled = true;
       try {
         await waitForAppCheckReady();
