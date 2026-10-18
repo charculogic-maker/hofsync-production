@@ -3,20 +3,20 @@
  * Zentrale Konstanten für Badge, einmaligen Update-Toast und Changelog-Popover.
  */
 
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.5.0';
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
-export const APP_VERSION_TAG = `v${APP_VERSION}-20260915`;
-export const APP_RELEASE_DATE = '2026-09-15';
+export const APP_VERSION_TAG = `v${APP_VERSION}-20261018`;
+export const APP_RELEASE_DATE = '2026-10-18';
 
 export const RELEASE_TOAST_MESSAGE =
-  'HofSync aktualisiert: VPE-Lernlogik, LIFO-Scan & MHD-Parser geladen.';
+  'HofSync aktualisiert: Avery-Druck auf dem Laden-iPhone (iOS) läuft wieder zuverlässig.';
 
 export const RELEASE_HIGHLIGHTS = [
-  'Gebindegrößen-Erkennung (Auto-VPE)',
-  'LIFO-Reihenfolge im Wareneingang (neuester Scan oben)',
-  'Flexible 2-stellige MHD-Eingabe (29 → 2029)',
-  'Auto-Kategorienerkennung',
-  'Fixes für Lieferantenauswahl & PDF-Upload',
+  'Avery-Etiketten: Druckdialog auf iOS Safari wieder zuverlässig',
+  'Druckbogen wird im Hintergrund vorbereitet – Tippen startet direkt den Druck',
+  'Print-Area als body-Kind (kein versteckter Bogen mehr)',
+  'Nutzerverwaltung ohne Modul-Duplikate',
+  'Modul-Freischaltung mit klarerem Feedback',
 ];
 
 const SEEN_RELEASE_STORAGE_KEY = 'hofsync_seen_release_version';

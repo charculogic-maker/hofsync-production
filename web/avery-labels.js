@@ -589,6 +589,56 @@ function renderSheetPreview() {
       overflowEl.textContent = '';
     }
   }
+
+  // iOS Safari: Druckbogen + body-Klasse vor dem Klick fertig machen
+  syncPrintReadyState(plan);
+}
+
+/**
+ * Hält #avery-print-area und print-avery-labels synchron zur Auswahl,
+ * damit der Druck-Button nur noch window.print() auslösen muss (iOS).
+ * @param {ReturnType<typeof planAverySheet>|null} [plan]
+ */
+function syncPrintReadyState(plan = null) {
+  const sheetPlan = plan || planAverySheet({ queue: state.queue, startSlot: state.startSlot });
+  const hasLabels = sheetPlan.filledCount > 0;
+  const hasOhr = Boolean(String(state.header.ohrmarke || '').trim());
+  const ready = hasLabels && hasOhr;
+
+  const btn = document.getElementById('btn-avery-print-sheet');
+  if (btn instanceof HTMLButtonElement) {
+    btn.disabled = !ready;
+    if (!hasLabels) {
+      btn.title = 'Bitte zuerst Teilstücke zur Druckliste hinzufügen.';
+    } else if (!hasOhr) {
+      btn.title = 'Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.';
+    } else {
+      btn.removeAttribute('title');
+    }
+  }
+
+  const hint = document.getElementById('avery-print-hint');
+  if (hint) {
+    if (!hasLabels) {
+      hint.hidden = false;
+      hint.textContent = 'Bitte zuerst Teilstücke zur Druckliste hinzufügen.';
+    } else if (!hasOhr) {
+      hint.hidden = false;
+      hint.textContent = 'Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.';
+    } else {
+      hint.hidden = true;
+      hint.textContent = '';
+    }
+  }
+
+  const area = document.getElementById('avery-print-area');
+  if (ready) {
+    document.body.classList.add(PRINT_BODY_CLASS);
+    area?.setAttribute('aria-hidden', 'false');
+  } else {
+    document.body.classList.remove(PRINT_BODY_CLASS);
+    area?.setAttribute('aria-hidden', 'true');
+  }
 }
 
 function renderQueue() {
@@ -771,57 +821,14 @@ export function ensureAveryPrintArea() {
   return area;
 }
 
+/**
+ * iOS-sicherer Drucktrigger: ausschließlich synchrones window.print().
+ * Druckbogen (#avery-print-area) und body.print-avery-labels werden
+ * bereits bei Auswahländerungen in renderSheetPreview/syncPrintReadyState vorbereitet.
+ */
 export function printAveryLabelsSheet() {
-  try {
-    console.log('[Avery Print] Starte Druckaufbereitung...');
-    readHeaderFromDom();
-    const plan = planAverySheet({ queue: state.queue, startSlot: state.startSlot });
-    if (!plan.filledCount) {
-      window.showToast?.('Bitte zuerst Teilstücke zur Druckliste hinzufügen.', 'warning');
-      return false;
-    }
-    if (!state.header.ohrmarke) {
-      window.showToast?.('Bitte die Ohrmarke eintragen – sonst können wir den Bogen nicht drucken.', 'warning');
-      document.getElementById('avery-ohrmarke')?.focus?.();
-      return false;
-    }
-
-    ensureAveryPrintArea();
-    renderSheetPreview();
-
-    const area = document.getElementById('avery-print-area');
-    if (!(area instanceof HTMLElement) || !area.querySelector('.avery-label:not(.empty)')) {
-      throw new Error('Druckbogen konnte nicht aufgebaut werden.');
-    }
-
-    document.body.classList.add(PRINT_BODY_CLASS);
-    area.setAttribute('aria-hidden', 'false');
-
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      document.body.classList.remove(PRINT_BODY_CLASS);
-      area.setAttribute('aria-hidden', 'true');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    // Native Druckdialog – kein iframe / window.open
-    window.print();
-    // Fallback falls afterprint ausbleibt (manche WebViews)
-    setTimeout(cleanup, 60_000);
-    console.log('[Avery Print] window.print() ausgelöst.');
-    return true;
-  } catch (err) {
-    console.error('[Avery Print] Fehler beim Drucken:', err);
-    document.body.classList.remove(PRINT_BODY_CLASS);
-    const message = err instanceof Error ? err.message : String(err);
-    window.showToast?.(`Druckfehler: ${message}`, 'error');
-    try {
-      window.alert(`Druckfehler: ${message}`);
-    } catch (_) { /* headless */ }
-    return false;
-  }
+  window.print();
+  return true;
 }
 
 function adjustQueueByKey(key, deltaOrRemove) {
@@ -841,6 +848,16 @@ function adjustQueueByKey(key, deltaOrRemove) {
 function bindEvents(root) {
   if (!root || root.dataset.averyBound === '1') return;
   root.dataset.averyBound = '1';
+
+  // iOS Safari: Click darf NUR synchron window.print() ausführen –
+  // keine DOM-Generierung, kein async/await, kein setTimeout davor.
+  const printBtn = document.getElementById('btn-avery-print-sheet');
+  if (printBtn instanceof HTMLButtonElement && printBtn.dataset.averyPrintBound !== '1') {
+    printBtn.dataset.averyPrintBound = '1';
+    printBtn.addEventListener('click', () => {
+      window.print();
+    });
+  }
 
   root.addEventListener('input', (event) => {
     const target = event.target;
@@ -897,11 +914,6 @@ function bindEvents(root) {
       persistDraft();
       renderSheetPreview();
       window.showToast?.(`Start-Slot ${state.startSlot} gesetzt.`, 'info');
-      return;
-    }
-
-    if (target.closest('#btn-avery-print-sheet') || target.closest('[data-avery-print]')) {
-      printAveryLabelsSheet();
       return;
     }
 
@@ -1027,6 +1039,7 @@ function buildShellHtml() {
         <div class="sheet-scroll-wrapper avery-sheet-scroll">
           <div class="avery-sheet-preview" id="avery-sheet-preview"></div>
         </div>
+        <p class="avery-print-hint" id="avery-print-hint" hidden></p>
         <button type="button" class="btn btn-primary btn-avery-print" id="btn-avery-print-sheet" data-avery-print>
           🖨️ Etikettenbogen drucken
         </button>

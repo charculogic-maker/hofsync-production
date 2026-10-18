@@ -522,11 +522,27 @@
   overflow: visible;
 }
 
+.avery-print-hint {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .btn-avery-print {
   width: 100%;
   min-height: 52px;
   font-size: 17px;
   font-weight: 900;
+}
+
+.btn-avery-print:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .avery-print-root,
