@@ -5,6 +5,7 @@ import { strict as assert } from 'node:assert';
 import {
   generateZuschnittAggregation,
   calculateLinePriceFromWeight,
+  enrichOrderItemPricing,
   normalizeOrderItem,
   nextStatusInPipeline,
   sortOrdersForPacktisch,
@@ -12,6 +13,10 @@ import {
   ORDER_STATUS_LABELS,
   hackfleischPackKind,
 } from '../web/order-packlist.js';
+import {
+  findCatalogProductByName,
+  resolveCatalogPricePerKg,
+} from '../web/orderCatalog.js';
 
 const friday = '2026-10-16';
 
@@ -141,6 +146,23 @@ describe('order-packlist Packtisch', () => {
     assert.equal(priced.weightGrams, 485);
     assert.equal(priced.lineTotal, 32.01);
     assert.equal(priced.hasActualWeight, true);
+  });
+
+  it('ergänzt fehlendes pricePerKg aus dem Katalognamen', () => {
+    const enriched = enrichOrderItemPricing({ product: 'Rumpsteak', quantity: '2', unit: 'kg' });
+    assert.ok(enriched.pricePerKg > 0);
+    assert.equal(enriched.pricePerKg, 65.99);
+    const priced = calculateLinePriceFromWeight(enriched, 1000);
+    assert.equal(priced.lineTotal, 65.99);
+    assert.equal(priced.pricePerKg, 65.99);
+  });
+
+  it('findCatalogProductByName matched Fuzzy-Namen', () => {
+    const hit = findCatalogProductByName('Hackfleisch');
+    assert.ok(hit);
+    assert.match(hit.name, /Hackfleisch/i);
+    const price = resolveCatalogPricePerKg({ product: 'Entrecôte' });
+    assert.ok(price?.pricePerKg > 0);
   });
 
   it('Status-Pipeline open → in_progress → ready → picked_up', () => {

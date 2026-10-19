@@ -14,6 +14,8 @@ import {
   calculateLinePriceFromWeight,
   customerDisplayName,
   customerPhone,
+  enrichOrderItemPricing,
+  enrichOrderPricing,
   generateZuschnittAggregation,
   nextStatusInPipeline,
   nextWeekdayIso,
@@ -27,6 +29,7 @@ import {
   todayIsoLocal as packlistTodayIso,
   vacuumWishesSummary,
 } from './order-packlist.js';
+import { resolveCatalogPricePerKg } from './orderCatalog.js';
 
 const OPEN_ORDER_STATUSES = CUTLIST_ORDER_STATUSES;
 const PICKLIST_CATEGORY_ORDER = ['Wurstküche', 'Molkereiprodukte', 'Hofladen-Spezialitäten', 'Sonstiges'];
@@ -156,7 +159,7 @@ function buildOrderLineRow(lineId) {
     <div class="order-line-card" data-order-line="${lineId}">
       <div class="order-line-grid">
         <label class="form-label">Artikel</label>
-        <input type="text" class="input-text-touch" data-line-product required placeholder="z. B. Rindersteak">
+        <input type="text" class="input-text-touch" data-line-product required placeholder="z. B. Rumpsteak">
         <label class="form-label">Menge</label>
         <input type="text" class="input-text-touch" data-line-quantity required placeholder="z. B. 2" inputmode="decimal">
         <label class="form-label">Einheit</label>
@@ -166,6 +169,8 @@ function buildOrderLineRow(lineId) {
           <option value="Packung">Packung</option>
           <option value="g">g</option>
         </select>
+        <label class="form-label">Preis (€/kg bzw. Stk)</label>
+        <input type="text" class="input-text-touch" data-line-price placeholder="leer = Katalogpreis, z. B. 26,99" inputmode="decimal">
         <label class="form-label">Gewicht (optional)</label>
         <input type="text" class="input-text-touch" data-line-weight placeholder="z. B. 300 g / 1,2 kg">
         <label class="form-label">Breite/Dicke (optional)</label>
@@ -199,18 +204,27 @@ function readOrderLinesFromDom() {
     const product = card.querySelector('[data-line-product]')?.value?.trim() || '';
     const quantity = card.querySelector('[data-line-quantity]')?.value?.trim() || '';
     const unit = card.querySelector('[data-line-unit]')?.value?.trim() || '';
+    const priceRaw = card.querySelector('[data-line-price]')?.value?.trim() || '';
     const weight = card.querySelector('[data-line-weight]')?.value?.trim() || '';
     const width = card.querySelector('[data-line-width]')?.value?.trim() || '';
     const lineNotes = card.querySelector('[data-line-notes]')?.value?.trim() || '';
     if (!product && !quantity) return;
-    items.push({
+    const manualPrice = parseMoneyValue(priceRaw);
+    const catalog = resolveCatalogPricePerKg({ product, name: product });
+    const pricePerKg = manualPrice > 0
+      ? manualPrice
+      : (catalog?.pricePerKg > 0 ? catalog.pricePerKg : null);
+    items.push(enrichOrderItemPricing({
       product,
       quantity,
       unit: unit || null,
       weight: weight || null,
       width: width || null,
       lineNotes: lineNotes || null,
-    });
+      pricePerKg,
+      productId: catalog?.productId || null,
+      artNr: catalog?.artNr || null,
+    }));
   });
   return items;
 }
@@ -804,7 +818,8 @@ function getItemUnitPrice(item, orderedQuantity) {
 }
 
 export function calculateFinalOrderPrice(order) {
-  const lines = (Array.isArray(order?.items) ? order.items : []).map((item) => {
+  const lines = (Array.isArray(order?.items) ? order.items : []).map((raw) => {
+    const item = enrichOrderItemPricing(raw);
     const n = normalizeOrderItem(item);
     const orderedQuantity = n.weightKg > 0 ? n.weightKg : (n.pieces || parseQuantityValue(item?.quantity));
     const weigh = calculateLinePriceFromWeight(item);
@@ -1015,8 +1030,37 @@ function formatGramsInput(grams) {
   return String(Math.round(grams));
 }
 
+function liveWeighItemsForOrder(order) {
+  const base = enrichOrderPricing(order);
+  const items = Array.isArray(base?.items) ? base.items : [];
+  return items.map((raw, index) => {
+    const enriched = enrichOrderItemPricing(raw);
+    const key = weighDraftKey(order.id, index);
+    const draft = orderState.weighDraftByKey.get(key);
+    const inputEl = document.querySelector(`[data-actual-weight-order="${CSS.escape(order.id)}"][data-actual-weight-line="${index}"]`);
+    const rawVal = draft !== undefined ? draft : (inputEl?.value ?? '');
+    const gramsFromDraft = parseQuantityValue(rawVal);
+    const grams = gramsFromDraft > 0
+      ? gramsFromDraft
+      : (Number(enriched.actualWeightGrams) > 0
+        ? Number(enriched.actualWeightGrams)
+        : 0);
+    if (!(grams > 0)) return enriched;
+    const priced = calculateLinePriceFromWeight(enriched, grams);
+    return {
+      ...enriched,
+      actualWeightGrams: Math.round(grams),
+      actualQuantity: formatQuantityValue(priced.weightKg),
+      actualQuantityUnit: 'kg',
+      pricePerKg: priced.pricePerKg || enriched.pricePerKg || null,
+      lineTotal: priced.lineTotal,
+      totalPrice: priced.lineTotal,
+    };
+  });
+}
+
 function renderPacktischWeighFields(order) {
-  const items = Array.isArray(order.items) ? order.items : [];
+  const items = Array.isArray(order.items) ? order.items.map((item) => enrichOrderItemPricing(item)) : [];
   if (!items.length) return '<p class="customer-order-hint">Keine Positionen hinterlegt.</p>';
   return items.map((raw, index) => {
     const item = normalizeOrderItem(raw);
@@ -1025,7 +1069,7 @@ function renderPacktischWeighFields(order) {
     const grams = draft !== undefined
       ? parseQuantityValue(draft)
       : (item.actualWeightGrams || (item.weightKg > 0 ? Math.round(item.weightKg * 1000) : 0));
-    const priced = calculateLinePriceFromWeight(item, grams > 0 ? grams : null);
+    const priced = calculateLinePriceFromWeight(raw, grams > 0 ? grams : null);
     const isWeighable = item.pricePerKg > 0 || item.weightKg > 0 || /kg/i.test(item.unit);
     if (!isWeighable) {
       return `
@@ -1038,6 +1082,9 @@ function renderPacktischWeighFields(order) {
         </div>
       `;
     }
+    const priceHint = item.pricePerKg > 0
+      ? `${formatMoneyValue(item.pricePerKg)}/kg`
+      : 'Kein Preis – bitte in der Aufnahme hinterlegen';
     return `
       <div class="packtisch-weigh-row" data-weigh-order="${escapeHtml(order.id)}" data-weigh-line="${index}">
         <div>
@@ -1047,7 +1094,7 @@ function renderPacktischWeighFields(order) {
             data-price-per-kg="${escapeHtml(String(item.pricePerKg || 0))}"
             value="${escapeHtml(formatGramsInput(grams))}"
             placeholder="z. B. 485" aria-label="Waagengewicht in Gramm für ${escapeHtml(item.product)}">
-          <div class="customer-order-meta">${escapeHtml([item.cutLabel, item.isTk ? 'TK' : '', item.pricePerKg ? `${formatMoneyValue(item.pricePerKg)}/kg` : ''].filter(Boolean).join(' · '))}</div>
+          <div class="customer-order-meta">${escapeHtml([item.cutLabel, item.isTk ? 'TK' : '', priceHint].filter(Boolean).join(' · '))}</div>
         </div>
         <div class="packtisch-line-price" data-weigh-price="${escapeHtml(order.id)}-${index}">${escapeHtml(formatMoneyValue(priced.lineTotal))}</div>
       </div>
@@ -1056,16 +1103,22 @@ function renderPacktischWeighFields(order) {
 }
 
 function renderPacktischDetail(order) {
-  const phone = customerPhone(order);
-  const notes = butcherNotes(order);
-  const vacuum = vacuumWishesSummary(order);
-  const ref = orderRefLabel(order);
+  const enrichedOrder = enrichOrderPricing(order);
+  const phone = customerPhone(enrichedOrder);
+  const notes = butcherNotes(enrichedOrder);
+  const vacuum = vacuumWishesSummary(enrichedOrder);
+  const ref = orderRefLabel(enrichedOrder);
+  const liveItems = liveWeighItemsForOrder(enrichedOrder);
+  const price = calculateFinalOrderPrice({ ...enrichedOrder, items: liveItems });
   return `
     <div class="packtisch-detail">
       <p class="customer-order-meta"><strong>${escapeHtml(ref)}</strong> · ${escapeHtml(phone || 'Keine Telefonnummer')}</p>
       ${notes ? `<p class="customer-order-wishes"><strong>Notiz für die Metzgerei:</strong> ${escapeHtml(notes)}</p>` : ''}
       ${vacuum.length ? `<p class="customer-order-meta"><strong>Vakuum:</strong> ${escapeHtml(vacuum.join(' · '))}</p>` : ''}
-      ${renderPacktischWeighFields(order)}
+      ${renderPacktischWeighFields(enrichedOrder)}
+      <p class="packtisch-order-total" data-weigh-order-total="${escapeHtml(order.id)}">
+        <strong>Endpreis:</strong> ${escapeHtml(formatMoneyValue(price.total))}
+      </p>
       <div class="packtisch-actions">
         <button type="button" class="btn btn-secondary btn-compact" data-order-action="save_weights" data-order-id="${escapeHtml(order.id)}">Waagengewichte speichern</button>
         <button type="button" class="btn btn-secondary btn-compact" data-order-action="avery" data-order-id="${escapeHtml(order.id)}">Avery-Etikett / Kistenbon drucken</button>
@@ -1713,21 +1766,32 @@ async function saveOrderWeights(orderId) {
     return;
   }
   const items = (Array.isArray(order.items) ? order.items : []).map((raw, index) => {
+    const enriched = enrichOrderItemPricing(raw);
     const key = weighDraftKey(orderId, index);
     const draft = orderState.weighDraftByKey.get(key);
     const inputEl = document.querySelector(`[data-actual-weight-order="${CSS.escape(orderId)}"][data-actual-weight-line="${index}"]`);
     const rawVal = draft !== undefined ? draft : (inputEl?.value ?? '');
     const grams = parseQuantityValue(rawVal);
-    if (!(grams > 0)) return raw;
-    const priced = calculateLinePriceFromWeight(raw, grams);
+    if (!(grams > 0)) return enriched;
+    const priced = calculateLinePriceFromWeight(enriched, grams);
     return {
-      ...raw,
+      ...enriched,
       actualWeightGrams: Math.round(grams),
       actualQuantity: formatQuantityValue(priced.weightKg),
       actualQuantityUnit: 'kg',
       actualQuantityRecordedAt: new Date().toISOString(),
+      pricePerKg: priced.pricePerKg || enriched.pricePerKg || null,
+      lineTotal: priced.lineTotal,
+      totalPrice: priced.lineTotal,
     };
   });
+  const pricedOrder = calculateFinalOrderPrice({ ...order, items });
+  const finalPrice = pricedOrder.total;
+  const payload = {
+    items,
+    finalPrice,
+    totalPrice: finalPrice,
+  };
 
   try {
     orderState.weighSaveInFlight = true;
@@ -1735,19 +1799,19 @@ async function saveOrderWeights(orderId) {
       collectionPath: 'customerOrders',
       docId: orderId,
       op: 'update',
-      onlineData: { items },
-      queueData: { items },
+      onlineData: payload,
+      queueData: payload,
       offlineMessage: 'Waagengewichte werden synchronisiert, sobald WLAN verfügbar ist.',
     });
     orderState.allOrders = orderState.allOrders.map((entry) => (
-      entry.id === orderId ? { ...entry, items } : entry
+      entry.id === orderId ? { ...entry, items, finalPrice, totalPrice: finalPrice } : entry
     ));
     renderOpenOrders();
     renderAdminOrders();
     window.showToast?.(
       result === 'queued'
         ? 'Gewichte vorgemerkt – wir synchronisieren, sobald WLAN da ist.'
-        : 'Waagengewichte gespeichert. Endpreis ist aktualisiert.',
+        : `Waagengewichte gespeichert. Endpreis: ${formatMoneyValue(finalPrice)}.`,
       result === 'queued' ? 'warning' : 'success',
     );
   } catch (err) {
@@ -1758,6 +1822,26 @@ async function saveOrderWeights(orderId) {
   }
 }
 
+function updateLiveWeighTotals(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order) return;
+  const liveItems = liveWeighItemsForOrder(order);
+  liveItems.forEach((item, index) => {
+    const priceEl = document.querySelector(`[data-weigh-price="${CSS.escape(orderId)}-${index}"]`);
+    if (!priceEl) return;
+    const priced = calculateLinePriceFromWeight(
+      item,
+      Number(item.actualWeightGrams) > 0 ? Number(item.actualWeightGrams) : null,
+    );
+    priceEl.textContent = formatMoneyValue(priced.lineTotal);
+  });
+  const totalEl = document.querySelector(`[data-weigh-order-total="${CSS.escape(orderId)}"]`);
+  if (totalEl) {
+    const price = calculateFinalOrderPrice({ ...order, items: liveItems });
+    totalEl.innerHTML = `<strong>Endpreis:</strong> ${escapeHtml(formatMoneyValue(price.total))}`;
+  }
+}
+
 function handleWeighInput(event) {
   const input = event.target.closest('[data-actual-weight-order]');
   if (!input) return;
@@ -1765,13 +1849,7 @@ function handleWeighInput(event) {
   const line = Number(input.dataset.actualWeightLine);
   if (!orderId || !Number.isInteger(line)) return;
   orderState.weighDraftByKey.set(weighDraftKey(orderId, line), input.value.trim());
-  const grams = parseQuantityValue(input.value);
-  const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  const item = order?.items?.[line];
-  if (!item) return;
-  const priced = calculateLinePriceFromWeight(item, grams > 0 ? grams : null);
-  const priceEl = document.querySelector(`[data-weigh-price="${CSS.escape(orderId)}-${line}"]`);
-  if (priceEl) priceEl.textContent = formatMoneyValue(priced.lineTotal);
+  updateLiveWeighTotals(orderId);
 }
 
 function bindOrderForm() {
@@ -1991,7 +2069,7 @@ function subscribeOrders() {
 
   orderState.ordersUnsubscribe = col.orderBy('acceptedAt', 'desc').limit(120).onSnapshot(
     (snap) => {
-      orderState.allOrders = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      orderState.allOrders = snap.docs.map((doc) => enrichOrderPricing({ id: doc.id, ...doc.data() }));
       renderOpenOrders();
       renderAdminOrders();
       renderProductionTasks();
@@ -2036,6 +2114,8 @@ export function activateCustomerOrdersTab() {
 export {
   generateZuschnittAggregation,
   normalizeOrderItem,
+  enrichOrderItemPricing,
+  enrichOrderPricing,
   calculateLinePriceFromWeight,
   ORDER_STATUS_LABELS,
   nextStatusInPipeline,

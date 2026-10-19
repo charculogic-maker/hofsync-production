@@ -954,6 +954,93 @@ export function findProductById(productId, overrides = null) {
   return null;
 }
 
+/** Normalisiert Artikelnamen für Fuzzy-Preis-Lookup (Packtisch). */
+export function normalizeCatalogSearchKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function listCatalogProductsForLookup(overrides = null) {
+  return ORDER_CATALOG.flatMap((category) => category.products.map((product) => {
+    const merged = applyProductOverride(product, overrides?.[product.id]);
+    return { ...merged, categoryName: category.name, categoryWg: category.wg };
+  }));
+}
+
+/**
+ * Fuzzy-Suche im Vorbestellkatalog anhand des Artikelnamens (manuelle Packtisch-Aufnahme).
+ * @param {string} name
+ * @param {Record<string, CatalogOverride>|null} [overrides]
+ * @returns {(CatalogProduct & { categoryName?: string, categoryWg?: number })|null}
+ */
+export function findCatalogProductByName(name, overrides = null) {
+  const needle = normalizeCatalogSearchKey(name);
+  if (!needle || needle.length < 2) return null;
+
+  const products = listCatalogProductsForLookup(overrides);
+  const exact = products.find((product) => normalizeCatalogSearchKey(product.name) === needle);
+  if (exact) return exact;
+
+  const contains = products.find((product) => {
+    const key = normalizeCatalogSearchKey(product.name);
+    return key.includes(needle) || needle.includes(key);
+  });
+  if (contains) return contains;
+
+  const needleTokens = needle.split(' ').filter((token) => token.length > 2);
+  if (!needleTokens.length) return null;
+
+  let best = null;
+  let bestScore = 0;
+  for (const product of products) {
+    const key = normalizeCatalogSearchKey(product.name);
+    const tokens = key.split(' ').filter((token) => token.length > 2);
+    let score = 0;
+    for (const token of tokens) {
+      if (needleTokens.includes(token)) score += 2;
+      else if (needleTokens.some((part) => part.includes(token) || token.includes(part))) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = product;
+    }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
+/**
+ * Liefert €/kg-Referenzpreis aus dem Katalog (ID oder Name).
+ * @param {{ product?: string, name?: string, productId?: string, artNr?: string }} itemOrName
+ * @param {Record<string, CatalogOverride>|null} [overrides]
+ * @returns {{ pricePerKg: number, productId: string, artNr: string|null, name: string }|null}
+ */
+export function resolveCatalogPricePerKg(itemOrName, overrides = null) {
+  const raw = itemOrName && typeof itemOrName === 'object' ? itemOrName : { product: itemOrName };
+  const productId = String(raw.productId || raw.artNr || '').trim();
+  let product = productId ? findProductById(productId, overrides) : null;
+  if (!product) {
+    product = findCatalogProductByName(raw.product || raw.name || raw.produkt || '', overrides);
+  }
+  if (!product) return null;
+  const pricePerKg = Number(product.pricePerKg);
+  if (!Number.isFinite(pricePerKg) || pricePerKg <= 0) return null;
+  return {
+    pricePerKg,
+    productId: product.id,
+    artNr: product.artNr ? String(product.artNr) : null,
+    name: product.name,
+  };
+}
+
 /**
  * Prüft, ob Stückzahl/Gewicht zum gewählten Zuschnitt passen (Metzgerei-Realität).
  * @param {CatalogProduct|null|undefined} product
@@ -1427,6 +1514,9 @@ export default {
   getVisibleCatalog,
   getOrderableProducts,
   findProductById,
+  normalizeCatalogSearchKey,
+  findCatalogProductByName,
+  resolveCatalogPricePerKg,
   validateCutSelection,
   isHackfleischProduct,
   resolveHackfleischTier,

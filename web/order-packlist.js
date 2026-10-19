@@ -3,6 +3,8 @@
  * Kein DOM – testbar ohne Firebase.
  */
 
+import { resolveCatalogPricePerKg } from './orderCatalog.js';
+
 export const ORDER_STATUS_LABELS = Object.freeze({
   open: 'Eingegangen',
   pending: 'Eingegangen',
@@ -416,8 +418,52 @@ export function generateZuschnittAggregation(orders = [], dayIso = '') {
  * @param {object} item
  * @param {number|null} [actualWeightGrams]
  */
-export function calculateLinePriceFromWeight(item, actualWeightGrams = null) {
+/**
+ * Ergänzt fehlendes pricePerKg aus dem Vorbestellkatalog (Name/ID).
+ * @param {object} item
+ * @returns {object}
+ */
+export function enrichOrderItemPricing(item = {}) {
   const n = normalizeOrderItem(item);
+  if (n.pricePerKg > 0) {
+    return {
+      ...item,
+      product: n.product || item.product || item.name,
+      pricePerKg: n.pricePerKg,
+    };
+  }
+  const catalog = resolveCatalogPricePerKg({
+    product: n.product,
+    name: n.product,
+    productId: n.productId,
+    artNr: item.artNr,
+  });
+  if (!catalog) {
+    return {
+      ...item,
+      product: n.product || item.product || item.name,
+    };
+  }
+  return {
+    ...item,
+    product: n.product || item.product || item.name || catalog.name,
+    pricePerKg: catalog.pricePerKg,
+    productId: item.productId || catalog.productId,
+    artNr: item.artNr || catalog.artNr,
+  };
+}
+
+export function enrichOrderPricing(order) {
+  if (!order || typeof order !== 'object') return order;
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => enrichOrderItemPricing(item))
+    : order.items;
+  return { ...order, items };
+}
+
+export function calculateLinePriceFromWeight(item, actualWeightGrams = null) {
+  const enriched = enrichOrderItemPricing(item);
+  const n = normalizeOrderItem(enriched);
   const grams = actualWeightGrams != null && Number.isFinite(Number(actualWeightGrams))
     ? Number(actualWeightGrams)
     : n.actualWeightGrams;
