@@ -820,23 +820,18 @@
                               <input id="dev-dashboard-haccp-task-sort" type="number" step="1" value="100" inputmode="numeric">
                             </label>
                           </div>
-                          <label
-                            class="dev-dashboard-field"
-                            for="dev-dashboard-haccp-task-day"
-                            id="dev-dashboard-haccp-task-day-wrap"
-                            hidden
-                          >
-                            <span>Wochentag</span>
-                            <select id="dev-dashboard-haccp-task-day" aria-label="Wochentag für wöchentliche Aufgabe">
-                              <option value="1">Montag</option>
-                              <option value="2">Dienstag</option>
-                              <option value="3">Mittwoch</option>
-                              <option value="4">Donnerstag</option>
-                              <option value="5">Freitag</option>
-                              <option value="6">Samstag</option>
-                              <option value="0">Sonntag</option>
-                            </select>
-                          </label>
+                          <fieldset class="dev-dashboard-permissions-fieldset">
+                            <legend>Wochentage (alle = jeden Tag)</legend>
+                            <div class="dev-dashboard-haccp-weekdays" id="dev-dashboard-haccp-task-days" role="group" aria-label="Aktive Wochentage">
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="0" checked><span>So</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="1" checked><span>Mo</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="2" checked><span>Di</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="3" checked><span>Mi</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="4" checked><span>Do</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="5" checked><span>Fr</span></label>
+                              <label class="dev-dashboard-toggle dev-dashboard-toggle--compact"><input type="checkbox" data-haccp-task-day="6" checked><span>Sa</span></label>
+                            </div>
+                          </fieldset>
                           <label class="dev-dashboard-toggle" for="dev-dashboard-haccp-task-production">
                             <input id="dev-dashboard-haccp-task-production" type="checkbox">
                             <span>Nur an Produktionstagen</span>

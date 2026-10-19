@@ -943,11 +943,24 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
           name: 'Kühlhaus Grundreinigung',
           category: 'Wöchentlich',
           period: 'week',
-          targetDay: 3,
+          activeDays: [3],
+        },
+      );
+      await expectFirestoreAllow(
+        admin,
+        tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'sb-brotkisten'),
+        'create',
+        {
+          ...taskPayload,
+          name: 'SB-Brotkisten',
+          category: 'Nach Nutzung',
+          activeDays: [1, 2, 3, 4],
         },
       );
       await expectFirestoreAllow(admin, taskPath, 'update', { sortOrder: 20 });
-      await expectFirestoreAllow(admin, taskPath, 'update', { targetDay: 1, category: 'Wöchentlich', period: 'week' });
+      await expectFirestoreAllow(admin, taskPath, 'update', { activeDays: [1, 2, 3], targetDay: null });
+      await expectFirestoreAllow(admin, taskPath, 'update', { activeDays: null });
+      await expectFirestoreDeny(admin, taskPath, 'update', { activeDays: [1, 7] });
       await expectFirestoreDeny(admin, taskPath, 'update', { targetDay: 7 });
       await expectFirestoreAllow(admin, taskPath, 'delete');
     });

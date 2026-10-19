@@ -378,12 +378,18 @@ function slugCategoryId(value) {
 }
 
 function isCleaningTaskDueToday(task) {
-  const category = String(task?.category || '').trim();
-  if (category !== 'Wöchentlich') return true;
-  // Alte Einträge ohne targetDay bleiben sichtbar (Fallback).
-  if (task?.targetDay == null || task.targetDay === '') return true;
   const today = new Date().getDay();
-  return Number(task.targetDay) === today;
+  if (Array.isArray(task?.activeDays)) {
+    if (task.activeDays.length === 0) return true;
+    return task.activeDays.map(Number).includes(today);
+  }
+  if (task?.activeDays === null) return true;
+  // Legacy: einzelnes targetDay (0–6) aus der Dropdown-Ära.
+  if (task?.targetDay != null && task.targetDay !== '') {
+    return Number(task.targetDay) === today;
+  }
+  // Weder activeDays noch targetDay → jeden Tag aktiv.
+  return true;
 }
 
 function resolveActiveCleaningTaskDocs() {

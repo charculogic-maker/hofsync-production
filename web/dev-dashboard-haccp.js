@@ -63,29 +63,41 @@ function periodForCategory(category) {
   return String(category || '') === 'Wöchentlich' ? 'week' : 'day';
 }
 
-function isWeeklyCategory(category) {
-  return String(category || '') === 'Wöchentlich';
-}
-
 function parseTargetDay(value) {
   if (value === '' || value == null) return null;
   const day = Number(value);
   return Number.isInteger(day) && day >= 0 && day <= 6 ? day : null;
 }
 
-function syncTaskDayFieldVisibility() {
-  const category = document.getElementById('dev-dashboard-haccp-task-category')?.value;
-  const wrap = document.getElementById('dev-dashboard-haccp-task-day-wrap');
-  if (!wrap) return;
-  wrap.hidden = !isWeeklyCategory(category);
+function fieldDelete() {
+  return typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.delete
+    ? firebase.firestore.FieldValue.delete()
+    : null;
+}
+
+function normalizeActiveDays(value) {
+  if (!Array.isArray(value) || !value.length) return null;
+  const days = [...new Set(value.map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+    .sort((a, b) => a - b);
+  if (!days.length || days.length === 7) return null;
+  return days;
+}
+
+function resolveTaskActiveDaysForForm(task) {
+  const fromArray = normalizeActiveDays(task?.activeDays);
+  if (fromArray) return fromArray;
+  if (Array.isArray(task?.activeDays) && task.activeDays.length === 0) return null;
+  if (task?.activeDays === null) return null;
+  const legacy = parseTargetDay(task?.targetDay);
+  return legacy == null ? null : [legacy];
 }
 
 function formatTaskCategory(task) {
   const category = task?.category || '—';
-  if (!isWeeklyCategory(category)) return category;
-  const day = parseTargetDay(task?.targetDay);
-  if (day == null) return category;
-  return `${category} (${WEEKDAY_LABELS[day]})`;
+  const days = resolveTaskActiveDaysForForm(task);
+  if (!days) return category;
+  return `${category} (${days.map((d) => WEEKDAY_LABELS[d] || d).join(', ')})`;
 }
 
 function tenantCollection(name) {
@@ -101,22 +113,38 @@ function setStatus(elId, message, tone = 'info') {
   el.dataset.tone = tone;
 }
 
-function readActiveDaysFromAdminForm() {
-  const boxes = Array.from(document.querySelectorAll('[data-haccp-admin-day]'));
+function readActiveDaysFromSelector(selector, datasetKey) {
+  const boxes = Array.from(document.querySelectorAll(selector));
   const checked = boxes
     .filter((box) => box.checked)
-    .map((box) => Number(box.dataset.haccpAdminDay))
+    .map((box) => Number(box.dataset[datasetKey]))
     .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
     .sort((a, b) => a - b);
   if (checked.length === 0 || checked.length === 7) return null;
   return checked;
 }
 
-function setActiveDaysOnAdminForm(activeDays) {
+function setActiveDaysOnSelector(selector, datasetKey, activeDays) {
   const days = Array.isArray(activeDays) && activeDays.length ? activeDays : [0, 1, 2, 3, 4, 5, 6];
-  document.querySelectorAll('[data-haccp-admin-day]').forEach((box) => {
-    box.checked = days.includes(Number(box.dataset.haccpAdminDay));
+  document.querySelectorAll(selector).forEach((box) => {
+    box.checked = days.includes(Number(box.dataset[datasetKey]));
   });
+}
+
+function readActiveDaysFromAdminForm() {
+  return readActiveDaysFromSelector('[data-haccp-admin-day]', 'haccpAdminDay');
+}
+
+function setActiveDaysOnAdminForm(activeDays) {
+  setActiveDaysOnSelector('[data-haccp-admin-day]', 'haccpAdminDay', activeDays);
+}
+
+function readActiveDaysFromTaskForm() {
+  return readActiveDaysFromSelector('[data-haccp-task-day]', 'haccpTaskDay');
+}
+
+function setActiveDaysOnTaskForm(activeDays) {
+  setActiveDaysOnSelector('[data-haccp-task-day]', 'haccpTaskDay', activeDays);
 }
 
 function formatTempRange(device) {
@@ -168,11 +196,9 @@ function resetTaskForm() {
   if (category) category.value = 'Täglich';
   const sort = document.getElementById('dev-dashboard-haccp-task-sort');
   if (sort) sort.value = '100';
-  const day = document.getElementById('dev-dashboard-haccp-task-day');
-  if (day) day.value = '1';
   const production = document.getElementById('dev-dashboard-haccp-task-production');
   if (production) production.checked = false;
-  syncTaskDayFieldVisibility();
+  setActiveDaysOnTaskForm(null);
 }
 
 function renderDevicesTable() {
@@ -322,9 +348,8 @@ function buildTaskPayload(formValues, editingId) {
     : Number(formValues.sortOrder);
   const category = formValues.category || 'Täglich';
   const id = editingId || slugId(formValues.name);
-  const weekly = isWeeklyCategory(category);
-  const targetDay = weekly
-    ? (parseTargetDay(formValues.targetDay) ?? 1)
+  const activeDays = Object.prototype.hasOwnProperty.call(formValues, 'activeDays')
+    ? normalizeActiveDays(formValues.activeDays)
     : null;
   return {
     id,
@@ -334,7 +359,7 @@ function buildTaskPayload(formValues, editingId) {
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : 100,
     isProductionOnly: formValues.isProductionOnly === true,
     isActive: true,
-    targetDay,
+    activeDays,
     tenantId: canonicalTenantId(haccpAdminState.tenantId),
     updatedAt: serverTimestamp(),
   };
@@ -393,7 +418,7 @@ async function saveTaskFromForm(event) {
     name,
     category: document.getElementById('dev-dashboard-haccp-task-category')?.value,
     sortOrder: document.getElementById('dev-dashboard-haccp-task-sort')?.value,
-    targetDay: document.getElementById('dev-dashboard-haccp-task-day')?.value,
+    activeDays: readActiveDaysFromTaskForm(),
     isProductionOnly: Boolean(document.getElementById('dev-dashboard-haccp-task-production')?.checked),
   }, editingId);
   const { id, ...data } = payload;
@@ -401,6 +426,10 @@ async function saveTaskFromForm(event) {
     const ref = col.doc(id);
     const existing = await ref.get();
     if (!existing.exists) data.createdAt = serverTimestamp();
+    // Altes Einzel-Tag-Feld entfernen (Migration targetDay → activeDays).
+    if (existing.exists && Object.prototype.hasOwnProperty.call(existing.data() || {}, 'targetDay')) {
+      data.targetDay = fieldDelete();
+    }
     await ref.set(data, { merge: true });
     haccpAdminState.recordAudit('settings', `HACCP-Reinigungsaufgabe gespeichert: ${name}`, 'change');
     window.showToast?.(`Aufgabe „${name}“ gespeichert.`, 'success');
@@ -441,10 +470,8 @@ function fillTaskForm(task) {
   document.getElementById('dev-dashboard-haccp-task-name').value = task.name || '';
   document.getElementById('dev-dashboard-haccp-task-category').value = task.category || 'Täglich';
   document.getElementById('dev-dashboard-haccp-task-sort').value = String(task.sortOrder ?? 100);
-  const day = parseTargetDay(task.targetDay);
-  document.getElementById('dev-dashboard-haccp-task-day').value = String(day == null ? 1 : day);
+  setActiveDaysOnTaskForm(resolveTaskActiveDaysForForm(task));
   document.getElementById('dev-dashboard-haccp-task-production').checked = task.isProductionOnly === true;
-  syncTaskDayFieldVisibility();
   document.getElementById('dev-dashboard-haccp-task-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -534,6 +561,8 @@ async function seedDefaultCleaningTasks() {
       const { id, ...data } = payload;
       data.tenantId = tenantId;
       data.createdAt = serverTimestamp();
+      // Migration: altes targetDay bei Re-Seed entfernen.
+      data.targetDay = fieldDelete();
       batch.set(col.doc(id), data, { merge: true });
     });
     await batch.commit();
@@ -564,13 +593,10 @@ function bindHaccpAdminControls() {
     ?.addEventListener('click', () => resetDeviceForm());
   document.getElementById('dev-dashboard-haccp-task-cancel')
     ?.addEventListener('click', () => resetTaskForm());
-  document.getElementById('dev-dashboard-haccp-task-category')
-    ?.addEventListener('change', () => syncTaskDayFieldVisibility());
   document.getElementById('dev-dashboard-haccp-seed-devices')
     ?.addEventListener('click', () => { void seedStevesHofDevices(); });
   document.getElementById('dev-dashboard-haccp-seed-tasks')
     ?.addEventListener('click', () => { void seedDefaultCleaningTasks(); });
-  syncTaskDayFieldVisibility();
 
   document.getElementById('dev-dashboard-haccp-devices-body')
     ?.addEventListener('click', (event) => {
