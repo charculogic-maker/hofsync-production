@@ -43,6 +43,51 @@ const PRODUCTION_STATIONS = {
   },
 };
 
+/**
+ * Muss 1:1 zu firebase.rules `customerOrders` create hasOnly passen.
+ * Extra-Felder (z. B. employeeName) → permission-denied.
+ */
+const CUSTOMER_ORDER_CREATE_FIELDS = Object.freeze([
+  'customerName',
+  'callbackPhone',
+  'customerEmail',
+  'readyAt',
+  'items',
+  'additionalWishes',
+  'orderSlipAttachments',
+  'inputMode',
+  'acceptedBy',
+  'acceptedAt',
+  'status',
+  'tenantId',
+  'createdAt',
+]);
+
+/**
+ * Muss zu firebase.rules `isCustomerOrderStatusUpdate` affectedKeys passen.
+ */
+const CUSTOMER_ORDER_STATUS_UPDATE_FIELDS = Object.freeze([
+  'status',
+  'readyMarkedBy',
+  'readyMarkedAt',
+  'pickedUpBy',
+  'pickedUpAt',
+  'pickupPlace',
+  'items',
+  'inProgressBy',
+  'inProgressAt',
+]);
+
+function pickDefinedFields(payload, allowedFields) {
+  const out = {};
+  for (const key of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(payload, key) && payload[key] !== undefined) {
+      out[key] = payload[key];
+    }
+  }
+  return out;
+}
+
 const orderState = {
   db: null,
   tenantId: '',
@@ -938,24 +983,20 @@ async function markSammelPicklisteReady() {
       const order = orderState.allOrders.find((entry) => entry.id === orderId);
       const updates = actualUpdates.get(orderId) || [];
       const updatedItems = applyActualQuantityUpdatesToItems(order, updates);
-      const onlineUpdate = {
+      const onlineUpdate = pickDefinedFields({
         status: 'ready',
         readyMarkedBy: employee,
-        employeeName: employee,
         readyMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
         pickupPlace: 'Laden-Kühlschrank',
-      };
-      const queuedUpdate = {
+        ...(updates.length && updatedItems ? { items: updatedItems } : {}),
+      }, CUSTOMER_ORDER_STATUS_UPDATE_FIELDS);
+      const queuedUpdate = pickDefinedFields({
         status: 'ready',
         readyMarkedBy: employee,
-        employeeName: employee,
         readyMarkedAt: new Date().toISOString(),
         pickupPlace: 'Laden-Kühlschrank',
-      };
-      if (updates.length && updatedItems) {
-        onlineUpdate.items = updatedItems;
-        queuedUpdate.items = updatedItems;
-      }
+        ...(updates.length && updatedItems ? { items: updatedItems } : {}),
+      }, CUSTOMER_ORDER_STATUS_UPDATE_FIELDS);
       return writeFirestoreDocOrQueue({
         collectionPath: 'customerOrders',
         docId: orderId,
@@ -1284,22 +1325,21 @@ async function createOrderFromForm() {
     }
   }
 
-  const payload = {
+  const payload = pickDefinedFields({
     customerName,
     readyAt,
     items,
     inputMode,
     acceptedBy: employee,
-    employeeName: employee,
     acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
     status: 'open',
     tenantId: orderState.tenantId,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-  };
-  if (callbackPhone) payload.callbackPhone = callbackPhone;
-  if (customerEmail) payload.customerEmail = customerEmail;
-  if (additionalWishes) payload.additionalWishes = additionalWishes;
-  if (orderSlipAttachments.length) payload.orderSlipAttachments = orderSlipAttachments;
+    ...(callbackPhone ? { callbackPhone } : {}),
+    ...(customerEmail ? { customerEmail } : {}),
+    ...(additionalWishes ? { additionalWishes } : {}),
+    ...(orderSlipAttachments.length ? { orderSlipAttachments } : {}),
+  }, CUSTOMER_ORDER_CREATE_FIELDS);
 
   try {
     orderState.createInFlight = true;
@@ -1308,11 +1348,11 @@ async function createOrderFromForm() {
       docId: orderId,
       op: 'set',
       onlineData: payload,
-      queueData: {
+      queueData: pickDefinedFields({
         ...payload,
         acceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-      },
+      }, CUSTOMER_ORDER_CREATE_FIELDS),
       offlineMessage: 'Bestellung wird synchronisiert, sobald WLAN verfügbar ist.',
     });
     resetOrderForm();
@@ -1322,8 +1362,8 @@ async function createOrderFromForm() {
         : 'Kundenbestellung gespeichert.',
       result === 'queued' ? 'warning' : 'success'
     );
-  } catch (err) {
-    console.error('[CustomerOrders] Speichern fehlgeschlagen:', err);
+  } catch (error) {
+    console.error('[Orders] Schreibfehler:', error);
     window.showToast?.('Bestellung konnte nicht gespeichert werden.', 'error');
   } finally {
     orderState.createInFlight = false;
@@ -1339,11 +1379,11 @@ async function updateOrderStatus(orderId, nextStatus) {
   }
 
   const firebase = orderState.getFirebase();
-  const payload = { status: nextStatus, employeeName: employee };
+  const rawPayload = { status: nextStatus };
 
   if (nextStatus === 'in_progress') {
-    payload.inProgressBy = employee;
-    payload.inProgressAt = firebase?.firestore?.FieldValue
+    rawPayload.inProgressBy = employee;
+    rawPayload.inProgressAt = firebase?.firestore?.FieldValue
       ? firebase.firestore.FieldValue.serverTimestamp()
       : new Date().toISOString();
   } else if (nextStatus === 'ready') {
@@ -1351,8 +1391,8 @@ async function updateOrderStatus(orderId, nextStatus) {
       window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
       return;
     }
-    payload.readyMarkedBy = employee;
-    payload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
+    rawPayload.readyMarkedBy = employee;
+    rawPayload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
   } else if (nextStatus === 'picked_up') {
     const order = orderState.allOrders.find((entry) => entry.id === orderId);
     if (!order) {
@@ -1392,6 +1432,8 @@ async function updateOrderStatus(orderId, nextStatus) {
     return;
   }
 
+  const payload = pickDefinedFields(rawPayload, CUSTOMER_ORDER_STATUS_UPDATE_FIELDS);
+
   try {
     orderState.statusUpdateInFlight = true;
     orderState.statusUpdateOrderIds.add(orderId);
@@ -1400,7 +1442,7 @@ async function updateOrderStatus(orderId, nextStatus) {
       docId: orderId,
       op: 'update',
       onlineData: payload,
-      queueData: (() => {
+      queueData: pickDefinedFields((() => {
         const q = { status: nextStatus };
         if (nextStatus === 'in_progress') {
           q.inProgressBy = employee;
@@ -1415,7 +1457,7 @@ async function updateOrderStatus(orderId, nextStatus) {
           q.pickedUpAt = new Date().toISOString();
         }
         return q;
-      })(),
+      })(), CUSTOMER_ORDER_STATUS_UPDATE_FIELDS),
       offlineMessage: 'Status wird synchronisiert, sobald WLAN verfügbar ist.',
     });
     orderState.allOrders = orderState.allOrders.map((entry) => {
@@ -1446,8 +1488,8 @@ async function updateOrderStatus(orderId, nextStatus) {
         : `Bestellung ${labels[nextStatus] || 'aktualisiert'}.`,
       result === 'queued' ? 'warning' : 'success'
     );
-  } catch (err) {
-    console.error('[CustomerOrders] Status-Update fehlgeschlagen:', err);
+  } catch (error) {
+    console.error('[Orders] Schreibfehler:', error);
     window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
   } finally {
     orderState.statusUpdateOrderIds.delete(orderId);

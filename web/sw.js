@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-weekly-filter-v1';
+const CACHE_NAME = 'charculogic-v20261019-orders-fix-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 /** Release – HACCP wöchentliche Reinigung nach Wochentag */
