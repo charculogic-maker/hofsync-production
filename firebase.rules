@@ -468,6 +468,7 @@ service cloud.firestore {
         && hasOnly([
           'id', 'name', 'category', 'period',
           'sortOrder', 'isProductionOnly', 'isActive',
+          'activeDays',
           'targetDay',
           'tenantId', 'updatedAt', 'createdAt',
           'updatedBy'
@@ -475,6 +476,15 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.name)
         && isNonEmptyString(request.resource.data.category)
         && request.resource.data.tenantId == tenantId
+        && (
+          !('activeDays' in request.resource.data)
+          || request.resource.data.activeDays == null
+          || (
+            request.resource.data.activeDays is list
+            && request.resource.data.activeDays.size() <= 7
+            && request.resource.data.activeDays.hasOnly([0, 1, 2, 3, 4, 5, 6])
+          )
+        )
         && (
           !('targetDay' in request.resource.data)
           || request.resource.data.targetDay == null
