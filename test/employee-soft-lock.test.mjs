@@ -69,7 +69,10 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   it('attaches employeeName on MHD/Wareneingang and Packtisch writes', () => {
     expect(mhdJs).to.match(/fields\.employeeName\s*=\s*actor/);
     expect(mhdJs).to.match(/employeeName:\s*getActiveEmployee\(\)\s*\|\|\s*getAuditActorName\(\)/);
-    expect(ordersJs).to.match(/employeeName:\s*employee/);
+    // Packtisch: Rules hasOnly erlaubt kein employeeName — Audit über acceptedBy/readyMarkedBy
+    expect(ordersJs).to.match(/acceptedBy:\s*employee/);
+    expect(ordersJs).to.match(/readyMarkedBy:\s*employee/);
+    expect(ordersJs).to.not.match(/employeeName:\s*employee/);
   });
 
   it('styles the centered soft-lock overlay with scrollable list', () => {
@@ -88,8 +91,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache to role-based-nav-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1'");
+  it('bumps the service-worker cache to orders-fix-v1', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261019-orders-fix-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
