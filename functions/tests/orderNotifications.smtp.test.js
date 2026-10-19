@@ -6,6 +6,7 @@ const {
   resolveTenantSmtpConfig,
   parseFromEmailField,
   resolveFromAddress,
+  loadTenantProfileFromDb,
 } = require('../orderNotifications')._test;
 
 describe('orderNotifications mandanten SMTP', () => {
@@ -63,5 +64,32 @@ describe('orderNotifications mandanten SMTP', () => {
       { betriebsName: 'StevesHof' },
     );
     expect(from).toEqual({ address: 'bestellung@hof.de', name: 'Mein Hof' });
+  });
+
+  test('lädt SMTP-Passwort aus nicht öffentlichem Secret-Dokument', async () => {
+    const docs = new Map([
+      ['tenants/steveshof/settings/profile', {
+        exists: true,
+        data: () => ({
+          betriebsName: 'StevesHof',
+          smtpHost: 'smtp.hof.de',
+          smtpUser: 'mail@hof.de',
+          smtpPass: 'legacy-public-secret',
+        }),
+      }],
+      ['tenants/steveshof/secrets/smtp', {
+        exists: true,
+        data: () => ({ smtpPass: 'private-secret' }),
+      }],
+    ]);
+    const profile = await loadTenantProfileFromDb({
+      doc: (path) => ({
+        get: async () => docs.get(path) || { exists: false, data: () => ({}) },
+      }),
+    }, 'steveshof');
+
+    expect(profile.smtpHost).toBe('smtp.hof.de');
+    expect(profile.smtpUser).toBe('mail@hof.de');
+    expect(profile.smtpPass).toBe('private-secret');
   });
 });

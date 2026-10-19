@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261019-tenant-smtp-v1';
+const CACHE_NAME = 'charculogic-v20261019-tenant-smtp-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Mandanten-SMTP im Dev-Dashboard */
-const RELEASED_AT = '2026-10-19T12:30:00+02:00';
+/** Release – Mandanten-SMTP Secrets aus öffentlichem Profil getrennt */
+const RELEASED_AT = '2026-10-19T22:05:00+00:00';
 
 const CRITICAL_ASSETS = [
   '/',

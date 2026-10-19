@@ -20,8 +20,8 @@ function pickConfiguredValue(...candidates) {
 }
 
 /**
- * Mandanten-SMTP aus settings/profile mit Fallback auf globale Env/Params.
- * HOST/PORT/USER/PASS/FROM = settings.* || process.env.*
+ * Mandanten-SMTP aus settings/profile + secrets/smtp mit Fallback auf globale Env/Params.
+ * HOST/PORT/USER/FROM = settings.* || process.env.*, PASS = secrets.* || legacy settings.* || process.env.*
  */
 function resolveTenantSmtpConfig(tenantSettings = {}, globalConfig = {}) {
   const smtpHost = pickConfiguredValue(
@@ -126,12 +126,24 @@ function resolveFromAddress(config, profile = {}) {
 
 /**
  * Lädt Mandanten-Settings für SMTP/Branding.
- * Persistenz: tenants/{tenantId}/settings/profile (Dev-Dashboard „Mein Betrieb“).
+ * Persistenz: public settings in tenants/{tenantId}/settings/profile,
+ * SMTP-Passwort in tenants/{tenantId}/secrets/smtp.
  */
+async function loadTenantProfileFromDb(db, tenantId) {
+  if (!db || !tenantId) return {};
+  const [profileSnap, smtpSecretSnap] = await Promise.all([
+    db.doc(`tenants/${tenantId}/settings/profile`).get(),
+    db.doc(`tenants/${tenantId}/secrets/smtp`).get(),
+  ]);
+  const profile = profileSnap.exists ? (profileSnap.data() || {}) : {};
+  const smtpSecret = smtpSecretSnap.exists ? (smtpSecretSnap.data() || {}) : {};
+  const smtpPass = pickConfiguredValue(smtpSecret.smtpPass, profile.smtpPass);
+  return smtpPass ? { ...profile, smtpPass } : profile;
+}
+
 async function loadTenantProfile(tenantId) {
   if (!tenantId) return {};
-  const snap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
-  return snap.exists ? (snap.data() || {}) : {};
+  return loadTenantProfileFromDb(getAdminDb(), tenantId);
 }
 
 function parseQuantityValue(value) {
@@ -448,7 +460,7 @@ async function handleOrderReadySendSignal(event) {
 
   console.log('[KundenSignal] Lade Mandanten-Settings', {
     tenantId,
-    path: `tenants/${tenantId}/settings/profile`,
+    path: `tenants/${tenantId}/settings/profile + tenants/${tenantId}/secrets/smtp`,
   });
   const profile = await loadTenantProfile(tenantId);
   const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
@@ -498,6 +510,7 @@ exports._test = {
   resolveFromAddress,
   resolveTenantSmtpConfig,
   parseFromEmailField,
+  loadTenantProfileFromDb,
   sendCustomerEmail,
   sendCustomerSms,
 };
