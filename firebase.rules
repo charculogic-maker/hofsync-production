@@ -193,13 +193,12 @@ service cloud.firestore {
           'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
           'tenantId', 'updatedAt', 'updatedBy',
           // Mandanten-SMTP für Kundenbenachrichtigungen (Soft-Launch SaaS)
-          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
+          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser'
         ])
         && isOptionalString(request.resource.data.smtpFromEmail)
         && isOptionalString(request.resource.data.smtpHost)
         && isOptionalString(request.resource.data.smtpPort)
-        && isOptionalString(request.resource.data.smtpUser)
-        && isOptionalString(request.resource.data.smtpPass);
+        && isOptionalString(request.resource.data.smtpUser);
     }
 
     function isTerminalSettings(docId) {
@@ -242,6 +241,20 @@ service cloud.firestore {
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
         );
+      allow delete: if isAdmin(tenantId);
+    }
+
+    match /tenants/{tenantId}/secrets/{document} {
+      // Secrets are written by tenant admins, but only Admin SDK backend code may read them.
+      allow read: if false;
+      allow create, update: if isAdmin(tenantId)
+        && document == 'smtp'
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.keys().hasOnly([
+          'tenantId', 'smtpPass', 'updatedAt', 'updatedBy'
+        ])
+        && isNonEmptyString(request.resource.data.smtpPass)
+        && request.resource.data.smtpPass.size() <= 512;
       allow delete: if isAdmin(tenantId);
     }
 

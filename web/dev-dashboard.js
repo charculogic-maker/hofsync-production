@@ -1005,13 +1005,8 @@ function fillSmtpFieldsInForm(smtp = {}) {
   if (hostEl) hostEl.value = String(smtp.smtpHost || '').trim();
   if (portEl) portEl.value = String(smtp.smtpPort || '').trim();
   if (userEl) userEl.value = String(smtp.smtpUser || '').trim();
-  // Passwort nur vorfüllen, wenn vorhanden – sonst Placeholder „behalten“
   if (passEl) passEl.value = '';
-  if (passEl && smtp.smtpPass) {
-    passEl.placeholder = 'Gespeichert – neu eingeben zum Ändern';
-  } else if (passEl) {
-    passEl.placeholder = 'Leer = bestehendes Passwort behalten';
-  }
+  if (passEl) passEl.placeholder = 'Leer = bestehendes Passwort behalten';
 }
 
 async function loadTenantSmtpSettings(db, tenantId) {
@@ -1025,7 +1020,6 @@ async function loadTenantSmtpSettings(db, tenantId) {
       smtpHost: String(data.smtpHost || '').trim(),
       smtpPort: String(data.smtpPort || '').trim(),
       smtpUser: String(data.smtpUser || '').trim(),
-      smtpPass: String(data.smtpPass || '').trim(),
     };
   } catch (err) {
     console.error('[Dev-Dashboard] SMTP-Settings laden fehlgeschlagen:', err);
@@ -1061,7 +1055,8 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
 }
 
 /**
- * Speichert Firmenname, Logo und optionale SMTP-Daten unter settings/profile.
+ * Speichert Firmenname, Logo und öffentliche SMTP-Daten unter settings/profile.
+ * Das SMTP-Passwort liegt separat unter secrets/smtp, damit Laden-Rollen es nicht lesen können.
  * Module bleiben unberührt (Schalten nur über Plattform-Tabelle / setTenantModules).
  */
 async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {}) {
@@ -1070,6 +1065,9 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {
   const payload = { displayName };
   const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
+    : null;
+  const deleteField = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.delete
+    ? firebase.firestore.FieldValue.delete()
     : null;
   if (stamp) payload.updatedAt = stamp;
   if (typeof tenantRef.update === 'function') {
@@ -1088,12 +1086,18 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {
       smtpPort: String(smtp.smtpPort || '').trim(),
       smtpUser: String(smtp.smtpUser || '').trim(),
     };
-    const nextPass = String(smtp.smtpPass || '');
-    if (nextPass) {
-      profilePayload.smtpPass = nextPass;
-    }
+    if (deleteField) profilePayload.smtpPass = deleteField;
     if (stamp) profilePayload.updatedAt = stamp;
     await settingsCollection.doc('profile').set(profilePayload, { merge: true });
+  }
+  const nextPass = String(smtp.smtpPass || '');
+  if (nextPass && typeof tenantRef.collection === 'function') {
+    const secretPayload = {
+      tenantId,
+      smtpPass: nextPass,
+    };
+    if (stamp) secretPayload.updatedAt = stamp;
+    await tenantRef.collection('secrets').doc('smtp').set(secretPayload, { merge: true });
   }
 }
 
