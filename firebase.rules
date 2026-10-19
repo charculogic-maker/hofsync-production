@@ -186,20 +186,45 @@ service cloud.firestore {
       ]);
     }
 
+    // Keys, die Client/Admin in settings/profile schreiben dürfen.
+    // Update prüft nur affectedKeys (Merge mit Legacy-Feldern bleibt erlaubt).
+    function profileSettingsAllowedKeys() {
+      return [
+        'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
+        'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
+        'tenantId', 'updatedAt', 'updatedBy',
+        'displayName', 'companyName', 'name', 'supportEmail', 'email',
+        'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
+      ];
+    }
+
+    function isProfileSmtpStringsOk() {
+      return (!('smtpFromEmail' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpFromEmail))
+        && (!('smtpHost' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpHost))
+        && (!('smtpPort' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpPort))
+        && (!('smtpUser' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpUser))
+        && (!('smtpPass' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpPass));
+    }
+
     function isProfileSettings(docId) {
       return docId == 'profile'
-        && request.resource.data.keys().hasOnly([
-          'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
-          'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
-          'tenantId', 'updatedAt', 'updatedBy',
-          // Mandanten-SMTP für Kundenbenachrichtigungen (Soft-Launch SaaS)
-          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
-        ])
-        && isOptionalString(request.resource.data.smtpFromEmail)
-        && isOptionalString(request.resource.data.smtpHost)
-        && isOptionalString(request.resource.data.smtpPort)
-        && isOptionalString(request.resource.data.smtpUser)
-        && isOptionalString(request.resource.data.smtpPass);
+        && isProfileSmtpStringsOk()
+        && (
+          (
+            resource == null
+            && request.resource.data.keys().hasOnly(profileSettingsAllowedKeys())
+          )
+          || (
+            resource != null
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(profileSettingsAllowedKeys())
+          )
+        );
     }
 
     function isTerminalSettings(docId) {
