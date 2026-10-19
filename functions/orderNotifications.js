@@ -126,10 +126,28 @@ function getItemUnitPrice(item, orderedQuantity) {
 }
 
 function calculateFinalOrderPrice(order) {
+  if (Number.isFinite(Number(order?.finalPrice)) && Number(order.finalPrice) > 0) {
+    return Math.round(Number(order.finalPrice) * 100) / 100;
+  }
+  if (Number.isFinite(Number(order?.totalPrice)) && Number(order.totalPrice) > 0) {
+    return Math.round(Number(order.totalPrice) * 100) / 100;
+  }
   const total = (Array.isArray(order?.items) ? order.items : []).reduce((sum, item) => {
     const orderedQuantity = parseQuantityValue(item?.quantity);
-    const actualQuantity = item?.actualQuantity ? parseQuantityValue(item.actualQuantity) : orderedQuantity;
-    const unitPrice = getItemUnitPrice(item, orderedQuantity);
+    const actualGrams = Number(item?.actualWeightGrams);
+    const actualFromGrams = Number.isFinite(actualGrams) && actualGrams > 0
+      ? actualGrams / 1000
+      : 0;
+    const actualQuantity = actualFromGrams > 0
+      ? actualFromGrams
+      : (item?.actualQuantity ? parseQuantityValue(item.actualQuantity) : orderedQuantity);
+    const storedLine = [item?.lineTotal, item?.totalPrice]
+      .map(parseMoneyValue)
+      .find((price) => price > 0);
+    if (storedLine > 0 && actualFromGrams > 0) {
+      return sum + storedLine;
+    }
+    const unitPrice = getItemUnitPrice(item, orderedQuantity || actualQuantity);
     return sum + (actualQuantity * unitPrice);
   }, 0);
   return Math.round(total * 100) / 100;
@@ -145,7 +163,12 @@ function escapeHtml(value) {
 
 function operatorLabel(order = {}) {
   const name = String(
-    order.packedBy || order.readyBy || order.preparedBy || order.updatedBy || '',
+    order.readyMarkedBy
+    || order.packedBy
+    || order.readyBy
+    || order.preparedBy
+    || order.updatedBy
+    || '',
   ).trim();
   return name || 'Das Team';
 }
@@ -300,37 +323,82 @@ async function dispatchCustomerSignal(signal, meta) {
 }
 
 async function handleOrderReadySendSignal(event) {
-  ensureAdminApp();
-  const before = event.data?.before?.data();
-  const after = event.data?.after?.data();
-  if (!before || !after) return null;
-  if (before.status === 'ready' || after.status !== 'ready') return null;
+  const tenantId = event.params?.tenantId || null;
+  const orderId = event.params?.orderId || null;
+  const before = event.data?.before?.data() || null;
+  const after = event.data?.after?.data() || null;
 
-  const tenantId = event.params.tenantId;
-  const orderId = event.params.orderId;
-  if (after.tenantId && after.tenantId !== tenantId) {
-    console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
+  console.log('[KundenSignal] Trigger gefeuert', {
+    tenantId,
+    orderId,
+    beforeStatus: before?.status ?? null,
+    afterStatus: after?.status ?? null,
+  });
+
+  ensureAdminApp();
+  if (!before || !after) {
+    console.warn('[KundenSignal] Abbruch: before/after fehlt', { tenantId, orderId });
     return null;
   }
+  if (before.status === 'ready' || after.status !== 'ready') {
+    console.log('[KundenSignal] Abbruch: kein Übergang auf ready', {
+      tenantId,
+      orderId,
+      beforeStatus: before.status,
+      afterStatus: after.status,
+    });
+    return null;
+  }
+
+  if (after.tenantId && after.tenantId !== tenantId) {
+    console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', {
+      tenantId,
+      orderId,
+      afterTenantId: after.tenantId,
+    });
+    return null;
+  }
+
+  const config = getNotificationConfig();
+  const smtpUserConfigured = isConfiguredParam(config.smtpUser);
+  const smtpPassConfigured = isConfiguredParam(config.smtpPass);
+  const fromEmailConfigured = isConfiguredParam(config.fromEmail)
+    || Boolean(String(process.env.FROM_EMAIL || '').trim()
+      && isConfiguredParam(process.env.FROM_EMAIL));
+  console.log('[KundenSignal] SMTP-Konfiguration', {
+    tenantId,
+    orderId,
+    smtpHost: config.smtpHost || null,
+    smtpPort: config.smtpPort || null,
+    smtpUserConfigured,
+    smtpPassConfigured,
+    fromEmailConfigured,
+    willSkipEmail: !(smtpUserConfigured && smtpPassConfigured),
+  });
 
   const profile = await loadTenantProfile(tenantId);
   const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
   const signal = buildCustomerSignal(after, profile);
 
   console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-    ...meta,
+    tenantId,
+    orderId,
+    customerName: meta.customerName,
     hasEmail: Boolean(signal.to.email),
     hasPhone: Boolean(signal.to.phone),
+    email: signal.to.email || null,
+    phone: signal.to.phone || null,
     finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
     pickupWindow: formatPickupWindow(after.readyAt),
   });
 
   try {
     const results = await dispatchCustomerSignal(signal, meta);
-    console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+    console.log('[KundenSignal] Versand abgeschlossen', { tenantId, orderId, results });
   } catch (error) {
     console.error('[KundenSignal] Unerwarteter Versandfehler', {
-      ...meta,
+      tenantId,
+      orderId,
       message: error?.message,
     });
   }

@@ -32,7 +32,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for Avery iOS in-page print release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261018-ios-inpage-print'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261019-packtisch-price-signal-v1'");
   });
 
   it('applies employee kitchen RBAC during zero-flicker boot', () => {

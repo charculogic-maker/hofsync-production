@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261018-haccp-weekly-filter-v1';
+const CACHE_NAME = 'charculogic-v20261019-packtisch-price-signal-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – HACCP wöchentliche Reinigung nach Wochentag */
-const RELEASED_AT = '2026-10-18T19:00:00+02:00';
+/** Release – Packtisch Preis-Lookup + Kunden-Signal Logging */
+const RELEASED_AT = '2026-10-19T12:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -29,6 +29,7 @@ const CRITICAL_ASSETS = [
   '/team-notify.js',
   '/customer-orders.js',
   '/order-packlist.js',
+  '/orderCatalog.js',
   '/order-print.css',
   '/auth.js',
   '/auth-errors.js',
