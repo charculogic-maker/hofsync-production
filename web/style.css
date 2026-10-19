@@ -13134,6 +13134,24 @@ body.role-firebase-auth #team-login-card {
   color: var(--text-primary, #0f172a);
 }
 
+.dev-dashboard-smtp-fieldset {
+  margin: 8px 0 4px;
+  padding: 14px 14px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dev-dashboard-smtp-fieldset legend {
+  padding: 0 6px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+}
+
 .dev-dashboard-section-heading {
   display: flex;
   flex-wrap: wrap;

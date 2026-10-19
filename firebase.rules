@@ -191,8 +191,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
           'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
-          'tenantId', 'updatedAt', 'updatedBy'
-        ]);
+          'tenantId', 'updatedAt', 'updatedBy',
+          // Mandanten-SMTP für Kundenbenachrichtigungen (Soft-Launch SaaS)
+          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
+        ])
+        && isOptionalString(request.resource.data.smtpFromEmail)
+        && isOptionalString(request.resource.data.smtpHost)
+        && isOptionalString(request.resource.data.smtpPort)
+        && isOptionalString(request.resource.data.smtpUser)
+        && isOptionalString(request.resource.data.smtpPass);
     }
 
     function isTerminalSettings(docId) {

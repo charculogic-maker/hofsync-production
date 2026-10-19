@@ -647,6 +647,38 @@
                           <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
                         </div>
                       </div>
+                      <fieldset class="dev-dashboard-smtp-fieldset" aria-label="E-Mail-Server für Kundenbenachrichtigungen">
+                        <legend>E-Mail-Server (SMTP) für Kundenbenachrichtigungen</legend>
+                        <p class="dev-dashboard-intro">
+                          Eigene Zugangsdaten für Abhol-Nachrichten an Kundinnen und Kunden.
+                          Leer lassen, wenn die Plattform-Standard-Mail genutzt werden soll.
+                        </p>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-from">
+                          <span>Absender-E-Mail</span>
+                          <input id="dev-dashboard-smtp-from" name="smtpFromEmail" type="text" maxlength="200"
+                            placeholder='z. B. Hofladen &lt;info@hof.de&gt;' autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-host">
+                          <span>SMTP Host</span>
+                          <input id="dev-dashboard-smtp-host" name="smtpHost" type="text" maxlength="200"
+                            placeholder="z. B. smtp.gmail.com" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-port">
+                          <span>SMTP Port</span>
+                          <input id="dev-dashboard-smtp-port" name="smtpPort" type="text" maxlength="10"
+                            placeholder="z. B. 587" inputmode="numeric" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-user">
+                          <span>SMTP Benutzer</span>
+                          <input id="dev-dashboard-smtp-user" name="smtpUser" type="text" maxlength="200"
+                            placeholder="z. B. info@hof.de" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-pass">
+                          <span>SMTP Passwort</span>
+                          <input id="dev-dashboard-smtp-pass" name="smtpPass" type="password" maxlength="200"
+                            placeholder="Leer = bestehendes Passwort behalten" autocomplete="new-password">
+                        </label>
+                      </fieldset>
                       <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
                         <legend>Aktive Module</legend>
                         <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
