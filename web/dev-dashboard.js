@@ -985,6 +985,54 @@ function syncMhdCardUiToggleInputs(tenantId) {
   });
 }
 
+function readSmtpFieldsFromForm() {
+  return {
+    smtpFromEmail: document.getElementById('dev-dashboard-smtp-from')?.value.trim() || '',
+    smtpHost: document.getElementById('dev-dashboard-smtp-host')?.value.trim() || '',
+    smtpPort: document.getElementById('dev-dashboard-smtp-port')?.value.trim() || '',
+    smtpUser: document.getElementById('dev-dashboard-smtp-user')?.value.trim() || '',
+    smtpPass: document.getElementById('dev-dashboard-smtp-pass')?.value || '',
+  };
+}
+
+function fillSmtpFieldsInForm(smtp = {}) {
+  const fromEl = document.getElementById('dev-dashboard-smtp-from');
+  const hostEl = document.getElementById('dev-dashboard-smtp-host');
+  const portEl = document.getElementById('dev-dashboard-smtp-port');
+  const userEl = document.getElementById('dev-dashboard-smtp-user');
+  const passEl = document.getElementById('dev-dashboard-smtp-pass');
+  if (fromEl) fromEl.value = String(smtp.smtpFromEmail || '').trim();
+  if (hostEl) hostEl.value = String(smtp.smtpHost || '').trim();
+  if (portEl) portEl.value = String(smtp.smtpPort || '').trim();
+  if (userEl) userEl.value = String(smtp.smtpUser || '').trim();
+  // Passwort nur vorfüllen, wenn vorhanden – sonst Placeholder „behalten“
+  if (passEl) passEl.value = '';
+  if (passEl && smtp.smtpPass) {
+    passEl.placeholder = 'Gespeichert – neu eingeben zum Ändern';
+  } else if (passEl) {
+    passEl.placeholder = 'Leer = bestehendes Passwort behalten';
+  }
+}
+
+async function loadTenantSmtpSettings(db, tenantId) {
+  if (!db || !tenantId) return {};
+  try {
+    const snap = await db.collection('tenants').doc(tenantId).collection('settings').doc('profile').get();
+    if (!snap.exists) return {};
+    const data = snap.data() || {};
+    return {
+      smtpFromEmail: String(data.smtpFromEmail || '').trim(),
+      smtpHost: String(data.smtpHost || '').trim(),
+      smtpPort: String(data.smtpPort || '').trim(),
+      smtpUser: String(data.smtpUser || '').trim(),
+      smtpPass: String(data.smtpPass || '').trim(),
+    };
+  } catch (err) {
+    console.error('[Dev-Dashboard] SMTP-Settings laden fehlgeschlagen:', err);
+    return {};
+  }
+}
+
 function fillSettingsForm(dashboardStateRef = dashboardState) {
   const nameInput = document.getElementById('dev-dashboard-settings-name');
   const logoInput = document.getElementById('dev-dashboard-settings-logo');
@@ -1000,13 +1048,23 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
   syncMhdCardUiToggleInputs(dashboardStateRef.selectedTenantId);
   fillBetriebModuleToggles(dashboardStateRef);
   applySettingsPreview();
+
+  const tenantId = dashboardStateRef.selectedTenantId;
+  if (tenantId && dashboardStateRef.db) {
+    void loadTenantSmtpSettings(dashboardStateRef.db, tenantId).then((smtp) => {
+      if (dashboardStateRef.selectedTenantId !== tenantId) return;
+      fillSmtpFieldsInForm(smtp);
+    });
+  } else {
+    fillSmtpFieldsInForm({});
+  }
 }
 
 /**
- * Speichert Firmenname + Logo. Module bleiben unberührt
- * (Schalten nur über Plattform-Tabelle / setTenantModules).
+ * Speichert Firmenname, Logo und optionale SMTP-Daten unter settings/profile.
+ * Module bleiben unberührt (Schalten nur über Plattform-Tabelle / setTenantModules).
  */
-async function persistTenantBetrieb(db, tenantId, displayName, logoUrl) {
+async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {}) {
   if (!db || !tenantId) return;
   const tenantRef = db.collection('tenants').doc(tenantId);
   const payload = { displayName };
@@ -1025,7 +1083,15 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl) {
       betriebsName: displayName,
       logoUrl,
       tenantId,
+      smtpFromEmail: String(smtp.smtpFromEmail || '').trim(),
+      smtpHost: String(smtp.smtpHost || '').trim(),
+      smtpPort: String(smtp.smtpPort || '').trim(),
+      smtpUser: String(smtp.smtpUser || '').trim(),
     };
+    const nextPass = String(smtp.smtpPass || '');
+    if (nextPass) {
+      profilePayload.smtpPass = nextPass;
+    }
     if (stamp) profilePayload.updatedAt = stamp;
     await settingsCollection.doc('profile').set(profilePayload, { merge: true });
   }
@@ -1121,6 +1187,7 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
       mhdUi.mhd_show_box = boxInput.checked;
     }
 
+    const smtp = readSmtpFieldsFromForm();
     const draft = {
       displayName,
       logoUrl,
@@ -1139,9 +1206,13 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
     recordAudit('settings', `Betriebseinstellungen gespeichert (${displayName})`, 'change');
     setSettingsFormStatus('Einstellungen gespeichert.', 'success');
     window.showToast?.('Betriebseinstellungen gespeichert.', 'success');
-    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl)
+    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, smtp)
       .then(() => {
         setSettingsFormStatus('Betrieb gespeichert.', 'success');
+        fillSmtpFieldsInForm({
+          ...smtp,
+          smtpPass: smtp.smtpPass || '***',
+        });
       })
       .catch((err) => {
         console.error('[Dev-Dashboard] Betrieb speichern fehlgeschlagen:', err);

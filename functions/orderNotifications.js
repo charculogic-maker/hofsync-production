@@ -11,6 +11,61 @@ function getNotificationConfig() {
   };
 }
 
+function pickConfiguredValue(...candidates) {
+  for (const candidate of candidates) {
+    const value = String(candidate ?? '').trim();
+    if (isConfiguredParam(value)) return value;
+  }
+  return '';
+}
+
+/**
+ * Mandanten-SMTP aus settings/profile mit Fallback auf globale Env/Params.
+ * HOST/PORT/USER/PASS/FROM = settings.* || process.env.*
+ */
+function resolveTenantSmtpConfig(tenantSettings = {}, globalConfig = {}) {
+  const smtpHost = pickConfiguredValue(
+    tenantSettings.smtpHost,
+    globalConfig.smtpHost,
+    process.env.SMTP_HOST,
+  ) || 'mail.agenturserver.de';
+  const smtpPort = pickConfiguredValue(
+    tenantSettings.smtpPort,
+    globalConfig.smtpPort,
+    process.env.SMTP_PORT,
+  ) || '465';
+  const smtpUser = pickConfiguredValue(
+    tenantSettings.smtpUser,
+    globalConfig.smtpUser,
+    process.env.SMTP_USER,
+  );
+  const smtpPass = pickConfiguredValue(
+    tenantSettings.smtpPass,
+    globalConfig.smtpPass,
+    process.env.SMTP_PASS,
+  );
+  const fromEmail = pickConfiguredValue(
+    tenantSettings.smtpFromEmail,
+    tenantSettings.fromEmail,
+    globalConfig.fromEmail,
+    process.env.FROM_EMAIL,
+    smtpUser,
+  );
+  const tenantComplete = Boolean(
+    pickConfiguredValue(tenantSettings.smtpHost)
+    && pickConfiguredValue(tenantSettings.smtpUser)
+    && pickConfiguredValue(tenantSettings.smtpPass),
+  );
+  return {
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpPass,
+    fromEmail,
+    source: tenantComplete ? 'tenant' : 'global_fallback',
+  };
+}
+
 function createSmtpTransport(config) {
   const nodemailer = require('nodemailer');
   const port = Number.parseInt(String(config.smtpPort || '465'), 10) || 465;
@@ -37,17 +92,42 @@ function configuredEmail(...candidates) {
     || '';
 }
 
+function parseFromEmailField(value, defaultName) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const angled = raw.match(/^(.*)<([^>]+)>\s*$/);
+  if (angled) {
+    const address = String(angled[2] || '').trim();
+    const name = String(angled[1] || '').trim().replace(/^["']|["']$/g, '') || defaultName;
+    if (address.includes('@')) return { address, name };
+  }
+  if (raw.includes('@') && !raw.includes('<')) {
+    return { address: raw, name: defaultName };
+  }
+  return null;
+}
+
 function resolveFromAddress(config, profile = {}) {
+  const shop = shopLabel(profile);
+  const parsed = parseFromEmailField(config?.fromEmail, shop)
+    || parseFromEmailField(profile?.smtpFromEmail, shop);
+  if (parsed) return parsed;
+
   const fromEmail = configuredEmail(
+    config?.fromEmail,
+    profile.smtpFromEmail,
     profile.supportEmail,
     profile.terminalUser,
     process.env.FROM_EMAIL,
-    config?.fromEmail,
     config?.smtpUser,
   );
-  return fromEmail ? { address: fromEmail, name: shopLabel(profile) } : null;
+  return fromEmail ? { address: fromEmail, name: shop } : null;
 }
 
+/**
+ * Lädt Mandanten-Settings für SMTP/Branding.
+ * Persistenz: tenants/{tenantId}/settings/profile (Dev-Dashboard „Mein Betrieb“).
+ */
 async function loadTenantProfile(tenantId) {
   if (!tenantId) return {};
   const snap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
@@ -202,14 +282,22 @@ function normalizePhoneForTwilio(phone) {
 
 async function sendCustomerEmail(signal, config, meta) {
   if (!signal.to.email) {
-    return { channel: 'email', skipped: true };
+    return { channel: 'email', skipped: true, reason: 'no_recipient' };
   }
 
   const smtpUser = String(config.smtpUser || '').trim();
   const smtpPass = String(config.smtpPass || '');
   const from = resolveFromAddress(config, meta?.profile || {});
   if (!isConfiguredParam(smtpUser) || !isConfiguredParam(smtpPass) || !from) {
-    console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', meta);
+    console.warn('[KundenSignal] SMTP nicht konfiguriert, E-Mail uebersprungen', {
+      tenantId: meta?.tenantId,
+      orderId: meta?.orderId,
+      smtpSource: config.source || null,
+      smtpHost: config.smtpHost || null,
+      smtpUserConfigured: isConfiguredParam(smtpUser),
+      smtpPassConfigured: isConfiguredParam(smtpPass),
+      fromConfigured: Boolean(from),
+    });
     return { channel: 'email', skipped: true, reason: 'not_configured' };
   }
 
@@ -222,12 +310,19 @@ async function sendCustomerEmail(signal, config, meta) {
       text: signal.message,
       html: `<!DOCTYPE html><html lang="de"><body style="font-family:Georgia,'Times New Roman',serif;color:#2f2a24;line-height:1.6;max-width:560px;margin:0 auto;padding:24px;">${signal.htmlMessage}</body></html>`,
     });
-    console.log('[KundenSignal] E-Mail versendet', { ...meta, email: signal.to.email });
-    return { channel: 'email', sent: true };
+    console.log('[KundenSignal] E-Mail versendet', {
+      tenantId: meta?.tenantId,
+      orderId: meta?.orderId,
+      email: signal.to.email,
+      smtpSource: config.source || null,
+    });
+    return { channel: 'email', sent: true, source: config.source || null };
   } catch (error) {
     console.error('[KundenSignal] SMTP-Fehler', {
-      ...meta,
+      tenantId: meta?.tenantId,
+      orderId: meta?.orderId,
       email: signal.to.email,
+      smtpSource: config.source || null,
       message: error?.message,
       code: error?.code,
       responseCode: error?.responseCode,
@@ -281,7 +376,24 @@ async function sendCustomerSms(signal, config, meta) {
 }
 
 async function dispatchCustomerSignal(signal, meta) {
-  const config = getNotificationConfig();
+  const globalConfig = getNotificationConfig();
+  const smtpConfig = resolveTenantSmtpConfig(meta?.profile || {}, globalConfig);
+  const config = {
+    ...globalConfig,
+    ...smtpConfig,
+  };
+
+  console.log('[KundenSignal] SMTP-Aufloesung', {
+    tenantId: meta?.tenantId,
+    orderId: meta?.orderId,
+    smtpSource: smtpConfig.source,
+    smtpHost: smtpConfig.smtpHost,
+    smtpPort: smtpConfig.smtpPort,
+    smtpUserConfigured: isConfiguredParam(smtpConfig.smtpUser),
+    smtpPassConfigured: isConfiguredParam(smtpConfig.smtpPass),
+    fromConfigured: Boolean(smtpConfig.fromEmail),
+  });
+
   const tasks = [];
 
   if (signal.to.email) {
@@ -292,7 +404,10 @@ async function dispatchCustomerSignal(signal, meta) {
   }
 
   if (!tasks.length) {
-    console.log('[KundenSignal] Kein Kundenkanal hinterlegt, Versand uebersprungen', meta);
+    console.log('[KundenSignal] Kein Kundenkanal hinterlegt, Versand uebersprungen', {
+      tenantId: meta?.tenantId,
+      orderId: meta?.orderId,
+    });
     return [];
   }
 
@@ -300,37 +415,64 @@ async function dispatchCustomerSignal(signal, meta) {
 }
 
 async function handleOrderReadySendSignal(event) {
+  const tenantId = event.params?.tenantId || null;
+  const orderId = event.params?.orderId || null;
+  console.log('[KundenSignal] Trigger gefeuert', {
+    tenantId,
+    orderId,
+    beforeStatus: event.data?.before?.data()?.status ?? null,
+    afterStatus: event.data?.after?.data()?.status ?? null,
+  });
+
   ensureAdminApp();
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
-  if (!before || !after) return null;
-  if (before.status === 'ready' || after.status !== 'ready') return null;
+  if (!before || !after) {
+    console.warn('[KundenSignal] Abbruch: before/after fehlt', { tenantId, orderId });
+    return null;
+  }
+  if (before.status === 'ready' || after.status !== 'ready') {
+    console.log('[KundenSignal] Abbruch: kein Übergang auf ready', {
+      tenantId,
+      orderId,
+      beforeStatus: before.status,
+      afterStatus: after.status,
+    });
+    return null;
+  }
 
-  const tenantId = event.params.tenantId;
-  const orderId = event.params.orderId;
   if (after.tenantId && after.tenantId !== tenantId) {
     console.warn('[KundenSignal] Tenant-Abgleich uebersprungen', { tenantId, orderId });
     return null;
   }
 
+  console.log('[KundenSignal] Lade Mandanten-Settings', {
+    tenantId,
+    path: `tenants/${tenantId}/settings/profile`,
+  });
   const profile = await loadTenantProfile(tenantId);
   const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
   const signal = buildCustomerSignal(after, profile);
 
   console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
-    ...meta,
+    tenantId,
+    orderId,
+    customerName: meta.customerName,
     hasEmail: Boolean(signal.to.email),
     hasPhone: Boolean(signal.to.phone),
     finalPrice: formatMoneyValue(calculateFinalOrderPrice(after)),
     pickupWindow: formatPickupWindow(after.readyAt),
+    tenantSmtpHost: profile.smtpHost || null,
+    tenantSmtpUserSet: Boolean(String(profile.smtpUser || '').trim()),
   });
 
   try {
     const results = await dispatchCustomerSignal(signal, meta);
-    console.log('[KundenSignal] Versand abgeschlossen', { ...meta, results });
+    console.log('[KundenSignal] Versand abgeschlossen', { tenantId, orderId, results });
   } catch (error) {
     console.error('[KundenSignal] Unerwarteter Versandfehler', {
-      ...meta,
+      tenantId,
+      orderId,
       message: error?.message,
     });
   }
@@ -354,6 +496,8 @@ exports._test = {
   normalizePhoneForTwilio,
   createSmtpTransport,
   resolveFromAddress,
+  resolveTenantSmtpConfig,
+  parseFromEmailField,
   sendCustomerEmail,
   sendCustomerSms,
 };
