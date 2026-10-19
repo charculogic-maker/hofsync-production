@@ -22,6 +22,16 @@ describe('Profile settings rules alignment', () => {
     expect(rules).to.match(/!\('smtpPass' in request\.resource\.data\)/);
   });
 
+  it('erlaubt Plattform-Super-Admin Lese-/Schreibzugriff auf settings', () => {
+    expect(rules).to.match(
+      /match \/tenants\/\{tenantId\}\/settings\/\{document\}[\s\S]*?allow read: if isTenantUser\(tenantId\) \|\| isPlatformDevAdmin\(\);/,
+    );
+    expect(rules).to.match(/\(isAdmin\(tenantId\) \|\| isPlatformDevAdmin\(\)\)/);
+    expect(rules).to.match(
+      /allow update: if isPlatformDevAdmin\(\)[\s\S]*?\.hasOnly\(\['status', 'displayName', 'updatedAt'\]\)/,
+    );
+  });
+
   it('persistTenantBetrieb schreibt nur erlaubte Profil-Keys', () => {
     expect(dashboard).to.match(/betriebsName:\s*displayName/);
     expect(dashboard).to.match(/profilePayload\.smtpFromEmail/);

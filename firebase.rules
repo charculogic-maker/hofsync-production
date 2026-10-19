@@ -134,12 +134,19 @@ service cloud.firestore {
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 120
         && request.resource.data.status in ['active', 'inactive'];
+      // Plattform-Super-Admin: Status und Firmenname (Mein Betrieb) für jeden Mandanten.
       allow update: if isPlatformDevAdmin()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt'])
+             .hasOnly(['status', 'displayName', 'updatedAt'])
         && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
-            || request.resource.data.status in ['active', 'inactive']);
+            || request.resource.data.status in ['active', 'inactive'])
+        && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys())
+            || (
+              request.resource.data.displayName is string
+              && request.resource.data.displayName.size() > 0
+              && request.resource.data.displayName.size() <= 120
+            ));
       allow update: if isTenantAdmin(tenantId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -252,12 +259,13 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/settings/{document} {
-      allow read: if isTenantUser(tenantId);
-      // Admin: alle Settings-Dokumente. Mitarbeiter: nur Lieferanten-Listen ergänzen.
+      // Tenant-Nutzer + Plattform-Super-Admin (fremd-Mandant im Dev-Dashboard).
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
+      // Admin / Plattform: Settings inkl. SMTP-Profil. Mitarbeiter: nur Lieferanten.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
           (
-            isAdmin(tenantId)
+            (isAdmin(tenantId) || isPlatformDevAdmin())
             && (
               isTeamDashboardSettings()
               || isProfileSettings(document)
@@ -267,7 +275,7 @@ service cloud.firestore {
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
         );
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     match /tenants/{tenantId}/employees/{employeeId} {
@@ -468,9 +476,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/haccp_geraete/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
 
-      allow create, update: if isAdmin(tenantId)
+      allow create, update: if (isAdmin(tenantId) || isPlatformDevAdmin())
         && hasOnly([
           // Neues Temperatur-Rundgang-Modell
           'id', 'name', 'bereich', 'type',
@@ -486,7 +494,7 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.name)
         && request.resource.data.tenantId == tenantId;
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     // =========================================================================
@@ -494,9 +502,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/haccp_cleaning_tasks/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
 
-      allow create, update: if isAdmin(tenantId)
+      allow create, update: if (isAdmin(tenantId) || isPlatformDevAdmin())
         && hasOnly([
           'id', 'name', 'category', 'period',
           'sortOrder', 'isProductionOnly', 'isActive',
@@ -517,7 +525,7 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     // =========================================================================
