@@ -124,14 +124,41 @@ function resolveFromAddress(config, profile = {}) {
   return fromEmail ? { address: fromEmail, name: shop } : null;
 }
 
-/**
- * Lädt Mandanten-Settings für SMTP/Branding.
- * Persistenz: tenants/{tenantId}/settings/profile (Dev-Dashboard „Mein Betrieb“).
- */
-async function loadTenantProfile(tenantId) {
+async function loadTenantProfileRaw(tenantId) {
   if (!tenantId) return {};
   const snap = await getAdminDb().doc(`tenants/${tenantId}/settings/profile`).get();
   return snap.exists ? (snap.data() || {}) : {};
+}
+
+function stripSecretProfileFields(profile = {}) {
+  const safeProfile = { ...profile };
+  delete safeProfile.smtpPass;
+  return safeProfile;
+}
+
+/**
+ * Lädt öffentliche Mandanten-Settings und das SMTP-Passwort getrennt.
+ * Das Passwort darf nicht in meta.profile landen, weil SMS-Logs meta spreaden.
+ */
+async function loadTenantProfileAndSmtp(tenantId) {
+  const rawProfile = await loadTenantProfileRaw(tenantId);
+  const profile = stripSecretProfileFields(rawProfile);
+  let smtpPass = String(rawProfile.smtpPass || '');
+
+  if (tenantId) {
+    const secretSnap = await getAdminDb().doc(`tenants/${tenantId}/smtpSecrets/smtp`).get();
+    if (secretSnap.exists) {
+      smtpPass = String(secretSnap.data()?.smtpPass || smtpPass);
+    }
+  }
+
+  return {
+    profile,
+    smtpSettings: {
+      ...profile,
+      smtpPass,
+    },
+  };
 }
 
 function parseQuantityValue(value) {
@@ -375,9 +402,9 @@ async function sendCustomerSms(signal, config, meta) {
   }
 }
 
-async function dispatchCustomerSignal(signal, meta) {
+async function dispatchCustomerSignal(signal, meta, tenantSmtpSettings = null) {
   const globalConfig = getNotificationConfig();
-  const smtpConfig = resolveTenantSmtpConfig(meta?.profile || {}, globalConfig);
+  const smtpConfig = resolveTenantSmtpConfig(tenantSmtpSettings || meta?.profile || {}, globalConfig);
   const config = {
     ...globalConfig,
     ...smtpConfig,
@@ -450,7 +477,7 @@ async function handleOrderReadySendSignal(event) {
     tenantId,
     path: `tenants/${tenantId}/settings/profile`,
   });
-  const profile = await loadTenantProfile(tenantId);
+  const { profile, smtpSettings } = await loadTenantProfileAndSmtp(tenantId);
   const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
   const signal = buildCustomerSignal(after, profile);
 
@@ -467,7 +494,7 @@ async function handleOrderReadySendSignal(event) {
   });
 
   try {
-    const results = await dispatchCustomerSignal(signal, meta);
+    const results = await dispatchCustomerSignal(signal, meta, smtpSettings);
     console.log('[KundenSignal] Versand abgeschlossen', { tenantId, orderId, results });
   } catch (error) {
     console.error('[KundenSignal] Unerwarteter Versandfehler', {
@@ -498,6 +525,7 @@ exports._test = {
   resolveFromAddress,
   resolveTenantSmtpConfig,
   parseFromEmailField,
+  stripSecretProfileFields,
   sendCustomerEmail,
   sendCustomerSms,
 };

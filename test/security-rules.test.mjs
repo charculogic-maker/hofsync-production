@@ -888,6 +888,55 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(employee, settingsPath, 'delete');
     });
 
+    it('keeps tenant SMTP passwords out of tenant-readable profile settings', async () => {
+      const admin = authContext(testEnv, 'sh-admin-smtp', TENANTS.STEVES_HOF, 'admin');
+      const employee = authContext(testEnv, 'sh-employee-smtp', TENANTS.STEVES_HOF, 'employee');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-smtp', TENANTS.TORFABRIK, 'admin');
+      const profilePath = tenantDocPath(TENANTS.STEVES_HOF, 'settings', 'profile');
+      const secretPath = tenantDocPath(TENANTS.STEVES_HOF, 'smtpSecrets', 'smtp');
+
+      await seedFirestoreDoc(testEnv, profilePath, {
+        tenantId: TENANTS.STEVES_HOF,
+        betriebsName: 'StevesHof',
+        smtpHost: 'smtp.steveshof.de',
+        smtpUser: 'kunden@steveshof.de',
+        smtpPass: 'legacy-leaked-secret',
+      });
+
+      await expectFirestoreDeny(employee, profilePath, 'read');
+      await expectFirestoreAllow(admin, profilePath, 'read');
+      await expectFirestoreDeny(admin, profilePath, 'update', {
+        tenantId: TENANTS.STEVES_HOF,
+        betriebsName: 'StevesHof',
+        smtpHost: 'smtp.steveshof.de',
+        smtpUser: 'kunden@steveshof.de',
+        smtpPass: 'new-secret-in-readable-profile',
+      });
+      await expectFirestoreAllow(admin, profilePath, 'write', {
+        tenantId: TENANTS.STEVES_HOF,
+        betriebsName: 'StevesHof',
+        smtpHost: 'smtp.steveshof.de',
+        smtpUser: 'kunden@steveshof.de',
+        smtpPassConfigured: true,
+      });
+      await expectFirestoreAllow(employee, profilePath, 'read');
+
+      await expectFirestoreAllow(admin, secretPath, 'create', {
+        tenantId: TENANTS.STEVES_HOF,
+        smtpPass: 'new-secret',
+        updatedAt: serverTimestamp(),
+      });
+      await expectFirestoreDeny(employee, secretPath, 'read');
+      await expectFirestoreDeny(employee, secretPath, 'update', {
+        tenantId: TENANTS.STEVES_HOF,
+        smtpPass: 'employee-secret',
+      });
+      await expectFirestoreDeny(foreignAdmin, secretPath, 'update', {
+        tenantId: TENANTS.STEVES_HOF,
+        smtpPass: 'cross-tenant-secret',
+      });
+    });
+
     it('allows tenant admin to read own employees profiles and denies cross-tenant', async () => {
       const employeePath = tenantDocPath(TENANTS.STEVES_HOF, 'employees', 'paddy');
       await seedFirestoreDoc(testEnv, employeePath, {
