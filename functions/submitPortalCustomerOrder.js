@@ -40,6 +40,19 @@ async function handleSubmitPortalCustomerOrder(request) {
   }
 
   const db = getAdminDb();
+  const tenantSnap = await db.collection('tenants').doc(mapped.tenantId).get();
+  const enabledModules = tenantSnap.exists ? (tenantSnap.data()?.enabledModules || {}) : {};
+  if (enabledModules.orders !== true) {
+    console.warn('[PortalOrder] orders-Modul nicht freigeschaltet', {
+      tenantId: mapped.tenantId,
+      orders: enabledModules.orders ?? null,
+    });
+    throw new HttpsError(
+      'failed-precondition',
+      'Der Packtisch ist für diesen Betrieb noch nicht freigeschaltet.',
+    );
+  }
+
   const ref = db
     .collection('tenants')
     .doc(mapped.tenantId)

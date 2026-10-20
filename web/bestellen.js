@@ -72,6 +72,16 @@ if (state.adminMode) {
   try { localStorage.setItem(ADMIN_TEAM_FLAG_KEY, '1'); } catch (_) { /* noop */ }
 }
 
+(function syncPortalTenantHint() {
+  const hint = document.getElementById('portal-tenant-hint');
+  if (!hint) return;
+  const id = state.tenantId;
+  const label = id === 'biohof_mueller'
+    ? 'Biohof Müller'
+    : (id === 'StevesHof_Hauptbetrieb' ? 'StevesHof' : id);
+  hint.textContent = `Packtisch-Ziel: ${label}`;
+})();
+
 const els = {
   catalog: document.getElementById('catalog-root'),
   filters: document.getElementById('category-filters'),
@@ -1174,16 +1184,22 @@ document.getElementById('checkout-form').addEventListener('submit', async (event
     refreshCartUi();
     closeLayer(els.checkoutModal);
 
+    const tenantLabel = result.tenantId === 'biohof_mueller'
+      ? 'Biohof Müller'
+      : (result.tenantId === 'StevesHof_Hauptbetrieb'
+        ? 'StevesHof'
+        : result.tenantId);
     document.getElementById('confirm-body').textContent =
       `${name}, deine Vorbestellung für ${day.label}, ${slot.label} (${channelLabel}) ist bei uns eingegangen. `
+      + `Sie erscheint am Packtisch von ${tenantLabel}. `
       + `Sobald alles gepackt ist, schicken wir dir eine Nachricht an ${phone}`
       + (email ? ` bzw. ${email}` : '')
       + `. Bitte die Referenz notieren.`;
-    document.getElementById('confirm-ref').textContent = `Referenz: ${ref}`;
+    document.getElementById('confirm-ref').textContent = `Referenz: ${ref} · ${tenantLabel}`;
     openLayer(els.confirmModal);
     document.getElementById('checkout-form').reset();
     document.getElementById('nature-accept').checked = false;
-    showToast('Bestellung ist beim Packtisch angekommen.', 'success');
+    showToast(`Bestellung ist beim Packtisch (${tenantLabel}) angekommen.`, 'success');
   } catch (err) {
     console.error('[Bestellen] Portal→Packtisch fehlgeschlagen:', err);
     const message = String(err?.message || err?.code || '').trim();

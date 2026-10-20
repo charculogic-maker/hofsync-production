@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v2';
+const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v3';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Portal-Vorbestellung: bestellen.html nicht als SPA-Shell */
-const RELEASED_AT = '2026-10-20T19:40:00+02:00';
+/** Release – Portal-Packtisch Tenant-Hinweis + StevesHof orders */
+const RELEASED_AT = '2026-10-20T21:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

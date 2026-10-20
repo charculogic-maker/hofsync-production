@@ -32,7 +32,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for Avery iOS in-page print release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v2'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v3'");
     expect(swJs).to.match(/isStandaloneHtmlDoc/);
   });
 
