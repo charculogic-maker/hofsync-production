@@ -171,6 +171,7 @@ const VALID_BACKEND_MODULES = Object.freeze([
 ]);
 
 const VALID_BACKEND_MODULE_SET = new Set(VALID_BACKEND_MODULES);
+const smtpLegacySecretCache = new Map();
 
 /** UI-/Legacy-Key → kanonischer Payload-Key (bevorzugt freundliche Aliase). */
 const MODULE_KEY_TO_BACKEND = Object.freeze({
@@ -1007,7 +1008,7 @@ function fillSmtpFieldsInForm(smtp = {}) {
   if (userEl) userEl.value = String(smtp.smtpUser || '').trim();
   // Passwort nur vorfüllen, wenn vorhanden – sonst Placeholder „behalten“
   if (passEl) passEl.value = '';
-  if (passEl && smtp.smtpPass) {
+  if (passEl && smtp.smtpPassConfigured) {
     passEl.placeholder = 'Gespeichert – neu eingeben zum Ändern';
   } else if (passEl) {
     passEl.placeholder = 'Leer = bestehendes Passwort behalten';
@@ -1025,7 +1026,8 @@ async function loadTenantSmtpSettings(db, tenantId) {
       smtpHost: String(data.smtpHost || '').trim(),
       smtpPort: String(data.smtpPort || '').trim(),
       smtpUser: String(data.smtpUser || '').trim(),
-      smtpPass: String(data.smtpPass || '').trim(),
+      smtpPassConfigured: data.smtpPassConfigured === true || Boolean(String(data.smtpPass || '').trim()),
+      legacySmtpPassForMigration: String(data.smtpPass || ''),
     };
   } catch (err) {
     console.error('[Dev-Dashboard] SMTP-Settings laden fehlgeschlagen:', err);
@@ -1053,6 +1055,11 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
   if (tenantId && dashboardStateRef.db) {
     void loadTenantSmtpSettings(dashboardStateRef.db, tenantId).then((smtp) => {
       if (dashboardStateRef.selectedTenantId !== tenantId) return;
+      if (smtp.legacySmtpPassForMigration) {
+        smtpLegacySecretCache.set(tenantId, smtp.legacySmtpPassForMigration);
+      } else {
+        smtpLegacySecretCache.delete(tenantId);
+      }
       fillSmtpFieldsInForm(smtp);
     });
   } else {
@@ -1062,6 +1069,8 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
 
 /**
  * Speichert Firmenname, Logo und optionale SMTP-Daten unter settings/profile.
+ * Das Passwort liegt getrennt in smtpSecrets/smtp, weil settings/profile
+ * von allen Mandanten-Nutzern gelesen wird.
  * Module bleiben unberührt (Schalten nur über Plattform-Tabelle / setTenantModules).
  */
 async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {}) {
@@ -1089,11 +1098,39 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {
       smtpUser: String(smtp.smtpUser || '').trim(),
     };
     const nextPass = String(smtp.smtpPass || '');
+    const deleteField = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.delete
+      ? firebase.firestore.FieldValue.delete()
+      : null;
+    if (deleteField) {
+      profilePayload.smtpPass = deleteField;
+    }
     if (nextPass) {
-      profilePayload.smtpPass = nextPass;
+      profilePayload.smtpPassConfigured = true;
     }
     if (stamp) profilePayload.updatedAt = stamp;
-    await settingsCollection.doc('profile').set(profilePayload, { merge: true });
+    const profileRef = settingsCollection.doc('profile');
+    const secretRef = typeof tenantRef.collection === 'function'
+      ? tenantRef.collection('smtpSecrets').doc('smtp')
+      : null;
+    if (nextPass && secretRef && typeof db.batch === 'function') {
+      const batch = db.batch();
+      batch.set(profileRef, profilePayload, { merge: true });
+      batch.set(secretRef, {
+        tenantId,
+        smtpPass: nextPass,
+        ...(stamp ? { updatedAt: stamp } : {}),
+      }, { merge: true });
+      await batch.commit();
+    } else {
+      await profileRef.set(profilePayload, { merge: true });
+      if (nextPass && secretRef) {
+        await secretRef.set({
+          tenantId,
+          smtpPass: nextPass,
+          ...(stamp ? { updatedAt: stamp } : {}),
+        }, { merge: true });
+      }
+    }
   }
 }
 
@@ -1188,6 +1225,11 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
     }
 
     const smtp = readSmtpFieldsFromForm();
+    const cachedLegacySmtpPass = smtpLegacySecretCache.get(tenantId) || '';
+    const smtpForPersist = {
+      ...smtp,
+      smtpPass: smtp.smtpPass || cachedLegacySmtpPass,
+    };
     const draft = {
       displayName,
       logoUrl,
@@ -1206,12 +1248,13 @@ function bindSettingsForm(dashboardStateRef = dashboardState) {
     recordAudit('settings', `Betriebseinstellungen gespeichert (${displayName})`, 'change');
     setSettingsFormStatus('Einstellungen gespeichert.', 'success');
     window.showToast?.('Betriebseinstellungen gespeichert.', 'success');
-    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, smtp)
+    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, smtpForPersist)
       .then(() => {
+        smtpLegacySecretCache.delete(tenantId);
         setSettingsFormStatus('Betrieb gespeichert.', 'success');
         fillSmtpFieldsInForm({
           ...smtp,
-          smtpPass: smtp.smtpPass || '***',
+          smtpPassConfigured: Boolean(smtpForPersist.smtpPass) || smtp.smtpPassConfigured === true,
         });
       })
       .catch((err) => {

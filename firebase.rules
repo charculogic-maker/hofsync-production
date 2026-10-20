@@ -193,13 +193,13 @@ service cloud.firestore {
           'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
           'tenantId', 'updatedAt', 'updatedBy',
           // Mandanten-SMTP für Kundenbenachrichtigungen (Soft-Launch SaaS)
-          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
+          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPassConfigured'
         ])
-        && isOptionalString(request.resource.data.smtpFromEmail)
-        && isOptionalString(request.resource.data.smtpHost)
-        && isOptionalString(request.resource.data.smtpPort)
-        && isOptionalString(request.resource.data.smtpUser)
-        && isOptionalString(request.resource.data.smtpPass);
+        && (!('smtpFromEmail' in request.resource.data) || request.resource.data.smtpFromEmail is string)
+        && (!('smtpHost' in request.resource.data) || request.resource.data.smtpHost is string)
+        && (!('smtpPort' in request.resource.data) || request.resource.data.smtpPort is string)
+        && (!('smtpUser' in request.resource.data) || request.resource.data.smtpUser is string)
+        && (!('smtpPassConfigured' in request.resource.data) || request.resource.data.smtpPassConfigured is bool);
     }
 
     function isTerminalSettings(docId) {
@@ -227,7 +227,12 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/settings/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isTenantUser(tenantId)
+        && (
+          document != 'profile'
+          || isAdmin(tenantId)
+          || !resource.data.keys().hasAny(['smtpPass'])
+        );
       // Admin: alle Settings-Dokumente. Mitarbeiter: nur Lieferanten-Listen ergänzen.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
@@ -242,6 +247,22 @@ service cloud.firestore {
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
         );
+      allow delete: if isAdmin(tenantId);
+    }
+
+    function isSmtpSecret(tenantId, docId) {
+      return docId == 'smtp'
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.keys().hasOnly([
+          'tenantId', 'smtpPass', 'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.smtpPass);
+    }
+
+    match /tenants/{tenantId}/smtpSecrets/{document} {
+      allow read: if false;
+      allow create, update: if isAdmin(tenantId)
+        && isSmtpSecret(tenantId, document);
       allow delete: if isAdmin(tenantId);
     }
 

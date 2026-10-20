@@ -6,6 +6,7 @@ const {
   resolveTenantSmtpConfig,
   parseFromEmailField,
   resolveFromAddress,
+  stripSecretProfileFields,
 } = require('../orderNotifications')._test;
 
 describe('orderNotifications mandanten SMTP', () => {
@@ -63,5 +64,16 @@ describe('orderNotifications mandanten SMTP', () => {
       { betriebsName: 'StevesHof' },
     );
     expect(from).toEqual({ address: 'bestellung@hof.de', name: 'Mein Hof' });
+  });
+
+  test('entfernt SMTP-Passwort aus öffentlichem Profil für Logs', () => {
+    expect(stripSecretProfileFields({
+      betriebsName: 'StevesHof',
+      smtpUser: 'mail@hof.de',
+      smtpPass: 'secret-tenant',
+    })).toEqual({
+      betriebsName: 'StevesHof',
+      smtpUser: 'mail@hof.de',
+    });
   });
 });
