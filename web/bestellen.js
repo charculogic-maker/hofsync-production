@@ -30,6 +30,10 @@ import {
   describeOverrideEditorState,
   resolvePreorderTenantId,
 } from './catalog-overrides-db.js';
+import {
+  appendLocalPreorderBackup,
+  submitPortalOrderToFirestore,
+} from './portal-order-api.js';
 
 const ADMIN_TEAM_FLAG_KEY = 'sth_team_mode';
 const SORTIMENT_SAVE_DEBOUNCE_MS = 450;
@@ -1112,7 +1116,7 @@ document.querySelectorAll('[data-close]').forEach((btn) => {
   });
 });
 
-document.getElementById('checkout-form').addEventListener('submit', (event) => {
+document.getElementById('checkout-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!state.cart.length) {
     showToast('Warenkorb ist leer', 'error');
@@ -1139,6 +1143,9 @@ document.getElementById('checkout-form').addEventListener('submit', (event) => {
     return;
   }
 
+  const submitBtn = document.querySelector('#checkout-form button[type="submit"]');
+  if (submitBtn?.disabled) return;
+
   const ref = `SH-${Date.now().toString(36).toUpperCase()}`;
   const order = {
     ref,
@@ -1152,28 +1159,42 @@ document.getElementById('checkout-form').addEventListener('submit', (event) => {
     estimatedTotal: cartTotal(),
   };
 
-  try {
-    const key = 'steveshof.preorders.v1';
-    const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    existing.push(order);
-    localStorage.setItem(key, JSON.stringify(existing));
-  } catch (err) {
-    console.error('[Bestellen] Speichern lokal fehlgeschlagen:', err);
-  }
-
-  state.cart = [];
-  refreshCartUi();
-  closeLayer(els.checkoutModal);
-
   const channelLabel = state.channel === 'sb' ? 'SB-Kühlschrank' : 'Bedientheke';
-  document.getElementById('confirm-body').textContent =
-    `${name}, deine Vorbestellung für ${day.label}, ${slot.label} (${channelLabel}) ist bei uns eingegangen. `
-    + `Bereitstellungs-Info kommt per SMS an ${phone}. `
-    + `Eine automatische Bestätigungs-E-Mail ist im Soft-Launch noch nicht aktiv – bitte die Referenz notieren.`;
-  document.getElementById('confirm-ref').textContent = `Referenz: ${ref}`;
-  openLayer(els.confirmModal);
-  document.getElementById('checkout-form').reset();
-  document.getElementById('nature-accept').checked = false;
+  if (submitBtn) submitBtn.disabled = true;
+  showToast('Wir nehmen deine Bestellung entgegen …', 'info', 2500);
+
+  try {
+    const result = await submitPortalOrderToFirestore(order, { tenantId: state.tenantId });
+    appendLocalPreorderBackup(order, {
+      firestoreOrderId: result.orderId,
+      synced: true,
+    });
+
+    state.cart = [];
+    refreshCartUi();
+    closeLayer(els.checkoutModal);
+
+    document.getElementById('confirm-body').textContent =
+      `${name}, deine Vorbestellung für ${day.label}, ${slot.label} (${channelLabel}) ist bei uns eingegangen. `
+      + `Sobald alles gepackt ist, schicken wir dir eine Nachricht an ${phone}`
+      + (email ? ` bzw. ${email}` : '')
+      + `. Bitte die Referenz notieren.`;
+    document.getElementById('confirm-ref').textContent = `Referenz: ${ref}`;
+    openLayer(els.confirmModal);
+    document.getElementById('checkout-form').reset();
+    document.getElementById('nature-accept').checked = false;
+    showToast('Bestellung ist beim Packtisch angekommen.', 'success');
+  } catch (err) {
+    console.error('[Bestellen] Portal→Packtisch fehlgeschlagen:', err);
+    const message = String(err?.message || err?.code || '').trim();
+    const friendly = /permission|unauth|CORS|App Check|not-found|interna/i.test(message)
+      ? 'Die Bestellung konnte gerade nicht an den Hofladen geschickt werden. Bitte später erneut versuchen.'
+      : (message || 'Die Bestellung konnte gerade nicht an den Hofladen geschickt werden. Bitte später erneut versuchen.');
+    showToast(friendly, 'error', 5200);
+    // Fail-closed: Warenkorb bleibt, kein Erfolgsdialog.
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 });
 
 document.getElementById('btn-confirm-done').addEventListener('click', () => {

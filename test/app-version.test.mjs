@@ -54,7 +54,7 @@ describe('app-version release notice', () => {
     const swSource = await readFile(path.join(root, 'web/sw.js'), 'utf8');
     assert.match(swSource, /self\.skipWaiting\s*\(/);
     assert.match(swSource, /clients\.claim\s*\(/);
-    assert.match(swSource, /charculogic-v20261019-tenant-smtp-v1/);
+    assert.match(swSource, /charculogic-v20261020-portal-orders-bridge-v1/);
     assert.match(swSource, /\/app-version\.js/);
   });
 
