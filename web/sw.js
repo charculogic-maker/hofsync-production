@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v1';
+const CACHE_NAME = 'charculogic-v20261020-portal-orders-bridge-v2';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Portal-Vorbestellung schreibt customerOrders */
-const RELEASED_AT = '2026-10-20T19:00:00+02:00';
+/** Release – Portal-Vorbestellung: bestellen.html nicht als SPA-Shell */
+const RELEASED_AT = '2026-10-20T19:40:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -241,11 +241,32 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/')
   );
 
+  // Eigenständige HTML-Seiten (Portal, Datenschutz, …) nie durch die PWA-Shell ersetzen.
+  const isStandaloneHtmlDoc = pathname.endsWith('.html')
+    && pathname !== '/index.html'
+    && !pathname.endsWith('/index.html');
+
   // SPA-Shell: /dev-dashboard muss immer index.html liefern (auch ohne navigate-Mode).
   const isNavigation = request.mode === 'navigate'
     || pathname.endsWith('/')
     || pathname.endsWith('/index.html')
     || isSpaShellPath;
+
+  if (isOwnOrigin && isStandaloneHtmlDoc) {
+    // bestellen.html / Datenschutz etc. network-first – nicht durch PWA-Shell ersetzen.
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.ok) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || fetch(request)))
+    );
+    return;
+  }
 
   if (isNavigation && isOwnOrigin) {
     // Immer die App-Shell (index.html) laden — nie eine leere /dev-dashboard-Antwort cachen.
