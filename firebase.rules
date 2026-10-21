@@ -827,108 +827,12 @@ service cloud.firestore {
 
     // =========================================================================
     // KUNDENBESTELLUNGEN (customerOrders)
+    // Soft-Launch: kein Schema-Zwang (hasOnly/Typen) – nur Auth + Tenant + Rolle.
+    // Äquivalent zu: auth != null && token.tenantId == tenantId && role in [admin, employee]
     // =========================================================================
 
-    function hasCustomerContact() {
-      return (request.resource.data.callbackPhone is string
-          && request.resource.data.callbackPhone.size() > 0)
-        || (request.resource.data.customerEmail is string
-          && request.resource.data.customerEmail.size() > 3);
-    }
-
-    function isCustomerOrderItemsList(items) {
-      return items is list && items.size() >= 1 && items.size() <= 40;
-    }
-
-    function isCustomerOrderStatusTransition() {
-      return isNonEmptyString(request.resource.data.status)
-        && (
-          (resource.data.status == 'open' && request.resource.data.status == 'in_progress')
-          || (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
-          || (resource.data.status == 'in_progress' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'in_progress' && request.resource.data.status == 'cancelled')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-        );
-    }
-
-    // Status-Pipeline + Waagenkorrektur (actualWeightGrams) + Abholplatz für Packtisch
-    function isCustomerOrderStatusUpdate() {
-      return resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly([
-            'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
-            'pickupPlace', 'items', 'inProgressBy', 'inProgressAt'
-          ])
-        && isCustomerOrderStatusTransition()
-        && (
-          !('items' in request.resource.data)
-          || request.resource.data.items is list
-        );
-    }
-
-    // Nur Gewicht/Positionen nachwiegen, Status unverändert (z. B. Packtisch-Waage)
-    function isCustomerOrderItemsWeighUpdate() {
-      return resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['items'])
-        && request.resource.data.items is list
-        && request.resource.data.status == resource.data.status
-        && (
-          resource.data.status == 'open'
-          || resource.data.status == 'in_progress'
-          || resource.data.status == 'ready'
-        );
-    }
-
     match /tenants/{tenantId}/customerOrders/{orderId} {
-      allow read: if isTenantUser(tenantId);
-
-      allow create: if isEmployeeOrAdmin(tenantId)
-        && hasOnly([
-          'customerName', 'callbackPhone', 'customerEmail', 'readyAt',
-          'items', 'additionalWishes', 'orderSlipAttachments', 'inputMode',
-          'acceptedBy', 'acceptedAt', 'status', 'tenantId', 'createdAt'
-        ])
-        && isNonEmptyString(request.resource.data.acceptedBy)
-        && isNonEmptyString(request.resource.data.readyAt)
-        && request.resource.data.status == 'open'
-        && request.resource.data.tenantId == tenantId
-        && isOptionalString(request.resource.data.customerName)
-        && isOptionalString(request.resource.data.additionalWishes)
-        && isOptionalString(request.resource.data.callbackPhone)
-        && isOptionalString(request.resource.data.customerEmail)
-        && isOptionalString(request.resource.data.inputMode)
-        && (
-          isCustomerOrderItemsList(request.resource.data.items)
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        )
-        && (
-          !('customerName' in request.resource.data)
-          || isNonEmptyString(request.resource.data.customerName)
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        )
-        && (
-          hasCustomerContact()
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        );
-
-      allow update: if isEmployeeOrAdmin(tenantId)
-        && (
-          isAdmin(tenantId)
-          || isCustomerOrderStatusUpdate()
-          || isCustomerOrderItemsWeighUpdate()
-        );
+      allow read, create, update: if isEmployeeOrAdmin(tenantId);
 
       allow delete: if isAdmin(tenantId);
     }
