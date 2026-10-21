@@ -11,6 +11,10 @@ import {
   orderRefLabel,
   ORDER_STATUS_LABELS,
   hackfleischPackKind,
+  addDaysIso,
+  buildPacktischCalendarDays,
+  countOrdersByPickupDay,
+  formatPickupReadyLabel,
 } from '../web/order-packlist.js';
 
 const friday = '2026-10-16';
@@ -190,5 +194,31 @@ describe('order-packlist Packtisch', () => {
     });
     assert.equal(manual.pieces, 3);
     assert.equal(manual.isTk, true);
+  });
+
+  it('zählt Bestellungen je Abholtag für den Packtisch-Kalender', () => {
+    const counts = countOrdersByPickupDay(sampleOrders());
+    // open + in_progress + ready (nicht picked_up/cancelled)
+    assert.equal(counts.get(friday), 3);
+    assert.equal(counts.get('2026-10-17'), 1);
+    assert.equal(counts.has('2099-01-01'), false);
+  });
+
+  it('baut 14-Tage- und Monatsraster', () => {
+    const twoWeeks = buildPacktischCalendarDays('2weeks', '2026-10-21', new Date('2026-10-21T12:00:00'));
+    assert.equal(twoWeeks.length, 14);
+    assert.equal(twoWeeks[0].iso, '2026-10-21');
+    assert.equal(twoWeeks[13].iso, addDaysIso('2026-10-21', 13));
+
+    const month = buildPacktischCalendarDays('month', '2026-10-15', new Date('2026-10-21T12:00:00'));
+    assert.ok(month.length >= 28);
+    assert.ok(month.some((cell) => cell.iso === '2026-10-01' && cell.inMonth));
+    assert.ok(month.some((cell) => cell.isToday && cell.iso === '2026-10-21'));
+  });
+
+  it('formatiert Abholung mit „ab“ statt „um“', () => {
+    const label = formatPickupReadyLabel('2026-10-24T14:30:00');
+    assert.match(label, /ab 14:30/);
+    assert.doesNotMatch(label, /\bum\b/);
   });
 });

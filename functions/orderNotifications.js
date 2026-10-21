@@ -180,11 +180,45 @@ function formatPickupWindow(value) {
     return value ? String(value) : 'deinem Abholtermin';
   }
   const weekday = date.toLocaleDateString('de-DE', { weekday: 'short' });
+  const dayMonth = date.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+  });
   const time = date.toLocaleTimeString('de-DE', {
     hour: '2-digit',
     minute: '2-digit',
   });
-  return `${weekday}. um ${time} Uhr`;
+  // „ab“ (nicht „um“): Abholung ist ab diesem Zeitpunkt möglich.
+  return `${weekday}, ${dayMonth} ab ${time} Uhr`;
+}
+
+function timestampKey(value) {
+  if (!value) return '';
+  if (typeof value?.toMillis === 'function') {
+    const ms = value.toMillis();
+    return Number.isFinite(ms) ? String(ms) : '';
+  }
+  if (typeof value?.toDate === 'function') {
+    const date = value.toDate();
+    return date instanceof Date && !Number.isNaN(date.getTime()) ? String(date.getTime()) : '';
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : String(value.getTime());
+  }
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return '';
+}
+
+function shouldSendReadySignal(before = {}, after = {}) {
+  const becameReady = before.status !== 'ready' && after.status === 'ready';
+  if (becameReady) return { send: true, kind: 'initial' };
+  if (after.status !== 'ready') return { send: false, kind: null };
+  const beforeKey = timestampKey(before.readyNotifyAt);
+  const afterKey = timestampKey(after.readyNotifyAt);
+  if (afterKey && afterKey !== beforeKey) {
+    return { send: true, kind: 'update' };
+  }
+  return { send: false, kind: null };
 }
 
 function getItemUnitPrice(item, orderedQuantity) {
@@ -225,32 +259,44 @@ function escapeHtml(value) {
 
 function operatorLabel(order = {}) {
   const name = String(
-    order.packedBy || order.readyBy || order.preparedBy || order.updatedBy || '',
+    order.readyNotifyBy
+    || order.readyMarkedBy
+    || order.packedBy
+    || order.readyBy
+    || order.preparedBy
+    || order.updatedBy
+    || '',
   ).trim();
   return name || 'Das Team';
 }
 
-function buildCustomerSignal(order, profile = {}) {
+function buildCustomerSignal(order, profile = {}, options = {}) {
   const customerName = String(order?.customerName || 'lieber Hofladen-Gast').trim();
   const pickupWindow = formatPickupWindow(order?.readyAt);
   const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
   const shop = shopLabel(profile);
   const operator = operatorLabel(order);
+  const isUpdate = options.kind === 'update';
+  const lead = isUpdate
+    ? `Hallo ${customerName}, kurzes Update zu deinem Genuss-Paket:`
+    : `Hallo ${customerName}, dein Genuss-Paket ist fertig gepackt!`;
+  const htmlLead = isUpdate
+    ? `<p>Hallo ${escapeHtml(customerName)},</p>\n<p>kurzes <strong>Update</strong> zu deinem Genuss-Paket:</p>`
+    : `<p>Hallo ${escapeHtml(customerName)},</p>\n<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>`;
   const message = [
-    `Hallo ${customerName}, dein Genuss-Paket ist fertig gepackt!`,
+    lead,
     `${operator} hat alles frisch vorbereitet.`,
     `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
-    `Du kannst es ab ${pickupWindow} abholen.`,
+    `Du kannst es ${pickupWindow} abholen.`,
     'Wir freuen uns auf dich!',
     `Dein ${shop}-Team.`,
   ].join(' ');
 
   const htmlMessage = [
-    `<p>Hallo ${escapeHtml(customerName)},</p>`,
-    '<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>',
+    htmlLead,
     `<p>${escapeHtml(operator)} hat alles frisch vorbereitet.</p>`,
     `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
-    `<p>Du kannst es ab ${escapeHtml(pickupWindow)} abholen.</p>`,
+    `<p>Du kannst es ${escapeHtml(pickupWindow)} abholen.</p>`,
     '<p>Wir freuen uns auf dich!</p>',
     `<p>Dein ${escapeHtml(shop)}-Team.</p>`,
   ].join('\n');
@@ -263,7 +309,9 @@ function buildCustomerSignal(order, profile = {}) {
     },
     message,
     htmlMessage,
-    subject: 'Dein Genuss-Paket ist abholbereit',
+    subject: isUpdate
+      ? 'Update: Dein Genuss-Paket ist abholbereit'
+      : 'Dein Genuss-Paket ist abholbereit',
   };
 }
 
@@ -431,12 +479,15 @@ async function handleOrderReadySendSignal(event) {
     console.warn('[KundenSignal] Abbruch: before/after fehlt', { tenantId, orderId });
     return null;
   }
-  if (before.status === 'ready' || after.status !== 'ready') {
-    console.log('[KundenSignal] Abbruch: kein Übergang auf ready', {
+  const readySignal = shouldSendReadySignal(before, after);
+  if (!readySignal.send) {
+    console.log('[KundenSignal] Abbruch: kein Ready-Signal', {
       tenantId,
       orderId,
       beforeStatus: before.status,
       afterStatus: after.status,
+      beforeReadyNotifyAt: timestampKey(before.readyNotifyAt) || null,
+      afterReadyNotifyAt: timestampKey(after.readyNotifyAt) || null,
     });
     return null;
   }
@@ -449,10 +500,11 @@ async function handleOrderReadySendSignal(event) {
   console.log('[KundenSignal] Lade Mandanten-Settings', {
     tenantId,
     path: `tenants/${tenantId}/settings/profile`,
+    signalKind: readySignal.kind,
   });
   const profile = await loadTenantProfile(tenantId);
   const meta = { tenantId, orderId, customerName: after.customerName || null, profile };
-  const signal = buildCustomerSignal(after, profile);
+  const signal = buildCustomerSignal(after, profile, { kind: readySignal.kind });
 
   console.log('[KundenSignal] Abhol-Nachricht vorbereitet', {
     tenantId,
@@ -493,6 +545,8 @@ exports._test = {
   buildCustomerSignal,
   calculateFinalOrderPrice,
   formatPickupWindow,
+  shouldSendReadySignal,
+  timestampKey,
   normalizePhoneForTwilio,
   createSmtpTransport,
   resolveFromAddress,

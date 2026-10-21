@@ -10,10 +10,14 @@ import {
   ACTIVE_ORDER_STATUSES,
   CUTLIST_ORDER_STATUSES,
   ORDER_STATUS_LABELS,
+  addDaysIso,
+  buildPacktischCalendarDays,
   butcherNotes,
   calculateLinePriceFromWeight,
+  countOrdersByPickupDay,
   customerDisplayName,
   customerPhone,
+  formatPickupReadyLabel,
   generateZuschnittAggregation,
   nextStatusInPipeline,
   nextWeekdayIso,
@@ -24,6 +28,7 @@ import {
   orderRefLabel,
   orderStatus,
   sortOrdersForPacktisch,
+  startOfMonthIso,
   todayIsoLocal as packlistTodayIso,
   vacuumWishesSummary,
 } from './order-packlist.js';
@@ -64,6 +69,13 @@ const orderState = {
   expandedPackOrderId: '',
   weighDraftByKey: new Map(),
   weighSaveInFlight: false,
+  /** @type {'2weeks'|'month'} */
+  calendarMode: '2weeks',
+  /** Anker für Zwei-Wochen-Start bzw. Monat */
+  calendarAnchorIso: '',
+  /** Gewählter Abholtag (ISO) – leer = alle offenen */
+  selectedPickupDayIso: '',
+  notifyReadyInFlight: false,
 };
 
 function escapeHtml(value) {
@@ -119,18 +131,39 @@ function formatDateTimeDe(value) {
 }
 
 function formatReadyAt(readyAt) {
-  if (!readyAt) return '–';
-  const parsed = Date.parse(readyAt);
-  if (Number.isFinite(parsed)) {
-    return new Date(parsed).toLocaleString('de-DE', {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  return formatPickupReadyLabel(readyAt);
+}
+
+function ensureCalendarAnchor() {
+  if (!orderState.calendarAnchorIso) {
+    orderState.calendarAnchorIso = todayIsoLocal();
   }
-  return String(readyAt);
+  return orderState.calendarAnchorIso;
+}
+
+function formatCalendarDayHeading(isoDay) {
+  const parsed = Date.parse(`${isoDay}T12:00:00`);
+  if (!Number.isFinite(parsed)) return isoDay || 'Alle Tage';
+  return new Date(parsed).toLocaleDateString('de-DE', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatCalendarCellLabel(isoDay) {
+  const parsed = Date.parse(`${isoDay}T12:00:00`);
+  if (!Number.isFinite(parsed)) return isoDay.slice(8, 10);
+  return String(new Date(parsed).getDate());
+}
+
+function ordersForPacktischList() {
+  let open = orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o)));
+  if (orderState.selectedPickupDayIso) {
+    open = open.filter((o) => orderPickupDayIso(o) === orderState.selectedPickupDayIso);
+  }
+  return sortOrdersForPacktisch(open);
 }
 
 function ordersCollectionRef() {
@@ -1105,6 +1138,8 @@ function renderOrderCard(order, { adminView = false } = {}) {
     `;
   } else if (status === 'ready') {
     actions = `
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Weiter bearbeiten</button>
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="notify_ready" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Kunde erneut benachrichtigen</button>
       <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt…' : 'Als abgeholt markieren'}</button>
     `;
   }
@@ -1133,18 +1168,93 @@ function renderOrderCard(order, { adminView = false } = {}) {
   `;
 }
 
+function renderPacktischCalendar() {
+  const root = document.getElementById('packtisch-calendar');
+  if (!root) return;
+
+  const anchor = ensureCalendarAnchor();
+  const mode = orderState.calendarMode === 'month' ? 'month' : '2weeks';
+  const cells = buildPacktischCalendarDays(mode, anchor);
+  const counts = countOrdersByPickupDay(orderState.allOrders);
+  const selected = orderState.selectedPickupDayIso;
+
+  const rangeLabel = mode === 'month'
+    ? (() => {
+      const parsed = Date.parse(`${startOfMonthIso(anchor)}T12:00:00`);
+      return Number.isFinite(parsed)
+        ? new Date(parsed).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+        : 'Monat';
+    })()
+    : (() => {
+      const end = addDaysIso(anchor, 13);
+      const a = Date.parse(`${anchor}T12:00:00`);
+      const b = Date.parse(`${end}T12:00:00`);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return 'Zwei Wochen';
+      const fmt = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      return `${fmt(a)} – ${fmt(b)}`;
+    })();
+
+  root.innerHTML = `
+    <div class="packtisch-calendar-toolbar">
+      <div class="packtisch-calendar-mode" role="group" aria-label="Kalenderzeitraum">
+        <button type="button" class="btn btn-secondary btn-compact${mode === '2weeks' ? ' is-active' : ''}" data-calendar-mode="2weeks">2 Wochen</button>
+        <button type="button" class="btn btn-secondary btn-compact${mode === 'month' ? ' is-active' : ''}" data-calendar-mode="month">Monat</button>
+      </div>
+      <div class="packtisch-calendar-nav">
+        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="prev" aria-label="Zurück">‹</button>
+        <strong class="packtisch-calendar-range">${escapeHtml(rangeLabel)}</strong>
+        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="next" aria-label="Weiter">›</button>
+      </div>
+    </div>
+    <div class="packtisch-calendar-weekdays" aria-hidden="true">
+      <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+    </div>
+    <div class="packtisch-calendar-grid" role="list">
+      ${cells.map((cell) => {
+        const count = counts.get(cell.iso) || 0;
+        const classes = [
+          'packtisch-calendar-day',
+          cell.inMonth ? '' : 'is-outside',
+          cell.isToday ? 'is-today' : '',
+          selected === cell.iso ? 'is-selected' : '',
+          count > 0 ? 'has-orders' : '',
+        ].filter(Boolean).join(' ');
+        const aria = `${formatCalendarDayHeading(cell.iso)}: ${count} Bestellung${count === 1 ? '' : 'en'}`;
+        return `
+          <button type="button" class="${classes}" data-calendar-day="${escapeHtml(cell.iso)}" role="listitem" aria-label="${escapeHtml(aria)}" aria-pressed="${selected === cell.iso ? 'true' : 'false'}">
+            <span class="packtisch-calendar-day-num">${escapeHtml(formatCalendarCellLabel(cell.iso))}</span>
+            <span class="packtisch-calendar-day-count">${count > 0 ? escapeHtml(String(count)) : '·'}</span>
+          </button>
+        `;
+      }).join('')}
+    </div>
+    <div class="packtisch-calendar-legend">
+      <p class="customer-order-hint">${selected
+    ? `Abholtag: <strong>${escapeHtml(formatCalendarDayHeading(selected))}</strong> · ${(counts.get(selected) || 0)} Bestellung${(counts.get(selected) || 0) === 1 ? '' : 'en'}`
+    : 'Tippe auf einen Tag, um die Bestellungen zu sehen.'}</p>
+      ${selected
+    ? '<button type="button" class="btn btn-secondary btn-compact" data-calendar-clear>Alle Tage zeigen</button>'
+    : ''}
+    </div>
+  `;
+}
+
 function renderOpenOrders() {
   const list = document.getElementById('customer-order-list');
   const empty = document.getElementById('customer-order-empty');
   if (!list) return;
 
-  const open = sortOrdersForPacktisch(
-    orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o))),
-  );
+  renderPacktischCalendar();
+  const open = ordersForPacktischList();
 
   if (open.length === 0) {
     list.innerHTML = '';
-    empty?.classList.remove('hidden');
+    if (empty) {
+      empty.classList.remove('hidden');
+      empty.textContent = orderState.selectedPickupDayIso
+        ? `Keine Bestellungen für ${formatCalendarDayHeading(orderState.selectedPickupDayIso)}.`
+        : 'Keine offenen Kundenbestellungen.';
+    }
     return;
   }
   empty?.classList.add('hidden');
@@ -1330,6 +1440,76 @@ async function createOrderFromForm() {
     window.showToast?.('Bestellung konnte nicht gespeichert werden.', 'error');
   } finally {
     orderState.createInFlight = false;
+  }
+}
+
+async function notifyCustomerReadyAgain(orderId) {
+  if (orderState.notifyReadyInFlight || orderState.statusUpdateInFlight) return;
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order || orderStatus(order) !== 'ready') {
+    window.showToast?.('Nur abholbereite Bestellungen können erneut gemeldet werden.', 'warning');
+    return;
+  }
+  const firebase = orderState.getFirebase();
+  if (!firebase?.firestore?.FieldValue) {
+    window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
+    return;
+  }
+  if (!window.confirm('Kunde erneut per E-Mail/SMS über die Abholung benachrichtigen?')) return;
+
+  try {
+    orderState.notifyReadyInFlight = true;
+    orderState.statusUpdateOrderIds.add(orderId);
+    renderOpenOrders();
+    renderAdminOrders();
+    const stamp = firebase.firestore.FieldValue.serverTimestamp();
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData: {
+        readyNotifyAt: stamp,
+        readyNotifyBy: employee,
+        readyMarkedBy: employee,
+        employeeName: employee,
+      },
+      queueData: {
+        readyNotifyAt: new Date().toISOString(),
+        readyNotifyBy: employee,
+        readyMarkedBy: employee,
+        employeeName: employee,
+      },
+      offlineMessage: 'Benachrichtigung wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => (
+      entry.id === orderId
+        ? {
+          ...entry,
+          readyNotifyAt: new Date().toISOString(),
+          readyNotifyBy: employee,
+          readyMarkedBy: employee,
+        }
+        : entry
+    ));
+    window.showToast?.(
+      result === 'queued'
+        ? 'Update-Mail wird synchronisiert, sobald WLAN verfügbar ist.'
+        : 'Kunde wird erneut über die Abholung informiert.',
+      result === 'queued' ? 'warning' : 'success',
+    );
+  } catch (err) {
+    console.error('[CustomerOrders] Erneute Ready-Benachrichtigung fehlgeschlagen:', err);
+    window.showToast?.('Benachrichtigung konnte nicht ausgelöst werden. Bitte erneut versuchen.', 'error');
+  } finally {
+    orderState.statusUpdateOrderIds.delete(orderId);
+    orderState.notifyReadyInFlight = false;
+    renderOpenOrders();
+    renderAdminOrders();
   }
 }
 
@@ -1658,7 +1838,10 @@ function setOrdersView(view) {
     btn.setAttribute('aria-selected', btn.dataset.ordersView === view ? 'true' : 'false');
   });
   if (view === 'zuschnitt') renderZuschnittliste();
-  if (view === 'packtisch') renderOpenOrders();
+  if (view === 'packtisch') {
+    ensureCalendarAnchor();
+    renderOpenOrders();
+  }
 }
 
 function openAveryLabel(orderId) {
@@ -1857,6 +2040,15 @@ function bindOrderListActions() {
       updateOrderStatus(orderId, 'cancelled');
       return;
     }
+    if (action === 'reopen') {
+      orderState.expandedPackOrderId = orderId;
+      updateOrderStatus(orderId, 'in_progress');
+      return;
+    }
+    if (action === 'notify_ready') {
+      notifyCustomerReadyAgain(orderId);
+      return;
+    }
     if (action === 'in_progress') updateOrderStatus(orderId, 'in_progress');
     if (action === 'ready') updateOrderStatus(orderId, 'ready');
     if (action === 'picked_up') updateOrderStatus(orderId, 'picked_up');
@@ -1895,6 +2087,19 @@ function bindAveryLabelActions() {
   });
 }
 
+function shiftCalendarAnchor(direction) {
+  const anchor = ensureCalendarAnchor();
+  if (orderState.calendarMode === 'month') {
+    const start = startOfMonthIso(anchor);
+    const [y, m] = start.split('-').map(Number);
+    const next = new Date(y, m - 1 + direction, 1, 12, 0, 0, 0);
+    orderState.calendarAnchorIso = todayIsoLocal(next);
+  } else {
+    orderState.calendarAnchorIso = addDaysIso(anchor, direction * 14);
+  }
+  renderPacktischCalendar();
+}
+
 function bindOrdersViewSwitch() {
   const root = document.getElementById('view-orders')
     || document.getElementById('page-orders')
@@ -1906,6 +2111,33 @@ function bindOrdersViewSwitch() {
     const viewBtn = event.target.closest('[data-orders-view]');
     if (viewBtn?.dataset.ordersView) {
       setOrdersView(viewBtn.dataset.ordersView);
+      return;
+    }
+    const modeBtn = event.target.closest('[data-calendar-mode]');
+    if (modeBtn?.dataset.calendarMode) {
+      orderState.calendarMode = modeBtn.dataset.calendarMode === 'month' ? 'month' : '2weeks';
+      if (orderState.calendarMode === '2weeks' && !orderState.calendarAnchorIso) {
+        orderState.calendarAnchorIso = todayIsoLocal();
+      }
+      renderPacktischCalendar();
+      return;
+    }
+    const navBtn = event.target.closest('[data-calendar-nav]');
+    if (navBtn?.dataset.calendarNav) {
+      shiftCalendarAnchor(navBtn.dataset.calendarNav === 'prev' ? -1 : 1);
+      return;
+    }
+    if (event.target.closest('[data-calendar-clear]')) {
+      orderState.selectedPickupDayIso = '';
+      renderOpenOrders();
+      return;
+    }
+    const dayBtn = event.target.closest('[data-calendar-day]');
+    if (dayBtn?.dataset.calendarDay) {
+      const day = dayBtn.dataset.calendarDay;
+      orderState.selectedPickupDayIso = orderState.selectedPickupDayIso === day ? '' : day;
+      renderOpenOrders();
+      document.getElementById('customer-order-list')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       return;
     }
     const presetBtn = event.target.closest('[data-zuschnitt-preset]');
@@ -1995,6 +2227,7 @@ function subscribeOrders() {
   orderState.ordersUnsubscribe = col.orderBy('acceptedAt', 'desc').limit(120).onSnapshot(
     (snap) => {
       orderState.allOrders = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      ensureCalendarAnchor();
       renderOpenOrders();
       renderAdminOrders();
       renderProductionTasks();
@@ -2042,4 +2275,7 @@ export {
   calculateLinePriceFromWeight,
   ORDER_STATUS_LABELS,
   nextStatusInPipeline,
+  formatPickupReadyLabel,
+  countOrdersByPickupDay,
+  buildPacktischCalendarDays,
 };

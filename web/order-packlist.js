@@ -91,6 +91,112 @@ export function todayIsoLocal(now = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
+/** ISO-Tag um N Tage verschieben (lokal, mittags gegen DST-Drift). */
+export function addDaysIso(isoDay, deltaDays = 0) {
+  const base = String(isoDay || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) return '';
+  const [y, m, d] = base.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+  date.setDate(date.getDate() + Number(deltaDays || 0));
+  return todayIsoLocal(date);
+}
+
+export function startOfMonthIso(isoDay) {
+  const base = String(isoDay || todayIsoLocal()).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) return '';
+  return `${base.slice(0, 8)}01`;
+}
+
+export function endOfMonthIso(isoDay) {
+  const start = startOfMonthIso(isoDay);
+  if (!start) return '';
+  const [y, m] = start.split('-').map(Number);
+  const last = new Date(y, m, 0, 12, 0, 0, 0);
+  return todayIsoLocal(last);
+}
+
+/**
+ * Abholfenster für Packtisch/Mail: „ab“ statt „um“.
+ * @param {string|Date|object} readyAt
+ * @returns {string}
+ */
+export function formatPickupReadyLabel(readyAt) {
+  if (!readyAt) return '–';
+  let date = null;
+  if (typeof readyAt?.toDate === 'function') {
+    date = readyAt.toDate();
+  } else if (readyAt instanceof Date) {
+    date = readyAt;
+  } else {
+    const parsed = Date.parse(readyAt);
+    if (Number.isFinite(parsed)) date = new Date(parsed);
+  }
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return String(readyAt);
+  }
+  const weekday = date.toLocaleDateString('de-DE', { weekday: 'short' });
+  const dayMonth = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  const time = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return `${weekday}, ${dayMonth} ab ${time} Uhr`;
+}
+
+/**
+ * Zählt aktive Bestellungen je Abholtag (für Packtisch-Kalender).
+ * @param {object[]} orders
+ * @param {{ statuses?: Set<string> }} [opts]
+ * @returns {Map<string, number>}
+ */
+export function countOrdersByPickupDay(orders = [], opts = {}) {
+  const statuses = opts.statuses || ACTIVE_ORDER_STATUSES;
+  const counts = new Map();
+  (Array.isArray(orders) ? orders : []).forEach((order) => {
+    if (!statuses.has(orderStatus(order))) return;
+    const day = orderPickupDayIso(order);
+    if (!day) return;
+    counts.set(day, (counts.get(day) || 0) + 1);
+  });
+  return counts;
+}
+
+/**
+ * Kalenderzellen für Zwei-Wochen- oder Monatsübersicht.
+ * @param {'2weeks'|'month'} mode
+ * @param {string} [anchorIso] – Starttag (2 Wochen) bzw. beliebiger Tag im Monat
+ * @param {Date} [now]
+ * @returns {{ iso: string, inMonth: boolean, isToday: boolean }[]}
+ */
+export function buildPacktischCalendarDays(mode = '2weeks', anchorIso = '', now = new Date()) {
+  const today = todayIsoLocal(now);
+  const anchor = String(anchorIso || today).slice(0, 10);
+
+  if (mode === 'month') {
+    const monthStart = startOfMonthIso(anchor);
+    const monthEnd = endOfMonthIso(anchor);
+    const [y, m, d] = monthStart.split('-').map(Number);
+    const first = new Date(y, m - 1, d, 12, 0, 0, 0);
+    // Montag als Wochenstart (DE)
+    const weekdayMon0 = (first.getDay() + 6) % 7;
+    const gridStart = addDaysIso(monthStart, -weekdayMon0);
+    const cells = [];
+    for (let i = 0; i < 42; i += 1) {
+      const iso = addDaysIso(gridStart, i);
+      cells.push({
+        iso,
+        inMonth: iso >= monthStart && iso <= monthEnd,
+        isToday: iso === today,
+      });
+      if (iso >= monthEnd && (i + 1) % 7 === 0 && i >= 27) break;
+    }
+    return cells;
+  }
+
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? anchor : today;
+  return Array.from({ length: 14 }, (_, i) => {
+    const iso = addDaysIso(start, i);
+    return { iso, inMonth: true, isToday: iso === today };
+  });
+}
+
 /** Nächster Wochentag (0=So … 6=Sa). Wenn heute der Tag ist → heute. */
 export function nextWeekdayIso(weekday, now = new Date()) {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
