@@ -36,6 +36,34 @@
   color: var(--text-muted, #64748b);
 }
 
+.avery-cloud-status {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-muted, #64748b);
+}
+
+.avery-cloud-status[data-status="live"] {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+.avery-cloud-status[data-status="syncing"],
+.avery-cloud-status[data-status="connecting"] {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+}
+
+.avery-cloud-status[data-status="offline"],
+.avery-cloud-status[data-status="error"] {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
 .avery-card {
   background: var(--surface-color, #fff);
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -109,6 +137,105 @@
   margin: 12px 0 0;
   font-size: 14px;
   font-weight: 700;
+}
+
+.avery-desktop-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-herkunft-box,
+.avery-packlist-box,
+.avery-plain-import-box {
+  margin: 0 0 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-color, #f8fafc);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.avery-herkunft-box {
+  margin-top: 12px;
+}
+
+.avery-herkunft-box h3,
+.avery-packlist-box h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avery-herkunft-hint,
+.avery-packlist-hint,
+.avery-herkunft-status,
+.avery-packlist-status {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-herkunft-box .form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.avery-herkunft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.avery-herkunft-actions .btn,
+#btn-avery-packlist-import {
+  min-height: 44px;
+}
+
+#btn-avery-packlist-import {
+  width: 100%;
+}
+
+.avery-plain-import-box h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avery-plain-import-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-plain-import-box .form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.avery-plain-import {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#btn-avery-plain-import {
+  width: 100%;
+  min-height: 44px;
 }
 
 .avery-preset-row,
@@ -415,8 +542,10 @@
 .lbl-hero {
   flex: 1 1 55%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   text-align: center;
   min-height: 0;
   padding: 1px 2px;
@@ -439,6 +568,17 @@
   word-break: break-word;
   overflow-wrap: anywhere;
   overflow: visible;
+}
+
+.lbl-plu {
+  display: block;
+  font-size: 6.5px;
+  font-weight: 400;
+  line-height: 1.15;
+  text-align: center;
+  color: #333333 !important;
+  -webkit-text-fill-color: #333333;
+  letter-spacing: 0.02em;
 }
 
 /* Zone 2 – Meta: ~35%, kein Ellipsis (voller Text im Vorschau-Maßstab) */
@@ -695,8 +835,10 @@
   body.print-avery-labels .lbl-hero {
     flex: 1 1 55%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.3mm;
     text-align: center;
     padding: 0.4mm 0.5mm;
     overflow: visible;
@@ -708,6 +850,14 @@
     line-height: 1.15;
     text-align: center;
     overflow: visible;
+  }
+
+  body.print-avery-labels .lbl-plu {
+    font-size: 6.5pt;
+    font-weight: 400;
+    line-height: 1.1;
+    color: #333333 !important;
+    -webkit-text-fill-color: #333333;
   }
 
   body.print-avery-labels .lbl-meta {

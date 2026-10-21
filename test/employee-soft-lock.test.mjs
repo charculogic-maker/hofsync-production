@@ -48,6 +48,19 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/PROFILE_SESSION_IDLE_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
   });
 
+  it('does not force-navigate away from Neu/Wareneingang on soft-lock or scan idle', () => {
+    // Soft-Lock/Picker: ensureActiveTabAllowed() ohne force — erlaubtes Neu bleibt.
+    expect(appJs).to.match(/function clearActiveEmployeeForSoftLock[\s\S]*?ensureActiveTabAllowed\(\);/);
+    expect(appJs).to.match(/function selectEmployeeFromPicker[\s\S]*?ensureActiveTabAllowed\(\);/);
+    expect(appJs).to.match(/charculogic:active-employee-changed[\s\S]*?ensureActiveTabAllowed\(\);/);
+    // Start-Tab darf weiterhin force nutzen.
+    expect(appJs).to.match(/function showPreferredStartTab\(\) \{\s*return ensureActiveTabAllowed\(\{\s*force:\s*true\s*\}\);/);
+    expect(appJs).to.match(/isScannerOverlayOpen\(\)/);
+    expect(appJs).to.match(/Serien-Scan am Kamerabildschirm/);
+    // Scan-/Schreibaktivität zählt für Soft-Lock mit (nicht nur Touch).
+    expect(appJs).to.match(/function touchProfileLastActionTime[\s\S]*?resetEmployeeInactivityTimer/);
+  });
+
   it('loads employees from canonical teamDashboard list with fallback', () => {
     const teamConfigJs = read('web/team-config.js');
     expect(appJs).to.match(/EMPLOYEE_PICKER_FALLBACK\s*=\s*\['Paddy',\s*'Laden-Team',\s*'Küche',\s*'Metzgerei',\s*'Büro'\]/);
@@ -88,8 +101,9 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache to role-based-nav-v1', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261017-role-based-nav-v1'");
+  it('bumps the service-worker cache for scan-idle soft-lock fix', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261021-portal-orders-bridge-v4'");
+
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
@@ -98,5 +112,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/function clearActiveEmployeeForSoftLock/);
     expect(appJs).to.match(/resolveKitchenNavEnabled/);
     expect(appJs).to.match(/charculogic:active-employee-changed/);
+    // Nach Picker/Clear: ensureActiveTabAllowed ohne force-Sprung auf MHD.
+    expect(appJs).to.match(/function selectEmployeeFromPicker[\s\S]*?ensureActiveTabAllowed\(\);/);
+    expect(appJs).to.match(/function clearActiveEmployeeForSoftLock[\s\S]*?ensureActiveTabAllowed\(\);/);
   });
 });

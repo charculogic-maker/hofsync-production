@@ -1,12 +1,33 @@
 /**
  * Avery 3475 Zerlege- & Reife-Etikettierung (Modul averyLabels).
  * Hof-Praxis: Schulter (+Hals/Brust), Rücken, Keule, Lappen, Innereien + Freifeld.
+ * Gemeinsamer Draft: tenants/{tenantId}/averyDrafts/current (Phone ↔ Laden-PC).
  */
+
+import { writeFirestoreDocOrQueue } from './sync.js';
+import { hasModule } from './tenant-modules.js';
+import {
+  getGlobalTenantId,
+  getTenantCollection,
+  normalizeTenantId,
+} from './tenant-db.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+} from './teamboard-storage.js';
+
+/** Firestore-Collection für LMIV-Herkunft / Thekenbuch */
+const CHARGEN_DOKU_COLLECTION = 'chargendoku';
+const HERKUNFT_OPTIONS_LIMIT = 40;
 
 export const AVERY_LABELS_PER_SHEET = 24;
 export const AVERY_MODULE_KEY = 'averyLabels';
+export const AVERY_DRAFT_COLLECTION = 'averyDrafts';
+export const AVERY_DRAFT_DOC_ID = 'current';
 const PRINT_BODY_CLASS = 'print-avery-labels';
-const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
+const STORAGE_KEY_BASE = 'charculogic.averyLabels.draft.v3';
+const DEVICE_ID_KEY = 'charculogic.averyLabels.deviceId';
+const CLOUD_WRITE_DEBOUNCE_MS = 400;
 
 /**
  * @typedef {{
@@ -16,6 +37,7 @@ const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
  *   tab: 'schulter'|'ruecken'|'keule'|'lappen'|'innereien'|null,
  *   trim?: boolean,
  *   artNr?: string,
+ *   aliases?: string[],
  * }} AveryCut
  */
 
@@ -33,57 +55,107 @@ const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
  */
 
 /**
- * Praxis-Katalog nach Zerlege-Baugruppen (kein VV/HV).
- * Hals/Brust laufen mit der Schulter am selben Tisch; Brust nicht unter Lappen.
+ * Praxis-Katalog nach Zerlege-Baugruppen mit Kassen-PLU (StevesHof / BioOffice).
+ * Hals/Brust am Schultertisch; Brust nicht unter Lappen.
  */
 export const GALLOWAY_CATALOG = Object.freeze({
   schultern: Object.freeze([
-    { id: 'sch-bug', name: 'Bug', days: 14, tab: 'schulter' },
-    { id: 'sch-falsches-filet', name: 'Falsches Filet', days: 14, tab: 'schulter' },
-    { id: 'sch-schaufel', name: 'Schaufelstück', days: 14, tab: 'schulter' },
-    { id: 'sch-dicke-rippe', name: 'Dicke Rippe', days: 14, tab: 'schulter' },
-    { id: 'sch-nacken', name: 'Nacken / Hals / Zungenstück', days: 14, tab: 'schulter' },
-    { id: 'sch-brust', name: 'Brust / Brisket', days: 14, tab: 'schulter' },
+    { id: 'sch-506', name: 'Schmorbraten Schulter', days: 14, tab: 'schulter', artNr: '506', aliases: ['Schmorbraten', 'Bug', 'Schulterbraten'] },
+    { id: 'sch-510', name: 'Falsches Filet', days: 14, tab: 'schulter', artNr: '510' },
+    { id: 'sch-516', name: 'Flat Iron Steak', days: 14, tab: 'schulter', artNr: '516', aliases: ['Flat Iron'] },
+    { id: 'sch-518', name: 'Bäckchen', days: 14, tab: 'schulter', artNr: '518', aliases: ['Baeckchen', 'Backen'] },
+    { id: 'sch-538', name: 'Metzgerstück', days: 14, tab: 'schulter', artNr: '538', aliases: ['Metzgerstueck'] },
+    { id: 'sch-539', name: 'Blattsteak / Vegas Cut', days: 14, tab: 'schulter', artNr: '539', aliases: ['Blattsteak', 'Vegas Cut', 'Schaufelstück', 'Schaufelstueck'] },
+    { id: 'sch-542', name: 'Schildstück', days: 14, tab: 'schulter', artNr: '542', aliases: ['Schildstueck'] },
+    { id: 'sch-541', name: 'Brust o. K. / Brisket', days: 14, tab: 'schulter', artNr: '541', aliases: ['Brust', 'Brisket', 'Brust ohne Knochen'] },
+    { id: 'sch-511', name: 'Brust mit Knochen', days: 14, tab: 'schulter', artNr: '511' },
+    { id: 'sch-5091', name: 'Fondue/Raclette Schulter', days: 0, tab: 'schulter', artNr: '5091', aliases: ['Fondue Schulter', 'Raclette Schulter'] },
   ]),
   ruecken: Object.freeze([
-    { id: 'rue-entrecote', name: 'Entrecôte', days: 21, tab: 'ruecken' },
-    { id: 'rue-roastbeef', name: 'Roastbeef', days: 28, tab: 'ruecken' },
-    { id: 'rue-filet', name: 'Filet', days: 28, tab: 'ruecken' },
+    { id: 'rue-501', name: 'Filet ganz', days: 28, tab: 'ruecken', artNr: '501', aliases: ['Filet', 'Rinderfilet'] },
+    { id: 'rue-499', name: 'Filet, Spitze / Kopf', days: 28, tab: 'ruecken', artNr: '499', aliases: ['Filet Spitze', 'Filet Kopf', 'Filetspitze'] },
+    { id: 'rue-500', name: 'Filet Tournedos', days: 28, tab: 'ruecken', artNr: '500', aliases: ['Tournedos'] },
+    { id: 'rue-502', name: 'Rumpsteak', days: 28, tab: 'ruecken', artNr: '502', aliases: ['Roastbeef'] },
+    { id: 'rue-514', name: 'Entrecôte / Rib Eye o. K.', days: 21, tab: 'ruecken', artNr: '514', aliases: ['Entrecôte', 'Entrecote', 'Rib Eye', 'Ribeye'] },
+    { id: 'rue-531', name: 'Entrecôte m. Knochen', days: 21, tab: 'ruecken', artNr: '531', aliases: ['Entrecote mit Knochen'] },
+    { id: 'rue-515', name: 'Schmorbraten Hohe Rippe', days: 21, tab: 'ruecken', artNr: '515', aliases: ['Hohe Rippe', 'Dicke Rippe'] },
+    { id: 'rue-520', name: 'Hohe Rippe m. K.', days: 21, tab: 'ruecken', artNr: '520', aliases: ['Hohe Rippe mit Knochen'] },
+    { id: 'rue-534', name: 'Tomahawk-Steak', days: 21, tab: 'ruecken', artNr: '534', aliases: ['Tomahawk'] },
+    { id: 'rue-547', name: 'T-Bone Steak', days: 21, tab: 'ruecken', artNr: '547', aliases: ['T-Bone', 'T Bone'] },
+    { id: 'rue-548', name: 'Porterhouse Steak', days: 21, tab: 'ruecken', artNr: '548', aliases: ['Porterhouse'] },
+    { id: 'rue-549', name: 'Club Steak', days: 21, tab: 'ruecken', artNr: '549' },
+    { id: 'rue-5092', name: 'Fondue/Raclette Rücken', days: 0, tab: 'ruecken', artNr: '5092', aliases: ['Fondue Rücken', 'Fondue Ruecken', 'Raclette Rücken'] },
   ]),
   keule: Object.freeze([
-    { id: 'keu-oberschale', name: 'Oberschale', days: 28, tab: 'keule' },
-    { id: 'keu-unterschale', name: 'Unterschale', days: 28, tab: 'keule' },
-    { id: 'keu-nuss', name: 'Nuss', days: 28, tab: 'keule' },
-    { id: 'keu-huefte', name: 'Hüfte', days: 28, tab: 'keule' },
-    { id: 'keu-tafelspitz', name: 'Tafelspitz', days: 28, tab: 'keule' },
-    { id: 'keu-buergermeister', name: 'Bürgermeisterstück', days: 28, tab: 'keule' },
-    { id: 'keu-wade', name: 'Wade', days: 21, tab: 'keule' },
+    { id: 'keu-508', name: 'Tafelspitz', days: 28, tab: 'keule', artNr: '508' },
+    { id: 'keu-509', name: 'Bürgermeisterstück', days: 28, tab: 'keule', artNr: '509', aliases: ['Buergermeisterstueck', 'Bürgermeister'] },
+    { id: 'keu-507', name: 'Braten a.d. Keule', days: 28, tab: 'keule', artNr: '507', aliases: ['Braten aus der Keule', 'Keulenbraten', 'Oberschale', 'Unterschale'] },
+    { id: 'keu-505', name: 'Roulade', days: 28, tab: 'keule', artNr: '505', aliases: ['Rouladen'] },
+    { id: 'keu-5052', name: 'Oberschalendeckel', days: 28, tab: 'keule', artNr: '5052' },
+    { id: 'keu-513', name: 'Hüftsteak', days: 28, tab: 'keule', artNr: '513', aliases: ['Hueftsteak', 'Hüfte', 'Huefte'] },
+    { id: 'keu-521', name: 'Wade', days: 21, tab: 'keule', artNr: '521' },
+    { id: 'keu-540', name: 'Spidersteak', days: 28, tab: 'keule', artNr: '540', aliases: ['Spider', 'Nuss'] },
+    { id: 'keu-523', name: 'Beinscheibe', days: 21, tab: 'keule', artNr: '523' },
+    { id: 'keu-403', name: 'Beef Hammer', days: 21, tab: 'keule', artNr: '403' },
+    { id: 'keu-5041', name: 'Gulasch aus der Wade', days: 0, tab: 'keule', artNr: '5041', aliases: ['Gulasch'] },
   ]),
   lappen: Object.freeze([
-    { id: 'lap-duennung', name: 'Dünnung', days: 14, tab: 'lappen' },
-    { id: 'lap-flank', name: 'Flank', days: 14, tab: 'lappen' },
-    { id: 'lap-skirt', name: 'Skirt', days: 14, tab: 'lappen' },
-    { id: 'lap-spannrippe', name: 'Spannrippe', days: 14, tab: 'lappen' },
+    { id: 'lap-517', name: 'Flanksteak / Bavette', days: 14, tab: 'lappen', artNr: '517', aliases: ['Flanksteak', 'Flank', 'Bavette', 'Dünnung', 'Duenning'] },
+    { id: 'lap-522', name: 'Skirt Steak / Zwerchfell', days: 14, tab: 'lappen', artNr: '522', aliases: ['Skirt', 'Skirt Steak', 'Zwerchfell'] },
+    { id: 'lap-401', name: 'Querrippe / Short Ribs', days: 14, tab: 'lappen', artNr: '401', aliases: ['Querrippe', 'Short Ribs', 'Spannrippe'] },
+    { id: 'lap-512', name: 'Suppenfleisch Rippe', days: 0, tab: 'lappen', artNr: '512', aliases: ['Suppenfleisch'] },
   ]),
   innereien: Object.freeze([
-    { id: 'inn-leber', name: 'Leber', days: 0, tab: 'innereien' },
-    { id: 'inn-herz', name: 'Herz', days: 0, tab: 'innereien' },
-    { id: 'inn-zunge', name: 'Zunge', days: 0, tab: 'innereien' },
-    { id: 'inn-ochsenschwanz', name: 'Ochsenschwanz', days: 0, tab: 'innereien' },
-    { id: 'inn-backen', name: 'Backen', days: 0, tab: 'innereien' },
-    { id: 'inn-markknochen', name: 'Markknochen', days: 0, tab: 'innereien' },
-    { id: 'inn-suppenknochen', name: 'Suppenknochen', days: 0, tab: 'innereien' },
+    { id: 'inn-400', name: 'Niere', days: 0, tab: 'innereien', artNr: '400' },
+    { id: 'inn-519', name: 'Nierenzapfen / Onglet', days: 0, tab: 'innereien', artNr: '519', aliases: ['Nierenzapfen', 'Onglet'] },
+    { id: 'inn-524', name: 'Ochsenschwanz', days: 0, tab: 'innereien', artNr: '524' },
+    { id: 'inn-525', name: 'Zunge', days: 0, tab: 'innereien', artNr: '525' },
+    { id: 'inn-526', name: 'Leber', days: 0, tab: 'innereien', artNr: '526' },
+    { id: 'inn-527', name: 'Herz', days: 0, tab: 'innereien', artNr: '527' },
+    { id: 'inn-528', name: 'Fleischknochen', days: 0, tab: 'innereien', artNr: '528', aliases: ['Suppenknochen'] },
+    { id: 'inn-529', name: 'Markknochen', days: 0, tab: 'innereien', artNr: '529' },
   ]),
 });
 
-/** Abschnitte / Trimmings – betriebsnahe Rezepturen */
+/** Abschnitte / Trimmings – Kassen-PLU wie Zerlege-HTML */
 export const AVERY_TRIMMINGS = Object.freeze([
-  { id: 'tr-r1-mager', name: 'R I Mager', days: 0, tab: null, trim: true, artNr: '504' },
-  { id: 'tr-r1-spiesse', name: 'R I Spieße', days: 0, tab: null, trim: true, artNr: '543' },
-  { id: 'tr-r2-hack', name: 'R II Hack', days: 0, tab: null, trim: true, artNr: '503' },
-  { id: 'tr-r3-wurst', name: 'R III Wurst', days: 0, tab: null, trim: true, artNr: '530' },
+  { id: 'tr-r1-mager', name: 'R I Mager', days: 0, tab: null, trim: true, artNr: '504', aliases: ['RI Mager', 'R1 Mager'] },
+  { id: 'tr-r1-spiesse', name: 'R I Spieße', days: 0, tab: null, trim: true, artNr: '535', aliases: ['R I Spiesse', 'RI Spieße', 'Spieße', 'Spiesse'] },
+  { id: 'tr-r2-hack', name: 'R II Hack', days: 0, tab: null, trim: true, artNr: '503', aliases: ['R II Hackfleisch', 'Hackfleisch', 'Hack', 'R2 Hack'] },
+  { id: 'tr-r3-wurst', name: 'R III Wurst', days: 0, tab: null, trim: true, artNr: '460', aliases: ['R3 Wurst', 'Wurstfleisch'] },
   { id: 'tr-fett', name: 'Fett', days: 0, tab: null, trim: true, artNr: '449' },
 ]);
+
+/** Alte Draft-/Test-IDs → aktueller PLU-Katalog */
+export const AVERY_LEGACY_CUT_IDS = Object.freeze({
+  'sch-bug': 'sch-506',
+  'sch-falsches-filet': 'sch-510',
+  'sch-schaufel': 'sch-539',
+  'sch-dicke-rippe': 'rue-515',
+  'sch-nacken': 'sch-506',
+  'sch-brust': 'sch-541',
+  'rue-entrecote': 'rue-514',
+  'rue-roastbeef': 'rue-502',
+  'rue-filet': 'rue-501',
+  'keu-oberschale': 'keu-507',
+  'keu-unterschale': 'keu-507',
+  'keu-nuss': 'keu-540',
+  'keu-huefte': 'keu-513',
+  'keu-tafelspitz': 'keu-508',
+  'keu-buergermeister': 'keu-509',
+  'keu-wade': 'keu-521',
+  'lap-duennung': 'lap-517',
+  'lap-flank': 'lap-517',
+  'lap-skirt': 'lap-522',
+  'lap-spannrippe': 'lap-401',
+  'inn-leber': 'inn-526',
+  'inn-herz': 'inn-527',
+  'inn-zunge': 'inn-525',
+  'inn-ochsenschwanz': 'inn-524',
+  'inn-backen': 'sch-518',
+  'inn-markknochen': 'inn-529',
+  'inn-suppenknochen': 'inn-528',
+});
 
 export const AVERY_CUT_CATALOG = Object.freeze([
   ...GALLOWAY_CATALOG.schultern,
@@ -103,11 +175,11 @@ export const CUSTOM_AGING_OPTIONS = Object.freeze([
 ]);
 
 const TAB_META = Object.freeze({
-  schultern: { label: 'Schulter', hint: 'Bug, Schaufel, dicke Rippe – inkl. Nacken/Hals und Brust am Schultertisch' },
-  ruecken: { label: 'Rücken', hint: 'Entrecôte, Roastbeef, Filet – ohne Nacken' },
-  keule: { label: 'Keule', hint: 'Oberschale bis Wade' },
-  lappen: { label: 'Lappen', hint: 'Dünnung, Flank, Skirt, Spannrippe – ohne Brust' },
-  innereien: { label: 'Innereien & Knochen', hint: 'Leber, Herz, Zunge, Knochen' },
+  schultern: { label: 'Schulter', hint: 'Schmorbraten, Flat Iron, Brust/Brisket – PLU am Schultertisch' },
+  ruecken: { label: 'Rücken', hint: 'Filet, Entrecôte, Tomahawk, T-Bone – ohne Schulter' },
+  keule: { label: 'Keule', hint: 'Tafelspitz bis Wade, Roulade, Beef Hammer' },
+  lappen: { label: 'Lappen', hint: 'Flank, Skirt, Querrippe – ohne Brust' },
+  innereien: { label: 'Innereien & Knochen', hint: 'Leber, Herz, Zunge, Niere, Knochen' },
 });
 
 /** Map UI tab key → GALLOWAY_CATALOG key */
@@ -131,6 +203,8 @@ const DEFAULT_HEADER = Object.freeze({
   printBetrieb: false,
   /** @type {boolean} Schlachthof auf Etikett (Default aus) */
   printSchlachthof: false,
+  /** @type {boolean} Kassen-PLU auf Etikett (Default an, wie Zerlege-HTML) */
+  printPlu: true,
 });
 
 /**
@@ -143,7 +217,7 @@ const DEFAULT_HEADER = Object.freeze({
  * }} AveryQueueRow
  */
 
-/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean }} */
+/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean, herkunftOptions: Array<Record<string, unknown>>, herkunftStatus: string, packlistStatus: string, packlistCount: number }} */
 const state = {
   header: { ...DEFAULT_HEADER },
   queue: [],
@@ -151,6 +225,34 @@ const state = {
   previewSheetIndex: 0,
   activeTab: 'schultern',
   initialized: false,
+  /** @type {Array<{ id: string, lotNumber: string, label: string, record: Record<string, unknown> }>} */
+  herkunftOptions: [],
+  herkunftStatus: 'idle',
+  packlistStatus: 'idle',
+  packlistCount: 0,
+};
+
+/** @type {{
+ *   unsubscribe: null|(() => void),
+ *   debounceTimer: ReturnType<typeof setTimeout>|null,
+ *   applyingRemote: boolean,
+ *   writing: boolean,
+ *   lastAppliedMs: number,
+ *   lastLocalWriteMs: number,
+ *   deviceId: string,
+ *   status: 'local'|'connecting'|'live'|'syncing'|'offline'|'error',
+ *   updatedBy: string,
+ * }} */
+const cloud = {
+  unsubscribe: null,
+  debounceTimer: null,
+  applyingRemote: false,
+  writing: false,
+  lastAppliedMs: 0,
+  lastLocalWriteMs: 0,
+  deviceId: '',
+  status: 'local',
+  updatedBy: '',
 };
 
 function escapeHtml(value) {
@@ -210,8 +312,260 @@ export function buildAveryLot(header = {}) {
   return `${brand}-${ohr}-${stamp}`;
 }
 
+/**
+ * Zerlegt ein Herkunfts-LOT (Avery-Stil oder Ohrmarke) für die Etiketten-Kopfdaten.
+ * @param {string} lotNumber
+ * @returns {{ brand?: string, ohrmarke: string, schlachtDatum?: string }}
+ */
+export function parseHerkunftLotForAvery(lotNumber) {
+  const raw = String(lotNumber || '').trim();
+  if (!raw) return { ohrmarke: '' };
+
+  const compact = raw.replace(/\s+/g, '');
+  const averyLot = /^([A-Za-z0-9]{1,6})-([A-Za-z0-9]+)-(\d{8})$/.exec(compact);
+  if (averyLot) {
+    const stamp = averyLot[3];
+    return {
+      brand: averyLot[1].toUpperCase(),
+      ohrmarke: averyLot[2].toUpperCase(),
+      schlachtDatum: `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`,
+    };
+  }
+
+  const deEar = /^(DE)[\s-]*(\d[\d\s-]*)$/i.exec(raw);
+  if (deEar) {
+    return { ohrmarke: `DE${deEar[2].replace(/[\s-]+/g, '')}` };
+  }
+
+  return { ohrmarke: compact.toUpperCase() };
+}
+
+/**
+ * Mappt einen Chargen-Doku-/Herkunftseintrag auf Avery-Kopfdaten.
+ * @param {Record<string, unknown>|null|undefined} record
+ */
+export function mapHerkunftRecordToAveryHeader(record) {
+  if (!record || typeof record !== 'object') {
+    return { ohrmarke: '', schlachthof: '', oeko: '', brand: '', schlachtDatum: '', herkunftLot: '', herkunftId: '' };
+  }
+  const lotNumber = String(record.lotNumber || '').trim();
+  const parsed = parseHerkunftLotForAvery(lotNumber);
+  const healthMark = String(record.healthMark || '').trim();
+  const oeko = String(record.organicControlBody || '').trim();
+  const cuttingPlant = String(record?.origin?.cuttingPlantNo || '').trim();
+  return {
+    ohrmarke: parsed.ohrmarke || '',
+    schlachtDatum: parsed.schlachtDatum || '',
+    brand: parsed.brand || '',
+    schlachthof: healthMark || cuttingPlant || '',
+    oeko: oeko || '',
+    herkunftLot: lotNumber,
+    herkunftId: String(record.id || '').trim(),
+  };
+}
+
+/**
+ * Etiketten-Menge aus einer Metzgerei-Packlisten-Zeile.
+ * Stück/Pack → gerundete Menge; kg oft 1 Etikett (außer kleine Ganzzahlen = Packzahl).
+ * @param {{ quantity?: number, unit?: string }} item
+ */
+export function labelQtyFromButcheryTask(item = {}) {
+  const qty = Number(item.quantity);
+  const safeQty = Number.isFinite(qty) ? qty : 0;
+  const unit = String(item.unit || '').toLowerCase();
+
+  if (/stück|stueck|stk\.?|pack|beutel|portion|etikett/.test(unit)) {
+    return Math.max(1, Math.min(999, Math.round(safeQty) || 1));
+  }
+  if (/\bkg\b|gramm|\bg\b/.test(unit)) {
+    if (Number.isInteger(safeQty) && safeQty >= 1 && safeQty <= 48) return safeQty;
+    return 1;
+  }
+  if (Number.isInteger(safeQty) && safeQty >= 1 && safeQty <= 48) return safeQty;
+  if (safeQty > 0) return Math.max(1, Math.min(999, Math.round(safeQty)));
+  return 1;
+}
+
+/**
+ * Metzgerei-Packliste → Katalog-/Freifeld-Zeilen für den Avery-Bogen.
+ * @param {Array<{ product?: string, productId?: string, quantity?: number, unit?: string }>} tasks
+ */
+export function mapButcheryTasksToAveryImportItems(tasks = []) {
+  /** @type {{ product: string, productId: string, qty: number, cut: AveryCut|null, name: string }[]} */
+  const items = [];
+  (Array.isArray(tasks) ? tasks : []).forEach((task) => {
+    const product = String(task?.product || '').trim();
+    if (!product) return;
+    const productId = String(task?.productId || '').trim();
+    const qty = labelQtyFromButcheryTask(task);
+    const cut = (productId && getCutByArtNr(productId))
+      || matchAveryCatalogEntry(productId)
+      || matchAveryCatalogEntry(product);
+    items.push({
+      product,
+      productId,
+      qty,
+      cut,
+      name: cut?.name || product,
+    });
+  });
+  return {
+    items,
+    matchedCount: items.filter((item) => item.cut).length,
+    customCount: items.filter((item) => !item.cut).length,
+    totalLabels: items.reduce((sum, item) => sum + item.qty, 0),
+  };
+}
+
+export function resolveAveryCutId(cutId) {
+  const raw = String(cutId || '').trim();
+  if (!raw) return '';
+  if (AVERY_CUT_CATALOG.some((cut) => cut.id === raw)) return raw;
+  const mapped = AVERY_LEGACY_CUT_IDS[raw];
+  return mapped || raw;
+}
+
 export function getCutById(cutId) {
-  return AVERY_CUT_CATALOG.find((cut) => cut.id === cutId) || null;
+  const id = resolveAveryCutId(cutId);
+  return AVERY_CUT_CATALOG.find((cut) => cut.id === id) || null;
+}
+
+/** @param {string} artNr */
+export function getCutByArtNr(artNr) {
+  const plu = String(artNr || '').trim();
+  if (!plu) return null;
+  return AVERY_CUT_CATALOG.find((cut) => String(cut.artNr || '') === plu) || null;
+}
+
+/** @param {string} value */
+export function normalizeAveryMatchKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Findet Katalog-Eintrag zu Name/Alias/PLU (für Notiz-Import).
+ * @param {string} nameOrPlu
+ * @returns {AveryCut|null}
+ */
+export function matchAveryCatalogEntry(nameOrPlu) {
+  const raw = String(nameOrPlu || '').trim();
+  if (!raw) return null;
+
+  const pluOnly = /^(?:plu[:\s]*)?(\d{3,5})$/i.exec(raw);
+  if (pluOnly) return getCutByArtNr(pluOnly[1]);
+
+  const key = normalizeAveryMatchKey(raw);
+  if (!key) return null;
+
+  let best = null;
+  let bestScore = 0;
+  for (const cut of AVERY_CUT_CATALOG) {
+    const candidates = [cut.name, cut.artNr, ...(cut.aliases || [])];
+    for (const candidate of candidates) {
+      const candKey = normalizeAveryMatchKey(candidate);
+      if (!candKey) continue;
+      if (candKey === key) return cut;
+      if (key.length >= 4 && (candKey.includes(key) || key.includes(candKey))) {
+        const score = Math.min(key.length, candKey.length);
+        if (score > bestScore) {
+          best = cut;
+          bestScore = score;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Eine Notiz-Zeile → Name/PLU + Menge.
+ * @param {string} line
+ * @returns {{ name: string, plu: string, qty: number }|null}
+ */
+export function parseAveryPlainTextLine(line) {
+  const raw = String(line || '').trim().replace(/^[-*•]\s*/, '');
+  if (!raw || raw.startsWith('#')) return null;
+
+  const pluFirst = /^(?:plu[:\s]*)?(\d{3,5})\s*(?:[x×*]\s*)?(\d{1,3})?$/i.exec(raw);
+  if (pluFirst) {
+    return {
+      name: '',
+      plu: pluFirst[1],
+      qty: Math.max(1, Number.parseInt(pluFirst[2] || '1', 10) || 1),
+    };
+  }
+
+  const namePluQty = /^(.+?)\s+(?:plu[:\s]*)?(\d{3,5})\s*(?:[x×*]\s*)?(\d{1,3})?$/i.exec(raw);
+  if (namePluQty && getCutByArtNr(namePluQty[2])) {
+    return {
+      name: namePluQty[1].trim(),
+      plu: namePluQty[2],
+      qty: Math.max(1, Number.parseInt(namePluQty[3] || '1', 10) || 1),
+    };
+  }
+
+  const nameQty = /^(.+?)\s+(?:[x×*]\s*)(\d{1,3})$/i.exec(raw)
+    || /^(.+?)\s+(\d{1,3})$/i.exec(raw);
+  if (nameQty) {
+    const maybePlu = nameQty[2];
+    // Trailing 3–5-digit token that is a known PLU → PLU, not quantity
+    if (/^\d{3,5}$/.test(maybePlu) && getCutByArtNr(maybePlu) && !/[x×*]/i.test(raw)) {
+      return { name: nameQty[1].trim(), plu: maybePlu, qty: 1 };
+    }
+    return {
+      name: nameQty[1].trim(),
+      plu: '',
+      qty: Math.max(1, Number.parseInt(maybePlu, 10) || 1),
+    };
+  }
+
+  return { name: raw, plu: '', qty: 1 };
+}
+
+/**
+ * Mehrzeilige Notiz → erkannte Zeilen + Freifeld-Kandidaten.
+ * @param {string} text
+ */
+export function parseAveryPlainTextList(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  /** @type {{ line: string, qty: number, cut: AveryCut|null, name: string, plu: string }[]} */
+  const items = [];
+  /** @type {string[]} */
+  const skipped = [];
+
+  lines.forEach((line) => {
+    const parsed = parseAveryPlainTextLine(line);
+    if (!parsed) {
+      if (String(line || '').trim()) skipped.push(String(line).trim());
+      return;
+    }
+    const cut = parsed.plu
+      ? (getCutByArtNr(parsed.plu) || matchAveryCatalogEntry(parsed.name || parsed.plu))
+      : matchAveryCatalogEntry(parsed.name);
+    items.push({
+      line: String(line).trim(),
+      qty: parsed.qty,
+      cut,
+      name: parsed.name || cut?.name || parsed.plu,
+      plu: parsed.plu || cut?.artNr || '',
+    });
+  });
+
+  return {
+    items,
+    matchedCount: items.filter((item) => item.cut).length,
+    customCount: items.filter((item) => !item.cut).length,
+    totalLabels: items.reduce((sum, item) => sum + item.qty, 0),
+    skipped,
+  };
 }
 
 /**
@@ -341,15 +695,308 @@ function buildSheetPrintCellsHtml(sheetPlan, header, lot) {
   return printCells.join('');
 }
 
-function persistDraft() {
+function draftStorageKey() {
+  const tid = normalizeTenantId(getGlobalTenantId());
+  return tid ? `${tid}.${STORAGE_KEY_BASE}` : STORAGE_KEY_BASE;
+}
+
+/** @returns {string} */
+export function getAveryDeviceId() {
+  if (cloud.deviceId) return cloud.deviceId;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      header: state.header,
-      queue: state.queue,
-      startSlot: state.startSlot,
-      activeTab: state.activeTab,
-    }));
+    let id = String(localStorage.getItem(DEVICE_ID_KEY) || '').trim();
+    if (!id) {
+      id = `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    cloud.deviceId = id;
+    return id;
+  } catch (_) {
+    cloud.deviceId = `dev-ephemeral-${Math.random().toString(36).slice(2, 8)}`;
+    return cloud.deviceId;
+  }
+}
+
+function resolveAveryUpdatedBy() {
+  const tenantId = getGlobalTenantId();
+  const employee = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+  if (employee) return employee;
+  return 'Laden';
+}
+
+/**
+ * Serialisiert den aktuellen Draft für localStorage / Firestore.
+ * @param {{ updatedAtMs?: number, updatedBy?: string, deviceId?: string, revision?: number }} [meta]
+ */
+export function serializeAveryDraft(meta = {}) {
+  const updatedAtMs = Number(meta.updatedAtMs) || Date.now();
+  return {
+    tenantId: getGlobalTenantId() || '',
+    header: { ...state.header },
+    queue: state.queue.map((row) => ({ ...row })),
+    startSlot: state.startSlot,
+    activeTab: state.activeTab,
+    updatedAtMs,
+    updatedAt: new Date(updatedAtMs).toISOString(),
+    updatedBy: String(meta.updatedBy || resolveAveryUpdatedBy()).trim() || 'Laden',
+    deviceId: String(meta.deviceId || getAveryDeviceId()),
+    revision: Number.isFinite(Number(meta.revision)) ? Number(meta.revision) : updatedAtMs,
+  };
+}
+
+/** @param {unknown} value */
+export function averyDraftUpdatedAtMs(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value?.toMillis === 'function') {
+    try { return Number(value.toMillis()) || 0; } catch (_) { return 0; }
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+/**
+ * @param {Record<string, unknown>|null|undefined} raw
+ * @returns {boolean} true wenn State geändert wurde
+ */
+export function applyAveryDraftPayload(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  let changed = false;
+
+  if (raw.header && typeof raw.header === 'object') {
+    const { reifehinweis: _drop, ...restHeader } = raw.header;
+    state.header = {
+      ...DEFAULT_HEADER,
+      ...restHeader,
+      printBetrieb: coercePrintFlag(restHeader.printBetrieb, false),
+      printSchlachthof: coercePrintFlag(restHeader.printSchlachthof, false),
+      printPlu: coercePrintFlag(restHeader.printPlu, true),
+    };
+    delete state.header.reifehinweis;
+    changed = true;
+  }
+
+  if (Array.isArray(raw.queue)) {
+    state.queue = raw.queue.map(normalizeQueueRow).filter(Boolean);
+    changed = true;
+  }
+
+  if (raw.startSlot != null) {
+    state.startSlot = Math.min(24, Math.max(1, Number.parseInt(String(raw.startSlot), 10) || 1));
+    changed = true;
+  }
+
+  const legacyTabMap = {
+    vv: 'schultern',
+    hv: 'keule',
+    frisch: 'lappen',
+    schultern: 'schultern',
+    ruecken: 'ruecken',
+    keule: 'keule',
+    lappen: 'lappen',
+    innereien: 'innereien',
+  };
+  const mapped = legacyTabMap[raw.activeTab] || raw.activeTab;
+  if (mapped && TAB_META[mapped]) {
+    state.activeTab = mapped;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function persistDraftLocal() {
+  try {
+    localStorage.setItem(draftStorageKey(), JSON.stringify(serializeAveryDraft({
+      updatedAtMs: cloud.lastLocalWriteMs || Date.now(),
+      updatedBy: cloud.updatedBy || resolveAveryUpdatedBy(),
+      deviceId: getAveryDeviceId(),
+    })));
   } catch (_) { /* private mode */ }
+}
+
+function setCloudStatus(status, updatedBy = cloud.updatedBy) {
+  cloud.status = status;
+  cloud.updatedBy = updatedBy || cloud.updatedBy;
+  renderCloudStatus();
+}
+
+function renderCloudStatus() {
+  const el = document.getElementById('avery-cloud-status');
+  if (!el) return;
+  const who = cloud.updatedBy ? ` · zuletzt ${cloud.updatedBy}` : '';
+  const map = {
+    local: 'Gemeinsame Liste: nur auf diesem Gerät',
+    connecting: 'Gemeinsame Liste: verbinden…',
+    live: `Gemeinsame Liste: live zwischen Laden-iPhone und PC${who}`,
+    syncing: 'Gemeinsame Liste: wird geteilt…',
+    offline: 'Gemeinsame Liste: offline – wir teilen nach, sobald WLAN da ist',
+    error: 'Gemeinsame Liste: Teilen gerade nicht möglich',
+  };
+  el.textContent = map[cloud.status] || map.local;
+  el.dataset.status = cloud.status;
+}
+
+function averyDraftRef() {
+  try {
+    if (!getGlobalTenantId()) return null;
+    return getTenantCollection(AVERY_DRAFT_COLLECTION).doc(AVERY_DRAFT_DOC_ID);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function flushAveryDraftToCloud() {
+  if (cloud.applyingRemote) return;
+  const tenantId = getGlobalTenantId();
+  if (!tenantId) {
+    setCloudStatus('local');
+    return;
+  }
+
+  const updatedAtMs = Date.now();
+  cloud.lastLocalWriteMs = updatedAtMs;
+  const payload = serializeAveryDraft({
+    updatedAtMs,
+    updatedBy: resolveAveryUpdatedBy(),
+    deviceId: getAveryDeviceId(),
+    revision: updatedAtMs,
+  });
+  cloud.updatedBy = payload.updatedBy;
+  persistDraftLocal();
+  setCloudStatus(navigator.onLine ? 'syncing' : 'offline', payload.updatedBy);
+
+  cloud.writing = true;
+  try {
+    let updatedAt = payload.updatedAt;
+    try {
+      const serverTs = window.firebase?.firestore?.FieldValue?.serverTimestamp;
+      if (typeof serverTs === 'function') updatedAt = serverTs();
+    } catch (_) { /* ISO-Fallback */ }
+    const onlineData = { ...payload, updatedAt };
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: AVERY_DRAFT_COLLECTION,
+      docId: AVERY_DRAFT_DOC_ID,
+      op: 'set',
+      onlineData,
+      queueData: payload,
+      offlineMessage: 'Etikettenliste wird geteilt, sobald WLAN verfügbar ist.',
+      silentPermissionDenied: true,
+    });
+    if (result === 'queued') setCloudStatus('offline', payload.updatedBy);
+    else setCloudStatus('live', payload.updatedBy);
+  } catch (err) {
+    console.error('[avery] draft cloud write failed', err);
+    setCloudStatus(navigator.onLine ? 'error' : 'offline', payload.updatedBy);
+  } finally {
+    cloud.writing = false;
+  }
+}
+
+function scheduleAveryDraftCloudWrite() {
+  if (cloud.applyingRemote) return;
+  if (cloud.debounceTimer) clearTimeout(cloud.debounceTimer);
+  cloud.debounceTimer = setTimeout(() => {
+    cloud.debounceTimer = null;
+    flushAveryDraftToCloud().catch((err) => {
+      console.error('[avery] draft flush', err);
+    });
+  }, CLOUD_WRITE_DEBOUNCE_MS);
+}
+
+function persistDraft() {
+  cloud.lastLocalWriteMs = Date.now();
+  persistDraftLocal();
+  scheduleAveryDraftCloudWrite();
+}
+
+function handleAveryDraftSnapshot(snap) {
+  if (!snap) return;
+  if (!snap.exists) {
+    setCloudStatus(navigator.onLine ? 'live' : 'offline');
+    return;
+  }
+  const data = snap.data() || {};
+  const remoteMs = averyDraftUpdatedAtMs(data.updatedAtMs) || averyDraftUpdatedAtMs(data.updatedAt);
+  const remoteDevice = String(data.deviceId || '');
+  const ourDevice = getAveryDeviceId();
+
+  // Echo der eigenen Schreiboperation überspringen
+  if (remoteDevice && remoteDevice === ourDevice && remoteMs <= cloud.lastLocalWriteMs + 1500) {
+    cloud.lastAppliedMs = Math.max(cloud.lastAppliedMs, remoteMs);
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  if (remoteMs && remoteMs <= cloud.lastAppliedMs) {
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  // Ältere Cloud-Version nicht über neuere lokale Tipps legen
+  if (remoteMs && cloud.lastLocalWriteMs && remoteMs < cloud.lastLocalWriteMs) {
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  cloud.applyingRemote = true;
+  try {
+    const changed = applyAveryDraftPayload(data);
+    cloud.lastAppliedMs = Math.max(remoteMs, cloud.lastAppliedMs);
+    cloud.updatedBy = String(data.updatedBy || '');
+    persistDraftLocal();
+    if (changed && state.initialized) {
+      renderAll();
+      if (remoteDevice && remoteDevice !== ourDevice) {
+        window.showToast?.(
+          cloud.updatedBy
+            ? `Etikettenliste von ${cloud.updatedBy} übernommen.`
+            : 'Etikettenliste vom anderen Gerät übernommen.',
+          'info',
+        );
+      }
+    }
+    setCloudStatus('live', cloud.updatedBy);
+  } finally {
+    cloud.applyingRemote = false;
+  }
+}
+
+export function startAveryDraftSync() {
+  cloud.unsubscribe?.();
+  cloud.unsubscribe = null;
+  const ref = averyDraftRef();
+  if (!ref) {
+    setCloudStatus('local');
+    return;
+  }
+  setCloudStatus('connecting');
+  cloud.unsubscribe = ref.onSnapshot(
+    (snap) => {
+      try {
+        handleAveryDraftSnapshot(snap);
+      } catch (err) {
+        console.error('[avery] draft snapshot', err);
+        setCloudStatus('error');
+      }
+    },
+    (err) => {
+      console.error('[avery] draft subscribe', err);
+      setCloudStatus(navigator.onLine ? 'error' : 'offline');
+    },
+  );
+}
+
+export function stopAveryDraftSync() {
+  if (cloud.debounceTimer) {
+    clearTimeout(cloud.debounceTimer);
+    cloud.debounceTimer = null;
+  }
+  cloud.unsubscribe?.();
+  cloud.unsubscribe = null;
 }
 
 function normalizeQueueRow(row) {
@@ -367,7 +1014,7 @@ function normalizeQueueRow(row) {
       days: Number.isFinite(Number(row.days)) ? Number(row.days) : 0,
     };
   }
-  const cutId = String(row.cutId || '');
+  const cutId = resolveAveryCutId(row.cutId);
   if (!cutId || !getCutById(cutId)) return null;
   return { cutId, qty };
 }
@@ -381,40 +1028,21 @@ function coercePrintFlag(value, fallback = false) {
 
 function restoreDraft() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const key = draftStorageKey();
+    const raw = localStorage.getItem(key)
+      || localStorage.getItem(STORAGE_KEY_BASE)
       || localStorage.getItem('charculogic.averyLabels.draft.v2')
       || localStorage.getItem('charculogic.averyLabels.draft.v1');
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
-    if (parsed.header && typeof parsed.header === 'object') {
-      const { reifehinweis: _drop, ...restHeader } = parsed.header;
-      state.header = {
-        ...DEFAULT_HEADER,
-        ...restHeader,
-        printBetrieb: coercePrintFlag(restHeader.printBetrieb, false),
-        printSchlachthof: coercePrintFlag(restHeader.printSchlachthof, false),
-      };
-      delete state.header.reifehinweis;
+    applyAveryDraftPayload(parsed);
+    const ms = averyDraftUpdatedAtMs(parsed.updatedAtMs) || averyDraftUpdatedAtMs(parsed.updatedAt);
+    if (ms) {
+      cloud.lastAppliedMs = ms;
+      cloud.lastLocalWriteMs = ms;
     }
-    if (Array.isArray(parsed.queue)) {
-      state.queue = parsed.queue.map(normalizeQueueRow).filter(Boolean);
-    }
-    if (parsed.startSlot != null) {
-      state.startSlot = Math.min(24, Math.max(1, Number.parseInt(String(parsed.startSlot), 10) || 1));
-    }
-    const legacyTabMap = {
-      vv: 'schultern',
-      hv: 'keule',
-      frisch: 'lappen',
-      schultern: 'schultern',
-      ruecken: 'ruecken',
-      keule: 'keule',
-      lappen: 'lappen',
-      innereien: 'innereien',
-    };
-    const mapped = legacyTabMap[parsed.activeTab] || parsed.activeTab;
-    if (mapped && TAB_META[mapped]) state.activeTab = mapped;
+    if (parsed.updatedBy) cloud.updatedBy = String(parsed.updatedBy);
   } catch (_) { /* ignore */ }
 }
 
@@ -517,6 +1145,155 @@ function fillRestWithHack() {
 }
 
 /**
+ * Notiz/Plain-Text in die Druckliste übernehmen (Katalog-Treffer + Freifeld).
+ * @param {string} text
+ * @param {{ defaultDays?: number }} [options]
+ */
+export function importAveryPlainTextToQueue(text, options = {}) {
+  const parsed = parseAveryPlainTextList(text);
+  if (!parsed.items.length) {
+    window.showToast?.('Keine Zeilen gefunden. Bitte eine Notiz mit Teilstücken einfügen.', 'warning');
+    return parsed;
+  }
+
+  const defaultDays = Number.parseInt(String(options.defaultDays ?? 0), 10);
+  const safeDays = CUSTOM_AGING_OPTIONS.some((opt) => opt.days === defaultDays) ? defaultDays : 0;
+  let addedLabels = 0;
+
+  parsed.items.forEach((item) => {
+    const qty = Math.max(1, Math.min(999, item.qty || 1));
+    if (item.cut) {
+      const existing = state.queue.find((row) => !row.isCustom && row.cutId === item.cut.id);
+      if (existing) existing.qty += qty;
+      else state.queue.push({ cutId: item.cut.id, qty });
+      addedLabels += qty;
+      return;
+    }
+    const name = String(item.name || '').trim();
+    if (!name) return;
+    const existingCustom = state.queue.find(
+      (row) => row.isCustom && String(row.name || '').trim().toLowerCase() === name.toLowerCase()
+        && Number(row.days || 0) === safeDays,
+    );
+    if (existingCustom) existingCustom.qty += qty;
+    else {
+      state.queue.push({
+        cutId: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        qty,
+        isCustom: true,
+        name,
+        days: safeDays,
+      });
+    }
+    addedLabels += qty;
+  });
+
+  persistDraft();
+  renderAll();
+
+  const matched = parsed.matchedCount;
+  const custom = parsed.customCount;
+  if (matched && custom) {
+    window.showToast?.(
+      `${addedLabels} Etiketten übernommen · ${matched} aus dem Katalog, ${custom} als Freifeld.`,
+      'success',
+    );
+  } else if (matched) {
+    window.showToast?.(`${addedLabels} Etiketten aus dem Katalog übernommen.`, 'success');
+  } else {
+    window.showToast?.(`${addedLabels} Etiketten als Freifeld übernommen.`, 'success');
+  }
+  return { ...parsed, addedLabels };
+}
+
+/**
+ * Übernimmt „Heute zu zerlegen/packen“ (Metzgerei) in die Druckliste.
+ * @param {Array<{ product?: string, productId?: string, quantity?: number, unit?: string }>} tasks
+ * @param {{ defaultDays?: number }} [options]
+ */
+export function importButcheryPacklistToQueue(tasks, options = {}) {
+  const mapped = mapButcheryTasksToAveryImportItems(tasks);
+  if (!mapped.items.length) {
+    window.showToast?.('In der Metzgerei ist heute nichts Offenes zum Übernehmen.', 'info');
+    return mapped;
+  }
+
+  const defaultDays = Number.parseInt(String(options.defaultDays ?? 0), 10);
+  const safeDays = CUSTOM_AGING_OPTIONS.some((opt) => opt.days === defaultDays) ? defaultDays : 0;
+  let addedLabels = 0;
+
+  mapped.items.forEach((item) => {
+    const qty = Math.max(1, Math.min(999, item.qty || 1));
+    if (item.cut) {
+      const existing = state.queue.find((row) => !row.isCustom && row.cutId === item.cut.id);
+      if (existing) existing.qty += qty;
+      else state.queue.push({ cutId: item.cut.id, qty });
+      addedLabels += qty;
+      return;
+    }
+    const name = String(item.name || item.product || '').trim();
+    if (!name) return;
+    const existingCustom = state.queue.find(
+      (row) => row.isCustom && String(row.name || '').trim().toLowerCase() === name.toLowerCase()
+        && Number(row.days || 0) === safeDays,
+    );
+    if (existingCustom) existingCustom.qty += qty;
+    else {
+      state.queue.push({
+        cutId: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        qty,
+        isCustom: true,
+        name,
+        days: safeDays,
+      });
+    }
+    addedLabels += qty;
+  });
+
+  persistDraft();
+  renderAll();
+
+  const matched = mapped.matchedCount;
+  const custom = mapped.customCount;
+  if (matched && custom) {
+    window.showToast?.(
+      `${addedLabels} Etiketten aus der Packliste · ${matched} Katalog, ${custom} Freifeld.`,
+      'success',
+    );
+  } else if (matched) {
+    window.showToast?.(`${addedLabels} Etiketten aus der Packliste übernommen.`, 'success');
+  } else {
+    window.showToast?.(`${addedLabels} Etiketten aus der Packliste als Freifeld übernommen.`, 'success');
+  }
+  return { ...mapped, addedLabels };
+}
+
+/**
+ * Wendet einen Herkunftseintrag auf die Avery-Kopfdaten an (Ohrmarke/LOT/Öko).
+ * @param {Record<string, unknown>|null|undefined} record
+ */
+export function applyHerkunftRecordToAveryHeader(record) {
+  const mapped = mapHerkunftRecordToAveryHeader(record);
+  if (!mapped.ohrmarke && !mapped.herkunftLot) {
+    window.showToast?.('Dieser Herkunftseintrag hat keine LOT/Ohrmarke.', 'warning');
+    return mapped;
+  }
+  if (mapped.ohrmarke) state.header.ohrmarke = mapped.ohrmarke;
+  if (mapped.schlachtDatum) state.header.schlachtDatum = mapped.schlachtDatum;
+  if (mapped.brand) state.header.brand = mapped.brand;
+  if (mapped.schlachthof) state.header.schlachthof = mapped.schlachthof;
+  if (mapped.oeko) state.header.oeko = mapped.oeko;
+  persistDraft();
+  syncHeaderInputs();
+  renderSheetPreview();
+  window.showToast?.(
+    `Herkunft übernommen · LOT ${buildAveryLot(state.header)}`,
+    'success',
+  );
+  return mapped;
+}
+
+/**
  * Freifeld → Queue
  * @param {string} name
  * @param {number} days
@@ -586,7 +1363,7 @@ export function storageFootLine(cut, oeko) {
 
 /**
  * Inhalts-zuerst: Hero (~55%) / Meta (~35%) / Pflicht-Fuß.
- * Keine Art.-Nr. im Druckbild.
+ * PLU optional über header.printPlu (Default an).
  * @param {AveryCut} cut
  * @param {Record<string, string|boolean>} header
  * @param {string} lot
@@ -595,6 +1372,7 @@ export function buildLabelHtml(cut, header, lot) {
   const oeko = String(header.oeko || '').trim();
   const showBetrieb = Boolean(header.printBetrieb) && String(header.betrieb || '').trim();
   const showSchlachthof = Boolean(header.printSchlachthof) && String(header.schlachthof || '').trim();
+  const showPlu = header.printPlu !== false && String(cut.artNr || '').trim();
   const ohr = String(header.ohrmarke || '').trim();
   const schl = formatDateDe(header.schlachtDatum) || '';
   const zerl = formatDateDe(header.zerlegeDatum) || '';
@@ -606,11 +1384,15 @@ export function buildLabelHtml(cut, header, lot) {
   const schlRow = schl
     ? `<div class="lbl-meta-sub">Schl. ${escapeHtml(schl)}</div>`
     : '';
+  const pluHtml = showPlu
+    ? `<span class="lbl-plu">PLU: ${escapeHtml(String(cut.artNr).trim())}</span>`
+    : '';
   return `
     <div class="label-card">
       ${showBetrieb ? `<div class="lbl-farm">${escapeHtml(String(header.betrieb).trim())}</div>` : ''}
       <div class="lbl-hero">
         <span class="lbl-title">${escapeHtml(title)}</span>
+        ${pluHtml}
       </div>
       <div class="lbl-meta">
         <div class="lbl-meta-col lbl-meta-left">
@@ -885,10 +1667,11 @@ function renderCatalog() {
     <div class="avery-catalog-grid">
       ${cuts.map((cut) => {
         const qty = state.queue.find((row) => !row.isCustom && row.cutId === cut.id)?.qty || 0;
+        const plu = cut.artNr ? `PLU ${escapeHtml(cut.artNr)} · ` : '';
         return `
           <button type="button" class="avery-cut-chip${qty ? ' is-active' : ''}" data-avery-add="${escapeHtml(cut.id)}">
             <strong>${escapeHtml(cut.name)}</strong>
-            <span>${cut.days > 0 ? `${cut.days} Tage Reife` : 'frisch'}${qty ? ` · ${qty}×` : ''}</span>
+            <span>${plu}${cut.days > 0 ? `${cut.days} Tage Reife` : 'frisch'}${qty ? ` · ${qty}×` : ''}</span>
           </button>
         `;
       }).join('')}
@@ -903,7 +1686,7 @@ function renderCatalog() {
           return `
             <button type="button" class="avery-cut-chip avery-trim-chip${qty ? ' is-active' : ''}" data-avery-add="${escapeHtml(trim.id)}">
               <strong>${escapeHtml(trim.name)}</strong>
-              <span>Art. ${escapeHtml(trim.artNr || '–')}${qty ? ` · ${qty}×` : ''}</span>
+              <span>PLU ${escapeHtml(trim.artNr || '–')}${qty ? ` · ${qty}×` : ''}</span>
             </button>
           `;
         }).join('')}
@@ -929,6 +1712,158 @@ function renderCatalog() {
   `;
 }
 
+function formatHerkunftOptionLabel(record) {
+  const lot = String(record?.lotNumber || 'ohne LOT').trim() || 'ohne LOT';
+  const animal = String(record?.animalType || '').trim();
+  const animalLabel = {
+    rind: 'Rind',
+    schwein: 'Schwein',
+    gefluegel: 'Geflügel',
+    schaf: 'Schaf',
+    ziege: 'Ziege',
+  }[animal] || animal;
+  let when = '';
+  try {
+    const created = record?.createdAt;
+    const ms = typeof created?.toMillis === 'function'
+      ? created.toMillis()
+      : (typeof created === 'string' ? Date.parse(created) : 0);
+    if (ms) {
+      when = new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+  } catch (_) { /* ignore */ }
+  return [lot, animalLabel, when].filter(Boolean).join(' · ');
+}
+
+async function loadActiveHerkunftOptions() {
+  const select = document.getElementById('avery-herkunft-select');
+  const statusEl = document.getElementById('avery-herkunft-status');
+  if (!hasModule('chargenDoku')) {
+    state.herkunftOptions = [];
+    state.herkunftStatus = 'hidden';
+    const box = document.getElementById('avery-herkunft-box');
+    if (box) box.hidden = true;
+    return;
+  }
+  const box = document.getElementById('avery-herkunft-box');
+  if (box) box.hidden = false;
+  state.herkunftStatus = 'loading';
+  if (statusEl) statusEl.textContent = 'Aktive Herkunftseinträge werden geladen…';
+  if (select instanceof HTMLSelectElement) {
+    select.disabled = true;
+  }
+  try {
+    const col = getTenantCollection(CHARGEN_DOKU_COLLECTION);
+    const snap = await col.where('status', '==', 'active').limit(HERKUNFT_OPTIONS_LIMIT).get();
+    const options = [];
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const record = { id: doc.id, ...data };
+      if (String(record.status || 'active') !== 'active') return;
+      options.push({
+        id: doc.id,
+        lotNumber: String(record.lotNumber || '').trim(),
+        label: formatHerkunftOptionLabel(record),
+        record,
+      });
+    });
+    options.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    state.herkunftOptions = options;
+    state.herkunftStatus = options.length ? 'ready' : 'empty';
+    if (select instanceof HTMLSelectElement) {
+      const current = select.value;
+      select.innerHTML = [
+        '<option value="">Herkunft / LOT wählen…</option>',
+        ...options.map((opt) => (
+          `<option value="${escapeHtml(opt.id)}">${escapeHtml(opt.label)}</option>`
+        )),
+      ].join('');
+      if (current && options.some((opt) => opt.id === current)) select.value = current;
+      select.disabled = false;
+    }
+    if (statusEl) {
+      statusEl.textContent = options.length
+        ? `${options.length} aktive Einträge im Thekenbuch`
+        : 'Noch kein aktiver Herkunftseintrag – zuerst im Tab Herkunft speichern.';
+    }
+  } catch (err) {
+    console.error('[Avery] Herkunftsliste konnte nicht geladen werden:', err);
+    state.herkunftStatus = 'error';
+    if (statusEl) {
+      statusEl.textContent = 'Herkunftsliste gerade nicht erreichbar. Bitte WLAN prüfen und erneut laden.';
+    }
+    if (select instanceof HTMLSelectElement) select.disabled = false;
+  }
+}
+
+async function refreshPacklistPreview() {
+  const statusEl = document.getElementById('avery-packlist-status');
+  const btn = document.getElementById('btn-avery-packlist-import');
+  const box = document.getElementById('avery-packlist-box');
+  if (!hasModule('orders')) {
+    state.packlistCount = 0;
+    state.packlistStatus = 'hidden';
+    if (box) box.hidden = true;
+    return;
+  }
+  if (box) box.hidden = false;
+  state.packlistStatus = 'loading';
+  if (statusEl) statusEl.textContent = 'Packliste wird geprüft…';
+  if (btn instanceof HTMLButtonElement) btn.disabled = true;
+  try {
+    const { getProductionTasksByStation } = await import('./customer-orders.js');
+    const tasks = getProductionTasksByStation()?.butchery || [];
+    const mapped = mapButcheryTasksToAveryImportItems(tasks);
+    state.packlistCount = mapped.totalLabels;
+    state.packlistStatus = mapped.items.length ? 'ready' : 'empty';
+    if (statusEl) {
+      if (!mapped.items.length) {
+        statusEl.textContent = 'Heute nichts Offenes unter „Zerlegen/packen“.';
+      } else {
+        statusEl.textContent = `${mapped.items.length} Positionen · ca. ${mapped.totalLabels} Etiketten`
+          + (mapped.customCount ? ` · ${mapped.customCount} als Freifeld` : '');
+      }
+    }
+    if (btn instanceof HTMLButtonElement) {
+      btn.disabled = !mapped.items.length;
+      btn.dataset.packlistReady = mapped.items.length ? '1' : '0';
+    }
+  } catch (err) {
+    console.error('[Avery] Packliste konnte nicht gelesen werden:', err);
+    state.packlistStatus = 'error';
+    if (statusEl) statusEl.textContent = 'Packliste gerade nicht lesbar. Bitte später erneut versuchen.';
+    if (btn instanceof HTMLButtonElement) btn.disabled = true;
+  }
+}
+
+function applySelectedHerkunftFromDom() {
+  const select = document.getElementById('avery-herkunft-select');
+  const id = String(select?.value || '').trim();
+  if (!id) {
+    window.showToast?.('Bitte zuerst einen Herkunftseintrag wählen.', 'warning');
+    return;
+  }
+  const opt = state.herkunftOptions.find((row) => row.id === id);
+  if (!opt?.record) {
+    window.showToast?.('Eintrag nicht gefunden. Bitte Liste neu laden.', 'warning');
+    return;
+  }
+  applyHerkunftRecordToAveryHeader(opt.record);
+}
+
+async function importPacklistFromOrders() {
+  const days = document.getElementById('avery-custom-aging')?.value || '0';
+  try {
+    const { getProductionTasksByStation } = await import('./customer-orders.js');
+    const tasks = getProductionTasksByStation()?.butchery || [];
+    importButcheryPacklistToQueue(tasks, { defaultDays: days });
+    await refreshPacklistPreview();
+  } catch (err) {
+    console.error('[Avery] Packlisten-Import fehlgeschlagen:', err);
+    window.showToast?.('Packliste konnte nicht übernommen werden. Bitte erneut versuchen.', 'error');
+  }
+}
+
 function syncHeaderInputs() {
   const map = {
     'avery-betrieb': 'betrieb',
@@ -951,6 +1886,10 @@ function syncHeaderInputs() {
   if (printSchlachthof instanceof HTMLInputElement) {
     printSchlachthof.checked = Boolean(state.header.printSchlachthof);
   }
+  const printPlu = document.getElementById('avery-print-plu');
+  if (printPlu instanceof HTMLInputElement) {
+    printPlu.checked = state.header.printPlu !== false;
+  }
   const lotEl = document.getElementById('avery-lot-preview');
   if (lotEl) lotEl.textContent = buildAveryLot(state.header);
 }
@@ -971,6 +1910,7 @@ function renderAll() {
   renderCatalog();
   renderQueue();
   renderSheetPreview();
+  renderCloudStatus();
 }
 
 function readHeaderFromDom() {
@@ -985,6 +1925,8 @@ function readHeaderFromDom() {
   state.header.printBetrieb = printBetrieb instanceof HTMLInputElement ? printBetrieb.checked : false;
   const printSchlachthof = document.getElementById('avery-print-schlachthof');
   state.header.printSchlachthof = printSchlachthof instanceof HTMLInputElement ? printSchlachthof.checked : false;
+  const printPlu = document.getElementById('avery-print-plu');
+  state.header.printPlu = printPlu instanceof HTMLInputElement ? printPlu.checked : true;
   delete state.header.reifehinweis;
 }
 
@@ -1047,7 +1989,11 @@ function bindEvents(root) {
       return;
     }
     if (!target.id?.startsWith('avery-')) return;
-    if (target.id === 'avery-custom-name' || target.id === 'avery-custom-aging') return;
+    if (
+      target.id === 'avery-custom-name'
+      || target.id === 'avery-custom-aging'
+      || target.id === 'avery-plain-import'
+    ) return;
     readHeaderFromDom();
     persistDraft();
     const lotEl = document.getElementById('avery-lot-preview');
@@ -1082,6 +2028,31 @@ function bindEvents(root) {
         const nameInput = document.getElementById('avery-custom-name');
         if (nameInput) nameInput.value = '';
       }
+      return;
+    }
+
+    if (target.closest('#btn-avery-plain-import')) {
+      const area = document.getElementById('avery-plain-import');
+      const days = document.getElementById('avery-custom-aging')?.value || '0';
+      const result = importAveryPlainTextToQueue(area?.value || '', { defaultDays: days });
+      if (result?.items?.length && area instanceof HTMLTextAreaElement) {
+        area.value = '';
+      }
+      return;
+    }
+
+    if (target.closest('#btn-avery-herkunft-apply')) {
+      applySelectedHerkunftFromDom();
+      return;
+    }
+
+    if (target.closest('#btn-avery-herkunft-reload')) {
+      void loadActiveHerkunftOptions();
+      return;
+    }
+
+    if (target.closest('#btn-avery-packlist-import')) {
+      void importPacklistFromOrders();
       return;
     }
 
@@ -1149,6 +2120,9 @@ function buildShellHtml() {
           <p class="avery-kicker">WG 0460 · Avery 3475</p>
           <h2 class="avery-suite-title">🏷️ Zerlege- &amp; Reife-Etiketten</h2>
           <p class="avery-suite-lead">Klare Inhalts-Deklaration auf Avery 3475 (70×36&nbsp;mm Querformat) – nach Baugruppe und Freifeld.</p>
+          <p class="avery-cloud-status" id="avery-cloud-status" data-status="local" role="status">
+            Gemeinsame Liste: nur auf diesem Gerät
+          </p>
         </div>
       </header>
 
@@ -1186,8 +2160,33 @@ function buildShellHtml() {
             <input id="avery-print-schlachthof" type="checkbox">
             <span>Schlachthof auf Etikett drucken</span>
           </label>
+          <label class="avery-toggle" for="avery-print-plu">
+            <input id="avery-print-plu" type="checkbox" checked>
+            <span>PLU auf Etikett drucken</span>
+          </label>
         </div>
         <p class="avery-lot-line">LOT: <strong id="avery-lot-preview">–</strong></p>
+        <div class="avery-herkunft-box" id="avery-herkunft-box" hidden>
+          <h3>Ohrmarke / LOT aus Herkunft</h3>
+          <p class="avery-herkunft-hint">
+            Aktiven Eintrag aus dem Thekenbuch wählen – Ohrmarke, Schlachtdatum und Öko-Code werden vorausgefüllt.
+          </p>
+          <label class="form-label" for="avery-herkunft-select">Aktive Herkunft
+            <select id="avery-herkunft-select" class="input-text-touch">
+              <option value="">Herkunft / LOT wählen…</option>
+            </select>
+          </label>
+          <div class="avery-herkunft-actions">
+            <button type="button" class="btn btn-primary btn-compact" id="btn-avery-herkunft-apply">
+              In Kopfdaten übernehmen
+            </button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-herkunft-reload">
+              Neu laden
+            </button>
+          </div>
+          <p class="avery-herkunft-status" id="avery-herkunft-status" role="status"></p>
+        </div>
+        <p class="avery-desktop-hint">Am Laden-PC mit Laserdrucker: A4, Ränder auf 0, keine Seitenverkleinerung.</p>
       </section>
 
       <section class="avery-card" aria-labelledby="avery-catalog-title">
@@ -1210,6 +2209,34 @@ function buildShellHtml() {
             <span id="avery-queue-total" class="avery-queue-total">0 Etiketten</span>
             <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-clear-queue">Liste leeren</button>
           </div>
+        </div>
+        <div class="avery-packlist-box" id="avery-packlist-box" hidden>
+          <h3>Heute zu zerlegen/packen</h3>
+          <p class="avery-packlist-hint">
+            Offene Metzgerei-Mengen aus den Kundenbestellungen direkt auf den Avery-Bogen schieben.
+          </p>
+          <p class="avery-packlist-status" id="avery-packlist-status" role="status">Packliste wird geprüft…</p>
+          <button type="button" class="btn btn-primary btn-compact" id="btn-avery-packlist-import" disabled>
+            Packliste auf den Bogen
+          </button>
+        </div>
+        <div class="avery-plain-import-box">
+          <h3>Notiz vom iPhone einfügen</h3>
+          <p class="avery-plain-import-hint">
+            Beim Verpacken notieren wir die Teilstücke (z.&nbsp;B. per Mail an den Laden-PC) und fügen die Liste hier ein – eine Zeile pro Position.
+          </p>
+          <label class="form-label" for="avery-plain-import">Liste
+            <textarea
+              id="avery-plain-import"
+              class="input-text-touch avery-plain-import"
+              rows="5"
+              placeholder="Entrecôte 4&#10;Filet 2&#10;514 x3&#10;R II Hack 6&#10;Picanha"
+              autocomplete="off"
+            ></textarea>
+          </label>
+          <button type="button" class="btn btn-primary btn-compact" id="btn-avery-plain-import">
+            Auf den Bogen übernehmen
+          </button>
         </div>
         <div class="avery-queue-wrap">
           <table class="avery-queue-table">
@@ -1253,6 +2280,7 @@ function buildShellHtml() {
 export function initAveryLabelsModule() {
   const page = document.getElementById('page-avery');
   if (!page) return;
+  getAveryDeviceId();
   if (!state.initialized) {
     restoreDraft();
     ensureHeaderDefaults();
@@ -1266,16 +2294,21 @@ export function initAveryLabelsModule() {
     // Falls DOM neu gemountet wurde: Binding wiederherstellen
     if (page.dataset.averyBound !== '1') bindEvents(page);
   }
+  startAveryDraftSync();
   renderAll();
+  void loadActiveHerkunftOptions();
+  void refreshPacklistPreview();
 }
 
 export function activateAveryLabelsTab() {
   initAveryLabelsModule();
   renderAll();
+  void loadActiveHerkunftOptions();
+  void refreshPacklistPreview();
 }
 
 export function disableAveryLabelsModule() {
-  /* no live subscriptions yet */
+  stopAveryDraftSync();
 }
 
 /** Alias für ältere Imports / Tests */

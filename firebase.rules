@@ -134,12 +134,19 @@ service cloud.firestore {
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 120
         && request.resource.data.status in ['active', 'inactive'];
+      // Plattform-Super-Admin: Status und Firmenname (Mein Betrieb) für jeden Mandanten.
       allow update: if isPlatformDevAdmin()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'updatedAt'])
+             .hasOnly(['status', 'displayName', 'updatedAt'])
         && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
-            || request.resource.data.status in ['active', 'inactive']);
+            || request.resource.data.status in ['active', 'inactive'])
+        && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys())
+            || (
+              request.resource.data.displayName is string
+              && request.resource.data.displayName.size() > 0
+              && request.resource.data.displayName.size() <= 120
+            ));
       allow update: if isTenantAdmin(tenantId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -186,20 +193,45 @@ service cloud.firestore {
       ]);
     }
 
+    // Keys, die Client/Admin in settings/profile schreiben dürfen.
+    // Update prüft nur affectedKeys (Merge mit Legacy-Feldern bleibt erlaubt).
+    function profileSettingsAllowedKeys() {
+      return [
+        'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
+        'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
+        'tenantId', 'updatedAt', 'updatedBy',
+        'displayName', 'companyName', 'name', 'supportEmail', 'email',
+        'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
+      ];
+    }
+
+    function isProfileSmtpStringsOk() {
+      return (!('smtpFromEmail' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpFromEmail))
+        && (!('smtpHost' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpHost))
+        && (!('smtpPort' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpPort))
+        && (!('smtpUser' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpUser))
+        && (!('smtpPass' in request.resource.data)
+          || isOptionalString(request.resource.data.smtpPass));
+    }
+
     function isProfileSettings(docId) {
       return docId == 'profile'
-        && request.resource.data.keys().hasOnly([
-          'betriebsName', 'appName', 'primaryColor', 'primaryColorHover', 'darkHeaderBg',
-          'logoUrl', 'standardBereich', 'defaultTeam', 'terminalUser',
-          'tenantId', 'updatedAt', 'updatedBy',
-          // Mandanten-SMTP für Kundenbenachrichtigungen (Soft-Launch SaaS)
-          'smtpFromEmail', 'smtpHost', 'smtpPort', 'smtpUser', 'smtpPass'
-        ])
-        && isOptionalString(request.resource.data.smtpFromEmail)
-        && isOptionalString(request.resource.data.smtpHost)
-        && isOptionalString(request.resource.data.smtpPort)
-        && isOptionalString(request.resource.data.smtpUser)
-        && isOptionalString(request.resource.data.smtpPass);
+        && isProfileSmtpStringsOk()
+        && (
+          (
+            resource == null
+            && request.resource.data.keys().hasOnly(profileSettingsAllowedKeys())
+          )
+          || (
+            resource != null
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(profileSettingsAllowedKeys())
+          )
+        );
     }
 
     function isTerminalSettings(docId) {
@@ -227,12 +259,13 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId}/settings/{document} {
-      allow read: if isTenantUser(tenantId);
-      // Admin: alle Settings-Dokumente. Mitarbeiter: nur Lieferanten-Listen ergänzen.
+      // Tenant-Nutzer + Plattform-Super-Admin (fremd-Mandant im Dev-Dashboard).
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
+      // Admin / Plattform: Settings inkl. SMTP-Profil. Mitarbeiter: nur Lieferanten.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
           (
-            isAdmin(tenantId)
+            (isAdmin(tenantId) || isPlatformDevAdmin())
             && (
               isTeamDashboardSettings()
               || isProfileSettings(document)
@@ -242,7 +275,7 @@ service cloud.firestore {
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
         );
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     match /tenants/{tenantId}/employees/{employeeId} {
@@ -377,6 +410,58 @@ service cloud.firestore {
       allow read, create, update, delete: if request.auth != null && request.auth.token.tenantId == tenantId;
     }
 
+    // =========================================================================
+    // AVERY-ETIKETTEN DRAFT (Phone ↔ Laden-PC, Doc-ID "current")
+    // =========================================================================
+
+    function isAveryDraftPayload(tenantId) {
+      return hasOnly([
+          'tenantId', 'header', 'queue', 'startSlot', 'activeTab',
+          'updatedAt', 'updatedAtMs', 'updatedBy', 'deviceId', 'revision'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.header is map
+        && request.resource.data.queue is list
+        && request.resource.data.queue.size() <= 200
+        && (
+          (request.resource.data.startSlot is int || request.resource.data.startSlot is float)
+          && request.resource.data.startSlot >= 1
+          && request.resource.data.startSlot <= 24
+        )
+        && request.resource.data.activeTab is string
+        && request.resource.data.activeTab.size() > 0
+        && request.resource.data.activeTab.size() <= 32
+        && isOptionalString(request.resource.data.updatedBy)
+        && isOptionalString(request.resource.data.deviceId)
+        && (
+          !('updatedAtMs' in request.resource.data)
+          || (
+            (request.resource.data.updatedAtMs is int || request.resource.data.updatedAtMs is float)
+            && request.resource.data.updatedAtMs >= 0
+          )
+        )
+        && (
+          !('revision' in request.resource.data)
+          || (
+            (request.resource.data.revision is int || request.resource.data.revision is float)
+            && request.resource.data.revision >= 0
+          )
+        );
+    }
+
+    match /tenants/{tenantId}/averyDrafts/{document} {
+      allow read: if isTenantUser(tenantId)
+        && hasModule(tenantId, 'averyLabels');
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && hasModule(tenantId, 'averyLabels')
+        && document == 'current'
+        && isAveryDraftPayload(tenantId);
+
+      allow delete: if isAdmin(tenantId)
+        && hasModule(tenantId, 'averyLabels');
+    }
+
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
       allow read: if isTenantUser(tenantId);
 
@@ -443,9 +528,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/haccp_geraete/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
 
-      allow create, update: if isAdmin(tenantId)
+      allow create, update: if (isAdmin(tenantId) || isPlatformDevAdmin())
         && hasOnly([
           // Neues Temperatur-Rundgang-Modell
           'id', 'name', 'bereich', 'type',
@@ -461,7 +546,7 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.name)
         && request.resource.data.tenantId == tenantId;
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     // =========================================================================
@@ -469,9 +554,9 @@ service cloud.firestore {
     // =========================================================================
 
     match /tenants/{tenantId}/haccp_cleaning_tasks/{document} {
-      allow read: if isTenantUser(tenantId);
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
 
-      allow create, update: if isAdmin(tenantId)
+      allow create, update: if (isAdmin(tenantId) || isPlatformDevAdmin())
         && hasOnly([
           'id', 'name', 'category', 'period',
           'sortOrder', 'isProductionOnly', 'isActive',
@@ -492,7 +577,7 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if isAdmin(tenantId);
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
 
     // =========================================================================
@@ -775,108 +860,13 @@ service cloud.firestore {
 
     // =========================================================================
     // KUNDENBESTELLUNGEN (customerOrders)
+    // Soft-Launch: kein Schema-Zwang (hasOnly/Typen) – nur Auth + Tenant + Rolle.
+    // Packtisch-Payloads enthalten u. a. employeeName außerhalb der alten Allowlist.
+    // Äquivalent zu: auth != null && token.tenantId == tenantId && role in [admin, employee]
     // =========================================================================
 
-    function hasCustomerContact() {
-      return (request.resource.data.callbackPhone is string
-          && request.resource.data.callbackPhone.size() > 0)
-        || (request.resource.data.customerEmail is string
-          && request.resource.data.customerEmail.size() > 3);
-    }
-
-    function isCustomerOrderItemsList(items) {
-      return items is list && items.size() >= 1 && items.size() <= 40;
-    }
-
-    function isCustomerOrderStatusTransition() {
-      return isNonEmptyString(request.resource.data.status)
-        && (
-          (resource.data.status == 'open' && request.resource.data.status == 'in_progress')
-          || (resource.data.status == 'open' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
-          || (resource.data.status == 'in_progress' && request.resource.data.status == 'ready')
-          || (resource.data.status == 'in_progress' && request.resource.data.status == 'cancelled')
-          || (resource.data.status == 'ready' && request.resource.data.status == 'picked_up')
-        );
-    }
-
-    // Status-Pipeline + Waagenkorrektur (actualWeightGrams) + Abholplatz für Packtisch
-    function isCustomerOrderStatusUpdate() {
-      return resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly([
-            'status', 'readyMarkedBy', 'readyMarkedAt', 'pickedUpBy', 'pickedUpAt',
-            'pickupPlace', 'items', 'inProgressBy', 'inProgressAt'
-          ])
-        && isCustomerOrderStatusTransition()
-        && (
-          !('items' in request.resource.data)
-          || request.resource.data.items is list
-        );
-    }
-
-    // Nur Gewicht/Positionen nachwiegen, Status unverändert (z. B. Packtisch-Waage)
-    function isCustomerOrderItemsWeighUpdate() {
-      return resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.tenantId == request.auth.token.tenantId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['items'])
-        && request.resource.data.items is list
-        && request.resource.data.status == resource.data.status
-        && (
-          resource.data.status == 'open'
-          || resource.data.status == 'in_progress'
-          || resource.data.status == 'ready'
-        );
-    }
-
     match /tenants/{tenantId}/customerOrders/{orderId} {
-      allow read: if isTenantUser(tenantId);
-
-      allow create: if isEmployeeOrAdmin(tenantId)
-        && hasOnly([
-          'customerName', 'callbackPhone', 'customerEmail', 'readyAt',
-          'items', 'additionalWishes', 'orderSlipAttachments', 'inputMode',
-          'acceptedBy', 'acceptedAt', 'status', 'tenantId', 'createdAt'
-        ])
-        && isNonEmptyString(request.resource.data.acceptedBy)
-        && isNonEmptyString(request.resource.data.readyAt)
-        && request.resource.data.status == 'open'
-        && request.resource.data.tenantId == tenantId
-        && isOptionalString(request.resource.data.customerName)
-        && isOptionalString(request.resource.data.additionalWishes)
-        && isOptionalString(request.resource.data.callbackPhone)
-        && isOptionalString(request.resource.data.customerEmail)
-        && isOptionalString(request.resource.data.inputMode)
-        && (
-          isCustomerOrderItemsList(request.resource.data.items)
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        )
-        && (
-          !('customerName' in request.resource.data)
-          || isNonEmptyString(request.resource.data.customerName)
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        )
-        && (
-          hasCustomerContact()
-          || (
-            request.resource.data.orderSlipAttachments is list
-            && request.resource.data.orderSlipAttachments.size() > 0
-          )
-        );
-
-      allow update: if isEmployeeOrAdmin(tenantId)
-        && (
-          isAdmin(tenantId)
-          || isCustomerOrderStatusUpdate()
-          || isCustomerOrderItemsWeighUpdate()
-        );
+      allow read, create, update: if isEmployeeOrAdmin(tenantId);
 
       allow delete: if isAdmin(tenantId);
     }

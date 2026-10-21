@@ -1150,6 +1150,76 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
+  describe('TEST CASE 13: averyDrafts Phone↔PC isolation', () => {
+    const draftPath = (tenantId) => tenantDocPath(tenantId, 'averyDrafts', 'current');
+    const sampleDraft = (tenantId, overrides = {}) => ({
+      tenantId,
+      header: {
+        betrieb: 'Test Hof',
+        oeko: 'DE-ÖKO-006',
+        ohrmarke: 'DE123',
+        schlachtDatum: '2026-10-20',
+        zerlegeDatum: '2026-10-21',
+        brand: 'SH',
+        printBetrieb: false,
+        printSchlachthof: false,
+        printPlu: true,
+      },
+      queue: [{ cutId: 'rue-514', qty: 2 }],
+      startSlot: 1,
+      activeTab: 'ruecken',
+      updatedAt: '2026-10-21T10:00:00.000Z',
+      updatedAtMs: 1_761_045_200_000,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-test',
+      revision: 1_761_045_200_000,
+      ...overrides,
+    });
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.STEVES_HOF}`, {
+        displayName: 'StevesHof',
+        status: 'active',
+        enabledModules: { averyLabels: true, mhd: true },
+      });
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, {
+        displayName: 'TorFabrik',
+        status: 'active',
+        enabledModules: { averyLabels: true, mhd: true },
+      });
+    });
+
+    it('allows tenant employee read/write on own avery draft', async () => {
+      const employee = authContext(testEnv, 'sh-avery-emp', TENANTS.STEVES_HOF, 'employee');
+      const path = draftPath(TENANTS.STEVES_HOF);
+      await expectFirestoreAllow(employee, path, 'create', sampleDraft(TENANTS.STEVES_HOF));
+      await expectFirestoreAllow(employee, path, 'read');
+    });
+
+    it('denies cross-tenant read/write on StevesHof avery draft', async () => {
+      const path = draftPath(TENANTS.STEVES_HOF);
+      await seedFirestoreDoc(testEnv, path, sampleDraft(TENANTS.STEVES_HOF));
+      const foreign = authContext(testEnv, 'tf-avery-emp', TENANTS.TORFABRIK, 'employee');
+      await expectFirestoreDeny(foreign, path, 'read');
+      await expectFirestoreDeny(foreign, path, 'create', sampleDraft(TENANTS.STEVES_HOF));
+    });
+
+    it('denies helper write and denies access when module is off', async () => {
+      const helper = authContext(testEnv, 'sh-avery-helper', TENANTS.STEVES_HOF, 'helper');
+      const path = draftPath(TENANTS.STEVES_HOF);
+      await expectFirestoreDeny(helper, path, 'create', sampleDraft(TENANTS.STEVES_HOF));
+
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.STEVES_HOF}`, {
+        displayName: 'StevesHof',
+        status: 'active',
+        enabledModules: { averyLabels: false, mhd: true },
+      });
+      const employee = authContext(testEnv, 'sh-avery-modoff', TENANTS.STEVES_HOF, 'employee');
+      await expectFirestoreDeny(employee, path, 'create', sampleDraft(TENANTS.STEVES_HOF));
+      await expectFirestoreDeny(employee, path, 'read');
+    });
+  });
+
   describe('Sanity: environment wiring', () => {
     it('initializes test environment with project id', () => {
       expect(testEnv).to.exist;

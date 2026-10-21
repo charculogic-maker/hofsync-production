@@ -1,11 +1,12 @@
 /**
- * Avery 3475 Modul — Hof-Katalog, Trimmings, Freifeld, Sheet-Planung.
+ * Avery 3475 Modul — PLU-Katalog, Trimmings, Freifeld, Plain-Text, Sheet-Planung.
  */
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import {
   AVERY_CUT_CATALOG,
   AVERY_LABELS_PER_SHEET,
+  AVERY_LEGACY_CUT_IDS,
   AVERY_TRIMMINGS,
   CUSTOM_AGING_OPTIONS,
   GALLOWAY_CATALOG,
@@ -15,15 +16,28 @@ import {
   expandQueueToLabels,
   formatDateDe,
   formatLabelTitle,
+  getCutByArtNr,
+  getCutById,
+  labelQtyFromButcheryTask,
+  mapButcheryTasksToAveryImportItems,
+  mapHerkunftRecordToAveryHeader,
+  matchAveryCatalogEntry,
+  parseAveryPlainTextLine,
+  parseAveryPlainTextList,
+  parseHerkunftLotForAvery,
   planAverySheet,
   planAverySheets,
+  applyAveryDraftPayload,
+  averyDraftUpdatedAtMs,
+  resolveAveryCutId,
   resolveQueueCut,
+  serializeAveryDraft,
   storageFootLine,
   storageHintForCut,
 } from '../web/avery-labels.js';
 
 describe('Avery 3475 labels module', () => {
-  it('exposes 24 labels and five practice catalog groups', () => {
+  it('exposes 24 labels and five PLU practice catalog groups', () => {
     expect(AVERY_LABELS_PER_SHEET).to.equal(24);
     expect(Object.keys(GALLOWAY_CATALOG).sort()).to.deep.equal([
       'innereien',
@@ -33,14 +47,16 @@ describe('Avery 3475 labels module', () => {
       'schultern',
     ]);
     expect(GALLOWAY_CATALOG.schultern.some((c) => /Brust/.test(c.name))).to.equal(true);
-    expect(GALLOWAY_CATALOG.schultern.some((c) => /Nacken|Hals/.test(c.name))).to.equal(true);
+    expect(GALLOWAY_CATALOG.schultern.every((c) => c.artNr)).to.equal(true);
     expect(GALLOWAY_CATALOG.ruecken.some((c) => /Nacken/.test(c.name))).to.equal(false);
     expect(GALLOWAY_CATALOG.lappen.some((c) => /Brust/.test(c.name))).to.equal(false);
-    expect(AVERY_CUT_CATALOG.length).to.be.above(20);
+    expect(GALLOWAY_CATALOG.ruecken.some((c) => c.artNr === '514')).to.equal(true);
+    expect(AVERY_CUT_CATALOG.length).to.be.above(40);
+    expect(new Set(AVERY_CUT_CATALOG.map((c) => c.artNr)).size).to.equal(AVERY_CUT_CATALOG.length);
   });
 
-  it('maps trimmings to farm article numbers', () => {
-    expect(AVERY_TRIMMINGS.map((t) => t.artNr)).to.deep.equal(['504', '543', '503', '530', '449']);
+  it('maps trimmings to farm PLU numbers from Zerlege-HTML', () => {
+    expect(AVERY_TRIMMINGS.map((t) => t.artNr)).to.deep.equal(['504', '535', '503', '460', '449']);
     expect(AVERY_TRIMMINGS.map((t) => t.name)).to.deep.equal([
       'R I Mager',
       'R I Spieße',
@@ -48,6 +64,83 @@ describe('Avery 3475 labels module', () => {
       'R III Wurst',
       'Fett',
     ]);
+  });
+
+  it('resolves legacy cut ids and looks up by PLU', () => {
+    expect(resolveAveryCutId('rue-entrecote')).to.equal('rue-514');
+    expect(AVERY_LEGACY_CUT_IDS['sch-falsches-filet']).to.equal('sch-510');
+    expect(getCutById('sch-falsches-filet')?.name).to.equal('Falsches Filet');
+    expect(getCutByArtNr('514')?.id).to.equal('rue-514');
+    expect(matchAveryCatalogEntry('Entrecôte')?.artNr).to.equal('514');
+    expect(matchAveryCatalogEntry('Hackfleisch')?.id).to.equal('tr-r2-hack');
+  });
+
+  it('parses plain-text packing notes into catalog rows and freefield', () => {
+    expect(parseAveryPlainTextLine('Entrecôte 4')).to.deep.include({ name: 'Entrecôte', qty: 4 });
+    expect(parseAveryPlainTextLine('514 x3')).to.deep.include({ plu: '514', qty: 3 });
+    expect(parseAveryPlainTextLine('Club Steak 549')).to.deep.include({ plu: '549', qty: 1 });
+    expect(parseAveryPlainTextLine('Picanha')).to.deep.include({ name: 'Picanha', qty: 1 });
+
+    const parsed = parseAveryPlainTextList([
+      'Entrecôte 4',
+      'Filet 2',
+      '514 x3',
+      'R II Hack 6',
+      'Picanha',
+      '# Kommentar',
+    ].join('\n'));
+    expect(parsed.matchedCount).to.equal(4);
+    expect(parsed.customCount).to.equal(1);
+    expect(parsed.totalLabels).to.equal(4 + 2 + 3 + 6 + 1);
+    expect(parsed.items.find((i) => i.name === 'Picanha')?.cut).to.equal(null);
+    expect(parsed.items.find((i) => i.plu === '514')?.cut?.id).to.equal('rue-514');
+  });
+
+  it('serializes and applies shared Phone↔PC draft payloads', () => {
+    expect(averyDraftUpdatedAtMs('2026-10-21T10:00:00.000Z')).to.be.above(0);
+    applyAveryDraftPayload({
+      header: {
+        betrieb: 'StevesHof',
+        oeko: 'DE-ÖKO-006',
+        ohrmarke: 'DE999',
+        schlachtDatum: '2026-10-20',
+        zerlegeDatum: '2026-10-21',
+        brand: 'SH',
+        printBetrieb: false,
+        printSchlachthof: false,
+        printPlu: true,
+      },
+      queue: [
+        { cutId: 'rue-514', qty: 2 },
+        { cutId: 'custom-x', qty: 1, isCustom: true, name: 'Picanha', days: 0 },
+        { cutId: 'legacy-gone', qty: 3 },
+      ],
+      startSlot: 3,
+      activeTab: 'ruecken',
+      updatedAtMs: 1_700_000_000_000,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+    const draft = serializeAveryDraft({
+      updatedAtMs: 1_700_000_000_100,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+    expect(draft.startSlot).to.equal(3);
+    expect(draft.activeTab).to.equal('ruecken');
+    expect(draft.queue).to.deep.equal([
+      { cutId: 'rue-514', qty: 2 },
+      {
+        cutId: 'custom-x',
+        qty: 1,
+        isCustom: true,
+        name: 'Picanha',
+        days: 0,
+      },
+    ]);
+    expect(draft.header.ohrmarke).to.equal('DE999');
+    expect(draft.updatedBy).to.equal('Metzgerei');
+    expect(draft.deviceId).to.equal('phone-1');
   });
 
   it('builds LOT as BRAND-OHR-YYYYMMDD', () => {
@@ -58,6 +151,46 @@ describe('Avery 3475 labels module', () => {
     })).to.equal('SH-DE12345-20261017');
   });
 
+  it('parses Herkunft LOT / Ohrmarke into Avery header fields', () => {
+    expect(parseHerkunftLotForAvery('SH-DE123456789-20261017')).to.deep.equal({
+      brand: 'SH',
+      ohrmarke: 'DE123456789',
+      schlachtDatum: '2026-10-17',
+    });
+    expect(parseHerkunftLotForAvery('DE 12 345 6789').ohrmarke).to.equal('DE123456789');
+
+    const mapped = mapHerkunftRecordToAveryHeader({
+      id: 'rec-1',
+      lotNumber: 'SH-DE999-20261010',
+      healthMark: 'DE-NW-12345',
+      organicControlBody: 'DE-ÖKO-006',
+      origin: { cuttingPlantNo: 'DE-NW-999' },
+    });
+    expect(mapped.ohrmarke).to.equal('DE999');
+    expect(mapped.schlachtDatum).to.equal('2026-10-10');
+    expect(mapped.schlachthof).to.equal('DE-NW-12345');
+    expect(mapped.oeko).to.equal('DE-ÖKO-006');
+    expect(mapped.herkunftId).to.equal('rec-1');
+  });
+
+  it('maps Metzgerei packlist rows onto Avery catalog quantities', () => {
+    expect(labelQtyFromButcheryTask({ quantity: 4, unit: 'Stück' })).to.equal(4);
+    expect(labelQtyFromButcheryTask({ quantity: 1.5, unit: 'kg' })).to.equal(1);
+    expect(labelQtyFromButcheryTask({ quantity: 6, unit: 'kg' })).to.equal(6);
+
+    const mapped = mapButcheryTasksToAveryImportItems([
+      { product: 'Entrecôte / Rib Eye o. K.', productId: '514', quantity: 3, unit: 'Stück' },
+      { product: 'Hackfleisch', productId: '503', quantity: 2, unit: 'kg' },
+      { product: 'Picanha Spezial', quantity: 1, unit: 'Stück' },
+    ]);
+    expect(mapped.matchedCount).to.equal(2);
+    expect(mapped.customCount).to.equal(1);
+    expect(mapped.totalLabels).to.equal(3 + 2 + 1);
+    expect(mapped.items[0].cut?.id).to.equal('rue-514');
+    expect(mapped.items[1].cut?.id).to.equal('tr-r2-hack');
+    expect(mapped.items[2].cut).to.equal(null);
+  });
+
   it('formats dates and computes ripening readiness', () => {
     expect(formatDateDe('2026-10-17')).to.equal('17.10.2026');
     expect(addDaysIso('2026-10-17', 14)).to.equal('2026-10-31');
@@ -66,7 +199,7 @@ describe('Avery 3475 labels module', () => {
 
   it('plans empty offset cells from start slot including custom cuts', () => {
     const queue = [
-      { cutId: 'rue-entrecote', qty: 2 },
+      { cutId: 'rue-514', qty: 2 },
       { cutId: 'tr-r2-hack', qty: 1 },
       { cutId: 'custom-1', qty: 1, isCustom: true, name: 'Tomahawk', days: 21 },
     ];
@@ -114,16 +247,16 @@ describe('Avery 3475 labels module', () => {
     expect(formatLabelTitle('R I Spieße')).to.equal('R I · Spieße');
     expect(formatLabelTitle('R II Hack')).to.equal('R II · Hack');
     expect(formatLabelTitle('R III Wurst')).to.equal('R III · Wurst');
-    expect(formatLabelTitle('Brust / Brisket')).to.equal('Brust / Brisket');
+    expect(formatLabelTitle('Brust o. K. / Brisket')).to.equal('Brust o. K. / Brisket');
   });
 
-  it('builds Inhalt-zuerst label HTML without Art.-Nr. or empty OHR', () => {
+  it('builds Inhalt-zuerst label HTML with optional PLU', () => {
     const cut = AVERY_TRIMMINGS.find((t) => t.id === 'tr-r1-spiesse');
     expect(storageFootLine(cut, 'DE-ÖKO-006')).to.equal('DE-ÖKO-006 · Gekühlt bei 0–2 °C lagern');
     expect(storageFootLine(GALLOWAY_CATALOG.innereien[0], 'DE-ÖKO-006'))
       .to.equal('DE-ÖKO-006 · Gekühlt bei ≤ 3 °C lagern');
 
-    const htmlEmptyOhr = buildLabelHtml(cut, {
+    const htmlWithPlu = buildLabelHtml(cut, {
       betrieb: 'StevesHof Hofladen',
       oeko: 'DE-ÖKO-006',
       schlachthof: 'Bio-Schlachthof Stautenhof Willich',
@@ -132,19 +265,34 @@ describe('Avery 3475 labels module', () => {
       zerlegeDatum: '2026-10-18',
       printBetrieb: false,
       printSchlachthof: false,
+      printPlu: true,
     }, 'SH-OHR-20261018');
-    expect(htmlEmptyOhr).to.include('label-card');
-    expect(htmlEmptyOhr).to.include('lbl-hero');
-    expect(htmlEmptyOhr).to.include('lbl-meta');
-    expect(htmlEmptyOhr).to.include('lbl-foot');
-    expect(htmlEmptyOhr).to.include('R I · Spieße');
-    expect(htmlEmptyOhr).to.include('Gekühlt bei 0–2 °C lagern');
-    expect(htmlEmptyOhr).to.not.include('ART.');
-    expect(htmlEmptyOhr).to.not.include('lbl-header');
-    expect(htmlEmptyOhr).to.not.match(/OHR\s/);
-    expect(htmlEmptyOhr).to.not.include('StevesHof Hofladen');
+    expect(htmlWithPlu).to.include('label-card');
+    expect(htmlWithPlu).to.include('lbl-hero');
+    expect(htmlWithPlu).to.include('lbl-meta');
+    expect(htmlWithPlu).to.include('lbl-foot');
+    expect(htmlWithPlu).to.include('R I · Spieße');
+    expect(htmlWithPlu).to.include('PLU: 535');
+    expect(htmlWithPlu).to.include('Gekühlt bei 0–2 °C lagern');
+    expect(htmlWithPlu).to.not.include('ART.');
+    expect(htmlWithPlu).to.not.include('lbl-header');
+    expect(htmlWithPlu).to.not.match(/OHR\s/);
+    expect(htmlWithPlu).to.not.include('StevesHof Hofladen');
 
-    const longCut = GALLOWAY_CATALOG.schultern.find((c) => c.id === 'sch-falsches-filet');
+    const htmlNoPlu = buildLabelHtml(cut, {
+      betrieb: 'StevesHof Hofladen',
+      oeko: 'DE-ÖKO-006',
+      ohrmarke: 'DE123',
+      schlachtDatum: '2026-10-18',
+      zerlegeDatum: '2026-10-18',
+      printBetrieb: false,
+      printSchlachthof: false,
+      printPlu: false,
+    }, 'SH-DE123-20261018');
+    expect(htmlNoPlu).to.not.include('PLU:');
+    expect(htmlNoPlu).to.include('OHR DE123');
+
+    const longCut = GALLOWAY_CATALOG.schultern.find((c) => c.id === 'sch-510');
     const longHtml = buildLabelHtml(longCut, {
       betrieb: 'StevesHof Galloway',
       oeko: 'DE-ÖKO-006',
@@ -153,8 +301,10 @@ describe('Avery 3475 labels module', () => {
       zerlegeDatum: '2026-10-18',
       printBetrieb: true,
       printSchlachthof: false,
+      printPlu: true,
     }, 'SH-DE123-20261018');
     expect(longHtml).to.include('Falsches Filet');
+    expect(longHtml).to.include('PLU: 510');
     expect(longHtml).to.include('lbl-farm');
     expect(longHtml).to.include('StevesHof Galloway');
     expect(longHtml).to.include('OHR DE123');
