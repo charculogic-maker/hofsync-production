@@ -208,17 +208,17 @@ Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir 
 
 ## 5. Kundenbestellungen zusammenstellen
 
-Kundenbestellungen sind am Laden-iPhone im aktuellen StevesHof-Profil nicht aktiv. Im Bürobereich gibt es dafür weiterhin die **Sammel-Pickliste für heute**, wenn Bestellungen später wieder freigeschaltet werden.
+Wenn das Modul **Packtisch / Kundenbestellungen** freigeschaltet ist, sehen wir am Laden-iPhone unter **Packtisch** einen **Abhol-Kalender** (zwei Wochen oder Monat). Pro Tag steht die Anzahl offener Bestellungen; mit Tippen auf den Tag öffnen wir die Liste für diesen Abholtag.
 
-1. Im Bürobereich **Sammel-Pickliste für heute** öffnen.
+1. Unter **Packtisch** den gewünschten Abholtag im Kalender wählen – oder im Bürobereich die **Sammel-Pickliste für heute** öffnen.
 2. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
 3. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.
 4. Beim Einpacken haken wir jede Zeile ab und korrigieren bei Bedarf den **Waagen-Wert**.
 5. Wenn alles im Laden-Kühlschrank steht, markieren wir die Bestellungen als **Abholbereit**.
 
-Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen, schreibt automatisch eine kurze Info aufs Schwarze Brett und verschickt das **Kunden-Signal** als freundliche **Abhol-Nachricht** an die Kunden. Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
+Nach der Bestätigung setzt unsere App die enthaltenen Bestellungen auf **Abholbereit**, speichert erfasste Waagen-Werte in den Bestellpositionen, schreibt automatisch eine kurze Info aufs Schwarze Brett und verschickt das **Kunden-Signal** als freundliche **Abhol-Nachricht** an die Kunden. Die Nachricht nennt die Abholung **ab** der genannten Uhrzeit (nicht „um“). Danach ist die Sammel-Pickliste für heute leer, solange keine neue offene Bestellung dazukommt.
 
-Bei abholbereiten Bestellungen können wir **Lieferschein drucken** wählen. Der **Kisten-Zettel** zeigt Kundennamen, Abholdatum, bestellte Menge, tatsächliche Menge und den **Endpreis**. Wenn wir einen Waagen-Wert erfasst haben, nutzt unsere App diesen Wert für den **Abholpreis**.
+Bei abholbereiten Bestellungen können wir **Details / Nachwiegen**, **Weiter bearbeiten** oder **Kunde erneut benachrichtigen** wählen – etwa wenn sich der Waagen-Endpreis geändert hat. Der **Lieferschein** / **Kisten-Zettel** zeigt Kundennamen, Abholdatum, bestellte Menge, tatsächliche Menge und den **Endpreis**. Wenn wir einen Waagen-Wert erfasst haben, nutzt unsere App diesen Wert für den **Abholpreis**.
 
 Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere App zieht die tatsächliche Menge vom Lager ab und zeigt **Bestand aktualisiert**, sobald alles verbucht ist.
 

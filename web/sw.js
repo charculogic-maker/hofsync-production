@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261021-portal-orders-bridge-v4';
+const CACHE_NAME = 'charculogic-v20261021-packtisch-calendar-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Portal→Packtisch Bridge + standalone bestellen.html */
-const RELEASED_AT = '2026-10-21T20:20:00+02:00';
+/** Release – Packtisch-Kalender + Abholbereit ab + Ready-Update-Mail */
+const RELEASED_AT = '2026-10-21T21:20:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
