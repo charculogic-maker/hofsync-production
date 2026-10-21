@@ -158,6 +158,22 @@ describe('App Check coverage – Callable registration contract', () => {
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
   });
 
+  test('submitPortalCustomerOrder is public Soft-Launch without App Check', () => {
+    const source = readFunctionSource('submitPortalCustomerOrder.js');
+    const block = onCallOptionsSlice(source, 'exports.submitPortalCustomerOrder');
+    expect(block).toMatch(/cors:\s*true/);
+    expect(block).toMatch(/enforceAppCheck:\s*false/);
+    expect(source).toMatch(/Online-Vorbestellung|Portal/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('submitPortalCustomerOrder'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 700);
+    expect(exportBlock).toMatch(/cors:\s*true/);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/handleSubmitPortalCustomerOrder/);
+  });
+
   test('index.js exports every App-Check-protected callable', () => {
     const index = readFunctionSource('index.js');
     // Discovery-safe: Admin init only inside ensureAdminApp, never at module top-level.

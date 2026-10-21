@@ -286,6 +286,18 @@ lazyExport('provisionDemoTenant', () => callable(
   }),
 ));
 
+// Öffentliches Vorbestellportal → customerOrders (kein Kunden-Login, Tenant-Allowlist).
+lazyExport('submitPortalCustomerOrder', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    cors: true,
+    enforceAppCheck: false,
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  withAdmin(async (request) => require('./submitPortalCustomerOrder').handleSubmitPortalCustomerOrder(request)),
+));
+
 lazyExport('triggerManualMeatPriceRun', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,

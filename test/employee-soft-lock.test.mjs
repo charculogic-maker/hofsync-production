@@ -102,7 +102,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for scan-idle soft-lock fix', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261021-scan-idle-softlock-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261021-portal-orders-bridge-v4'");
+
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
