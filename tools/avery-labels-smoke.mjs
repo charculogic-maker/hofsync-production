@@ -51,9 +51,20 @@ await page.goto(`${BASE}/avery-labels-smoke.html`, { waitUntil: 'networkidle' })
 await page.waitForSelector('#avery-sheet-preview');
 
 await page.fill('#avery-ohrmarke', 'DE123456');
-await page.fill('#avery-plain-import', ['Entrecôte 2', '514 x1', 'Picanha', 'R II Hack 1'].join('\n'));
-await page.click('#btn-avery-plain-import');
+// Schnellster Weg: Paste-Event im Notizfeld übernimmt sofort
+await page.focus('#avery-plain-import');
+await page.evaluate(() => {
+  const area = document.getElementById('avery-plain-import');
+  const text = 'Entrecôte 2, 514 x1; Picanha\nR II Hack 1';
+  const dt = new DataTransfer();
+  dt.setData('text/plain', text);
+  area.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+});
 await page.waitForTimeout(120);
+const pasteToast = await page.evaluate(() => window.__toast || null);
+if (!pasteToast || !/Etiketten/i.test(pasteToast.msg || '')) {
+  throw new Error(`Plain-text paste did not import: ${JSON.stringify(pasteToast)}`);
+}
 await page.click('[data-avery-add="tr-r1-spiesse"]');
 await page.click('[data-avery-tab="schultern"]');
 await page.click('[data-avery-add="sch-510"]');
