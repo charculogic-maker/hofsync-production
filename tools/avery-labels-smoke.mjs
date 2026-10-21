@@ -51,10 +51,10 @@ await page.goto(`${BASE}/avery-labels-smoke.html`, { waitUntil: 'networkidle' })
 await page.waitForSelector('#avery-sheet-preview');
 
 await page.fill('#avery-ohrmarke', 'DE123456');
-await page.fill('#avery-trim-tr-r1-spiesse', '1');
+await page.click('[data-avery-add="tr-r1-spiesse"]');
 await page.click('[data-avery-tab="schultern"]');
-await page.click('[data-avery-add="sch-falsches-filet"]');
-await page.click('[data-avery-add="sch-schaufel"]');
+await page.click('[data-avery-add="sch-510"]');
+await page.click('[data-avery-add="sch-539"]');
 await page.click('[data-avery-slot="1"]');
 await page.waitForTimeout(150);
 
