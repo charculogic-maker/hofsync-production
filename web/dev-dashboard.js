@@ -1079,19 +1079,23 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {
     ? tenantRef.collection('settings')
     : null;
   if (settingsCollection && typeof settingsCollection.doc === 'function') {
+    // Muss zu firebase.rules profileSettingsAllowedKeys / isProfileSettings passen.
     const profilePayload = {
       betriebsName: displayName,
       logoUrl,
       tenantId,
-      smtpFromEmail: String(smtp.smtpFromEmail || '').trim(),
-      smtpHost: String(smtp.smtpHost || '').trim(),
-      smtpPort: String(smtp.smtpPort || '').trim(),
-      smtpUser: String(smtp.smtpUser || '').trim(),
     };
-    const nextPass = String(smtp.smtpPass || '');
-    if (nextPass) {
-      profilePayload.smtpPass = nextPass;
-    }
+    const smtpFromEmail = String(smtp.smtpFromEmail || '').trim();
+    const smtpHost = String(smtp.smtpHost || '').trim();
+    const smtpPort = String(smtp.smtpPort || '').trim();
+    const smtpUser = String(smtp.smtpUser || '').trim();
+    const smtpPass = String(smtp.smtpPass || '');
+    // Leere SMTP-Felder weglassen (kein null) – bestehendes Passwort bleibt erhalten.
+    if (smtpFromEmail) profilePayload.smtpFromEmail = smtpFromEmail;
+    if (smtpHost) profilePayload.smtpHost = smtpHost;
+    if (smtpPort) profilePayload.smtpPort = smtpPort;
+    if (smtpUser) profilePayload.smtpUser = smtpUser;
+    if (smtpPass) profilePayload.smtpPass = smtpPass;
     if (stamp) profilePayload.updatedAt = stamp;
     await settingsCollection.doc('profile').set(profilePayload, { merge: true });
   }
