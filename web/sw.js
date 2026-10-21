@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261021-avery-plu-plaintext-v1';
+const CACHE_NAME = 'charculogic-v20261021-avery-firestore-draft-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Avery PLU-Katalog + Plain-Text-Einfügen */
-const RELEASED_AT = '2026-10-21T08:00:00+02:00';
+/** Release – Avery Draft Phone↔PC (Firestore) */
+const RELEASED_AT = '2026-10-21T09:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

@@ -23,8 +23,11 @@ import {
   parseAveryPlainTextList,
   planAverySheet,
   planAverySheets,
+  applyAveryDraftPayload,
+  averyDraftUpdatedAtMs,
   resolveAveryCutId,
   resolveQueueCut,
+  serializeAveryDraft,
   storageFootLine,
   storageHintForCut,
 } from '../web/avery-labels.js';
@@ -87,6 +90,53 @@ describe('Avery 3475 labels module', () => {
     expect(parsed.totalLabels).to.equal(4 + 2 + 3 + 6 + 1);
     expect(parsed.items.find((i) => i.name === 'Picanha')?.cut).to.equal(null);
     expect(parsed.items.find((i) => i.plu === '514')?.cut?.id).to.equal('rue-514');
+  });
+
+  it('serializes and applies shared Phone↔PC draft payloads', () => {
+    expect(averyDraftUpdatedAtMs('2026-10-21T10:00:00.000Z')).to.be.above(0);
+    applyAveryDraftPayload({
+      header: {
+        betrieb: 'StevesHof',
+        oeko: 'DE-ÖKO-006',
+        ohrmarke: 'DE999',
+        schlachtDatum: '2026-10-20',
+        zerlegeDatum: '2026-10-21',
+        brand: 'SH',
+        printBetrieb: false,
+        printSchlachthof: false,
+        printPlu: true,
+      },
+      queue: [
+        { cutId: 'rue-514', qty: 2 },
+        { cutId: 'custom-x', qty: 1, isCustom: true, name: 'Picanha', days: 0 },
+        { cutId: 'legacy-gone', qty: 3 },
+      ],
+      startSlot: 3,
+      activeTab: 'ruecken',
+      updatedAtMs: 1_700_000_000_000,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+    const draft = serializeAveryDraft({
+      updatedAtMs: 1_700_000_000_100,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+    expect(draft.startSlot).to.equal(3);
+    expect(draft.activeTab).to.equal('ruecken');
+    expect(draft.queue).to.deep.equal([
+      { cutId: 'rue-514', qty: 2 },
+      {
+        cutId: 'custom-x',
+        qty: 1,
+        isCustom: true,
+        name: 'Picanha',
+        days: 0,
+      },
+    ]);
+    expect(draft.header.ohrmarke).to.equal('DE999');
+    expect(draft.updatedBy).to.equal('Metzgerei');
+    expect(draft.deviceId).to.equal('phone-1');
   });
 
   it('builds LOT as BRAND-OHR-YYYYMMDD', () => {
