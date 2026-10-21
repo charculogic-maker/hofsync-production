@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261021-avery-packliste-herkunft-v1';
+const CACHE_NAME = 'charculogic-v20261021-scan-idle-softlock-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
 /** Release – Avery Draft Phone↔PC (Firestore) */
