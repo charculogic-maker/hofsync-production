@@ -1,12 +1,28 @@
 /**
  * Avery 3475 Zerlege- & Reife-Etikettierung (Modul averyLabels).
  * Hof-Praxis: Schulter (+Hals/Brust), Rücken, Keule, Lappen, Innereien + Freifeld.
+ * Gemeinsamer Draft: tenants/{tenantId}/averyDrafts/current (Phone ↔ Laden-PC).
  */
+
+import { writeFirestoreDocOrQueue } from './sync.js';
+import {
+  getGlobalTenantId,
+  getTenantCollection,
+  normalizeTenantId,
+} from './tenant-db.js';
+import {
+  ACTIVE_EMPLOYEE_STORAGE_KEY,
+  readScopedLocalStorageValue,
+} from './teamboard-storage.js';
 
 export const AVERY_LABELS_PER_SHEET = 24;
 export const AVERY_MODULE_KEY = 'averyLabels';
+export const AVERY_DRAFT_COLLECTION = 'averyDrafts';
+export const AVERY_DRAFT_DOC_ID = 'current';
 const PRINT_BODY_CLASS = 'print-avery-labels';
-const STORAGE_KEY = 'charculogic.averyLabels.draft.v3';
+const STORAGE_KEY_BASE = 'charculogic.averyLabels.draft.v3';
+const DEVICE_ID_KEY = 'charculogic.averyLabels.deviceId';
+const CLOUD_WRITE_DEBOUNCE_MS = 400;
 
 /**
  * @typedef {{
@@ -204,6 +220,29 @@ const state = {
   previewSheetIndex: 0,
   activeTab: 'schultern',
   initialized: false,
+};
+
+/** @type {{
+ *   unsubscribe: null|(() => void),
+ *   debounceTimer: ReturnType<typeof setTimeout>|null,
+ *   applyingRemote: boolean,
+ *   writing: boolean,
+ *   lastAppliedMs: number,
+ *   lastLocalWriteMs: number,
+ *   deviceId: string,
+ *   status: 'local'|'connecting'|'live'|'syncing'|'offline'|'error',
+ *   updatedBy: string,
+ * }} */
+const cloud = {
+  unsubscribe: null,
+  debounceTimer: null,
+  applyingRemote: false,
+  writing: false,
+  lastAppliedMs: 0,
+  lastLocalWriteMs: 0,
+  deviceId: '',
+  status: 'local',
+  updatedBy: '',
 };
 
 function escapeHtml(value) {
@@ -541,15 +580,308 @@ function buildSheetPrintCellsHtml(sheetPlan, header, lot) {
   return printCells.join('');
 }
 
-function persistDraft() {
+function draftStorageKey() {
+  const tid = normalizeTenantId(getGlobalTenantId());
+  return tid ? `${tid}.${STORAGE_KEY_BASE}` : STORAGE_KEY_BASE;
+}
+
+/** @returns {string} */
+export function getAveryDeviceId() {
+  if (cloud.deviceId) return cloud.deviceId;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      header: state.header,
-      queue: state.queue,
-      startSlot: state.startSlot,
-      activeTab: state.activeTab,
-    }));
+    let id = String(localStorage.getItem(DEVICE_ID_KEY) || '').trim();
+    if (!id) {
+      id = `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    cloud.deviceId = id;
+    return id;
+  } catch (_) {
+    cloud.deviceId = `dev-ephemeral-${Math.random().toString(36).slice(2, 8)}`;
+    return cloud.deviceId;
+  }
+}
+
+function resolveAveryUpdatedBy() {
+  const tenantId = getGlobalTenantId();
+  const employee = readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId);
+  if (employee) return employee;
+  return 'Laden';
+}
+
+/**
+ * Serialisiert den aktuellen Draft für localStorage / Firestore.
+ * @param {{ updatedAtMs?: number, updatedBy?: string, deviceId?: string, revision?: number }} [meta]
+ */
+export function serializeAveryDraft(meta = {}) {
+  const updatedAtMs = Number(meta.updatedAtMs) || Date.now();
+  return {
+    tenantId: getGlobalTenantId() || '',
+    header: { ...state.header },
+    queue: state.queue.map((row) => ({ ...row })),
+    startSlot: state.startSlot,
+    activeTab: state.activeTab,
+    updatedAtMs,
+    updatedAt: new Date(updatedAtMs).toISOString(),
+    updatedBy: String(meta.updatedBy || resolveAveryUpdatedBy()).trim() || 'Laden',
+    deviceId: String(meta.deviceId || getAveryDeviceId()),
+    revision: Number.isFinite(Number(meta.revision)) ? Number(meta.revision) : updatedAtMs,
+  };
+}
+
+/** @param {unknown} value */
+export function averyDraftUpdatedAtMs(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value?.toMillis === 'function') {
+    try { return Number(value.toMillis()) || 0; } catch (_) { return 0; }
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+/**
+ * @param {Record<string, unknown>|null|undefined} raw
+ * @returns {boolean} true wenn State geändert wurde
+ */
+export function applyAveryDraftPayload(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  let changed = false;
+
+  if (raw.header && typeof raw.header === 'object') {
+    const { reifehinweis: _drop, ...restHeader } = raw.header;
+    state.header = {
+      ...DEFAULT_HEADER,
+      ...restHeader,
+      printBetrieb: coercePrintFlag(restHeader.printBetrieb, false),
+      printSchlachthof: coercePrintFlag(restHeader.printSchlachthof, false),
+      printPlu: coercePrintFlag(restHeader.printPlu, true),
+    };
+    delete state.header.reifehinweis;
+    changed = true;
+  }
+
+  if (Array.isArray(raw.queue)) {
+    state.queue = raw.queue.map(normalizeQueueRow).filter(Boolean);
+    changed = true;
+  }
+
+  if (raw.startSlot != null) {
+    state.startSlot = Math.min(24, Math.max(1, Number.parseInt(String(raw.startSlot), 10) || 1));
+    changed = true;
+  }
+
+  const legacyTabMap = {
+    vv: 'schultern',
+    hv: 'keule',
+    frisch: 'lappen',
+    schultern: 'schultern',
+    ruecken: 'ruecken',
+    keule: 'keule',
+    lappen: 'lappen',
+    innereien: 'innereien',
+  };
+  const mapped = legacyTabMap[raw.activeTab] || raw.activeTab;
+  if (mapped && TAB_META[mapped]) {
+    state.activeTab = mapped;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function persistDraftLocal() {
+  try {
+    localStorage.setItem(draftStorageKey(), JSON.stringify(serializeAveryDraft({
+      updatedAtMs: cloud.lastLocalWriteMs || Date.now(),
+      updatedBy: cloud.updatedBy || resolveAveryUpdatedBy(),
+      deviceId: getAveryDeviceId(),
+    })));
   } catch (_) { /* private mode */ }
+}
+
+function setCloudStatus(status, updatedBy = cloud.updatedBy) {
+  cloud.status = status;
+  cloud.updatedBy = updatedBy || cloud.updatedBy;
+  renderCloudStatus();
+}
+
+function renderCloudStatus() {
+  const el = document.getElementById('avery-cloud-status');
+  if (!el) return;
+  const who = cloud.updatedBy ? ` · zuletzt ${cloud.updatedBy}` : '';
+  const map = {
+    local: 'Gemeinsame Liste: nur auf diesem Gerät',
+    connecting: 'Gemeinsame Liste: verbinden…',
+    live: `Gemeinsame Liste: live zwischen Laden-iPhone und PC${who}`,
+    syncing: 'Gemeinsame Liste: wird geteilt…',
+    offline: 'Gemeinsame Liste: offline – wir teilen nach, sobald WLAN da ist',
+    error: 'Gemeinsame Liste: Teilen gerade nicht möglich',
+  };
+  el.textContent = map[cloud.status] || map.local;
+  el.dataset.status = cloud.status;
+}
+
+function averyDraftRef() {
+  try {
+    if (!getGlobalTenantId()) return null;
+    return getTenantCollection(AVERY_DRAFT_COLLECTION).doc(AVERY_DRAFT_DOC_ID);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function flushAveryDraftToCloud() {
+  if (cloud.applyingRemote) return;
+  const tenantId = getGlobalTenantId();
+  if (!tenantId) {
+    setCloudStatus('local');
+    return;
+  }
+
+  const updatedAtMs = Date.now();
+  cloud.lastLocalWriteMs = updatedAtMs;
+  const payload = serializeAveryDraft({
+    updatedAtMs,
+    updatedBy: resolveAveryUpdatedBy(),
+    deviceId: getAveryDeviceId(),
+    revision: updatedAtMs,
+  });
+  cloud.updatedBy = payload.updatedBy;
+  persistDraftLocal();
+  setCloudStatus(navigator.onLine ? 'syncing' : 'offline', payload.updatedBy);
+
+  cloud.writing = true;
+  try {
+    let updatedAt = payload.updatedAt;
+    try {
+      const serverTs = window.firebase?.firestore?.FieldValue?.serverTimestamp;
+      if (typeof serverTs === 'function') updatedAt = serverTs();
+    } catch (_) { /* ISO-Fallback */ }
+    const onlineData = { ...payload, updatedAt };
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: AVERY_DRAFT_COLLECTION,
+      docId: AVERY_DRAFT_DOC_ID,
+      op: 'set',
+      onlineData,
+      queueData: payload,
+      offlineMessage: 'Etikettenliste wird geteilt, sobald WLAN verfügbar ist.',
+      silentPermissionDenied: true,
+    });
+    if (result === 'queued') setCloudStatus('offline', payload.updatedBy);
+    else setCloudStatus('live', payload.updatedBy);
+  } catch (err) {
+    console.error('[avery] draft cloud write failed', err);
+    setCloudStatus(navigator.onLine ? 'error' : 'offline', payload.updatedBy);
+  } finally {
+    cloud.writing = false;
+  }
+}
+
+function scheduleAveryDraftCloudWrite() {
+  if (cloud.applyingRemote) return;
+  if (cloud.debounceTimer) clearTimeout(cloud.debounceTimer);
+  cloud.debounceTimer = setTimeout(() => {
+    cloud.debounceTimer = null;
+    flushAveryDraftToCloud().catch((err) => {
+      console.error('[avery] draft flush', err);
+    });
+  }, CLOUD_WRITE_DEBOUNCE_MS);
+}
+
+function persistDraft() {
+  cloud.lastLocalWriteMs = Date.now();
+  persistDraftLocal();
+  scheduleAveryDraftCloudWrite();
+}
+
+function handleAveryDraftSnapshot(snap) {
+  if (!snap) return;
+  if (!snap.exists) {
+    setCloudStatus(navigator.onLine ? 'live' : 'offline');
+    return;
+  }
+  const data = snap.data() || {};
+  const remoteMs = averyDraftUpdatedAtMs(data.updatedAtMs) || averyDraftUpdatedAtMs(data.updatedAt);
+  const remoteDevice = String(data.deviceId || '');
+  const ourDevice = getAveryDeviceId();
+
+  // Echo der eigenen Schreiboperation überspringen
+  if (remoteDevice && remoteDevice === ourDevice && remoteMs <= cloud.lastLocalWriteMs + 1500) {
+    cloud.lastAppliedMs = Math.max(cloud.lastAppliedMs, remoteMs);
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  if (remoteMs && remoteMs <= cloud.lastAppliedMs) {
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  // Ältere Cloud-Version nicht über neuere lokale Tipps legen
+  if (remoteMs && cloud.lastLocalWriteMs && remoteMs < cloud.lastLocalWriteMs) {
+    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+    return;
+  }
+
+  cloud.applyingRemote = true;
+  try {
+    const changed = applyAveryDraftPayload(data);
+    cloud.lastAppliedMs = Math.max(remoteMs, cloud.lastAppliedMs);
+    cloud.updatedBy = String(data.updatedBy || '');
+    persistDraftLocal();
+    if (changed && state.initialized) {
+      renderAll();
+      if (remoteDevice && remoteDevice !== ourDevice) {
+        window.showToast?.(
+          cloud.updatedBy
+            ? `Etikettenliste von ${cloud.updatedBy} übernommen.`
+            : 'Etikettenliste vom anderen Gerät übernommen.',
+          'info',
+        );
+      }
+    }
+    setCloudStatus('live', cloud.updatedBy);
+  } finally {
+    cloud.applyingRemote = false;
+  }
+}
+
+export function startAveryDraftSync() {
+  cloud.unsubscribe?.();
+  cloud.unsubscribe = null;
+  const ref = averyDraftRef();
+  if (!ref) {
+    setCloudStatus('local');
+    return;
+  }
+  setCloudStatus('connecting');
+  cloud.unsubscribe = ref.onSnapshot(
+    (snap) => {
+      try {
+        handleAveryDraftSnapshot(snap);
+      } catch (err) {
+        console.error('[avery] draft snapshot', err);
+        setCloudStatus('error');
+      }
+    },
+    (err) => {
+      console.error('[avery] draft subscribe', err);
+      setCloudStatus(navigator.onLine ? 'error' : 'offline');
+    },
+  );
+}
+
+export function stopAveryDraftSync() {
+  if (cloud.debounceTimer) {
+    clearTimeout(cloud.debounceTimer);
+    cloud.debounceTimer = null;
+  }
+  cloud.unsubscribe?.();
+  cloud.unsubscribe = null;
 }
 
 function normalizeQueueRow(row) {
@@ -581,41 +913,21 @@ function coercePrintFlag(value, fallback = false) {
 
 function restoreDraft() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const key = draftStorageKey();
+    const raw = localStorage.getItem(key)
+      || localStorage.getItem(STORAGE_KEY_BASE)
       || localStorage.getItem('charculogic.averyLabels.draft.v2')
       || localStorage.getItem('charculogic.averyLabels.draft.v1');
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
-    if (parsed.header && typeof parsed.header === 'object') {
-      const { reifehinweis: _drop, ...restHeader } = parsed.header;
-      state.header = {
-        ...DEFAULT_HEADER,
-        ...restHeader,
-        printBetrieb: coercePrintFlag(restHeader.printBetrieb, false),
-        printSchlachthof: coercePrintFlag(restHeader.printSchlachthof, false),
-        printPlu: coercePrintFlag(restHeader.printPlu, true),
-      };
-      delete state.header.reifehinweis;
+    applyAveryDraftPayload(parsed);
+    const ms = averyDraftUpdatedAtMs(parsed.updatedAtMs) || averyDraftUpdatedAtMs(parsed.updatedAt);
+    if (ms) {
+      cloud.lastAppliedMs = ms;
+      cloud.lastLocalWriteMs = ms;
     }
-    if (Array.isArray(parsed.queue)) {
-      state.queue = parsed.queue.map(normalizeQueueRow).filter(Boolean);
-    }
-    if (parsed.startSlot != null) {
-      state.startSlot = Math.min(24, Math.max(1, Number.parseInt(String(parsed.startSlot), 10) || 1));
-    }
-    const legacyTabMap = {
-      vv: 'schultern',
-      hv: 'keule',
-      frisch: 'lappen',
-      schultern: 'schultern',
-      ruecken: 'ruecken',
-      keule: 'keule',
-      lappen: 'lappen',
-      innereien: 'innereien',
-    };
-    const mapped = legacyTabMap[parsed.activeTab] || parsed.activeTab;
-    if (mapped && TAB_META[mapped]) state.activeTab = mapped;
+    if (parsed.updatedBy) cloud.updatedBy = String(parsed.updatedBy);
   } catch (_) { /* ignore */ }
 }
 
@@ -1244,6 +1556,7 @@ function renderAll() {
   renderCatalog();
   renderQueue();
   renderSheetPreview();
+  renderCloudStatus();
 }
 
 function readHeaderFromDom() {
@@ -1438,6 +1751,9 @@ function buildShellHtml() {
           <p class="avery-kicker">WG 0460 · Avery 3475</p>
           <h2 class="avery-suite-title">🏷️ Zerlege- &amp; Reife-Etiketten</h2>
           <p class="avery-suite-lead">Klare Inhalts-Deklaration auf Avery 3475 (70×36&nbsp;mm Querformat) – nach Baugruppe und Freifeld.</p>
+          <p class="avery-cloud-status" id="avery-cloud-status" data-status="local" role="status">
+            Gemeinsame Liste: nur auf diesem Gerät
+          </p>
         </div>
       </header>
 
@@ -1565,6 +1881,7 @@ function buildShellHtml() {
 export function initAveryLabelsModule() {
   const page = document.getElementById('page-avery');
   if (!page) return;
+  getAveryDeviceId();
   if (!state.initialized) {
     restoreDraft();
     ensureHeaderDefaults();
@@ -1578,6 +1895,7 @@ export function initAveryLabelsModule() {
     // Falls DOM neu gemountet wurde: Binding wiederherstellen
     if (page.dataset.averyBound !== '1') bindEvents(page);
   }
+  startAveryDraftSync();
   renderAll();
 }
 
@@ -1587,7 +1905,7 @@ export function activateAveryLabelsTab() {
 }
 
 export function disableAveryLabelsModule() {
-  /* no live subscriptions yet */
+  stopAveryDraftSync();
 }
 
 /** Alias für ältere Imports / Tests */

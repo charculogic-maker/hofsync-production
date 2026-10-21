@@ -377,6 +377,58 @@ service cloud.firestore {
       allow read, create, update, delete: if request.auth != null && request.auth.token.tenantId == tenantId;
     }
 
+    // =========================================================================
+    // AVERY-ETIKETTEN DRAFT (Phone ↔ Laden-PC, Doc-ID "current")
+    // =========================================================================
+
+    function isAveryDraftPayload(tenantId) {
+      return hasOnly([
+          'tenantId', 'header', 'queue', 'startSlot', 'activeTab',
+          'updatedAt', 'updatedAtMs', 'updatedBy', 'deviceId', 'revision'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && request.resource.data.header is map
+        && request.resource.data.queue is list
+        && request.resource.data.queue.size() <= 200
+        && (
+          (request.resource.data.startSlot is int || request.resource.data.startSlot is float)
+          && request.resource.data.startSlot >= 1
+          && request.resource.data.startSlot <= 24
+        )
+        && request.resource.data.activeTab is string
+        && request.resource.data.activeTab.size() > 0
+        && request.resource.data.activeTab.size() <= 32
+        && isOptionalString(request.resource.data.updatedBy)
+        && isOptionalString(request.resource.data.deviceId)
+        && (
+          !('updatedAtMs' in request.resource.data)
+          || (
+            (request.resource.data.updatedAtMs is int || request.resource.data.updatedAtMs is float)
+            && request.resource.data.updatedAtMs >= 0
+          )
+        )
+        && (
+          !('revision' in request.resource.data)
+          || (
+            (request.resource.data.revision is int || request.resource.data.revision is float)
+            && request.resource.data.revision >= 0
+          )
+        );
+    }
+
+    match /tenants/{tenantId}/averyDrafts/{document} {
+      allow read: if isTenantUser(tenantId)
+        && hasModule(tenantId, 'averyLabels');
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && hasModule(tenantId, 'averyLabels')
+        && document == 'current'
+        && isAveryDraftPayload(tenantId);
+
+      allow delete: if isAdmin(tenantId)
+        && hasModule(tenantId, 'averyLabels');
+    }
+
     match /tenants/{tenantId}/wareneingang_lieferungen/{document} {
       allow read: if isTenantUser(tenantId);
 
