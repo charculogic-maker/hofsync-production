@@ -5,6 +5,7 @@
  */
 
 import { writeFirestoreDocOrQueue } from './sync.js';
+import { hasModule } from './tenant-modules.js';
 import {
   getGlobalTenantId,
   getTenantCollection,
@@ -14,6 +15,10 @@ import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
   readScopedLocalStorageValue,
 } from './teamboard-storage.js';
+
+/** Firestore-Collection für LMIV-Herkunft / Thekenbuch */
+const CHARGEN_DOKU_COLLECTION = 'chargendoku';
+const HERKUNFT_OPTIONS_LIMIT = 40;
 
 export const AVERY_LABELS_PER_SHEET = 24;
 export const AVERY_MODULE_KEY = 'averyLabels';
@@ -212,7 +217,7 @@ const DEFAULT_HEADER = Object.freeze({
  * }} AveryQueueRow
  */
 
-/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean }} */
+/** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean, herkunftOptions: Array<Record<string, unknown>>, herkunftStatus: string, packlistStatus: string, packlistCount: number }} */
 const state = {
   header: { ...DEFAULT_HEADER },
   queue: [],
@@ -220,6 +225,11 @@ const state = {
   previewSheetIndex: 0,
   activeTab: 'schultern',
   initialized: false,
+  /** @type {Array<{ id: string, lotNumber: string, label: string, record: Record<string, unknown> }>} */
+  herkunftOptions: [],
+  herkunftStatus: 'idle',
+  packlistStatus: 'idle',
+  packlistCount: 0,
 };
 
 /** @type {{
@@ -300,6 +310,111 @@ export function buildAveryLot(header = {}) {
   const ohr = String(header.ohrmarke || '').trim().toUpperCase().replace(/\s+/g, '') || 'OHR';
   const stamp = formatLotDateStamp(header.schlachtDatum || todayIsoLocal());
   return `${brand}-${ohr}-${stamp}`;
+}
+
+/**
+ * Zerlegt ein Herkunfts-LOT (Avery-Stil oder Ohrmarke) für die Etiketten-Kopfdaten.
+ * @param {string} lotNumber
+ * @returns {{ brand?: string, ohrmarke: string, schlachtDatum?: string }}
+ */
+export function parseHerkunftLotForAvery(lotNumber) {
+  const raw = String(lotNumber || '').trim();
+  if (!raw) return { ohrmarke: '' };
+
+  const compact = raw.replace(/\s+/g, '');
+  const averyLot = /^([A-Za-z0-9]{1,6})-([A-Za-z0-9]+)-(\d{8})$/.exec(compact);
+  if (averyLot) {
+    const stamp = averyLot[3];
+    return {
+      brand: averyLot[1].toUpperCase(),
+      ohrmarke: averyLot[2].toUpperCase(),
+      schlachtDatum: `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`,
+    };
+  }
+
+  const deEar = /^(DE)[\s-]*(\d[\d\s-]*)$/i.exec(raw);
+  if (deEar) {
+    return { ohrmarke: `DE${deEar[2].replace(/[\s-]+/g, '')}` };
+  }
+
+  return { ohrmarke: compact.toUpperCase() };
+}
+
+/**
+ * Mappt einen Chargen-Doku-/Herkunftseintrag auf Avery-Kopfdaten.
+ * @param {Record<string, unknown>|null|undefined} record
+ */
+export function mapHerkunftRecordToAveryHeader(record) {
+  if (!record || typeof record !== 'object') {
+    return { ohrmarke: '', schlachthof: '', oeko: '', brand: '', schlachtDatum: '', herkunftLot: '', herkunftId: '' };
+  }
+  const lotNumber = String(record.lotNumber || '').trim();
+  const parsed = parseHerkunftLotForAvery(lotNumber);
+  const healthMark = String(record.healthMark || '').trim();
+  const oeko = String(record.organicControlBody || '').trim();
+  const cuttingPlant = String(record?.origin?.cuttingPlantNo || '').trim();
+  return {
+    ohrmarke: parsed.ohrmarke || '',
+    schlachtDatum: parsed.schlachtDatum || '',
+    brand: parsed.brand || '',
+    schlachthof: healthMark || cuttingPlant || '',
+    oeko: oeko || '',
+    herkunftLot: lotNumber,
+    herkunftId: String(record.id || '').trim(),
+  };
+}
+
+/**
+ * Etiketten-Menge aus einer Metzgerei-Packlisten-Zeile.
+ * Stück/Pack → gerundete Menge; kg oft 1 Etikett (außer kleine Ganzzahlen = Packzahl).
+ * @param {{ quantity?: number, unit?: string }} item
+ */
+export function labelQtyFromButcheryTask(item = {}) {
+  const qty = Number(item.quantity);
+  const safeQty = Number.isFinite(qty) ? qty : 0;
+  const unit = String(item.unit || '').toLowerCase();
+
+  if (/stück|stueck|stk\.?|pack|beutel|portion|etikett/.test(unit)) {
+    return Math.max(1, Math.min(999, Math.round(safeQty) || 1));
+  }
+  if (/\bkg\b|gramm|\bg\b/.test(unit)) {
+    if (Number.isInteger(safeQty) && safeQty >= 1 && safeQty <= 48) return safeQty;
+    return 1;
+  }
+  if (Number.isInteger(safeQty) && safeQty >= 1 && safeQty <= 48) return safeQty;
+  if (safeQty > 0) return Math.max(1, Math.min(999, Math.round(safeQty)));
+  return 1;
+}
+
+/**
+ * Metzgerei-Packliste → Katalog-/Freifeld-Zeilen für den Avery-Bogen.
+ * @param {Array<{ product?: string, productId?: string, quantity?: number, unit?: string }>} tasks
+ */
+export function mapButcheryTasksToAveryImportItems(tasks = []) {
+  /** @type {{ product: string, productId: string, qty: number, cut: AveryCut|null, name: string }[]} */
+  const items = [];
+  (Array.isArray(tasks) ? tasks : []).forEach((task) => {
+    const product = String(task?.product || '').trim();
+    if (!product) return;
+    const productId = String(task?.productId || '').trim();
+    const qty = labelQtyFromButcheryTask(task);
+    const cut = (productId && getCutByArtNr(productId))
+      || matchAveryCatalogEntry(productId)
+      || matchAveryCatalogEntry(product);
+    items.push({
+      product,
+      productId,
+      qty,
+      cut,
+      name: cut?.name || product,
+    });
+  });
+  return {
+    items,
+    matchedCount: items.filter((item) => item.cut).length,
+    customCount: items.filter((item) => !item.cut).length,
+    totalLabels: items.reduce((sum, item) => sum + item.qty, 0),
+  };
 }
 
 export function resolveAveryCutId(cutId) {
@@ -1092,6 +1207,93 @@ export function importAveryPlainTextToQueue(text, options = {}) {
 }
 
 /**
+ * Übernimmt „Heute zu zerlegen/packen“ (Metzgerei) in die Druckliste.
+ * @param {Array<{ product?: string, productId?: string, quantity?: number, unit?: string }>} tasks
+ * @param {{ defaultDays?: number }} [options]
+ */
+export function importButcheryPacklistToQueue(tasks, options = {}) {
+  const mapped = mapButcheryTasksToAveryImportItems(tasks);
+  if (!mapped.items.length) {
+    window.showToast?.('In der Metzgerei ist heute nichts Offenes zum Übernehmen.', 'info');
+    return mapped;
+  }
+
+  const defaultDays = Number.parseInt(String(options.defaultDays ?? 0), 10);
+  const safeDays = CUSTOM_AGING_OPTIONS.some((opt) => opt.days === defaultDays) ? defaultDays : 0;
+  let addedLabels = 0;
+
+  mapped.items.forEach((item) => {
+    const qty = Math.max(1, Math.min(999, item.qty || 1));
+    if (item.cut) {
+      const existing = state.queue.find((row) => !row.isCustom && row.cutId === item.cut.id);
+      if (existing) existing.qty += qty;
+      else state.queue.push({ cutId: item.cut.id, qty });
+      addedLabels += qty;
+      return;
+    }
+    const name = String(item.name || item.product || '').trim();
+    if (!name) return;
+    const existingCustom = state.queue.find(
+      (row) => row.isCustom && String(row.name || '').trim().toLowerCase() === name.toLowerCase()
+        && Number(row.days || 0) === safeDays,
+    );
+    if (existingCustom) existingCustom.qty += qty;
+    else {
+      state.queue.push({
+        cutId: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        qty,
+        isCustom: true,
+        name,
+        days: safeDays,
+      });
+    }
+    addedLabels += qty;
+  });
+
+  persistDraft();
+  renderAll();
+
+  const matched = mapped.matchedCount;
+  const custom = mapped.customCount;
+  if (matched && custom) {
+    window.showToast?.(
+      `${addedLabels} Etiketten aus der Packliste · ${matched} Katalog, ${custom} Freifeld.`,
+      'success',
+    );
+  } else if (matched) {
+    window.showToast?.(`${addedLabels} Etiketten aus der Packliste übernommen.`, 'success');
+  } else {
+    window.showToast?.(`${addedLabels} Etiketten aus der Packliste als Freifeld übernommen.`, 'success');
+  }
+  return { ...mapped, addedLabels };
+}
+
+/**
+ * Wendet einen Herkunftseintrag auf die Avery-Kopfdaten an (Ohrmarke/LOT/Öko).
+ * @param {Record<string, unknown>|null|undefined} record
+ */
+export function applyHerkunftRecordToAveryHeader(record) {
+  const mapped = mapHerkunftRecordToAveryHeader(record);
+  if (!mapped.ohrmarke && !mapped.herkunftLot) {
+    window.showToast?.('Dieser Herkunftseintrag hat keine LOT/Ohrmarke.', 'warning');
+    return mapped;
+  }
+  if (mapped.ohrmarke) state.header.ohrmarke = mapped.ohrmarke;
+  if (mapped.schlachtDatum) state.header.schlachtDatum = mapped.schlachtDatum;
+  if (mapped.brand) state.header.brand = mapped.brand;
+  if (mapped.schlachthof) state.header.schlachthof = mapped.schlachthof;
+  if (mapped.oeko) state.header.oeko = mapped.oeko;
+  persistDraft();
+  syncHeaderInputs();
+  renderSheetPreview();
+  window.showToast?.(
+    `Herkunft übernommen · LOT ${buildAveryLot(state.header)}`,
+    'success',
+  );
+  return mapped;
+}
+
+/**
  * Freifeld → Queue
  * @param {string} name
  * @param {number} days
@@ -1510,6 +1712,158 @@ function renderCatalog() {
   `;
 }
 
+function formatHerkunftOptionLabel(record) {
+  const lot = String(record?.lotNumber || 'ohne LOT').trim() || 'ohne LOT';
+  const animal = String(record?.animalType || '').trim();
+  const animalLabel = {
+    rind: 'Rind',
+    schwein: 'Schwein',
+    gefluegel: 'Geflügel',
+    schaf: 'Schaf',
+    ziege: 'Ziege',
+  }[animal] || animal;
+  let when = '';
+  try {
+    const created = record?.createdAt;
+    const ms = typeof created?.toMillis === 'function'
+      ? created.toMillis()
+      : (typeof created === 'string' ? Date.parse(created) : 0);
+    if (ms) {
+      when = new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+  } catch (_) { /* ignore */ }
+  return [lot, animalLabel, when].filter(Boolean).join(' · ');
+}
+
+async function loadActiveHerkunftOptions() {
+  const select = document.getElementById('avery-herkunft-select');
+  const statusEl = document.getElementById('avery-herkunft-status');
+  if (!hasModule('chargenDoku')) {
+    state.herkunftOptions = [];
+    state.herkunftStatus = 'hidden';
+    const box = document.getElementById('avery-herkunft-box');
+    if (box) box.hidden = true;
+    return;
+  }
+  const box = document.getElementById('avery-herkunft-box');
+  if (box) box.hidden = false;
+  state.herkunftStatus = 'loading';
+  if (statusEl) statusEl.textContent = 'Aktive Herkunftseinträge werden geladen…';
+  if (select instanceof HTMLSelectElement) {
+    select.disabled = true;
+  }
+  try {
+    const col = getTenantCollection(CHARGEN_DOKU_COLLECTION);
+    const snap = await col.where('status', '==', 'active').limit(HERKUNFT_OPTIONS_LIMIT).get();
+    const options = [];
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const record = { id: doc.id, ...data };
+      if (String(record.status || 'active') !== 'active') return;
+      options.push({
+        id: doc.id,
+        lotNumber: String(record.lotNumber || '').trim(),
+        label: formatHerkunftOptionLabel(record),
+        record,
+      });
+    });
+    options.sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    state.herkunftOptions = options;
+    state.herkunftStatus = options.length ? 'ready' : 'empty';
+    if (select instanceof HTMLSelectElement) {
+      const current = select.value;
+      select.innerHTML = [
+        '<option value="">Herkunft / LOT wählen…</option>',
+        ...options.map((opt) => (
+          `<option value="${escapeHtml(opt.id)}">${escapeHtml(opt.label)}</option>`
+        )),
+      ].join('');
+      if (current && options.some((opt) => opt.id === current)) select.value = current;
+      select.disabled = false;
+    }
+    if (statusEl) {
+      statusEl.textContent = options.length
+        ? `${options.length} aktive Einträge im Thekenbuch`
+        : 'Noch kein aktiver Herkunftseintrag – zuerst im Tab Herkunft speichern.';
+    }
+  } catch (err) {
+    console.error('[Avery] Herkunftsliste konnte nicht geladen werden:', err);
+    state.herkunftStatus = 'error';
+    if (statusEl) {
+      statusEl.textContent = 'Herkunftsliste gerade nicht erreichbar. Bitte WLAN prüfen und erneut laden.';
+    }
+    if (select instanceof HTMLSelectElement) select.disabled = false;
+  }
+}
+
+async function refreshPacklistPreview() {
+  const statusEl = document.getElementById('avery-packlist-status');
+  const btn = document.getElementById('btn-avery-packlist-import');
+  const box = document.getElementById('avery-packlist-box');
+  if (!hasModule('orders')) {
+    state.packlistCount = 0;
+    state.packlistStatus = 'hidden';
+    if (box) box.hidden = true;
+    return;
+  }
+  if (box) box.hidden = false;
+  state.packlistStatus = 'loading';
+  if (statusEl) statusEl.textContent = 'Packliste wird geprüft…';
+  if (btn instanceof HTMLButtonElement) btn.disabled = true;
+  try {
+    const { getProductionTasksByStation } = await import('./customer-orders.js');
+    const tasks = getProductionTasksByStation()?.butchery || [];
+    const mapped = mapButcheryTasksToAveryImportItems(tasks);
+    state.packlistCount = mapped.totalLabels;
+    state.packlistStatus = mapped.items.length ? 'ready' : 'empty';
+    if (statusEl) {
+      if (!mapped.items.length) {
+        statusEl.textContent = 'Heute nichts Offenes unter „Zerlegen/packen“.';
+      } else {
+        statusEl.textContent = `${mapped.items.length} Positionen · ca. ${mapped.totalLabels} Etiketten`
+          + (mapped.customCount ? ` · ${mapped.customCount} als Freifeld` : '');
+      }
+    }
+    if (btn instanceof HTMLButtonElement) {
+      btn.disabled = !mapped.items.length;
+      btn.dataset.packlistReady = mapped.items.length ? '1' : '0';
+    }
+  } catch (err) {
+    console.error('[Avery] Packliste konnte nicht gelesen werden:', err);
+    state.packlistStatus = 'error';
+    if (statusEl) statusEl.textContent = 'Packliste gerade nicht lesbar. Bitte später erneut versuchen.';
+    if (btn instanceof HTMLButtonElement) btn.disabled = true;
+  }
+}
+
+function applySelectedHerkunftFromDom() {
+  const select = document.getElementById('avery-herkunft-select');
+  const id = String(select?.value || '').trim();
+  if (!id) {
+    window.showToast?.('Bitte zuerst einen Herkunftseintrag wählen.', 'warning');
+    return;
+  }
+  const opt = state.herkunftOptions.find((row) => row.id === id);
+  if (!opt?.record) {
+    window.showToast?.('Eintrag nicht gefunden. Bitte Liste neu laden.', 'warning');
+    return;
+  }
+  applyHerkunftRecordToAveryHeader(opt.record);
+}
+
+async function importPacklistFromOrders() {
+  const days = document.getElementById('avery-custom-aging')?.value || '0';
+  try {
+    const { getProductionTasksByStation } = await import('./customer-orders.js');
+    const tasks = getProductionTasksByStation()?.butchery || [];
+    importButcheryPacklistToQueue(tasks, { defaultDays: days });
+    await refreshPacklistPreview();
+  } catch (err) {
+    console.error('[Avery] Packlisten-Import fehlgeschlagen:', err);
+    window.showToast?.('Packliste konnte nicht übernommen werden. Bitte erneut versuchen.', 'error');
+  }
+}
+
 function syncHeaderInputs() {
   const map = {
     'avery-betrieb': 'betrieb',
@@ -1687,6 +2041,21 @@ function bindEvents(root) {
       return;
     }
 
+    if (target.closest('#btn-avery-herkunft-apply')) {
+      applySelectedHerkunftFromDom();
+      return;
+    }
+
+    if (target.closest('#btn-avery-herkunft-reload')) {
+      void loadActiveHerkunftOptions();
+      return;
+    }
+
+    if (target.closest('#btn-avery-packlist-import')) {
+      void importPacklistFromOrders();
+      return;
+    }
+
     const sheetTab = target.closest('[data-avery-sheet-tab]');
     if (sheetTab) {
       const idx = Number.parseInt(sheetTab.getAttribute('data-avery-sheet-tab') || '0', 10) || 0;
@@ -1797,6 +2166,26 @@ function buildShellHtml() {
           </label>
         </div>
         <p class="avery-lot-line">LOT: <strong id="avery-lot-preview">–</strong></p>
+        <div class="avery-herkunft-box" id="avery-herkunft-box" hidden>
+          <h3>Ohrmarke / LOT aus Herkunft</h3>
+          <p class="avery-herkunft-hint">
+            Aktiven Eintrag aus dem Thekenbuch wählen – Ohrmarke, Schlachtdatum und Öko-Code werden vorausgefüllt.
+          </p>
+          <label class="form-label" for="avery-herkunft-select">Aktive Herkunft
+            <select id="avery-herkunft-select" class="input-text-touch">
+              <option value="">Herkunft / LOT wählen…</option>
+            </select>
+          </label>
+          <div class="avery-herkunft-actions">
+            <button type="button" class="btn btn-primary btn-compact" id="btn-avery-herkunft-apply">
+              In Kopfdaten übernehmen
+            </button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-herkunft-reload">
+              Neu laden
+            </button>
+          </div>
+          <p class="avery-herkunft-status" id="avery-herkunft-status" role="status"></p>
+        </div>
         <p class="avery-desktop-hint">Am Laden-PC mit Laserdrucker: A4, Ränder auf 0, keine Seitenverkleinerung.</p>
       </section>
 
@@ -1820,6 +2209,16 @@ function buildShellHtml() {
             <span id="avery-queue-total" class="avery-queue-total">0 Etiketten</span>
             <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-clear-queue">Liste leeren</button>
           </div>
+        </div>
+        <div class="avery-packlist-box" id="avery-packlist-box" hidden>
+          <h3>Heute zu zerlegen/packen</h3>
+          <p class="avery-packlist-hint">
+            Offene Metzgerei-Mengen aus den Kundenbestellungen direkt auf den Avery-Bogen schieben.
+          </p>
+          <p class="avery-packlist-status" id="avery-packlist-status" role="status">Packliste wird geprüft…</p>
+          <button type="button" class="btn btn-primary btn-compact" id="btn-avery-packlist-import" disabled>
+            Packliste auf den Bogen
+          </button>
         </div>
         <div class="avery-plain-import-box">
           <h3>Notiz vom iPhone einfügen</h3>
@@ -1897,11 +2296,15 @@ export function initAveryLabelsModule() {
   }
   startAveryDraftSync();
   renderAll();
+  void loadActiveHerkunftOptions();
+  void refreshPacklistPreview();
 }
 
 export function activateAveryLabelsTab() {
   initAveryLabelsModule();
   renderAll();
+  void loadActiveHerkunftOptions();
+  void refreshPacklistPreview();
 }
 
 export function disableAveryLabelsModule() {

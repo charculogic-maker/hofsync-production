@@ -567,15 +567,18 @@ export function getProductionTasksByStation() {
           normalizePicklistKey(product),
           normalizePicklistKey(unit),
         ].join('|');
+        const productId = String(item?.productId || item?.artikelId || item?.artNr || '').trim();
         const entry = stationItems[station].get(key) || {
           key,
           product,
+          productId: '',
           unit,
           quantity: 0,
           orderIds: new Set(),
           notes: new Set(),
           refs: [],
         };
+        if (!entry.productId && productId) entry.productId = productId;
         entry.quantity += parseQuantityValue(item?.quantity);
         entry.orderIds.add(order.id);
         entry.refs.push({ orderId: order.id, lineIndex: order.items.indexOf(item), quantity: parseQuantityValue(item?.quantity) });

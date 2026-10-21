@@ -43,6 +43,7 @@ Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Le
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
 | **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
 | **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
+| **Etiketten** | Avery-Zerlegeetiketten vorbereiten (Packliste / Herkunft übernehmen, am Laden-PC drucken) |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
 **HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Verwaltungs-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer** (unser Betrieb ist vorausgewählt), **Einstellungen**, **Protokoll** (Warenbewegungen seit vorgestern, Export für Excel, Einträge korrigieren) und **Thekenklade**.
@@ -140,6 +141,19 @@ Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit 
 Ohne WLAN speichert unsere App den Eintrag lokal und synchronisiert automatisch, sobald WLAN wieder verfügbar ist.
 
 Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Digitale Thekenklade: Suche nach LOT/Datum, Status umschalten, Original-Etikett für Kontrollen öffnen).
+
+---
+
+## 2c. Zerlege-Etiketten (Tab Etiketten)
+
+Im Tab **Etiketten** bereiten wir Avery-3475-Bögen für die Zerlegung vor. Am Laden-iPhone erfassen wir die Liste; drucken tun wir am **Laden-PC** mit Laserdrucker (A4, Ränder 0).
+
+1. Tab **Etiketten** öffnen.
+2. Unter **Ohrmarke / LOT aus Herkunft** einen aktiven Thekenbuch-Eintrag wählen und **In Kopfdaten übernehmen** tippen.
+3. Offene Mengen aus **Heute zu zerlegen/packen** mit **Packliste auf den Bogen** übernehmen – oder eine Siegelrandbeutel-Notiz einfügen.
+4. Vorschau prüfen und am Laden-PC **Etikettenbogen drucken**.
+
+Die gemeinsame Druckliste synchronisiert sich zwischen Laden-iPhone und Laden-PC.
 
 ---
 

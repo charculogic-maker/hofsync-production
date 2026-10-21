@@ -146,12 +146,60 @@
   color: var(--text-muted, #64748b);
 }
 
+.avery-herkunft-box,
+.avery-packlist-box,
 .avery-plain-import-box {
   margin: 0 0 14px;
   padding: 12px;
   border-radius: 12px;
   background: var(--bg-color, #f8fafc);
   border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.avery-herkunft-box {
+  margin-top: 12px;
+}
+
+.avery-herkunft-box h3,
+.avery-packlist-box h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avery-herkunft-hint,
+.avery-packlist-hint,
+.avery-herkunft-status,
+.avery-packlist-status {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted, #64748b);
+}
+
+.avery-herkunft-box .form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.avery-herkunft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.avery-herkunft-actions .btn,
+#btn-avery-packlist-import {
+  min-height: 44px;
+}
+
+#btn-avery-packlist-import {
+  width: 100%;
 }
 
 .avery-plain-import-box h3 {
