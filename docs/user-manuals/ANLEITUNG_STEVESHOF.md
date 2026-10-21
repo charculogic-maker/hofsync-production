@@ -7,6 +7,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **MHD**: tägliche Haltbarkeitskontrolle inkl. **Retter-Box** vormerken (Standard: 21 Tage, umstellbar auf 7 oder 14 Tage)
 - **Neu**: Wareneingang im Laden (Barcode-Scan, Lieferung abschließen)
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
+- **Etiketten**: Avery-Zerlegeetiketten (Packliste / Herkunft → Bogen, Druck am Laden-PC)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation
 
 Zusätzlich über das **Verwaltungs-Menü** (persönliche Admin-Konten): **HACCP**, **Wissen**, **Büro**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer (unser Betrieb ist vorausgewählt; Rolle ändern, Passwort zurücksetzen, Deaktivieren), Einstellungen, Protokoll (Warenbewegungen seit vorgestern inkl. CSV), Thekenklade.
@@ -44,6 +45,7 @@ In der unteren Navigation sehen wir typischerweise:
 | **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus oder Ausverkauft markieren (Küche/Box nur wenn in der Verwaltung freigeschaltet) |
 | **Neu** | Ware scannen, Posten sammeln, **Gesamte Lieferung abschließen** |
 | **Herkunft** | Etikett fotografieren, LOT und LMIV-Herkunft für die Theke speichern |
+| **Etiketten** | Avery-Bögen: Herkunft vorausfüllen, Packliste „Heute zu zerlegen/packen“ übernehmen, am Laden-PC drucken |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
 
 Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACCP**, **Wissen**, **Büro** und die digitale Thekenklade (**/dev-dashboard → Rückverfolgbarkeit**) sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleibt dieser Verwaltungsbereich ausgeblendet.

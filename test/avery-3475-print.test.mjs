@@ -18,9 +18,13 @@ import {
   formatLabelTitle,
   getCutByArtNr,
   getCutById,
+  labelQtyFromButcheryTask,
+  mapButcheryTasksToAveryImportItems,
+  mapHerkunftRecordToAveryHeader,
   matchAveryCatalogEntry,
   parseAveryPlainTextLine,
   parseAveryPlainTextList,
+  parseHerkunftLotForAvery,
   planAverySheet,
   planAverySheets,
   applyAveryDraftPayload,
@@ -145,6 +149,46 @@ describe('Avery 3475 labels module', () => {
       ohrmarke: 'DE12 345',
       schlachtDatum: '2026-10-17',
     })).to.equal('SH-DE12345-20261017');
+  });
+
+  it('parses Herkunft LOT / Ohrmarke into Avery header fields', () => {
+    expect(parseHerkunftLotForAvery('SH-DE123456789-20261017')).to.deep.equal({
+      brand: 'SH',
+      ohrmarke: 'DE123456789',
+      schlachtDatum: '2026-10-17',
+    });
+    expect(parseHerkunftLotForAvery('DE 12 345 6789').ohrmarke).to.equal('DE123456789');
+
+    const mapped = mapHerkunftRecordToAveryHeader({
+      id: 'rec-1',
+      lotNumber: 'SH-DE999-20261010',
+      healthMark: 'DE-NW-12345',
+      organicControlBody: 'DE-ÖKO-006',
+      origin: { cuttingPlantNo: 'DE-NW-999' },
+    });
+    expect(mapped.ohrmarke).to.equal('DE999');
+    expect(mapped.schlachtDatum).to.equal('2026-10-10');
+    expect(mapped.schlachthof).to.equal('DE-NW-12345');
+    expect(mapped.oeko).to.equal('DE-ÖKO-006');
+    expect(mapped.herkunftId).to.equal('rec-1');
+  });
+
+  it('maps Metzgerei packlist rows onto Avery catalog quantities', () => {
+    expect(labelQtyFromButcheryTask({ quantity: 4, unit: 'Stück' })).to.equal(4);
+    expect(labelQtyFromButcheryTask({ quantity: 1.5, unit: 'kg' })).to.equal(1);
+    expect(labelQtyFromButcheryTask({ quantity: 6, unit: 'kg' })).to.equal(6);
+
+    const mapped = mapButcheryTasksToAveryImportItems([
+      { product: 'Entrecôte / Rib Eye o. K.', productId: '514', quantity: 3, unit: 'Stück' },
+      { product: 'Hackfleisch', productId: '503', quantity: 2, unit: 'kg' },
+      { product: 'Picanha Spezial', quantity: 1, unit: 'Stück' },
+    ]);
+    expect(mapped.matchedCount).to.equal(2);
+    expect(mapped.customCount).to.equal(1);
+    expect(mapped.totalLabels).to.equal(3 + 2 + 1);
+    expect(mapped.items[0].cut?.id).to.equal('rue-514');
+    expect(mapped.items[1].cut?.id).to.equal('tr-r2-hack');
+    expect(mapped.items[2].cut).to.equal(null);
   });
 
   it('formats dates and computes ripening readiness', () => {
