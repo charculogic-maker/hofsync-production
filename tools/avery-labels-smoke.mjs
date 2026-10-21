@@ -51,10 +51,13 @@ await page.goto(`${BASE}/avery-labels-smoke.html`, { waitUntil: 'networkidle' })
 await page.waitForSelector('#avery-sheet-preview');
 
 await page.fill('#avery-ohrmarke', 'DE123456');
-await page.fill('#avery-trim-tr-r1-spiesse', '1');
+await page.fill('#avery-plain-import', ['Entrecôte 2', '514 x1', 'Picanha', 'R II Hack 1'].join('\n'));
+await page.click('#btn-avery-plain-import');
+await page.waitForTimeout(120);
+await page.click('[data-avery-add="tr-r1-spiesse"]');
 await page.click('[data-avery-tab="schultern"]');
-await page.click('[data-avery-add="sch-falsches-filet"]');
-await page.click('[data-avery-add="sch-schaufel"]');
+await page.click('[data-avery-add="sch-510"]');
+await page.click('[data-avery-add="sch-539"]');
 await page.click('[data-avery-slot="1"]');
 await page.waitForTimeout(150);
 
@@ -141,22 +144,26 @@ if (stats.slotRatio < 1.7 || stats.slotRatio > 2.2) {
 await page.locator('.sheet-scroll-wrapper').scrollIntoViewIfNeeded();
 await page.screenshot({ path: `${artifactDir}/avery-hero-v2-preview.png`, fullPage: false });
 
+async function shotLabel(locator, fileName) {
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  const box = await locator.boundingBox();
+  if (!box || box.width < 2 || box.height < 2) return;
+  const clip = {
+    x: Math.max(0, box.x - 4),
+    y: Math.max(0, box.y - 4),
+    width: Math.max(2, box.width + 8),
+    height: Math.max(2, box.height + 8),
+  };
+  await page.screenshot({ path: `${artifactDir}/${fileName}`, clip }).catch(() => {});
+}
+
 const falsches = page.locator('.avery-slot.is-filled').filter({ hasText: 'Falsches Filet' }).first();
-const box = await falsches.boundingBox();
-if (box) {
-  await page.screenshot({
-    path: `${artifactDir}/avery-hero-v2-falsches-filet.png`,
-    clip: { x: Math.max(0, box.x - 4), y: Math.max(0, box.y - 4), width: box.width + 8, height: box.height + 8 },
-  });
-}
+await shotLabel(falsches, 'avery-hero-v2-falsches-filet.png');
 const spiesse = page.locator('.avery-slot.is-filled').filter({ hasText: 'Spieße' }).first();
-const sbox = await spiesse.boundingBox();
-if (sbox) {
-  await page.screenshot({
-    path: `${artifactDir}/avery-hero-v2-spiesse.png`,
-    clip: { x: Math.max(0, sbox.x - 4), y: Math.max(0, sbox.y - 4), width: sbox.width + 8, height: sbox.height + 8 },
-  });
-}
+await shotLabel(spiesse, 'avery-hero-v2-spiesse.png');
+const picanha = page.locator('.avery-queue-table').filter({ hasText: 'Picanha' }).first();
+await picanha.scrollIntoViewIfNeeded().catch(() => {});
+await page.screenshot({ path: `${artifactDir}/avery-plaintext-queue.png`, fullPage: false });
 
 // Druck-Button per Delegation (nicht nur Direktaufruf)
 await page.evaluate(() => { window.__printed = false; });

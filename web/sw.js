@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261019-tenant-smtp-v1';
+const CACHE_NAME = 'charculogic-v20261021-avery-plu-plaintext-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Mandanten-SMTP im Dev-Dashboard */
-const RELEASED_AT = '2026-10-19T12:30:00+02:00';
+/** Release – Avery PLU-Katalog + Plain-Text-Einfügen */
+const RELEASED_AT = '2026-10-21T08:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
