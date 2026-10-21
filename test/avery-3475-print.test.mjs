@@ -21,6 +21,7 @@ import {
   matchAveryCatalogEntry,
   parseAveryPlainTextLine,
   parseAveryPlainTextList,
+  splitAveryPlainTextChunks,
   planAverySheet,
   planAverySheets,
   resolveAveryCutId,
@@ -87,6 +88,23 @@ describe('Avery 3475 labels module', () => {
     expect(parsed.totalLabels).to.equal(4 + 2 + 3 + 6 + 1);
     expect(parsed.items.find((i) => i.name === 'Picanha')?.cut).to.equal(null);
     expect(parsed.items.find((i) => i.plu === '514')?.cut?.id).to.equal('rue-514');
+  });
+
+  it('splits Siegelrandbeutel notes on newlines, semicolons and qty-commas', () => {
+    expect(splitAveryPlainTextChunks('Entrecôte 4, Filet 2; Picanha')).to.deep.equal([
+      'Entrecôte 4',
+      'Filet 2',
+      'Picanha',
+    ]);
+    // Komma im Katalognamen bleibt
+    expect(splitAveryPlainTextChunks('Filet, Spitze / Kopf 2')).to.deep.equal([
+      'Filet, Spitze / Kopf 2',
+    ]);
+
+    const oneLine = parseAveryPlainTextList('Entrecôte 4, Filet 2, 514 x3, Picanha');
+    expect(oneLine.matchedCount).to.equal(3);
+    expect(oneLine.customCount).to.equal(1);
+    expect(oneLine.totalLabels).to.equal(4 + 2 + 3 + 1);
   });
 
   it('builds LOT as BRAND-OHR-YYYYMMDD', () => {

@@ -377,11 +377,27 @@ export function parseAveryPlainTextLine(line) {
 }
 
 /**
+ * Zerlegt Siegelrandbeutel-Notizen in Einzelpositionen.
+ * Zeilenumbruch, `;` und Komma nach Menge (`Entrecôte 4, Filet 2`).
+ * Komma in Namen (z. B. „Filet, Spitze / Kopf“) bleibt erhalten.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function splitAveryPlainTextChunks(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .flatMap((line) => String(line || '').split(/\s*;\s*/))
+    .flatMap((line) => String(line || '').split(/(?<=\d)\s*,\s*/))
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+}
+
+/**
  * Mehrzeilige Notiz → erkannte Zeilen + Freifeld-Kandidaten.
  * @param {string} text
  */
 export function parseAveryPlainTextList(text) {
-  const lines = String(text || '').split(/\r?\n/);
+  const lines = splitAveryPlainTextChunks(text);
   /** @type {{ line: string, qty: number, cut: AveryCut|null, name: string, plu: string }[]} */
   const items = [];
   /** @type {string[]} */
@@ -725,7 +741,7 @@ function fillRestWithHack() {
 export function importAveryPlainTextToQueue(text, options = {}) {
   const parsed = parseAveryPlainTextList(text);
   if (!parsed.items.length) {
-    window.showToast?.('Keine Zeilen gefunden. Bitte eine Notiz mit Teilstücken einfügen.', 'warning');
+    window.showToast?.('Keine Positionen gefunden. Bitte die Siegelrandbeutel-Notiz einfügen.', 'warning');
     return parsed;
   }
 
@@ -777,6 +793,50 @@ export function importAveryPlainTextToQueue(text, options = {}) {
     window.showToast?.(`${addedLabels} Etiketten als Freifeld übernommen.`, 'success');
   }
   return { ...parsed, addedLabels };
+}
+
+/** @returns {number} Default-Reife-Tage aus dem Freifeld-Select */
+function readAveryPlainImportDefaultDays() {
+  return Number.parseInt(String(document.getElementById('avery-custom-aging')?.value || '0'), 10) || 0;
+}
+
+/**
+ * Import aus Textarea/Zwischenablage und Feld leeren.
+ * @param {string} text
+ */
+function applyAveryPlainTextImport(text) {
+  const area = document.getElementById('avery-plain-import');
+  const result = importAveryPlainTextToQueue(text, { defaultDays: readAveryPlainImportDefaultDays() });
+  if (result?.items?.length && area instanceof HTMLTextAreaElement) {
+    area.value = '';
+  }
+  return result;
+}
+
+/** Zwischenablage → Druckliste (Laden-PC nach Mail/Notes-Copy). */
+export async function pasteAveryPlainTextFromClipboard() {
+  if (!navigator.clipboard?.readText) {
+    window.showToast?.(
+      'Zwischenablage nicht verfügbar. Bitte die Notiz mit Strg+V ins Feld einfügen.',
+      'warning',
+    );
+    return null;
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!String(text || '').trim()) {
+      window.showToast?.('Zwischenablage ist leer. Bitte zuerst die Notiz kopieren.', 'warning');
+      return null;
+    }
+    return applyAveryPlainTextImport(text);
+  } catch (err) {
+    console.error('[avery] clipboard.readText failed', err);
+    window.showToast?.(
+      'Zwischenablage nicht lesbar. Bitte die Notiz mit Strg+V ins Feld einfügen.',
+      'warning',
+    );
+    return null;
+  }
 }
 
 /**
@@ -1316,6 +1376,18 @@ function bindEvents(root) {
     });
   }
 
+  // Siegelrandbeutel-Notiz: Einfügen (Strg+V) übernimmt sofort auf den Bogen
+  const plainArea = document.getElementById('avery-plain-import');
+  if (plainArea instanceof HTMLTextAreaElement && plainArea.dataset.averyPasteBound !== '1') {
+    plainArea.dataset.averyPasteBound = '1';
+    plainArea.addEventListener('paste', (event) => {
+      const text = event.clipboardData?.getData('text/plain') || '';
+      if (!String(text).trim()) return;
+      event.preventDefault();
+      applyAveryPlainTextImport(text);
+    });
+  }
+
   root.addEventListener('input', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
@@ -1364,13 +1436,14 @@ function bindEvents(root) {
       return;
     }
 
+    if (target.closest('#btn-avery-plain-clipboard')) {
+      void pasteAveryPlainTextFromClipboard();
+      return;
+    }
+
     if (target.closest('#btn-avery-plain-import')) {
       const area = document.getElementById('avery-plain-import');
-      const days = document.getElementById('avery-custom-aging')?.value || '0';
-      const result = importAveryPlainTextToQueue(area?.value || '', { defaultDays: days });
-      if (result?.items?.length && area instanceof HTMLTextAreaElement) {
-        area.value = '';
-      }
+      applyAveryPlainTextImport(area?.value || '');
       return;
     }
 
@@ -1484,6 +1557,33 @@ function buildShellHtml() {
         <p class="avery-desktop-hint">Am Laden-PC mit Laserdrucker: A4, Ränder auf 0, keine Seitenverkleinerung.</p>
       </section>
 
+      <section class="avery-card avery-card--paste" aria-labelledby="avery-plain-title">
+        <div class="avery-plain-import-box avery-plain-import-box--hero">
+          <h3 id="avery-plain-title">Siegelrandbeutel-Notiz einfügen</h3>
+          <p class="avery-plain-import-hint">
+            Beim Verpacken notieren wir die Teilstücke am Laden-iPhone und schicken die Liste an den Laden-PC.
+            Hier reicht Einfügen (Strg+V) oder ein Tippen auf die Zwischenablage – wir legen die Etiketten sofort auf den Bogen.
+          </p>
+          <label class="form-label" for="avery-plain-import">Liste
+            <textarea
+              id="avery-plain-import"
+              class="input-text-touch avery-plain-import"
+              rows="4"
+              placeholder="Entrecôte 4&#10;Filet 2, 514 x3&#10;R II Hack 6&#10;Picanha"
+              autocomplete="off"
+            ></textarea>
+          </label>
+          <div class="avery-plain-import-actions">
+            <button type="button" class="btn btn-primary" id="btn-avery-plain-clipboard">
+              Aus Zwischenablage übernehmen
+            </button>
+            <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-plain-import">
+              Feld übernehmen
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="avery-card" aria-labelledby="avery-catalog-title">
         <div class="avery-card-head">
           <h3 id="avery-catalog-title" class="avery-card-title">Teilstücke nach Baugruppe</h3>
@@ -1504,24 +1604,6 @@ function buildShellHtml() {
             <span id="avery-queue-total" class="avery-queue-total">0 Etiketten</span>
             <button type="button" class="btn btn-secondary btn-compact" id="btn-avery-clear-queue">Liste leeren</button>
           </div>
-        </div>
-        <div class="avery-plain-import-box">
-          <h3>Notiz vom iPhone einfügen</h3>
-          <p class="avery-plain-import-hint">
-            Beim Verpacken notieren wir die Teilstücke (z.&nbsp;B. per Mail an den Laden-PC) und fügen die Liste hier ein – eine Zeile pro Position.
-          </p>
-          <label class="form-label" for="avery-plain-import">Liste
-            <textarea
-              id="avery-plain-import"
-              class="input-text-touch avery-plain-import"
-              rows="5"
-              placeholder="Entrecôte 4&#10;Filet 2&#10;514 x3&#10;R II Hack 6&#10;Picanha"
-              autocomplete="off"
-            ></textarea>
-          </label>
-          <button type="button" class="btn btn-primary btn-compact" id="btn-avery-plain-import">
-            Auf den Bogen übernehmen
-          </button>
         </div>
         <div class="avery-queue-wrap">
           <table class="avery-queue-table">
