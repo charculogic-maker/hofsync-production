@@ -282,6 +282,10 @@ function profileLastActionStorageKey() {
 }
 
 function touchProfileLastActionTime() {
+  // Soft-Lock-Timer mitziehen: Scan/Schreib-Aktivität zählt auch ohne Touch-Event.
+  if (typeof resetEmployeeInactivityTimer === 'function') {
+    try { resetEmployeeInactivityTimer(); } catch (_) { /* noop */ }
+  }
   if (!isProfileEmployeeAuth()) return;
   try {
     localStorage.setItem(profileLastActionStorageKey(), new Date().toISOString());
@@ -1848,8 +1852,9 @@ function selectEmployeeFromPicker(name) {
   if (!cleanName) return;
   persistActiveEmployeeSession(cleanName);
   // PROD.-Tab sofort an Mitarbeiter-RBAC koppeln (kein Warten auf async Listener).
+  // Aktuellen Tab (z. B. Neu/Wareneingang) nur verlassen, wenn er danach unzulässig ist.
   applyModuleVisibility(window.BRANDING || {});
-  ensureActiveTabAllowed({ force: true });
+  ensureActiveTabAllowed();
   window.showToast?.(`Angemeldet als ${cleanName}`, 'success');
   closeEmployeePickerModal({ force: true, pickedName: cleanName });
 }
@@ -1938,6 +1943,10 @@ function openEmployeePickerModal(options = {}) {
 
 function clearActiveEmployeeForSoftLock() {
   try {
+    // Kamera nicht weiterlaufen lassen, wenn die Sitzung gesperrt wird.
+    closeScanner();
+  } catch (_) { /* noop */ }
+  try {
     localStorage.removeItem(activeEmployeeStorageKey());
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (_) { /* noop */ }
@@ -1948,8 +1957,9 @@ function clearActiveEmployeeForSoftLock() {
   }));
   updateEmployeeSessionBadge('');
   // Sicherer Fallback: PROD. ausblenden, bis wieder jemand mit Rechten gewählt wird.
+  // Tab nur wechseln, wenn der aktuelle (z. B. Neu/Wareneingang) danach unzulässig ist.
   applyModuleVisibility(window.BRANDING || {});
-  ensureActiveTabAllowed({ force: true });
+  ensureActiveTabAllowed();
 }
 
 let employeeInactivityTimerId = null;
@@ -1958,6 +1968,11 @@ let employeeInactivityTrackerBound = false;
 function handleEmployeeInactivityTimeout() {
   employeeInactivityTimerId = null;
   if (isFirebaseRoleAuth()) return;
+  // Serien-Scan am Kamerabildschirm: oft ohne Touch → kein Soft-Lock-Sprung nach MHD.
+  if (typeof isScannerOverlayOpen === 'function' && isScannerOverlayOpen()) {
+    resetEmployeeInactivityTimer();
+    return;
+  }
   clearActiveEmployeeForSoftLock();
   updateEmployeeSessionBadge('');
   void openEmployeePickerModal({ mandatory: true });
@@ -2921,6 +2936,10 @@ function resolveMobileOpsFallbackTab(branding = window.BRANDING || {}) {
  * Route-Guard: liegt der aktuelle Tab außerhalb der freigeschalteten Module,
  * auf den ersten erlaubten Bottom-Nav-Tab umleiten.
  * Kein automatischer Tab-Wechsel solange der aktuelle Tab erlaubt ist.
+ *
+ * `force: true` nur für bewussten Start-Tab (showPreferredStartTab / showInitialTab).
+ * Soft-Lock und Mitarbeiterwechsel müssen OHNE force prüfen — sonst springt
+ * z. B. Neu/Wareneingang inkl. Kamerascan still auf MHD.
  */
 function ensureActiveTabAllowed({ force = false } = {}) {
   if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) {
@@ -4289,8 +4308,9 @@ window.addEventListener('charculogic:active-employee-changed', (event) => {
   const employeeName = event.detail?.employeeName || readActiveEmployee();
   updateEmployeeSessionBadge(employeeName);
   // Mitarbeiterwechsel → PROD.-Tab synchron an RBAC anpassen.
+  // Kein erzwungener Sprung auf MHD, solange z. B. Neu/Wareneingang erlaubt bleibt.
   applyModuleVisibility(window.BRANDING || {});
-  ensureActiveTabAllowed({ force: true });
+  ensureActiveTabAllowed();
   if (isProfileEmployeeAuth() && isNamedProfileSession(employeeName)) {
     touchProfileLastActionTime();
     applyRoleBasedUi(getAuthContext());
