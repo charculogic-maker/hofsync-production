@@ -102,7 +102,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for scan-idle soft-lock fix', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-module-nav-zero-flicker-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-order-slip-save-feedback-v1'");
 
   });
 

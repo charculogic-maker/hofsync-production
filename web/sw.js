@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261022-module-nav-zero-flicker-v1';
+const CACHE_NAME = 'charculogic-v20261022-order-slip-save-feedback-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Modul-Nav Zero-Flicker (kein FOUC aller Tabs vor enabledModules) */
-const RELEASED_AT = '2026-10-22T08:00:00+02:00';
+/** Release – Bestellung mit Foto: sichtbares Speichern-Feedback */
+const RELEASED_AT = '2026-10-22T10:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

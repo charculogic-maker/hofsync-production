@@ -210,6 +210,8 @@ Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir 
 
 Wenn das Modul **Packtisch / Kundenbestellungen** freigeschaltet ist, sehen wir am Laden-iPhone unter **Packtisch** einen **Abhol-Kalender** (zwei Wochen oder Monat). Pro Tag steht die Anzahl offener Bestellungen; mit Tippen auf den Tag öffnen wir die Liste für diesen Abholtag.
 
+Beim Aufnehmen mit Bestellzettel-Foto zeigt unsere App während des Hochladens **Zettel wird hochgeladen…** und danach eine klare Erfolgsmeldung – auch wenn das Speichern etwas dauert.
+
 1. Unter **Packtisch** den gewünschten Abholtag im Kalender wählen – oder im Bürobereich die **Sammel-Pickliste für heute** öffnen.
 2. Unsere App fasst gleiche Artikel aus allen offenen Bestellungen zusammen, zum Beispiel `12 Glas Fleischsalat`.
 3. Wir holen die Artikel nach Bereich, etwa **Wurstküche**, **Molkereiprodukte** oder **Hofladen-Spezialitäten**.

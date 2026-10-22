@@ -9706,6 +9706,16 @@ body.dev-dashboard-view .app-version-badge--footer {
   min-height: 64px;
 }
 
+.order-save-status {
+  min-height: 1.2em;
+  margin: 4px 0 0;
+}
+
+.order-save-status.is-busy {
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
 .customer-order-list {
   display: flex;
   flex-direction: column;

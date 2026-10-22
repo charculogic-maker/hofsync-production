@@ -146,7 +146,7 @@ Alle Balken und Filter sind groß genug für die Bedienung am Laden-iPhone.
 
 ## 7. Kundenbestellungen und Sammel-Pickliste
 
-Wenn **Packtisch** freigeschaltet ist, zeigt unsere App unter **Packtisch** einen **Abhol-Kalender** (zwei Wochen oder ganzer Monat). Pro Tag sehen wir, wie viele Bestellungen anstehen; mit Tippen auf den Tag öffnen wir die einzelnen Bestellungen. Für das tägliche Zusammenstellen bleibt zusätzlich die **Sammel-Pickliste für heute** im Bürobereich vorbereitet.
+Wenn **Packtisch** freigeschaltet ist, zeigt unsere App unter **Packtisch** einen **Abhol-Kalender** (zwei Wochen oder ganzer Monat). Pro Tag sehen wir, wie viele Bestellungen anstehen; mit Tippen auf den Tag öffnen wir die einzelnen Bestellungen. Beim Speichern mit Bestellzettel-Foto erscheint **Zettel wird hochgeladen…** und danach eine Erfolgsmeldung. Für das tägliche Zusammenstellen bleibt zusätzlich die **Sammel-Pickliste für heute** im Bürobereich vorbereitet.
 
 Unter **Produktions-Aufträge** sehen wir zwei kompakte Listen: **Heute zu kochen (Küche)** und **Heute zu zerlegen/packen (Metzgerei)**. Unsere App zeigt dort nur die zusammengefassten Mengen, die für Küche oder Metzgerei aus offenen Bestellungen entstehen. Bei Wiegeartikeln tragen wir den **Waagen-Wert** ein. Fertige Posten haken wir als **Fertig für den Laden** ab.
 
