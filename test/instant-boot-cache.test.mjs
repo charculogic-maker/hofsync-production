@@ -45,7 +45,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for module-nav zero-flicker release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-module-nav-zero-flicker-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-order-slip-save-feedback-v1'");
     expect(swJs).to.match(/isStandaloneHtmlDoc/);
   });
 

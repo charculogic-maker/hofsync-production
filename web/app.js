@@ -2492,9 +2492,10 @@ export {
 // GLOBALE UI-HILFSFUNKTIONEN (vor allen Modulen und IIFEs definiert)
 // ============================================================================
 
-function showToast(message, type = "success") {
+function showToast(message, type = "success", durationMs = 3000) {
   if (isPrematureFirebaseConfigToast(message)) return;
   const toastType = ['success', 'warning', 'error'].includes(type) ? type : 'success';
+  const holdMs = Number.isFinite(Number(durationMs)) ? Math.max(1200, Number(durationMs)) : 3000;
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -2513,7 +2514,7 @@ function showToast(message, type = "success") {
     toast.classList.add('toast-hiding');
     toast.addEventListener('transitionend', () => toast.remove(), { once: true });
     setTimeout(() => toast.remove(), 500);
-  }, 3000);
+  }, holdMs);
 }
 window.showToast = showToast;
 

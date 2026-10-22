@@ -263,6 +263,25 @@ function resetOrderForm() {
   if (readyTime) readyTime.value = defaultReadyTimeLocal();
 }
 
+function setOrderSaveStatus(message = '') {
+  const status = document.getElementById('order-save-status');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('is-busy', Boolean(message));
+}
+
+function setOrderSaveBusy(busy, labelWhenBusy = 'Wird gespeichert…') {
+  const btn = document.getElementById('order-save-btn')
+    || document.querySelector('#customer-order-form button[type="submit"]');
+  if (!btn) return;
+  if (!btn.dataset.defaultLabel) {
+    btn.dataset.defaultLabel = btn.textContent.trim() || 'Bestellung speichern';
+  }
+  btn.disabled = Boolean(busy);
+  btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+  btn.textContent = busy ? labelWhenBusy : btn.dataset.defaultLabel;
+}
+
 function collectWishTags() {
   return Array.from(document.querySelectorAll('input[name="order-wish-tag"]:checked'))
     .map((el) => el.value)
@@ -1382,40 +1401,52 @@ async function createOrderFromForm() {
   const firebase = orderState.getFirebase();
   const additionalWishes = buildAdditionalWishesText();
   const inputMode = hasSlips ? 'slip_scan' : 'manual';
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
 
-  let orderSlipAttachments = [];
-  if (hasSlips) {
-    try {
+  orderState.createInFlight = true;
+  setOrderSaveBusy(true, hasSlips ? 'Zettel wird hochgeladen…' : 'Wird gespeichert…');
+  setOrderSaveStatus(hasSlips
+    ? 'Bestellzettel wird hochgeladen – bitte kurz warten…'
+    : 'Bestellung wird gespeichert…');
+
+  try {
+    let orderSlipAttachments = [];
+    if (hasSlips) {
+      window.showToast?.(
+        'Bestellzettel wird hochgeladen – bitte kurz warten…',
+        'warning',
+        5000,
+      );
       for (const slip of orderState.pendingSlips) {
         if (!slip.file) continue;
         orderSlipAttachments.push(await uploadOrderSlipFile(slip.file, orderId));
       }
-    } catch (err) {
-      console.error('[CustomerOrders] Zettel-Upload fehlgeschlagen:', err);
-      window.showToast?.('Bestellzettel konnte nicht hochgeladen werden.', 'error');
-      return;
+      if (!orderSlipAttachments.length) {
+        throw new Error('Bestellzettel fehlt nach dem Upload.');
+      }
+      setOrderSaveBusy(true, 'Wird gespeichert…');
+      setOrderSaveStatus('Zettel ist hochgeladen – Bestellung wird gespeichert…');
     }
-  }
 
-  const payload = {
-    customerName,
-    readyAt,
-    items,
-    inputMode,
-    acceptedBy: employee,
-    employeeName: employee,
-    acceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    status: 'open',
-    tenantId: orderState.tenantId,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-  };
-  if (callbackPhone) payload.callbackPhone = callbackPhone;
-  if (customerEmail) payload.customerEmail = customerEmail;
-  if (additionalWishes) payload.additionalWishes = additionalWishes;
-  if (orderSlipAttachments.length) payload.orderSlipAttachments = orderSlipAttachments;
+    const payload = {
+      customerName,
+      readyAt,
+      items,
+      inputMode,
+      acceptedBy: employee,
+      employeeName: employee,
+      acceptedAt: serverTimestamp,
+      status: 'open',
+      tenantId: orderState.tenantId,
+      createdAt: serverTimestamp,
+    };
+    if (callbackPhone) payload.callbackPhone = callbackPhone;
+    if (customerEmail) payload.customerEmail = customerEmail;
+    if (additionalWishes) payload.additionalWishes = additionalWishes;
+    if (orderSlipAttachments.length) payload.orderSlipAttachments = orderSlipAttachments;
 
-  try {
-    orderState.createInFlight = true;
     const result = await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
@@ -1429,17 +1460,28 @@ async function createOrderFromForm() {
       offlineMessage: 'Bestellung wird synchronisiert, sobald WLAN verfügbar ist.',
     });
     resetOrderForm();
+    const successMessage = result === 'queued'
+      ? 'Bestellung wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
+      : (hasSlips
+        ? 'Kundenbestellung mit Bestellzettel gespeichert.'
+        : 'Kundenbestellung gespeichert.');
+    setOrderSaveStatus(successMessage);
     window.showToast?.(
-      result === 'queued'
-        ? 'Bestellung wird automatisch synchronisiert, sobald WLAN verfügbar ist.'
-        : 'Kundenbestellung gespeichert.',
-      result === 'queued' ? 'warning' : 'success'
+      successMessage,
+      result === 'queued' ? 'warning' : 'success',
+      hasSlips ? 5200 : 3000,
     );
   } catch (err) {
     console.error('[CustomerOrders] Speichern fehlgeschlagen:', err);
-    window.showToast?.('Bestellung konnte nicht gespeichert werden.', 'error');
+    const uploadFailed = /Bestellzettel|Zettel|Storage|upload/i.test(String(err?.message || ''));
+    const errorMessage = uploadFailed
+      ? 'Bestellzettel konnte nicht hochgeladen werden. Bitte erneut versuchen.'
+      : 'Bestellung konnte nicht gespeichert werden.';
+    setOrderSaveStatus(errorMessage);
+    window.showToast?.(errorMessage, 'error', 4500);
   } finally {
     orderState.createInFlight = false;
+    setOrderSaveBusy(false);
   }
 }
 
