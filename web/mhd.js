@@ -1306,7 +1306,21 @@ async function saveAllPendingMhdChanges() {
         });
       }
     }
+    // Optimistic: gespeicherte Felder in Cache-Listen halten, bis der Snapshot nachzieht.
+    for (const [id, updates] of entries) {
+      const localPatch = { ...updates };
+      delete localPatch._qtyFrom;
+      const applyOptimistic = (list) => {
+        if (!Array.isArray(list)) return;
+        const idx = list.findIndex((entry) => entry.id === id);
+        if (idx >= 0) list[idx] = { ...list[idx], ...localPatch };
+      };
+      applyOptimistic(mhdState.products);
+      applyOptimistic(mhdState.inStockProducts);
+      applyOptimistic(mhdState.zeroProducts);
+    }
     clearMhdPendingChanges();
+    renderMhdList();
     // #region agent log
     const postSaveChecked = entries.map(([id]) => {
       const prod = mhdState.products.find((entry) => entry.id === id);
@@ -1316,11 +1330,12 @@ async function saveAllPendingMhdChanges() {
         lastCheckedDate: prod?.lastCheckedDate || null,
       };
     });
-    mhdAgentDebugLog('C', 'mhd.js:saveAllPendingMhdChanges', 'cleared-pending-no-render', {
+    mhdAgentDebugLog('C', 'mhd.js:saveAllPendingMhdChanges', 'cleared-pending-with-render', {
       savedCount: entries.length,
       productsStillHaveCheckStamp: postSaveChecked.filter((row) => row.hasLastCheckedDate).length,
       sample: postSaveChecked[0] || null,
-      willCallRender: false,
+      willCallRender: true,
+      runId: 'post-fix',
     });
     // #endregion
     mhdState.playClickSound(900, 0.1, 0.2);
@@ -4287,7 +4302,11 @@ function buildMhdListRenderKey(products = []) {
     const qty = mhdItemQuantity(prod);
     const mhd = String(prod?.mhd || prod?.mhdDate || prod?.expiryDate || '');
     const status = String(prod?.status || '');
-    return `${prod?.id || ''}:${qty}:${mhd}:${status}`;
+    // Completion/action must participate — otherwise exit-animation cards
+    // (mhd-card--leaving, pointer-events:none) can stick when qty/mhd/status are unchanged.
+    const checked = String(prod?.lastCheckedDate || prod?.lastMhdCheckDate || '');
+    const action = String(prod?.mhdActionStatus || '');
+    return `${prod?.id || ''}:${qty}:${mhd}:${status}:${checked}:${action}`;
   }).join('|');
 }
 
@@ -4318,12 +4337,12 @@ function mergeMhdLiveProducts() {
       lastCheckedDate: prod?.lastCheckedDate || null,
     };
   });
-  if (!mhdState.showZeroQty) {
-    mhdState.products = inStock;
-  } else {
-    const zeros = Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : [];
-    mhdState.products = mergeMhdDocsById(inStock, zeros);
-  }
+  const cloudProducts = !mhdState.showZeroQty
+    ? inStock
+    : mergeMhdDocsById(inStock, Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : []);
+  // Lokale Entwürfe (pendingChanges) haben Vorrang vor jedem Live-Snapshot —
+  // sonst werden lastCheckedDate / mhdActionStatus bei onSnapshot verworfen.
+  mhdState.products = mergeCloudProductsWithPendingChanges(cloudProducts);
   const afterByPending = pendingIds.map((id) => {
     const prod = (mhdState.products || []).find((entry) => entry.id === id);
     return {
@@ -4339,10 +4358,11 @@ function mergeMhdLiveProducts() {
     pendingCount: pendingIds.length,
     inStockCount: inStock.length,
     productCount: Array.isArray(mhdState.products) ? mhdState.products.length : 0,
-    usedPendingMerge: false,
+    usedPendingMerge: pendingIds.length > 0,
     wipedPendingLocalFields: wiped.length,
     wipedSample: wiped[0] || null,
     afterSample: afterByPending[0] || null,
+    runId: 'post-fix',
   });
   // #endregion
   return mhdState.products;
@@ -5330,15 +5350,18 @@ function renderMhdList() {
   // Hintergrund-Sync: Liste nicht sprunghaft neu zusammensetzen, wenn Inhalt unverändert.
   if (container.dataset.mhdRenderMode === 'list' && container.dataset.mhdRenderKey === renderKey) {
     const leavingCount = container.querySelectorAll?.('.mhd-card--leaving')?.length || 0;
-    const keyOmitsCompletion = !String(renderKey).includes('lastChecked') && !/:checked:|:action:/.test(String(renderKey));
+    const firstSegParts = String(renderKey).split('|')[0]?.split(':') || [];
+    // Fixed key shape: id:qty:mhd:status:checked:action (≥6 segments)
+    const keyHasCompletionSlots = firstSegParts.length >= 6;
     // #region agent log
     mhdAgentDebugLog('D', 'mhd.js:renderMhdList', 'render-skipped-same-key', {
       productCount: renderedProducts.length,
       leavingCount,
-      keyOmitsCompletionFields: keyOmitsCompletion,
+      keyOmitsCompletionFields: !keyHasCompletionSlots,
       sampleKey: String(renderKey).slice(0, 120),
       pendingCount: getMhdPendingChangeCount(),
       completionFilter: mhdState.completionFilter,
+      runId: 'post-fix',
     });
     // #endregion
     updateMhdStickySaveBar();
