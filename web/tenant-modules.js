@@ -78,8 +78,11 @@ export const ENABLED_MODULE_TO_BRANDING = {
 
 const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
 
-/** Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot. */
-export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules';
+/**
+ * Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot.
+ * v2: invalidiert Caches, die vor dem FOUC-Fix aus Branding-Defaults geschrieben wurden.
+ */
+export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules.v2';
 
 /** Soft-Lock Speicherschlüssel (Session-Mitarbeiter, unscoped Mirror). */
 export const ACTIVE_EMPLOYEE_SOFT_LOCK_KEY = 'charculogic.activeEmployee';

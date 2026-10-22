@@ -20,9 +20,9 @@ describe('Instant-Boot Cache-First', () => {
     expect(appJs).to.match(/function applyModuleVisibilityIfChanged/);
     expect(appJs).to.match(/scheduleBootCachedModuleVisibility/);
     expect(appJs).to.match(/DOMContentLoaded/);
-    expect(tenantModulesJs).to.match(/LAST_EFFECTIVE_MODULES_KEY\s*=\s*'charculogic\.lastEffectiveModules'/);
+    expect(tenantModulesJs).to.match(/LAST_EFFECTIVE_MODULES_KEY\s*=\s*'charculogic\.lastEffectiveModules\.v2'/);
     expect(tenantModulesJs).to.match(/export function publishEffectiveModules/);
-    expect(indexHtml).to.match(/charculogic\.lastEffectiveModules/);
+    expect(indexHtml).to.match(/charculogic\.lastEffectiveModules\.v2/);
     expect(indexHtml).to.match(/bootCachedNavModules/);
   });
 
