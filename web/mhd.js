@@ -1257,7 +1257,21 @@ async function saveAllPendingMhdChanges() {
         });
       }
     }
+    // Optimistic: gespeicherte Felder in Cache-Listen halten, bis der Snapshot nachzieht.
+    for (const [id, updates] of entries) {
+      const localPatch = { ...updates };
+      delete localPatch._qtyFrom;
+      const applyOptimistic = (list) => {
+        if (!Array.isArray(list)) return;
+        const idx = list.findIndex((entry) => entry.id === id);
+        if (idx >= 0) list[idx] = { ...list[idx], ...localPatch };
+      };
+      applyOptimistic(mhdState.products);
+      applyOptimistic(mhdState.inStockProducts);
+      applyOptimistic(mhdState.zeroProducts);
+    }
     clearMhdPendingChanges();
+    renderMhdList();
     mhdState.playClickSound(900, 0.1, 0.2);
     window.showToast?.('Änderungen gespeichert', 'success');
     updateMhdCompletionToggle();
@@ -4222,7 +4236,11 @@ function buildMhdListRenderKey(products = []) {
     const qty = mhdItemQuantity(prod);
     const mhd = String(prod?.mhd || prod?.mhdDate || prod?.expiryDate || '');
     const status = String(prod?.status || '');
-    return `${prod?.id || ''}:${qty}:${mhd}:${status}`;
+    // Completion/action must participate — otherwise exit-animation cards
+    // (mhd-card--leaving, pointer-events:none) can stick when qty/mhd/status are unchanged.
+    const checked = String(prod?.lastCheckedDate || prod?.lastMhdCheckDate || '');
+    const action = String(prod?.mhdActionStatus || '');
+    return `${prod?.id || ''}:${qty}:${mhd}:${status}:${checked}:${action}`;
   }).join('|');
 }
 
@@ -4244,12 +4262,12 @@ function mergeMhdDocsById(...docLists) {
 
 function mergeMhdLiveProducts() {
   const inStock = Array.isArray(mhdState.inStockProducts) ? mhdState.inStockProducts : [];
-  if (!mhdState.showZeroQty) {
-    mhdState.products = inStock;
-    return mhdState.products;
-  }
-  const zeros = Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : [];
-  mhdState.products = mergeMhdDocsById(inStock, zeros);
+  const cloudProducts = !mhdState.showZeroQty
+    ? inStock
+    : mergeMhdDocsById(inStock, Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : []);
+  // Lokale Entwürfe (pendingChanges) haben Vorrang vor jedem Live-Snapshot —
+  // sonst werden lastCheckedDate / mhdActionStatus bei onSnapshot verworfen.
+  mhdState.products = mergeCloudProductsWithPendingChanges(cloudProducts);
   return mhdState.products;
 }
 
