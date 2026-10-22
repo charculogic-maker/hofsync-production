@@ -185,7 +185,7 @@ const haccpState = {
   cleaningDoneBy: '',
   /** @type {Set<string>} */
   pendingCleaningTaskIds: new Set(),
-  /** @type {Record<string, { value: number|null, note: string }>} */
+  /** @type {Record<string, { value: number|null, note: string, draft: string }>} */
   roundEntries: {},
   devicesUnsubscribe: null,
   cleaningTasksUnsubscribe: null,
@@ -533,9 +533,41 @@ function manualTemperatureDevices({ includeRestDays = false } = {}) {
 
 function ensureRoundEntry(deviceId) {
   if (!haccpState.roundEntries[deviceId]) {
-    haccpState.roundEntries[deviceId] = { value: null, note: '' };
+    haccpState.roundEntries[deviceId] = { value: null, note: '', draft: '' };
+  } else if (typeof haccpState.roundEntries[deviceId].draft !== 'string') {
+    haccpState.roundEntries[deviceId].draft = '';
   }
   return haccpState.roundEntries[deviceId];
+}
+
+/**
+ * Parst Temperatureingaben inkl. führendem Minus und Komma als Dezimaltrenner.
+ * Unvollständige Eingaben wie "-" oder "-," bleiben als Draft erhalten.
+ * @param {unknown} raw
+ * @returns {{ value: number|null, draft: string, complete: boolean }}
+ */
+export function parseTempInput(raw) {
+  const draft = String(raw ?? '').trim().replace(/\s+/g, '');
+  if (!draft) return { value: null, draft: '', complete: true };
+
+  const normalized = draft.replace(',', '.');
+  // Erlaubt Zwischenstände: "-", "-.", ".", "-0.", "0,"
+  if (/^-?\.?$/.test(normalized) || /^-?\d+[.,]$/.test(draft) || /^-?\d*\.$/.test(normalized)) {
+    return { value: null, draft, complete: false };
+  }
+
+  if (!/^-?\d+([.,]\d+)?$/.test(draft)) {
+    return { value: null, draft, complete: false };
+  }
+
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) return { value: null, draft, complete: false };
+  return { value: numeric, draft, complete: true };
+}
+
+export function formatTempInput(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '';
+  return String(Number(value));
 }
 
 function temperatureRoundLogDocId(dateKey = localDateKey()) {
@@ -880,10 +912,34 @@ function setRoundTempValue(deviceId, rawValue) {
   const entry = ensureRoundEntry(deviceId);
   if (rawValue === '' || rawValue == null) {
     entry.value = null;
-  } else {
-    const numeric = Number(rawValue);
-    entry.value = Number.isFinite(numeric) ? numeric : null;
+    entry.draft = '';
+    return;
   }
+  // Numerische Setter (Stepper/Presets) direkt übernehmen
+  if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+    entry.value = rawValue;
+    entry.draft = formatTempInput(rawValue);
+    return;
+  }
+  const parsed = parseTempInput(rawValue);
+  entry.draft = parsed.draft;
+  entry.value = parsed.complete ? parsed.value : null;
+}
+
+function toggleRoundTempSign(deviceId) {
+  const entry = ensureRoundEntry(deviceId);
+  const source = entry.draft !== '' && entry.draft != null
+    ? entry.draft
+    : formatTempInput(entry.value);
+  if (!source) {
+    entry.draft = '-';
+    entry.value = null;
+    renderHaccpDaily();
+    return;
+  }
+  const nextDraft = source.startsWith('-') ? source.slice(1) : `-${source}`;
+  setRoundTempValue(deviceId, nextDraft || '');
+  renderHaccpDaily();
 }
 
 function stepRoundTemp(deviceId, delta) {
@@ -893,6 +949,7 @@ function stepRoundTemp(deviceId, delta) {
   const current = Number.isFinite(Number(entry.value)) ? Number(entry.value) : defaultStepperValue(device);
   const next = Math.round((current + Number(delta)) * 2) / 2;
   entry.value = next;
+  entry.draft = formatTempInput(next);
   renderHaccpDaily();
 }
 
@@ -1261,6 +1318,9 @@ function renderManualDeviceCard(device, { locked = false } = {}) {
   const value = completion
     ? (completion.value != null ? completion.value : completion.wert)
     : entry.value;
+  const displayValue = completion
+    ? formatTempInput(value)
+    : (entry.draft !== '' ? entry.draft : formatTempInput(value));
   const hasValue = value != null && value !== '' && Number.isFinite(Number(value));
   const inRange = hasValue ? tempInRange(device, value) : null;
   const done = Boolean(completion);
@@ -1281,17 +1341,20 @@ function renderManualDeviceCard(device, { locked = false } = {}) {
         <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="-0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad weniger">−</button>
         <input
           id="temp-${safeDomId(device.id)}"
-          type="number"
+          type="text"
           inputmode="decimal"
+          enterkeyhint="done"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
           class="input-text-touch haccp-temp-input"
-          step="0.5"
-          min="-40"
-          max="40"
-          placeholder="°C"
+          placeholder="z. B. -18"
+          aria-label="Temperatur in Grad Celsius, Minus erlaubt"
           data-haccp-temp-input="${escapeHtml(device.id)}"
-          value="${hasValue ? escapeHtml(value) : ''}"
+          value="${escapeHtml(displayValue)}"
           ${disabled ? 'disabled' : ''}>
         <button type="button" class="btn haccp-stepper-btn" data-haccp-step="${escapeHtml(device.id)}" data-haccp-step-delta="0.5" ${disabled ? 'disabled' : ''} aria-label="0,5 Grad mehr">+</button>
+        <button type="button" class="btn haccp-stepper-btn haccp-sign-btn" data-haccp-toggle-sign="${escapeHtml(device.id)}" ${disabled ? 'disabled' : ''} aria-label="Vorzeichen umschalten (Plus/Minus)">±</button>
       </div>
       ${presets.length && !disabled ? `
         <div class="haccp-preset-row" role="group" aria-label="Schnellwerte">
@@ -1412,8 +1475,9 @@ function updateHaccpTemperatureAmpel(deviceId) {
     || input?.closest('.haccp-task-card');
   if (!device || !input) return;
   setRoundTempValue(deviceId, input.value);
-  const hasValue = input.value !== '' && Number.isFinite(Number(input.value));
-  const inRange = hasValue ? tempInRange(device, input.value) : null;
+  const entry = ensureRoundEntry(deviceId);
+  const hasValue = entry.value != null && Number.isFinite(Number(entry.value));
+  const inRange = hasValue ? tempInRange(device, entry.value) : null;
   input.classList.toggle('haccp-input--warn', inRange === false);
   input.classList.toggle('haccp-input--ok', inRange === true);
   if (card) {
@@ -1463,6 +1527,11 @@ function bindStaticHaccpControls() {
         stepRoundTemp(stepBtn.dataset.haccpStep, Number(stepBtn.dataset.haccpStepDelta || 0));
         return;
       }
+      const signBtn = event.target.closest('[data-haccp-toggle-sign]');
+      if (signBtn?.dataset.haccpToggleSign) {
+        toggleRoundTempSign(signBtn.dataset.haccpToggleSign);
+        return;
+      }
       const presetBtn = event.target.closest('[data-haccp-preset]');
       if (presetBtn?.dataset.haccpPreset) {
         setRoundTempValue(presetBtn.dataset.haccpPreset, Number(presetBtn.dataset.haccpPresetValue));
@@ -1478,8 +1547,8 @@ function bindStaticHaccpControls() {
     dailyContainer.addEventListener('change', (event) => {
       const input = event.target.closest('[data-haccp-temp-input]');
       if (input?.dataset.haccpTempInput) {
+        // Nur Ampel/Save-Button aktualisieren – kein Full-Rerender (sonst weg Fokus/Minus-Draft).
         updateHaccpTemperatureAmpel(input.dataset.haccpTempInput);
-        renderHaccpDaily();
       }
     });
   }

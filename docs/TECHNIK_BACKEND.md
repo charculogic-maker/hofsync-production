@@ -107,7 +107,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `rezepte/{id}` | Rezepturen (Betriebswissen) | nur Admin |
 | `produktion_chargen/{id}` | Produktions-/Chargen-Doku | create: Nutzer; update/delete: Admin |
 | `haccp_geraete/{id}` | HACCP-Geräte/Messpunkte | nur Admin |
-| `haccp_logs/{id}` | HACCP-Protokolle | create: Nutzer; **update/delete: gesperrt** (unveränderlich) |
+| `haccp_logs/{id}` | HACCP-Protokolle | create: Mandanten-Mitglied (admin/employee/helper); optionale Zahlenfelder; **update/delete: gesperrt** (unveränderlich) |
 | `haccp_stale_archive/{id}` | Cold-Storage abgewiesener Protokolle | create: Nutzer; update/delete: Admin |
 | `tasks/{taskId}` | Aufgaben & Team-Infos | create: Nutzer; update: Admin **oder** reines Abhaken; delete: Admin |
 | `customerOrders/{orderId}` | Kundenbestellungen | create: Nutzer; update: Admin **oder** Status-Übergang; delete: Admin |

@@ -7,6 +7,7 @@ import {
   buildStevesHofHaccpPayload,
   haccpDeviceDocId,
 } from '../tools/seed-steveshof-haccp.mjs';
+import { formatTempInput, parseTempInput } from '../web/haccp.js';
 
 function isDeviceRequiredToday(device, day) {
   if (!device?.isActive) return false;
@@ -73,5 +74,34 @@ describe('StevesHof HACCP seed (Laden & Lager)', () => {
     expect(tempInRange(device, 4)).to.equal(true);
     expect(tempInRange(device, 5)).to.equal(false);
     expect(tempInRange(device, -1)).to.equal(false);
+  });
+
+  it('Ampel: TK-Bereich mit negativen Temperaturen', () => {
+    const device = { tempMin: -24, tempMax: -18 };
+    expect(tempInRange(device, -21)).to.equal(true);
+    expect(tempInRange(device, -18)).to.equal(true);
+    expect(tempInRange(device, -24)).to.equal(true);
+    expect(tempInRange(device, -17)).to.equal(false);
+    expect(tempInRange(device, 0)).to.equal(false);
+  });
+});
+
+describe('HACCP Temperatur-Eingabe (Minuszeichen)', () => {
+  it('parst führendes Minus und Komma', () => {
+    expect(parseTempInput('-18')).to.deep.equal({ value: -18, draft: '-18', complete: true });
+    expect(parseTempInput('-18,5')).to.deep.equal({ value: -18.5, draft: '-18,5', complete: true });
+    expect(parseTempInput('3,5')).to.deep.equal({ value: 3.5, draft: '3,5', complete: true });
+  });
+
+  it('behält unvollständiges Minus als Draft', () => {
+    expect(parseTempInput('-')).to.deep.equal({ value: null, draft: '-', complete: false });
+    expect(parseTempInput('-.')).to.deep.equal({ value: null, draft: '-.', complete: false });
+    expect(parseTempInput('')).to.deep.equal({ value: null, draft: '', complete: true });
+  });
+
+  it('formatiert gespeicherte Werte ohne Locale-Fallen', () => {
+    expect(formatTempInput(-18)).to.equal('-18');
+    expect(formatTempInput(-18.5)).to.equal('-18.5');
+    expect(formatTempInput(null)).to.equal('');
   });
 });

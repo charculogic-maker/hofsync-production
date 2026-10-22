@@ -31,7 +31,7 @@ Umschalter:
 
 Der Rundgang lädt die Messpunkte aus dem Mandanten (`haccp_geraete`) – nur Laden & Lager (kein Obergeschoss):
 
-1. **Laden & Lager** – je Kühlstelle Sollbereich, Schnellwerte und ±0,5-°C-Stepper. Grün = im Soll, Rot = außerhalb.
+1. **Laden & Lager** – je Kühlstelle Sollbereich, Schnellwerte und ±0,5-°C-Stepper. Minuswerte (z. B. TK) tippen wir mit führendem `-` oder über den **±**-Button. Grün = im Soll, Rot = außerhalb.
 2. **Ruhetage** – Geräte mit aktiven Wochentagen (z. B. Fleischtheke nur Do–Sa) bleiben an Ruhetagen **ausgeblendet** und brauchen keinen Messwert.
 3. **RUNDGANG ABSPEICHERN & PROTOKOLLIEREN** – erst aktiv, wenn alle heute sichtbaren Stellen erfasst sind. Speichert unveränderlich in `haccp_logs` inkl. Bearbeiter.
 
