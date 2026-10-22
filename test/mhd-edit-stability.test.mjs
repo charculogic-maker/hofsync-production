@@ -1,6 +1,5 @@
 /**
  * MHD edit/list stability: pending merge on live sync, renderKey, post-save render.
- * Source-contract + shell repro driver (no Firebase).
  */
 import { expect } from 'chai';
 import fs from 'node:fs';
@@ -16,6 +15,8 @@ describe('MHD Edit/List Stability', () => {
     expect(mhd).to.match(/function mergeMhdLiveProducts\([\s\S]*?mergeCloudProductsWithPendingChanges\(cloudProducts\)/);
     expect(mhd).to.match(/function buildMhdListRenderKey\([\s\S]*?lastCheckedDate[\s\S]*?mhdActionStatus/);
     expect(mhd).to.match(/clearMhdPendingChanges\(\);\s*\n\s*renderMhdList\(\);/);
+    expect(mhd).to.not.include('mhdAgentDebugLog');
+    expect(mhd).to.not.include('#region agent log');
   });
 
   it('shell-repro bestätigt Fix-Signale (kein Wipe, Completion im RenderKey, post-save Render)', () => {
@@ -24,23 +25,13 @@ describe('MHD Edit/List Stability', () => {
     const run = spawnSync(process.execPath, [repro], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, MHD_DEBUG_RUN_ID: 'mocha-post-fix' },
     });
     expect(run.status, run.stderr || run.stdout).to.equal(0);
-    const logPath = '/opt/cursor/logs/debug.log';
-    expect(fs.existsSync(logPath)).to.equal(true);
-    const lines = fs.readFileSync(logPath, 'utf8').trim().split('\n').filter(Boolean);
-    const parsed = lines.map((line) => JSON.parse(line));
-    const postFix = parsed.filter((row) => row.runId === 'mocha-post-fix' || row.runId === 'post-fix');
-    const rows = postFix.length ? postFix : parsed;
-    const wipe = [...rows].reverse().find((row) => row.message === 'live-merge-assigned');
-    expect(wipe?.data?.usedPendingMerge).to.equal(true);
-    expect(wipe?.data?.wipedPendingLocalFields).to.equal(0);
-    const key = [...rows].reverse().find((row) => row.message === 'render-key-includes-completion');
-    expect(key?.data?.keyOmitsCompletionFields).to.equal(false);
-    expect(key?.data?.keyKeepsCompletionAfterLiveSync).to.equal(true);
-    const save = [...rows].reverse().find((row) => row.message === 'cleared-pending-with-render');
-    expect(save?.data?.willCallRender).to.equal(true);
-    expect(save?.data?.reappearsInOffen).to.equal(false);
+    const summary = JSON.parse((run.stdout || '').trim().split('\n').pop());
+    expect(summary.ok).to.equal(true);
+    expect(summary.wiped).to.equal(false);
+    expect(summary.reappearsInOffen).to.equal(false);
+    expect(summary.keyKeepsCompletion).to.equal(true);
+    expect(summary.noAgentDebugLog).to.equal(true);
   });
 });

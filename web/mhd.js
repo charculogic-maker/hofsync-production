@@ -387,26 +387,6 @@ const mhdBestandSeed = [
 ];
 
 
-// #region agent log
-function mhdAgentDebugLog(hypothesisId, location, message, data = {}) {
-  try {
-    const payload = {
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-      runId: 'pre-fix',
-    };
-    console.debug('[mhd-agent-debug]', payload);
-    if (typeof globalThis !== 'undefined') {
-      const sink = globalThis.__mhdAgentDebugSink;
-      if (typeof sink === 'function') sink(payload);
-    }
-  } catch (_) { /* debug only */ }
-}
-// #endregion
-
 const mhdState = {
   db: null,
   tenantId: '',
@@ -996,19 +976,10 @@ function animateMhdCardExit(id) {
   return new Promise((resolve) => {
     const card = document.getElementById(`mhd-card-${id}`);
     if (!card) {
-      // #region agent log
-      mhdAgentDebugLog('A', 'mhd.js:animateMhdCardExit', 'exit-no-card', { id: String(id || '') });
-      // #endregion
       resolve();
       return;
     }
     card.classList.add('mhd-card--leaving');
-    // #region agent log
-    mhdAgentDebugLog('D', 'mhd.js:animateMhdCardExit', 'exit-class-added', {
-      id: String(id || ''),
-      hasLeavingClass: card.classList.contains('mhd-card--leaving'),
-    });
-    // #endregion
     const finish = () => resolve();
     card.addEventListener('transitionend', finish, { once: true });
     setTimeout(finish, 320);
@@ -1059,17 +1030,7 @@ function mergeCloudProductsWithPendingChanges(cloudProducts = []) {
     }
   });
 
-  const merged = [...mergedById.values()];
-  // #region agent log
-  mhdAgentDebugLog('B', 'mhd.js:mergeCloudProductsWithPendingChanges', 'pending-merge-applied', {
-    pendingCount: pendingIds.length,
-    cloudCount: Array.isArray(cloudProducts) ? cloudProducts.length : 0,
-    mergedCount: merged.length,
-    samplePendingId: pendingIds[0] || null,
-    sampleHasLastChecked: Boolean(merged.find((p) => p?.id === pendingIds[0])?.lastCheckedDate),
-  });
-  // #endregion
-  return merged;
+  return [...mergedById.values()];
 }
 
 /**
@@ -1188,17 +1149,7 @@ function stageMhdChange(id, updates = {}, options = {}) {
   mhdState.hasUnsavedChanges = getMhdPendingChangeCount() > 0;
   updateMhdStickySaveBar();
   updateMhdCompletionToggle();
-  const willAnimateExit = shouldAnimateMhdCompletionExit(id, updates);
-  // #region agent log
-  mhdAgentDebugLog('E', 'mhd.js:stageMhdChange', 'staged', {
-    id: String(id),
-    updateKeys: Object.keys(updates),
-    willAnimateExit,
-    pendingCount: getMhdPendingChangeCount(),
-    productHasLastChecked: Boolean(mhdState.products[idx]?.lastCheckedDate),
-  });
-  // #endregion
-  if (willAnimateExit) {
+  if (shouldAnimateMhdCompletionExit(id, updates)) {
     animateMhdCardExit(id).then(() => renderMhdList());
     return;
   }
@@ -1321,23 +1272,6 @@ async function saveAllPendingMhdChanges() {
     }
     clearMhdPendingChanges();
     renderMhdList();
-    // #region agent log
-    const postSaveChecked = entries.map(([id]) => {
-      const prod = mhdState.products.find((entry) => entry.id === id);
-      return {
-        id,
-        hasLastCheckedDate: Boolean(prod?.lastCheckedDate),
-        lastCheckedDate: prod?.lastCheckedDate || null,
-      };
-    });
-    mhdAgentDebugLog('C', 'mhd.js:saveAllPendingMhdChanges', 'cleared-pending-with-render', {
-      savedCount: entries.length,
-      productsStillHaveCheckStamp: postSaveChecked.filter((row) => row.hasLastCheckedDate).length,
-      sample: postSaveChecked[0] || null,
-      willCallRender: true,
-      runId: 'post-fix',
-    });
-    // #endregion
     mhdState.playClickSound(900, 0.1, 0.2);
     window.showToast?.('Änderungen gespeichert', 'success');
     updateMhdCompletionToggle();
@@ -4328,43 +4262,12 @@ function mergeMhdDocsById(...docLists) {
 
 function mergeMhdLiveProducts() {
   const inStock = Array.isArray(mhdState.inStockProducts) ? mhdState.inStockProducts : [];
-  const pendingIds = Object.keys(mhdState.pendingChanges || {});
-  const beforeByPending = pendingIds.map((id) => {
-    const prod = (mhdState.products || []).find((entry) => entry.id === id);
-    return {
-      id,
-      hadLastCheckedDate: Boolean(prod?.lastCheckedDate),
-      lastCheckedDate: prod?.lastCheckedDate || null,
-    };
-  });
   const cloudProducts = !mhdState.showZeroQty
     ? inStock
     : mergeMhdDocsById(inStock, Array.isArray(mhdState.zeroProducts) ? mhdState.zeroProducts : []);
   // Lokale Entwürfe (pendingChanges) haben Vorrang vor jedem Live-Snapshot —
   // sonst werden lastCheckedDate / mhdActionStatus bei onSnapshot verworfen.
   mhdState.products = mergeCloudProductsWithPendingChanges(cloudProducts);
-  const afterByPending = pendingIds.map((id) => {
-    const prod = (mhdState.products || []).find((entry) => entry.id === id);
-    return {
-      id,
-      hasLastCheckedDate: Boolean(prod?.lastCheckedDate),
-      lastCheckedDate: prod?.lastCheckedDate || null,
-      pendingHasLastCheckedDate: Boolean(mhdState.pendingChanges?.[id]?.lastCheckedDate),
-    };
-  });
-  const wiped = afterByPending.filter((row, idx) => beforeByPending[idx]?.hadLastCheckedDate && !row.hasLastCheckedDate);
-  // #region agent log
-  mhdAgentDebugLog('A', 'mhd.js:mergeMhdLiveProducts', 'live-merge-assigned', {
-    pendingCount: pendingIds.length,
-    inStockCount: inStock.length,
-    productCount: Array.isArray(mhdState.products) ? mhdState.products.length : 0,
-    usedPendingMerge: pendingIds.length > 0,
-    wipedPendingLocalFields: wiped.length,
-    wipedSample: wiped[0] || null,
-    afterSample: afterByPending[0] || null,
-    runId: 'post-fix',
-  });
-  // #endregion
   return mhdState.products;
 }
 
@@ -5349,21 +5252,6 @@ function renderMhdList() {
   const renderKey = buildMhdListRenderKey(renderedProducts);
   // Hintergrund-Sync: Liste nicht sprunghaft neu zusammensetzen, wenn Inhalt unverändert.
   if (container.dataset.mhdRenderMode === 'list' && container.dataset.mhdRenderKey === renderKey) {
-    const leavingCount = container.querySelectorAll?.('.mhd-card--leaving')?.length || 0;
-    const firstSegParts = String(renderKey).split('|')[0]?.split(':') || [];
-    // Fixed key shape: id:qty:mhd:status:checked:action (≥6 segments)
-    const keyHasCompletionSlots = firstSegParts.length >= 6;
-    // #region agent log
-    mhdAgentDebugLog('D', 'mhd.js:renderMhdList', 'render-skipped-same-key', {
-      productCount: renderedProducts.length,
-      leavingCount,
-      keyOmitsCompletionFields: !keyHasCompletionSlots,
-      sampleKey: String(renderKey).slice(0, 120),
-      pendingCount: getMhdPendingChangeCount(),
-      completionFilter: mhdState.completionFilter,
-      runId: 'post-fix',
-    });
-    // #endregion
     updateMhdStickySaveBar();
     updateMhdCompletionToggle();
     return;

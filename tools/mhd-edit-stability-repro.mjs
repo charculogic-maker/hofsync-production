@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Shell repro / verification for MHD edit/list stability (no Firebase).
- * Post-fix: asserts pending-merge on live sync, renderKey completion fields,
- * and post-save consistency. Writes NDJSON to /opt/cursor/logs/debug.log.
+ * Lean regression check for MHD edit/list stability (no Firebase).
+ * Verifies source contracts in web/mhd.js and simulates pending-merge /
+ * renderKey / post-save behaviour. Exit 0 on success, 2 on failure.
  *
  * Run: node tools/mhd-edit-stability-repro.mjs
  */
@@ -11,22 +11,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const LOG_PATH = '/opt/cursor/logs/debug.log';
-const RUN_ID = process.env.MHD_DEBUG_RUN_ID || 'post-fix';
-
-function log(hypothesisId, location, message, data = {}) {
-  const line = JSON.stringify({
-    hypothesisId,
-    location,
-    message,
-    data,
-    timestamp: Date.now(),
-    runId: RUN_ID,
-  });
-  fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
-  fs.appendFileSync(LOG_PATH, `${line}\n`);
-  console.log(line);
-}
 
 function mergeCloudProductsWithPendingChanges(cloudProducts = [], pending = {}, previousProducts = []) {
   const pendingIds = Object.keys(pending);
@@ -44,14 +28,13 @@ function mergeCloudProductsWithPendingChanges(cloudProducts = [], pending = {}, 
   return [...mergedById.values()];
 }
 
-/** Fixed live merge — overlays pending onto cloud docs */
-function mergeMhdLiveProductsFixed(state) {
+function mergeMhdLiveProducts(state) {
   const inStock = Array.isArray(state.inStockProducts) ? state.inStockProducts : [];
   state.products = mergeCloudProductsWithPendingChanges(inStock, state.pendingChanges, state.products);
   return state.products;
 }
 
-function buildMhdListRenderKeyFixed(products = []) {
+function buildMhdListRenderKey(products = []) {
   return products.map((prod) => {
     const qty = Number(prod?.qty ?? prod?.menge ?? 0);
     const mhd = String(prod?.mhd || prod?.mhdDate || prod?.expiryDate || '');
@@ -64,16 +47,15 @@ function buildMhdListRenderKeyFixed(products = []) {
 
 function assertSourceContracts() {
   const mhd = fs.readFileSync(path.join(ROOT, 'web/mhd.js'), 'utf8');
-  const checks = {
+  return {
     liveMergeUsesPending: /function mergeMhdLiveProducts\([\s\S]*?mergeCloudProductsWithPendingChanges\(cloudProducts\)/.test(mhd),
     renderKeyHasChecked: /function buildMhdListRenderKey\([\s\S]*?lastCheckedDate[\s\S]*?mhdActionStatus/.test(mhd),
     saveCallsRender: /clearMhdPendingChanges\(\);\s*\n\s*renderMhdList\(\);/.test(mhd),
+    noAgentDebugLog: !mhd.includes('mhdAgentDebugLog') && !mhd.includes('#region agent log'),
   };
-  log('B', 'repro:source-contract', 'mhd-js-fix-contracts', checks);
-  return checks;
 }
 
-function simulateFixedScenario() {
+function simulateScenario() {
   const today = '2026-10-22';
   const state = {
     products: [
@@ -92,44 +74,11 @@ function simulateFixedScenario() {
     p.id === 'a1' ? { ...p, lastCheckedDate: today, mhdActionStatus: 'ok' } : p
   ));
 
-  const keyBefore = buildMhdListRenderKeyFixed(state.products);
-  log('E', 'repro:stage', 'staged-completion-edit', {
-    id: 'a1',
-    productHasLastChecked: Boolean(state.products.find((p) => p.id === 'a1')?.lastCheckedDate),
-    pendingCount: Object.keys(state.pendingChanges).length,
-  });
-
   const beforeChecked = Boolean(state.products.find((p) => p.id === 'a1')?.lastCheckedDate);
-  mergeMhdLiveProductsFixed(state);
+  mergeMhdLiveProducts(state);
   const afterChecked = Boolean(state.products.find((p) => p.id === 'a1')?.lastCheckedDate);
-  const wiped = beforeChecked && !afterChecked;
+  const keyAfter = buildMhdListRenderKey(state.products);
 
-  log('A', 'repro:mergeMhdLiveProducts', 'live-merge-assigned', {
-    pendingCount: Object.keys(state.pendingChanges).length,
-    usedPendingMerge: true,
-    wipedPendingLocalFields: wiped ? 1 : 0,
-    afterSample: {
-      id: 'a1',
-      hasLastCheckedDate: afterChecked,
-      pendingHasLastCheckedDate: Boolean(state.pendingChanges.a1?.lastCheckedDate),
-    },
-  });
-
-  const keyAfterMerge = buildMhdListRenderKeyFixed(state.products);
-  const renderSkipped = keyBefore === keyAfterMerge && !afterChecked;
-  // With fixed key: completion stamp is in the key; list still shows checked product
-  // so animate+render can rebuild and drop mhd-card--leaving.
-  log('D', 'repro:renderMhdList', 'render-key-includes-completion', {
-    productCount: state.products.length,
-    leavingCount: 1,
-    keyOmitsCompletionFields: false,
-    keyKeepsCompletionAfterLiveSync: keyAfterMerge.includes(today),
-    keysEqualWhileChecked: keyBefore === keyAfterMerge,
-    sampleKey: keyAfterMerge.slice(0, 120),
-    wouldSkipWhileUnchecked: renderSkipped,
-  });
-
-  // Post-save: keep optimistic stamps on cache, clear pending, "render"
   for (const [id, updates] of Object.entries(state.pendingChanges)) {
     const idx = state.inStockProducts.findIndex((p) => p.id === id);
     if (idx >= 0) state.inStockProducts[idx] = { ...state.inStockProducts[idx], ...updates };
@@ -137,43 +86,31 @@ function simulateFixedScenario() {
     if (pIdx >= 0) state.products[pIdx] = { ...state.products[pIdx], ...updates };
   }
   state.pendingChanges = {};
-  const willCallRender = true;
-  // Simulate stale cloud snapshot after clear — optimistic inStock still has stamp
-  state.inStockProducts = state.inStockProducts.map((p) => ({ ...p }));
-  mergeMhdLiveProductsFixed(state);
-  const offenAgain = !state.products.find((p) => p.id === 'a1')?.lastCheckedDate;
-
-  log('C', 'repro:saveAllPendingMhdChanges', 'cleared-pending-with-render', {
-    savedCount: 1,
-    productsStillHaveCheckStamp: offenAgain ? 0 : 1,
-    willCallRender,
-    reappearsInOffen: offenAgain,
-  });
+  mergeMhdLiveProducts(state);
+  const reappearsInOffen = !state.products.find((p) => p.id === 'a1')?.lastCheckedDate;
 
   return {
-    wiped,
-    usedPendingMerge: true,
-    keyKeepsCompletion: keyAfterMerge.includes(today),
-    reappearsInOffen: offenAgain,
-    willCallRender,
+    wiped: beforeChecked && !afterChecked,
+    keyKeepsCompletion: keyAfter.includes(today),
+    reappearsInOffen,
   };
 }
 
 const contracts = assertSourceContracts();
-const result = simulateFixedScenario();
-console.error('\n[mhd-edit-stability-repro] summary:', { ...result, ...contracts });
-
+const result = simulateScenario();
 const ok = contracts.liveMergeUsesPending
   && contracts.renderKeyHasChecked
   && contracts.saveCallsRender
+  && contracts.noAgentDebugLog
   && !result.wiped
   && result.keyKeepsCompletion
-  && !result.reappearsInOffen
-  && result.willCallRender;
+  && !result.reappearsInOffen;
 
+const summary = { ...contracts, ...result, ok };
+console.log(JSON.stringify(summary));
 if (!ok) {
-  console.error('[mhd-edit-stability-repro] FAIL: fix signals missing');
+  console.error('[mhd-edit-stability-repro] FAIL', summary);
   process.exit(2);
 }
-console.error('[mhd-edit-stability-repro] fix signals confirmed (post-fix)');
+console.error('[mhd-edit-stability-repro] ok');
 process.exit(0);
