@@ -52,12 +52,13 @@ Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACC
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab zeigt automatisch alle relevanten Posten im passenden Zeitraum: **MoPro 0-4 Tage**, **Trockenware 0-21 Tage**. Über **Zeitraum** können wir sonstige Artikel auf **0-3**, **0-7**, **0-14** oder **0-21 Tage** eingrenzen. Es gibt zwei Filter:
+Der MHD-Tab startet in **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Zusätzlich können wir gezielt filtern:
 
-- **Zeitraum** — 7, 14 oder 21 Tage
-- **Kategorie** — Alle Kategorien oder gezielt Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware, Gewürze
+- **Alle (7 Tage)** — Gesamtansicht beider Warengruppen
+- **MoPro & Kühlware** — fokussiert 0-4 Tage
+- **Trockenware** — fokussiert 0-21 Tage (inkl. TK, Gewürze, Frische, Getränke)
 
-Die früheren Filter **Bereich** und **Ansicht (ALARM/AKTION)** entfallen. Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
+Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 
 Wenn eine Kategorie in der MHD-Karte nicht stimmt, tippen wir **✏️ Bearbeiten**. Unter **Artikel-Stammdaten bearbeiten** stellen wir Bezeichnung, Marke, EAN und die Kategorie auf **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern wechselt unsere App in den passenden Filter.
 
