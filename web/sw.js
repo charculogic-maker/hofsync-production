@@ -35,6 +35,7 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/mhd.js',
   '/receiving.js',
+  '/mhd-monitor-filter.js',
   '/mhd-rabatt.js',
   '/discount-matrix.js',
   '/discount-matrix-ui.js',

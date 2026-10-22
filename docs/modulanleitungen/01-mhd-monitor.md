@@ -7,8 +7,8 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Automatische Liste aller Posten mit **MHD im passenden Zeitraum**: MoPro 0-4 Tage, Trockenware 0-21 Tage
-- Optional nach **Zeitraum** und **Kategorie** filtern
+- Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst MoPro/Kühlware, dann Trockenware
+- Optional fokussieren auf **MoPro & Kühlware (0-4 Tage)** oder **Trockenware (0-21 Tage)**
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Rabatt-Empfehlung
@@ -30,10 +30,9 @@ Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge au
 
 | Element | Funktion |
 |---------|----------|
-| **Zeitraum** | Auswahl zwischen **0-3**, **0-7**, **0-14** und **0-21 Tagen**; MoPro bleibt bei **0-4**, Trockenware bei **0-21** |
-| **Kategorie** | Alle Kategorien oder gezielt: Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware, Gewürze |
+| **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro & Kühlware (0-4 Tage)** oder **Trockenware (0-21 Tage)** |
 
-Es gibt keine separaten Filter mehr für **Bereich** oder **Ansicht (ALARM/AKTION)**. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
+In der Ansicht **Alle** erscheinen Gruppenüberschriften (MoPro/Kühlware zuerst, danach Trockenware). Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
 ### 2. MHD-Karte (Posten)
 

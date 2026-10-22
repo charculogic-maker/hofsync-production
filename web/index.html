@@ -1447,9 +1447,12 @@
                     </div>
                   </div>
                   <div class="mhd-filter-row mhd-filter-row--monitor">
-                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">MoPro & Kühlware: MHD 0-3 Tage</p>
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro/Kühlware, dann Trockenware)</p>
                     <div class="mhd-category-toggle" id="mhd-category-toggle" role="group" aria-label="MHD-Prüfgruppe">
-                      <button type="button" class="mhd-category-btn is-active" data-mhd-category-filter="mopro" aria-pressed="true">
+                      <button type="button" class="mhd-category-btn is-active" data-mhd-category-filter="alle" aria-pressed="true">
+                        Alle (7 Tage)
+                      </button>
+                      <button type="button" class="mhd-category-btn" data-mhd-category-filter="mopro" aria-pressed="false">
                         🥛 MoPro & Kühlware
                       </button>
                       <button type="button" class="mhd-category-btn" data-mhd-category-filter="trockenware" aria-pressed="false">
@@ -1465,7 +1468,8 @@
                     <label class="mhd-filter-field mhd-filter-field--category hidden" for="mhd-category-select" hidden>
                       <span class="mhd-filter-label">Kategorie</span>
                       <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
-                        <option value="mopro" selected>🥛 MoPro & Kühlware</option>
+                        <option value="alle" selected>Alle (7 Tage)</option>
+                        <option value="mopro">🥛 MoPro & Kühlware</option>
                         <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>

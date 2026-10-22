@@ -67,6 +67,15 @@ import {
   mapMhdActionKeyToStatus,
   resolveMhdActionKey,
 } from './mhd-rabatt.js';
+import {
+  MHD_MONITOR_GROUP_LABELS,
+  getMhdCategoryFilterLabel,
+  getMhdMonitorHorizonDays,
+  matchesMhdMonitorGroupFilter,
+  matchesMhdMonitorHorizonDays,
+  resolveMhdCategoryFilter,
+  sortMhdProductsForMonitor as sortMhdProductsForMonitorPure,
+} from './mhd-monitor-filter.js';
 import { calculateDiscount, loadDiscountMatrix } from './discount-matrix.js';
 import {
   MHD_AUDIT_COLLECTION,
@@ -130,10 +139,6 @@ function canStartMhdFirestoreLiveSync() {
 const HACCP_TEMP_LIMIT_C = 7.0;
 const MHD_MONITOR_HORIZON_OPTIONS = [3, 7, 14, 21];
 const MHD_MONITOR_DEFAULT_HORIZON_DAYS = 21;
-const MHD_MONITOR_CATEGORY_HORIZON_DAYS = {
-  mopro: 4,
-  trockenware: 21,
-};
 
 const RECEIVING_FORM_IDS = [
   'we-supplier',
@@ -387,7 +392,7 @@ const mhdState = {
   tenantId: '',
   appsScriptWebAppUrl: '',
   products: [],
-  categoryFilter: 'mopro',
+  categoryFilter: 'alle',
   completionFilter: 'offen',
   monitorHorizonDays: MHD_MONITOR_DEFAULT_HORIZON_DAYS,
   searchQuery: '',
@@ -834,16 +839,6 @@ const MHD_CANONICAL_CATEGORIES = {
   getraenke: '🍺 Getränke',
 };
 
-const MHD_MONITOR_GROUP_LABELS = {
-  mopro: '🥛 MoPro & Kühlware',
-  trockenware: '📦 Trockenware',
-};
-
-const MHD_CATEGORY_FILTER_OPTIONS = [
-  { value: 'mopro', label: MHD_MONITOR_GROUP_LABELS.mopro, horizonDays: MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro },
-  { value: 'trockenware', label: MHD_MONITOR_GROUP_LABELS.trockenware, horizonDays: MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware },
-];
-
 const MHD_TROCKEN_MONITOR_CATEGORIES = new Set([
   MHD_CANONICAL_CATEGORIES.frische,
   MHD_CANONICAL_CATEGORIES.tk,
@@ -928,10 +923,10 @@ function filterMhdProductsByMonitorScope(products, { includeSearch = true } = {}
       return getProductBarcode(prod) === ean;
     });
   }
-  const groupFilter = mhdState.categoryFilter || 'mopro';
+  const groupFilter = resolveMhdCategoryFilter(mhdState.categoryFilter);
   return products.filter((prod) => {
     if (!matchesMhdMonitorHorizon(prod)) return false;
-    if (getMhdMonitorGroup(prod) !== groupFilter) return false;
+    if (!matchesMhdMonitorGroupFilter(getMhdMonitorGroup(prod), groupFilter)) return false;
     if (!query) return true;
     const display = resolveMhdProductDisplayName(prod).toLowerCase();
     const name = (prod.name || prod.produkt || '').toLowerCase();
@@ -1499,10 +1494,7 @@ function applyReceivingCategoryOptions() {
 
 function applyMhdCategoryFilterOptions() {
   const buttons = document.querySelectorAll('#mhd-category-toggle [data-mhd-category-filter]');
-  const previous = mhdState.categoryFilter || 'mopro';
-  const activeValue = MHD_CATEGORY_FILTER_OPTIONS.some((option) => option.value === previous)
-    ? previous
-    : 'mopro';
+  const activeValue = resolveMhdCategoryFilter(mhdState.categoryFilter);
   mhdState.categoryFilter = activeValue;
   buttons.forEach((button) => {
     const isActive = button.dataset.mhdCategoryFilter === activeValue;
@@ -1514,8 +1506,7 @@ function applyMhdCategoryFilterOptions() {
 }
 
 function setMhdCategoryFilter(nextFilter) {
-  const resolved = nextFilter === 'trockenware' ? 'trockenware' : 'mopro';
-  mhdState.categoryFilter = resolved;
+  mhdState.categoryFilter = resolveMhdCategoryFilter(nextFilter);
   applyMhdCategoryFilterOptions();
   updateMhdMonitorHintText(document.getElementById('mhd-monitor-hint'));
   refreshMhdToolbarSummary();
@@ -1541,7 +1532,12 @@ function formatMhdHorizonLabel(days) {
 
 function updateMhdMonitorHintText(monitorHint) {
   if (!monitorHint) return;
-  if (mhdState.categoryFilter === 'mopro') {
+  const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
+  if (filter === 'alle') {
+    monitorHint.textContent = 'Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro/Kühlware, dann Trockenware)';
+    return;
+  }
+  if (filter === 'mopro') {
     monitorHint.textContent = 'MoPro & Kühlware: MHD 0-4 Tage';
     return;
   }
@@ -1569,12 +1565,13 @@ function updateMhdToolbarAccordionMeta() {
   const parts = [];
   const query = mhdState.searchQuery.trim();
   if (query) parts.push(query.length > 16 ? `${query.slice(0, 16)}…` : query);
-  const horizonSelect = document.getElementById('mhd-horizon-select');
-  const categorySelect = document.getElementById('mhd-category-select');
-  const horizon = mhdState.categoryFilter === 'mopro'
-    ? '0-4 Tage'
-    : '0-21 Tage';
-  const category = getMhdCategoryFilterLabel(mhdState.categoryFilter);
+  const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
+  const horizon = filter === 'alle'
+    ? '0-7 Tage'
+    : filter === 'mopro'
+      ? '0-4 Tage'
+      : '0-21 Tage';
+  const category = getMhdCategoryFilterLabel(filter);
   parts.push(category);
   parts.push(horizon);
   meta.textContent = parts.join(' · ');
@@ -3315,6 +3312,19 @@ function sortMhdProductsByResttage(products) {
   return [...products].sort((a, b) => getMhdResttage(a) - getMhdResttage(b));
 }
 
+/** Allgemeine Ansicht: zuerst MoPro/Kühlware, dann Trockenware; innerhalb der Gruppe nach Resttagen. */
+function sortMhdProductsForMonitor(products, categoryFilter = mhdState.categoryFilter) {
+  return sortMhdProductsForMonitorPure(products, {
+    categoryFilter,
+    getResttage: getMhdResttage,
+    getMonitorGroup: getMhdMonitorGroup,
+  });
+}
+
+function getMhdMonitorHorizonDaysForProduct(prod, categoryFilter = mhdState.categoryFilter) {
+  return getMhdMonitorHorizonDays(categoryFilter, getMhdMonitorGroup(prod));
+}
+
 function isMhdActionWindow(prod) {
   const days = getMhdResttage(prod);
   if (!Number.isFinite(days)) return false;
@@ -3328,23 +3338,18 @@ function isMhdActionWindow(prod) {
 function matchesMhdMonitorHorizon(prod) {
   // Ohne 0er/Archiv-Filter: inaktive Posten (Raus/Ausverkauft/archiviert) nie in der Prüfliste.
   if (!mhdState.showZeroQty && isInactiveMhdChecklistDoc(prod)) return false;
-  const days = getMhdResttage(prod);
-  if (!Number.isFinite(days)) return false;
-  const group = getMhdMonitorGroup(prod);
-  const upperLimit = group === 'mopro'
-    ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro
-    : MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware;
-  return days <= upperLimit;
+  return matchesMhdMonitorHorizonDays(
+    getMhdResttage(prod),
+    mhdState.categoryFilter,
+    getMhdMonitorGroup(prod),
+  );
 }
 
 function getMhdMonitorEmptyHorizonText() {
-  if (mhdState.categoryFilter === 'mopro') return 'im Zeitraum 0-4 Tage';
+  const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
+  if (filter === 'alle') return 'im Zeitraum 0-7 Tage';
+  if (filter === 'mopro') return 'im Zeitraum 0-4 Tage';
   return 'im Zeitraum 0-21 Tage';
-}
-
-function getMhdCategoryFilterLabel(filterKey = 'mopro') {
-  const option = MHD_CATEGORY_FILTER_OPTIONS.find((entry) => entry.value === filterKey);
-  return option?.label || MHD_MONITOR_GROUP_LABELS.mopro;
 }
 
 function filterMhdProducts(products) {
@@ -3365,13 +3370,7 @@ function countZeroQtyInHorizon(products = mhdState.products) {
     if (mhdItemQuantity(prod) > 0) return false;
     const days = getMhdResttage(prod);
     if (!Number.isFinite(days)) return false;
-    const category = getProductCategory(prod);
-    const upperLimit = category === MHD_CANONICAL_CATEGORIES.mopro
-      ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.mopro
-      : category === MHD_CANONICAL_CATEGORIES.trockenware
-        ? MHD_MONITOR_CATEGORY_HORIZON_DAYS.trockenware
-        : mhdState.monitorHorizonDays;
-    return days <= upperLimit;
+    return days <= getMhdMonitorHorizonDaysForProduct(prod);
   }).length;
   if (mhdState.showZeroQty) return localCount;
   return Math.max(localCount, Number(mhdState.zeroQtyCount) || 0);
@@ -3929,7 +3928,7 @@ function initMhdSubnavAndSearch() {
     if (toggle) toggle.dataset.mhdBound = '1';
     categoryButtons.forEach((button) => {
       button.addEventListener('click', () => {
-        const nextFilter = button.dataset.mhdCategoryFilter || 'mopro';
+        const nextFilter = resolveMhdCategoryFilter(button.dataset.mhdCategoryFilter || 'alle');
         if (mhdState.categoryFilter === nextFilter) return;
         mhdState.categoryFilter = nextFilter;
         applyMhdCategoryFilterOptions();
@@ -3963,7 +3962,7 @@ function initMhdSubnavAndSearch() {
   if (categorySelect && categorySelect.dataset.mhdBound !== '1') {
     categorySelect.dataset.mhdBound = '1';
     categorySelect.addEventListener('change', () => {
-      mhdState.categoryFilter = categorySelect.value || 'mopro';
+      mhdState.categoryFilter = resolveMhdCategoryFilter(categorySelect.value || 'alle');
       applyMhdCategoryFilterOptions();
       updateMonitorHint();
       refreshMhdToolbarSummary();
@@ -5191,9 +5190,9 @@ function renderMhdList() {
     return;
   }
 
-  const sortedProducts = sortMhdProductsByResttage(mhdState.products);
+  const sortedProducts = sortMhdProductsForMonitor(mhdState.products);
   const visibleProducts = filterMhdProducts(sortedProducts);
-  const groupedProducts = groupMhdDuplicateBatches(visibleProducts);
+  const groupedProducts = sortMhdProductsForMonitor(groupMhdDuplicateBatches(visibleProducts));
   const renderedProducts = groupedProducts.slice(0, MHD_RENDER_LIMIT);
   updateMhdToolbarLimitHint(visibleProducts.length);
 
@@ -5207,14 +5206,17 @@ function renderMhdList() {
       }
       return;
     }
-    const categoryLabel = getMhdCategoryFilterLabel(mhdState.categoryFilter);
+    const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
+    const categoryLabel = filter === 'alle'
+      ? 'allen Warengruppen'
+      : getMhdCategoryFilterLabel(filter);
     const completionHint = mhdState.completionFilter === 'erledigt'
       ? 'Heute erledigte Artikel'
       : 'Offene Prüfungen';
     const zeroHint = !mhdState.showZeroQty && countZeroQtyInHorizon() > 0
       ? ' 0er-Bestände sind ausgeblendet.'
       : '';
-    const emptyKey = `empty-filter:${mhdState.categoryFilter}:${mhdState.completionFilter}:${mhdState.searchQuery}:${zeroHint ? '1' : '0'}`;
+    const emptyKey = `empty-filter:${filter}:${mhdState.completionFilter}:${mhdState.searchQuery}:${zeroHint ? '1' : '0'}`;
     if (container.dataset.mhdRenderMode === 'empty' && container.dataset.mhdRenderKey === emptyKey) {
       updateMhdCompletionToggle();
       return;
@@ -5238,11 +5240,23 @@ function renderMhdList() {
   }
   container.dataset.mhdRenderMode = 'list';
   container.dataset.mhdRenderKey = renderKey;
+  const showGroupHeaders = resolveMhdCategoryFilter(mhdState.categoryFilter) === 'alle';
+  let lastMonitorGroup = '';
   container.innerHTML = renderedProducts
-    .map((prod) => buildMhdCardHtml(prod).replace(
-      'class="mhd-card ',
-      'class="mhd-card mhd-card--enter ',
-    ))
+    .map((prod) => {
+      const cardHtml = buildMhdCardHtml(prod).replace(
+        'class="mhd-card ',
+        'class="mhd-card mhd-card--enter ',
+      );
+      if (!showGroupHeaders) return cardHtml;
+      const group = getMhdMonitorGroup(prod);
+      if (group === lastMonitorGroup) return cardHtml;
+      lastMonitorGroup = group;
+      const headerLabel = group === 'mopro'
+        ? MHD_MONITOR_GROUP_LABELS.mopro
+        : MHD_MONITOR_GROUP_LABELS.trockenware;
+      return `<div class="mhd-monitor-group-header" role="presentation">${escapeHtml(headerLabel)}</div>${cardHtml}`;
+    })
     .join('');
 
   initMhdSwipeGestures();
