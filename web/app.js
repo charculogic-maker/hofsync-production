@@ -2643,8 +2643,24 @@ window.applyBranding = applyBranding;
 window.applyModuleVisibility = applyModuleVisibility;
 
 /**
- * Cache-First Modul-Sichtbarkeit: lastEffectiveModules oder Branding-Fallback.
- * Danach erst asynchroner Firestore-Abgleich.
+ * Nav-Tabs verbergen, bis Cache oder Firestore `enabledModules` bekannt sind.
+ * Verhindert FOUC „alle Module“ aus Branding-Defaults (StevesHof Soft-Launch).
+ */
+function hideModuleNavTabsPendingConfig() {
+  document.querySelectorAll('#sidebar .nav-item[data-tab], #bottom-nav .nav-item[data-tab]').forEach((tab) => {
+    tab.hidden = true;
+    tab.style.display = 'none';
+  });
+  try {
+    syncBottomNavTabLayout();
+  } catch (_) { /* Layout optional beim frühen Boot */ }
+}
+
+/**
+ * Cache-First Modul-Sichtbarkeit: lastEffectiveModules anwenden.
+ * Ohne Cache: Tabs verborgen halten — kein Branding-Default in die Nav pushen
+ * (sonst erscheinen kurz alle Soft-Launch-Module, bis Firestore greift).
+ * Offline-Fallback auf Branding erst nach fehlgeschlagenem/leerem Firestore-Load.
  */
 function bootCachedModuleVisibility() {
   const branding = window.BRANDING || { modules: {} };
@@ -2652,12 +2668,15 @@ function bootCachedModuleVisibility() {
   const cached = readCachedEffectiveModules();
   if (cached) {
     applyEffectiveModulesToBranding(cached, branding);
-  } else {
-    const { effective } = publishEffectiveModules(branding, null);
-    applyEffectiveModulesToBranding(effective, branding);
+    window.__hofsyncModulesPending = false;
+    applyModuleVisibility(branding);
+    window.__hofsyncModulesVisibilityApplied = true;
+    return;
   }
-  applyModuleVisibility(branding);
-  window.__hofsyncModulesVisibilityApplied = true;
+  // Kein Cache: Branding-Defaults NICHT publishen (würde lastEffectiveModules vergiften).
+  window.__hofsyncModulesPending = true;
+  window.__hofsyncModulesVisibilityApplied = false;
+  hideModuleNavTabsPendingConfig();
 }
 
 /**
@@ -2672,7 +2691,8 @@ function applyModuleVisibilityIfChanged(branding = window.BRANDING || {}, option
   const previous = readCachedEffectiveModules();
   const { effective } = publishEffectiveModules(branding, firestoreSettings);
   const changed = force || !effectiveModulesEqual(previous, effective);
-  if (changed || !window.__hofsyncModulesVisibilityApplied) {
+  if (changed || !window.__hofsyncModulesVisibilityApplied || window.__hofsyncModulesPending) {
+    window.__hofsyncModulesPending = false;
     applyModuleVisibility(branding);
     window.__hofsyncModulesVisibilityApplied = true;
     return true;
@@ -2787,6 +2807,18 @@ function isModuleEnabledForUi(moduleKey, branding = window.BRANDING || {}) {
 }
 
 function applyModuleVisibility(branding = window.BRANDING || {}) {
+  // Solange weder Cache noch Firestore-Module bekannt: Nav nicht mit Branding-Defaults aufblasen.
+  if (window.__hofsyncModulesPending === true) {
+    const hasFirestoreModules = branding.enabledModules
+      && typeof branding.enabledModules === 'object'
+      && Object.keys(branding.enabledModules).length > 0;
+    const cached = readCachedEffectiveModules();
+    if (!hasFirestoreModules && !cached) {
+      hideModuleNavTabsPendingConfig();
+      return;
+    }
+    window.__hofsyncModulesPending = false;
+  }
   const modules = branding.modules || {};
   const kitchenEnabled = resolveKitchenNavEnabled(branding);
   const averyEnabled = resolveAveryLabelsNavEnabled(branding);
@@ -5229,11 +5261,14 @@ async function bootstrapAuthenticatedApp() {
   } else {
     applyBranding();
   }
+  // Branding-Rebuild darf Cache-Module nicht verlieren (sonst FOUC vor Firestore).
+  bootCachedModuleVisibility();
   setGlobalTenantId(authSession.tenantId);
   await loadTenantEnabledModules(db, authSession.tenantId);
   await loadTenantShopSettings(db, authSession.tenantId);
+  window.__hofsyncModulesPending = false;
   applyFixedTerminalSettings();
-  applyModuleVisibilityIfChanged(window.BRANDING);
+  applyModuleVisibilityIfChanged(window.BRANDING, { force: true });
 
   bindTenantModuleConfigListener(authSession.tenantId);
   syncFirebaseEmployeeSession(authSession);
@@ -5246,21 +5281,25 @@ async function bootstrapAuthenticatedApp() {
   window.addEventListener('charculogic:auth-changed', (event) => {
     const nextSession = event.detail || getAuthContext();
     if (!enforceTenantAdminRouteOrLeave(nextSession)) return;
+    if (typeof window.applyResolvedBranding === 'function') {
+      window.applyResolvedBranding(nextSession?.tenantId);
+    }
+    // Nach Branding-Rebuild sofort Cache anwenden — nicht Branding-Defaults in die Nav.
+    bootCachedModuleVisibility();
     if (nextSession?.tenantId) {
       setGlobalTenantId(nextSession.tenantId);
       void loadTenantEnabledModules(db, nextSession.tenantId)
         .then(() => loadTenantShopSettings(db, nextSession.tenantId))
         .then(() => {
+          window.__hofsyncModulesPending = false;
           applyFixedTerminalSettings();
-          applyModuleVisibilityIfChanged(window.BRANDING);
+          applyModuleVisibilityIfChanged(window.BRANDING, { force: true });
           bindTenantModuleConfigListener(nextSession.tenantId);
           ensureActiveTabAllowed();
         });
+    } else {
+      applyModuleVisibilityIfChanged(window.BRANDING);
     }
-    if (typeof window.applyResolvedBranding === 'function') {
-      window.applyResolvedBranding(nextSession?.tenantId);
-    }
-    applyModuleVisibilityIfChanged(window.BRANDING);
     applyRoleBasedUi(nextSession);
     syncFirebaseEmployeeSession(nextSession);
     refreshRetterBoxModule();

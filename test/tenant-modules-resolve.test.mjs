@@ -21,6 +21,7 @@ describe('resolveEffectiveModules', () => {
       'wareneingang',
       'wareneingangMetzgerei',
       'wurstkueche',
+      'averyLabels',
       'haccp',
       'teamboard',
       'team',

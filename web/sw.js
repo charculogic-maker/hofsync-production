@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261021-packtisch-calendar-v1';
+const CACHE_NAME = 'charculogic-v20261022-module-nav-zero-flicker-v1';
 
 const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Packtisch-Kalender + Abholbereit ab + Ready-Update-Mail */
-const RELEASED_AT = '2026-10-21T21:20:00+02:00';
+/** Release – Modul-Nav Zero-Flicker (kein FOUC aller Tabs vor enabledModules) */
+const RELEASED_AT = '2026-10-22T08:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

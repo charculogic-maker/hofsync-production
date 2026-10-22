@@ -78,8 +78,11 @@ export const ENABLED_MODULE_TO_BRANDING = {
 
 const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
 
-/** Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot. */
-export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules';
+/**
+ * Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot.
+ * v2: invalidiert Caches, die vor dem FOUC-Fix aus Branding-Defaults geschrieben wurden.
+ */
+export const LAST_EFFECTIVE_MODULES_KEY = 'charculogic.lastEffectiveModules.v2';
 
 /** Soft-Lock Speicherschlüssel (Session-Mitarbeiter, unscoped Mirror). */
 export const ACTIVE_EMPLOYEE_SOFT_LOCK_KEY = 'charculogic.activeEmployee';
@@ -548,11 +551,18 @@ export async function loadTenantEnabledModules(db, tenantId) {
       mergeEnabledModulesIntoBranding(enabledModules);
       publishEffectiveModules(window.BRANDING, { enabledModules });
     } else if (window.BRANDING) {
+      // Kein enabledModules-Dokument: Offline-/Erstboot-Fallback Branding (jetzt erst cachen).
       publishEffectiveModules(window.BRANDING, null);
     }
     return enabledModules || null;
   } catch (err) {
     console.warn('[CharcuLogic] enabledModules konnten nicht geladen werden:', err);
+    // Netzwerkfehler: Branding-Fallback cachen, damit Nav nicht dauerhaft leer bleibt.
+    if (window.BRANDING) {
+      try {
+        publishEffectiveModules(window.BRANDING, null);
+      } catch (_) { /* noop */ }
+    }
     return null;
   }
 }
@@ -582,6 +592,8 @@ if (typeof window !== 'undefined') {
   window.resolveEffectiveModules = resolveEffectiveModules;
   window.CANONICAL_MODULE_KEYS = CANONICAL_MODULE_KEYS;
   window.readCachedEffectiveModules = readCachedEffectiveModules;
+  window.writeCachedEffectiveModules = writeCachedEffectiveModules;
+  window.applyEffectiveModulesToBranding = applyEffectiveModulesToBranding;
   window.publishEffectiveModules = publishEffectiveModules;
   window.isKitchenModuleVisibleForSession = isKitchenModuleVisibleForSession;
   window.resolveEmployeeKitchenAccess = resolveEmployeeKitchenAccess;
