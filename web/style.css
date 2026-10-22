@@ -5129,7 +5129,7 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
 
 .haccp-stepper-row {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  grid-template-columns: 52px minmax(0, 1fr) 52px 52px;
   gap: 8px;
   align-items: center;
   margin-top: 8px;
@@ -5145,6 +5145,11 @@ input[type="range"].touch-slider::-webkit-slider-thumb:active {
   font-size: 22px;
   font-weight: 800;
   padding: 0;
+}
+
+.haccp-sign-btn {
+  font-size: 18px;
+  letter-spacing: -0.04em;
 }
 
 .haccp-temp-input {

@@ -112,6 +112,52 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       'helper',
     );
 
+    function sampleHaccpLog(tenantId, extra = {}) {
+      return {
+        logTyp: 'temperatur',
+        type: 'temperature',
+        deviceId: 'kuehlung-1',
+        deviceName: 'Kuehlung 1',
+        bereich: 'Verkauf',
+        doneBy: 'Helper',
+        wert: 4,
+        value: 4,
+        einheit: 'C',
+        status: 'ok',
+        tenantId,
+        datum: '2026-10-18',
+        createdAt: '2026-10-18T12:00:00.000Z',
+        timestamp: '2026-10-18T12:00:00.000Z',
+        ...extra,
+      };
+    }
+
+    function sampleHaccpRoundLog(tenantId) {
+      // Wie der PWA-Rundgang: ohne wert/value/user – darf create nicht blocken.
+      return {
+        logTyp: 'temperatur_rundgang',
+        type: 'temperature_round',
+        doneBy: 'Mitarbeiter',
+        bereich: 'Tageskontrolle',
+        deviceName: 'Temperatur-Rundgang',
+        status: 'ok',
+        centralControlVerified: false,
+        measurements: [
+          {
+            deviceId: 'tk-truhe',
+            deviceName: 'TK-Truhe',
+            wert: -18,
+            value: -18,
+            status: 'ok',
+          },
+        ],
+        massnahme: '',
+        tenantId,
+        datum: '2026-10-22',
+        createdAt: '2026-10-22T06:00:00.000Z',
+      };
+    }
+
     beforeEach(async () => {
       await seedFirestoreDoc(
         testEnv,
@@ -186,6 +232,62 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         tenantDocPath(TENANTS.TORFABRIK, 'mhd_audit', 'helper-audit'),
         'create',
         sampleMhdAudit(TENANTS.TORFABRIK),
+      );
+    });
+
+    it('allows helper to create immutable own-tenant HACCP logs only', async () => {
+      const ctx = torfabrikHelper();
+      const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'haccp_logs', 'helper-temperature');
+      const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'helper-temperature');
+      const devicePath = tenantDocPath(TENANTS.TORFABRIK, 'haccp_geraete', 'helper-device');
+
+      await expectFirestoreAllow(
+        ctx,
+        ownPath,
+        'create',
+        sampleHaccpLog(TENANTS.TORFABRIK),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        ownPath,
+        'update',
+        { status: 'abweichung' },
+      );
+      await expectFirestoreDeny(ctx, ownPath, 'delete');
+      await expectFirestoreDeny(
+        ctx,
+        foreignPath,
+        'create',
+        sampleHaccpLog(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        devicePath,
+        'create',
+        {
+          id: 'helper-device',
+          name: 'Helper Device',
+          type: 'manual_temp',
+          tenantId: TENANTS.TORFABRIK,
+        },
+      );
+    });
+
+    it('allows employee to create temperature round without wert/value/user fields', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-haccp', TENANTS.TORFABRIK, 'employee');
+      const path = tenantDocPath(TENANTS.TORFABRIK, 'haccp_logs', 'temperature_round_2026-10-22');
+
+      await expectFirestoreAllow(
+        ctx,
+        path,
+        'create',
+        sampleHaccpRoundLog(TENANTS.TORFABRIK),
+      );
+      await expectFirestoreDeny(
+        ctx,
+        path,
+        'update',
+        { status: 'abweichung' },
       );
     });
   });
