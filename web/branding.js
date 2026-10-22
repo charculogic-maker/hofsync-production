@@ -176,6 +176,15 @@ function resolveBranding(tenantId) {
 
 function applyResolvedBranding(tenantId) {
   window.BRANDING = resolveBranding(tenantId);
+  // Nach Rebuild: gecachte enabledModules wieder einspielen (verhindert FOUC Branding-Defaults).
+  try {
+    const cached = typeof window.readCachedEffectiveModules === 'function'
+      ? window.readCachedEffectiveModules()
+      : null;
+    if (cached && typeof window.applyEffectiveModulesToBranding === 'function') {
+      window.applyEffectiveModulesToBranding(cached, window.BRANDING);
+    }
+  } catch (_) { /* Cache optional beim Branding-Boot */ }
   if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }

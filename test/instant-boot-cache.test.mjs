@@ -26,13 +26,26 @@ describe('Instant-Boot Cache-First', () => {
     expect(indexHtml).to.match(/bootCachedNavModules/);
   });
 
+  it('does not paint branding-default modules when lastEffectiveModules cache is missing', () => {
+    expect(appJs).to.match(/hideModuleNavTabsPendingConfig/);
+    expect(appJs).to.match(/__hofsyncModulesPending/);
+    expect(appJs).to.match(/Kein Cache: Branding-Defaults NICHT publishen/);
+    expect(indexHtml).to.match(/hideAllNavTabs/);
+    expect(indexHtml).to.match(/Ohne Cache: Tabs verborgen/);
+    // MHD/Neu/Doku/Prod. starten hidden — kein HTML-FOUC vor Cache/Firestore.
+    expect(indexHtml).to.match(/id="tab-mhd"[^>]*hidden/);
+    expect(indexHtml).to.match(/id="tab-receiving"[^>]*hidden/);
+    expect(indexHtml).to.match(/id="tab-chargen-doku"[^>]*hidden/);
+    expect(indexHtml).to.match(/id="tab-kitchen"[^>]*hidden/);
+  });
+
   it('avoids unhiding module-disabled tabs in role UI', () => {
     expect(appJs).to.match(/Zuerst Modul-Sichtbarkeit/);
     expect(appJs).to.match(/if \(tab\.hidden \|\| tab\.style\.display === 'none'\) return;/);
   });
 
-  it('bumps SW cache for Avery iOS in-page print release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261021-packtisch-calendar-v1'");
+  it('bumps SW cache for module-nav zero-flicker release', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-module-nav-zero-flicker-v1'");
     expect(swJs).to.match(/isStandaloneHtmlDoc/);
   });
 

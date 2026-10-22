@@ -548,11 +548,18 @@ export async function loadTenantEnabledModules(db, tenantId) {
       mergeEnabledModulesIntoBranding(enabledModules);
       publishEffectiveModules(window.BRANDING, { enabledModules });
     } else if (window.BRANDING) {
+      // Kein enabledModules-Dokument: Offline-/Erstboot-Fallback Branding (jetzt erst cachen).
       publishEffectiveModules(window.BRANDING, null);
     }
     return enabledModules || null;
   } catch (err) {
     console.warn('[CharcuLogic] enabledModules konnten nicht geladen werden:', err);
+    // Netzwerkfehler: Branding-Fallback cachen, damit Nav nicht dauerhaft leer bleibt.
+    if (window.BRANDING) {
+      try {
+        publishEffectiveModules(window.BRANDING, null);
+      } catch (_) { /* noop */ }
+    }
     return null;
   }
 }
@@ -582,6 +589,8 @@ if (typeof window !== 'undefined') {
   window.resolveEffectiveModules = resolveEffectiveModules;
   window.CANONICAL_MODULE_KEYS = CANONICAL_MODULE_KEYS;
   window.readCachedEffectiveModules = readCachedEffectiveModules;
+  window.writeCachedEffectiveModules = writeCachedEffectiveModules;
+  window.applyEffectiveModulesToBranding = applyEffectiveModulesToBranding;
   window.publishEffectiveModules = publishEffectiveModules;
   window.isKitchenModuleVisibleForSession = isKitchenModuleVisibleForSession;
   window.resolveEmployeeKitchenAccess = resolveEmployeeKitchenAccess;

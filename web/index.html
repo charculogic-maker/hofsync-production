@@ -133,8 +133,19 @@
         }
         return false;
       }
+      function hideAllNavTabs() {
+        var nodes = document.querySelectorAll('.nav-item[data-tab]');
+        for (var i = 0; i < nodes.length; i += 1) {
+          nodes[i].hidden = true;
+          nodes[i].style.display = 'none';
+        }
+      }
       function apply(modules) {
-        if (!modules) return;
+        // Ohne Cache: Tabs verborgen — kein HTML-/Branding-FOUC „alle Module“.
+        if (!modules) {
+          hideAllNavTabs();
+          return;
+        }
         var employeeName = readActiveEmployee();
         var kitchenTenantOn = modules.wurstkueche === true || modules.kitchen === true || modules.kueche === true;
         var kitchenEnabled = kitchenTenantOn && isKitchenAllowedForEmployee(employeeName);
@@ -2822,19 +2833,20 @@
                 <i>🛒</i>
                 <span>Packtisch</span>
               </button>
-              <button class="nav-item active" data-tab="mhd" id="tab-mhd" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
+              <!-- Start hidden: Zero-Flicker bis Cache/Firestore enabledModules — kein FOUC der HTML-Defaults. -->
+              <button class="nav-item active" data-tab="mhd" id="tab-mhd" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
                 <i>📅</i>
                 <span>MHD</span>
               </button>
-              <button class="nav-item" data-tab="receiving" id="tab-receiving" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
+              <button class="nav-item" data-tab="receiving" id="tab-receiving" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
                 <i>📥</i>
                 <span>Neu</span>
               </button>
-              <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
+              <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
                 <i>🏷️</i>
                 <span>Doku</span>
               </button>
-              <button class="nav-item" data-tab="kitchen" id="tab-kitchen" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
+              <button class="nav-item" data-tab="kitchen" id="tab-kitchen" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
                 <i>🥣</i>
                 <span>Prod.</span>
               </button>
