@@ -19,7 +19,6 @@ import {
 import { isOfficeUser } from './auth.js';
 import { loadCatalogEanIndex, lookupCatalogEan } from './catalog-ean.js';
 import { cleanScannedBarcode as normalizeBarcodeScan, parseBarcodeScan } from './barcode-normalize.js';
-import { getLastScanExtras } from './scanner.js';
 import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
@@ -1680,8 +1679,6 @@ function cleanScannedBarcode(rawCode) {
  */
 function resolveScanExtras(rawOrEan, extras = null) {
   if (extras?.bestBeforeIso || extras?.isGs1) return extras;
-  const fromScanner = typeof getLastScanExtras === 'function' ? getLastScanExtras() : null;
-  if (fromScanner?.bestBeforeIso || fromScanner?.isGs1) return fromScanner;
   const parsed = parseBarcodeScan(rawOrEan);
   if (parsed.isGs1) {
     return {

@@ -4,24 +4,6 @@ const WEBRTC_ADAPTER_SCRIPT_URL = './libs/webrtc-adapter.min.js';
 const ZXING_BROWSER_SCRIPT_URL = './libs/zxing-browser.min.js';
 const QUAGGA_SCRIPT_URL = './libs/quagga2.min.js';
 
-/** ZXing DecodeHintType (nicht als Named Export in zxing-browser.min.js). */
-const ZXING_HINT = Object.freeze({
-  PURE_BARCODE: 1,
-  POSSIBLE_FORMATS: 2,
-  TRY_HARDER: 3,
-  ASSUME_GS1: 8,
-});
-/** ZXing BarcodeFormat.CODE_128 / EAN_* */
-const ZXING_FORMAT = Object.freeze({
-  CODE_39: 2,
-  CODE_128: 4,
-  EAN_8: 16,
-  EAN_13: 32,
-  ITF: 64,
-  UPC_A: 16384,
-  UPC_E: 32768,
-});
-
 let activeCameraStream = null;
 let lastScanExtras = null;
 let scanSimulationTimeout = null;
@@ -462,11 +444,13 @@ async function startZxingScanner() {
   scannerRunning = true;
   setScannerStatus('Barcode waagerecht halten. Bei langen Karton-Codes etwas mehr Abstand.', 'ZXing-Scanner aktiv');
 
+  // Bewährte iPhone-Constraints — keine Constructor-Hints (hatten schwarzes Preview verursacht).
+  // GS1-Parsing läuft nach dem Decode in barcode-normalize.js.
   const constraints = {
     video: {
       facingMode: { ideal: 'environment' },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
       advanced: [
         { focusMode: 'continuous' },
       ],
@@ -482,19 +466,6 @@ async function startZxingScanner() {
     },
     audio: false,
   };
-
-  const zxingHints = new Map();
-  zxingHints.set(ZXING_HINT.TRY_HARDER, true);
-  zxingHints.set(ZXING_HINT.ASSUME_GS1, true);
-  zxingHints.set(ZXING_HINT.POSSIBLE_FORMATS, [
-    ZXING_FORMAT.CODE_128,
-    ZXING_FORMAT.EAN_13,
-    ZXING_FORMAT.EAN_8,
-    ZXING_FORMAT.UPC_A,
-    ZXING_FORMAT.UPC_E,
-    ZXING_FORMAT.CODE_39,
-    ZXING_FORMAT.ITF,
-  ]);
 
   const markZxingNoHit = () => {
     if (zxingTimeout) clearTimeout(zxingTimeout);
@@ -512,7 +483,7 @@ async function startZxingScanner() {
   };
 
   try {
-    zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader(zxingHints);
+    zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
     zxingControls = await zxingReader.decodeFromConstraints(
       constraints,
       previewVideo,
@@ -523,11 +494,19 @@ async function startZxingScanner() {
       zxingControls = null;
       return;
     }
+    try {
+      previewVideo.muted = true;
+      previewVideo.setAttribute('playsinline', 'true');
+      await previewVideo.play?.();
+    } catch (playErr) {
+      console.warn('[CharcuLogic Scanner] Video-Play nach ZXing-Start:', playErr);
+    }
     markZxingNoHit();
   } catch (err) {
     console.warn('[CharcuLogic Scanner] ZXing Start mit Fokus-Constraint fehlgeschlagen:', err);
     try {
-      zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader(zxingHints);
+      stopZxingScanner();
+      zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
       zxingControls = await zxingReader.decodeFromConstraints(
         fallbackConstraints,
         previewVideo,
@@ -537,6 +516,13 @@ async function startZxingScanner() {
         zxingControls?.stop?.();
         zxingControls = null;
         return;
+      }
+      try {
+        previewVideo.muted = true;
+        previewVideo.setAttribute('playsinline', 'true');
+        await previewVideo.play?.();
+      } catch (playErr) {
+        console.warn('[CharcuLogic Scanner] Video-Play (Fallback):', playErr);
       }
       markZxingNoHit();
     } catch (fallbackErr) {
@@ -600,24 +586,24 @@ function startQuaggaScanner() {
       target: quaggaReader,
       constraints: {
         facingMode: 'environment',
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        aspectRatio: { ideal: 1.7777778 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: { ideal: 1.3333333 },
       },
-      // Breite Scan-Zone: GS1-128 auf Umverpackungen ist oft sehr lang.
+      // Etwas breitere Zone für lange GS1-128, ohne das Preview zu sprengen.
       area: {
-        top: '28%',
-        right: '1%',
-        left: '1%',
-        bottom: '28%',
+        top: '34%',
+        right: '2%',
+        left: '2%',
+        bottom: '34%',
       },
     },
     locator: {
-      patchSize: 'medium',
+      patchSize: 'large',
       halfSample: false,
     },
     numOfWorkers: workerCount,
-    frequency: 14,
+    frequency: 12,
     decoder: {
       readers: [
         'code_128_reader',
@@ -706,18 +692,18 @@ async function startHtml5QrScanner() {
     if (sessionId !== scannerSessionId) return;
     const videoConstraints = {
       ...cameraConfig,
-      width: { min: 640, ideal: 1920, max: 1920 },
-      height: { min: 480, ideal: 1080, max: 1080 },
+      width: { min: 640, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
     };
     await html5QrCode.start(
       cameraConfig,
       {
         fps: 24,
         qrbox: (viewfinderWidth, viewfinderHeight) => ({
-          width: Math.min(Math.floor(viewfinderWidth * 0.98), 920),
-          height: Math.max(100, Math.min(Math.floor(viewfinderHeight * 0.22), 200)),
+          width: Math.min(Math.floor(viewfinderWidth * 0.96), 800),
+          height: Math.max(90, Math.min(Math.floor(viewfinderHeight * 0.2), 180)),
         }),
-        aspectRatio: 1.7777778,
+        aspectRatio: 1.3333333,
         disableFlip: true,
         rememberLastUsedCamera: true,
         videoConstraints,
