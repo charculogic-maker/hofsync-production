@@ -18,6 +18,8 @@ import {
 } from './product-master.js';
 import { isOfficeUser } from './auth.js';
 import { loadCatalogEanIndex, lookupCatalogEan } from './catalog-ean.js';
+import { cleanScannedBarcode as normalizeBarcodeScan, parseBarcodeScan } from './barcode-normalize.js';
+import { getLastScanExtras } from './scanner.js';
 import {
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
@@ -1667,7 +1669,30 @@ function renderReceivingStatus({ status } = {}) {
 }
 
 function cleanScannedBarcode(rawCode) {
-  return String(rawCode || '').trim().replace(/[^0-9]/g, '');
+  return normalizeBarcodeScan(rawCode);
+}
+
+/**
+ * GS1-Zusatz vom letzten Kamerascan oder aus dem Rohstring (Manuell/Eintippen).
+ * @param {string} rawOrEan
+ * @param {object} [extras]
+ * @returns {{ bestBeforeIso?: string, lot?: string, isGs1?: boolean }|null}
+ */
+function resolveScanExtras(rawOrEan, extras = null) {
+  if (extras?.bestBeforeIso || extras?.isGs1) return extras;
+  const fromScanner = typeof getLastScanExtras === 'function' ? getLastScanExtras() : null;
+  if (fromScanner?.bestBeforeIso || fromScanner?.isGs1) return fromScanner;
+  const parsed = parseBarcodeScan(rawOrEan);
+  if (parsed.isGs1) {
+    return {
+      bestBeforeIso: parsed.bestBeforeIso,
+      expiryIso: parsed.expiryIso,
+      lot: parsed.lot,
+      isGs1: true,
+      gtin: parsed.gtin,
+    };
+  }
+  return null;
 }
 
 function rememberReceivingHeadCategory(category) {
@@ -2493,53 +2518,70 @@ function searchReceivingArticlesByName(query = '', limit = 8) {
   return hits.slice(0, limit);
 }
 
+function barcodeLookupKeys(scannedCode) {
+  const clean = cleanScannedBarcode(scannedCode);
+  if (!clean) return [];
+  const keys = [clean];
+  // GTIN-14 mit Indikator 0 ↔ EAN-13 (häufig bei Umverpackungs-GS1).
+  if (clean.length === 13) keys.push(`0${clean}`);
+  if (clean.length === 14 && clean.startsWith('0')) keys.push(clean.slice(1));
+  return [...new Set(keys)];
+}
+
 function lookupScannedProduct(scannedCode) {
-  const aliasHit = lookupAliasCatalogProduct(scannedCode);
+  const keys = barcodeLookupKeys(scannedCode);
+  const primary = keys[0] || cleanScannedBarcode(scannedCode);
+  if (!primary) return null;
+
+  const aliasHit = lookupAliasCatalogProduct(primary);
   if (aliasHit) {
     const existingProduct = mhdState.products.find((p) => {
       const productBarcode = cleanScannedBarcode(p.ean || p.barcode || p.id);
-      return productBarcode === cleanScannedBarcode(aliasHit.barcode) || productBarcode === scannedCode;
+      return productBarcode === cleanScannedBarcode(aliasHit.barcode) || keys.includes(productBarcode);
     });
     return { ...aliasHit, existingProduct };
   }
 
   const vpeMaster = readLocalMaster(VPE_MASTER_STORAGE_KEY);
-  if (vpeMaster[scannedCode]) {
-    const existingProduct = mhdState.products.find(p => cleanScannedBarcode(p.ean || p.barcode || p.id) === scannedCode);
-    return { ...vpeMaster[scannedCode], barcode: scannedCode, existingProduct, isVpe: true, source: 'vpe-stammdaten' };
+  for (const key of keys) {
+    if (!vpeMaster[key]) continue;
+    const existingProduct = mhdState.products.find((p) => keys.includes(cleanScannedBarcode(p.ean || p.barcode || p.id)));
+    return { ...vpeMaster[key], barcode: primary, existingProduct, isVpe: true, source: 'vpe-stammdaten' };
   }
 
   const productMaster = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
-  if (productMaster[scannedCode]) {
-    const entry = productMaster[scannedCode];
+  for (const key of keys) {
+    if (!productMaster[key]) continue;
+    const entry = productMaster[key];
     return {
       ...entry,
       name: sanitizeProductName(entry.name),
       brand: sanitizeProductName(entry.brand || ''),
-      barcode: scannedCode,
+      barcode: primary,
       source: 'lokale-stammdaten',
     };
   }
 
-  if (csvVpeMaster[scannedCode]) {
-    const csvVpe = csvVpeMaster[scannedCode];
+  for (const key of keys) {
+    if (!csvVpeMaster[key]) continue;
+    const csvVpe = csvVpeMaster[key];
     const existingProduct = mhdState.products.find((product) => {
       const productBarcode = cleanScannedBarcode(product.ean || product.barcode || product.id);
-      return productBarcode === cleanScannedBarcode(csvVpe.einzelBarcode) || productBarcode === scannedCode;
+      return productBarcode === cleanScannedBarcode(csvVpe.einzelBarcode) || keys.includes(productBarcode);
     });
-    return { ...csvVpe, existingProduct };
+    return { ...csvVpe, barcode: primary, existingProduct };
   }
 
   const csvProduct = Object.values(csvVpeMaster).find((entry) =>
-    cleanScannedBarcode(entry.einzelBarcode) === scannedCode
+    keys.includes(cleanScannedBarcode(entry.einzelBarcode))
   );
   if (csvProduct) {
     const existingProduct = mhdState.products.find((product) => {
       const productBarcode = cleanScannedBarcode(product.ean || product.barcode || product.id);
-      return productBarcode === scannedCode || productBarcode === cleanScannedBarcode(csvProduct.barcode);
+      return keys.includes(productBarcode) || productBarcode === cleanScannedBarcode(csvProduct.barcode);
     });
     return {
-      barcode: scannedCode,
+      barcode: primary,
       name: csvProduct.name,
       brand: csvProduct.brand,
       category: csvProduct.category || '📦 Trockenware',
@@ -2548,10 +2590,10 @@ function lookupScannedProduct(scannedCode) {
     };
   }
 
-  const existing = mhdState.products.find(p => cleanScannedBarcode(p.ean || p.barcode || p.id) === scannedCode);
+  const existing = mhdState.products.find((p) => keys.includes(cleanScannedBarcode(p.ean || p.barcode || p.id)));
   if (existing) {
     return {
-      barcode: scannedCode,
+      barcode: primary,
       name: existing.name || existing.produkt || '',
       brand: existing.brand || existing.marke || '',
       category: normalizeMhdCategory(existing.kategorie || existing.category || ''),
@@ -2605,7 +2647,7 @@ function syncHerstellerZusatzVisibility() {
   wrap.hidden = knownCatalogItem;
 }
 
-function applyBarcodeToDeliveryItemDraft(barcode) {
+function applyBarcodeToDeliveryItemDraft(barcode, scanExtras = null) {
   const code = cleanScannedBarcode(barcode);
   if (!code) {
     mhdState.showHUD('Barcode fehlt', 'Bitte EAN eingeben oder scannen.', '!');
@@ -2617,6 +2659,13 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   const eanEl = document.getElementById('we-ean');
   if (eanEl) eanEl.value = code;
   currentDeliveryItemBarcode = code;
+
+  const extras = resolveScanExtras(barcode, scanExtras);
+  const gs1Mhd = extras?.bestBeforeIso || extras?.expiryIso || '';
+  const mhdEl = document.getElementById('we-mhd');
+  if (gs1Mhd && mhdEl) {
+    setGermanDateField(mhdEl, gs1Mhd);
+  }
 
   const info = lookupScannedProduct(code);
   const productNameEl = document.getElementById('we-product-name');
@@ -2659,7 +2708,7 @@ function applyBarcodeToDeliveryItemDraft(barcode) {
   return true;
 }
 
-async function processDeliveryItemBarcode(decodedText, source = 'camera') {
+async function processDeliveryItemBarcode(decodedText, source = 'camera', scanExtras = null) {
   const actor = await resolveInventoryActorForScan();
   if (!actor) {
     mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
@@ -2677,8 +2726,9 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
     return;
   }
 
+  const extras = resolveScanExtras(decodedText, scanExtras);
   const keepScannerOpen = source === 'camera' && Boolean(mhdState.isScannerOverlayOpen?.());
-  const autoAdded = tryAutoAddScannedDeliveryItem(scannedCode, { fromScan: true });
+  const autoAdded = tryAutoAddScannedDeliveryItem(scannedCode, { fromScan: true, scanExtras: extras });
   if (autoAdded) {
     if (keepScannerOpen) {
       // Quick-Adjust bleibt sichtbar; Kamera hört nach kurzer Pause wieder zu (Mehrfachscan).
@@ -2693,13 +2743,13 @@ async function processDeliveryItemBarcode(decodedText, source = 'camera') {
   }
 
   mhdState.closeScanner?.({ preserveScanState: true });
-  applyBarcodeToDeliveryItemDraft(scannedCode);
+  applyBarcodeToDeliveryItemDraft(scannedCode, extras);
   document.getElementById('we-qty')?.focus()
     || document.getElementById('we-mhd')?.focus()
     || document.getElementById('we-product-name')?.focus();
 }
 
-async function processScannedBarcode(decodedText, source = 'camera') {
+async function processScannedBarcode(decodedText, source = 'camera', scanExtras = null) {
   const scannedCode = cleanScannedBarcode(decodedText);
   if (!scannedCode) return;
   if (scannedCode === '40999999') {
@@ -2709,7 +2759,7 @@ async function processScannedBarcode(decodedText, source = 'camera') {
   }
 
   if (isReceivingPageActive()) {
-    await processDeliveryItemBarcode(scannedCode, source);
+    await processDeliveryItemBarcode(decodedText, source, scanExtras);
     return;
   }
 
@@ -8154,11 +8204,12 @@ function bindScannerQuickAdjustOnce() {
  * Unbekannte EANs / fehlende Kategorie → false (Formular-Flow).
  * Kategorie: EAN-Gedächtnis → Keyword-Heuristik → Sticky → Trockenware.
  */
-function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
+function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false, scanExtras = null } = {}) {
   const code = cleanScannedBarcode(barcode);
   if (!code) return false;
   const info = lookupScannedProduct(code);
   if (!info?.name) return false;
+  const extras = resolveScanExtras(barcode, scanExtras);
 
   // Während der Bearbeitung bleibt der aktuelle Artikel aktiv, bis „Fertig“ getippt wird.
   // Gleicher Barcode darf die Menge weiter erhöhen; ein anderer Artikel erst danach.
@@ -8213,8 +8264,10 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   const qtyValue = qtyUnit === 'Stk'
     ? Math.max(1, Math.round(packageSize))
     : Math.round(packageSize * 100) / 100;
-  // Strikt: kein geratenes/Stammdaten-MHD – Mitarbeiter tippt von der Verpackung.
-  const mhdDate = RECEIVING_SCAN_MHD_EMPTY;
+  // Kein geratenes Stammdaten-MHD. Ausnahme: MHD steckt im GS1-Kartonbarcode (AI 15/17).
+  const gs1Mhd = extras?.bestBeforeIso || extras?.expiryIso || '';
+  const mhdDate = gs1Mhd || RECEIVING_SCAN_MHD_EMPTY;
+  const mhdQuelle = gs1Mhd ? 'gs1-barcode' : 'manual-packaging';
 
   const herstellerZusatz = String(info.brand || '').trim();
   const itemId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -8235,7 +8288,8 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
     warenKategorie: category,
     category,
     addedAt: Date.now(),
-    mhdQuelle: 'manual-packaging',
+    mhdQuelle,
+    ...(extras?.lot ? { lot: extras.lot, charge: extras.lot } : {}),
   };
   currentDeliveryItems.unshift(newItem);
   touchReceivingAutoScan(newItem, code);
@@ -8265,7 +8319,9 @@ function tryAutoAddScannedDeliveryItem(barcode, { fromScan = false } = {}) {
   }
   const qtyHint = qtyUnit === 'Stk' ? `${qtyValue} Stk` : `${qtyValue} ${qtyUnit}`;
   window.showToast?.(
-    `${info.name}: ${qtyHint} – bitte MHD von der Verpackung eintippen.`,
+    gs1Mhd
+      ? `${info.name}: ${qtyHint} – MHD ${formatIsoToGerman(gs1Mhd)} aus dem Karton-Barcode.`
+      : `${info.name}: ${qtyHint} – bitte MHD von der Verpackung eintippen.`,
     'success',
   );
   return true;
@@ -9836,7 +9892,9 @@ export async function activateReceivingTab() {
     restoreMhdDraftFields();
   });
 }
-export function handleMhdBarcodeScan(decodedText) { processScannedBarcode(decodedText, 'camera'); }
+export function handleMhdBarcodeScan(decodedText, scanExtras = null) {
+  processScannedBarcode(decodedText, 'camera', scanExtras);
+}
 export function handleMhdScannerStatus({ status } = {}) { updateManualBarcodeFallback(); if (status) renderReceivingStatus({ status }); }
 export function resetMhdScanState(options) { resetScanState(options); }
 export function getMhdProducts() { return [...mhdState.products]; }

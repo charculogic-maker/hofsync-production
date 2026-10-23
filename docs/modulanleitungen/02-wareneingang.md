@@ -61,7 +61,8 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 ![Barcode-Scanner](./screenshots/02b-barcode-scanner.png)
 
 - Barcode ins **grüne Feld** halten (ca. 15–25 cm Abstand)
-- Unten: **Eintippen** → Barcode manuell → **OK**
+- **Umverpackung / Karton:** lange Strichcodes mit Klammern wie `(01)…(15)…(10)…` etwas weiter weg halten (ca. 25–40 cm). Unsere App liest daraus die Artikelnummer und – wenn vorhanden – das MHD.
+- Unten: **Eintippen** → Barcode manuell → **OK** (bei Kartons reicht die Zahl unter dem Strichcode bzw. die EAN aus dem `(01)`-Teil)
 - Bekannte Artikel werden sofort eingebucht; der Scanner bleibt für den Serien-Scan offen
 - Unbekannte Artikel wechseln in die manuelle Erfassung
 

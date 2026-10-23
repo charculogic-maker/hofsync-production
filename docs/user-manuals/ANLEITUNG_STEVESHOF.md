@@ -112,7 +112,7 @@ Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADE
 
 ### Wareneingang per Barcode (Tab Neu)
 
-Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert.
+Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Bei langen Karton-Barcodes mit `(01)…` etwas mehr Abstand halten — die App liest Artikelnummer und ggf. MHD. Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
