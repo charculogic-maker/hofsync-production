@@ -165,6 +165,8 @@ Im Tab **Neu** erfassen wir Lieferungen zuverlässig per **Barcode-Serien-Scan**
 2. Menge und MHD direkt auf der Karte korrigieren (Touch-Pad / Schnelltasten).
 3. Lieferung abschließen oder als offenen Entwurf speichern.
 
+**Umverpackungen / Kartons:** Manche Lieferanten drucken lange Strichcodes mit Klammern wie `(01)…(15)…(10)…`. Wir halten das Laden-iPhone etwas weiter weg (ca. 25–40 cm). Die App liest die Artikelnummer und – wenn der Code es enthält – auch das MHD. Wenn die Kamera trotzdem stockt, tippen wir die Zahl unter dem Strichcode ein.
+
 Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert; der Fokus liegt auf dem schnellen Barcode-Flow.
 
 ### Zuordnung nachträglich korrigieren

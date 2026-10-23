@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261022-order-slip-save-feedback-v1';
+const CACHE_NAME = 'charculogic-v20261023-gs1-128-umverpackung-v2';
 
-const CACHE_SCHEMA = 'p0-release-hardening-jun2026-barcode-wareneingang';
-/** Release – Bestellung mit Foto: sichtbares Speichern-Feedback */
-const RELEASED_AT = '2026-10-22T10:50:00+02:00';
+const CACHE_SCHEMA = 'p0-gs1-128-umverpackung-scan-oct2026-v2';
+/** Release – GS1-128 Umverpackungs-Barcodes (GTIN/MHD aus Kartoncode) */
+const RELEASED_AT = '2026-10-23T12:30:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -33,6 +33,7 @@ const CRITICAL_ASSETS = [
   '/auth.js',
   '/auth-errors.js',
   '/scanner.js',
+  '/barcode-normalize.js',
   '/mhd.js',
   '/receiving.js',
   '/mhd-monitor-filter.js',

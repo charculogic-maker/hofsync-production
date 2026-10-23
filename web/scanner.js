@@ -1,8 +1,29 @@
+import { parseBarcodeScan } from './barcode-normalize.js';
+
 const WEBRTC_ADAPTER_SCRIPT_URL = './libs/webrtc-adapter.min.js';
 const ZXING_BROWSER_SCRIPT_URL = './libs/zxing-browser.min.js';
 const QUAGGA_SCRIPT_URL = './libs/quagga2.min.js';
 
+/** ZXing DecodeHintType (nicht als Named Export in zxing-browser.min.js). */
+const ZXING_HINT = Object.freeze({
+  PURE_BARCODE: 1,
+  POSSIBLE_FORMATS: 2,
+  TRY_HARDER: 3,
+  ASSUME_GS1: 8,
+});
+/** ZXing BarcodeFormat.CODE_128 / EAN_* */
+const ZXING_FORMAT = Object.freeze({
+  CODE_39: 2,
+  CODE_128: 4,
+  EAN_8: 16,
+  EAN_13: 32,
+  ITF: 64,
+  UPC_A: 16384,
+  UPC_E: 32768,
+});
+
 let activeCameraStream = null;
+let lastScanExtras = null;
 let scanSimulationTimeout = null;
 let scanAnimationFrame = null;
 let barcodeDetector = null;
@@ -125,7 +146,15 @@ function reportScanError(title, message, icon = '!') {
 }
 
 function cleanScannedBarcode(rawCode) {
-  return String(rawCode || '').trim().replace(/[^0-9]/g, '');
+  return parseBarcodeScan(rawCode).ean;
+}
+
+/**
+ * Letzte GS1-Zusatzfelder vom Kamerascan (MHD/Charge), falls vorhanden.
+ * @returns {{ bestBeforeIso?: string, expiryIso?: string, lot?: string, isGs1?: boolean }|null}
+ */
+export function getLastScanExtras() {
+  return lastScanExtras;
 }
 
 function isMhdMonitorPageActive() {
@@ -141,12 +170,22 @@ function openExistingMhdBatches(code) {
 
 function emitScanSuccess(decodedText) {
   if (!scannerRunning) return;
-  const code = cleanScannedBarcode(decodedText);
+  const parsed = parseBarcodeScan(decodedText);
+  const code = parsed.ean;
   if (!code) return;
   const now = Date.now();
   if (code === lastAcceptedCode && (now - lastAcceptedAt) < SCAN_DEBOUNCE_MS) return;
   lastAcceptedCode = code;
   lastAcceptedAt = now;
+  lastScanExtras = parsed.isGs1
+    ? {
+        bestBeforeIso: parsed.bestBeforeIso,
+        expiryIso: parsed.expiryIso,
+        lot: parsed.lot,
+        isGs1: true,
+        gtin: parsed.gtin,
+      }
+    : null;
   scannerRunning = false;
   clearDetectionTimeouts();
   let opened = false;
@@ -159,7 +198,7 @@ function emitScanSuccess(decodedText) {
     closeScanner();
     return;
   }
-  scannerContext.onScanSuccess(code);
+  scannerContext.onScanSuccess(code, lastScanExtras);
 }
 
 function clearDetectionTimeouts() {
@@ -421,13 +460,13 @@ async function startZxingScanner() {
 
   const sessionId = scannerSessionId;
   scannerRunning = true;
-  setScannerStatus('ZXing aktiv. Barcode scharf halten, 2-3 Sekunden ruhig.', 'ZXing-Scanner aktiv');
+  setScannerStatus('Barcode waagerecht halten. Bei langen Karton-Codes etwas mehr Abstand.', 'ZXing-Scanner aktiv');
 
   const constraints = {
     video: {
       facingMode: { ideal: 'environment' },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
       advanced: [
         { focusMode: 'continuous' },
       ],
@@ -444,25 +483,40 @@ async function startZxingScanner() {
     audio: false,
   };
 
+  const zxingHints = new Map();
+  zxingHints.set(ZXING_HINT.TRY_HARDER, true);
+  zxingHints.set(ZXING_HINT.ASSUME_GS1, true);
+  zxingHints.set(ZXING_HINT.POSSIBLE_FORMATS, [
+    ZXING_FORMAT.CODE_128,
+    ZXING_FORMAT.EAN_13,
+    ZXING_FORMAT.EAN_8,
+    ZXING_FORMAT.UPC_A,
+    ZXING_FORMAT.UPC_E,
+    ZXING_FORMAT.CODE_39,
+    ZXING_FORMAT.ITF,
+  ]);
+
   const markZxingNoHit = () => {
     if (zxingTimeout) clearTimeout(zxingTimeout);
     zxingTimeout = setTimeout(() => {
       if (!scannerRunning) return;
-      setScannerStatus('Noch kein Treffer. Mehr Abstand testen oder Barcode eintippen.', 'Kein Barcode erkannt');
+      setScannerStatus('Noch kein Treffer. Bei Umverpackung 25–40 cm Abstand oder EAN unter dem Strichcode eintippen.', 'Kein Barcode erkannt');
     }, 9000);
   };
 
+  const onZxingResult = (result) => {
+    if (sessionId !== scannerSessionId) return;
+    const raw = result?.getText ? result.getText() : result?.text;
+    if (!raw || !scannerRunning) return;
+    emitScanSuccess(raw);
+  };
+
   try {
-    zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
+    zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader(zxingHints);
     zxingControls = await zxingReader.decodeFromConstraints(
       constraints,
       previewVideo,
-      (result) => {
-        if (sessionId !== scannerSessionId) return;
-        const code = cleanScannedBarcode(result?.getText ? result.getText() : result?.text);
-        if (!code || !scannerRunning) return;
-        emitScanSuccess(code);
-      }
+      onZxingResult
     );
     if (sessionId !== scannerSessionId) {
       zxingControls?.stop?.();
@@ -473,16 +527,11 @@ async function startZxingScanner() {
   } catch (err) {
     console.warn('[CharcuLogic Scanner] ZXing Start mit Fokus-Constraint fehlgeschlagen:', err);
     try {
-      zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader();
+      zxingReader = new ZXingBrowser.BrowserMultiFormatOneDReader(zxingHints);
       zxingControls = await zxingReader.decodeFromConstraints(
         fallbackConstraints,
         previewVideo,
-        (result) => {
-          if (sessionId !== scannerSessionId) return;
-          const code = cleanScannedBarcode(result?.getText ? result.getText() : result?.text);
-          if (!code || !scannerRunning) return;
-          emitScanSuccess(code);
-        }
+        onZxingResult
       );
       if (sessionId !== scannerSessionId) {
         zxingControls?.stop?.();
@@ -513,10 +562,10 @@ async function startZxingScanner() {
 function handleQuaggaDetected(result) {
   if (!scannerRunning) return;
 
-  const code = cleanScannedBarcode(result?.codeResult?.code);
-  if (!code) return;
+  const raw = result?.codeResult?.code;
+  if (!raw || !cleanScannedBarcode(raw)) return;
 
-  emitScanSuccess(code);
+  emitScanSuccess(raw);
 }
 
 function stopQuaggaScanner() {
@@ -541,7 +590,7 @@ function startQuaggaScanner() {
 
   const sessionId = scannerSessionId;
   scannerRunning = true;
-  setScannerStatus('EAN-Scanner aktiv. Barcode ruhig und scharf halten.', 'EAN-Scanner aktiv');
+  setScannerStatus('Barcode waagerecht halten. Lange Karton-Codes: mehr Abstand.', 'EAN-Scanner aktiv');
   quaggaReader.innerHTML = '';
 
   const workerCount = Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2));
@@ -551,30 +600,31 @@ function startQuaggaScanner() {
       target: quaggaReader,
       constraints: {
         facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        aspectRatio: { ideal: 1.3333333 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: 1.7777778 },
       },
+      // Breite Scan-Zone: GS1-128 auf Umverpackungen ist oft sehr lang.
       area: {
-        top: '38%',
-        right: '4%',
-        left: '4%',
-        bottom: '38%',
+        top: '28%',
+        right: '1%',
+        left: '1%',
+        bottom: '28%',
       },
     },
     locator: {
-      patchSize: 'large',
+      patchSize: 'medium',
       halfSample: false,
     },
     numOfWorkers: workerCount,
-    frequency: 12,
+    frequency: 14,
     decoder: {
       readers: [
+        'code_128_reader',
         'ean_reader',
         'ean_8_reader',
         'upc_reader',
         'upc_e_reader',
-        'code_128_reader',
         'code_39_reader',
         'i2of5_reader',
       ],
@@ -604,7 +654,7 @@ function startQuaggaScanner() {
     if (quaggaTimeout) clearTimeout(quaggaTimeout);
     quaggaTimeout = setTimeout(() => {
       if (!scannerRunning) return;
-      setScannerStatus('Noch kein Treffer. 15-25 cm Abstand, gerade halten oder eintippen.', 'Kein Barcode erkannt');
+      setScannerStatus('Noch kein Treffer. Bei Umverpackung 25–40 cm Abstand oder Zahl unter dem Strichcode eintippen.', 'Kein Barcode erkannt');
     }, 9000);
   });
 }
@@ -636,14 +686,14 @@ async function startHtml5QrScanner() {
 
   const sessionId = scannerSessionId;
   scannerRunning = true;
-  setScannerStatus('Fallback-Scanner aktiv. Barcode waagerecht halten.', 'Scanner aktiv');
+  setScannerStatus('Fallback-Scanner aktiv. Lange Karton-Codes: mehr Abstand.', 'Scanner aktiv');
   html5QrCode = new Html5Qrcode('html5-reader', {
     formatsToSupport: [
+      Html5QrcodeSupportedFormats.CODE_128,
       Html5QrcodeSupportedFormats.EAN_13,
       Html5QrcodeSupportedFormats.EAN_8,
       Html5QrcodeSupportedFormats.UPC_A,
       Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.CODE_128,
       Html5QrcodeSupportedFormats.CODE_39,
       Html5QrcodeSupportedFormats.ITF,
     ],
@@ -656,18 +706,18 @@ async function startHtml5QrScanner() {
     if (sessionId !== scannerSessionId) return;
     const videoConstraints = {
       ...cameraConfig,
-      width: { min: 640, ideal: 1280, max: 1920 },
-      height: { min: 480, ideal: 720, max: 1080 },
+      width: { min: 640, ideal: 1920, max: 1920 },
+      height: { min: 480, ideal: 1080, max: 1080 },
     };
     await html5QrCode.start(
       cameraConfig,
       {
         fps: 24,
         qrbox: (viewfinderWidth, viewfinderHeight) => ({
-          width: Math.min(Math.floor(viewfinderWidth * 0.96), 760),
-          height: Math.max(90, Math.min(Math.floor(viewfinderHeight * 0.18), 160)),
+          width: Math.min(Math.floor(viewfinderWidth * 0.98), 920),
+          height: Math.max(100, Math.min(Math.floor(viewfinderHeight * 0.22), 200)),
         }),
-        aspectRatio: 1.3333333,
+        aspectRatio: 1.7777778,
         disableFlip: true,
         rememberLastUsedCamera: true,
         videoConstraints,
@@ -697,7 +747,7 @@ async function ensureBarcodeDetector() {
 
   try {
     barcodeDetector = new BarcodeDetector({
-      formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf']
+      formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'itf']
     });
   } catch (err) {
     barcodeDetector = new BarcodeDetector();
@@ -727,9 +777,9 @@ async function startBarcodeDetection() {
 
     try {
       const barcodes = await detector.detect(previewVideo);
-      const value = cleanScannedBarcode(barcodes?.[0]?.rawValue);
-      if (value) {
-        emitScanSuccess(value);
+      const rawValue = barcodes?.[0]?.rawValue;
+      if (rawValue && cleanScannedBarcode(rawValue)) {
+        emitScanSuccess(rawValue);
         return;
       }
     } catch (err) {
