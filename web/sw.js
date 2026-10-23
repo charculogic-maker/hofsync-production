@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261023-gs1-128-umverpackung-v2';
+const CACHE_NAME = 'charculogic-v20261023-gs1-128-preview-fix-v3';
 
-const CACHE_SCHEMA = 'p0-gs1-128-umverpackung-scan-oct2026-v2';
-/** Release – GS1-128 Umverpackungs-Barcodes (GTIN/MHD aus Kartoncode) */
-const RELEASED_AT = '2026-10-23T12:30:00+02:00';
+const CACHE_SCHEMA = 'p0-gs1-128-umverpackung-preview-fix-oct2026';
+/** Release – GS1-128 Parsing + stabiles Kamerapreview (ohne 1920/Hints) */
+const RELEASED_AT = '2026-10-23T13:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

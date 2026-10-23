@@ -68,13 +68,15 @@ describe('barcode-normalize GS1-128 Umverpackung', () => {
 });
 
 describe('scanner + mhd wiring for GS1', () => {
-  it('scanner emits raw payload into GS1-aware parse path', () => {
+  it('scanner emits raw payload into GS1-aware parse path without risky ZXing hints', () => {
     const scannerSrc = readFileSync(path.join(root, 'web/scanner.js'), 'utf8');
     assert.ok(scannerSrc.includes("from './barcode-normalize.js'"));
     assert.ok(scannerSrc.includes('parseBarcodeScan'));
-    assert.ok(scannerSrc.includes('ASSUME_GS1'));
     assert.ok(scannerSrc.includes('code_128_reader'));
     assert.ok(scannerSrc.includes('getLastScanExtras'));
+    assert.ok(scannerSrc.includes('new ZXingBrowser.BrowserMultiFormatOneDReader()'));
+    assert.equal(scannerSrc.includes('ASSUME_GS1'), false);
+    assert.ok(scannerSrc.includes('width: { ideal: 1280 }'));
   });
 
   it('mhd uses barcode-normalize and accepts GS1 MHD on receiving auto-add', () => {
