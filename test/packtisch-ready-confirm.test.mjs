@@ -32,4 +32,16 @@ describe('Packtisch Ready-Sicherheitsnetz', () => {
     assert.match(fn, /skipNotify === true/);
     assert.match(fn, /skipped: true/);
   });
+
+  it('erlaubt Bestellbearbeitung mit Protokoll-Eintrag', () => {
+    assert.match(html, /id="order-edit-modal"/);
+    assert.match(html, /id="order-edit-form"/);
+    assert.match(html, /Änderungen speichern/);
+    assert.match(js, /openOrderEditModal/);
+    assert.match(js, /saveOrderEditFromModal/);
+    assert.match(js, /data-order-action="edit"/);
+    assert.match(js, /edited_reopen/);
+    assert.match(js, /Bestellung bearbeitet/);
+    assert.match(js, /actionLog:\s*nextLog/);
+  });
 });

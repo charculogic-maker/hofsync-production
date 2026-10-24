@@ -78,7 +78,12 @@ const orderState = {
   notifyReadyInFlight: false,
   /** @type {{ mode: 'ready'|'notify_again', orderId: string }|null} */
   pendingNotifyAction: null,
+  editInFlight: false,
+  editingOrderId: '',
 };
+
+/** Abgeholt / storniert – Bearbeitung setzt wieder auf in_progress */
+const PAST_ORDER_STATUSES = Object.freeze(new Set(['picked_up', 'cancelled']));
 
 const ORDER_ACTION_LOG_LABELS = Object.freeze({
   in_progress: 'In Bearbeitung gesetzt',
@@ -90,6 +95,8 @@ const ORDER_ACTION_LOG_LABELS = Object.freeze({
   notify_again_skip: 'Erneute Benachrichtigung übersprungen',
   picked_up: 'Als abgeholt markiert',
   cancelled: 'Storniert',
+  edited: 'Bestellung bearbeitet',
+  edited_reopen: 'Bestellung bearbeitet · wieder in Bearbeitung',
 });
 
 const ACTION_LOG_MAX = 40;
@@ -1267,20 +1274,32 @@ function renderOrderCard(order, { adminView = false } = {}) {
   const ref = orderRefLabel(order);
   const expanded = orderState.expandedPackOrderId === order.id;
 
+  const canEditContent = status === 'open'
+    || status === 'pending'
+    || status === 'eingegangen'
+    || status === 'in_progress'
+    || status === 'ready';
+  const editBtn = canEditContent
+    ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="edit" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Bearbeiten</button>`
+    : '';
+
   let actions = '';
   if (status === 'open' || status === 'pending' || status === 'eingegangen') {
     actions = `
+      ${editBtn}
       <button type="button" class="btn btn-primary btn-compact" data-order-action="in_progress" data-order-id="${escapeHtml(order.id)}">In Bearbeitung</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
     `;
   } else if (status === 'in_progress') {
     actions = `
+      ${editBtn}
       <button type="button" class="btn btn-primary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
     `;
   } else if (status === 'ready') {
     actions = `
+      ${editBtn}
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Weiter bearbeiten</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="notify_ready" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Kunde erneut benachrichtigen</button>
       <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt…' : 'Als abgeholt markieren'}</button>
@@ -1995,6 +2014,266 @@ async function updateOrderStatus(orderId, nextStatus, { action = '' } = {}) {
   }
 }
 
+function fillEditLineCard(card, item = {}) {
+  if (!card) return;
+  const product = card.querySelector('[data-line-product]');
+  const quantity = card.querySelector('[data-line-quantity]');
+  const unit = card.querySelector('[data-line-unit]');
+  const weight = card.querySelector('[data-line-weight]');
+  const width = card.querySelector('[data-line-width]');
+  const notes = card.querySelector('[data-line-notes]');
+  if (product) product.value = item.product || item.name || '';
+  if (quantity) {
+    quantity.value = item.quantity != null
+      ? String(item.quantity)
+      : (item.pieces != null ? String(item.pieces) : '');
+  }
+  if (unit) {
+    const unitValue = item.unit || (item.pieces ? 'Stück' : (item.weightKg ? 'kg' : 'Stück'));
+    if (![...unit.options].some((opt) => opt.value === unitValue)) {
+      const opt = document.createElement('option');
+      opt.value = unitValue;
+      opt.textContent = unitValue;
+      unit.appendChild(opt);
+    }
+    unit.value = unitValue;
+  }
+  if (weight) weight.value = item.weight || (item.weightKg ? `${item.weightKg} kg` : '');
+  if (width) width.value = item.width || item.cutLabel || '';
+  if (notes) notes.value = item.lineNotes || item.note || '';
+}
+
+function addEditOrderLine(item = null) {
+  const container = document.getElementById('order-edit-lines-container');
+  if (!container) return;
+  orderState.lineCounter += 1;
+  const lineId = `edit_line_${orderState.lineCounter}`;
+  container.insertAdjacentHTML('beforeend', buildOrderLineRow(lineId));
+  const card = container.querySelector(`[data-order-line="${lineId}"]`);
+  if (item) fillEditLineCard(card, item);
+}
+
+function readEditOrderLinesFromDom() {
+  const cards = document.querySelectorAll('#order-edit-lines-container .order-line-card');
+  const items = [];
+  cards.forEach((card) => {
+    const product = card.querySelector('[data-line-product]')?.value?.trim() || '';
+    const quantity = card.querySelector('[data-line-quantity]')?.value?.trim() || '';
+    const unit = card.querySelector('[data-line-unit]')?.value?.trim() || '';
+    const weight = card.querySelector('[data-line-weight]')?.value?.trim() || '';
+    const width = card.querySelector('[data-line-width]')?.value?.trim() || '';
+    const lineNotes = card.querySelector('[data-line-notes]')?.value?.trim() || '';
+    if (!product && !quantity) return;
+    items.push({
+      product,
+      quantity,
+      unit: unit || null,
+      weight: weight || null,
+      width: width || null,
+      lineNotes: lineNotes || null,
+    });
+  });
+  return items;
+}
+
+function closeOrderEditModal() {
+  const modal = document.getElementById('order-edit-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+  orderState.editingOrderId = '';
+  const status = document.getElementById('order-edit-status');
+  if (status) status.textContent = '';
+}
+
+function openOrderEditModal(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const modal = document.getElementById('order-edit-modal');
+  if (!order || !modal) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  orderState.editingOrderId = orderId;
+  document.getElementById('order-edit-id').value = orderId;
+  document.getElementById('order-edit-customer-name').value = customerDisplayName(order);
+  document.getElementById('order-edit-callback-phone').value = customerPhone(order);
+  document.getElementById('order-edit-customer-email').value = order.customerEmail || order.customer?.email || '';
+  document.getElementById('order-edit-additional-wishes').value = order.additionalWishes || order.butcherNotes || '';
+
+  const readyIso = orderPickupDayIso(order) || todayIsoLocal();
+  const readyTimeMatch = String(order.readyAt || '').match(/T(\d{2}:\d{2})/);
+  setGermanDateField(document.getElementById('order-edit-ready-date'), readyIso);
+  document.getElementById('order-edit-ready-time').value = readyTimeMatch?.[1] || defaultReadyTimeLocal();
+
+  const container = document.getElementById('order-edit-lines-container');
+  if (container) container.innerHTML = '';
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length) items.forEach((item) => addEditOrderLine(item));
+  else addEditOrderLine();
+
+  const title = document.getElementById('order-edit-title');
+  if (title) title.textContent = `Bestellung ${orderRefLabel(order)} bearbeiten`;
+  const kicker = document.getElementById('order-edit-kicker');
+  if (kicker) {
+    kicker.textContent = orderStatus(order) === 'ready' || PAST_ORDER_STATUSES.has(orderStatus(order))
+      ? 'Wird beim Speichern wieder in Bearbeitung gesetzt'
+      : 'Positionen ändern oder ergänzen';
+  }
+
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+  initGermanDateInputs(modal);
+}
+
+async function saveOrderEditFromModal() {
+  if (orderState.editInFlight) return;
+  const orderId = orderState.editingOrderId || document.getElementById('order-edit-id')?.value;
+  const existing = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!existing) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+
+  const customerName = document.getElementById('order-edit-customer-name')?.value?.trim() || '';
+  const callbackPhone = document.getElementById('order-edit-callback-phone')?.value?.trim() || '';
+  const customerEmail = document.getElementById('order-edit-customer-email')?.value?.trim() || '';
+  const readyDate = readGermanDateField(document.getElementById('order-edit-ready-date')) || '';
+  const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
+  const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
+  const items = readEditOrderLinesFromDom();
+
+  if (!customerName) {
+    window.showToast?.('Bitte Kundennamen eingeben.', 'warning');
+    return;
+  }
+  if (!readyDate || !readyTime) {
+    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
+    return;
+  }
+  if (!items.length) {
+    window.showToast?.('Mindestens eine Position eintragen.', 'warning');
+    return;
+  }
+  if (!callbackPhone && !customerEmail) {
+    window.showToast?.('Bitte Rückrufnummer oder E-Mail angeben.', 'warning');
+    return;
+  }
+
+  const prevStatus = orderStatus(existing);
+  const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
+  const logAction = shouldReopen ? 'edited_reopen' : 'edited';
+  const logEntry = buildOrderActionLogEntry(logAction, employee);
+  const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
+
+  const firebase = orderState.getFirebase();
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
+
+  const onlineData = {
+    customerName,
+    readyAt: `${readyDate}T${readyTime}`,
+    items,
+    employeeName: employee,
+    updatedBy: employee,
+    updatedAt: serverTimestamp,
+    actionLog: nextLog,
+  };
+  if (callbackPhone) onlineData.callbackPhone = callbackPhone;
+  else onlineData.callbackPhone = null;
+  if (customerEmail) onlineData.customerEmail = customerEmail;
+  else onlineData.customerEmail = null;
+  if (additionalWishes) onlineData.additionalWishes = additionalWishes;
+  else onlineData.additionalWishes = null;
+
+  if (shouldReopen) {
+    onlineData.status = 'in_progress';
+    onlineData.inProgressBy = employee;
+    onlineData.inProgressAt = serverTimestamp;
+  }
+
+  const queueData = {
+    ...onlineData,
+    updatedAt: new Date().toISOString(),
+    actionLog: nextLog,
+  };
+  if (shouldReopen) {
+    queueData.inProgressAt = new Date().toISOString();
+  }
+
+  const statusEl = document.getElementById('order-edit-status');
+  const saveBtn = document.getElementById('order-edit-save-btn');
+  orderState.editInFlight = true;
+  if (statusEl) statusEl.textContent = 'Änderungen werden gespeichert…';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.setAttribute('aria-busy', 'true');
+  }
+
+  try {
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData,
+      queueData,
+      offlineMessage: 'Änderungen werden synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      const next = {
+        ...entry,
+        customerName,
+        readyAt: `${readyDate}T${readyTime}`,
+        items,
+        callbackPhone: callbackPhone || null,
+        customerEmail: customerEmail || null,
+        additionalWishes: additionalWishes || null,
+        updatedBy: employee,
+        updatedAt: new Date().toISOString(),
+        actionLog: nextLog,
+      };
+      if (shouldReopen) {
+        next.status = 'in_progress';
+        next.inProgressBy = employee;
+        next.inProgressAt = new Date().toISOString();
+      }
+      return next;
+    });
+    closeOrderEditModal();
+    orderState.expandedPackOrderId = orderId;
+    renderOpenOrders();
+    renderAdminOrders();
+    renderZuschnittliste();
+    renderProductionTasks();
+    window.showToast?.(
+      result === 'queued'
+        ? 'Änderungen werden synchronisiert, sobald WLAN verfügbar ist.'
+        : (shouldReopen
+          ? 'Bestellung aktualisiert und wieder in Bearbeitung.'
+          : 'Bestellung aktualisiert.'),
+      result === 'queued' ? 'warning' : 'success',
+    );
+  } catch (err) {
+    console.error('[CustomerOrders] Bestellung bearbeiten fehlgeschlagen:', err);
+    if (statusEl) statusEl.textContent = 'Speichern fehlgeschlagen – bitte erneut versuchen.';
+    window.showToast?.('Änderungen konnten nicht gespeichert werden.', 'error');
+  } finally {
+    orderState.editInFlight = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.setAttribute('aria-busy', 'false');
+    }
+  }
+}
+
 function formatKgLabel(kg) {
   return `${formatQuantityValue(kg)} kg`;
 }
@@ -2400,6 +2679,10 @@ function bindOrderListActions() {
       updateOrderStatus(orderId, 'in_progress', { action: 'reopen' });
       return;
     }
+    if (action === 'edit') {
+      openOrderEditModal(orderId);
+      return;
+    }
     if (action === 'notify_ready') {
       requestNotifyCustomerReadyAgain(orderId);
       return;
@@ -2439,6 +2722,30 @@ function bindAveryLabelActions() {
   document.getElementById('avery-label-print-btn')?.addEventListener('click', printAveryLabel);
   modal.addEventListener('click', (event) => {
     if (event.target === modal) closeAveryLabel();
+  });
+}
+
+function bindOrderEditModal() {
+  const modal = document.getElementById('order-edit-modal');
+  if (!modal || modal.dataset.orderEditBound === '1') return;
+  modal.dataset.orderEditBound = '1';
+  document.getElementById('order-edit-close-btn')?.addEventListener('click', closeOrderEditModal);
+  document.getElementById('order-edit-cancel-btn')?.addEventListener('click', closeOrderEditModal);
+  document.getElementById('order-edit-add-line-btn')?.addEventListener('click', () => addEditOrderLine());
+  document.getElementById('order-edit-lines-container')?.addEventListener('click', (e) => {
+    const lineId = e.target.closest('[data-remove-line]')?.dataset.removeLine;
+    if (!lineId) return;
+    const card = document.querySelector(`#order-edit-lines-container [data-order-line="${lineId}"]`);
+    const container = document.getElementById('order-edit-lines-container');
+    if (card && container && container.children.length > 1) card.remove();
+    else window.showToast?.('Mindestens eine Position behalten.', 'warning');
+  });
+  document.getElementById('order-edit-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveOrderEditFromModal();
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeOrderEditModal();
   });
 }
 
@@ -2607,6 +2914,7 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
   bindDeliveryNoteActions();
   bindAveryLabelActions();
   bindOrderNotifyModal();
+  bindOrderEditModal();
   bindOrdersViewSwitch();
   bindSammelPicklisteActions();
   setOrdersView(orderState.ordersView || 'packtisch');

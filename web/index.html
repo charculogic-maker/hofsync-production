@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261024-mhd-filter-ampel-datum">
+  <link rel="stylesheet" href="/style.css?v=20261024-packtisch-edit-log">
   <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1449,6 +1449,52 @@
               </div>
 
               <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
+
+              <div class="order-edit-modal" id="order-edit-modal" hidden role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
+                <div class="order-edit-view">
+                  <header class="order-edit-toolbar">
+                    <div>
+                      <p class="customer-order-hint" id="order-edit-kicker">Bestellung anpassen</p>
+                      <h2 id="order-edit-title">Bestellung bearbeiten</h2>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-compact" id="order-edit-close-btn" aria-label="Bearbeiten schließen">Schließen</button>
+                  </header>
+                  <form id="order-edit-form" class="customer-order-form order-edit-form">
+                    <input type="hidden" id="order-edit-id" value="">
+                    <label class="form-label" for="order-edit-customer-name">Name des Kunden</label>
+                    <input type="text" id="order-edit-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+
+                    <div class="customer-order-contact-grid">
+                      <label class="form-label" for="order-edit-callback-phone">Rückrufnummer</label>
+                      <input type="tel" id="order-edit-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                      <label class="form-label" for="order-edit-customer-email">oder E-Mail</label>
+                      <input type="email" id="order-edit-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                    </div>
+
+                    <div class="customer-order-ready-grid">
+                      <label class="form-label" for="order-edit-ready-date">Bereit am</label>
+                      <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                      <label class="form-label" for="order-edit-ready-time">Uhrzeit</label>
+                      <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
+                    </div>
+
+                    <div class="customer-order-lines-head">
+                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
+                      <button type="button" class="btn btn-secondary btn-compact" id="order-edit-add-line-btn">+ Position</button>
+                    </div>
+                    <div id="order-edit-lines-container" class="order-lines-container"></div>
+
+                    <label class="form-label" for="order-edit-additional-wishes">Hinweise / Wünsche</label>
+                    <textarea id="order-edit-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. zusätzlich 2 Glas Fleischsalat"></textarea>
+
+                    <p class="customer-order-hint order-save-status" id="order-edit-status" role="status" aria-live="polite"></p>
+                    <div class="order-edit-actions">
+                      <button type="button" class="btn btn-secondary" id="order-edit-cancel-btn">Abbrechen</button>
+                      <button type="submit" class="btn btn-primary" id="order-edit-save-btn">Änderungen speichern</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
 
               <div class="order-notify-modal" id="order-notify-modal" hidden role="dialog" aria-modal="true" aria-labelledby="order-notify-title">
                 <div class="order-notify-view">
@@ -3306,6 +3352,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261018-ios-inpage-print"></script>
+  <script type="module" src="/app.js?v=20261024-packtisch-edit-log"></script>
 </body>
 </html>
