@@ -415,7 +415,12 @@ function getSortedProfilePickerEmployees() {
   ]);
   return getTeamEmployees()
     .map((name) => String(name).trim())
-    .filter((name) => name && !blocked.has(name.toLowerCase()) && !isTeamSessionName(name))
+    .filter((name) => (
+      name
+      && !blocked.has(name.toLowerCase())
+      && !isTeamSessionName(name)
+      && !isHiddenSoftLockEmployeeName(name)
+    ))
     .sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
 }
 
@@ -1655,11 +1660,20 @@ function escapeEmployeePickerHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+/** Test-/Agent-Konten nicht im Soft-Lock-Picker zeigen (Auth bleibt nutzbar). */
+function isHiddenSoftLockEmployeeName(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return true;
+  if (/^cursor\s*agent\b/i.test(clean)) return true;
+  if (/^cursor-agent\b/i.test(clean)) return true;
+  return false;
+}
+
 function normalizeEmployeePickerNames(list = []) {
   const names = [];
   (Array.isArray(list) ? list : []).forEach((entry) => {
     const clean = String(entry || '').trim();
-    if (!clean) return;
+    if (!clean || isHiddenSoftLockEmployeeName(clean)) return;
     if (names.some((name) => name.toLowerCase() === clean.toLowerCase())) return;
     names.push(clean);
   });
