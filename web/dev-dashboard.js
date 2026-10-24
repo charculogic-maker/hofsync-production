@@ -2025,7 +2025,11 @@ function bindEmployeeCreateForm(dashboardState) {
       await refreshEmployeeTable(dashboardState);
     } catch (err) {
       console.error('[Dev-Dashboard] Mitarbeiter-Anlage fehlgeschlagen:', err);
-      const message = String(err?.message || 'Anlage fehlgeschlagen.');
+      const detailsReason = String(err?.details?.reason || err?.customData?.reason || '').trim();
+      const rawMessage = String(err?.message || 'Anlage fehlgeschlagen.');
+      const message = detailsReason && !rawMessage.includes(detailsReason)
+        ? `${rawMessage} (${detailsReason})`
+        : rawMessage;
       setEmployeeFormStatus(message, 'error');
       window.showToast?.('Mitarbeiter konnte nicht angelegt werden.', 'error');
     } finally {
