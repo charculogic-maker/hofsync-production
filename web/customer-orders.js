@@ -10,17 +10,23 @@ import {
   ACTIVE_ORDER_STATUSES,
   CUTLIST_ORDER_STATUSES,
   ORDER_STATUS_LABELS,
+  PACKTISCH_DASHBOARD_LABELS,
+  PAST_ORDER_STATUSES,
   addDaysIso,
+  aggregatePastOrderProducts,
   buildPacktischCalendarDays,
   butcherNotes,
   calculateLinePriceFromWeight,
+  classifyPacktischBucket,
   countOrdersByPickupDay,
   customerDisplayName,
   customerPhone,
+  filterPastOrders,
   formatPickupReadyLabel,
   generateZuschnittAggregation,
   nextStatusInPipeline,
   nextWeekdayIso,
+  normalizeNotifyChannels,
   normalizeOrderItem,
   orderPickupChannelLabel,
   orderPickupDayIso,
@@ -29,8 +35,10 @@ import {
   orderStatus,
   sortOrdersForPacktisch,
   startOfMonthIso,
+  summarizePacktischDashboard,
   todayIsoLocal as packlistTodayIso,
   vacuumWishesSummary,
+  wantsAnyReadyNotify,
 } from './order-packlist.js';
 
 const OPEN_ORDER_STATUSES = CUTLIST_ORDER_STATUSES;
@@ -63,7 +71,7 @@ const orderState = {
   picklistChecked: new Set(),
   productionChecked: new Set(),
   actualQuantityByKey: new Map(),
-  /** @type {'aufnahme'|'zuschnitt'|'packtisch'} */
+  /** @type {'aufnahme'|'zuschnitt'|'packtisch'|'vergangen'} */
   ordersView: 'packtisch',
   zuschnittDayIso: '',
   expandedPackOrderId: '',
@@ -75,7 +83,17 @@ const orderState = {
   calendarAnchorIso: '',
   /** Gewählter Abholtag (ISO) – leer = alle offenen */
   selectedPickupDayIso: '',
+  /** @type {''|'due'|'open'|'in_progress'|'ready'} Dashboard-Filter */
+  dashboardFilter: '',
+  /** Vergangene: Zeitraum in Tagen */
+  pastRangeDays: 30,
+  /** Vergangene: Wochentag 0–6 oder null */
+  pastWeekday: null,
+  editInFlight: false,
+  editingOrderId: '',
   notifyReadyInFlight: false,
+  /** @type {{ mode: 'ready'|'notify_again', orderId: string }|null} */
+  pendingNotifyAction: null,
 };
 
 function escapeHtml(value) {
@@ -159,11 +177,31 @@ function formatCalendarCellLabel(isoDay) {
 }
 
 function ordersForPacktischList() {
+  const today = todayIsoLocal();
   let open = orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o)));
   if (orderState.selectedPickupDayIso) {
     open = open.filter((o) => orderPickupDayIso(o) === orderState.selectedPickupDayIso);
   }
+  if (orderState.dashboardFilter) {
+    open = open.filter((o) => classifyPacktischBucket(o, today) === orderState.dashboardFilter);
+  }
   return sortOrdersForPacktisch(open);
+}
+
+function defaultNotifyChannelsForOrder(order) {
+  const hasExplicit = order?.notifyChannels
+    && typeof order.notifyChannels === 'object'
+    && (('email' in order.notifyChannels) || ('sms' in order.notifyChannels) || ('whatsapp' in order.notifyChannels));
+  const existing = hasExplicit
+    ? normalizeNotifyChannels(order.notifyChannels)
+    : { email: true, sms: false, whatsapp: false };
+  const hasEmail = Boolean(order?.customerEmail || order?.customer?.email);
+  const hasPhone = Boolean(customerPhone(order));
+  return {
+    email: hasEmail ? existing.email : false,
+    sms: hasPhone ? Boolean(existing.sms) : false,
+    whatsapp: hasPhone ? Boolean(existing.whatsapp) : false,
+  };
 }
 
 function ordersCollectionRef() {
@@ -1143,25 +1181,45 @@ function renderOrderCard(order, { adminView = false } = {}) {
   const ref = orderRefLabel(order);
   const expanded = orderState.expandedPackOrderId === order.id;
 
+  const canEditContent = status === 'open'
+    || status === 'pending'
+    || status === 'eingegangen'
+    || status === 'in_progress'
+    || status === 'ready';
+  const editBtn = canEditContent
+    ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="edit" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Bearbeiten / erweitern</button>`
+    : '';
+
   let actions = '';
   if (status === 'open' || status === 'pending' || status === 'eingegangen') {
     actions = `
+      ${editBtn}
       <button type="button" class="btn btn-primary btn-compact" data-order-action="in_progress" data-order-id="${escapeHtml(order.id)}">In Bearbeitung</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
     `;
   } else if (status === 'in_progress') {
     actions = `
+      ${editBtn}
       <button type="button" class="btn btn-primary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
     `;
   } else if (status === 'ready') {
     actions = `
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Weiter bearbeiten</button>
+      ${editBtn}
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Zurück in Bearbeitung</button>
       <button type="button" class="btn btn-secondary btn-compact" data-order-action="notify_ready" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Kunde erneut benachrichtigen</button>
       <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt…' : 'Als abgeholt markieren'}</button>
     `;
+  } else if (status === 'picked_up' || status === 'cancelled') {
+    actions = `
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Wieder in Bearbeitung</button>
+      ${editBtn || `<button type="button" class="btn btn-secondary btn-compact" data-order-action="edit" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Bearbeiten / erweitern</button>`}
+    `;
   }
+
+  const bucket = classifyPacktischBucket(order);
+  const bucketLabel = bucket ? PACKTISCH_DASHBOARD_LABELS[bucket] : '';
 
   return `
     <article class="customer-order-card packtisch-card packtisch-card--${escapeHtml(status)} customer-order-card--${escapeHtml(status)}" data-order-id="${escapeHtml(order.id)}">
@@ -1172,19 +1230,131 @@ function renderOrderCard(order, { adminView = false } = {}) {
         </div>
         <span class="customer-order-badge packtisch-badge">${escapeHtml(statusLabel)}</span>
       </header>
+      ${bucketLabel && ACTIVE_ORDER_STATUSES.has(status) ? `<p class="customer-order-meta packtisch-bucket-label">${escapeHtml(bucketLabel)}</p>` : ''}
       <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || 'Portal')}</p>
       <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items)}</ul>
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
       <div class="packtisch-actions">
-        <button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>
+        ${ACTIVE_ORDER_STATUSES.has(status)
+    ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>`
+    : ''}
         ${actions}
       </div>
-      ${expanded ? renderPacktischDetail(order) : ''}
+      ${expanded && ACTIVE_ORDER_STATUSES.has(status) ? renderPacktischDetail(order) : ''}
       ${adminView && status !== 'open' ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>` : ''}
     </article>
   `;
+}
+
+function renderPacktischDashboard() {
+  const root = document.getElementById('packtisch-dashboard');
+  if (!root) return;
+  const today = todayIsoLocal();
+  let scoped = orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o)));
+  if (orderState.selectedPickupDayIso) {
+    scoped = scoped.filter((o) => orderPickupDayIso(o) === orderState.selectedPickupDayIso);
+  }
+  const counts = summarizePacktischDashboard(scoped, today);
+  const filter = orderState.dashboardFilter;
+  const tiles = [
+    { key: 'due', count: counts.due },
+    { key: 'open', count: counts.open },
+    { key: 'in_progress', count: counts.in_progress },
+    { key: 'ready', count: counts.ready },
+  ];
+
+  root.innerHTML = `
+    <div class="packtisch-dashboard-grid" role="group" aria-label="Bestell-Übersicht">
+      ${tiles.map((tile) => {
+    const active = filter === tile.key;
+    const label = PACKTISCH_DASHBOARD_LABELS[tile.key] || tile.key;
+    return `
+          <button type="button"
+            class="packtisch-dash-tile packtisch-dash-tile--${escapeHtml(tile.key)}${active ? ' is-active' : ''}${tile.count ? ' has-items' : ''}"
+            data-dashboard-filter="${escapeHtml(tile.key)}"
+            aria-pressed="${active ? 'true' : 'false'}">
+            <span class="packtisch-dash-count">${escapeHtml(String(tile.count))}</span>
+            <span class="packtisch-dash-label">${escapeHtml(label)}</span>
+          </button>`;
+  }).join('')}
+    </div>
+    <div class="packtisch-dashboard-legend">
+      <p class="customer-order-hint">${filter
+    ? `Filter: <strong>${escapeHtml(PACKTISCH_DASHBOARD_LABELS[filter] || filter)}</strong> · ${counts[filter] || 0} Bestellung${(counts[filter] || 0) === 1 ? '' : 'en'}`
+    : `${counts.total} offene Bestellung${counts.total === 1 ? '' : 'en'} insgesamt`}</p>
+      ${filter
+    ? '<button type="button" class="btn btn-secondary btn-compact" data-dashboard-clear>Alle Status zeigen</button>'
+    : ''}
+    </div>
+  `;
+}
+
+function renderPastOrdersChart(products) {
+  const root = document.getElementById('past-orders-chart');
+  if (!root) return;
+  const top = products.slice(0, 10);
+  if (!top.length) {
+    root.innerHTML = '<p class="customer-order-hint">Noch keine Produkt-Häufigkeit im gewählten Filter.</p>';
+    return;
+  }
+  const max = Math.max(...top.map((row) => row.orderCount), 1);
+  root.innerHTML = `
+    <ul class="past-orders-bars" aria-label="Produkt-Häufigkeit">
+      ${top.map((row) => {
+    const pct = Math.max(8, Math.round((row.orderCount / max) * 100));
+    return `
+          <li class="past-orders-bar-row">
+            <div class="past-orders-bar-meta">
+              <strong>${escapeHtml(row.product)}</strong>
+              <span>${escapeHtml(String(row.orderCount))}× in Bestellungen · ${escapeHtml(String(row.lineCount))} Position${row.lineCount === 1 ? '' : 'en'}</span>
+            </div>
+            <div class="past-orders-bar-track" aria-hidden="true">
+              <span class="past-orders-bar-fill" style="width:${pct}%"></span>
+            </div>
+          </li>`;
+  }).join('')}
+    </ul>
+  `;
+}
+
+function renderPastOrdersView() {
+  const list = document.getElementById('past-orders-list');
+  const empty = document.getElementById('past-orders-empty');
+  if (!list) return;
+
+  document.querySelectorAll('[data-past-range]').forEach((btn) => {
+    btn.classList.toggle('is-active', Number(btn.dataset.pastRange) === orderState.pastRangeDays);
+  });
+  document.querySelectorAll('[data-past-weekday]').forEach((btn) => {
+    const raw = btn.dataset.pastWeekday;
+    const value = raw === '' || raw == null ? null : Number(raw);
+    const active = value == null
+      ? orderState.pastWeekday == null
+      : orderState.pastWeekday === value;
+    btn.classList.toggle('is-active', active);
+  });
+
+  const filterOpts = {
+    rangeDays: orderState.pastRangeDays,
+    weekday: orderState.pastWeekday,
+  };
+  const past = sortOrdersForPacktisch(filterPastOrders(orderState.allOrders, filterOpts))
+    .reverse();
+  const products = aggregatePastOrderProducts(orderState.allOrders, filterOpts);
+  renderPastOrdersChart(products);
+
+  if (past.length === 0) {
+    list.innerHTML = '';
+    if (empty) {
+      empty.classList.remove('hidden');
+      empty.textContent = 'Keine vergangenen Bestellungen im Zeitraum.';
+    }
+    return;
+  }
+  empty?.classList.add('hidden');
+  list.innerHTML = past.map((o) => renderOrderCard(o)).join('');
 }
 
 function renderPacktischCalendar() {
@@ -1263,6 +1433,7 @@ function renderOpenOrders() {
   const empty = document.getElementById('customer-order-empty');
   if (!list) return;
 
+  renderPacktischDashboard();
   renderPacktischCalendar();
   const open = ordersForPacktischList();
 
@@ -1270,9 +1441,15 @@ function renderOpenOrders() {
     list.innerHTML = '';
     if (empty) {
       empty.classList.remove('hidden');
-      empty.textContent = orderState.selectedPickupDayIso
-        ? `Keine Bestellungen für ${formatCalendarDayHeading(orderState.selectedPickupDayIso)}.`
-        : 'Keine offenen Kundenbestellungen.';
+      let message = 'Keine offenen Kundenbestellungen.';
+      if (orderState.dashboardFilter && orderState.selectedPickupDayIso) {
+        message = `Keine Bestellungen für ${formatCalendarDayHeading(orderState.selectedPickupDayIso)} im Status „${PACKTISCH_DASHBOARD_LABELS[orderState.dashboardFilter] || orderState.dashboardFilter}“.`;
+      } else if (orderState.dashboardFilter) {
+        message = `Keine Bestellungen im Status „${PACKTISCH_DASHBOARD_LABELS[orderState.dashboardFilter] || orderState.dashboardFilter}“.`;
+      } else if (orderState.selectedPickupDayIso) {
+        message = `Keine Bestellungen für ${formatCalendarDayHeading(orderState.selectedPickupDayIso)}.`;
+      }
+      empty.textContent = message;
     }
     return;
   }
@@ -1485,16 +1662,78 @@ async function createOrderFromForm() {
   }
 }
 
-async function notifyCustomerReadyAgain(orderId) {
-  if (orderState.notifyReadyInFlight || orderState.statusUpdateInFlight) return;
+function readNotifyChannelsFromModal() {
+  return normalizeNotifyChannels({
+    email: Boolean(document.getElementById('order-notify-email')?.checked),
+    sms: Boolean(document.getElementById('order-notify-sms')?.checked),
+    whatsapp: Boolean(document.getElementById('order-notify-whatsapp')?.checked),
+  });
+}
+
+function closeOrderNotifyModal() {
+  const modal = document.getElementById('order-notify-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+  orderState.pendingNotifyAction = null;
+}
+
+function openOrderNotifyModal(orderId, mode = 'ready') {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const modal = document.getElementById('order-notify-modal');
+  if (!order || !modal) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  orderState.pendingNotifyAction = { mode, orderId };
+  const channels = defaultNotifyChannelsForOrder(order);
+  const emailEl = document.getElementById('order-notify-email');
+  const smsEl = document.getElementById('order-notify-sms');
+  const waEl = document.getElementById('order-notify-whatsapp');
+  if (emailEl) {
+    emailEl.checked = channels.email;
+    emailEl.disabled = !Boolean(order.customerEmail || order.customer?.email);
+  }
+  if (smsEl) {
+    smsEl.checked = channels.sms;
+    smsEl.disabled = !customerPhone(order);
+  }
+  if (waEl) {
+    waEl.checked = channels.whatsapp;
+    waEl.disabled = !customerPhone(order);
+  }
+
+  const summary = document.getElementById('order-notify-summary');
+  if (summary) {
+    summary.textContent = mode === 'notify_again'
+      ? `${customerDisplayName(order)} erneut über die Abholung informieren.`
+      : `${customerDisplayName(order)} als abholbereit markieren und optional benachrichtigen.`;
+  }
+  const hint = document.getElementById('order-notify-hint');
+  if (hint) {
+    const parts = [];
+    if (!(order.customerEmail || order.customer?.email)) parts.push('Keine E-Mail hinterlegt');
+    if (!customerPhone(order)) parts.push('Keine Telefonnummer hinterlegt');
+    hint.textContent = parts.length
+      ? `${parts.join(' · ')}. SMS und WhatsApp folgen später – die Auswahl merken wir uns schon.`
+      : 'SMS und WhatsApp folgen später – die Auswahl merken wir uns schon für die Bestätigung.';
+  }
+  const sendBtn = document.getElementById('order-notify-send-btn');
+  if (sendBtn) {
+    sendBtn.textContent = mode === 'notify_again'
+      ? 'Erneut benachrichtigen'
+      : 'Abholbereit & benachrichtigen';
+  }
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+}
+
+async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, markReady = false } = {}) {
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
-    return;
-  }
-  const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  if (!order || orderStatus(order) !== 'ready') {
-    window.showToast?.('Nur abholbereite Bestellungen können erneut gemeldet werden.', 'warning');
     return;
   }
   const firebase = orderState.getFirebase();
@@ -1502,56 +1741,375 @@ async function notifyCustomerReadyAgain(orderId) {
     window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
     return;
   }
-  if (!window.confirm('Kunde erneut per E-Mail/SMS über die Abholung benachrichtigen?')) return;
+  const normalized = normalizeNotifyChannels(channels);
+  const skipNotify = !wantsAnyReadyNotify({ notifyChannels: normalized });
+  const stamp = firebase.firestore.FieldValue.serverTimestamp();
+  const onlineData = {
+    notifyChannels: normalized,
+    skipNotify,
+    notifySkipped: skipNotify,
+    employeeName: employee,
+  };
+  const queueData = {
+    notifyChannels: normalized,
+    skipNotify,
+    notifySkipped: skipNotify,
+    employeeName: employee,
+  };
+
+  if (markReady) {
+    onlineData.status = 'ready';
+    onlineData.readyMarkedBy = employee;
+    onlineData.readyMarkedAt = stamp;
+    queueData.status = 'ready';
+    queueData.readyMarkedBy = employee;
+    queueData.readyMarkedAt = new Date().toISOString();
+  }
+
+  if (sendNow && !skipNotify) {
+    onlineData.readyNotifyAt = stamp;
+    onlineData.readyNotifyBy = employee;
+    onlineData.readyMarkedBy = employee;
+    queueData.readyNotifyAt = new Date().toISOString();
+    queueData.readyNotifyBy = employee;
+    queueData.readyMarkedBy = employee;
+  }
 
   try {
     orderState.notifyReadyInFlight = true;
+    orderState.statusUpdateInFlight = Boolean(markReady);
     orderState.statusUpdateOrderIds.add(orderId);
     renderOpenOrders();
     renderAdminOrders();
-    const stamp = firebase.firestore.FieldValue.serverTimestamp();
     const result = await writeFirestoreDocOrQueue({
       collectionPath: 'customerOrders',
       docId: orderId,
       op: 'update',
-      onlineData: {
-        readyNotifyAt: stamp,
-        readyNotifyBy: employee,
-        readyMarkedBy: employee,
-        employeeName: employee,
-      },
-      queueData: {
-        readyNotifyAt: new Date().toISOString(),
-        readyNotifyBy: employee,
-        readyMarkedBy: employee,
-        employeeName: employee,
-      },
-      offlineMessage: 'Benachrichtigung wird synchronisiert, sobald WLAN verfügbar ist.',
+      onlineData,
+      queueData,
+      offlineMessage: 'Wird synchronisiert, sobald WLAN verfügbar ist.',
     });
-    orderState.allOrders = orderState.allOrders.map((entry) => (
-      entry.id === orderId
-        ? {
-          ...entry,
-          readyNotifyAt: new Date().toISOString(),
-          readyNotifyBy: employee,
-          readyMarkedBy: employee,
-        }
-        : entry
-    ));
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      const next = {
+        ...entry,
+        notifyChannels: normalized,
+        skipNotify,
+        notifySkipped: skipNotify,
+      };
+      if (markReady) {
+        next.status = 'ready';
+        next.readyMarkedBy = employee;
+        next.readyMarkedAt = new Date().toISOString();
+      }
+      if (sendNow && !skipNotify) {
+        next.readyNotifyAt = new Date().toISOString();
+        next.readyNotifyBy = employee;
+        next.readyMarkedBy = employee;
+      }
+      return next;
+    });
+    let toast = 'Gespeichert.';
+    if (markReady && skipNotify) toast = 'Als Abholbereit markiert – ohne Kunden-Nachricht.';
+    else if (markReady) toast = 'Als Abholbereit markiert – Bestätigung geht raus.';
+    else if (skipNotify) toast = 'Ohne Kunden-Nachricht fortgefahren.';
+    else toast = 'Kunde wird über die Abholung informiert.';
     window.showToast?.(
-      result === 'queued'
-        ? 'Update-Mail wird synchronisiert, sobald WLAN verfügbar ist.'
-        : 'Kunde wird erneut über die Abholung informiert.',
+      result === 'queued' ? 'Wird synchronisiert, sobald WLAN verfügbar ist.' : toast,
       result === 'queued' ? 'warning' : 'success',
     );
   } catch (err) {
-    console.error('[CustomerOrders] Erneute Ready-Benachrichtigung fehlgeschlagen:', err);
-    window.showToast?.('Benachrichtigung konnte nicht ausgelöst werden. Bitte erneut versuchen.', 'error');
+    console.error('[CustomerOrders] Ready/Notify fehlgeschlagen:', err);
+    window.showToast?.('Aktion konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
   } finally {
     orderState.statusUpdateOrderIds.delete(orderId);
     orderState.notifyReadyInFlight = false;
+    orderState.statusUpdateInFlight = false;
+    closeOrderNotifyModal();
     renderOpenOrders();
     renderAdminOrders();
+    renderPastOrdersView();
+    renderZuschnittliste();
+    renderProductionTasks();
+  }
+}
+
+async function confirmOrderNotifyModal({ skip = false } = {}) {
+  const pending = orderState.pendingNotifyAction;
+  if (!pending?.orderId) return;
+  const channels = skip
+    ? { email: false, sms: false, whatsapp: false }
+    : readNotifyChannelsFromModal();
+  if (pending.mode === 'notify_again') {
+    await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: !skip, markReady: false });
+    return;
+  }
+  await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: !skip, markReady: true });
+}
+
+function requestMarkOrderReady(orderId) {
+  openOrderNotifyModal(orderId, 'ready');
+}
+
+function requestNotifyCustomerReadyAgain(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order || orderStatus(order) !== 'ready') {
+    window.showToast?.('Nur abholbereite Bestellungen können erneut gemeldet werden.', 'warning');
+    return;
+  }
+  openOrderNotifyModal(orderId, 'notify_again');
+}
+
+function fillEditLineCard(card, item = {}) {
+  if (!card) return;
+  const product = card.querySelector('[data-line-product]');
+  const quantity = card.querySelector('[data-line-quantity]');
+  const unit = card.querySelector('[data-line-unit]');
+  const weight = card.querySelector('[data-line-weight]');
+  const width = card.querySelector('[data-line-width]');
+  const notes = card.querySelector('[data-line-notes]');
+  if (product) product.value = item.product || item.name || '';
+  if (quantity) quantity.value = item.quantity != null ? String(item.quantity) : (item.pieces != null ? String(item.pieces) : '');
+  if (unit) {
+    const unitValue = item.unit || (item.pieces ? 'Stück' : (item.weightKg ? 'kg' : 'Stück'));
+    if (![...unit.options].some((opt) => opt.value === unitValue)) {
+      const opt = document.createElement('option');
+      opt.value = unitValue;
+      opt.textContent = unitValue;
+      unit.appendChild(opt);
+    }
+    unit.value = unitValue;
+  }
+  if (weight) weight.value = item.weight || (item.weightKg ? `${item.weightKg} kg` : '');
+  if (width) width.value = item.width || item.cutLabel || '';
+  if (notes) notes.value = item.lineNotes || item.note || '';
+}
+
+function addEditOrderLine(item = null) {
+  const container = document.getElementById('order-edit-lines-container');
+  if (!container) return;
+  orderState.lineCounter += 1;
+  const lineId = `edit_line_${orderState.lineCounter}`;
+  container.insertAdjacentHTML('beforeend', buildOrderLineRow(lineId));
+  const card = container.querySelector(`[data-order-line="${lineId}"]`);
+  if (item) fillEditLineCard(card, item);
+}
+
+function readEditOrderLinesFromDom() {
+  const cards = document.querySelectorAll('#order-edit-lines-container .order-line-card');
+  const items = [];
+  cards.forEach((card) => {
+    const product = card.querySelector('[data-line-product]')?.value?.trim() || '';
+    const quantity = card.querySelector('[data-line-quantity]')?.value?.trim() || '';
+    const unit = card.querySelector('[data-line-unit]')?.value?.trim() || '';
+    const weight = card.querySelector('[data-line-weight]')?.value?.trim() || '';
+    const width = card.querySelector('[data-line-width]')?.value?.trim() || '';
+    const lineNotes = card.querySelector('[data-line-notes]')?.value?.trim() || '';
+    if (!product && !quantity) return;
+    items.push({
+      product,
+      quantity,
+      unit: unit || null,
+      weight: weight || null,
+      width: width || null,
+      lineNotes: lineNotes || null,
+    });
+  });
+  return items;
+}
+
+function closeOrderEditModal() {
+  const modal = document.getElementById('order-edit-modal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+  orderState.editingOrderId = '';
+  const status = document.getElementById('order-edit-status');
+  if (status) status.textContent = '';
+}
+
+function openOrderEditModal(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  const modal = document.getElementById('order-edit-modal');
+  if (!order || !modal) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  orderState.editingOrderId = orderId;
+  document.getElementById('order-edit-id').value = orderId;
+  document.getElementById('order-edit-customer-name').value = customerDisplayName(order);
+  document.getElementById('order-edit-callback-phone').value = customerPhone(order);
+  document.getElementById('order-edit-customer-email').value = order.customerEmail || order.customer?.email || '';
+  document.getElementById('order-edit-additional-wishes').value = order.additionalWishes || order.butcherNotes || '';
+
+  const readyIso = orderPickupDayIso(order) || todayIsoLocal();
+  const readyTimeMatch = String(order.readyAt || '').match(/T(\d{2}:\d{2})/);
+  setGermanDateField(document.getElementById('order-edit-ready-date'), readyIso);
+  document.getElementById('order-edit-ready-time').value = readyTimeMatch?.[1] || defaultReadyTimeLocal();
+
+  const container = document.getElementById('order-edit-lines-container');
+  if (container) container.innerHTML = '';
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length) items.forEach((item) => addEditOrderLine(item));
+  else addEditOrderLine();
+
+  const title = document.getElementById('order-edit-title');
+  if (title) title.textContent = `Bestellung ${orderRefLabel(order)} bearbeiten`;
+  const kicker = document.getElementById('order-edit-kicker');
+  if (kicker) {
+    kicker.textContent = orderStatus(order) === 'ready' || PAST_ORDER_STATUSES.has(orderStatus(order))
+      ? 'Wird beim Speichern wieder in Bearbeitung gesetzt'
+      : 'Positionen ändern oder ergänzen';
+  }
+
+  modal.classList.add('is-open');
+  modal.removeAttribute('hidden');
+  document.body.classList.add('modal-open');
+  initGermanDateInputs(modal);
+}
+
+async function saveOrderEditFromModal() {
+  if (orderState.editInFlight) return;
+  const orderId = orderState.editingOrderId || document.getElementById('order-edit-id')?.value;
+  const existing = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!existing) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+
+  const customerName = document.getElementById('order-edit-customer-name')?.value?.trim() || '';
+  const callbackPhone = document.getElementById('order-edit-callback-phone')?.value?.trim() || '';
+  const customerEmail = document.getElementById('order-edit-customer-email')?.value?.trim() || '';
+  const readyDate = readGermanDateField(document.getElementById('order-edit-ready-date')) || '';
+  const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
+  const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
+  const items = readEditOrderLinesFromDom();
+
+  if (!customerName) {
+    window.showToast?.('Bitte Kundennamen eingeben.', 'warning');
+    return;
+  }
+  if (!readyDate || !readyTime) {
+    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
+    return;
+  }
+  if (!items.length) {
+    window.showToast?.('Mindestens eine Position eintragen.', 'warning');
+    return;
+  }
+  if (!callbackPhone && !customerEmail) {
+    window.showToast?.('Bitte Rückrufnummer oder E-Mail angeben.', 'warning');
+    return;
+  }
+
+  const prevStatus = orderStatus(existing);
+  const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
+  const firebase = orderState.getFirebase();
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
+
+  const onlineData = {
+    customerName,
+    readyAt: `${readyDate}T${readyTime}`,
+    items,
+    employeeName: employee,
+    updatedBy: employee,
+    updatedAt: serverTimestamp,
+  };
+  if (callbackPhone) onlineData.callbackPhone = callbackPhone;
+  else onlineData.callbackPhone = null;
+  if (customerEmail) onlineData.customerEmail = customerEmail;
+  else onlineData.customerEmail = null;
+  if (additionalWishes) onlineData.additionalWishes = additionalWishes;
+  else onlineData.additionalWishes = null;
+
+  if (shouldReopen) {
+    onlineData.status = 'in_progress';
+    onlineData.inProgressBy = employee;
+    onlineData.inProgressAt = serverTimestamp;
+  }
+
+  const queueData = {
+    ...onlineData,
+    updatedAt: new Date().toISOString(),
+  };
+  if (shouldReopen) {
+    queueData.inProgressAt = new Date().toISOString();
+  }
+
+  const statusEl = document.getElementById('order-edit-status');
+  const saveBtn = document.getElementById('order-edit-save-btn');
+  orderState.editInFlight = true;
+  if (statusEl) statusEl.textContent = 'Änderungen werden gespeichert…';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.setAttribute('aria-busy', 'true');
+  }
+
+  try {
+    const result = await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData,
+      queueData,
+      offlineMessage: 'Änderungen werden synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      const next = {
+        ...entry,
+        customerName,
+        readyAt: `${readyDate}T${readyTime}`,
+        items,
+        callbackPhone: callbackPhone || null,
+        customerEmail: customerEmail || null,
+        additionalWishes: additionalWishes || null,
+        updatedBy: employee,
+        updatedAt: new Date().toISOString(),
+      };
+      if (shouldReopen) {
+        next.status = 'in_progress';
+        next.inProgressBy = employee;
+        next.inProgressAt = new Date().toISOString();
+      }
+      return next;
+    });
+    closeOrderEditModal();
+    orderState.expandedPackOrderId = orderId;
+    if (orderState.ordersView === 'vergangen' && shouldReopen) {
+      setOrdersView('packtisch');
+    }
+    renderOpenOrders();
+    renderAdminOrders();
+    renderPastOrdersView();
+    renderZuschnittliste();
+    renderProductionTasks();
+    window.showToast?.(
+      result === 'queued'
+        ? 'Änderungen werden synchronisiert, sobald WLAN verfügbar ist.'
+        : (shouldReopen
+          ? 'Bestellung aktualisiert und wieder in Bearbeitung.'
+          : 'Bestellung aktualisiert.'),
+      result === 'queued' ? 'warning' : 'success',
+    );
+  } catch (err) {
+    console.error('[CustomerOrders] Bestellung bearbeiten fehlgeschlagen:', err);
+    if (statusEl) statusEl.textContent = 'Speichern fehlgeschlagen – bitte erneut versuchen.';
+    window.showToast?.('Änderungen konnten nicht gespeichert werden.', 'error');
+  } finally {
+    orderState.editInFlight = false;
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.setAttribute('aria-busy', 'false');
+    }
   }
 }
 
@@ -1572,12 +2130,9 @@ async function updateOrderStatus(orderId, nextStatus) {
       ? firebase.firestore.FieldValue.serverTimestamp()
       : new Date().toISOString();
   } else if (nextStatus === 'ready') {
-    if (!firebase?.firestore?.FieldValue) {
-      window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
-      return;
-    }
-    payload.readyMarkedBy = employee;
-    payload.readyMarkedAt = firebase.firestore.FieldValue.serverTimestamp();
+    // Ready läuft über das Benachrichtigungs-Modal (Kanäle wählbar).
+    requestMarkOrderReady(orderId);
+    return;
   } else if (nextStatus === 'picked_up') {
     const order = orderState.allOrders.find((entry) => entry.id === orderId);
     if (!order) {
@@ -1868,6 +2423,7 @@ function setOrdersView(view) {
     aufnahme: document.getElementById('orders-view-aufnahme'),
     zuschnitt: document.getElementById('orders-view-zuschnitt'),
     packtisch: document.getElementById('orders-view-packtisch'),
+    vergangen: document.getElementById('orders-view-vergangen'),
   };
   Object.entries(views).forEach(([key, el]) => {
     if (!el) return;
@@ -1884,6 +2440,7 @@ function setOrdersView(view) {
     ensureCalendarAnchor();
     renderOpenOrders();
   }
+  if (view === 'vergangen') renderPastOrdersView();
 }
 
 function openAveryLabel(orderId) {
@@ -2084,15 +2641,20 @@ function bindOrderListActions() {
     }
     if (action === 'reopen') {
       orderState.expandedPackOrderId = orderId;
+      if (orderState.ordersView === 'vergangen') setOrdersView('packtisch');
       updateOrderStatus(orderId, 'in_progress');
       return;
     }
+    if (action === 'edit') {
+      openOrderEditModal(orderId);
+      return;
+    }
     if (action === 'notify_ready') {
-      notifyCustomerReadyAgain(orderId);
+      requestNotifyCustomerReadyAgain(orderId);
       return;
     }
     if (action === 'in_progress') updateOrderStatus(orderId, 'in_progress');
-    if (action === 'ready') updateOrderStatus(orderId, 'ready');
+    if (action === 'ready') requestMarkOrderReady(orderId);
     if (action === 'picked_up') updateOrderStatus(orderId, 'picked_up');
     if (action === 'delivery_note') openDeliveryNote(orderId);
     if (action === 'avery') openAveryLabel(orderId);
@@ -2103,6 +2665,7 @@ function bindOrderListActions() {
 
   document.getElementById('customer-order-list')?.addEventListener('click', handler);
   document.getElementById('admin-customer-order-list')?.addEventListener('click', handler);
+  document.getElementById('past-orders-list')?.addEventListener('click', handler);
   document.getElementById('customer-order-list')?.addEventListener('input', inputHandler);
   document.getElementById('admin-customer-order-list')?.addEventListener('input', inputHandler);
 }
@@ -2126,6 +2689,46 @@ function bindAveryLabelActions() {
   document.getElementById('avery-label-print-btn')?.addEventListener('click', printAveryLabel);
   modal.addEventListener('click', (event) => {
     if (event.target === modal) closeAveryLabel();
+  });
+}
+
+function bindOrderEditModal() {
+  const modal = document.getElementById('order-edit-modal');
+  if (!modal || modal.dataset.orderEditBound === '1') return;
+  modal.dataset.orderEditBound = '1';
+  document.getElementById('order-edit-close-btn')?.addEventListener('click', closeOrderEditModal);
+  document.getElementById('order-edit-cancel-btn')?.addEventListener('click', closeOrderEditModal);
+  document.getElementById('order-edit-add-line-btn')?.addEventListener('click', () => addEditOrderLine());
+  document.getElementById('order-edit-lines-container')?.addEventListener('click', (e) => {
+    const lineId = e.target.closest('[data-remove-line]')?.dataset.removeLine;
+    if (!lineId) return;
+    const card = document.querySelector(`#order-edit-lines-container [data-order-line="${lineId}"]`);
+    const container = document.getElementById('order-edit-lines-container');
+    if (card && container && container.children.length > 1) card.remove();
+    else window.showToast?.('Mindestens eine Position behalten.', 'warning');
+  });
+  document.getElementById('order-edit-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveOrderEditFromModal();
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeOrderEditModal();
+  });
+}
+
+function bindOrderNotifyModal() {
+  const modal = document.getElementById('order-notify-modal');
+  if (!modal || modal.dataset.orderNotifyBound === '1') return;
+  modal.dataset.orderNotifyBound = '1';
+  document.getElementById('order-notify-close-btn')?.addEventListener('click', closeOrderNotifyModal);
+  document.getElementById('order-notify-skip-btn')?.addEventListener('click', () => {
+    confirmOrderNotifyModal({ skip: true });
+  });
+  document.getElementById('order-notify-send-btn')?.addEventListener('click', () => {
+    confirmOrderNotifyModal({ skip: false });
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeOrderNotifyModal();
   });
 }
 
@@ -2174,12 +2777,38 @@ function bindOrdersViewSwitch() {
       renderOpenOrders();
       return;
     }
+    if (event.target.closest('[data-dashboard-clear]')) {
+      orderState.dashboardFilter = '';
+      renderOpenOrders();
+      return;
+    }
+    const dashBtn = event.target.closest('[data-dashboard-filter]');
+    if (dashBtn?.dataset.dashboardFilter) {
+      const next = dashBtn.dataset.dashboardFilter;
+      orderState.dashboardFilter = orderState.dashboardFilter === next ? '' : next;
+      renderOpenOrders();
+      document.getElementById('customer-order-list')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     const dayBtn = event.target.closest('[data-calendar-day]');
     if (dayBtn?.dataset.calendarDay) {
       const day = dayBtn.dataset.calendarDay;
       orderState.selectedPickupDayIso = orderState.selectedPickupDayIso === day ? '' : day;
       renderOpenOrders();
       document.getElementById('customer-order-list')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const pastRangeBtn = event.target.closest('[data-past-range]');
+    if (pastRangeBtn?.dataset.pastRange) {
+      orderState.pastRangeDays = Number(pastRangeBtn.dataset.pastRange) || 30;
+      renderPastOrdersView();
+      return;
+    }
+    const pastWeekdayBtn = event.target.closest('[data-past-weekday]');
+    if (pastWeekdayBtn && 'pastWeekday' in pastWeekdayBtn.dataset) {
+      const raw = pastWeekdayBtn.dataset.pastWeekday;
+      orderState.pastWeekday = raw === '' ? null : Number(raw);
+      renderPastOrdersView();
       return;
     }
     const presetBtn = event.target.closest('[data-zuschnitt-preset]');
@@ -2272,6 +2901,7 @@ function subscribeOrders() {
       ensureCalendarAnchor();
       renderOpenOrders();
       renderAdminOrders();
+      renderPastOrdersView();
       renderProductionTasks();
       renderZuschnittliste();
       if (document.getElementById('sammel-pickliste-modal')?.classList.contains('is-open')) {
@@ -2293,6 +2923,8 @@ export function initCustomerOrdersModule(databaseInstance, options = {}) {
   bindProductionTaskActions();
   bindDeliveryNoteActions();
   bindAveryLabelActions();
+  bindOrderEditModal();
+  bindOrderNotifyModal();
   bindOrdersViewSwitch();
   bindSammelPicklisteActions();
   setOrdersView(orderState.ordersView || 'packtisch');
@@ -2306,6 +2938,7 @@ export function activateCustomerOrdersTab() {
   setOrdersView(orderState.ordersView || 'packtisch');
   renderOpenOrders();
   renderAdminOrders();
+  renderPastOrdersView();
   renderProductionTasks();
   renderZuschnittliste();
   if (!orderState.ordersUnsubscribe) subscribeOrders();
@@ -2320,4 +2953,10 @@ export {
   formatPickupReadyLabel,
   countOrdersByPickupDay,
   buildPacktischCalendarDays,
+  summarizePacktischDashboard,
+  classifyPacktischBucket,
+  aggregatePastOrderProducts,
+  filterPastOrders,
+  normalizeNotifyChannels,
+  wantsAnyReadyNotify,
 };

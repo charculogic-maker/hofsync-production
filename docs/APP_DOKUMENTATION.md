@@ -407,14 +407,15 @@ Konfiguration über `functions/.env.hofsync-production` (Deploy, Werte `unset` =
 
 ### Ablauf
 
-1. Mitarbeiter markiert Bestellung als abholbereit (inkl. Gewichtsnachberechnung in `customer-orders.js`)
+1. Mitarbeiter markiert Bestellung als abholbereit (inkl. Gewichtsnachberechnung in `customer-orders.js`) und wählt optional Kanäle (`notifyChannels` / `skipNotify`)
 2. Cloud Function berechnet Waagen-Endpreis aus `actualQuantity` × Stückpreis
-3. Versand parallel über verfügbare Kanäle:
+3. Versand parallel über freigeschaltete Kanäle (ohne `notifyChannels`: Legacy-Default E-Mail + SMS):
 
 | Kanal | Bedingung | Technik |
 |-------|-----------|---------|
-| E-Mail | `customerEmail` gesetzt + SMTP konfiguriert | nodemailer → `mail.agenturserver.de` |
-| SMS | `callbackPhone` gesetzt + Twilio konfiguriert | Twilio SDK, E.164-Normalisierung |
+| E-Mail | `notifyChannels.email` + `customerEmail` + SMTP | nodemailer → `mail.agenturserver.de` |
+| SMS | `notifyChannels.sms` + `callbackPhone` + Twilio | Twilio SDK, E.164-Normalisierung |
+| WhatsApp | UI-Vorschau; Backend markiert `not_implemented` | – |
 
 ### Beispiel-Nachricht (StevesHof-Stil)
 

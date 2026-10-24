@@ -6,6 +6,7 @@ const {
   buildCustomerSignal,
   formatPickupWindow,
   shouldSendReadySignal,
+  wantsNotifyChannel,
 } = require('../orderNotifications')._test;
 
 describe('orderNotifications Ready-Signal', () => {
@@ -52,5 +53,30 @@ describe('orderNotifications Ready-Signal', () => {
     }, { betriebsName: 'StevesHof' }, { kind: 'update' });
     expect(update.subject).toMatch(/^Update:/);
     expect(update.message).toContain('Update');
+  });
+
+  test('überspringt Versand bei skipNotify oder deaktivierter E-Mail', () => {
+    expect(shouldSendReadySignal(
+      { status: 'in_progress' },
+      { status: 'ready', skipNotify: true, notifyChannels: { email: true } },
+    )).toEqual({ send: false, kind: null, skipped: true });
+
+    expect(shouldSendReadySignal(
+      { status: 'in_progress' },
+      { status: 'ready', notifyChannels: { email: false, sms: false, whatsapp: false } },
+    )).toEqual({ send: false, kind: null, skipped: true });
+
+    expect(wantsNotifyChannel(
+      { notifyChannels: { email: true, sms: false, whatsapp: false } },
+      'email',
+    )).toBe(true);
+    expect(wantsNotifyChannel(
+      { notifyChannels: { email: false, sms: true, whatsapp: false } },
+      'email',
+    )).toBe(false);
+    expect(wantsNotifyChannel(
+      { notifyChannels: { email: false, sms: true, whatsapp: false } },
+      'sms',
+    )).toBe(true);
   });
 });

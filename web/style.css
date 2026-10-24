@@ -9847,6 +9847,230 @@ body.dev-dashboard-view .app-version-badge--footer {
   }
 }
 
+.packtisch-dashboard {
+  margin: 0 0 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--surface-color, #fff));
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+}
+
+.packtisch-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 720px) {
+  .packtisch-dashboard-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.packtisch-dash-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.1));
+  background: var(--surface-color, #fff);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.packtisch-dash-tile.has-items {
+  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+
+.packtisch-dash-tile.is-active {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--primary-color) 12%, #fff);
+}
+
+.packtisch-dash-tile--due {
+  border-left: 4px solid #c2410c;
+}
+
+.packtisch-dash-tile--open {
+  border-left: 4px solid #64748b;
+}
+
+.packtisch-dash-tile--in_progress {
+  border-left: 4px solid #ea580c;
+}
+
+.packtisch-dash-tile--ready {
+  border-left: 4px solid #16a34a;
+}
+
+.packtisch-dash-count {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.packtisch-dash-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.packtisch-dashboard-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.packtisch-dashboard-legend .customer-order-hint {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.packtisch-bucket-label {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--primary-color) 80%, #000);
+}
+
+.past-orders-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.past-orders-range,
+.past-orders-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.past-orders-chart-panel {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-color, #fff);
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+}
+
+.past-orders-chart-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.past-orders-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.past-orders-bar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+
+.past-orders-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 12%, #e2e8f0);
+  overflow: hidden;
+}
+
+.past-orders-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-color);
+  transition: width 0.35s ease;
+}
+
+.order-edit-modal,
+.order-notify-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.order-edit-modal.is-open,
+.order-notify-modal.is-open {
+  display: flex;
+}
+
+.order-edit-view,
+.order-notify-view {
+  width: min(560px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+  background: var(--surface-color, #fff);
+  border-radius: 16px 16px 12px 12px;
+  padding: 14px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+}
+
+.order-edit-toolbar,
+.order-notify-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.order-edit-toolbar h2,
+.order-notify-toolbar h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.order-edit-actions,
+.order-notify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.order-notify-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.1));
+}
+
+.order-notify-soon-tag {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.order-notify-channel--soon {
+  opacity: 0.92;
+}
+
 .customer-order-card {
   padding: 12px;
   border-radius: var(--border-radius-sm);

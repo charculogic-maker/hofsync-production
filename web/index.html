@@ -323,8 +323,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261018-ios-inpage-print">
-  <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
+  <link rel="stylesheet" href="/style.css?v=20261024-packtisch-dashboard">
+  <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-dashboard">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
 <body>
@@ -1312,6 +1312,7 @@
             <section class="team-hub-panel" id="view-orders" aria-label="Kundenbestellungen und Packtisch">
               <div class="orders-view-switch" role="tablist" aria-label="Bestell-Ansichten">
                 <button type="button" class="btn btn-secondary btn-compact" data-orders-view="packtisch" role="tab" aria-selected="true">Packtisch</button>
+                <button type="button" class="btn btn-secondary btn-compact" data-orders-view="vergangen" role="tab" aria-selected="false">Vergangene</button>
                 <button type="button" class="btn btn-secondary btn-compact" data-orders-view="zuschnitt" role="tab" aria-selected="false">Sammel-Zuschnittliste</button>
                 <button type="button" class="btn btn-secondary btn-compact" data-orders-view="aufnahme" role="tab" aria-selected="false">Bestellung aufnehmen</button>
               </div>
@@ -1403,11 +1404,40 @@
 
               <div>
                 <h2 class="task-token-heading">Packtisch / Kisten-Kommissionierung</h2>
-                <p class="customer-order-hint">Kalender zeigt, wie viele Bestellungen pro Abholtag anstehen. Tippe auf einen Tag für die Liste. Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt. Abholbereit heißt: Abholung <strong>ab</strong> der genannten Uhrzeit.</p>
+                <p class="customer-order-hint">Dashboard zeigt fällige, offene und laufende Bestellungen. Kalender filtert nach Abholtag. Status: Eingegangen → In Bearbeitung → Abholbereit → Abgeholt. Abholbereit heißt: Abholung <strong>ab</strong> der genannten Uhrzeit.</p>
+                <div id="packtisch-dashboard" class="packtisch-dashboard" aria-label="Bestell-Dashboard"></div>
                 <div id="packtisch-calendar" class="packtisch-calendar" aria-label="Abhol-Kalender"></div>
                 <p class="task-token-empty hidden" id="customer-order-empty">Keine offenen Kundenbestellungen.</p>
                 <div id="customer-order-list" class="customer-order-list"></div>
               </div>
+              </div>
+
+              <div id="orders-view-vergangen" class="customer-order-section task-token-section hidden" hidden>
+                <h2 class="task-token-heading">Vergangene Bestellungen</h2>
+                <p class="customer-order-hint">Abgeholt oder storniert – und welche Produkte am häufigsten bestellt wurden. Filter nach Zeitraum und Wochentag helfen beim Planen.</p>
+                <div class="past-orders-toolbar" id="past-orders-toolbar">
+                  <div class="past-orders-range" role="group" aria-label="Zeitraum">
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-range="7">7 Tage</button>
+                    <button type="button" class="btn btn-secondary btn-compact is-active" data-past-range="30">30 Tage</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-range="90">90 Tage</button>
+                  </div>
+                  <div class="past-orders-weekdays" role="group" aria-label="Wochentag-Filter">
+                    <button type="button" class="btn btn-secondary btn-compact is-active" data-past-weekday="">Alle Tage</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="1">Mo</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="2">Di</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="3">Mi</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="4">Do</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="5">Fr</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="6">Sa</button>
+                    <button type="button" class="btn btn-secondary btn-compact" data-past-weekday="0">So</button>
+                  </div>
+                </div>
+                <section class="past-orders-chart-panel" aria-label="Meistbestellte Produkte">
+                  <h3 class="past-orders-chart-title">Meistbestellte Produkte</h3>
+                  <div id="past-orders-chart" class="past-orders-chart"></div>
+                </section>
+                <p class="task-token-empty hidden" id="past-orders-empty">Keine vergangenen Bestellungen im Zeitraum.</p>
+                <div id="past-orders-list" class="customer-order-list past-orders-list"></div>
               </div>
 
               <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
@@ -1422,6 +1452,82 @@
                     </div>
                   </header>
                   <div id="avery-label-print-area"></div>
+                </div>
+              </div>
+
+              <div class="order-edit-modal" id="order-edit-modal" hidden role="dialog" aria-modal="true" aria-labelledby="order-edit-title">
+                <div class="order-edit-view">
+                  <header class="order-edit-toolbar">
+                    <div>
+                      <p class="customer-order-hint" id="order-edit-kicker">Bestellung anpassen</p>
+                      <h2 id="order-edit-title">Bestellung bearbeiten</h2>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-compact" id="order-edit-close-btn" aria-label="Bearbeiten schließen">Schließen</button>
+                  </header>
+                  <form id="order-edit-form" class="customer-order-form order-edit-form">
+                    <input type="hidden" id="order-edit-id" value="">
+                    <label class="form-label" for="order-edit-customer-name">Name des Kunden</label>
+                    <input type="text" id="order-edit-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+
+                    <div class="customer-order-contact-grid">
+                      <label class="form-label" for="order-edit-callback-phone">Rückrufnummer</label>
+                      <input type="tel" id="order-edit-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                      <label class="form-label" for="order-edit-customer-email">oder E-Mail</label>
+                      <input type="email" id="order-edit-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                    </div>
+
+                    <div class="customer-order-ready-grid">
+                      <label class="form-label" for="order-edit-ready-date">Bereit am</label>
+                      <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                      <label class="form-label" for="order-edit-ready-time">Uhrzeit</label>
+                      <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
+                    </div>
+
+                    <div class="customer-order-lines-head">
+                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
+                      <button type="button" class="btn btn-secondary btn-compact" id="order-edit-add-line-btn">+ Position</button>
+                    </div>
+                    <div id="order-edit-lines-container" class="order-lines-container"></div>
+
+                    <label class="form-label" for="order-edit-additional-wishes">Hinweise / Wünsche</label>
+                    <textarea id="order-edit-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. zusätzlich 2 Glas Fleischsalat"></textarea>
+
+                    <p class="customer-order-hint order-save-status" id="order-edit-status" role="status" aria-live="polite"></p>
+                    <div class="order-edit-actions">
+                      <button type="button" class="btn btn-secondary" id="order-edit-cancel-btn">Abbrechen</button>
+                      <button type="submit" class="btn btn-primary" id="order-edit-save-btn">Änderungen speichern</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="order-notify-modal" id="order-notify-modal" hidden role="dialog" aria-modal="true" aria-labelledby="order-notify-title">
+                <div class="order-notify-view">
+                  <header class="order-notify-toolbar">
+                    <h2 id="order-notify-title">Kunde benachrichtigen?</h2>
+                    <button type="button" class="btn btn-secondary btn-compact" id="order-notify-close-btn" aria-label="Benachrichtigung schließen">Schließen</button>
+                  </header>
+                  <p class="customer-order-hint" id="order-notify-summary">Wir können eine kurze Abhol-Bestätigung schicken.</p>
+                  <fieldset class="order-notify-channels">
+                    <legend>Kanäle</legend>
+                    <label class="task-routing-option">
+                      <input type="checkbox" id="order-notify-email" name="order-notify-channel" value="email" checked>
+                      E-Mail
+                    </label>
+                    <label class="task-routing-option order-notify-channel--soon">
+                      <input type="checkbox" id="order-notify-sms" name="order-notify-channel" value="sms">
+                      SMS <span class="order-notify-soon-tag">demnächst</span>
+                    </label>
+                    <label class="task-routing-option order-notify-channel--soon">
+                      <input type="checkbox" id="order-notify-whatsapp" name="order-notify-channel" value="whatsapp">
+                      WhatsApp <span class="order-notify-soon-tag">demnächst</span>
+                    </label>
+                  </fieldset>
+                  <p class="customer-order-hint" id="order-notify-hint"></p>
+                  <div class="order-notify-actions">
+                    <button type="button" class="btn btn-secondary" id="order-notify-skip-btn">Ohne Nachricht fortfahren</button>
+                    <button type="button" class="btn btn-primary" id="order-notify-send-btn">Bestätigen &amp; fortfahren</button>
+                  </div>
                 </div>
               </div>
             </section>
