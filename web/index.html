@@ -731,6 +731,44 @@
                     </form>
                   </section>
 
+                  <section
+                    class="dev-dashboard-panel"
+                    id="dev-dashboard-discount-matrix"
+                    aria-label="MHD-Rabattstaffel"
+                  >
+                    <h2 class="dev-dashboard-section-title">MHD-Rabattstaffel</h2>
+                    <p class="dev-dashboard-intro">
+                      Wir legen fest, ab wann unsere App welchen Rabatt vorschlägt.
+                      Jeder Betrieb speichert seine eigene Staffel — unabhängig von anderen Mandanten.
+                    </p>
+                    <div id="discount-matrix-card" class="dev-dashboard-discount-matrix">
+                      <label class="dev-dashboard-toggle discount-matrix-enabled" title="Rabattvorschläge im MHD-Monitor">
+                        <input id="discount-matrix-enabled" type="checkbox" checked>
+                        <span>Rabattvorschläge im MHD-Monitor anzeigen</span>
+                      </label>
+                      <label class="discount-matrix-category dev-dashboard-field" for="discount-matrix-category">
+                        <span>Warengruppe</span>
+                        <select id="discount-matrix-category" class="input-text-touch"></select>
+                      </label>
+                      <p class="dev-dashboard-intro" id="discount-matrix-category-hint">
+                        Standard gilt für alle Warengruppen ohne eigene Staffel.
+                      </p>
+                      <div id="discount-matrix-rules" class="discount-matrix-rules"></div>
+                      <div class="dev-dashboard-haccp-form-actions discount-matrix-actions">
+                        <button type="button" id="discount-matrix-add" class="dev-dashboard-secondary-btn discount-matrix-add">
+                          Neue Rabattstufe
+                        </button>
+                        <button type="button" id="discount-matrix-reset" class="dev-dashboard-secondary-btn discount-matrix-reset">
+                          Standard für diese Gruppe
+                        </button>
+                        <button type="button" id="discount-matrix-save" class="dev-dashboard-submit-btn discount-matrix-save">
+                          Rabattstaffel speichern
+                        </button>
+                      </div>
+                      <p class="dev-dashboard-employee-status" id="discount-matrix-status" hidden role="status"></p>
+                    </div>
+                  </section>
+
                   <section class="dev-dashboard-panel" id="dev-dashboard-haccp-setup" aria-label="HACCP und Hygiene Setup">
                     <h2 class="dev-dashboard-section-title">HACCP &amp; Hygiene Setup</h2>
                     <p class="dev-dashboard-intro">
@@ -2389,19 +2427,6 @@
                 <span data-mhd-archive-label>🧹 Alte 0er-Bestände archivieren (&gt;90 Tage)</span>
               </button>
               <p class="admin-leitstand-hint" id="mhd-archive-status" data-mhd-archive-status hidden role="status"></p>
-            </section>
-
-            <section class="batch-audit-card" id="discount-matrix-card" aria-label="MHD-Rabatt-Matrix">
-              <div class="batch-audit-title">MHD-Rabatt-Matrix</div>
-              <p class="admin-leitstand-hint">Staffel gilt für diesen Betrieb. Ohne Treffer bleibt der Artikel ohne Rabatt-Badge.</p>
-              <label class="discount-matrix-category">
-                <span>Warengruppe</span>
-                <select id="discount-matrix-category" class="input-text-touch"></select>
-              </label>
-              <div id="discount-matrix-rules"></div>
-              <button type="button" id="discount-matrix-add" class="btn btn-secondary discount-matrix-add">Neue Rabattstufe</button>
-              <button type="button" id="discount-matrix-save" class="btn btn-primary discount-matrix-save">Rabatt-Matrix speichern</button>
-              <p class="admin-leitstand-hint" id="discount-matrix-status" hidden role="status"></p>
             </section>
 
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">

@@ -23,6 +23,8 @@ Produktregeln gewinnen vor Kategorie-Regeln:
 
 Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge aus.
 
+Die Staffel ist mandantenspezifisch: In der Verwaltung unter **Mein Betrieb → MHD-Rabattstaffel** kann jeder Betrieb seine Stufen selbst speichern (Vorlagen pro Warengruppe, Speichern nur als Betriebs-Admin).
+
 ## Oberfläche
 
 ### 1. Filter (Toolbar)

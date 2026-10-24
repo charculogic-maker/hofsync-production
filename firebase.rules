@@ -272,10 +272,26 @@ service cloud.firestore {
         && (!('metzgerei' in request.resource.data) || request.resource.data.metzgerei is list);
     }
 
+    // MHD-Rabattstaffel je Mandant unter settings/discount_matrix (Mein Betrieb).
+    function isDiscountMatrixSettings(docId) {
+      return docId == 'discount_matrix'
+        && request.resource.data.keys().hasOnly([
+          'enabled', 'defaultRules', 'categoryOverrides', 'rounding',
+          'tenantId', 'updatedAt', 'updatedBy'
+        ])
+        && (!('enabled' in request.resource.data) || request.resource.data.enabled is bool)
+        && (!('defaultRules' in request.resource.data) || request.resource.data.defaultRules is list)
+        && (!('categoryOverrides' in request.resource.data) || request.resource.data.categoryOverrides is map)
+        && (!('rounding' in request.resource.data) || request.resource.data.rounding is string)
+        && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy is string)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string
+          || request.resource.data.updatedAt is timestamp);
+    }
+
     match /tenants/{tenantId}/settings/{document} {
       // Tenant-Nutzer + Plattform-Super-Admin (fremd-Mandant im Dev-Dashboard).
       allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
-      // Admin / Plattform: Settings inkl. SMTP-Profil. Mitarbeiter: nur Lieferanten.
+      // Admin / Plattform: Settings inkl. SMTP-Profil und Rabattstaffel. Mitarbeiter: nur Lieferanten.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
           (
@@ -285,6 +301,7 @@ service cloud.firestore {
               || isProfileSettings(document)
               || isTerminalSettings(document)
               || isSupplierSettings(document)
+              || isDiscountMatrixSettings(document)
             )
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))

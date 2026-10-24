@@ -283,8 +283,19 @@ export async function saveDiscountMatrix(tenantId, matrixData) {
   if (!id) throw new Error('Kein Betrieb gewählt.');
   const matrix = rememberMatrix(id, {
     ...matrixData,
+    tenantId: id,
     updatedAt: new Date().toISOString(),
   });
-  await getNamedTenantCollection(id, 'settings').doc(DISCOUNT_MATRIX_DOC_ID).set(matrix, { merge: true });
-  return matrix;
+  // Persist only fields allowed by firebase.rules isDiscountMatrixSettings.
+  const payload = {
+    enabled: matrix.enabled !== false,
+    defaultRules: matrix.defaultRules || [],
+    categoryOverrides: matrix.categoryOverrides || {},
+    rounding: 'commercial_cent',
+    tenantId: id,
+    updatedAt: matrix.updatedAt || new Date().toISOString(),
+    updatedBy: String(matrix.updatedBy || ''),
+  };
+  await getNamedTenantCollection(id, 'settings').doc(DISCOUNT_MATRIX_DOC_ID).set(payload, { merge: true });
+  return rememberMatrix(id, payload);
 }
