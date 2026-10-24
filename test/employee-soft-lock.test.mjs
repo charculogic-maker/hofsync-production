@@ -48,6 +48,19 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/PROFILE_SESSION_IDLE_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
   });
 
+  it('uses admin login on Dev-Dashboard idle and soft-lock only on operative tabs', () => {
+    expect(appJs).to.match(/const OPERATIVE_SOFT_LOCK_TABS\s*=\s*PIN_PROTECTED_TABS/);
+    expect(appJs).to.match(/function isDevDashboardContext/);
+    expect(appJs).to.match(/function isOperativeSoftLockTab/);
+    expect(appJs).to.match(/function handleAdminDashboardIdleTimeout/);
+    expect(appJs).to.match(/isDevDashboardContext\(\)[\s\S]*?handleAdminDashboardIdleTimeout/);
+    expect(appJs).to.match(/isOperativeSoftLockTab\(\)/);
+    expect(appJs).to.match(/promptLogin\('Sitzung abgelaufen\. Bitte erneut als Betriebs-Admin anmelden\.'\)/);
+    expect(appJs).to.match(/async function ensureSoftLockEmployeeSelected[\s\S]*?if \(isDevDashboardContext\(\)\) return readActiveEmployee\(\);/);
+    expect(appJs).to.match(/showDevDashboardLoginRequired\(\)/);
+    expect(appJs).to.match(/logoutTenant\(\{\s*clearPersistence:\s*true\s*\}\)/);
+  });
+
   it('does not force-navigate away from Neu/Wareneingang on soft-lock or scan idle', () => {
     // Soft-Lock/Picker: ensureActiveTabAllowed() ohne force — erlaubtes Neu bleibt.
     expect(appJs).to.match(/function clearActiveEmployeeForSoftLock[\s\S]*?ensureActiveTabAllowed\(\);/);
@@ -101,9 +114,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache for scan-idle soft-lock fix', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261022-order-slip-save-feedback-v1'");
-
+  it('bumps the service-worker cache for admin-idle / soft-lock scope fix', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261024-dev-dashboard-admin-idle-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

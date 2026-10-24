@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261023-gs1-128-preview-fix-v3';
+const CACHE_NAME = 'charculogic-v20261024-mhd-filter-ampel-datum-v1';
 
-const CACHE_SCHEMA = 'p0-gs1-128-umverpackung-preview-fix-oct2026';
-/** Release – GS1-128 Parsing + stabiles Kamerapreview (ohne 1920/Hints) */
-const RELEASED_AT = '2026-10-23T13:45:00+02:00';
+const CACHE_SCHEMA = 'p0-mhd-filter-ampel-datum-oct2026';
+/** Release – MHD-Filter MoPro/Kühlware getrennt + Ampel zeigt MHD-Datum */
+const RELEASED_AT = '2026-10-24T15:45:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

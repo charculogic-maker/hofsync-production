@@ -323,8 +323,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
+<<<<<<< HEAD
   <link rel="stylesheet" href="/style.css?v=20261024-packtisch-dashboard">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-dashboard">
+=======
+  <link rel="stylesheet" href="/style.css?v=20261024-mhd-filter-ampel-datum">
+  <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
+>>>>>>> origin/main
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
 <body>
@@ -729,6 +734,44 @@
                       <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
+                  </section>
+
+                  <section
+                    class="dev-dashboard-panel"
+                    id="dev-dashboard-discount-matrix"
+                    aria-label="MHD-Rabattstaffel"
+                  >
+                    <h2 class="dev-dashboard-section-title">MHD-Rabattstaffel</h2>
+                    <p class="dev-dashboard-intro">
+                      Wir legen fest, ab wann unsere App welchen Rabatt vorschlägt.
+                      Jeder Betrieb speichert seine eigene Staffel — unabhängig von anderen Mandanten.
+                    </p>
+                    <div id="discount-matrix-card" class="dev-dashboard-discount-matrix">
+                      <label class="dev-dashboard-toggle discount-matrix-enabled" title="Rabattvorschläge im MHD-Monitor">
+                        <input id="discount-matrix-enabled" type="checkbox" checked>
+                        <span>Rabattvorschläge im MHD-Monitor anzeigen</span>
+                      </label>
+                      <label class="discount-matrix-category dev-dashboard-field" for="discount-matrix-category">
+                        <span>Warengruppe</span>
+                        <select id="discount-matrix-category" class="input-text-touch"></select>
+                      </label>
+                      <p class="dev-dashboard-intro" id="discount-matrix-category-hint">
+                        Standard gilt für alle Warengruppen ohne eigene Staffel.
+                      </p>
+                      <div id="discount-matrix-rules" class="discount-matrix-rules"></div>
+                      <div class="dev-dashboard-haccp-form-actions discount-matrix-actions">
+                        <button type="button" id="discount-matrix-add" class="dev-dashboard-secondary-btn discount-matrix-add">
+                          Neue Rabattstufe
+                        </button>
+                        <button type="button" id="discount-matrix-reset" class="dev-dashboard-secondary-btn discount-matrix-reset">
+                          Standard für diese Gruppe
+                        </button>
+                        <button type="button" id="discount-matrix-save" class="dev-dashboard-submit-btn discount-matrix-save">
+                          Rabattstaffel speichern
+                        </button>
+                      </div>
+                      <p class="dev-dashboard-employee-status" id="discount-matrix-status" hidden role="status"></p>
+                    </div>
                   </section>
 
                   <section class="dev-dashboard-panel" id="dev-dashboard-haccp-setup" aria-label="HACCP und Hygiene Setup">
@@ -1554,13 +1597,16 @@
                     </div>
                   </div>
                   <div class="mhd-filter-row mhd-filter-row--monitor">
-                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro/Kühlware, dann Trockenware)</p>
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro, dann Kühlware, dann Trockenware)</p>
                     <div class="mhd-category-toggle" id="mhd-category-toggle" role="group" aria-label="MHD-Prüfgruppe">
                       <button type="button" class="mhd-category-btn is-active" data-mhd-category-filter="alle" aria-pressed="true">
                         Alle (7 Tage)
                       </button>
                       <button type="button" class="mhd-category-btn" data-mhd-category-filter="mopro" aria-pressed="false">
-                        🥛 MoPro & Kühlware
+                        🥛 MoPro
+                      </button>
+                      <button type="button" class="mhd-category-btn" data-mhd-category-filter="kuehlware" aria-pressed="false">
+                        ❄️ Kühlware
                       </button>
                       <button type="button" class="mhd-category-btn" data-mhd-category-filter="trockenware" aria-pressed="false">
                         📦 Trockenware
@@ -1569,14 +1615,15 @@
                     <label class="mhd-filter-field mhd-filter-field--horizon hidden" for="mhd-horizon-select" hidden>
                       <span class="mhd-filter-label">Zeitraum</span>
                       <select id="mhd-horizon-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Zeitraum">
-                        <option value="21" selected>0-21 Tage</option>
+                        <option value="30" selected>0-30 Tage</option>
                       </select>
                     </label>
                     <label class="mhd-filter-field mhd-filter-field--category hidden" for="mhd-category-select" hidden>
                       <span class="mhd-filter-label">Kategorie</span>
                       <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
                         <option value="alle" selected>Alle (7 Tage)</option>
-                        <option value="mopro">🥛 MoPro & Kühlware</option>
+                        <option value="mopro">🥛 MoPro</option>
+                        <option value="kuehlware">❄️ Kühlware</option>
                         <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>
@@ -2497,19 +2544,6 @@
               <p class="admin-leitstand-hint" id="mhd-archive-status" data-mhd-archive-status hidden role="status"></p>
             </section>
 
-            <section class="batch-audit-card" id="discount-matrix-card" aria-label="MHD-Rabatt-Matrix">
-              <div class="batch-audit-title">MHD-Rabatt-Matrix</div>
-              <p class="admin-leitstand-hint">Staffel gilt für diesen Betrieb. Ohne Treffer bleibt der Artikel ohne Rabatt-Badge.</p>
-              <label class="discount-matrix-category">
-                <span>Warengruppe</span>
-                <select id="discount-matrix-category" class="input-text-touch"></select>
-              </label>
-              <div id="discount-matrix-rules"></div>
-              <button type="button" id="discount-matrix-add" class="btn btn-secondary discount-matrix-add">Neue Rabattstufe</button>
-              <button type="button" id="discount-matrix-save" class="btn btn-primary discount-matrix-save">Rabatt-Matrix speichern</button>
-              <p class="admin-leitstand-hint" id="discount-matrix-status" hidden role="status"></p>
-            </section>
-
             <section class="admin-leitstand-panel hidden" id="admin-leitstand-panel" aria-label="Leitstand Admin">
               <h2 class="admin-leitstand-title">Leitstand · Schwarzes Brett &amp; Aufgaben</h2>
 
@@ -3023,6 +3057,20 @@
             <div class="supplier-pick-actions">
               <button type="button" class="btn btn-primary" id="supplier-pick-confirm" hidden>Übernehmen</button>
               <button type="button" class="btn" id="supplier-pick-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prüffrage vor Lieferabschluss -->
+        <div class="supplier-pick-modal delivery-review-modal" id="delivery-review-modal" hidden>
+          <div class="supplier-pick-card delivery-review-card" role="dialog" aria-modal="true" aria-labelledby="delivery-review-title">
+            <div class="supplier-pick-title" id="delivery-review-title">Liste nochmals prüfen?</div>
+            <p class="supplier-pick-desc" id="delivery-review-desc">Posten kurz kontrollieren oder direkt abschließen.</p>
+            <div id="delivery-review-list" class="delivery-review-list-wrap" aria-live="polite"></div>
+            <div class="supplier-pick-actions delivery-review-actions">
+              <button type="button" class="btn btn-primary" id="delivery-review-proceed">Jetzt abschließen</button>
+              <button type="button" class="btn btn-secondary" id="delivery-review-check">Liste prüfen</button>
+              <button type="button" class="btn" id="delivery-review-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
             </div>
           </div>
         </div>

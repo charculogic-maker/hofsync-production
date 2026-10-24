@@ -591,6 +591,32 @@ export function hasReceivingItemMhd(item) {
   return Boolean(parseGermanDateToIso(raw) || /^\d{4}-\d{2}-\d{2}$/.test(raw));
 }
 
+/**
+ * Kompakte Postenliste für die Prüffrage vor Lieferabschluss (LIFO).
+ * @param {Array<{ product?: string, qtyValue?: number, qtyKg?: number, qtyUnit?: string, mhdDate?: string, addedAt?: number }>} items
+ * @returns {string}
+ */
+export function buildDeliveryReviewListHtml(items) {
+  const list = sortDeliveryItemsLifo(items);
+  if (!list.length) {
+    return '<p class="delivery-review-empty">Keine Posten in dieser Lieferung.</p>';
+  }
+  return `<ul class="delivery-review-list" role="list">${list.map((item) => {
+    const qtyValue = item.qtyValue ?? item.qtyKg ?? 1;
+    const qtyUnit = item.qtyUnit || 'Stk';
+    const mhd = hasReceivingItemMhd(item)
+      ? formatReceivingMhdLabel(item.mhdDate)
+      : 'fehlt';
+    const mhdClass = hasReceivingItemMhd(item)
+      ? 'delivery-review-meta'
+      : 'delivery-review-meta delivery-review-meta--warn';
+    return `<li class="delivery-review-row">
+      <span class="delivery-review-name">${escapeHtml(item.product || 'Ohne Name')}</span>
+      <span class="${mhdClass}">${escapeHtml(String(qtyValue))} ${escapeHtml(String(qtyUnit))} · MHD ${escapeHtml(mhd)}</span>
+    </li>`;
+  }).join('')}</ul>`;
+}
+
 export function buildReceivingItemCardHtml(item) {
   const brandLabel = String(item.brand || item.herstellerZusatz || item.marke || '').trim();
   const brandMeta = brandLabel ? `${escapeHtml(brandLabel.toUpperCase())} · ` : '';

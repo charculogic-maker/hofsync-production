@@ -90,14 +90,23 @@ function http(options, handler) {
 
 function callable(options, handler) {
   let impl;
+  // Cloud Run IAM: Callables brauchen öffentlichen Invoker – Firebase Auth/App Check
+  // prüft die Function selbst. Ohne allUsers scheitert der Browser mit „internal“.
+  const callableOptions = {
+    invoker: 'public',
+    ...options,
+  };
   const func = (req, res) => {
-    if (!impl) impl = require('firebase-functions/v2/https').onCall(options, handler);
+    if (!impl) impl = require('firebase-functions/v2/https').onCall(callableOptions, handler);
     return impl(req, res);
   };
   func.run = handler;
   func.__endpoint = {
-    ...baseEndpoint(options),
+    ...baseEndpoint(callableOptions),
     callableTrigger: {},
+    httpsTrigger: {
+      invoker: ['public'],
+    },
   };
   return func;
 }
@@ -205,7 +214,13 @@ lazyExport('verifyTerminalPin', () => callable(
 ));
 
 lazyExport('createTenantEmployee', () => callable(
-  CALLABLE_BASE_OPTIONS,
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    // Wie manageTenantEmployees: Vercel-Hosts scheitern an reCAPTCHA App Check.
+    // Auth und Admin-/Super-Admin-Prüfung bleiben Pflicht.
+    cors: true,
+    enforceAppCheck: false,
+  },
   withAdmin(async (request) => require('./createTenantEmployee').handleCreateTenantEmployee(request)),
 ));
 

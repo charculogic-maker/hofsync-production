@@ -1,6 +1,11 @@
 /**
  * Mandanten-Rabattstaffel für den MHD-Monitor.
  * Firestore: tenants/{tenantId}/settings/discount_matrix
+ *
+ * Standard-Staffeln:
+ * - Kühlware / MoPro: MHD-Tag 50 %, 1 Resttag 20 %, 2 Resttage 10 %, darüber raus
+ * - Milch (Flasche/Tetrapack): MHD-Tag 20 %, 1 Resttag 10 %, darüber raus
+ * - Trockenware & Getränke: ≤7 Tage 50 %, ≤15 Tage 20 %, ≤30 Tage 10 %, darüber raus
  */
 
 import { canonicalTenantId, getNamedTenantCollection } from './tenant-db.js';
@@ -12,17 +17,44 @@ export const DISCOUNT_CATEGORY_OPTIONS = Object.freeze([
   { id: 'MoPro & Kühlware', label: 'MoPro & Kühlware' },
   { id: 'Milch', label: 'Milch (Sonderstaffel)' },
   { id: 'Fleisch', label: 'Fleisch' },
-  { id: 'Trockenware', label: 'Trockenware' },
+  { id: 'Trockenware', label: 'Trockenware & Getränke' },
 ]);
 
 export function stickerBadgeText(percent) {
   return `🏷️ -${percent} % Aufkleber`;
 }
 
+function rule(daysRemainingMax, discountPercent) {
+  return {
+    daysRemainingMax,
+    discountPercent,
+    badgeText: stickerBadgeText(discountPercent),
+  };
+}
+
+/** Kühlware / MoPro / Fleisch-Fallback. */
+export function defaultKuehlwareRules() {
+  return [
+    rule(0, 50),
+    rule(1, 20),
+    rule(2, 10),
+  ];
+}
+
+/** Milch Flasche und Tetrapack. */
 export function defaultMilkRules() {
   return [
-    { daysRemainingMax: 0, discountPercent: 20, badgeText: stickerBadgeText(20) },
-    { daysRemainingMax: 1, discountPercent: 10, badgeText: stickerBadgeText(10) },
+    rule(0, 20),
+    rule(1, 10),
+  ];
+}
+
+/** Trockenware, TK, Gewürze, Getränke. */
+export function defaultTrockenwareRules() {
+  return [
+    rule(7, 50),
+    rule(15, 20),
+    rule(30, 10),
   ];
 }
 
@@ -52,14 +84,12 @@ function cloneMatrix(matrix) {
 export function getDefaultDiscountMatrix() {
   return {
     enabled: true,
-    defaultRules: [
-      { daysRemainingMax: 0, discountPercent: 50, badgeText: stickerBadgeText(50) },
-      { daysRemainingMax: 1, discountPercent: 30, badgeText: stickerBadgeText(30) },
-      { daysRemainingMax: 2, discountPercent: 20, badgeText: stickerBadgeText(20) },
-      { daysRemainingMax: 3, discountPercent: 10, badgeText: stickerBadgeText(10) },
-    ],
+    defaultRules: defaultKuehlwareRules(),
     categoryOverrides: {
+      'MoPro & Kühlware': defaultKuehlwareRules(),
       Milch: defaultMilkRules(),
+      Fleisch: defaultKuehlwareRules(),
+      Trockenware: defaultTrockenwareRules(),
     },
     rounding: 'commercial_cent',
     updatedAt: '',
@@ -74,9 +104,9 @@ function finiteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function normalizeRule(rule = {}) {
-  const daysRemainingMax = finiteNumber(rule.daysRemainingMax);
-  const discountPercent = finiteNumber(rule.discountPercent);
+function normalizeRule(ruleInput = {}) {
+  const daysRemainingMax = finiteNumber(ruleInput.daysRemainingMax);
+  const discountPercent = finiteNumber(ruleInput.discountPercent);
   if (daysRemainingMax == null || discountPercent == null) return null;
   const percent = Math.min(100, Math.max(0, Math.round(discountPercent)));
   const badgeText = stickerBadgeText(percent);
@@ -117,12 +147,15 @@ export function normalizeDiscountMatrix(raw = {}) {
     if (name && normalized.length) overrides[name] = normalized;
   });
   if (!overrides.Milch) overrides.Milch = defaultMilkRules();
+  if (!overrides['MoPro & Kühlware']) overrides['MoPro & Kühlware'] = defaultKuehlwareRules();
+  if (!overrides.Fleisch) overrides.Fleisch = defaultKuehlwareRules();
+  if (!overrides.Trockenware) overrides.Trockenware = defaultTrockenwareRules();
   const defaultRules = Array.isArray(raw?.defaultRules)
     ? normalizeRules(raw.defaultRules)
     : fallback.defaultRules;
   return {
     enabled: raw?.enabled !== false,
-    defaultRules,
+    defaultRules: defaultRules.length ? defaultRules : fallback.defaultRules,
     categoryOverrides: overrides,
     rounding: 'commercial_cent',
     updatedAt: stampToIso(raw?.updatedAt),
@@ -189,8 +222,9 @@ function resolveOverrideKey(category = '') {
     .replace(/[\u0300-\u036f]/g, '');
   if (/frischmilch|vollmilch|rohmilch|(^|[^a-z])milch([^a-z]|$)/.test(text)) return 'Milch';
   if (/fleisch|wurst|aufschnitt/.test(text)) return 'Fleisch';
-  if (/trocken|konserve|gewuerz|getraenk|\btk\b|tiefk/.test(text)) return 'Trockenware';
-  if (/mopro|kuh?l|kae?se|molke/.test(text)) return 'MoPro & Kühlware';
+  // After foldText, äöü become aou — match both umlaut-stripped and ae/oe/ue forms.
+  if (/trocken|konserve|gewuerz|gewurz|getraenk|getrank|\btk\b|tiefk/.test(text)) return 'Trockenware';
+  if (/mopro|kuh?l|kae?se|kase|molke|frische/.test(text)) return 'MoPro & Kühlware';
   return '';
 }
 
@@ -208,7 +242,7 @@ function rulesForCategory(matrix, category, articleName = '') {
 
 function pickStrictestRule(rules, daysRemaining) {
   return rules
-    .filter((rule) => daysRemaining <= rule.daysRemainingMax)
+    .filter((ruleItem) => daysRemaining <= ruleItem.daysRemainingMax)
     .sort((left, right) => left.daysRemainingMax - right.daysRemainingMax)[0] || null;
 }
 
@@ -230,17 +264,17 @@ export function calculateDiscount(originalPrice, daysRemaining, category, tenant
   if (!Number.isFinite(days) || days < 0) return empty;
   const matrix = getActiveDiscountMatrix(tenantId);
   if (matrix.enabled === false) return empty;
-  const rule = pickStrictestRule(rulesForCategory(matrix, category, articleName), days);
-  if (!rule || rule.discountPercent <= 0) return empty;
+  const matched = pickStrictestRule(rulesForCategory(matrix, category, articleName), days);
+  if (!matched || matched.discountPercent <= 0) return empty;
   const price = finiteNumber(originalPrice);
   const discountedPrice = price == null
     ? 0
-    : roundCommercialCent(price * (1 - rule.discountPercent / 100));
+    : roundCommercialCent(price * (1 - matched.discountPercent / 100));
   return {
     hasDiscount: true,
-    discountPercent: rule.discountPercent,
+    discountPercent: matched.discountPercent,
     discountedPrice,
-    badgeText: stickerBadgeText(rule.discountPercent),
+    badgeText: stickerBadgeText(matched.discountPercent),
   };
 }
 
@@ -249,8 +283,19 @@ export async function saveDiscountMatrix(tenantId, matrixData) {
   if (!id) throw new Error('Kein Betrieb gewählt.');
   const matrix = rememberMatrix(id, {
     ...matrixData,
+    tenantId: id,
     updatedAt: new Date().toISOString(),
   });
-  await getNamedTenantCollection(id, 'settings').doc(DISCOUNT_MATRIX_DOC_ID).set(matrix, { merge: true });
-  return matrix;
+  // Persist only fields allowed by firebase.rules isDiscountMatrixSettings.
+  const payload = {
+    enabled: matrix.enabled !== false,
+    defaultRules: matrix.defaultRules || [],
+    categoryOverrides: matrix.categoryOverrides || {},
+    rounding: 'commercial_cent',
+    tenantId: id,
+    updatedAt: matrix.updatedAt || new Date().toISOString(),
+    updatedBy: String(matrix.updatedBy || ''),
+  };
+  await getNamedTenantCollection(id, 'settings').doc(DISCOUNT_MATRIX_DOC_ID).set(payload, { merge: true });
+  return rememberMatrix(id, payload);
 }

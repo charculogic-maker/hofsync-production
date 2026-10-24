@@ -1337,9 +1337,15 @@ button:active, .btn:active {
 
 .mhd-category-toggle {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
+}
+
+@media (min-width: 640px) {
+  .mhd-category-toggle:not(.mhd-stammdaten-group) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .mhd-category-toggle.mhd-stammdaten-group {
@@ -2581,6 +2587,16 @@ button:active, .btn:active {
 .mhd-sticker-30 { background: #fdba74; color: #9a3412; }
 .mhd-sticker-50 { background: #dc2626; color: #ffffff; }
 
+.dev-dashboard-discount-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.discount-matrix-enabled {
+  margin-bottom: 4px;
+}
+
 .discount-matrix-category,
 .discount-matrix-rule label {
   display: flex;
@@ -2602,11 +2618,16 @@ button:active, .btn:active {
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #fff) 92%, #f3f4f6);
 }
 
 .discount-matrix-preview,
 .discount-matrix-delete,
 .discount-matrix-add,
+.discount-matrix-reset,
 .discount-matrix-save {
   min-height: 48px;
 }
@@ -2623,10 +2644,24 @@ button:active, .btn:active {
   padding: 8px;
 }
 
+.discount-matrix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .discount-matrix-delete,
 .discount-matrix-add,
+.discount-matrix-reset,
 .discount-matrix-save {
   width: 100%;
+}
+
+.discount-matrix-actions .discount-matrix-add,
+.discount-matrix-actions .discount-matrix-reset,
+.discount-matrix-actions .discount-matrix-save {
+  width: auto;
+  flex: 1 1 12rem;
 }
 
 .discount-matrix-delete {
@@ -2715,6 +2750,22 @@ button:active, .btn:active {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+button.mhd-ampel-badge.mhd-days-badge {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+}
+
+button.mhd-ampel-badge.mhd-days-badge.mhd-days-badge--date {
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 800;
 }
 
 .mhd-ampel--expired {
@@ -6443,6 +6494,68 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   margin-top: 8px;
 }
 
+.delivery-review-card {
+  max-width: 400px;
+}
+
+.delivery-review-list-wrap {
+  max-height: min(42vh, 280px);
+  overflow-y: auto;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-md);
+  background: var(--surface-color);
+}
+
+.delivery-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.delivery-review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.delivery-review-row:last-child {
+  border-bottom: none;
+}
+
+.delivery-review-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-color);
+  line-height: 1.25;
+}
+
+.delivery-review-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.delivery-review-meta--warn {
+  color: #b45309;
+}
+
+.delivery-review-empty {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.delivery-review-actions .btn {
+  min-height: 52px;
+  font-weight: 800;
+}
+
 .btn-eigenproduktion {
   min-height: 64px;
   padding: 0 14px;
@@ -8391,7 +8504,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   .mhd-category-toggle {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mhd-category-toggle.mhd-stammdaten-group {

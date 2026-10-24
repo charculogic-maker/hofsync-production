@@ -54,23 +54,22 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro & Kühlware (0-4 Tage)** oder nur **Trockenware (0-21 Tage)** prüfen.
+Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro**, dann **Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro (0-2 Tage)**, nur **Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen. Tippen wir auf die Ampel **IN x TAGEN**, zeigt unsere App das genaue MHD-Datum.
 
-Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach dem Produkt:
+Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach der **MHD-Rabattstaffel** unseres Betriebs. Die Vorlage lautet:
 
-- **Frischmilch:** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
-- **MoPro / Käse:** 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
-- **Frische / Fleisch / Wurst:** 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
-- **Trockenware / Konserven / TK / Gewürze / Getränke:** 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %**
+- **Milch (Flasche/Tetrapack):** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
+- **Kühlware / MoPro / Frische / Fleisch:** 2 Resttage **10 %**, 1 Resttag **20 %**, am MHD-Tag **50 %**, sonst **Regulär**
+- **Trockenware / TK / Gewürze / Getränke:** ≤30 Tage **10 %**, ≤15 Tage **20 %**, ≤7 Tage **50 %**, sonst **Regulär**
 
-Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge).
+Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge). Die Staffel stellen wir in der Verwaltung unter **Mein Betrieb → MHD-Rabattstaffel** ein — jeder Betrieb für sich.
 
 Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 
 Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 
 1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
-2. Bei Bedarf die Prüfgruppe wählen: **Alle (7 Tage)**, **MoPro & Kühlware** oder **Trockenware**.
+2. Bei Bedarf die Prüfgruppe wählen: **Alle (7 Tage)**, **MoPro**, **Kühlware** oder **Trockenware**.
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.
@@ -113,7 +112,8 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben w�
 8. Auf der Karte Menge (Tap → Nummernpad), MHD (+3/+7/+14 oder Datum tippen) oder **✕** zum Entfernen nutzen.
 9. Den nächsten Artikel scannen — ohne nach unten zu scrollen.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
-11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
+11. Unsere App fragt **Liste nochmals prüfen?** und zeigt die Posten kurz an. Mit **Jetzt abschließen** buchen wir sofort; mit **Liste prüfen** korrigieren wir Menge/MHD auf den Karten und tippen danach erneut abschließen.
+12. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 
 Fehlt der Lieferant beim Abschließen, öffnet unsere App ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird die Lieferung gebucht.
 

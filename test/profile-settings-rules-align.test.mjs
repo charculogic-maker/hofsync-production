@@ -42,4 +42,12 @@ describe('Profile settings rules alignment', () => {
     expect(dashboard).to.match(/if \(smtpPass\) profilePayload\.smtpPass/);
     expect(dashboard).to.not.match(/profilePayload\.smtpPass\s*=\s*null/);
   });
+
+  it('erlaubt settings/discount_matrix für Betriebs-Admins', () => {
+    expect(rules).to.match(/function isDiscountMatrixSettings/);
+    expect(rules).to.include("'discount_matrix'");
+    expect(rules).to.include("'defaultRules'");
+    expect(rules).to.include("'categoryOverrides'");
+    expect(rules).to.match(/\|\| isDiscountMatrixSettings\(document\)/);
+  });
 });

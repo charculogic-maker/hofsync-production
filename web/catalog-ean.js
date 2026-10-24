@@ -52,7 +52,31 @@ export function lookupCatalogEan(index, { name = '', articleNumber = '', ean = '
   return '';
 }
 
-/** Lädt einen Index byArticle/byName aus tenants/{tenantId}/stammdaten. */
+function indexCatalogEanDoc(data, docId, byArticle, byName, ambiguousNames) {
+  const ean = consumerEan(data.ean || data.barcode || (consumerEan(docId) ? docId : ''));
+  if (!ean) return;
+  SUPPLIER_ARTICLE_KEYS.forEach((key) => {
+    const article = digitsOnly(data[key]);
+    if (article.length >= 4 && article.length <= 8 && article !== ean) {
+      byArticle.set(article, ean);
+    }
+  });
+  const labels = [data.name, data.artikel, data.articleName];
+  labels.join(' ').match(/\b(\d{5,8})\b/g)?.forEach((token) => {
+    if (token !== ean) byArticle.set(token, ean);
+  });
+  labels.forEach((label) => {
+    const folded = foldCatalogName(label);
+    if (!folded) return;
+    if (byName.has(folded) && byName.get(folded) !== ean) {
+      ambiguousNames.add(folded);
+      return;
+    }
+    byName.set(folded, ean);
+  });
+}
+
+/** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
   const byArticle = new Map();
   const byName = new Map();
@@ -60,31 +84,19 @@ export async function loadCatalogEanIndex() {
   try {
     const snap = await getTenantCollection('stammdaten').limit(400).get();
     snap.forEach((doc) => {
-      const data = doc.data() || {};
-      const ean = consumerEan(data.ean || data.barcode || (consumerEan(doc.id) ? doc.id : ''));
-      if (!ean) return;
-      SUPPLIER_ARTICLE_KEYS.forEach((key) => {
-        const article = digitsOnly(data[key]);
-        if (article.length >= 4 && article.length <= 8 && article !== ean) {
-          byArticle.set(article, ean);
-        }
-      });
-      const labels = [data.name, data.artikel, data.articleName];
-      labels.join(' ').match(/\b(\d{5,8})\b/g)?.forEach((token) => {
-        if (token !== ean) byArticle.set(token, ean);
-      });
-      labels.forEach((label) => {
-        const folded = foldCatalogName(label);
-        if (!folded) return;
-        if (byName.has(folded) && byName.get(folded) !== ean) {
-          ambiguousNames.add(folded);
-          return;
-        }
-        byName.set(folded, ean);
-      });
+      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
     });
   } catch (err) {
     console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
+  }
+  // Manuell gelernte EANs aus dem Wareneingang (product_master).
+  try {
+    const snap = await getTenantCollection('product_master').limit(500).get();
+    snap.forEach((doc) => {
+      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
+    });
+  } catch (err) {
+    console.warn('[HofSync] product_master für EAN-Abgleich nicht lesbar:', err);
   }
   ambiguousNames.forEach((folded) => byName.delete(folded));
   return { byArticle, byName };

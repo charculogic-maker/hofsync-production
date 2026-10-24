@@ -14,6 +14,7 @@ import {
   isOfficeUser,
   loginTenant,
   logoutTenant,
+  promptLogin,
   registerFirebaseCoreReady,
   shutdownFirestoreClient,
   verifyAdminAction,
@@ -202,6 +203,8 @@ installSecretLogoutGestures();
 
 
 const PIN_PROTECTED_TABS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'haccp']);
+/** Soft-Lock (Mitarbeiter-Picker nach Idle) nur in diesen Laden-Alltags-Tabs. */
+const OPERATIVE_SOFT_LOCK_TABS = PIN_PROTECTED_TABS;
 const PROFILE_LAST_ACTION_STORAGE_KEY = 'charculogic_profile_last_action';
 const PROFILE_GUEST_NAMES_KEY = 'charculogic_profile_guest_names';
 const BULLETIN_ACK_STORAGE_PREFIX = 'charculogic_bulletin_ack';
@@ -412,7 +415,12 @@ function getSortedProfilePickerEmployees() {
   ]);
   return getTeamEmployees()
     .map((name) => String(name).trim())
-    .filter((name) => name && !blocked.has(name.toLowerCase()) && !isTeamSessionName(name))
+    .filter((name) => (
+      name
+      && !blocked.has(name.toLowerCase())
+      && !isTeamSessionName(name)
+      && !isHiddenSoftLockEmployeeName(name)
+    ))
     .sort((left, right) => left.localeCompare(right, 'de', { sensitivity: 'base' }));
 }
 
@@ -1652,11 +1660,20 @@ function escapeEmployeePickerHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+/** Test-/Agent-Konten nicht im Soft-Lock-Picker zeigen (Auth bleibt nutzbar). */
+function isHiddenSoftLockEmployeeName(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return true;
+  if (/^cursor\s*agent\b/i.test(clean)) return true;
+  if (/^cursor-agent\b/i.test(clean)) return true;
+  return false;
+}
+
 function normalizeEmployeePickerNames(list = []) {
   const names = [];
   (Array.isArray(list) ? list : []).forEach((entry) => {
     const clean = String(entry || '').trim();
-    if (!clean) return;
+    if (!clean || isHiddenSoftLockEmployeeName(clean)) return;
     if (names.some((name) => name.toLowerCase() === clean.toLowerCase())) return;
     names.push(clean);
   });
@@ -1964,10 +1981,89 @@ function clearActiveEmployeeForSoftLock() {
 
 let employeeInactivityTimerId = null;
 let employeeInactivityTrackerBound = false;
+let adminDashboardIdleLogoutInFlight = false;
+
+function isDevDashboardContext() {
+  try {
+    if (typeof isDevDashboardRoute === 'function' && isDevDashboardRoute()) return true;
+  } catch (_) { /* noop */ }
+  try {
+    return Boolean(
+      document.body?.classList?.contains('is-dev-dashboard')
+      || document.body?.classList?.contains('dev-dashboard-view')
+      || document.documentElement?.classList?.contains('is-dev-dashboard-html'),
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+function isOperativeSoftLockTab(tabId = getCurrentActiveTabId()) {
+  // Dev-Dashboard ist Verwaltung, kein Laden-Operativ-Tab.
+  if (isDevDashboardContext()) return false;
+  return OPERATIVE_SOFT_LOCK_TABS.has(String(tabId || ''));
+}
+
+/**
+ * Dev-Dashboard Idle: Admin-Re-Login statt Soft-Lock-Mitarbeiter-Picker.
+ */
+async function handleAdminDashboardIdleTimeout() {
+  if (adminDashboardIdleLogoutInFlight) return;
+  adminDashboardIdleLogoutInFlight = true;
+  try {
+    try {
+      closeEmployeePickerModal({ force: true });
+    } catch (_) { /* noop */ }
+
+    try {
+      showDevDashboardLoginRequired();
+    } catch (err) {
+      console.warn('[HofSync] Dev-Dashboard Idle-Gate fehlgeschlagen:', err);
+    }
+
+    try {
+      window.showToast?.('Admin-Sitzung abgelaufen. Bitte erneut anmelden.', 'warning');
+    } catch (_) { /* noop */ }
+
+    try {
+      await logoutTenant({ clearPersistence: true });
+    } catch (err) {
+      console.warn('[HofSync] Admin-Idle-Logout fehlgeschlagen:', err);
+      try {
+        if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+          await firebase.auth().signOut();
+        }
+      } catch (_) { /* noop */ }
+    }
+
+    try {
+      promptLogin('Sitzung abgelaufen. Bitte erneut als Betriebs-Admin anmelden.');
+    } catch (err) {
+      console.warn('[HofSync] Admin-Login nach Idle fehlgeschlagen:', err);
+      try {
+        window.promptLogin?.('Sitzung abgelaufen. Bitte erneut als Betriebs-Admin anmelden.');
+      } catch (_) { /* noop */ }
+    }
+  } finally {
+    adminDashboardIdleLogoutInFlight = false;
+  }
+}
 
 function handleEmployeeInactivityTimeout() {
   employeeInactivityTimerId = null;
   if (isFirebaseRoleAuth()) return;
+
+  // Verwaltung: Soft-Lock gehört nicht hierher — Admin-Login erzwingen.
+  if (isDevDashboardContext()) {
+    void handleAdminDashboardIdleTimeout();
+    return;
+  }
+
+  // Soft-Lock nur in Operativ-Tabs (MHD, Wareneingang, Packtisch, …).
+  if (!isOperativeSoftLockTab()) {
+    return;
+  }
+
   // Serien-Scan am Kamerabildschirm: oft ohne Touch → kein Soft-Lock-Sprung nach MHD.
   if (typeof isScannerOverlayOpen === 'function' && isScannerOverlayOpen()) {
     resetEmployeeInactivityTimer();
@@ -1987,6 +2083,9 @@ function resetEmployeeInactivityTimer() {
   if (document.getElementById('auth-screen') && !document.getElementById('auth-screen')?.hidden) {
     return;
   }
+  if (document.body?.classList?.contains('auth-lock-open')) {
+    return;
+  }
   employeeInactivityTimerId = setTimeout(handleEmployeeInactivityTimeout, EMPLOYEE_INACTIVITY_MS);
 }
 
@@ -2004,9 +2103,11 @@ function bindEmployeeInactivityTracker() {
 
 /**
  * Soft-Lock Guard: nach Login ohne activeEmployee Pflicht-Modal öffnen.
+ * Nicht auf /dev-dashboard — dort gilt Admin-Auth, kein Laden-Picker.
  */
 async function ensureSoftLockEmployeeSelected() {
   if (isFirebaseRoleAuth()) return readActiveEmployee();
+  if (isDevDashboardContext()) return readActiveEmployee();
   bindEmployeeInactivityTracker();
   const current = readActiveEmployee();
   if (current && !isTeamSessionName(current)) {
@@ -2025,6 +2126,9 @@ async function ensureSoftLockEmployeeSelected() {
 window.openEmployeePickerModal = openEmployeePickerModal;
 window.ensureSoftLockEmployeeSelected = ensureSoftLockEmployeeSelected;
 window.resetEmployeeInactivityTimer = resetEmployeeInactivityTimer;
+window.handleEmployeeInactivityTimeout = handleEmployeeInactivityTimeout;
+window.isDevDashboardContext = isDevDashboardContext;
+window.isOperativeSoftLockTab = isOperativeSoftLockTab;
 
 function resolveTerminalAuthEmail(branding = window.BRANDING) {
   const fromSettings = String(getTerminalSettings().terminalUser || '').trim();
@@ -4893,7 +4997,7 @@ let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-18T16:15:00+02:00';
+const APP_RELEASE_AT = '2026-10-24T15:45:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -5103,7 +5207,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261015-livestock-update-notice')
+    navigator.serviceWorker.register('./sw.js?v=20261024-mhd-filter-ampel-datum')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

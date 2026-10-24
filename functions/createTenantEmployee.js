@@ -8,7 +8,11 @@ const REGION = 'europe-west3';
 
 const CALLABLE_BASE_OPTIONS = {
   region: REGION,
-  enforceAppCheck: true,
+  // Öffentlicher Cloud-Run-Invoker; Auth/Admin-Check in handleCreateTenantEmployee.
+  // App Check aus: Vercel-Hosts scheitern an reCAPTCHA (wie manageTenantEmployees).
+  invoker: 'public',
+  cors: true,
+  enforceAppCheck: false,
 };
 
 function normalizeEmail(value) {
