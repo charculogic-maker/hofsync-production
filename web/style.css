@@ -10184,6 +10184,38 @@ body.dev-dashboard-view .app-version-badge--footer {
   opacity: 0.92;
 }
 
+.customer-order-action-log {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+}
+
+.customer-order-action-log summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.customer-order-action-log-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.customer-order-action-log-list li {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text-color, #1c130e);
+  line-height: 1.35;
+}
+
+.customer-order-action-log-list li:last-child {
+  margin-bottom: 0;
+}
+
 .customer-order-card {
   padding: 12px;
   border-radius: var(--border-radius-sm);

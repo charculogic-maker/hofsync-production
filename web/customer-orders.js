@@ -96,6 +96,93 @@ const orderState = {
   pendingNotifyAction: null,
 };
 
+const ORDER_ACTION_LOG_LABELS = Object.freeze({
+  in_progress: 'In Bearbeitung gesetzt',
+  reopen: 'Wieder in Bearbeitung',
+  ready: 'Als Abholbereit markiert',
+  ready_notify: 'Als Abholbereit markiert · Kunde benachrichtigt',
+  ready_no_notify: 'Als Abholbereit markiert · ohne Kunden-Nachricht',
+  notify_again: 'Kunde erneut benachrichtigt',
+  notify_again_skip: 'Erneute Benachrichtigung übersprungen',
+  picked_up: 'Als abgeholt markiert',
+  cancelled: 'Storniert',
+  edited: 'Bestellung bearbeitet',
+  edited_reopen: 'Bestellung bearbeitet · wieder in Bearbeitung',
+});
+
+const ACTION_LOG_MAX = 40;
+
+function buildOrderActionLogEntry(action, employee, detail = '') {
+  return {
+    action: String(action || '').trim(),
+    by: String(employee || '').trim() || 'Unbekannt',
+    at: new Date().toISOString(),
+    detail: String(detail || '').trim(),
+  };
+}
+
+function mergeOrderActionLog(existing, entry) {
+  const prev = Array.isArray(existing) ? existing.filter((row) => row && typeof row === 'object') : [];
+  if (!entry?.action) return prev.slice(-ACTION_LOG_MAX);
+  return [...prev, entry].slice(-ACTION_LOG_MAX);
+}
+
+function formatOrderActionLogLabel(entry = {}) {
+  const base = ORDER_ACTION_LOG_LABELS[entry.action] || entry.action || 'Aktion';
+  return entry.detail ? `${base} (${entry.detail})` : base;
+}
+
+function renderOrderActionLog(order) {
+  const log = Array.isArray(order?.actionLog) ? order.actionLog.filter((row) => row && row.action) : [];
+  // Legacy-Stempel ergänzen, falls noch kein Protokoll existiert
+  const legacy = [];
+  if (!log.length) {
+    if (order?.inProgressBy || order?.inProgressAt) {
+      legacy.push({
+        action: 'in_progress',
+        by: order.inProgressBy || '–',
+        at: order.inProgressAt,
+      });
+    }
+    if (order?.readyMarkedBy || order?.readyMarkedAt) {
+      legacy.push({
+        action: order.skipNotify || order.notifySkipped ? 'ready_no_notify' : 'ready',
+        by: order.readyMarkedBy || '–',
+        at: order.readyMarkedAt,
+      });
+    }
+    if (order?.readyNotifyBy || order?.readyNotifyAt) {
+      legacy.push({
+        action: 'notify_again',
+        by: order.readyNotifyBy || order.readyMarkedBy || '–',
+        at: order.readyNotifyAt,
+      });
+    }
+    if (order?.pickedUpBy || order?.pickedUpAt) {
+      legacy.push({
+        action: 'picked_up',
+        by: order.pickedUpBy || '–',
+        at: order.pickedUpAt,
+      });
+    }
+  }
+  const rows = (log.length ? log : legacy).slice().reverse();
+  if (!rows.length) return '';
+  return `
+    <details class="customer-order-action-log">
+      <summary>Protokoll · ${rows.length} Aktion${rows.length === 1 ? '' : 'en'}</summary>
+      <ul class="customer-order-action-log-list">
+        ${rows.map((row) => {
+    const when = formatDateTimeDe(row.at) || '–';
+    const who = row.by || '–';
+    const what = formatOrderActionLogLabel(row);
+    return `<li><strong>${escapeHtml(who)}</strong> · ${escapeHtml(when)} · ${escapeHtml(what)}</li>`;
+  }).join('')}
+      </ul>
+    </details>
+  `;
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -473,7 +560,7 @@ async function prepareStockDeductionsForOrder(order) {
   return deductions;
 }
 
-async function markOrderPickedUpWithStock(order, employee) {
+async function markOrderPickedUpWithStock(order, employee, { actionLog } = {}) {
   const firebase = orderState.getFirebase();
   const orderRef = ordersCollectionRef()?.doc(order.id);
   if (!firebase?.firestore?.FieldValue || !orderRef) {
@@ -510,11 +597,14 @@ async function markOrderPickedUpWithStock(order, employee) {
       });
     });
 
-    transaction.update(orderRef, {
+    const orderUpdate = {
       status: 'picked_up',
       pickedUpBy: employee,
       pickedUpAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+      employeeName: employee,
+    };
+    if (Array.isArray(actionLog)) orderUpdate.actionLog = actionLog;
+    transaction.update(orderRef, orderUpdate);
   });
 
   return deductions.length;
@@ -1236,6 +1326,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items)}</ul>
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
+      ${renderOrderActionLog(order)}
       <div class="packtisch-actions">
         ${ACTIVE_ORDER_STATUSES.has(status)
     ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>`
@@ -1686,29 +1777,28 @@ function openOrderNotifyModal(orderId, mode = 'ready') {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
     return;
   }
+  if (!getActiveEmployeeName()) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
   orderState.pendingNotifyAction = { mode, orderId };
   const channels = defaultNotifyChannelsForOrder(order);
   const emailEl = document.getElementById('order-notify-email');
-  const smsEl = document.getElementById('order-notify-sms');
-  const waEl = document.getElementById('order-notify-whatsapp');
   if (emailEl) {
     emailEl.checked = channels.email;
     emailEl.disabled = !Boolean(order.customerEmail || order.customer?.email);
   }
-  if (smsEl) {
-    smsEl.checked = channels.sms;
-    smsEl.disabled = !customerPhone(order);
+  const title = document.getElementById('order-notify-title');
+  if (title) {
+    title.textContent = mode === 'notify_again'
+      ? 'Kunde erneut benachrichtigen?'
+      : 'Bestellung wirklich abholbereit?';
   }
-  if (waEl) {
-    waEl.checked = channels.whatsapp;
-    waEl.disabled = !customerPhone(order);
-  }
-
   const summary = document.getElementById('order-notify-summary');
   if (summary) {
     summary.textContent = mode === 'notify_again'
-      ? `${customerDisplayName(order)} erneut über die Abholung informieren.`
-      : `${customerDisplayName(order)} als abholbereit markieren und optional benachrichtigen.`;
+      ? `${customerDisplayName(order)} erneut über die Abholung informieren?`
+      : `${customerDisplayName(order)} wirklich als abholbereit markieren? Danach kann eine Nachricht an die Kundin gehen.`;
   }
   const hint = document.getElementById('order-notify-hint');
   if (hint) {
@@ -1716,8 +1806,15 @@ function openOrderNotifyModal(orderId, mode = 'ready') {
     if (!(order.customerEmail || order.customer?.email)) parts.push('Keine E-Mail hinterlegt');
     if (!customerPhone(order)) parts.push('Keine Telefonnummer hinterlegt');
     hint.textContent = parts.length
-      ? `${parts.join(' · ')}. SMS und WhatsApp folgen später – die Auswahl merken wir uns schon.`
-      : 'SMS und WhatsApp folgen später – die Auswahl merken wir uns schon für die Bestätigung.';
+      ? `${parts.join(' · ')}. SMS/WhatsApp folgen später.`
+      : 'Ohne Haken bei „Per E-Mail“ wird niemand benachrichtigt.';
+  }
+  const skipBtn = document.getElementById('order-notify-skip-btn');
+  if (skipBtn) {
+    skipBtn.textContent = mode === 'notify_again'
+      ? 'Ohne Nachricht schließen'
+      : 'Abholbereit ohne Nachricht';
+    skipBtn.hidden = mode === 'notify_again';
   }
   const sendBtn = document.getElementById('order-notify-send-btn');
   if (sendBtn) {
@@ -1741,20 +1838,35 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
     window.showToast?.('Bitte kurz warten und erneut versuchen.', 'warning');
     return;
   }
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
   const normalized = normalizeNotifyChannels(channels);
   const skipNotify = !wantsAnyReadyNotify({ notifyChannels: normalized });
   const stamp = firebase.firestore.FieldValue.serverTimestamp();
+  let action = 'ready';
+  if (markReady && skipNotify) action = 'ready_no_notify';
+  else if (markReady && !skipNotify) action = 'ready_notify';
+  else if (!markReady && skipNotify) action = 'notify_again_skip';
+  else action = 'notify_again';
+  const logEntry = buildOrderActionLogEntry(
+    action,
+    employee,
+    skipNotify ? '' : 'E-Mail',
+  );
+  const nextLog = mergeOrderActionLog(order?.actionLog, logEntry);
+
   const onlineData = {
     notifyChannels: normalized,
     skipNotify,
     notifySkipped: skipNotify,
     employeeName: employee,
+    actionLog: nextLog,
   };
   const queueData = {
     notifyChannels: normalized,
     skipNotify,
     notifySkipped: skipNotify,
     employeeName: employee,
+    actionLog: nextLog,
   };
 
   if (markReady) {
@@ -1796,6 +1908,8 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
         notifyChannels: normalized,
         skipNotify,
         notifySkipped: skipNotify,
+        actionLog: nextLog,
+        employeeName: employee,
       };
       if (markReady) {
         next.status = 'ready';
@@ -1812,7 +1926,7 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
     let toast = 'Gespeichert.';
     if (markReady && skipNotify) toast = 'Als Abholbereit markiert – ohne Kunden-Nachricht.';
     else if (markReady) toast = 'Als Abholbereit markiert – Bestätigung geht raus.';
-    else if (skipNotify) toast = 'Ohne Kunden-Nachricht fortgefahren.';
+    else if (skipNotify) toast = 'Ohne Kunden-Nachricht geschlossen.';
     else toast = 'Kunde wird über die Abholung informiert.';
     window.showToast?.(
       result === 'queued' ? 'Wird synchronisiert, sobald WLAN verfügbar ist.' : toast,
@@ -1837,11 +1951,16 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
 async function confirmOrderNotifyModal({ skip = false } = {}) {
   const pending = orderState.pendingNotifyAction;
   if (!pending?.orderId) return;
+  if (orderState.notifyReadyInFlight || orderState.statusUpdateInFlight) return;
   const channels = skip
     ? { email: false, sms: false, whatsapp: false }
     : readNotifyChannelsFromModal();
   if (pending.mode === 'notify_again') {
-    await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: !skip, markReady: false });
+    if (skip) {
+      closeOrderNotifyModal();
+      return;
+    }
+    await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: true, markReady: false });
     return;
   }
   await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: !skip, markReady: true });
@@ -2010,6 +2129,9 @@ async function saveOrderEditFromModal() {
 
   const prevStatus = orderStatus(existing);
   const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
+  const logAction = shouldReopen ? 'edited_reopen' : 'edited';
+  const logEntry = buildOrderActionLogEntry(logAction, employee);
+  const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
@@ -2022,6 +2144,7 @@ async function saveOrderEditFromModal() {
     employeeName: employee,
     updatedBy: employee,
     updatedAt: serverTimestamp,
+    actionLog: nextLog,
   };
   if (callbackPhone) onlineData.callbackPhone = callbackPhone;
   else onlineData.callbackPhone = null;
@@ -2039,6 +2162,7 @@ async function saveOrderEditFromModal() {
   const queueData = {
     ...onlineData,
     updatedAt: new Date().toISOString(),
+    actionLog: nextLog,
   };
   if (shouldReopen) {
     queueData.inProgressAt = new Date().toISOString();
@@ -2074,6 +2198,7 @@ async function saveOrderEditFromModal() {
         additionalWishes: additionalWishes || null,
         updatedBy: employee,
         updatedAt: new Date().toISOString(),
+        actionLog: nextLog,
       };
       if (shouldReopen) {
         next.status = 'in_progress';
@@ -2113,7 +2238,7 @@ async function saveOrderEditFromModal() {
   }
 }
 
-async function updateOrderStatus(orderId, nextStatus) {
+async function updateOrderStatus(orderId, nextStatus, { action = '' } = {}) {
   if (orderState.statusUpdateInFlight) return;
   const employee = getActiveEmployeeName();
   if (!employee) {
@@ -2121,20 +2246,31 @@ async function updateOrderStatus(orderId, nextStatus) {
     return;
   }
 
+  // Ready läuft immer über das Bestätigungs-/Notify-Modal (Sicherheitsnetz).
+  if (nextStatus === 'ready') {
+    requestMarkOrderReady(orderId);
+    return;
+  }
+
   const firebase = orderState.getFirebase();
-  const payload = { status: nextStatus, employeeName: employee };
+  const current = orderState.allOrders.find((entry) => entry.id === orderId);
+  const logAction = action
+    || (nextStatus === 'in_progress' && orderStatus(current) === 'ready' ? 'reopen' : nextStatus);
+  const logEntry = buildOrderActionLogEntry(logAction, employee);
+  const nextLog = mergeOrderActionLog(current?.actionLog, logEntry);
+  const payload = {
+    status: nextStatus,
+    employeeName: employee,
+    actionLog: nextLog,
+  };
 
   if (nextStatus === 'in_progress') {
     payload.inProgressBy = employee;
     payload.inProgressAt = firebase?.firestore?.FieldValue
       ? firebase.firestore.FieldValue.serverTimestamp()
       : new Date().toISOString();
-  } else if (nextStatus === 'ready') {
-    // Ready läuft über das Benachrichtigungs-Modal (Kanäle wählbar).
-    requestMarkOrderReady(orderId);
-    return;
   } else if (nextStatus === 'picked_up') {
-    const order = orderState.allOrders.find((entry) => entry.id === orderId);
+    const order = current;
     if (!order) {
       window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
       return;
@@ -2144,14 +2280,21 @@ async function updateOrderStatus(orderId, nextStatus) {
       orderState.statusUpdateOrderIds.add(orderId);
       renderOpenOrders();
       renderAdminOrders();
-      await markOrderPickedUpWithStock(order, employee);
+      await markOrderPickedUpWithStock(order, employee, { actionLog: nextLog });
       orderState.allOrders = orderState.allOrders.map((entry) => (
         entry.id === orderId
-          ? { ...entry, status: 'picked_up', pickedUpBy: employee, pickedUpAt: new Date().toISOString() }
+          ? {
+            ...entry,
+            status: 'picked_up',
+            pickedUpBy: employee,
+            pickedUpAt: new Date().toISOString(),
+            actionLog: nextLog,
+          }
           : entry
       ));
       renderOpenOrders();
       renderAdminOrders();
+      renderPastOrdersView();
       renderProductionTasks();
       window.showToast?.('Bestellung erfolgreich als abgeholt markiert. Lagerbestand aktualisiert.', 'success');
     } catch (err) {
@@ -2181,14 +2324,10 @@ async function updateOrderStatus(orderId, nextStatus) {
       op: 'update',
       onlineData: payload,
       queueData: (() => {
-        const q = { status: nextStatus };
+        const q = { status: nextStatus, actionLog: nextLog, employeeName: employee };
         if (nextStatus === 'in_progress') {
           q.inProgressBy = employee;
           q.inProgressAt = new Date().toISOString();
-        }
-        if (nextStatus === 'ready') {
-          q.readyMarkedBy = employee;
-          q.readyMarkedAt = new Date().toISOString();
         }
         if (nextStatus === 'picked_up') {
           q.pickedUpBy = employee;
@@ -2200,14 +2339,10 @@ async function updateOrderStatus(orderId, nextStatus) {
     });
     orderState.allOrders = orderState.allOrders.map((entry) => {
       if (entry.id !== orderId) return entry;
-      const next = { ...entry, status: nextStatus };
+      const next = { ...entry, status: nextStatus, actionLog: nextLog, employeeName: employee };
       if (nextStatus === 'in_progress') {
         next.inProgressBy = employee;
         next.inProgressAt = new Date().toISOString();
-      }
-      if (nextStatus === 'ready') {
-        next.readyMarkedBy = employee;
-        next.readyMarkedAt = new Date().toISOString();
       }
       return next;
     });
@@ -2216,7 +2351,6 @@ async function updateOrderStatus(orderId, nextStatus) {
     renderZuschnittliste();
     const labels = {
       in_progress: 'auf „In Bearbeitung“ gesetzt',
-      ready: 'als Abholbereit markiert – Benachrichtigung geht raus',
       picked_up: 'als abgeholt markiert',
       cancelled: 'storniert',
     };
@@ -2642,7 +2776,7 @@ function bindOrderListActions() {
     if (action === 'reopen') {
       orderState.expandedPackOrderId = orderId;
       if (orderState.ordersView === 'vergangen') setOrdersView('packtisch');
-      updateOrderStatus(orderId, 'in_progress');
+      updateOrderStatus(orderId, 'in_progress', { action: 'reopen' });
       return;
     }
     if (action === 'edit') {
@@ -2979,6 +3113,9 @@ export {
   classifyPacktischBucket,
   aggregatePastOrderProducts,
   filterPastOrders,
+  formatOrderActionLogLabel,
+  mergeOrderActionLog,
+  buildOrderActionLogEntry,
   normalizeNotifyChannels,
   wantsAnyReadyNotify,
 };

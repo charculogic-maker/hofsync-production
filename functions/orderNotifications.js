@@ -240,6 +240,7 @@ function wantsNotifyChannel(order = {}, channel = 'email') {
 }
 
 function shouldSendReadySignal(before = {}, after = {}) {
+  // Explizit abgewählt (Sicherheitsnetz „ohne Nachricht“) → kein Kunden-Signal.
   if (!wantsAnyReadyNotify(after)) {
     return { send: false, kind: null, skipped: true };
   }
