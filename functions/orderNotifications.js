@@ -209,7 +209,32 @@ function timestampKey(value) {
   return '';
 }
 
+function normalizeNotifyChannels(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { email: true, sms: true, whatsapp: false };
+  }
+  const hasKey = ('email' in raw) || ('sms' in raw) || ('whatsapp' in raw);
+  if (!hasKey) {
+    return { email: true, sms: true, whatsapp: false };
+  }
+  return {
+    email: raw.email !== false && raw.email !== 0 && raw.email !== '0',
+    sms: raw.sms === true || raw.sms === 1 || raw.sms === '1',
+    whatsapp: raw.whatsapp === true || raw.whatsapp === 1 || raw.whatsapp === '1',
+  };
+}
+
+function wantsAnyReadyNotify(order = {}) {
+  if (order.skipNotify === true || order.notifySkipped === true) return false;
+  const channels = normalizeNotifyChannels(order.notifyChannels);
+  return Boolean(channels.email || channels.sms || channels.whatsapp);
+}
+
 function shouldSendReadySignal(before = {}, after = {}) {
+  // Explizit abgewählt (Sicherheitsnetz „ohne Nachricht“) → kein Kunden-Signal.
+  if (!wantsAnyReadyNotify(after)) {
+    return { send: false, kind: null, skipped: true };
+  }
   const becameReady = before.status !== 'ready' && after.status === 'ready';
   if (becameReady) return { send: true, kind: 'initial' };
   if (after.status !== 'ready') return { send: false, kind: null };
@@ -546,6 +571,8 @@ exports._test = {
   calculateFinalOrderPrice,
   formatPickupWindow,
   shouldSendReadySignal,
+  wantsAnyReadyNotify,
+  normalizeNotifyChannels,
   timestampKey,
   normalizePhoneForTwilio,
   createSmtpTransport,

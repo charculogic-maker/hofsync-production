@@ -9898,6 +9898,104 @@ body.dev-dashboard-view .app-version-badge--footer {
   }
 }
 
+.order-notify-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.order-notify-modal.is-open {
+  display: flex;
+}
+
+.order-notify-view {
+  width: min(560px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+  background: var(--surface-color, #fff);
+  border-radius: 16px 16px 12px 12px;
+  padding: 14px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+}
+
+.order-notify-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.order-notify-toolbar h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.order-notify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.order-notify-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.1));
+}
+
+.order-notify-soon-tag {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.order-notify-channel--soon {
+  opacity: 0.92;
+}
+
+.customer-order-action-log {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+}
+
+.customer-order-action-log summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.customer-order-action-log-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.customer-order-action-log-list li {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text-color, #1c130e);
+  line-height: 1.35;
+}
+
+.customer-order-action-log-list li:last-child {
+  margin-bottom: 0;
+}
+
 .customer-order-card {
   padding: 12px;
   border-radius: var(--border-radius-sm);

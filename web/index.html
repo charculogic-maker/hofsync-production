@@ -1450,6 +1450,36 @@
 
               <div id="zuschnittliste-print-root" class="zuschnittliste-print-root" aria-hidden="true"></div>
 
+              <div class="order-notify-modal" id="order-notify-modal" hidden role="dialog" aria-modal="true" aria-labelledby="order-notify-title">
+                <div class="order-notify-view">
+                  <header class="order-notify-toolbar">
+                    <h2 id="order-notify-title">Bestellung wirklich abholbereit?</h2>
+                    <button type="button" class="btn btn-secondary btn-compact" id="order-notify-close-btn" aria-label="Abbrechen">Abbrechen</button>
+                  </header>
+                  <p class="customer-order-hint" id="order-notify-summary">Bitte kurz prüfen, bevor die Kundin eine Nachricht bekommt.</p>
+                  <fieldset class="order-notify-channels">
+                    <legend>Kunde benachrichtigen?</legend>
+                    <label class="task-routing-option">
+                      <input type="checkbox" id="order-notify-email" name="order-notify-channel" value="email" checked>
+                      Per E-Mail
+                    </label>
+                    <label class="task-routing-option order-notify-channel--soon">
+                      <input type="checkbox" id="order-notify-sms" name="order-notify-channel" value="sms" disabled>
+                      Per SMS <span class="order-notify-soon-tag">demnächst</span>
+                    </label>
+                    <label class="task-routing-option order-notify-channel--soon">
+                      <input type="checkbox" id="order-notify-whatsapp" name="order-notify-channel" value="whatsapp" disabled>
+                      Per WhatsApp <span class="order-notify-soon-tag">demnächst</span>
+                    </label>
+                  </fieldset>
+                  <p class="customer-order-hint" id="order-notify-hint"></p>
+                  <div class="order-notify-actions">
+                    <button type="button" class="btn btn-secondary" id="order-notify-skip-btn">Abholbereit ohne Nachricht</button>
+                    <button type="button" class="btn btn-primary" id="order-notify-send-btn">Abholbereit &amp; benachrichtigen</button>
+                  </div>
+                </div>
+              </div>
+
               <div class="avery-label-modal" id="avery-label-modal" hidden role="dialog" aria-modal="true" aria-labelledby="avery-label-title">
                 <div class="avery-label-view">
                   <header class="avery-label-toolbar">
