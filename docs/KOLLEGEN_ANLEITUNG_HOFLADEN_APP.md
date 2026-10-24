@@ -112,7 +112,8 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben w�
 8. Auf der Karte Menge (Tap → Nummernpad), MHD (+3/+7/+14 oder Datum tippen) oder **✕** zum Entfernen nutzen.
 9. Den nächsten Artikel scannen — ohne nach unten zu scrollen.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
-11. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
+11. Unsere App fragt **Liste nochmals prüfen?** und zeigt die Posten kurz an. Mit **Jetzt abschließen** buchen wir sofort; mit **Liste prüfen** korrigieren wir Menge/MHD auf den Karten und tippen danach erneut abschließen.
+12. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 
 Fehlt der Lieferant beim Abschließen, öffnet unsere App ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird die Lieferung gebucht.
 

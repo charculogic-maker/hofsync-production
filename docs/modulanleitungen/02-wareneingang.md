@@ -32,7 +32,7 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 5. **Unbekannte EAN**: **Produktname** eintragen, Menge/MHD setzen und **➕ Posten hinzufügen**
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
 7. Auf der Erfassungskarte korrigieren wir bei Bedarf **Menge** (Tap → Nummernpad), **MHD** (+3/+7/+14 Tage oder Tap auf das Datum) oder entfernen den Posten mit **✕**
-8. **💾 Gesamte Lieferung abschließen** — fehlt der Lieferant, erscheint ein Auswahl-Pop-up
+8. **💾 Gesamte Lieferung abschließen** — unsere App fragt kurz **Liste nochmals prüfen?** (Übersicht der Posten). Mit **Jetzt abschließen** buchen wir sofort, mit **Liste prüfen** springen wir zurück zu den Karten. Fehlt der Lieferant, erscheint zusätzlich ein Auswahl-Pop-up
 9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
 10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 

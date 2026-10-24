@@ -89,7 +89,8 @@ Beispiel:
 4. Artikel scannen — bekannte EAN erscheint oben in der Liste; Menge/MHD bei Bedarf auf der Karte anpassen.
 5. Den nächsten MoPro-Artikel scannen (kein Scrollen nach unten nötig).
 6. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
-7. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
+7. Bei der Frage **Liste nochmals prüfen?** entweder **Jetzt abschließen** (Überspringen) oder **Liste prüfen** und danach erneut abschließen.
+8. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
 Fehlt der Lieferant beim Abschließen, erscheint ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird gebucht.
 
