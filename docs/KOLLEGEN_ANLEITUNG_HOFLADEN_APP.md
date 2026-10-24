@@ -56,13 +56,13 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro & Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen.
 
-Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach dem Produkt:
+Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach der **MHD-Rabattstaffel** unseres Betriebs. Die Vorlage lautet:
 
 - **Milch (Flasche/Tetrapack):** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
 - **Kühlware / MoPro / Frische / Fleisch:** 2 Resttage **10 %**, 1 Resttag **20 %**, am MHD-Tag **50 %**, sonst **Regulär**
 - **Trockenware / TK / Gewürze / Getränke:** ≤30 Tage **10 %**, ≤15 Tage **20 %**, ≤7 Tage **50 %**, sonst **Regulär**
 
-Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge).
+Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge). Die Staffel stellen wir in der Verwaltung unter **Mein Betrieb → MHD-Rabattstaffel** ein — jeder Betrieb für sich.
 
 Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten** oder das Kategorie-Badge an. Unter **Artikel-Stammdaten bearbeiten** korrigieren wir Bezeichnung, Marke, EAN und die Zuordnung zu **MoPro & Kühlware** oder **Trockenware**. Nach dem Speichern zeigt unsere App den Artikel im passenden Filter.
 

@@ -2581,6 +2581,16 @@ button:active, .btn:active {
 .mhd-sticker-30 { background: #fdba74; color: #9a3412; }
 .mhd-sticker-50 { background: #dc2626; color: #ffffff; }
 
+.dev-dashboard-discount-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.discount-matrix-enabled {
+  margin-bottom: 4px;
+}
+
 .discount-matrix-category,
 .discount-matrix-rule label {
   display: flex;
@@ -2602,11 +2612,16 @@ button:active, .btn:active {
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #fff) 92%, #f3f4f6);
 }
 
 .discount-matrix-preview,
 .discount-matrix-delete,
 .discount-matrix-add,
+.discount-matrix-reset,
 .discount-matrix-save {
   min-height: 48px;
 }
@@ -2623,10 +2638,24 @@ button:active, .btn:active {
   padding: 8px;
 }
 
+.discount-matrix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .discount-matrix-delete,
 .discount-matrix-add,
+.discount-matrix-reset,
 .discount-matrix-save {
   width: 100%;
+}
+
+.discount-matrix-actions .discount-matrix-add,
+.discount-matrix-actions .discount-matrix-reset,
+.discount-matrix-actions .discount-matrix-save {
+  width: auto;
+  flex: 1 1 12rem;
 }
 
 .discount-matrix-delete {

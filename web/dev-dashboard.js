@@ -39,13 +39,14 @@ import {
   renderFallbackUI,
 } from './tenant-admin-auth.js';
 import { logAndMapOperatorError } from './operator-errors.js';
-import { getNamedTenantCollection, initTenantDb } from './tenant-db.js';
+import { getNamedTenantCollection, initTenantDb, setGlobalTenantId } from './tenant-db.js';
 import { persistProductMasterToFirestore } from './product-master.js';
 import { sanitizeProductName } from './utils.js';
 import {
   refreshDevDashboardHaccpAdmin,
   syncDevDashboardHaccpAdmin,
 } from './dev-dashboard-haccp.js';
+import { refreshDiscountMatrixUi } from './discount-matrix-ui.js';
 import {
   AUDIT_LOGS_COLLECTION,
   MHD_AUDIT_COLLECTION,
@@ -2497,6 +2498,10 @@ function bindTenantSelector(dashboardStateRef, tenants) {
         tenantId: dashboardStateRef.selectedTenantId,
         recordAudit,
       });
+      if (dashboardStateRef.selectedTenantId) {
+        setGlobalTenantId(dashboardStateRef.selectedTenantId);
+      }
+      void refreshDiscountMatrixUi(dashboardStateRef.selectedTenantId);
     } else {
       refreshDevDashboardHaccpAdmin();
     }
@@ -2589,6 +2594,10 @@ function setDevDashboardTab(tabKey = 'overview') {
       tenantId: dashboardState.selectedTenantId,
       recordAudit,
     });
+    if (dashboardState.selectedTenantId) {
+      setGlobalTenantId(dashboardState.selectedTenantId);
+    }
+    void refreshDiscountMatrixUi(dashboardState.selectedTenantId);
   }
   if (nextTab === 'audit') {
     bindMovementReportControls();
