@@ -6,6 +6,7 @@ const {
   buildCustomerSignal,
   formatPickupWindow,
   shouldSendReadySignal,
+  wantsAnyReadyNotify,
 } = require('../orderNotifications')._test;
 
 describe('orderNotifications Ready-Signal', () => {
@@ -52,5 +53,17 @@ describe('orderNotifications Ready-Signal', () => {
     }, { betriebsName: 'StevesHof' }, { kind: 'update' });
     expect(update.subject).toMatch(/^Update:/);
     expect(update.message).toContain('Update');
+  });
+
+  test('skipNotify unterdrückt Ready-Mail (Sicherheitsnetz)', () => {
+    expect(wantsAnyReadyNotify({ skipNotify: true, notifyChannels: { email: true } })).toBe(false);
+    expect(shouldSendReadySignal(
+      { status: 'in_progress' },
+      { status: 'ready', skipNotify: true },
+    )).toEqual({ send: false, kind: null, skipped: true });
+    expect(shouldSendReadySignal(
+      { status: 'in_progress' },
+      { status: 'ready', notifyChannels: { email: false, sms: false, whatsapp: false } },
+    )).toEqual({ send: false, kind: null, skipped: true });
   });
 });
