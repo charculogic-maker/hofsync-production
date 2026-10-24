@@ -7,8 +7,8 @@ export const MHD_MONITOR_ALL_HORIZON_DAYS = 7;
 
 export const MHD_MONITOR_CATEGORY_HORIZON_DAYS = Object.freeze({
   alle: MHD_MONITOR_ALL_HORIZON_DAYS,
-  mopro: 4,
-  trockenware: 21,
+  mopro: 2,
+  trockenware: 30,
 });
 
 export const MHD_MONITOR_GROUP_LABELS = Object.freeze({

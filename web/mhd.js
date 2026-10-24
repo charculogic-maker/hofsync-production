@@ -1553,10 +1553,10 @@ function updateMhdMonitorHintText(monitorHint) {
     return;
   }
   if (filter === 'mopro') {
-    monitorHint.textContent = 'MoPro & Kühlware: MHD 0-4 Tage';
+    monitorHint.textContent = 'MoPro & Kühlware: MHD 0-2 Tage';
     return;
   }
-  monitorHint.textContent = 'Trockenware: MHD 0-21 Tage (TK, Gewürze, Frische, Getränke)';
+  monitorHint.textContent = 'Trockenware: MHD 0-30 Tage (TK, Gewürze, Getränke)';
 }
 
 function updateMhdToolbarAccordionLabel() {
@@ -1584,8 +1584,8 @@ function updateMhdToolbarAccordionMeta() {
   const horizon = filter === 'alle'
     ? '0-7 Tage'
     : filter === 'mopro'
-      ? '0-4 Tage'
-      : '0-21 Tage';
+      ? '0-2 Tage'
+      : '0-30 Tage';
   const category = getMhdCategoryFilterLabel(filter);
   parts.push(category);
   parts.push(horizon);
@@ -3409,8 +3409,8 @@ function matchesMhdMonitorHorizon(prod) {
 function getMhdMonitorEmptyHorizonText() {
   const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
   if (filter === 'alle') return 'im Zeitraum 0-7 Tage';
-  if (filter === 'mopro') return 'im Zeitraum 0-4 Tage';
-  return 'im Zeitraum 0-21 Tage';
+  if (filter === 'mopro') return 'im Zeitraum 0-2 Tage';
+  return 'im Zeitraum 0-30 Tage';
 }
 
 function filterMhdProducts(products) {

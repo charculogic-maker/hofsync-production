@@ -54,14 +54,13 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro & Kühlware (0-4 Tage)** oder nur **Trockenware (0-21 Tage)** prüfen.
+Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro & Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen.
 
 Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach dem Produkt:
 
-- **Frischmilch:** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
-- **MoPro / Käse:** 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
-- **Frische / Fleisch / Wurst:** 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %**
-- **Trockenware / Konserven / TK / Gewürze / Getränke:** 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %**
+- **Milch (Flasche/Tetrapack):** 1 Tag vorher **10 %**, am MHD-Tag **20 %**, sonst **Regulär**
+- **Kühlware / MoPro / Frische / Fleisch:** 2 Resttage **10 %**, 1 Resttag **20 %**, am MHD-Tag **50 %**, sonst **Regulär**
+- **Trockenware / TK / Gewürze / Getränke:** ≤30 Tage **10 %**, ≤15 Tage **20 %**, ≤7 Tage **50 %**, sonst **Regulär**
 
 Ohne Rabatt zeigt die Karte unauffällig **Regulär** (kein %-Badge).
 

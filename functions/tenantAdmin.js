@@ -370,14 +370,29 @@ function deviceDocId(name) {
 
 function baselineDiscountMatrix(actorUid) {
   const badge = (percent) => `🏷️ -${percent} % Aufkleber`;
+  const kuehlware = [
+    { daysRemainingMax: 0, discountPercent: 50, badgeText: badge(50) },
+    { daysRemainingMax: 1, discountPercent: 20, badgeText: badge(20) },
+    { daysRemainingMax: 2, discountPercent: 10, badgeText: badge(10) },
+  ];
+  const milch = [
+    { daysRemainingMax: 0, discountPercent: 20, badgeText: badge(20) },
+    { daysRemainingMax: 1, discountPercent: 10, badgeText: badge(10) },
+  ];
+  const trockenware = [
+    { daysRemainingMax: 7, discountPercent: 50, badgeText: badge(50) },
+    { daysRemainingMax: 15, discountPercent: 20, badgeText: badge(20) },
+    { daysRemainingMax: 30, discountPercent: 10, badgeText: badge(10) },
+  ];
   return {
     enabled: true,
-    defaultRules: [
-      { daysRemainingMax: 0, discountPercent: 50, badgeText: badge(50) },
-      { daysRemainingMax: 1, discountPercent: 30, badgeText: badge(30) },
-      { daysRemainingMax: 2, discountPercent: 20, badgeText: badge(20) },
-      { daysRemainingMax: 3, discountPercent: 10, badgeText: badge(10) },
-    ],
+    defaultRules: kuehlware,
+    categoryOverrides: {
+      'MoPro & Kühlware': kuehlware,
+      Milch: milch,
+      Fleisch: kuehlware,
+      Trockenware: trockenware,
+    },
     rounding: 'commercial_cent',
     updatedBy: actorUid,
   };
