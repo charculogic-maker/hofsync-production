@@ -1761,6 +1761,13 @@ function readNotifyChannelsFromModal() {
   });
 }
 
+/** Modals unter #page-* mit transform/Animation sonst außerhalb des Viewports. */
+function mountOrderModalOnBody(modal) {
+  if (!modal || modal.parentElement === document.body) return modal;
+  document.body.appendChild(modal);
+  return modal;
+}
+
 function closeOrderNotifyModal() {
   const modal = document.getElementById('order-notify-modal');
   if (!modal) return;
@@ -1772,7 +1779,7 @@ function closeOrderNotifyModal() {
 
 function openOrderNotifyModal(orderId, mode = 'ready') {
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  const modal = document.getElementById('order-notify-modal');
+  const modal = mountOrderModalOnBody(document.getElementById('order-notify-modal'));
   if (!order || !modal) {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
     return;
@@ -2050,7 +2057,7 @@ function closeOrderEditModal() {
 
 function openOrderEditModal(orderId) {
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  const modal = document.getElementById('order-edit-modal');
+  const modal = mountOrderModalOnBody(document.getElementById('order-edit-modal'));
   if (!order || !modal) {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
     return;
@@ -2086,6 +2093,7 @@ function openOrderEditModal(orderId) {
   modal.removeAttribute('hidden');
   document.body.classList.add('modal-open');
   initGermanDateInputs(modal);
+  document.getElementById('order-edit-customer-name')?.focus?.({ preventScroll: true });
 }
 
 async function saveOrderEditFromModal() {
