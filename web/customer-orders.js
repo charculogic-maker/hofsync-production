@@ -2890,8 +2890,12 @@ function handleActualQuantityInput(event) {
   input.closest('.actual-quantity-field')?.classList.toggle('is-adjusted', actualQuantityChanged(key, fallback));
 }
 
-function subscribeOrders() {
+/** Verhindert Retry-Stürme bei dauerhaftem permission-denied. */
+let ordersSubscribeRetryScheduled = false;
+
+function subscribeOrders({ isRetry = false } = {}) {
   orderState.ordersUnsubscribe?.();
+  orderState.ordersUnsubscribe = null;
   const col = ordersCollectionRef();
   if (!col) return;
 
@@ -2908,7 +2912,23 @@ function subscribeOrders() {
         renderSammelPickliste();
       }
     },
-    (err) => console.warn('[CustomerOrders] Stream:', err),
+    (err) => {
+      console.warn('[CustomerOrders] Stream:', err);
+      // Listener ist tot – Freigabe für activateCustomerOrdersTab / Retry nach Auth-Race.
+      orderState.ordersUnsubscribe = null;
+      const code = String(err?.code || '');
+      if (
+        !isRetry
+        && !ordersSubscribeRetryScheduled
+        && (code === 'permission-denied' || code === 'unauthenticated')
+      ) {
+        ordersSubscribeRetryScheduled = true;
+        window.setTimeout(() => {
+          ordersSubscribeRetryScheduled = false;
+          if (!orderState.ordersUnsubscribe) subscribeOrders({ isRetry: true });
+        }, 800);
+      }
+    },
   );
 }
 
@@ -2941,7 +2961,9 @@ export function activateCustomerOrdersTab() {
   renderPastOrdersView();
   renderProductionTasks();
   renderZuschnittliste();
-  if (!orderState.ordersUnsubscribe) subscribeOrders();
+  // Immer neu abonnieren: nach Login-Auth-Race kann der erste Listener tot sein,
+  // während ordersUnsubscribe noch gesetzt war und ein Re-Subscribe ausblieb.
+  subscribeOrders();
 }
 
 export {
