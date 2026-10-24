@@ -1,19 +1,25 @@
 /**
- * Büro-Karte für die mandantenspezifische MHD-Rabatt-Matrix.
+ * MHD-Rabattstaffel in „Mein Betrieb“ — mandantenspezifisch speichern.
  */
 
-import { getFirebaseAuthUser, isOfficeUser } from './auth.js';
+import { getAuthContext, getFirebaseAuthUser, isOfficeUser } from './auth.js';
 import {
   DISCOUNT_CATEGORY_OPTIONS,
+  defaultKuehlwareRules,
+  defaultMilkRules,
+  defaultTrockenwareRules,
   getActiveDiscountMatrix,
+  getDefaultDiscountMatrix,
   loadDiscountMatrix,
   saveDiscountMatrix,
 } from './discount-matrix.js';
+import { isTenantAdmin } from './tenant-admin-auth.js';
 import { getGlobalTenantId } from './tenant-db.js';
 
 let draft = null;
 let bound = false;
 let activeCategory = '';
+let refreshInFlight = null;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -23,8 +29,37 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+function canEditDiscountMatrix() {
+  const user = getFirebaseAuthUser();
+  const session = getAuthContext();
+  return isOfficeUser(session) || isTenantAdmin(user, session);
+}
+
 function selectedCategory() {
   return document.getElementById('discount-matrix-category')?.value || '';
+}
+
+function defaultRulesForCategory(key = '') {
+  if (key === 'Milch') return defaultMilkRules();
+  if (key === 'Trockenware') return defaultTrockenwareRules();
+  if (key === 'MoPro & Kühlware' || key === 'Fleisch') return defaultKuehlwareRules();
+  return defaultKuehlwareRules();
+}
+
+function categoryHint(key = '') {
+  if (key === 'Milch') {
+    return 'Milch Flasche und Tetrapack: eigene Staffel, gewinnt vor Kühlware.';
+  }
+  if (key === 'Trockenware') {
+    return 'Trockenware, Getränke, TK und Gewürze teilen sich diese Staffel.';
+  }
+  if (key === 'MoPro & Kühlware') {
+    return 'Kühlware und MoPro ohne eigene Milch-Staffel.';
+  }
+  if (key === 'Fleisch') {
+    return 'Fleisch und Wurst — sonst gilt die Standard-Staffel.';
+  }
+  return 'Standard gilt für alle Warengruppen ohne eigene Staffel.';
 }
 
 function rulesForSelected() {
@@ -60,21 +95,36 @@ function readRowsFromDom() {
 
 function commitVisibleRows() {
   if (!draft) return;
+  const enabled = document.getElementById('discount-matrix-enabled');
+  if (enabled) draft.enabled = enabled.checked;
   storeRules(readRowsFromDom());
+}
+
+function syncEnabledToggle() {
+  const enabled = document.getElementById('discount-matrix-enabled');
+  if (!enabled || !draft) return;
+  enabled.checked = draft.enabled !== false;
+}
+
+function syncCategoryHint() {
+  const hint = document.getElementById('discount-matrix-category-hint');
+  if (hint) hint.textContent = categoryHint(selectedCategory());
 }
 
 function renderRules() {
   const host = document.getElementById('discount-matrix-rules');
   if (!host || !draft) return;
+  syncEnabledToggle();
+  syncCategoryHint();
   const rules = rulesForSelected();
   const emptyHint = selectedCategory()
-    ? 'Keine eigene Stufe. Diese Warengruppe nutzt die Standard-Staffel.'
-    : 'Keine Stufe. Artikel ohne Treffer bleiben ohne Rabatt-Badge.';
+    ? 'Keine eigene Stufe. Tippe „Standard für diese Gruppe“, um die Vorlagenstaffel zu laden — oder „Neue Rabattstufe“.'
+    : 'Keine Stufe. Artikel ohne Treffer bleiben ohne Rabatt-Hinweis.';
   host.innerHTML = rules.length
     ? rules.map((rule, index) => `
       <div class="discount-matrix-rule" data-discount-rule="${index}">
         <label>
-          <span>Resttage bis MHD</span>
+          <span>Resttage bis MHD (höchstens)</span>
           <input data-discount-days type="number" inputmode="numeric" min="0" max="365" step="1" value="${escapeHtml(rule.daysRemainingMax)}" aria-label="Resttage höchstens">
         </label>
         <label>
@@ -82,19 +132,22 @@ function renderRules() {
           <input data-discount-percent type="number" inputmode="decimal" min="0" max="100" step="1" value="${escapeHtml(rule.discountPercent)}" aria-label="Rabatt in Prozent">
         </label>
         <div class="discount-matrix-preview" aria-label="Badge-Vorschau">🏷️ -${escapeHtml(rule.discountPercent)} % Aufkleber</div>
-        <button type="button" class="discount-matrix-delete" data-discount-delete="${index}" aria-label="Stufe löschen">Löschen</button>
+        <button type="button" class="dev-dashboard-secondary-btn discount-matrix-delete" data-discount-delete="${index}" aria-label="Stufe löschen">Stufe löschen</button>
       </div>
     `).join('')
-    : `<p class="admin-leitstand-hint">${emptyHint}</p>`;
+    : `<p class="dev-dashboard-intro">${emptyHint}</p>`;
 }
 
 function fillCategorySelect() {
   const select = document.getElementById('discount-matrix-category');
-  if (!select || select.dataset.filled === '1') return;
-  select.dataset.filled = '1';
+  if (!select) return;
+  const current = select.value || activeCategory || '';
   select.innerHTML = DISCOUNT_CATEGORY_OPTIONS
     .map((option) => `<option value="${escapeHtml(option.id)}">${escapeHtml(option.label)}</option>`)
     .join('');
+  select.value = DISCOUNT_CATEGORY_OPTIONS.some((option) => option.id === current) ? current : '';
+  activeCategory = select.value || '';
+  select.dataset.filled = '1';
 }
 
 function setStatus(message) {
@@ -113,6 +166,17 @@ async function refreshCardPrices() {
   }
 }
 
+function resetSelectedCategory() {
+  if (!draft) return;
+  const key = selectedCategory();
+  const defaults = defaultRulesForCategory(key);
+  storeRules(defaults, key);
+  renderRules();
+  setStatus(key
+    ? `Vorlage für „${key}“ geladen — bitte speichern, damit der Betrieb sie übernimmt.`
+    : 'Standard-Vorlage geladen — bitte speichern, damit der Betrieb sie übernimmt.');
+}
+
 async function saveMatrix() {
   commitVisibleRows();
   const tenantId = getGlobalTenantId();
@@ -120,25 +184,29 @@ async function saveMatrix() {
     window.showToast?.('Kein Betrieb gewählt.', 'warning');
     return;
   }
-  if (!isOfficeUser()) {
-    window.showToast?.('Nur das Büro darf die Rabatt-Matrix speichern.', 'warning');
+  if (!canEditDiscountMatrix()) {
+    window.showToast?.('Nur die Betriebsverwaltung darf die Rabattstaffel speichern.', 'warning');
     return;
   }
   const button = document.getElementById('discount-matrix-save');
   if (button) button.disabled = true;
   try {
     const user = getFirebaseAuthUser();
-    draft.updatedBy = user?.email || user?.displayName || 'buero';
-    draft.enabled = true;
+    draft.updatedBy = user?.email || user?.displayName || user?.uid || 'admin';
+    draft.tenantId = tenantId;
     await saveDiscountMatrix(tenantId, draft);
     draft = getActiveDiscountMatrix(tenantId);
     renderRules();
-    setStatus('Rabatt-Matrix für diesen Betrieb gespeichert.');
-    window.showToast?.('Rabatt-Matrix gespeichert.', 'success');
+    setStatus('Rabattstaffel für diesen Betrieb gespeichert.');
+    window.showToast?.('Rabattstaffel gespeichert.', 'success');
+    window.dispatchEvent(new CustomEvent('charculogic:discount-matrix', {
+      detail: { tenantId, matrix: draft },
+    }));
     await refreshCardPrices();
   } catch (err) {
     console.error('[CharcuLogic Rabatt] Speichern fehlgeschlagen:', err);
-    window.showToast?.('Rabatt-Matrix konnte nicht gespeichert werden.', 'error');
+    window.showToast?.('Rabattstaffel konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
+    setStatus('Speichern fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
   } finally {
     if (button) button.disabled = false;
   }
@@ -150,6 +218,10 @@ function bindMatrixCard() {
   bound = true;
   fillCategorySelect();
   card.addEventListener('change', (event) => {
+    if (event.target.id === 'discount-matrix-enabled') {
+      if (draft) draft.enabled = event.target.checked;
+      return;
+    }
     if (event.target.id === 'discount-matrix-category') {
       commitVisibleRows();
       activeCategory = event.target.value || '';
@@ -179,17 +251,52 @@ function bindMatrixCard() {
       renderRules();
       return;
     }
+    if (event.target.closest('#discount-matrix-reset')) {
+      resetSelectedCategory();
+      return;
+    }
     if (event.target.closest('#discount-matrix-save')) saveMatrix();
   });
 }
 
-export async function initDiscountMatrixUi() {
+/**
+ * Lädt die Staffel des aktuellen (oder übergebenen) Betriebs in die Karte.
+ * @param {string} [tenantId]
+ */
+export async function refreshDiscountMatrixUi(tenantId = getGlobalTenantId()) {
   bindMatrixCard();
-  const tenantId = getGlobalTenantId();
-  draft = getActiveDiscountMatrix(tenantId);
+  const id = String(tenantId || getGlobalTenantId() || '').trim();
+  draft = id ? getActiveDiscountMatrix(id) : getDefaultDiscountMatrix();
+  fillCategorySelect();
   renderRules();
-  if (!tenantId) return;
-  draft = await loadDiscountMatrix(tenantId);
-  if (document.activeElement?.closest?.('#discount-matrix-card')) return;
-  renderRules();
+  if (!id) {
+    setStatus('Kein Betrieb gewählt.');
+    return draft;
+  }
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      draft = await loadDiscountMatrix(id);
+      if (document.activeElement?.closest?.('#discount-matrix-card')) {
+        // Keep typing — only refresh enabled toggle / hint when idle.
+        syncEnabledToggle();
+        return draft;
+      }
+      fillCategorySelect();
+      renderRules();
+      setStatus('');
+      return draft;
+    } catch (err) {
+      console.warn('[CharcuLogic Rabatt] Matrix-Karte konnte nicht geladen werden:', err);
+      setStatus('Gespeicherte Staffel konnte nicht geladen werden — Vorlage wird angezeigt.');
+      return draft;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+export async function initDiscountMatrixUi() {
+  return refreshDiscountMatrixUi(getGlobalTenantId());
 }
