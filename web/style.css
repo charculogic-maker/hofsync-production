@@ -835,9 +835,12 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   display: block;
 }
 
+/* Nur Opacity – transform am .page würde position:fixed-Modals (z. B. Bestellung
+   bearbeiten) in einen falschen Containing Block zwingen und außerhalb des
+   Viewports rendern. */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* --- NAVIGATION BAR (BOTTOM / SIDEBAR) --- */
@@ -10121,7 +10124,9 @@ body.dev-dashboard-view .app-version-badge--footer {
   align-items: flex-end;
   justify-content: center;
   padding: 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   background: rgba(15, 23, 42, 0.45);
+  overflow: hidden;
 }
 
 .order-edit-modal.is-open,
