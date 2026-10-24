@@ -1,13 +1,11 @@
 /**
  * MHD-Rabattvorschläge je Produkttyp (Hofladen).
  *
- * Spezifische Produktregeln (Frischmilch) gewinnen immer vor Kategorie-Regeln.
+ * Spezifische Produktregeln (Milch Flasche/Tetrapack) gewinnen immer vor Kategorie-Regeln.
  *
- * FRISCHMILCH: 1 Tag vorher 10 %, MHD-Tag 20 %, sonst 0 %.
- * TROCKENWARE / KONSERVEN / TK / GEWÜRZE / GETRÄNKE:
- *   >5 Tage 0 %, 3–5 Tage 20 %, 1–2 Tage / MHD-Tag 50 %.
- * FRISCHE / FLEISCH / WURST: 2–3 Tage 20 %, 1 Tag / MHD-Tag 50 %.
- * MOPRO / KÄSE: 2–4 Tage 20 %, 1 Tag / MHD-Tag 50 %.
+ * MILCH: MHD-Tag 20 %, 1 Resttag 10 %, sonst raus.
+ * KÜHLWARE / MoPro / Frische / Fleisch: MHD-Tag 50 %, 1 Resttag 20 %, 2 Resttage 10 %, sonst raus.
+ * TROCKENWARE / TK / GEWÜRZE / GETRÄNKE: ≤7 Tage 50 %, ≤15 Tage 20 %, ≤30 Tage 10 %, sonst raus.
  */
 
 const MHD_MOPRO_CATEGORY = '🥛MoPro';
@@ -30,7 +28,7 @@ export const MHD_ACTION_STYLES = {
   ok: { label: 'Regulär', color: '#6B7280', bg: 'rgba(107, 114, 128, 0.08)' },
 };
 
-/** Bekannte Frischmilch-EANs (Demeter/Hof-Flaschen). */
+/** Bekannte Frischmilch-EANs (Demeter/Hof-Flaschen + Tetrapack). */
 export const FRISCHMILCH_EANS = new Set([
   '4035626114608', // b*Vollmilch Demeter 3,8% Flasche
   '4035626114622', // b*Milch Demeter 1,5% Flasche
@@ -38,8 +36,7 @@ export const FRISCHMILCH_EANS = new Set([
 ]);
 
 const FRISCHMILCH_EXCLUDE_RE = /(joghurt|jogurt|quark|topfen|skyr|kefir|lassi|ayran|sahne|schmand|butter|frischkaese|frischkase|weichkaese|weichkase|kaese|kase|mozzarella|ricotta|mascarpone|brie|camembert|feta|pudding|milchreis|schoko|kakao|nougat|praline|riegel|waffel|keks|cookie|creme|aufstrich|hafermilch|mandelmilch|sojamilch|reisdrink|pflanzendrink|milch alternative|milchmix|mischgetraenk|kuvertuere|kuverture)/;
-const PASTEURIZED_OR_UHT_RE = /(^|[^a-z0-9])(h-?milch|esl)([^a-z0-9]|$)|haltbare milch|uperisiert|ultrahocherhitzt|\buht\b|pasteurisiert|langer haltbar|laenger haltbar|laengerfrisch/;
-const FRISCHMILCH_NAME_RE = /(frischmilch|frische milch|vollmilch frisch|rohmilch|vorzugsmilch|vollmilch|fettarme milch|alpenmilch|heumilch|weidemilch|landmilch|hofmilch)/;
+const FRISCHMILCH_NAME_RE = /(frischmilch|frische milch|vollmilch frisch|rohmilch|vorzugsmilch|vollmilch|fettarme milch|alpenmilch|heumilch|weidemilch|landmilch|hofmilch|h-?milch|esl|haltbare milch|uperisiert|ultrahocherhitzt|\buht\b|pasteurisiert)/;
 const DRINKING_MILK_TOKEN_RE = /(^|[^a-z0-9])milch([^a-z0-9]|$)/;
 const KAESE_RE = /(kaese|kase|käse|gouda|emmentaler|camembert|brie|feta|mozzarella|bergkaese|schnittkaese|weichkaese|frischkaese|ricotta|mascarpone|parmesan|cheddar|tilsiter|butterkaese)/;
 const FLEISCH_WURST_RE = /(fleisch|wurst|schinken|salami|mortadella|bratwurst|leberwurst|mettwurst|hackfleisch|schnitzel|steak|filet|brust|keule|rippchen|bacon|speck|aufschnitt|wurstwaren)/;
@@ -60,6 +57,10 @@ function getProductIdentity(prod = {}) {
   return { name, ean };
 }
 
+/**
+ * Trinkmilch Flasche/Tetrapack (inkl. H-Milch / ESL), nicht Joghurt/Käse/Sahne.
+ * Alias: isFrischmilchProduct bleibt für Aufrufer erhalten.
+ */
 export function isFrischmilchProduct(prod = {}, category = '') {
   const { name, ean } = getProductIdentity(prod);
   if (ean && FRISCHMILCH_EANS.has(ean)) {
@@ -74,7 +75,6 @@ export function isFrischmilchProduct(prod = {}, category = '') {
   if (!isMoproFamily) return false;
   if (!name) return false;
   if (FRISCHMILCH_EXCLUDE_RE.test(name)) return false;
-  if (PASTEURIZED_OR_UHT_RE.test(name)) return false;
   return FRISCHMILCH_NAME_RE.test(name) || DRINKING_MILK_TOKEN_RE.test(name);
 }
 
@@ -113,7 +113,7 @@ export function isTrockenwareOrKonserven(prod = {}, category = '') {
 
 /**
  * Resolve which product-tier rule group applies.
- * Product-specific hits (Frischmilch) always win over category defaults.
+ * Product-specific hits (Milch) always win over category defaults.
  */
 export function resolveMhdRabattRuleGroup(prod = {}, category = '') {
   const resolvedCategory = String(category || prod.kategorie || prod.category || prod.warenKategorie || '').trim();
@@ -124,14 +124,17 @@ export function resolveMhdRabattRuleGroup(prod = {}, category = '') {
     return 'trockenware';
   }
 
+  // Kühlware, Frische, MoPro, Käse, Fleisch — gemeinsame Kühlware-Staffel.
   if (resolvedCategory === MHD_FRISCHE_CATEGORY
+    || resolvedCategory === MHD_KUEHLWARE_CATEGORY
+    || resolvedCategory === MHD_MOPRO_CATEGORY
     || isFleischWurstProduct(prod, resolvedCategory)
-    || (resolvedCategory === MHD_KUEHLWARE_CATEGORY && !isKaeseProduct(prod, resolvedCategory))) {
-    return 'frische';
+    || isKaeseProduct(prod, resolvedCategory)
+    || /mopro|kuh?l|kae?se|frische|fleisch|wurst|aufschnitt/i.test(resolvedCategory)) {
+    return 'kuehlware';
   }
 
-  // MoPro, Käse, and unknown chilled dairy fall through here.
-  return 'mopro';
+  return 'kuehlware';
 }
 
 /**
@@ -157,20 +160,16 @@ export function getDiscountForProduct(product = {}, daysRemaining = null) {
   }
 
   if (ruleGroup === 'trockenware') {
-    if (days <= 2) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
-    if (days <= 5) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
+    if (days <= 7) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
+    if (days <= 15) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
+    if (days <= 30) return { percent: 10, actionKey: 'rabatt10', ruleGroup };
     return { percent: 0, actionKey: 'ok', ruleGroup };
   }
 
-  if (ruleGroup === 'frische') {
-    if (days <= 1) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
-    if (days <= 3) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
-    return { percent: 0, actionKey: 'ok', ruleGroup };
-  }
-
-  // MOPRO / KÄSE fallback
-  if (days <= 1) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
-  if (days <= 4) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
+  // Kühlware / MoPro / Frische / Fleisch
+  if (days === 0) return { percent: 50, actionKey: 'rabatt50', ruleGroup };
+  if (days === 1) return { percent: 20, actionKey: 'rabatt20', ruleGroup };
+  if (days === 2) return { percent: 10, actionKey: 'rabatt10', ruleGroup };
   return { percent: 0, actionKey: 'ok', ruleGroup };
 }
 
@@ -180,12 +179,9 @@ export function getMhdRabattRules(category, prod = {}) {
     return { rabatt10: 1, rabatt20: 0, tonne: -1 };
   }
   if (group === 'trockenware') {
-    return { rabatt20: 5, rabatt50: 2, tonne: -1 };
+    return { rabatt10: 30, rabatt20: 15, rabatt50: 7, tonne: -1 };
   }
-  if (group === 'frische') {
-    return { rabatt20: 3, rabatt50: 1, tonne: -1 };
-  }
-  return { rabatt20: 4, rabatt50: 1, tonne: -1 };
+  return { rabatt10: 2, rabatt20: 1, rabatt50: 0, tonne: -1 };
 }
 
 export function resolveMhdActionKey(category, tage, prod = {}) {

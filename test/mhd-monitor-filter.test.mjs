@@ -28,11 +28,11 @@ describe('MHD-Monitor Filter „Alle (7 Tage)“', () => {
   });
 
   it('behält fokussierte Horizonte für MoPro und Trockenware', () => {
-    expect(getMhdMonitorHorizonDays('mopro', 'mopro')).to.equal(4);
-    expect(matchesMhdMonitorHorizonDays(5, 'mopro', 'mopro')).to.equal(false);
-    expect(getMhdMonitorHorizonDays('trockenware', 'trockenware')).to.equal(21);
-    expect(matchesMhdMonitorHorizonDays(21, 'trockenware', 'trockenware')).to.equal(true);
-    expect(matchesMhdMonitorHorizonDays(22, 'trockenware', 'trockenware')).to.equal(false);
+    expect(getMhdMonitorHorizonDays('mopro', 'mopro')).to.equal(2);
+    expect(matchesMhdMonitorHorizonDays(3, 'mopro', 'mopro')).to.equal(false);
+    expect(getMhdMonitorHorizonDays('trockenware', 'trockenware')).to.equal(30);
+    expect(matchesMhdMonitorHorizonDays(30, 'trockenware', 'trockenware')).to.equal(true);
+    expect(matchesMhdMonitorHorizonDays(31, 'trockenware', 'trockenware')).to.equal(false);
   });
 
   it('zeigt in „alle“ beide Gruppen, sonst nur die gewählte', () => {

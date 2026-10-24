@@ -55,8 +55,8 @@ Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACC
 Der MHD-Tab startet in **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Zusätzlich können wir gezielt filtern:
 
 - **Alle (7 Tage)** — Gesamtansicht beider Warengruppen
-- **MoPro & Kühlware** — fokussiert 0-4 Tage
-- **Trockenware** — fokussiert 0-21 Tage (inkl. TK, Gewürze, Frische, Getränke)
+- **MoPro & Kühlware** — fokussiert 0-2 Tage
+- **Trockenware** — fokussiert 0-30 Tage (inkl. TK, Gewürze, Getränke)
 
 Kritische Ware erscheint von selbst, sobald das MHD im gewählten Zeitraum liegt.
 

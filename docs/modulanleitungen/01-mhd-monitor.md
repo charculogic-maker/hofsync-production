@@ -8,7 +8,7 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 
 - Qualitätssicherung im Hofladen
 - Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst MoPro/Kühlware, dann Trockenware
-- Optional fokussieren auf **MoPro & Kühlware (0-4 Tage)** oder **Trockenware (0-21 Tage)**
+- Optional fokussieren auf **MoPro & Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)**
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Rabatt-Empfehlung
@@ -17,10 +17,9 @@ Produktregeln gewinnen vor Kategorie-Regeln:
 
 | Produkttyp | Rabatt |
 |------------|--------|
-| **Frischmilch** | 1 Tag vorher **10 %**, MHD-Tag **20 %**, sonst **Regulär** |
-| **MoPro / Käse** | 2–4 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
-| **Frische / Fleisch / Wurst** | 2–3 Tage **20 %**, 1 Tag / MHD-Tag **50 %** |
-| **Trockenware / Konserven / TK / Gewürze / Getränke** | 3–5 Tage **20 %**, 1–2 Tage / MHD-Tag **50 %** |
+| **Milch (Flasche/Tetrapack)** | 1 Tag vorher **10 %**, MHD-Tag **20 %**, sonst **Regulär** |
+| **Kühlware / MoPro / Frische / Fleisch** | 2 Resttage **10 %**, 1 Resttag **20 %**, MHD-Tag **50 %**, sonst **Regulär** |
+| **Trockenware / TK / Gewürze / Getränke** | ≤30 Tage **10 %**, ≤15 Tage **20 %**, ≤7 Tage **50 %**, sonst **Regulär** |
 
 Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge aus.
 
@@ -30,7 +29,7 @@ Bei **0 %** zeigt die Karte unauffällig **Regulär** und blendet das %-Badge au
 
 | Element | Funktion |
 |---------|----------|
-| **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro & Kühlware (0-4 Tage)** oder **Trockenware (0-21 Tage)** |
+| **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro & Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)** |
 
 In der Ansicht **Alle** erscheinen Gruppenüberschriften (MoPro/Kühlware zuerst, danach Trockenware). Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
