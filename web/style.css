@@ -1337,9 +1337,15 @@ button:active, .btn:active {
 
 .mhd-category-toggle {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
+}
+
+@media (min-width: 640px) {
+  .mhd-category-toggle:not(.mhd-stammdaten-group) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .mhd-category-toggle.mhd-stammdaten-group {
@@ -2744,6 +2750,22 @@ button:active, .btn:active {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+button.mhd-ampel-badge.mhd-days-badge {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+}
+
+button.mhd-ampel-badge.mhd-days-badge.mhd-days-badge--date {
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 800;
 }
 
 .mhd-ampel--expired {
@@ -8420,7 +8442,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   }
 
   .mhd-category-toggle {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mhd-category-toggle.mhd-stammdaten-group {

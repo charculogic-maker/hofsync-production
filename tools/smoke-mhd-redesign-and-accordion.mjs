@@ -25,6 +25,8 @@ assertIncludes(mhdSrc, 'mhd-card-top', 'Kartenkopf Klasse');
 assertIncludes(mhdSrc, 'mhd-card-category', 'Warengruppe Zeile');
 assertIncludes(mhdSrc, 'mhd-ampel-badge', 'Ampel-Badge');
 assertIncludes(mhdSrc, 'buildMhdAmpelBadgeHtml', 'Ampel Builder');
+assertIncludes(mhdSrc, 'data-mhd-days-badge', 'Ampel tippbar für MHD-Datum');
+assertIncludes(mhdSrc, 'toggleMhdDaysBadge', 'Ampel Toggle Helper');
 assertIncludes(mhdSrc, 'HEUTE FÄLLIG', 'Ampel Heute');
 assertIncludes(mhdSrc, 'mhd-card-body', 'Kartenbody');
 assertIncludes(mhdSrc, 'mhd-product-meta-line', 'Meta-Zeile Klasse');
@@ -104,6 +106,6 @@ assert.match(
   'SW Cache-Version gesetzt',
 );
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^']+'/, 'SW Register Cache-Buster');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-14T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-24T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
 
 console.log('OK smoke-mhd-redesign-and-accordion: Kompakt-Layout & Akkordeon-Touch Verträge erfüllt.');
