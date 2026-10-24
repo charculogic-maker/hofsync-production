@@ -2,13 +2,17 @@ import crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { describe, expect, test } from 'vitest';
 import {
+  HOFLADEN_CHECKOUT_OFFER,
+  TIER_AMOUNT_CENTS,
   applyModulePatch,
+  hofladenCheckoutForm,
   minimalReadOnlyModules,
   modulesForTier,
   parseBillingEvent,
   verifyLemonSignature,
   verifyStripeSignature,
 } from '../billingTiers.js';
+import { handleHofladenCheckout, isStripeCheckoutUrl } from '../hofladenCheckout.js';
 
 function authAs({ uid = 'uid-test', tenantId = 'torfabrik', role = 'admin', email = 'admin@example.de' } = {}) {
   return { uid, token: { tenantId, role, email, isAdmin: role === 'admin' } };
@@ -125,8 +129,51 @@ describe('Phase 3 webhook signatures', () => {
     const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
     const at = source.indexOf("lazyExport('billingWebhook'");
     expect(at).toBeGreaterThanOrEqual(0);
-    const block = source.slice(at, at + 600);
+    const block = source.slice(at, at + 700);
     expect(block).toMatch(/secrets:\s*\[[^\]]*['"]STRIPE_WEBHOOK_SECRET['"]/);
+  });
+
+  test('hofladenCheckout is the only public tariff and stays on the webhook metadata', () => {
+    expect(HOFLADEN_CHECKOUT_OFFER.tier).toBe('hofladen_komplett');
+    expect(HOFLADEN_CHECKOUT_OFFER.amountCents).toBe(TIER_AMOUNT_CENTS.hofladen_komplett);
+    expect(HOFLADEN_CHECKOUT_OFFER.amountCents).toBe(7900);
+    expect(HOFLADEN_CHECKOUT_OFFER.interval).toBe('month');
+    expect(HOFLADEN_CHECKOUT_OFFER.currency).toBe('eur');
+    const form = hofladenCheckoutForm();
+    expect(form.get('mode')).toBe('subscription');
+    expect(form.get('metadata[tier]')).toBe('hofladen_komplett');
+    expect(form.get('subscription_data[metadata][tier]')).toBe('hofladen_komplett');
+    expect(form.get('line_items[0][price_data][unit_amount]')).toBe('7900');
+    expect(form.get('line_items[0][price_data][recurring][interval]')).toBe('month');
+    expect(form.get('automatic_tax[enabled]')).toBe('false');
+    expect(form.getAll('line_items[0][quantity]')).toEqual(['1']);
+    expect(form.has('line_items[1][quantity]')).toBe(false);
+    expect(form.get('metadata[plan]')).toBeNull();
+
+    const taxed = parseBillingEvent('stripe', {
+      id: 'evt_tax',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer_email: 'inhaber@biohof-sonnenschein.de',
+          metadata: { tier: form.get('metadata[tier]') },
+          amount_total: 9401,
+          subscription: 'sub_hof',
+        },
+      },
+    });
+    expect(taxed.action).toBe('provision');
+    expect(taxed.tier).toBe('hofladen_komplett');
+  });
+
+  test('hofladenCheckout mounts STRIPE_SECRET_KEY and does not provision tenants itself', () => {
+    const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+    const at = source.indexOf("lazyExport('hofladenCheckout'");
+    expect(at).toBeGreaterThanOrEqual(0);
+    const block = source.slice(at, at + 700);
+    expect(block).toMatch(/secrets:\s*\[[^\]]*['"]STRIPE_SECRET_KEY['"]/);
+    expect(block).not.toMatch(/ensureAdminApp/);
+    expect(block).toMatch(/handleHofladenCheckout/);
   });
 
   test('accepts a Lemon Squeezy HMAC of the raw body', () => {
@@ -252,6 +299,80 @@ describe('Phase 3 webhook signatures', () => {
     }, res);
     expect(res.statusCode).toBe(401);
     expect(res.body.error).toBe('invalid_signature');
+  });
+});
+
+function mockResponse() {
+  return {
+    statusCode: 0,
+    body: null,
+    location: '',
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+    redirect(code, location) {
+      this.statusCode = code;
+      this.location = location;
+      return this;
+    },
+  };
+}
+
+describe('Hofladen checkout redirect', () => {
+  test('refuses to run without a Stripe secret and ignores other tariff query params', async () => {
+    const res = mockResponse();
+    const fetchImpl = () => {
+      throw new Error('stripe must not be called');
+    };
+    await handleHofladenCheckout({
+      method: 'GET',
+      url: '/hofladenCheckout?tier=metzgerei_pro&amount=14900',
+    }, res, { secretKey: '', fetch: fetchImpl });
+    expect(res.statusCode).toBe(503);
+    expect(res.body.error).toBe('checkout_not_configured');
+  });
+
+  test('redirects only to a Stripe Checkout url from the hofladen session', async () => {
+    const res = mockResponse();
+    let sent = '';
+    await handleHofladenCheckout({ method: 'GET' }, res, {
+      secretKey: 'sk_test_example',
+      fetch: async (_url, init) => {
+        sent = init.body;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ url: 'https://checkout.stripe.com/c/pay/cs_test_hofladen' }),
+        };
+      },
+    });
+    const form = new URLSearchParams(sent);
+    expect(form.get('metadata[tier]')).toBe('hofladen_komplett');
+    expect(form.get('line_items[0][price_data][unit_amount]')).toBe('7900');
+    expect(res.statusCode).toBe(303);
+    expect(res.location).toBe('https://checkout.stripe.com/c/pay/cs_test_hofladen');
+    expect(isStripeCheckoutUrl('https://evil.example/checkout.stripe.com')).toBe(false);
+    expect(isStripeCheckoutUrl('http://checkout.stripe.com/c/pay/cs_test')).toBe(false);
+  });
+
+  test('does not follow a non-Stripe url from the API', async () => {
+    const res = mockResponse();
+    await handleHofladenCheckout({ method: 'GET' }, res, {
+      secretKey: 'sk_test_example',
+      fetch: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ url: 'https://evil.example/phish' }),
+      }),
+    });
+    expect(res.statusCode).toBe(502);
+    expect(res.body.error).toBe('checkout_failed');
+    expect(res.location).toBe('');
   });
 });
 

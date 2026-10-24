@@ -266,6 +266,18 @@ lazyExport('billingWebhook', () => http(
   },
 ));
 
+lazyExport('hofladenCheckout', () => http(
+  {
+    region: REGION,
+    invoker: 'public',
+    timeoutSeconds: 30,
+    memory: '256MiB',
+    // Gleicher Grund wie beim Webhook: ohne Bindung sieht die Funktion den Schlüssel nicht.
+    secrets: ['STRIPE_SECRET_KEY'],
+  },
+  async (req, res) => require('./hofladenCheckout').handleHofladenCheckout(req, res),
+));
+
 lazyExport('provisionDemoTenant', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,
