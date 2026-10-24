@@ -6589,15 +6589,18 @@ async function updateRecentReceiptCategory(id) {
 }
 
 async function collectStammdatenEntries() {
+  // product_master (lokal + Cloud) ist die Quelle für gelernte EANs aus dem Wareneingang.
+  await refreshSharedProductMaster();
   const local = readLocalMaster(PRODUCT_MASTER_STORAGE_KEY);
   const byId = new Map();
   Object.entries(local).forEach(([id, entry]) => {
     const name = String(entry?.name || entry?.articleName || '').trim();
     if (!name) return;
-    byId.set(id, {
-      id,
+    const ean = String(entry?.barcode || entry?.ean || id || '').replace(/\D/g, '');
+    byId.set(ean || id, {
+      id: ean || id,
       name,
-      ean: String(entry?.barcode || entry?.ean || '').replace(/\D/g, ''),
+      ean,
     });
   });
   try {
@@ -6606,11 +6609,13 @@ async function collectStammdatenEntries() {
       const data = doc.data() || {};
       const name = String(data.name || data.artikel || '').trim();
       if (!name) return;
-      const existing = byId.get(doc.id);
-      byId.set(doc.id, {
-        id: doc.id,
+      const ean = String(data.ean || data.barcode || '').replace(/\D/g, '');
+      const key = ean || doc.id;
+      const existing = byId.get(key);
+      byId.set(key, {
+        id: key,
         name: existing?.name || name,
-        ean: String(data.ean || data.barcode || existing?.ean || '').replace(/\D/g, ''),
+        ean: ean || existing?.ean || '',
       });
     });
   } catch (err) {
@@ -7956,6 +7961,22 @@ async function addDeliveryItem() {
     category,
     addedAt: Date.now(),
   });
+
+  // Sofort in Stammdaten lernen — nicht erst beim Lieferabschluss.
+  // Sonst bleibt dieselbe EAN in derselben Lieferung (und auf anderen Geräten) „unbekannt“.
+  saveProductMaster({
+    barcode,
+    ean: barcode,
+    name: product,
+    brand: herstellerZusatz,
+    kategorie: category,
+    category,
+  });
+  rememberCategoryForBarcode(
+    { name: product, brand: herstellerZusatz, produkt: product },
+    barcode,
+    mapWarenKategorieToMhdKategorie(category) || category,
+  );
 
   clearDeliveryItemFields();
   renderDeliveryItemsTable();
