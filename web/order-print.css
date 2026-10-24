@@ -268,6 +268,8 @@
   body.print-zuschnittliste .team-panel,
   body.print-zuschnittliste .avery-label-modal,
   body.print-zuschnittliste .delivery-note-modal,
+  body.print-zuschnittliste .order-edit-modal,
+  body.print-zuschnittliste .order-notify-modal,
   body.print-zuschnittliste .sammel-pickliste-modal,
   body.print-avery .preview-container,
   body.print-avery .iphone-frame,

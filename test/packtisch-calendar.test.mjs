@@ -26,7 +26,7 @@ describe('Packtisch Kalender & Abholbereit-Nachbearbeitung', () => {
   it('erlaubt Weiterbearbeiten und erneute Kunden-Benachrichtigung', () => {
     assert.match(customerOrders, /data-order-action="reopen"/);
     assert.match(customerOrders, /data-order-action="notify_ready"/);
-    assert.match(customerOrders, /function notifyCustomerReadyAgain/);
+    assert.match(customerOrders, /function requestNotifyCustomerReadyAgain/);
     assert.match(customerOrders, /readyNotifyAt/);
   });
 

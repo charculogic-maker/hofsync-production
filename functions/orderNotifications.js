@@ -230,6 +230,15 @@ function wantsAnyReadyNotify(order = {}) {
   return Boolean(channels.email || channels.sms || channels.whatsapp);
 }
 
+function wantsNotifyChannel(order = {}, channel = 'email') {
+  if (!wantsAnyReadyNotify(order)) return false;
+  const channels = normalizeNotifyChannels(order.notifyChannels);
+  if (channel === 'email') return channels.email;
+  if (channel === 'sms') return channels.sms;
+  if (channel === 'whatsapp') return channels.whatsapp;
+  return false;
+}
+
 function shouldSendReadySignal(before = {}, after = {}) {
   // Explizit abgewählt (Sicherheitsnetz „ohne Nachricht“) → kein Kunden-Signal.
   if (!wantsAnyReadyNotify(after)) {
@@ -448,13 +457,14 @@ async function sendCustomerSms(signal, config, meta) {
   }
 }
 
-async function dispatchCustomerSignal(signal, meta) {
+async function dispatchCustomerSignal(signal, meta, order = {}) {
   const globalConfig = getNotificationConfig();
   const smtpConfig = resolveTenantSmtpConfig(meta?.profile || {}, globalConfig);
   const config = {
     ...globalConfig,
     ...smtpConfig,
   };
+  const channels = normalizeNotifyChannels(order?.notifyChannels);
 
   console.log('[KundenSignal] SMTP-Aufloesung', {
     tenantId: meta?.tenantId,
@@ -465,15 +475,30 @@ async function dispatchCustomerSignal(signal, meta) {
     smtpUserConfigured: isConfiguredParam(smtpConfig.smtpUser),
     smtpPassConfigured: isConfiguredParam(smtpConfig.smtpPass),
     fromConfigured: Boolean(smtpConfig.fromEmail),
+    notifyChannels: channels,
+    skipNotify: Boolean(order?.skipNotify || order?.notifySkipped),
   });
 
   const tasks = [];
 
-  if (signal.to.email) {
+  if (signal.to.email && wantsNotifyChannel(order, 'email')) {
     tasks.push(sendCustomerEmail(signal, config, meta));
+  } else if (signal.to.email) {
+    tasks.push(Promise.resolve({ channel: 'email', skipped: true, reason: 'channel_disabled' }));
   }
-  if (signal.to.phone) {
+
+  if (signal.to.phone && wantsNotifyChannel(order, 'sms')) {
     tasks.push(sendCustomerSms(signal, config, meta));
+  } else if (signal.to.phone && channels.sms) {
+    tasks.push(Promise.resolve({ channel: 'sms', skipped: true, reason: 'channel_disabled' }));
+  }
+
+  if (channels.whatsapp) {
+    tasks.push(Promise.resolve({
+      channel: 'whatsapp',
+      skipped: true,
+      reason: 'not_implemented',
+    }));
   }
 
   if (!tasks.length) {
@@ -513,6 +538,8 @@ async function handleOrderReadySendSignal(event) {
       afterStatus: after.status,
       beforeReadyNotifyAt: timestampKey(before.readyNotifyAt) || null,
       afterReadyNotifyAt: timestampKey(after.readyNotifyAt) || null,
+      skipNotify: Boolean(after.skipNotify || after.notifySkipped),
+      skippedByPreference: Boolean(readySignal.skipped),
     });
     return null;
   }
@@ -544,7 +571,7 @@ async function handleOrderReadySendSignal(event) {
   });
 
   try {
-    const results = await dispatchCustomerSignal(signal, meta);
+    const results = await dispatchCustomerSignal(signal, meta, after);
     console.log('[KundenSignal] Versand abgeschlossen', { tenantId, orderId, results });
   } catch (error) {
     console.error('[KundenSignal] Unerwarteter Versandfehler', {
@@ -572,6 +599,7 @@ exports._test = {
   formatPickupWindow,
   shouldSendReadySignal,
   wantsAnyReadyNotify,
+  wantsNotifyChannel,
   normalizeNotifyChannels,
   timestampKey,
   normalizePhoneForTwilio,
@@ -581,4 +609,5 @@ exports._test = {
   parseFromEmailField,
   sendCustomerEmail,
   sendCustomerSms,
+  dispatchCustomerSignal,
 };

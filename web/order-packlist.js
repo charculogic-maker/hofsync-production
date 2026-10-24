@@ -620,3 +620,185 @@ export function vacuumWishesSummary(order) {
     .filter(Boolean);
   return labels;
 }
+
+/** Packtisch-Dashboard-Buckets für offene Arbeit */
+export const PACKTISCH_DASHBOARD_BUCKETS = Object.freeze([
+  'due',
+  'open',
+  'in_progress',
+  'ready',
+]);
+
+export const PACKTISCH_DASHBOARD_LABELS = Object.freeze({
+  due: 'Fällig / heute',
+  open: 'Offen (später)',
+  in_progress: 'In Bearbeitung',
+  ready: 'Abholbereit',
+});
+
+export const PAST_ORDER_STATUSES = Object.freeze(new Set(['picked_up', 'cancelled']));
+
+/**
+ * Ordnet eine aktive Bestellung einem Dashboard-Bucket zu.
+ * @returns {'due'|'open'|'in_progress'|'ready'|null}
+ */
+export function classifyPacktischBucket(order, todayIso = todayIsoLocal()) {
+  const status = orderStatus(order);
+  if (status === 'ready') return 'ready';
+  if (status === 'in_progress') return 'in_progress';
+  if (status === 'open' || status === 'pending' || status === 'eingegangen') {
+    const day = orderPickupDayIso(order);
+    if (day && day <= todayIso) return 'due';
+    return 'open';
+  }
+  return null;
+}
+
+/**
+ * Zählt Packtisch-Dashboard-Buckets.
+ * @returns {{ due: number, open: number, in_progress: number, ready: number, total: number }}
+ */
+export function summarizePacktischDashboard(orders = [], todayIso = todayIsoLocal()) {
+  const counts = {
+    due: 0,
+    open: 0,
+    in_progress: 0,
+    ready: 0,
+    total: 0,
+  };
+  (Array.isArray(orders) ? orders : []).forEach((order) => {
+    const bucket = classifyPacktischBucket(order, todayIso);
+    if (!bucket) return;
+    counts[bucket] += 1;
+    counts.total += 1;
+  });
+  return counts;
+}
+
+/**
+ * Normalisiert Wunsch-Kanäle für die Kunden-Bestätigung (E-Mail / SMS / WhatsApp).
+ * Ohne gesetztes Objekt: Legacy-Default E-Mail + SMS an (wie bisheriger Auto-Versand).
+ * @param {object|null|undefined} raw
+ * @returns {{ email: boolean, sms: boolean, whatsapp: boolean }}
+ */
+export function normalizeNotifyChannels(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { email: true, sms: true, whatsapp: false };
+  }
+  const hasKey = ('email' in raw) || ('sms' in raw) || ('whatsapp' in raw);
+  if (!hasKey) {
+    return { email: true, sms: true, whatsapp: false };
+  }
+  return {
+    email: raw.email !== false && raw.email !== 0 && raw.email !== '0',
+    sms: raw.sms === true || raw.sms === 1 || raw.sms === '1',
+    whatsapp: raw.whatsapp === true || raw.whatsapp === 1 || raw.whatsapp === '1',
+  };
+}
+
+/**
+ * Ob für diesen Auftrag überhaupt eine Ready-Benachrichtigung gewünscht ist.
+ */
+export function wantsAnyReadyNotify(order = {}) {
+  if (order.skipNotify === true || order.notifySkipped === true) return false;
+  const channels = normalizeNotifyChannels(order.notifyChannels);
+  return Boolean(channels.email || channels.sms || channels.whatsapp);
+}
+
+/**
+ * Ob ein einzelner Kanal für diesen Auftrag aktiv ist.
+ * @param {object} order
+ * @param {'email'|'sms'|'whatsapp'} channel
+ */
+export function wantsNotifyChannel(order = {}, channel = 'email') {
+  if (!wantsAnyReadyNotify(order)) return false;
+  const channels = normalizeNotifyChannels(order.notifyChannels);
+  if (channel === 'email') return channels.email;
+  if (channel === 'sms') return channels.sms;
+  if (channel === 'whatsapp') return channels.whatsapp;
+  return false;
+}
+
+function weekdayFromIsoDay(isoDay) {
+  const parsed = Date.parse(`${String(isoDay || '').slice(0, 10)}T12:00:00`);
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).getDay(); // 0=So … 6=Sa
+}
+
+/**
+ * Vergangene Bestellungen im Zeitraum (Abholtag bzw. Abhol-/Abschlusszeit).
+ * @param {object[]} orders
+ * @param {{ rangeDays?: number, weekday?: number|null, now?: Date, statuses?: Set<string> }} [opts]
+ *   weekday: 0=So … 6=Sa; null = alle
+ */
+export function filterPastOrders(orders = [], opts = {}) {
+  const now = opts.now instanceof Date ? opts.now : new Date();
+  const today = todayIsoLocal(now);
+  const rangeDays = Number.isFinite(Number(opts.rangeDays)) ? Math.max(1, Number(opts.rangeDays)) : 30;
+  const fromIso = addDaysIso(today, -(rangeDays - 1));
+  const statuses = opts.statuses || PAST_ORDER_STATUSES;
+  const weekday = opts.weekday == null || opts.weekday === '' ? null : Number(opts.weekday);
+
+  return (Array.isArray(orders) ? orders : []).filter((order) => {
+    if (!statuses.has(orderStatus(order))) return false;
+    const day = orderPickupDayIso(order)
+      || isoDayFromValue(order.pickedUpAt)
+      || isoDayFromValue(order.readyMarkedAt)
+      || isoDayFromValue(order.acceptedAt)
+      || isoDayFromValue(order.createdAt);
+    if (!day || day < fromIso || day > today) return false;
+    if (weekday != null && Number.isFinite(weekday)) {
+      const orderWeekday = weekdayFromIsoDay(day);
+      if (orderWeekday !== weekday) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Produkt-Häufigkeit aus vergangenen Bestellungen (für Packtisch-Auswertung).
+ * @returns {{ product: string, orderCount: number, lineCount: number, quantitySum: number }[]}
+ */
+export function aggregatePastOrderProducts(orders = [], opts = {}) {
+  const past = filterPastOrders(orders, opts);
+  const byProduct = new Map();
+
+  past.forEach((order) => {
+    const seenInOrder = new Set();
+    (Array.isArray(order.items) ? order.items : []).forEach((raw) => {
+      const n = normalizeOrderItem(raw);
+      const product = n.product || 'Unbekannt';
+      const key = product.toLocaleLowerCase('de');
+      let entry = byProduct.get(key);
+      if (!entry) {
+        entry = {
+          product,
+          orderCount: 0,
+          lineCount: 0,
+          quantitySum: 0,
+        };
+        byProduct.set(key, entry);
+      }
+      entry.lineCount += 1;
+      const qty = n.pieces > 0
+        ? n.pieces
+        : (n.weightKg > 0 ? n.weightKg : (n.quantity > 0 ? n.quantity : 1));
+      entry.quantitySum += qty;
+      if (!seenInOrder.has(key)) {
+        seenInOrder.add(key);
+        entry.orderCount += 1;
+      }
+    });
+  });
+
+  return Array.from(byProduct.values())
+    .map((entry) => ({
+      ...entry,
+      quantitySum: Math.round(entry.quantitySum * 1000) / 1000,
+    }))
+    .sort((a, b) => (
+      b.orderCount - a.orderCount
+      || b.lineCount - a.lineCount
+      || a.product.localeCompare(b.product, 'de')
+    ));
+}
