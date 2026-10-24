@@ -92,7 +92,7 @@ Details: [modulanleitungen/01-mhd-monitor.md](./modulanleitungen/01-mhd-monitor.
 
 1. Tab **Neu** → **Kategorie** wählen (z. B. **Getränke (Jakob Bayen)**).
 2. Artikel nacheinander per **Barcode scannen** (neueste Posten oben).
-3. Menge und MHD auf der Karte korrigieren, Lieferung abschließen.
+3. Menge und MHD auf der Karte korrigieren, Lieferung abschließen (bei der Prüffrage **Jetzt abschließen** oder **Liste prüfen**).
 
 Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert. Metzgerei-Modus bleibt verfügbar, ist für das Center aber selten nötig.
 

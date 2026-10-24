@@ -20,6 +20,7 @@ import { isOfficeUser } from './auth.js';
 import { loadCatalogEanIndex, lookupCatalogEan } from './catalog-ean.js';
 import { cleanScannedBarcode as normalizeBarcodeScan, parseBarcodeScan } from './barcode-normalize.js';
 import {
+  buildDeliveryReviewListHtml,
   buildReceivingItemCardHtml,
   closeReceivingMhdEditor,
   closeReceivingQtyNumpad,
@@ -7331,6 +7332,61 @@ async function ensureDeliverySupplierSelected({ purpose = 'finalize' } = {}) {
   return picked;
 }
 
+/**
+ * Prüffrage vor dem Buchen: Liste ansehen oder direkt abschließen.
+ * @returns {Promise<'proceed'|'review'|'cancel'>}
+ */
+function showDeliveryReviewPrompt() {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('delivery-review-modal');
+    const desc = document.getElementById('delivery-review-desc');
+    const listEl = document.getElementById('delivery-review-list');
+    const proceedBtn = document.getElementById('delivery-review-proceed');
+    const reviewBtn = document.getElementById('delivery-review-check');
+    const cancelBtn = document.getElementById('delivery-review-cancel');
+    if (!modal || !proceedBtn || !reviewBtn) {
+      resolve('proceed');
+      return;
+    }
+
+    const count = currentDeliveryItems.length;
+    const supplier = readDeliveryHeadValues().supplier || 'ohne Lieferant';
+    if (desc) {
+      desc.textContent = count === 1
+        ? `1 Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`
+        : `${count} Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`;
+    }
+    if (listEl) {
+      listEl.innerHTML = buildDeliveryReviewListHtml(currentDeliveryItems);
+    }
+
+    const close = (value) => {
+      proceedBtn.removeEventListener('click', onProceed);
+      reviewBtn.removeEventListener('click', onReview);
+      cancelBtn?.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      resolve(value);
+    };
+
+    const onProceed = () => close('proceed');
+    const onReview = () => close('review');
+    const onCancel = () => close('cancel');
+    const onBackdrop = (event) => {
+      if (event.target === modal) close('cancel');
+    };
+
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    proceedBtn.addEventListener('click', onProceed);
+    reviewBtn.addEventListener('click', onReview);
+    cancelBtn?.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    proceedBtn.focus();
+  });
+}
+
 function getReceivingQtyUnitFromCategory(warenKategorie = '') {
   if (isAdvancedKaeseUpgradeEnabled() && isKaeseThekeCategory(warenKategorie)) {
     return kaeseThekeQtyMode === 'gewicht' ? 'kg' : 'Stk';
@@ -9073,11 +9129,9 @@ function showMeisterOverrideModal(temperature, options = {}) {
   });
 }
 
-async function finalizeDelivery() {
+async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
-
-  if (!beginReceivingSaveButtonLock(saveBtn, updateReceivingSaveButtonState)) return;
 
   if (!currentDeliveryItems.length) {
     setReceivingMode('schnell');
@@ -9085,21 +9139,50 @@ async function finalizeDelivery() {
     return;
   }
 
+  if (!skipReviewPrompt) {
+    const reviewChoice = await showDeliveryReviewPrompt();
+    if (reviewChoice === 'review') {
+      setReceivingMode('schnell');
+      document.getElementById('we-current-items-table')?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      window.showToast?.(
+        'Liste prüfen – Menge oder MHD anpassen, dann erneut abschließen.',
+        'info',
+      );
+      return;
+    }
+    if (reviewChoice !== 'proceed') {
+      return;
+    }
+  }
+
+  if (!beginReceivingSaveButtonLock(saveBtn, updateReceivingSaveButtonState)) return;
+
   const supplier = await ensureDeliverySupplierSelected({ purpose: 'finalize' });
-  if (!supplier) return;
+  if (!supplier) {
+    releaseReceivingActionButtons();
+    return;
+  }
   await persistSupplierName(supplier, { toastOnCreate: false });
 
   const head = readDeliveryHeadValues();
 
   const tempGuard = await applyDeliveryTemperatureGuard(head);
-  if (!tempGuard) return;
+  if (!tempGuard) {
+    releaseReceivingActionButtons();
+    return;
+  }
 
   const activeTenantId = resolveMhdTenantId();
   if (!activeTenantId) {
     mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    releaseReceivingActionButtons();
     return;
   }
   if (!(await ensureInventoryProfileReadyForDelivery())) {
+    releaseReceivingActionButtons();
     return;
   }
 
@@ -9140,6 +9223,7 @@ async function finalizeDelivery() {
   const firestoreTargets = resolveFinalizeDeliveryFirestoreTargets();
   if (!firestoreTargets) {
     mhdState.showHUD('Mandant fehlt', 'Lieferung konnte nicht gespeichert werden – kein Betriebs-Kontext.', '!');
+    releaseReceivingActionButtons();
     return;
   }
 

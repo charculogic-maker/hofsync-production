@@ -2950,6 +2950,20 @@
           </div>
         </div>
 
+        <!-- Prüffrage vor Lieferabschluss -->
+        <div class="supplier-pick-modal delivery-review-modal" id="delivery-review-modal" hidden>
+          <div class="supplier-pick-card delivery-review-card" role="dialog" aria-modal="true" aria-labelledby="delivery-review-title">
+            <div class="supplier-pick-title" id="delivery-review-title">Liste nochmals prüfen?</div>
+            <p class="supplier-pick-desc" id="delivery-review-desc">Posten kurz kontrollieren oder direkt abschließen.</p>
+            <div id="delivery-review-list" class="delivery-review-list-wrap" aria-live="polite"></div>
+            <div class="supplier-pick-actions delivery-review-actions">
+              <button type="button" class="btn btn-primary" id="delivery-review-proceed">Jetzt abschließen</button>
+              <button type="button" class="btn btn-secondary" id="delivery-review-check">Liste prüfen</button>
+              <button type="button" class="btn" id="delivery-review-cancel" style="background:#E5E5EA;color:#1C1C1E;">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Meister-Override bei HACCP-Temperatur-Abweichung -->
         <div class="meister-override-modal" id="meister-override-modal" hidden>
           <div class="meister-override-card" role="dialog" aria-modal="true" aria-labelledby="meister-override-title">

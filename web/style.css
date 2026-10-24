@@ -6494,6 +6494,68 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   margin-top: 8px;
 }
 
+.delivery-review-card {
+  max-width: 400px;
+}
+
+.delivery-review-list-wrap {
+  max-height: min(42vh, 280px);
+  overflow-y: auto;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-md);
+  background: var(--surface-color);
+}
+
+.delivery-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.delivery-review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.delivery-review-row:last-child {
+  border-bottom: none;
+}
+
+.delivery-review-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-color);
+  line-height: 1.25;
+}
+
+.delivery-review-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.delivery-review-meta--warn {
+  color: #b45309;
+}
+
+.delivery-review-empty {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.delivery-review-actions .btn {
+  min-height: 52px;
+  font-weight: 800;
+}
+
 .btn-eigenproduktion {
   min-height: 64px;
   padding: 0 14px;
