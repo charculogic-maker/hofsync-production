@@ -1985,6 +1985,8 @@ function isDevDashboardContext() {
 }
 
 function isOperativeSoftLockTab(tabId = getCurrentActiveTabId()) {
+  // Dev-Dashboard ist Verwaltung, kein Laden-Operativ-Tab.
+  if (isDevDashboardContext()) return false;
   return OPERATIVE_SOFT_LOCK_TABS.has(String(tabId || ''));
 }
 
