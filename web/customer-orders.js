@@ -137,46 +137,55 @@ function mergeOrderActionLog(existing, entry) {
   return [...prev, entry].slice(-ACTION_LOG_MAX);
 }
 
+function legacyActionLogFromOrder(order) {
+  const legacy = [];
+  if (!order || typeof order !== 'object') return legacy;
+  if (order.inProgressBy || order.inProgressAt) {
+    legacy.push({
+      action: 'in_progress',
+      by: order.inProgressBy || '–',
+      at: order.inProgressAt,
+    });
+  }
+  if (order.readyMarkedBy || order.readyMarkedAt) {
+    legacy.push({
+      action: order.skipNotify || order.notifySkipped ? 'ready_no_notify' : 'ready',
+      by: order.readyMarkedBy || '–',
+      at: order.readyMarkedAt,
+    });
+  }
+  if (order.readyNotifyBy || order.readyNotifyAt) {
+    legacy.push({
+      action: 'notify_again',
+      by: order.readyNotifyBy || order.readyMarkedBy || '–',
+      at: order.readyNotifyAt,
+    });
+  }
+  if (order.pickedUpBy || order.pickedUpAt) {
+    legacy.push({
+      action: 'picked_up',
+      by: order.pickedUpBy || '–',
+      at: order.pickedUpAt,
+    });
+  }
+  return legacy;
+}
+
+/** Vorhandenes actionLog oder Legacy-Stempel – damit erste Schreibvorgänge nichts verlieren */
+function orderActionLogBase(order) {
+  const log = Array.isArray(order?.actionLog)
+    ? order.actionLog.filter((row) => row && row.action)
+    : [];
+  return log.length ? log : legacyActionLogFromOrder(order);
+}
+
 function formatOrderActionLogLabel(entry = {}) {
   const base = ORDER_ACTION_LOG_LABELS[entry.action] || entry.action || 'Aktion';
   return entry.detail ? `${base} (${entry.detail})` : base;
 }
 
 function renderOrderActionLog(order) {
-  const log = Array.isArray(order?.actionLog) ? order.actionLog.filter((row) => row && row.action) : [];
-  // Legacy-Stempel ergänzen, falls noch kein Protokoll existiert
-  const legacy = [];
-  if (!log.length) {
-    if (order?.inProgressBy || order?.inProgressAt) {
-      legacy.push({
-        action: 'in_progress',
-        by: order.inProgressBy || '–',
-        at: order.inProgressAt,
-      });
-    }
-    if (order?.readyMarkedBy || order?.readyMarkedAt) {
-      legacy.push({
-        action: order.skipNotify || order.notifySkipped ? 'ready_no_notify' : 'ready',
-        by: order.readyMarkedBy || '–',
-        at: order.readyMarkedAt,
-      });
-    }
-    if (order?.readyNotifyBy || order?.readyNotifyAt) {
-      legacy.push({
-        action: 'notify_again',
-        by: order.readyNotifyBy || order.readyMarkedBy || '–',
-        at: order.readyNotifyAt,
-      });
-    }
-    if (order?.pickedUpBy || order?.pickedUpAt) {
-      legacy.push({
-        action: 'picked_up',
-        by: order.pickedUpBy || '–',
-        at: order.pickedUpAt,
-      });
-    }
-  }
-  const rows = (log.length ? log : legacy).slice().reverse();
+  const rows = orderActionLogBase(order).slice().reverse();
   if (!rows.length) return '';
   return `
     <details class="customer-order-action-log">
@@ -1116,7 +1125,7 @@ async function markSammelPicklisteReady() {
         employee,
         'Sammel-Pickliste / Laden-Kühlschrank',
       );
-      const nextLog = mergeOrderActionLog(order?.actionLog, logEntry);
+      const nextLog = mergeOrderActionLog(orderActionLogBase(order), logEntry);
       const onlineUpdate = {
         status: 'ready',
         readyMarkedBy: employee,
@@ -1738,7 +1747,7 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
     employee,
     skipNotify ? '' : 'E-Mail',
   );
-  const nextLog = mergeOrderActionLog(order?.actionLog, logEntry);
+  const nextLog = mergeOrderActionLog(orderActionLogBase(order), logEntry);
 
   const onlineData = {
     notifyChannels: normalized,
@@ -1901,7 +1910,7 @@ async function updateOrderStatus(orderId, nextStatus, { action = '' } = {}) {
   const logAction = action
     || (nextStatus === 'in_progress' && orderStatus(current) === 'ready' ? 'reopen' : nextStatus);
   const logEntry = buildOrderActionLogEntry(logAction, employee);
-  const nextLog = mergeOrderActionLog(current?.actionLog, logEntry);
+  const nextLog = mergeOrderActionLog(orderActionLogBase(current), logEntry);
   const payload = {
     status: nextStatus,
     employeeName: employee,
@@ -2170,7 +2179,7 @@ async function saveOrderEditFromModal() {
   const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
   const logAction = shouldReopen ? 'edited_reopen' : 'edited';
   const logEntry = buildOrderActionLogEntry(logAction, employee);
-  const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
+  const nextLog = mergeOrderActionLog(orderActionLogBase(existing), logEntry);
 
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp

@@ -43,5 +43,7 @@ describe('Packtisch Ready-Sicherheitsnetz', () => {
     assert.match(js, /edited_reopen/);
     assert.match(js, /Bestellung bearbeitet/);
     assert.match(js, /actionLog:\s*nextLog/);
+    assert.match(js, /orderActionLogBase/);
+    assert.match(js, /legacyActionLogFromOrder/);
   });
 });
