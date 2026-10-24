@@ -54,7 +54,7 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro/Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro & Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen.
+Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro**, dann **Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro (0-2 Tage)**, nur **Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen. Tippen wir auf die Ampel **IN x TAGEN**, zeigt unsere App das genaue MHD-Datum.
 
 Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach der **MHD-Rabattstaffel** unseres Betriebs. Die Vorlage lautet:
 
@@ -69,7 +69,7 @@ Wenn eine Kategorie falsch ist, tippen wir in der MHD-Karte **✏️ Bearbeiten*
 Wenn ein MHD falsch erfasst wurde, tippen wir **MHD ändern** in der Karte. Unsere App korrigiert nur diesen Eintrag und fragt vor dem Speichern noch einmal nach.
 
 1. CharcuLogic öffnen — der Tab **MHD** erscheint von selbst.
-2. Bei Bedarf die Prüfgruppe wählen: **Alle (7 Tage)**, **MoPro & Kühlware** oder **Trockenware**.
+2. Bei Bedarf die Prüfgruppe wählen: **Alle (7 Tage)**, **MoPro**, **Kühlware** oder **Trockenware**.
 3. Kritische Artikel nacheinander bearbeiten:
    - **OK**: Ware bleibt im Verkauf.
    - **Raus**: Ware wird aus dem Verkauf genommen.

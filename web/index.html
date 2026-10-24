@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261018-ios-inpage-print">
+  <link rel="stylesheet" href="/style.css?v=20261024-mhd-filter-ampel-datum">
   <link rel="stylesheet" href="/order-print.css?v=20261015-livestock-realism-v2">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1486,13 +1486,16 @@
                     </div>
                   </div>
                   <div class="mhd-filter-row mhd-filter-row--monitor">
-                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro/Kühlware, dann Trockenware)</p>
+                    <p class="mhd-monitor-hint" id="mhd-monitor-hint">Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro, dann Kühlware, dann Trockenware)</p>
                     <div class="mhd-category-toggle" id="mhd-category-toggle" role="group" aria-label="MHD-Prüfgruppe">
                       <button type="button" class="mhd-category-btn is-active" data-mhd-category-filter="alle" aria-pressed="true">
                         Alle (7 Tage)
                       </button>
                       <button type="button" class="mhd-category-btn" data-mhd-category-filter="mopro" aria-pressed="false">
-                        🥛 MoPro & Kühlware
+                        🥛 MoPro
+                      </button>
+                      <button type="button" class="mhd-category-btn" data-mhd-category-filter="kuehlware" aria-pressed="false">
+                        ❄️ Kühlware
                       </button>
                       <button type="button" class="mhd-category-btn" data-mhd-category-filter="trockenware" aria-pressed="false">
                         📦 Trockenware
@@ -1508,7 +1511,8 @@
                       <span class="mhd-filter-label">Kategorie</span>
                       <select id="mhd-category-select" class="input-text-touch mhd-filter-select" aria-label="MHD-Kategorie">
                         <option value="alle" selected>Alle (7 Tage)</option>
-                        <option value="mopro">🥛 MoPro & Kühlware</option>
+                        <option value="mopro">🥛 MoPro</option>
+                        <option value="kuehlware">❄️ Kühlware</option>
                         <option value="trockenware">📦 Trockenware</option>
                       </select>
                     </label>

@@ -7,8 +7,8 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst MoPro/Kühlware, dann Trockenware
-- Optional fokussieren auf **MoPro & Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)**
+- Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst MoPro, dann Kühlware, dann Trockenware
+- Optional fokussieren auf **MoPro (0-2 Tage)**, **Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)**
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
 ## Rabatt-Empfehlung
@@ -31,9 +31,9 @@ Die Staffel ist mandantenspezifisch: In der Verwaltung unter **Mein Betrieb → 
 
 | Element | Funktion |
 |---------|----------|
-| **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro & Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)** |
+| **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro (0-2 Tage)**, **Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)** |
 
-In der Ansicht **Alle** erscheinen Gruppenüberschriften (MoPro/Kühlware zuerst, danach Trockenware). Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
+In der Ansicht **Alle** erscheinen Gruppenüberschriften (MoPro zuerst, danach Kühlware, danach Trockenware). Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
 ### 2. MHD-Karte (Posten)
 
@@ -41,10 +41,10 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 
 ![MHD-Karte mit Aktionen](./screenshots/01b-mhd-karte.png)
 
-- **Badge oben**: empfohlene Aktion (z. B. Rabatt, Prüfen, Tonne)
+- **Ampel oben rechts** (z. B. **IN 4 TAGEN**): antippen zeigt das genaue **MHD-Datum**; erneut tippen bringt die Resttage zurück
 - **Kategorie-Badge oben**: antippen, wenn die Kategorie falsch ist; vor dem Speichern bestätigen wir die Änderung
 - **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
-- **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Trockenware); nach dem Speichern zeigt unsere App den Artikel im passenden Filter
+- **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Kühlware oder Trockenware); nach dem Speichern zeigt unsere App den Artikel im passenden Filter
 - **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
 - **🗑️ Ausverkauft** oder Wischen nach **links**
 - **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken)*
