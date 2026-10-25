@@ -664,6 +664,10 @@ const PROFILE_TAB_ALIASES = {
 };
 
 const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp']);
+/** Primärtabs in der Laden-Fußleiste (max. 4 + Mehr). */
+const PRIMARY_BOTTOM_NAV_TAB_IDS = new Set(['mhd', 'receiving', 'orders', 'chargenDoku']);
+/** Overflow unter „Mehr“: Start · Team · HACCP · Prod. · Etiketten. */
+const MEHR_NAV_TAB_IDS = new Set(['teamboard', 'team', 'haccp', 'kitchen', 'avery']);
 /** Admin-only in der Fußleiste: HACCP ist Alltag für alle Rollen → nicht hier. */
 const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['knowledge', 'cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
@@ -671,8 +675,8 @@ const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
 const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
-/** Bottom-Nav-Reihenfolge für Fallback-Starttab (links → rechts). */
-const BOTTOM_NAV_TAB_PRIORITY = ['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp'];
+/** Bottom-Nav-Reihenfolge für Fallback-Starttab (Primär zuerst, dann Mehr). */
+const BOTTOM_NAV_TAB_PRIORITY = ['mhd', 'receiving', 'orders', 'chargenDoku', 'teamboard', 'team', 'haccp', 'kitchen', 'avery'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
@@ -757,19 +761,149 @@ function resolveProfileAllowedTabIds(allowedTabs = []) {
   );
 }
 
+function isMehrNavTabAllowed(tab) {
+  return Boolean(tab && !tab.hidden && tab.style.display !== 'none');
+}
+
+function countVisibleMehrNavTabs() {
+  let count = 0;
+  document.querySelectorAll('.nav-item--mehr[data-tab]').forEach((tab) => {
+    if (isMehrNavTabAllowed(tab)) count += 1;
+  });
+  return count;
+}
+
 function countVisibleBottomNavTabs() {
   let count = 0;
   document.querySelectorAll('.bottom-nav .nav-item[data-tab]').forEach((tab) => {
+    if (tab.classList.contains('nav-item--mehr')) return;
     if (tab.hidden || tab.style.display === 'none') return;
     count += 1;
   });
+  const mehrWrap = document.getElementById('mehr-nav-accordion');
+  const mehrTrigger = document.getElementById('mehr-nav-trigger');
+  if (mehrWrap && !mehrWrap.hidden && mehrTrigger && !mehrTrigger.hidden && mehrTrigger.style.display !== 'none') {
+    if (isMobileNavViewport()) {
+      count += 1;
+    } else {
+      count += countVisibleMehrNavTabs();
+    }
+  }
   return count;
+}
+
+function closeMehrNavAccordion() {
+  const popover = document.getElementById('mehr-nav-popover');
+  const trigger = document.getElementById('mehr-nav-trigger');
+  if (popover && isMobileNavViewport()) popover.hidden = true;
+  trigger?.setAttribute('aria-expanded', 'false');
+}
+
+function syncMehrNavActiveState(activeTabId = AppState?.activeTab) {
+  const trigger = document.getElementById('mehr-nav-trigger');
+  if (!trigger) return;
+  const isMehr = MEHR_NAV_TAB_IDS.has(String(activeTabId || ''));
+  trigger.classList.toggle('active', isMehr && isMobileNavViewport());
+}
+
+function syncMehrNavOverflow() {
+  const wrap = document.getElementById('mehr-nav-accordion');
+  const popover = document.getElementById('mehr-nav-popover');
+  const trigger = document.getElementById('mehr-nav-trigger');
+  if (!wrap || !popover || !trigger) return;
+
+  const visibleOverflow = countVisibleMehrNavTabs();
+  const show = visibleOverflow > 0;
+  wrap.hidden = !show;
+  wrap.style.display = show ? '' : 'none';
+  trigger.hidden = !show;
+  trigger.style.display = show ? '' : 'none';
+
+  const desktop = !isMobileNavViewport();
+  document.body.classList.toggle('mehr-nav-desktop', desktop);
+  if (!show) {
+    popover.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.classList.remove('active');
+    return;
+  }
+
+  if (desktop) {
+    // Sidebar: Overflow-Tabs immer sichtbar, Trigger ausgeblendet.
+    popover.hidden = false;
+    trigger.hidden = true;
+    trigger.style.display = 'none';
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.classList.remove('active');
+  } else {
+    // Smartphone: Popover zu, Trigger sichtbar; aktiv wenn Overflow-Tab offen.
+    if (trigger.getAttribute('aria-expanded') !== 'true') {
+      popover.hidden = true;
+    }
+    syncMehrNavActiveState();
+  }
+}
+
+function bindMehrNavAccordion() {
+  const trigger = document.getElementById('mehr-nav-trigger');
+  const popover = document.getElementById('mehr-nav-popover');
+  const accordion = document.getElementById('mehr-nav-accordion');
+  if (!trigger || !popover || !accordion || trigger.dataset.bound === '1') return;
+  trigger.dataset.bound = '1';
+
+  const placePopover = () => {
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(260, Math.max(200, window.innerWidth - 16));
+    const left = Math.min(Math.max(8, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 8);
+    popover.style.position = 'fixed';
+    popover.style.left = `${left}px`;
+    popover.style.right = 'auto';
+    popover.style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`;
+    popover.style.top = 'auto';
+    popover.style.width = `${width}px`;
+    popover.style.zIndex = '1200';
+  };
+
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isMobileNavViewport()) return;
+    const willOpen = popover.hidden;
+    closeAdminNavAccordion();
+    if (!willOpen) {
+      closeMehrNavAccordion();
+      return;
+    }
+    placePopover();
+    popover.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  });
+
+  popover.querySelectorAll('.nav-item--mehr[data-tab]').forEach((item) => {
+    item.addEventListener('click', () => {
+      if (isMobileNavViewport()) closeMehrNavAccordion();
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (popover.hidden || !isMobileNavViewport()) return;
+    if (accordion.contains(event.target)) return;
+    closeMehrNavAccordion();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMehrNavAccordion();
+  });
+
+  window.addEventListener('resize', () => {
+    syncMehrNavOverflow();
+  });
 }
 
 function scrollActiveNavTabIntoView({ smooth = true } = {}) {
   const scrollEl = document.getElementById('bottom-nav-scroll');
   if (!scrollEl) return;
-  const active = scrollEl.querySelector('.nav-item.active');
+  const active = scrollEl.querySelector('.nav-item.active, .mehr-nav-trigger.active');
   if (!active || active.hidden || active.style.display === 'none') return;
 
   try {
@@ -794,13 +928,17 @@ function syncBottomNavTabLayout() {
   const nav = getAppNavRoot();
   if (!nav) return;
 
+  bindMehrNavAccordion();
+  syncMehrNavOverflow();
+
   const visibleCount = countVisibleBottomNavTabs();
   // Smartphone: operative Tabs gleichmäßig verteilen — kein horizontaler Scroll.
-  const scrollable = !isMobileNavViewport() && visibleCount > 3;
+  const scrollable = !isMobileNavViewport() && visibleCount > 5;
 
   nav.classList.toggle('bottom-nav--scrollable', scrollable);
   nav.classList.toggle('bottom-nav--compact', !scrollable);
   nav.classList.toggle('bottom-nav--mobile-ops', isMobileNavViewport());
+  nav.classList.toggle('bottom-nav--has-mehr', !document.getElementById('mehr-nav-accordion')?.hidden);
   nav.classList.remove('bottom-nav--three-tabs', 'bottom-nav--five-tabs', 'bottom-nav--six-tabs');
 
   requestAnimationFrame(() => {
@@ -883,6 +1021,7 @@ function bindAdminNavAccordion() {
     event.stopPropagation();
     const willOpen = popover.hidden;
     closeAdminNavAccordion();
+    closeMehrNavAccordion();
     if (!willOpen) return;
     placePopover();
     popover.hidden = false;
@@ -4661,6 +4800,10 @@ tabs.forEach(tab => {
     // Navigationselemente aktualisieren (Mobile + Desktop teilen #bottom-nav)
     tabs.forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
+    syncMehrNavActiveState(targetTab);
+    if (MEHR_NAV_TAB_IDS.has(targetTab) && isMobileNavViewport()) {
+      closeMehrNavAccordion();
+    }
     scrollActiveNavTabIntoView({ smooth: true });
 
     // Seite + Header: Seitentitel wechseln, Mandantenname (#header-subtitle) nie mit Modultext überschreiben.
@@ -5342,7 +5485,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-mein-betrieb-split')
+    navigator.serviceWorker.register('./sw.js?v=20261025-laden-nav-max5')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

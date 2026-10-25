@@ -913,6 +913,125 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   height: 100%;
 }
 
+/* Laden-Nav „Mehr“: Overflow (Start/Team/HACCP/Prod./Etiketten) */
+.mehr-nav-accordion {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.mehr-nav-accordion[hidden] {
+  display: none !important;
+}
+
+.mehr-nav-trigger {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mehr-nav-trigger i {
+  font-size: 22px;
+  font-style: normal;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.mehr-nav-trigger span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mehr-nav-trigger.active {
+  color: var(--color-primary, #0a84ff);
+}
+
+.mehr-nav-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  min-width: 200px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.mehr-nav-popover[hidden] {
+  display: none !important;
+}
+
+.mehr-nav-popover .nav-item--mehr {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  min-width: 0;
+  max-width: none;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f9fafb;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.mehr-nav-popover .nav-item--mehr i {
+  font-size: 18px;
+  margin-bottom: 0;
+}
+
+.mehr-nav-popover .nav-item--mehr span {
+  font-size: 15px;
+  max-width: none;
+}
+
+.mehr-nav-popover .nav-item--mehr.active {
+  background: rgba(10, 132, 255, 0.28);
+  color: #fff;
+}
+
+.mehr-nav-popover .nav-item--mehr.active::after {
+  display: none;
+}
+
+.mehr-nav-popover .nav-item--mehr[hidden],
+.mehr-nav-popover .nav-item--mehr[style*="display: none"] {
+  display: none !important;
+}
+
 .admin-nav-trigger {
   display: inline-flex;
   align-items: center;
@@ -12862,6 +12981,63 @@ body.role-helper #tab-orders {
 
   body.app-shell-sidebar .nav-item.active::after {
     display: none;
+  }
+
+  /* Desktop-Sidebar: Mehr-Overflow als normale Nav-Liste, kein Floating-Popover */
+  body.app-shell-sidebar .mehr-nav-accordion {
+    flex: 0 0 auto;
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+  }
+
+  body.app-shell-sidebar .mehr-nav-trigger {
+    display: none !important;
+  }
+
+  body.app-shell-sidebar .mehr-nav-popover,
+  body.app-shell-sidebar .mehr-nav-popover[hidden] {
+    position: static;
+    display: flex !important;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body.app-shell-sidebar .mehr-nav-popover .nav-item--mehr {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 12px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.72;
+    font-size: 13px;
+  }
+
+  body.app-shell-sidebar .mehr-nav-popover .nav-item--mehr i {
+    font-size: 18px;
+    width: 1.4em;
+    text-align: center;
+  }
+
+  body.app-shell-sidebar .mehr-nav-popover .nav-item--mehr span {
+    font-size: 13px;
+  }
+
+  body.app-shell-sidebar .mehr-nav-popover .nav-item--mehr.active {
+    background: var(--primary-alpha-18);
+    opacity: 1;
+    color: inherit;
   }
 
   body.app-shell-sidebar .app-nav-zone--admin {
