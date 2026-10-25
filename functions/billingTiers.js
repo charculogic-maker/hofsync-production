@@ -267,12 +267,52 @@ function resolveCompanyName({ metadataName, customerName, email }) {
   return cleaned || 'Neukunde';
 }
 
+/** Exakte Cent-Beträge. Der Webhook liest sie nur, wenn die Session kein Tarif-Metadatum hat. */
+const TIER_AMOUNT_CENTS = Object.freeze({
+  mhd_retter: 3900,
+  hofladen_komplett: 7900,
+  metzgerei_pro: 14900,
+});
+
+/**
+ * Einziges öffentliches Abo: Hofladen komplett, 79 € je Monat.
+ * `automatic_tax` bleibt aus, damit `amount_total` bei 7900 Cent bleibt.
+ * `metadata.tier` ist trotzdem gesetzt, falls Stripe die Steuer später doch aufschlägt.
+ */
+const HOFLADEN_CHECKOUT_OFFER = Object.freeze({
+  tier: 'hofladen_komplett',
+  amountCents: TIER_AMOUNT_CENTS.hofladen_komplett,
+  currency: 'eur',
+  interval: 'month',
+  productName: 'HofSync Hofladen komplett',
+  successUrl: 'https://hofsync-production.web.app/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+  cancelUrl: 'https://charculogic.de/#hofsync',
+  checkoutUrl: 'https://europe-west3-hofsync-production.cloudfunctions.net/hofladenCheckout',
+});
+
 function tierFromAmount(amount) {
   const cents = Number(amount);
-  if (cents === 3900) return 'mhd_retter';
-  if (cents === 7900) return 'hofladen_komplett';
-  if (cents === 14900) return 'metzgerei_pro';
-  return '';
+  const match = Object.entries(TIER_AMOUNT_CENTS).find(([, expected]) => cents === expected);
+  return match ? match[0] : '';
+}
+
+function hofladenCheckoutForm(options = {}) {
+  const offer = HOFLADEN_CHECKOUT_OFFER;
+  const params = new URLSearchParams();
+  params.set('mode', 'subscription');
+  params.set('locale', 'de');
+  params.set('success_url', options.successUrl || offer.successUrl);
+  params.set('cancel_url', options.cancelUrl || offer.cancelUrl);
+  params.set('metadata[tier]', offer.tier);
+  params.set('subscription_data[metadata][tier]', offer.tier);
+  params.set('line_items[0][quantity]', '1');
+  params.set('line_items[0][price_data][currency]', offer.currency);
+  params.set('line_items[0][price_data][unit_amount]', String(offer.amountCents));
+  params.set('line_items[0][price_data][recurring][interval]', offer.interval);
+  params.set('line_items[0][price_data][product_data][name]', offer.productName);
+  params.set('line_items[0][price_data][product_data][metadata][tier]', offer.tier);
+  params.set('automatic_tax[enabled]', 'false');
+  return params;
 }
 
 function resolveStripeTier(object, metadataTier) {
@@ -361,6 +401,8 @@ function parseBillingEvent(provider, payload = {}) {
 
 module.exports = {
   TIER_IDS,
+  TIER_AMOUNT_CENTS,
+  HOFLADEN_CHECKOUT_OFFER,
   MODULE_FLAG_KEYS,
   TIER_MODULES,
   modulesForTier,
@@ -371,4 +413,5 @@ module.exports = {
   verifyStripeSignature,
   verifyLemonSignature,
   parseBillingEvent,
+  hofladenCheckoutForm,
 };

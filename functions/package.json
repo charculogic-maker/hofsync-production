@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "build": "node --check index.js && node --check runtimeParams.js && node --check orderNotifications.js && node --check bulletinAuditMail.js && node --check manageTenantEmployees.js && node --check createTenantEmployee.js && node --check meatPrices.js",
+    "build": "node --check index.js && node --check runtimeParams.js && node --check orderNotifications.js && node --check bulletinAuditMail.js && node --check manageTenantEmployees.js && node --check createTenantEmployee.js && node --check meatPrices.js && node --check billingTiers.js && node --check hofladenCheckout.js",
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions --non-interactive",
     "test": "vitest run --config vitest.config.mjs --configLoader runner",
