@@ -13096,6 +13096,37 @@ body.dev-dashboard-view[hidden] {
   gap: 8px 12px;
 }
 
+.dev-dashboard-toggles--user {
+  max-width: 28rem;
+}
+
+.dev-dashboard-role-modules-grid {
+  display: grid;
+  gap: 16px;
+  margin: 12px 0 8px;
+}
+
+.dev-dashboard-role-modules-card {
+  padding: 12px 14px;
+  border: 1px solid var(--color-outline-variant, #e0bfbb);
+  border-radius: 8px;
+  background: var(--color-surface-container-low, #f2f4f6);
+}
+
+.dev-dashboard-role-modules-card .dev-dashboard-subsection-title {
+  margin-bottom: 10px;
+}
+
+.dev-dashboard-toggle--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dev-dashboard-employee-modules {
+  vertical-align: top;
+  min-width: 12rem;
+}
+
 .dev-dashboard-toggle {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261024-mhd-filter-ampel-datum-v1';
+const CACHE_NAME = 'charculogic-v20261025-module-access-role-user-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-filter-ampel-datum-oct2026';
 /** Release – MHD-Filter MoPro/Kühlware getrennt + Ampel zeigt MHD-Datum */

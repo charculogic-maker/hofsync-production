@@ -12,7 +12,21 @@ const CALLABLE_BASE_OPTIONS = {
   enforceAppCheck: true,
 };
 
-const EMPLOYEE_MODULE_KEYS = ['mhd', 'kitchen', 'buero'];
+/** Module, die pro Nutzer (Claims + users/{uid}.allowedModules) gesetzt werden können. */
+const EMPLOYEE_MODULE_KEYS = [
+  'start',
+  'team',
+  'orders',
+  'mhd',
+  'receiving',
+  'kitchen',
+  'averyLabels',
+  'haccp',
+  'knowledge',
+  'buero',
+  'chargenDoku',
+  'retterBox',
+];
 
 const TENANT_PROFILE_DEFAULTS = Object.freeze({
   StevesHof_Hauptbetrieb: Object.freeze([
@@ -355,7 +369,19 @@ async function updateTenantEmployee(auth, payload) {
   await admin.auth().setCustomUserClaims(targetUid, nextClaims);
   await userRef.set(patch, { merge: true });
 
-  return { ok: true, uid: targetUid };
+  if (payload.allowedModules !== undefined || payload.role !== undefined) {
+    await adminDb.firestore().doc(`tenants/${tenantId}/employees/${targetUid}`).set({
+      ...(payload.role !== undefined ? { role: patch.role } : {}),
+      ...(payload.allowedModules !== undefined ? { allowedModules: patch.allowedModules } : {}),
+      tenantId,
+      updatedAt: adminDb.FieldValue.serverTimestamp(),
+      updatedBy: ctx.uid,
+    }, { merge: true }).catch((mirrorErr) => {
+      console.warn('[manageTenantEmployees] employees-Spiegel nicht aktualisiert:', mirrorErr?.message || mirrorErr);
+    });
+  }
+
+  return { ok: true, uid: targetUid, allowedModules: patch.allowedModules };
 }
 
 async function removeTenantEmployee(auth, payload) {

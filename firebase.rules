@@ -288,10 +288,44 @@ service cloud.firestore {
           || request.resource.data.updatedAt is timestamp);
     }
 
+    // Modul-Freigaben je Rolle (admin / employee / helper) unter settings/role_modules.
+    function isRoleModuleMap(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'start', 'team', 'orders', 'mhd', 'receiving', 'kitchen', 'averyLabels',
+          'haccp', 'knowledge', 'buero', 'chargenDoku', 'retterBox'
+        ])
+        && (!('start' in value) || value.start is bool)
+        && (!('team' in value) || value.team is bool)
+        && (!('orders' in value) || value.orders is bool)
+        && (!('mhd' in value) || value.mhd is bool)
+        && (!('receiving' in value) || value.receiving is bool)
+        && (!('kitchen' in value) || value.kitchen is bool)
+        && (!('averyLabels' in value) || value.averyLabels is bool)
+        && (!('haccp' in value) || value.haccp is bool)
+        && (!('knowledge' in value) || value.knowledge is bool)
+        && (!('buero' in value) || value.buero is bool)
+        && (!('chargenDoku' in value) || value.chargenDoku is bool)
+        && (!('retterBox' in value) || value.retterBox is bool);
+    }
+
+    function isRoleModulesSettings(docId) {
+      return docId == 'role_modules'
+        && request.resource.data.keys().hasOnly([
+          'admin', 'employee', 'helper', 'tenantId', 'updatedAt', 'updatedBy'
+        ])
+        && (!('admin' in request.resource.data) || isRoleModuleMap(request.resource.data.admin))
+        && (!('employee' in request.resource.data) || isRoleModuleMap(request.resource.data.employee))
+        && (!('helper' in request.resource.data) || isRoleModuleMap(request.resource.data.helper))
+        && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy is string)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string
+          || request.resource.data.updatedAt is timestamp);
+    }
+
     match /tenants/{tenantId}/settings/{document} {
       // Tenant-Nutzer + Plattform-Super-Admin (fremd-Mandant im Dev-Dashboard).
       allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
-      // Admin / Plattform: Settings inkl. SMTP-Profil und Rabattstaffel. Mitarbeiter: nur Lieferanten.
+      // Admin / Plattform: Settings inkl. SMTP-Profil, Rabattstaffel, Rollen-Module. Mitarbeiter: nur Lieferanten.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
           (
@@ -302,6 +336,7 @@ service cloud.firestore {
               || isTerminalSettings(document)
               || isSupplierSettings(document)
               || isDiscountMatrixSettings(document)
+              || isRoleModulesSettings(document)
             )
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))

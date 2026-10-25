@@ -2,7 +2,17 @@
  * Enterprise Dev-Dashboard – /dev-dashboard
  * Super-Admin: alle Mandanten | Mandanten-Admin: nur eigener Mandant
  */
-import { isTenantModuleEnabled, TENANT_MODULE_KEYS } from './tenant-modules.js';
+import {
+  ACCESS_MODULE_KEYS,
+  DEFAULT_ROLE_MODULE_DEFAULTS,
+  isTenantAccessKeyEnabled,
+  isTenantModuleEnabled,
+  normalizeAccessModuleMap,
+  normalizeRoleModuleDefaults,
+  resolveRoleModuleAllowlist,
+  TENANT_MODULE_KEYS,
+  TENANT_ROLES_FOR_MODULES,
+} from './tenant-modules.js';
 import { createHttpsCallable, getRegionalFunctions, FUNCTIONS_REGION } from './firebase-functions.js';
 import { waitForAppCheckReady } from './app-check.js';
 import {
@@ -362,6 +372,184 @@ function fillBetriebModuleToggles(dashboardStateRef = dashboardState) {
     const label = MODULE_LABELS[control.key] || control.label || control.key;
     return `<span class="dev-dashboard-module-badge" role="listitem">${escapeHtml(label)}</span>`;
   }).join('');
+}
+
+function roleLabelForModules(role) {
+  if (role === 'admin') return 'Admin';
+  if (role === 'helper') return 'Aushilfe';
+  return 'Mitarbeiter';
+}
+
+function setRoleModulesStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('dev-dashboard-role-modules-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+}
+
+/**
+ * Liest role_modules aus Firestore und füllt die Matrix.
+ * @param {object} dashboardStateRef
+ */
+async function loadAndFillRoleModuleMatrix(dashboardStateRef = dashboardState) {
+  const tenantId = dashboardStateRef.selectedTenantId;
+  const db = dashboardStateRef.db;
+  let defaults = normalizeRoleModuleDefaults(null);
+  if (db && tenantId) {
+    try {
+      const snap = await db.collection('tenants').doc(tenantId)
+        .collection('settings').doc('role_modules').get();
+      if (snap.exists) {
+        defaults = normalizeRoleModuleDefaults(snap.data() || {});
+      }
+    } catch (err) {
+      console.warn('[Dev-Dashboard] role_modules laden fehlgeschlagen:', err);
+    }
+  }
+  dashboardStateRef.roleModuleDefaults = defaults;
+  fillRoleModuleMatrix(dashboardStateRef);
+}
+
+/**
+ * Rendert Checkbox-Matrix: Rollen × Access-Module (Tenant-Decke beachten).
+ * @param {object} dashboardStateRef
+ */
+function fillRoleModuleMatrix(dashboardStateRef = dashboardState) {
+  const grid = document.getElementById('dev-dashboard-role-modules-grid');
+  if (!grid) return;
+  const defaults = dashboardStateRef.roleModuleDefaults
+    || normalizeRoleModuleDefaults(null);
+  const tenantModules = dashboardStateRef.tenantModules || {};
+
+  grid.innerHTML = TENANT_ROLES_FOR_MODULES.map((role) => {
+    const allow = resolveRoleModuleAllowlist(role, defaults);
+    const toggles = ACCESS_MODULE_KEYS.map((key) => {
+      const tenantOn = isTenantAccessKeyEnabled(key, tenantModules);
+      const checked = allow[key] === true;
+      const label = MODULE_LABELS[key] || TENANT_MODULE_LABELS[key] || key;
+      return `
+        <label class="dev-dashboard-toggle ${tenantOn ? '' : 'dev-dashboard-toggle--disabled'}" title="${escapeHtml(label)}">
+          <input
+            type="checkbox"
+            data-role-module-role="${escapeHtml(role)}"
+            data-role-module-key="${escapeHtml(key)}"
+            ${checked ? 'checked' : ''}
+            ${tenantOn ? '' : 'disabled'}
+          >
+          <span>${escapeHtml(label)}</span>
+        </label>
+      `;
+    }).join('');
+    return `
+      <div class="dev-dashboard-role-modules-card" data-role="${escapeHtml(role)}">
+        <h3 class="dev-dashboard-subsection-title">${escapeHtml(roleLabelForModules(role))}</h3>
+        <div class="dev-dashboard-toggles">${toggles}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Liest die Matrix aus dem DOM.
+ * @returns {Record<string, Record<string, boolean>>}
+ */
+function readRoleModuleMatrixFromDom() {
+  /** @type {Record<string, Record<string, boolean>>} */
+  const result = {};
+  TENANT_ROLES_FOR_MODULES.forEach((role) => {
+    result[role] = { ...DEFAULT_ROLE_MODULE_DEFAULTS[role] };
+  });
+  document.querySelectorAll('[data-role-module-role][data-role-module-key]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    const role = input.getAttribute('data-role-module-role');
+    const key = input.getAttribute('data-role-module-key');
+    if (!role || !key || !result[role]) return;
+    result[role][key] = input.checked === true;
+  });
+  return normalizeRoleModuleDefaults(result);
+}
+
+async function persistRoleModuleDefaults(db, tenantId, roleModuleDefaults) {
+  if (!db || !tenantId) throw new Error('Mandant fehlt.');
+  const normalized = normalizeRoleModuleDefaults(roleModuleDefaults);
+  const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
+  await db.collection('tenants').doc(tenantId).collection('settings').doc('role_modules').set({
+    admin: normalized.admin,
+    employee: normalized.employee,
+    helper: normalized.helper,
+    tenantId,
+    updatedAt: stamp,
+  }, { merge: true });
+  return normalized;
+}
+
+function bindRoleModuleSave(dashboardStateRef = dashboardState) {
+  const btn = document.getElementById('dev-dashboard-role-modules-save');
+  if (!btn || btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+  btn.addEventListener('click', async () => {
+    const tenantId = dashboardStateRef.selectedTenantId;
+    if (!tenantId || !dashboardStateRef.db) {
+      setRoleModulesStatus('Kein Betrieb ausgewählt.', 'error');
+      return;
+    }
+    btn.disabled = true;
+    setRoleModulesStatus('Speichere Rollen-Module…');
+    try {
+      const next = readRoleModuleMatrixFromDom();
+      const saved = await persistRoleModuleDefaults(dashboardStateRef.db, tenantId, next);
+      dashboardStateRef.roleModuleDefaults = saved;
+      window.__hofsyncRoleModuleDefaults = saved;
+      fillRoleModuleMatrix(dashboardStateRef);
+      setRoleModulesStatus('Rollen-Module gespeichert.', 'success');
+      window.showToast?.('Rollen-Module gespeichert.', 'success');
+      recordAudit('role_modules', 'Module je Rolle aktualisiert', 'change');
+    } catch (err) {
+      console.error('[Dev-Dashboard] Rollen-Module speichern fehlgeschlagen:', err);
+      setRoleModulesStatus(logAndMapOperatorError(err, 'admin-role-modules'), 'error');
+      window.showToast?.('Rollen-Module konnten nicht gespeichert werden.', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+/**
+ * Kompakte Nutzer-Modul-Checkboxen (nur freigeschaltete Tenant-Module).
+ * @param {object} employee
+ * @returns {string}
+ */
+function renderEmployeeModuleToggles(employee) {
+  const isProfile = isProfileEmployeeUid(employee.uid) || employee.source === 'profile';
+  const isDisabled = employee.disabled === true || employee.status === 'inactive';
+  const allowed = normalizeAccessModuleMap(employee.allowedModules, { defaultAllow: true });
+  const tenantModules = dashboardState.tenantModules || {};
+  const toggles = ACCESS_MODULE_KEYS.map((key) => {
+    const tenantOn = isTenantAccessKeyEnabled(key, tenantModules);
+    if (!tenantOn) return '';
+    const label = MODULE_LABELS[key] || TENANT_MODULE_LABELS[key] || key;
+    const checked = allowed[key] !== false;
+    return `
+      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="${escapeHtml(label)}">
+        <input
+          type="checkbox"
+          data-action="toggle-user-module"
+          data-uid="${escapeHtml(employee.uid)}"
+          data-tenant-id="${escapeHtml(employee.tenantId)}"
+          data-module-key="${escapeHtml(key)}"
+          ${checked ? 'checked' : ''}
+          ${isProfile || isDisabled ? 'disabled' : ''}
+        >
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }).filter(Boolean).join('');
+  if (!toggles) {
+    return '<span class="dev-dashboard-tenant-sub">Keine Module freigeschaltet</span>';
+  }
+  return `<div class="dev-dashboard-toggles dev-dashboard-toggles--user">${toggles}</div>`;
 }
 
 /**
@@ -1048,6 +1236,7 @@ function fillSettingsForm(dashboardStateRef = dashboardState) {
     || '/icon-192.png';
   syncMhdCardUiToggleInputs(dashboardStateRef.selectedTenantId);
   fillBetriebModuleToggles(dashboardStateRef);
+  void loadAndFillRoleModuleMatrix(dashboardStateRef);
   applySettingsPreview();
 
   const tenantId = dashboardStateRef.selectedTenantId;
@@ -2008,7 +2197,7 @@ function bindEmployeeCreateForm(dashboardState) {
 
     try {
       await waitForAppCheckReady();
-      // Module gehören zum Mandanten — Nutzer bekommen nur Rolle (employee).
+      // Neue Nutzer starten mit Rolle employee und Default-allowedModules (alles an).
       const result = await callable({
         name,
         email,
@@ -2107,7 +2296,8 @@ function renderEmployeeRow(employee, currentUserUid) {
   const isSelf = employee.uid === currentUserUid;
   const isDisabled = employee.disabled === true || employee.status === 'inactive';
   const isProfile = isProfileEmployeeUid(employee.uid) || employee.source === 'profile';
-  const nextRole = role === 'admin' ? 'employee' : 'admin';
+  // Admin ↔ Mitarbeiter ↔ Aushilfe rotieren
+  const nextRole = role === 'admin' ? 'employee' : (role === 'employee' ? 'helper' : 'admin');
   const safeUid = escapeHtml(employee.uid);
   const safeTenantId = escapeHtml(employee.tenantId);
   const safeDisplayName = escapeHtml(employee.displayName || '—');
@@ -2125,6 +2315,9 @@ function renderEmployeeRow(employee, currentUserUid) {
       <td>
         <span class="dev-dashboard-role-badge dev-dashboard-role-badge--${escapeHtml(role)}">${escapeHtml(roleLabel)}</span>
         ${isDisabled ? '<span class="dev-dashboard-role-badge dev-dashboard-role-badge--inactive">Deaktiviert</span>' : ''}
+      </td>
+      <td class="dev-dashboard-employee-modules">
+        ${renderEmployeeModuleToggles(employee)}
       </td>
       <td class="dev-dashboard-employee-actions">
         <button
@@ -2169,7 +2362,7 @@ function renderEmployeeTableLoading() {
   tbody.innerHTML = '';
   tbody.innerHTML = `
     <tr>
-      <td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
+      <td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
         <span class="dev-dashboard-table-spinner" aria-hidden="true"></span>
         Nutzer werden geladen…
       </td>
@@ -2188,11 +2381,11 @@ function renderEmployeeTable(employees, currentUserUid) {
     role: dashboardState.userRoleFilter,
   });
   if (!deduped.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map((emp) => renderEmployeeRow(emp, currentUserUid)).join('');
@@ -2202,7 +2395,7 @@ function renderEmployeeTableError(message) {
   const tbody = document.getElementById('dev-dashboard-employee-body');
   if (!tbody) return;
   tbody.innerHTML = '';
-  tbody.innerHTML = `<tr><td colspan="3" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
 }
 
 async function refreshEmployeeTable(dashboardStateRef) {
@@ -2288,12 +2481,61 @@ function bindEmployeeTableActions(dashboardState) {
   if (!section || section.dataset.bound === '1') return;
   section.dataset.bound = '1';
 
-  // Keine Modul-Checkboxen mehr — Nutzer haben nur Rollen (Module = Mandant).
+  section.addEventListener('change', async (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (input.getAttribute('data-action') !== 'toggle-user-module') return;
+
+    const uid = String(input.getAttribute('data-uid') || '').trim();
+    const tenantId = String(input.getAttribute('data-tenant-id') || '').trim();
+    const moduleKey = String(input.getAttribute('data-module-key') || '').trim();
+    if (!uid || !tenantId || !moduleKey) return;
+    if (isProfileEmployeeUid(uid)) {
+      input.checked = !input.checked;
+      window.showToast?.('Team-Profil — bitte zuerst ein Anmeldekonto anlegen.', 'error');
+      return;
+    }
+
+    const callable = getManageEmployeesCallable();
+    if (!callable) {
+      input.checked = !input.checked;
+      window.showToast?.('Nutzerverwaltung ist gerade nicht erreichbar.', 'error');
+      return;
+    }
+
+    const employee = (dashboardState.employees || []).find((entry) => entry.uid === uid);
+    const nextAllowed = normalizeAccessModuleMap(employee?.allowedModules, { defaultAllow: true });
+    nextAllowed[moduleKey] = input.checked === true;
+    input.disabled = true;
+    try {
+      await waitForAppCheckReady();
+      await callable({ action: 'update', uid, tenantId, allowedModules: nextAllowed });
+      if (employee) employee.allowedModules = nextAllowed;
+      const label = MODULE_LABELS[moduleKey] || moduleKey;
+      window.showToast?.(
+        input.checked ? `${label} freigegeben.` : `${label} für diese Person aus.`,
+        'success',
+      );
+      recordAudit(
+        'user_modules',
+        `Nutzer-Modul ${label} ${input.checked ? 'an' : 'aus'}`,
+        'change',
+      );
+    } catch (err) {
+      console.error('[Dev-Dashboard] Nutzer-Modul speichern fehlgeschlagen:', err);
+      input.checked = !input.checked;
+      window.showToast?.(logAndMapOperatorError(err, 'admin-user-action'), 'error');
+    } finally {
+      input.disabled = false;
+    }
+  });
+
   section.addEventListener('click', async (event) => {
     const btn = event.target.closest('[data-action]');
     if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
 
     const action = btn.getAttribute('data-action');
+    if (action === 'toggle-user-module') return;
     const uid = String(btn.getAttribute('data-uid') || '').trim();
     const tenantId = String(btn.getAttribute('data-tenant-id') || '').trim();
     if (!uid || !tenantId) {
@@ -2552,6 +2794,7 @@ const dashboardState = {
   employees: [],
   tenantCatalog: [],
   tenantModules: {},
+  roleModuleDefaults: null,
   tenantDisplayName: '',
   tenantTier: '',
   tenantStatus: 'active',
@@ -2805,6 +3048,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindTenantCreateForm(db);
     bindEmployeeCreateForm(dashboardState);
     bindEmployeeTableActions(dashboardState);
+    bindRoleModuleSave(dashboardState);
 
     bindTenantSelector(dashboardState, [{
       id: dashboardState.selectedTenantId,

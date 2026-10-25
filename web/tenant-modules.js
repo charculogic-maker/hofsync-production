@@ -1,8 +1,13 @@
 /**
  * Tenant module flags — Single Source of Truth for HofSync.
  *
- * Auflösung: Firestore `tenants/{id}.enabledModules` (führend)
- * → Fallback: `branding.js` Defaults (erster Boot / Offline).
+ * Auflösung (Tenant-Decke):
+ *   Firestore `tenants/{id}.enabledModules` (führend)
+ *   → Fallback: `branding.js` Defaults (erster Boot / Offline).
+ *
+ * Session-Zugriff (nach Tenant-Decke, lokal, kein Cache):
+ *   Tenant ∩ roleModuleDefaults[role] ∩ user.allowedModules
+ *   → `resolveAccessModules` / `applySessionAccessModuleOverride`
  *
  * Kanonische Branding-Keys (UI / BRANDING.modules):
  *   mhdMonitor, wareneingang, wareneingangMetzgerei, wurstkueche,
@@ -44,6 +49,96 @@ export const TENANT_MODULE_KEYS = [
   'buero',
   'chargenDoku',
 ];
+
+/**
+ * Module, die pro Rolle / Nutzer einschränkbar sind (Claims `allowedModules`,
+ * Tenant-Settings `settings/role_modules`).
+ * @type {readonly string[]}
+ */
+export const ACCESS_MODULE_KEYS = Object.freeze([
+  'start',
+  'team',
+  'orders',
+  'mhd',
+  'receiving',
+  'kitchen',
+  'averyLabels',
+  'haccp',
+  'knowledge',
+  'buero',
+  'chargenDoku',
+  'retterBox',
+]);
+
+/** Access-Key → Bottom-Nav / Tab-IDs (für Session-UI). */
+export const ACCESS_MODULE_TO_TAB = Object.freeze({
+  start: 'teamboard',
+  team: 'team',
+  orders: 'orders',
+  mhd: 'mhd',
+  receiving: 'receiving',
+  kitchen: 'kitchen',
+  averyLabels: 'avery',
+  haccp: 'haccp',
+  knowledge: 'knowledge',
+  buero: 'batches',
+  chargenDoku: 'chargenDoku',
+});
+
+/** @type {readonly string[]} */
+export const TENANT_ROLES_FOR_MODULES = Object.freeze(['admin', 'employee', 'helper']);
+
+/**
+ * Code-Defaults je Rolle, wenn `settings/role_modules` fehlt.
+ * Fehlende Keys in gespeicherten Maps = erlaubt (Abwärtskompatibilität).
+ */
+export const DEFAULT_ROLE_MODULE_DEFAULTS = Object.freeze({
+  admin: Object.freeze(Object.fromEntries(ACCESS_MODULE_KEYS.map((key) => [key, true]))),
+  employee: Object.freeze({
+    start: true,
+    team: true,
+    orders: true,
+    mhd: true,
+    receiving: true,
+    kitchen: true,
+    averyLabels: true,
+    haccp: true,
+    knowledge: false,
+    buero: false,
+    chargenDoku: true,
+    retterBox: true,
+  }),
+  helper: Object.freeze({
+    start: true,
+    team: false,
+    orders: false,
+    mhd: true,
+    receiving: false,
+    kitchen: false,
+    averyLabels: false,
+    haccp: true,
+    knowledge: false,
+    buero: false,
+    chargenDoku: true,
+    retterBox: false,
+  }),
+});
+
+/** Aliase: Access-Key → Keys in enabledModules / Branding. */
+const ACCESS_KEY_ALIASES = Object.freeze({
+  start: ['start', 'teamboard'],
+  team: ['team'],
+  orders: ['orders'],
+  mhd: ['mhd', 'mhdMonitor'],
+  receiving: ['receiving', 'wareneingang'],
+  kitchen: ['kitchen', 'wurstkueche', 'kueche'],
+  averyLabels: ['averyLabels', 'avery', 'zerlegung', 'cutting'],
+  haccp: ['haccp'],
+  knowledge: ['knowledge'],
+  buero: ['buero', 'batches'],
+  chargenDoku: ['chargenDoku', 'traceability'],
+  retterBox: ['retterBox'],
+});
 
 /** @deprecated Legacy Firestore key – mapped to chargenDoku */
 const LEGACY_CHARGEN_DOKU_KEY = 'traceability';
@@ -204,6 +299,152 @@ export function applySessionKitchenModuleOverride(modules, options = {}) {
   next.avery = averyVisible;
   next.zerlegung = averyVisible;
   return next;
+}
+
+/**
+ * Normalisiert eine Access-Modul-Map (fehlende Keys = defaultAllow).
+ * @param {Record<string, boolean>|null|undefined} value
+ * @param {{ defaultAllow?: boolean }} [options]
+ * @returns {Record<string, boolean>}
+ */
+export function normalizeAccessModuleMap(value, options = {}) {
+  const defaultAllow = options.defaultAllow !== false;
+  /** @type {Record<string, boolean>} */
+  const result = {};
+  ACCESS_MODULE_KEYS.forEach((key) => {
+    if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key)) {
+      result[key] = value[key] === true;
+    } else {
+      result[key] = defaultAllow;
+    }
+  });
+  return result;
+}
+
+/**
+ * @param {string} role
+ * @returns {'admin'|'employee'|'helper'}
+ */
+export function normalizeTenantRoleForModules(role) {
+  const clean = String(role || '').trim().toLowerCase();
+  if (clean === 'admin' || clean === 'helper') return clean;
+  return 'employee';
+}
+
+/**
+ * Rollen-Allowlist: Tenant-Settings überschreiben Code-Defaults (Key für Key).
+ * @param {string} role
+ * @param {Record<string, Record<string, boolean>>|null|undefined} roleModuleDefaults
+ * @returns {Record<string, boolean>}
+ */
+export function resolveRoleModuleAllowlist(role, roleModuleDefaults = null) {
+  const roleKey = normalizeTenantRoleForModules(role);
+  const codeDefault = DEFAULT_ROLE_MODULE_DEFAULTS[roleKey] || DEFAULT_ROLE_MODULE_DEFAULTS.employee;
+  const fromTenant = roleModuleDefaults && typeof roleModuleDefaults === 'object'
+    ? roleModuleDefaults[roleKey]
+    : null;
+  if (!fromTenant || typeof fromTenant !== 'object') {
+    return { ...codeDefault };
+  }
+  /** @type {Record<string, boolean>} */
+  const merged = { ...codeDefault };
+  ACCESS_MODULE_KEYS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(fromTenant, key)) {
+      merged[key] = fromTenant[key] === true;
+    }
+  });
+  return merged;
+}
+
+/**
+ * Prüft, ob die Tenant-Decke den Access-Key freigibt.
+ * Fehlende Keys in einer vorhandenen Map → false nur wenn kanonisch/Alias explizit false
+ * oder kein Treffer und Map bereits aufgelöst (mindestens ein verwandter Key gesetzt).
+ * Ohne Tenant-Map → true (kein Extra-Block).
+ * @param {string} accessKey
+ * @param {Record<string, boolean>|null|undefined} tenantModules
+ * @returns {boolean}
+ */
+export function isTenantAccessKeyEnabled(accessKey, tenantModules) {
+  if (!tenantModules || typeof tenantModules !== 'object') return true;
+  if (!Object.keys(tenantModules).length) return true;
+  const aliases = ACCESS_KEY_ALIASES[accessKey] || [accessKey];
+  const present = aliases.filter((alias) => Object.prototype.hasOwnProperty.call(tenantModules, alias));
+  if (present.length) {
+    return present.some((alias) => tenantModules[alias] === true);
+  }
+  const brandingKey = ENABLED_MODULE_TO_BRANDING[accessKey];
+  if (brandingKey && Object.prototype.hasOwnProperty.call(tenantModules, brandingKey)) {
+    return tenantModules[brandingKey] === true;
+  }
+  // Partielle enabledModules-Map ohne diesen Key → nicht freigeschaltet.
+  return false;
+}
+
+/**
+ * Effektiver Session-Zugriff: Tenant ∩ Rolle ∩ Nutzer.
+ * Schreibt nicht in lastEffectiveModules (Shared Terminals / Soft-Lock).
+ * @param {{
+ *   tenantModules?: Record<string, boolean>|null,
+ *   role?: string,
+ *   roleModuleDefaults?: Record<string, Record<string, boolean>>|null,
+ *   allowedModules?: Record<string, boolean>|null,
+ * }} [options]
+ * @returns {Record<string, boolean>}
+ */
+export function resolveAccessModules(options = {}) {
+  const roleAllow = resolveRoleModuleAllowlist(options.role, options.roleModuleDefaults);
+  const userAllow = normalizeAccessModuleMap(options.allowedModules, { defaultAllow: true });
+  /** @type {Record<string, boolean>} */
+  const access = {};
+  ACCESS_MODULE_KEYS.forEach((key) => {
+    const tenantOn = isTenantAccessKeyEnabled(key, options.tenantModules);
+    access[key] = tenantOn && roleAllow[key] === true && userAllow[key] === true;
+  });
+  return access;
+}
+
+/**
+ * Wendet Rollen-/Nutzer-Zugriff auf eine Modul-Map an (lokal, kein Cache).
+ * @param {Record<string, boolean>|null|undefined} modules
+ * @param {{
+ *   role?: string,
+ *   roleModuleDefaults?: Record<string, Record<string, boolean>>|null,
+ *   allowedModules?: Record<string, boolean>|null,
+ * }} [options]
+ * @returns {Record<string, boolean>}
+ */
+export function applySessionAccessModuleOverride(modules, options = {}) {
+  const next = { ...(modules && typeof modules === 'object' ? modules : {}) };
+  const access = resolveAccessModules({
+    tenantModules: next,
+    role: options.role,
+    roleModuleDefaults: options.roleModuleDefaults,
+    allowedModules: options.allowedModules,
+  });
+  ACCESS_MODULE_KEYS.forEach((accessKey) => {
+    if (access[accessKey] === true) return;
+    const aliases = ACCESS_KEY_ALIASES[accessKey] || [accessKey];
+    aliases.forEach((alias) => {
+      next[alias] = false;
+    });
+  });
+  return next;
+}
+
+/**
+ * Normalisiert gespeicherte role_modules-Settings (admin/employee/helper).
+ * @param {object|null|undefined} raw
+ * @returns {Record<string, Record<string, boolean>>}
+ */
+export function normalizeRoleModuleDefaults(raw) {
+  /** @type {Record<string, Record<string, boolean>>} */
+  const result = {};
+  TENANT_ROLES_FOR_MODULES.forEach((role) => {
+    const fromDoc = raw && typeof raw === 'object' ? raw[role] : null;
+    result[role] = resolveRoleModuleAllowlist(role, fromDoc ? { [role]: fromDoc } : null);
+  });
+  return result;
 }
 
 /**
@@ -591,6 +832,8 @@ export function subscribeTenantEnabledModules(db, tenantId, onChange) {
 if (typeof window !== 'undefined') {
   window.resolveEffectiveModules = resolveEffectiveModules;
   window.CANONICAL_MODULE_KEYS = CANONICAL_MODULE_KEYS;
+  window.ACCESS_MODULE_KEYS = ACCESS_MODULE_KEYS;
+  window.DEFAULT_ROLE_MODULE_DEFAULTS = DEFAULT_ROLE_MODULE_DEFAULTS;
   window.readCachedEffectiveModules = readCachedEffectiveModules;
   window.writeCachedEffectiveModules = writeCachedEffectiveModules;
   window.applyEffectiveModulesToBranding = applyEffectiveModulesToBranding;
@@ -598,4 +841,9 @@ if (typeof window !== 'undefined') {
   window.isKitchenModuleVisibleForSession = isKitchenModuleVisibleForSession;
   window.resolveEmployeeKitchenAccess = resolveEmployeeKitchenAccess;
   window.applySessionKitchenModuleOverride = applySessionKitchenModuleOverride;
+  window.resolveAccessModules = resolveAccessModules;
+  window.applySessionAccessModuleOverride = applySessionAccessModuleOverride;
+  window.normalizeAccessModuleMap = normalizeAccessModuleMap;
+  window.normalizeRoleModuleDefaults = normalizeRoleModuleDefaults;
+  window.resolveRoleModuleAllowlist = resolveRoleModuleAllowlist;
 }
