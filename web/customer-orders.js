@@ -6,6 +6,7 @@ import { getTenantCollection } from './tenant-db.js';
 import { writeFirestoreDocOrQueue } from './sync.js';
 import { getActiveEmployeeName, postTeamboardBulletin } from './teamboard.js';
 import { initGermanDateInputs, readGermanDateField, setGermanDateField } from './date-input.js';
+import { getTenantSupplierNames, LADEN_DEFAULT_SUPPLIERS, METZ_DEFAULT_SUPPLIERS } from './tenant-settings.js';
 import {
   ACTIVE_ORDER_STATUSES,
   CUTLIST_ORDER_STATUSES,
@@ -28,6 +29,7 @@ import {
   nextWeekdayIso,
   normalizeNotifyChannels,
   normalizeOrderItem,
+  orderPickupChannel,
   orderPickupChannelLabel,
   orderPickupDayIso,
   orderPickupSlotLabel,
@@ -40,6 +42,22 @@ import {
   vacuumWishesSummary,
   wantsAnyReadyNotify,
 } from './order-packlist.js';
+
+const DEFAULT_PACKTISCH_SUPPLIERS = Object.freeze([
+  'Weiling',
+  'Rapunzel',
+  'Bartke',
+  'Stautenhof',
+  'Naturverbund',
+]);
+const DEFAULT_SB_PICKUP_NOTE = 'Im SB-Kühlschrank bereitgestellt';
+const STORAGE_LOCATION_CHIPS = Object.freeze([
+  'Kühlhaus 1',
+  'Kühlhaus 2',
+  'SB-Froster',
+  'TK-Schrank',
+  'Theke bereit',
+]);
 
 const OPEN_ORDER_STATUSES = CUTLIST_ORDER_STATUSES;
 const PICKLIST_CATEGORY_ORDER = ['Wurstküche', 'Molkereiprodukte', 'Hofladen-Spezialitäten', 'Sonstiges'];
@@ -110,6 +128,7 @@ const ORDER_ACTION_LOG_LABELS = Object.freeze({
   edited_reopen: 'Bestellung bearbeitet · wieder in Bearbeitung',
   wholesaler_ordered: 'Beim Großhändler bestellt',
   wholesaler_cleared: 'Großhändler-Vermerk entfernt',
+  storage_updated: 'Lagerort aktualisiert',
 });
 
 const ACTION_LOG_MAX = 40;
@@ -127,6 +146,19 @@ function mergeOrderActionLog(existing, entry) {
   const prev = Array.isArray(existing) ? existing.filter((row) => row && typeof row === 'object') : [];
   if (!entry?.action) return prev.slice(-ACTION_LOG_MAX);
   return [...prev, entry].slice(-ACTION_LOG_MAX);
+}
+
+function mergeOrderHistory(existing, entry) {
+  const prev = Array.isArray(existing) ? existing.filter((row) => row && typeof row === 'object') : [];
+  if (!entry?.action) return prev.slice(-ACTION_LOG_MAX);
+  return [...prev, {
+    type: entry.action,
+    action: entry.action,
+    by: entry.by,
+    at: entry.at,
+    timestamp: entry.at,
+    detail: entry.detail || '',
+  }].slice(-ACTION_LOG_MAX);
 }
 
 function formatOrderActionLogLabel(entry = {}) {
@@ -338,48 +370,151 @@ function buildOrderLineRow(lineId) {
           <input type="checkbox" data-line-wholesaler-ordered>
           Beim Großhändler bestellt
         </label>
-        <input type="text" class="input-text-touch" data-line-wholesaler-name placeholder="Großhändler, z. B. Weiling" autocomplete="off">
+        <input type="text" class="input-text-touch" data-line-wholesaler-name list="suppliers-list" placeholder="Großhändler wählen oder tippen…" autocomplete="off">
       </div>
       <button type="button" class="btn btn-secondary btn-compact order-line-remove" data-remove-line="${lineId}">Position entfernen</button>
     </div>
   `;
 }
 
-function readWholesalerFieldsFromCard(card, previousItem = null) {
-  const ordered = Boolean(card?.querySelector('[data-line-wholesaler-ordered]')?.checked);
-  if (!ordered) {
-    return {
-      wholesalerOrdered: false,
-      wholesalerName: null,
-      wholesalerOrderedBy: null,
-      wholesalerOrderedAt: null,
-    };
-  }
-  const name = card.querySelector('[data-line-wholesaler-name]')?.value?.trim() || 'Weiling';
-  const prevName = String(previousItem?.wholesalerName || '').trim() || 'Weiling';
-  const keepStamp = Boolean(previousItem?.wholesalerOrdered)
+function isItemWholesalerOrdered(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.procurementStatus === 'ordered') return true;
+  return item.wholesalerOrdered === true;
+}
+
+function getItemSupplierName(item) {
+  return String(item?.supplierName || item?.wholesalerName || '').trim();
+}
+
+function getItemOrderedBy(item) {
+  return String(item?.orderedBy || item?.wholesalerOrderedBy || '').trim();
+}
+
+function getItemOrderedAt(item) {
+  return item?.orderedAt || item?.wholesalerOrderedAt || null;
+}
+
+function buildProcurementOrderedFields({ supplier, employee, atIso, previousItem = null }) {
+  const name = String(supplier || '').trim() || 'Weiling';
+  const prevName = getItemSupplierName(previousItem);
+  const keepStamp = isItemWholesalerOrdered(previousItem)
     && prevName.toLowerCase() === name.toLowerCase()
-    && previousItem?.wholesalerOrderedBy
-    && previousItem?.wholesalerOrderedAt;
+    && getItemOrderedBy(previousItem)
+    && getItemOrderedAt(previousItem);
+  const by = keepStamp
+    ? getItemOrderedBy(previousItem)
+    : (employee || getActiveEmployeeName() || getItemOrderedBy(previousItem) || null);
+  const at = keepStamp ? getItemOrderedAt(previousItem) : (atIso || new Date().toISOString());
   return {
+    procurementStatus: 'ordered',
+    supplierName: name,
+    orderedBy: by,
+    orderedAt: at,
+    // Legacy-Spiegel für bereits gesetzte Clients / Dokumente
     wholesalerOrdered: true,
     wholesalerName: name,
-    wholesalerOrderedBy: keepStamp
-      ? previousItem.wholesalerOrderedBy
-      : (getActiveEmployeeName() || previousItem?.wholesalerOrderedBy || null),
-    wholesalerOrderedAt: keepStamp
-      ? previousItem.wholesalerOrderedAt
-      : new Date().toISOString(),
+    wholesalerOrderedBy: by,
+    wholesalerOrderedAt: at,
   };
 }
 
+function buildProcurementClearedFields() {
+  return {
+    procurementStatus: null,
+    supplierName: null,
+    orderedBy: null,
+    orderedAt: null,
+    wholesalerOrdered: false,
+    wholesalerName: null,
+    wholesalerOrderedBy: null,
+    wholesalerOrderedAt: null,
+  };
+}
+
+function readWholesalerFieldsFromCard(card, previousItem = null) {
+  const ordered = Boolean(card?.querySelector('[data-line-wholesaler-ordered]')?.checked);
+  if (!ordered) return buildProcurementClearedFields();
+  const name = card.querySelector('[data-line-wholesaler-name]')?.value?.trim() || 'Weiling';
+  return buildProcurementOrderedFields({
+    supplier: name,
+    previousItem,
+  });
+}
+
 function formatWholesalerOrderedLabel(item) {
-  if (!item?.wholesalerOrdered) return '';
-  const supplier = String(item.wholesalerName || 'Großhändler').trim() || 'Großhändler';
-  const who = String(item.wholesalerOrderedBy || '').trim();
-  const when = formatDateTimeDe(item.wholesalerOrderedAt) || '';
-  const meta = [who, when].filter(Boolean).join(' · ');
-  return `Bei ${supplier} bestellt${meta ? ` · ${meta}` : ''}`;
+  if (!isItemWholesalerOrdered(item)) return '';
+  const supplier = getItemSupplierName(item) || 'Großhändler';
+  const who = getItemOrderedBy(item);
+  const when = formatDateTimeDe(getItemOrderedAt(item)) || '';
+  const meta = [when, who].filter(Boolean).join(', ');
+  return `✅ Bei ${supplier} bestellt${meta ? ` (${meta})` : ''}`;
+}
+
+function collectSupplierSuggestions() {
+  const names = new Set();
+  const push = (value) => {
+    const name = String(value || '').trim();
+    if (!name) return;
+    names.add(name);
+  };
+  DEFAULT_PACKTISCH_SUPPLIERS.forEach(push);
+  LADEN_DEFAULT_SUPPLIERS.forEach(push);
+  METZ_DEFAULT_SUPPLIERS.forEach(push);
+  try {
+    getTenantSupplierNames('laden').forEach(push);
+    getTenantSupplierNames('metzgerei').forEach(push);
+  } catch {
+    /* Settings noch nicht geladen */
+  }
+  (orderState.allOrders || []).forEach((order) => {
+    (Array.isArray(order?.items) ? order.items : []).forEach((item) => push(getItemSupplierName(item)));
+  });
+  return [...names].sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+function ensureSuppliersDatalist() {
+  let list = document.getElementById('suppliers-list');
+  if (!list) {
+    list = document.createElement('datalist');
+    list.id = 'suppliers-list';
+    document.body.appendChild(list);
+  }
+  list.innerHTML = collectSupplierSuggestions()
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+    .join('');
+}
+
+function defaultCustomerPickupNoteForOrder(order) {
+  if (orderPickupChannel(order) === 'sb') return DEFAULT_SB_PICKUP_NOTE;
+  return '';
+}
+
+function renderOrderStorageBlock(order, { interactive = false } = {}) {
+  const internal = String(order?.internalStorageLocation || '').trim();
+  const customerNote = String(order?.customerPickupNote || '').trim();
+  if (!interactive && !internal && !customerNote) return '';
+  if (!interactive) {
+    return `
+      <div class="order-storage-banner">
+        ${internal ? `<p><strong>Lagerort:</strong> ${escapeHtml(internal)}</p>` : ''}
+        ${customerNote ? `<p><strong>Kunden-Abholort:</strong> ${escapeHtml(customerNote)}</p>` : ''}
+      </div>
+    `;
+  }
+  const chips = STORAGE_LOCATION_CHIPS.map((chip) => (
+    `<button type="button" class="btn btn-secondary btn-compact" data-storage-chip="${escapeHtml(chip)}" data-order-id="${escapeHtml(order.id)}">${escapeHtml(chip)}</button>`
+  )).join('');
+  return `
+    <div class="order-storage-editor" data-storage-editor="${escapeHtml(order.id)}">
+      <label class="form-label" for="storage-internal-${escapeHtml(order.id)}">Interner Lagerort</label>
+      <input type="text" id="storage-internal-${escapeHtml(order.id)}" class="input-text-touch" list="storage-locations-list" data-storage-internal value="${escapeHtml(internal)}" placeholder="z. B. Kühlhaus 1, Fach 3" autocomplete="off">
+      <div class="order-storage-chips" role="group" aria-label="Lagerort-Vorschläge">${chips}</div>
+      <label class="form-label" for="storage-customer-${escapeHtml(order.id)}">Kunden-Hinweis Abholort</label>
+      <input type="text" id="storage-customer-${escapeHtml(order.id)}" class="input-text-touch" data-storage-customer value="${escapeHtml(customerNote)}" placeholder="z. B. SB-Kühlschrank Fach 2 – Code 4821" autocomplete="off">
+      <button type="button" class="btn btn-secondary btn-compact" data-order-action="save_storage" data-order-id="${escapeHtml(order.id)}">Lagerort speichern</button>
+    </div>
+  `;
 }
 
 function ensureDefaultOrderLine() {
@@ -508,7 +643,12 @@ function renderOrderItemsList(items, { orderId = '', interactive = false } = {})
         wholesalerHtml += `<button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="clear_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Vermerk entfernen</button>`;
       }
     } else if (interactive && orderId) {
-      wholesalerHtml = `<button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="mark_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>`;
+      wholesalerHtml = `
+        <div class="order-line-wholesaler-mark">
+          <input type="text" class="input-text-touch" list="suppliers-list" data-wholesaler-input placeholder="Großhändler (z. B. Weiling)" value="Weiling" autocomplete="off" aria-label="Großhändler für ${escapeHtml(n.product || item.product || 'Artikel')}">
+          <button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="confirm_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>
+        </div>
+      `;
     }
     return `<li class="customer-order-item"><div><strong>${escapeHtml(n.product || item.product || 'Artikel')}</strong> – ${escapeHtml(qtyParts.join(' · ') || '–')}${uniqueExtras.length ? ` <span class="customer-order-item-meta">(${escapeHtml(uniqueExtras.join(' · '))})</span>` : ''}</div>${wholesalerHtml}</li>`;
   }).join('');
@@ -1356,6 +1496,7 @@ function renderPacktischDetail(order) {
       <p class="customer-order-meta"><strong>${escapeHtml(ref)}</strong> · ${escapeHtml(phone || 'Keine Telefonnummer')}</p>
       ${notes ? `<p class="customer-order-wishes"><strong>Notiz für die Metzgerei:</strong> ${escapeHtml(notes)}</p>` : ''}
       ${vacuum.length ? `<p class="customer-order-meta"><strong>Vakuum:</strong> ${escapeHtml(vacuum.join(' · '))}</p>` : ''}
+      ${renderOrderStorageBlock(order, { interactive: true })}
       ${renderPacktischWeighFields(order)}
       <div class="packtisch-actions">
         <button type="button" class="btn btn-secondary btn-compact" data-order-action="save_weights" data-order-id="${escapeHtml(order.id)}">Waagengewichte speichern</button>
@@ -1433,6 +1574,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
       <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items, { orderId: order.id, interactive: ACTIVE_ORDER_STATUSES.has(status) })}</ul>
+      ${renderOrderStorageBlock(order, { interactive: false })}
       ${renderOrderAmendmentBlock(order)}
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
       <div class="packtisch-actions">
@@ -1654,6 +1796,7 @@ function renderOpenOrders() {
     return;
   }
   empty?.classList.add('hidden');
+  ensureSuppliersDatalist();
   list.innerHTML = open.map((o) => renderOrderCard(o)).join('');
 }
 
@@ -2120,10 +2263,12 @@ function fillEditLineCard(card, item = {}) {
   if (weight) weight.value = item.weight || (item.weightKg ? `${item.weightKg} kg` : '');
   if (width) width.value = item.width || item.cutLabel || '';
   if (notes) notes.value = item.lineNotes || item.note || '';
-  if (wholesalerOrdered) wholesalerOrdered.checked = Boolean(item.wholesalerOrdered);
-  if (wholesalerName) wholesalerName.value = item.wholesalerOrdered
-    ? (item.wholesalerName || 'Weiling')
-    : (item.wholesalerName || '');
+  if (wholesalerOrdered) wholesalerOrdered.checked = isItemWholesalerOrdered(item);
+  if (wholesalerName) {
+    wholesalerName.value = isItemWholesalerOrdered(item)
+      ? (getItemSupplierName(item) || 'Weiling')
+      : (getItemSupplierName(item) || '');
+  }
 }
 
 function addEditOrderLine(item = null) {
@@ -2163,8 +2308,8 @@ function readEditOrderLinesFromDom(previousItems = []) {
 function wholesalerFingerprint(items) {
   if (!Array.isArray(items)) return '';
   return items.map((item) => [
-    item?.wholesalerOrdered ? '1' : '0',
-    String(item?.wholesalerName || '').trim().toLowerCase(),
+    isItemWholesalerOrdered(item) ? '1' : '0',
+    getItemSupplierName(item).toLowerCase(),
   ].join('|')).join('||');
 }
 
@@ -2175,6 +2320,7 @@ async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
     return false;
   }
   const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
+  const nextHistory = mergeOrderHistory(existing?.history, logEntry);
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
@@ -2185,12 +2331,14 @@ async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
     updatedBy: logEntry?.by || getActiveEmployeeName() || null,
     updatedAt: serverTimestamp,
     actionLog: nextLog,
+    history: nextHistory,
     employeeName: logEntry?.by || getActiveEmployeeName() || null,
   };
   const queueData = {
     ...onlineData,
     updatedAt: atIso,
     actionLog: nextLog,
+    history: nextHistory,
   };
   try {
     await writeFirestoreDocOrQueue({
@@ -2209,9 +2357,11 @@ async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
         updatedBy: onlineData.updatedBy,
         updatedAt: atIso,
         actionLog: nextLog,
+        history: nextHistory,
         employeeName: onlineData.employeeName,
       };
     });
+    ensureSuppliersDatalist();
     renderOpenOrders();
     renderAdminOrders();
     renderPastOrdersView();
@@ -2225,7 +2375,7 @@ async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
   }
 }
 
-async function markOrderItemWholesalerOrdered(orderId, itemIndex) {
+async function markOrderItemWholesalerOrdered(orderId, itemIndex, supplierInput = '') {
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
@@ -2242,21 +2392,15 @@ async function markOrderItemWholesalerOrdered(orderId, itemIndex) {
     window.showToast?.('Position wurde nicht gefunden.', 'error');
     return;
   }
-  if (item.wholesalerOrdered) {
+  if (isItemWholesalerOrdered(item)) {
     window.showToast?.('Diese Position ist bereits als bestellt markiert.', 'info');
     return;
   }
-  const suggested = String(item.wholesalerName || 'Weiling').trim() || 'Weiling';
-  const supplierRaw = window.prompt('Bei welchem Großhändler bestellt?', suggested);
-  if (supplierRaw === null) return;
-  const supplier = supplierRaw.trim() || 'Weiling';
+  const supplier = String(supplierInput || getItemSupplierName(item) || 'Weiling').trim() || 'Weiling';
   const atIso = new Date().toISOString();
   items[itemIndex] = {
     ...item,
-    wholesalerOrdered: true,
-    wholesalerName: supplier,
-    wholesalerOrderedBy: employee,
-    wholesalerOrderedAt: atIso,
+    ...buildProcurementOrderedFields({ supplier, employee, atIso, previousItem: item }),
   };
   const product = normalizeOrderItem(item).product || item.product || 'Artikel';
   const logEntry = buildOrderActionLogEntry('wholesaler_ordered', employee, `${product} · ${supplier}`);
@@ -2277,20 +2421,97 @@ async function clearOrderItemWholesalerOrdered(orderId, itemIndex) {
   }
   const items = cloneOrderItemsSnapshot(order.items);
   const item = items[itemIndex];
-  if (!item?.wholesalerOrdered) return;
+  if (!isItemWholesalerOrdered(item)) return;
   if (!window.confirm('Großhändler-Vermerk für diese Position entfernen?')) return;
-  const supplier = String(item.wholesalerName || 'Großhändler').trim() || 'Großhändler';
+  const supplier = getItemSupplierName(item) || 'Großhändler';
   items[itemIndex] = {
     ...item,
-    wholesalerOrdered: false,
-    wholesalerName: null,
-    wholesalerOrderedBy: null,
-    wholesalerOrderedAt: null,
+    ...buildProcurementClearedFields(),
   };
   const product = normalizeOrderItem(item).product || item.product || 'Artikel';
   const logEntry = buildOrderActionLogEntry('wholesaler_cleared', employee, `${product} · ${supplier}`);
   const ok = await persistOrderItemsWithWholesalerLog(orderId, items, logEntry);
   if (ok) window.showToast?.('Großhändler-Vermerk entfernt.', 'success');
+}
+
+async function saveOrderStorageNotes(orderId, {
+  internalStorageLocation = '',
+  customerPickupNote = '',
+} = {}) {
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return false;
+  }
+  const existing = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!existing) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return false;
+  }
+  const internal = String(internalStorageLocation || '').trim();
+  const pickupNote = String(customerPickupNote || '').trim();
+  const prevInternal = String(existing.internalStorageLocation || '').trim();
+  const prevPickup = String(existing.customerPickupNote || '').trim();
+  if (internal === prevInternal && pickupNote === prevPickup) {
+    window.showToast?.('Keine Änderung am Lagerort.', 'info');
+    return true;
+  }
+  const detailParts = [];
+  if (internal !== prevInternal) detailParts.push(internal ? `Lagerort: ${internal}` : 'Lagerort geleert');
+  if (pickupNote !== prevPickup) detailParts.push(pickupNote ? `Kunden-Hinweis: ${pickupNote}` : 'Kunden-Hinweis geleert');
+  const logEntry = buildOrderActionLogEntry('storage_updated', employee, detailParts.join(' · '));
+  const nextLog = mergeOrderActionLog(existing.actionLog, logEntry);
+  const nextHistory = mergeOrderHistory(existing.history, logEntry);
+  const firebase = orderState.getFirebase();
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
+  const atIso = logEntry.at;
+  const onlineData = {
+    internalStorageLocation: internal || null,
+    customerPickupNote: pickupNote || null,
+    updatedBy: employee,
+    updatedAt: serverTimestamp,
+    actionLog: nextLog,
+    history: nextHistory,
+    employeeName: employee,
+  };
+  const queueData = {
+    ...onlineData,
+    updatedAt: atIso,
+  };
+  try {
+    await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData,
+      queueData,
+      offlineMessage: 'Lagerort wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      return {
+        ...entry,
+        internalStorageLocation: internal || null,
+        customerPickupNote: pickupNote || null,
+        updatedBy: employee,
+        updatedAt: atIso,
+        actionLog: nextLog,
+        history: nextHistory,
+        employeeName: employee,
+      };
+    });
+    renderOpenOrders();
+    renderAdminOrders();
+    renderPastOrdersView();
+    window.showToast?.('Lagerort gespeichert.', 'success');
+    return true;
+  } catch (err) {
+    console.error('[CustomerOrders] Lagerort speichern fehlgeschlagen:', err);
+    window.showToast?.('Lagerort konnte nicht gespeichert werden.', 'error');
+    return false;
+  }
 }
 
 function closeOrderEditModal() {
@@ -2319,6 +2540,14 @@ function openOrderEditModal(orderId) {
   document.getElementById('order-edit-additional-wishes').value = order.additionalWishes || order.butcherNotes || '';
   const amendmentEl = document.getElementById('order-edit-amendment-note');
   if (amendmentEl) amendmentEl.value = order.amendmentNote || '';
+  const internalEl = document.getElementById('order-edit-internal-storage');
+  if (internalEl) internalEl.value = order.internalStorageLocation || '';
+  const pickupNoteEl = document.getElementById('order-edit-customer-pickup-note');
+  if (pickupNoteEl) {
+    const existingNote = String(order.customerPickupNote || '').trim();
+    pickupNoteEl.value = existingNote || defaultCustomerPickupNoteForOrder(order);
+  }
+  ensureSuppliersDatalist();
 
   const readyIso = orderPickupDayIso(order) || todayIsoLocal();
   const readyTimeMatch = String(order.readyAt || '').match(/T(\d{2}:\d{2})/);
@@ -2384,6 +2613,8 @@ async function saveOrderEditFromModal() {
   const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
   const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
   const amendmentNote = document.getElementById('order-edit-amendment-note')?.value?.trim() || '';
+  const internalStorageLocation = document.getElementById('order-edit-internal-storage')?.value?.trim() || '';
+  const customerPickupNote = document.getElementById('order-edit-customer-pickup-note')?.value?.trim() || '';
   const items = readEditOrderLinesFromDom(existing.items);
 
   if (!items.length) {
@@ -2431,32 +2662,49 @@ async function saveOrderEditFromModal() {
     items.forEach((item, index) => {
       const prev = existing.items?.[index];
       const product = normalizeOrderItem(item).product || item.product || 'Artikel';
-      if (item.wholesalerOrdered && !prev?.wholesalerOrdered) {
+      if (isItemWholesalerOrdered(item) && !isItemWholesalerOrdered(prev)) {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
           'wholesaler_ordered',
           employee,
-          `${product} · ${item.wholesalerName || 'Weiling'}`,
+          `${product} · ${getItemSupplierName(item) || 'Weiling'}`,
         ));
-      } else if (!item.wholesalerOrdered && prev?.wholesalerOrdered) {
+      } else if (!isItemWholesalerOrdered(item) && isItemWholesalerOrdered(prev)) {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
           'wholesaler_cleared',
           employee,
-          `${product} · ${prev.wholesalerName || 'Großhändler'}`,
+          `${product} · ${getItemSupplierName(prev) || 'Großhändler'}`,
         ));
       } else if (
-        item.wholesalerOrdered
-        && prev?.wholesalerOrdered
-        && String(item.wholesalerName || '').trim().toLowerCase()
-          !== String(prev.wholesalerName || '').trim().toLowerCase()
+        isItemWholesalerOrdered(item)
+        && isItemWholesalerOrdered(prev)
+        && getItemSupplierName(item).toLowerCase() !== getItemSupplierName(prev).toLowerCase()
       ) {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
           'wholesaler_ordered',
           employee,
-          `${product} · ${item.wholesalerName || 'Weiling'}`,
+          `${product} · ${getItemSupplierName(item) || 'Weiling'}`,
         ));
       }
     });
   }
+  const storageChanged = String(existing.internalStorageLocation || '').trim() !== internalStorageLocation
+    || String(existing.customerPickupNote || '').trim() !== customerPickupNote;
+  if (storageChanged) {
+    const detailParts = [];
+    if (String(existing.internalStorageLocation || '').trim() !== internalStorageLocation) {
+      detailParts.push(internalStorageLocation ? `Lagerort: ${internalStorageLocation}` : 'Lagerort geleert');
+    }
+    if (String(existing.customerPickupNote || '').trim() !== customerPickupNote) {
+      detailParts.push(customerPickupNote ? `Kunden-Hinweis: ${customerPickupNote}` : 'Kunden-Hinweis geleert');
+    }
+    nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry('storage_updated', employee, detailParts.join(' · ')));
+  }
+  const nextHistory = (() => {
+    let hist = Array.isArray(existing?.history) ? existing.history.slice() : [];
+    const added = nextLog.slice(Array.isArray(existing?.actionLog) ? existing.actionLog.length : 0);
+    added.forEach((entry) => { hist = mergeOrderHistory(hist, entry); });
+    return hist;
+  })();
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
@@ -2472,6 +2720,9 @@ async function saveOrderEditFromModal() {
     updatedBy: employee,
     updatedAt: serverTimestamp,
     actionLog: nextLog,
+    history: nextHistory,
+    internalStorageLocation: internalStorageLocation || null,
+    customerPickupNote: customerPickupNote || null,
   };
   if (callbackPhone) onlineData.callbackPhone = callbackPhone;
   else onlineData.callbackPhone = null;
@@ -2496,6 +2747,7 @@ async function saveOrderEditFromModal() {
     ...onlineData,
     updatedAt: amendedAtIso,
     actionLog: nextLog,
+    history: nextHistory,
   };
   if (onlineData.amendedAt) queueData.amendedAt = amendedAtIso;
   if (shouldReopen) {
@@ -2532,9 +2784,12 @@ async function saveOrderEditFromModal() {
         callbackPhone: callbackPhone || null,
         customerEmail: customerEmail || null,
         additionalWishes: additionalWishes || null,
+        internalStorageLocation: internalStorageLocation || null,
+        customerPickupNote: customerPickupNote || null,
         updatedBy: employee,
         updatedAt: amendedAtIso,
         actionLog: nextLog,
+        history: nextHistory,
       };
       if (itemsChanged || noteChanged || amendmentNote) {
         next.amendedBy = employee;
@@ -2929,11 +3184,13 @@ function openAveryLabel(orderId) {
   const itemsHtml = price.lines.map((line) => `
     <li>${escapeHtml(line.product)} · ${escapeHtml(line.actualLabel || line.orderedLabel || '–')}</li>
   `).join('');
+  const storage = String(order.internalStorageLocation || '').trim();
   body.innerHTML = `
     <div class="avery-label-sheet">
       <div class="avery-label-ref">${escapeHtml(orderRefLabel(order))}</div>
       <div class="avery-label-name">${escapeHtml(customerDisplayName(order))}</div>
       <div class="avery-label-meta">${escapeHtml(orderPickupChannelLabel(order))} · ${escapeHtml(formatReadyAt(order.readyAt || order.pickupDate))}</div>
+      ${storage ? `<div class="avery-label-storage">Lagerort: ${escapeHtml(storage)}</div>` : ''}
       <ul class="avery-label-items">${itemsHtml || '<li>–</li>'}</ul>
       <div class="avery-label-total">Waage / Endpreis: ${escapeHtml(formatMoneyValue(price.total))}</div>
     </div>
@@ -3097,6 +3354,22 @@ function bindOrderForm() {
 function bindOrderListActions() {
   const handler = (event) => {
     if (event.target.closest('[data-actual-weight-order]')) return;
+    const chipBtn = event.target.closest('[data-storage-chip]');
+    if (chipBtn && chipBtn.closest('.order-storage-editor, .packtisch-detail')) {
+      const orderId = chipBtn.dataset.orderId
+        || chipBtn.closest('[data-storage-editor]')?.dataset.storageEditor
+        || chipBtn.closest('.packtisch-card')?.dataset.orderId
+        || '';
+      const editor = orderId
+        ? document.querySelector(`[data-storage-editor="${CSS.escape(orderId)}"]`)
+        : chipBtn.closest('.order-storage-editor');
+      const input = editor?.querySelector('[data-storage-internal]');
+      if (input) {
+        input.value = chipBtn.dataset.storageChip || chipBtn.textContent || '';
+        input.focus();
+      }
+      return;
+    }
     const btn = event.target.closest('[data-order-action]');
     if (!btn) return;
     const orderId = btn.dataset.orderId;
@@ -3123,16 +3396,26 @@ function bindOrderListActions() {
       openOrderEditModal(orderId);
       return;
     }
-    if (action === 'mark_wholesaler') {
+    if (action === 'confirm_wholesaler' || action === 'mark_wholesaler') {
       const itemIndex = Number(btn.dataset.itemIndex);
       if (!Number.isFinite(itemIndex)) return;
-      markOrderItemWholesalerOrdered(orderId, itemIndex);
+      const wrap = btn.closest('.order-line-wholesaler-mark');
+      const supplier = wrap?.querySelector('[data-wholesaler-input]')?.value?.trim() || 'Weiling';
+      markOrderItemWholesalerOrdered(orderId, itemIndex, supplier);
       return;
     }
     if (action === 'clear_wholesaler') {
       const itemIndex = Number(btn.dataset.itemIndex);
       if (!Number.isFinite(itemIndex)) return;
       clearOrderItemWholesalerOrdered(orderId, itemIndex);
+      return;
+    }
+    if (action === 'save_storage') {
+      const editor = document.querySelector(`[data-storage-editor="${CSS.escape(orderId)}"]`)
+        || btn.closest('.order-storage-editor');
+      const internalStorageLocation = editor?.querySelector('[data-storage-internal]')?.value || '';
+      const customerPickupNote = editor?.querySelector('[data-storage-customer]')?.value || '';
+      saveOrderStorageNotes(orderId, { internalStorageLocation, customerPickupNote });
       return;
     }
     if (action === 'notify_ready') {
@@ -3192,6 +3475,14 @@ function bindOrderEditModal() {
     const container = document.getElementById('order-edit-lines-container');
     if (card && container && container.children.length > 1) card.remove();
     else window.showToast?.('Mindestens eine Position behalten.', 'warning');
+  });
+  modal.querySelector('.order-edit-storage-fields')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-storage-chip]');
+    if (!chip) return;
+    const input = document.getElementById('order-edit-internal-storage');
+    if (!input) return;
+    input.value = chip.dataset.storageChip || chip.textContent || '';
+    input.focus();
   });
   document.getElementById('order-edit-form')?.addEventListener('submit', (e) => {
     e.preventDefault();

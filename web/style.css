@@ -9862,6 +9862,57 @@ body.dev-dashboard-view .app-version-badge--footer {
   margin-top: 6px;
 }
 
+.order-line-wholesaler-mark {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.order-edit-storage-fields,
+.order-storage-editor {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 12px;
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.order-storage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.order-storage-banner {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: color-mix(in srgb, #3b5b8c 12%, var(--surface-secondary));
+  border: 1px solid color-mix(in srgb, #3b5b8c 30%, var(--border-subtle));
+  font-size: 12px;
+}
+
+.order-storage-banner p {
+  margin: 0 0 4px;
+}
+
+.order-storage-banner p:last-child {
+  margin-bottom: 0;
+}
+
+[data-theme="dark"] .order-storage-banner {
+  background: color-mix(in srgb, #8fb0e0 16%, var(--surface-secondary));
+  border-color: color-mix(in srgb, #8fb0e0 35%, var(--border-subtle));
+}
+
+.avery-label-storage {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .customer-order-wish-tags {
   border: 1px solid var(--border-subtle);
   border-radius: var(--border-radius-sm);

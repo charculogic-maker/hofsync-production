@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261025-wholesaler-ordered">
+  <link rel="stylesheet" href="/style.css?v=20261025-packtisch-notes">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1563,8 +1563,36 @@
                         <p class="customer-order-hint">Was jetzt gepackt wird. Die ursprüngliche Bestellung bleibt unverändert sichtbar.</p>
                         <label class="form-label" for="order-edit-amendment-note">Kurznotiz zur Änderung (fürs Team)</label>
                         <textarea id="order-edit-amendment-note" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. +1,5 kg Rehgulasch auf Kundenwunsch am 24.10."></textarea>
+
+                        <div class="order-edit-storage-fields">
+                          <label class="form-label" for="order-edit-internal-storage">Interner Lagerort</label>
+                          <input type="text" id="order-edit-internal-storage" class="input-text-touch" list="storage-locations-list" placeholder="z. B. Kühlhaus 1, Fach 3" autocomplete="off">
+                          <div class="order-storage-chips" role="group" aria-label="Lagerort-Vorschläge">
+                            <button type="button" class="btn btn-secondary btn-compact" data-storage-chip="Kühlhaus 1">Kühlhaus 1</button>
+                            <button type="button" class="btn btn-secondary btn-compact" data-storage-chip="Kühlhaus 2">Kühlhaus 2</button>
+                            <button type="button" class="btn btn-secondary btn-compact" data-storage-chip="SB-Froster">SB-Froster</button>
+                            <button type="button" class="btn btn-secondary btn-compact" data-storage-chip="TK-Schrank">TK-Schrank</button>
+                            <button type="button" class="btn btn-secondary btn-compact" data-storage-chip="Theke bereit">Theke bereit</button>
+                          </div>
+                          <p class="customer-order-hint">Nur fürs Team / Avery-Kistenbon – nicht in der Kunden-Mail.</p>
+
+                          <label class="form-label" for="order-edit-customer-pickup-note">Kunden-Hinweis Abholort</label>
+                          <input type="text" id="order-edit-customer-pickup-note" class="input-text-touch" placeholder="z. B. Hinterlegt im SB-Kühlschrank, Fach 2 – Code: 4821" autocomplete="off">
+                          <p class="customer-order-hint">Erscheint in der Abholbereit-E-Mail an den Kunden.</p>
+                        </div>
+
                         <div id="order-edit-lines-container" class="order-lines-container"></div>
                       </section>
+
+                      <datalist id="storage-locations-list">
+                        <option value="Kühlhaus 1"></option>
+                        <option value="Kühlhaus 2"></option>
+                        <option value="SB-Froster Schublade 1"></option>
+                        <option value="SB-Froster Schublade 2"></option>
+                        <option value="TK-Schrank"></option>
+                        <option value="Theke bereit"></option>
+                      </datalist>
+                      <datalist id="suppliers-list"></datalist>
 
                       <section class="order-edit-section" id="order-edit-original-section" hidden aria-labelledby="order-edit-original-heading">
                         <h3 class="customer-order-lines-title" id="order-edit-original-heading">Ursprüngliche Bestellung</h3>
@@ -3417,6 +3445,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-wholesaler-ordered"></script>
+  <script type="module" src="/app.js?v=20261025-packtisch-notes"></script>
 </body>
 </html>
