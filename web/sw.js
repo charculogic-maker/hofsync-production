@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261025-dept-tenantid-v8';
+const CACHE_NAME = 'charculogic-v20261025-dept-tenantid-v9';
 
 const CACHE_SCHEMA = 'p0-supply-categories-rules-oct2026';
 /** Release – Fachbereich-tenantId-Fix + Wet-Finger-UX */
