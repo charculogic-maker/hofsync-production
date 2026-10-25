@@ -43,6 +43,15 @@ function getTenantTeamDefaults() {
   };
 }
 
+/** Erlaubte Fachbereichs-Tags für Schnellmelde/Bedarfe. */
+export const DEPARTMENT_KEYS = ['metzgerei', 'laden', 'einkauf'];
+
+export const DEPARTMENT_LABELS = {
+  metzgerei: 'Metzgerei / Produktion',
+  laden: 'Laden / Verkauf',
+  einkauf: 'Einkauf / Büro',
+};
+
 const configState = {
   db: null,
   tenantId: '',
@@ -51,6 +60,8 @@ const configState = {
   verifyPinCallable: null,
   employees: [...DEFAULT_EMPLOYEES],
   groups: JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
+  /** @type {Record<string, { departments: string[], canOrder: boolean }>} */
+  departmentAssignments: {},
 };
 
 export function getTeamEmployees() {
@@ -59,6 +70,136 @@ export function getTeamEmployees() {
 
 export function getTeamGroups() {
   return JSON.parse(JSON.stringify(configState.groups));
+}
+
+function departmentLookupKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function normalizeDepartmentList(value) {
+  const allowed = new Set(DEPARTMENT_KEYS);
+  const raw = Array.isArray(value) ? value : [];
+  const result = [];
+  raw.forEach((entry) => {
+    const key = String(entry || '').trim().toLowerCase();
+    if (!allowed.has(key) || result.includes(key)) return;
+    result.push(key);
+  });
+  return result;
+}
+
+/**
+ * Normalisiert departmentAssignments aus Firestore (Keys = Mitarbeiternamen).
+ * @param {unknown} raw
+ * @returns {Record<string, { departments: string[], canOrder: boolean }>}
+ */
+export function normalizeDepartmentAssignments(raw) {
+  const result = {};
+  if (!raw || typeof raw !== 'object') return result;
+  Object.entries(raw).forEach(([name, entry]) => {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return;
+    const departments = normalizeDepartmentList(
+      entry && typeof entry === 'object' ? entry.departments : entry,
+    );
+    const canOrder = entry && typeof entry === 'object'
+      ? entry.canOrder === true
+      : false;
+    result[cleanName] = { departments, canOrder };
+  });
+  return result;
+}
+
+export function getDepartmentAssignments() {
+  return JSON.parse(JSON.stringify(configState.departmentAssignments));
+}
+
+/**
+ * Zuständigkeiten für einen Mitarbeiternamen (Soft-Lock / Anzeigename).
+ * @param {string} employeeName
+ * @returns {{ departments: string[], canOrder: boolean }}
+ */
+export function getEmployeeDepartmentAssignment(employeeName) {
+  const key = departmentLookupKey(employeeName);
+  if (!key) return { departments: [], canOrder: false };
+  const match = Object.entries(configState.departmentAssignments).find(
+    ([name]) => departmentLookupKey(name) === key,
+  );
+  if (!match) return { departments: [], canOrder: false };
+  return {
+    departments: [...(match[1].departments || [])],
+    canOrder: match[1].canOrder === true,
+  };
+}
+
+export function employeeHasDepartment(employeeName, department) {
+  const dept = String(department || '').trim().toLowerCase();
+  if (!dept) return false;
+  const assignment = getEmployeeDepartmentAssignment(employeeName);
+  if (dept === 'all') return assignment.departments.length > 0;
+  return assignment.departments.includes(dept);
+}
+
+export function employeeCanResolveSupplyAlerts(employeeName) {
+  const assignment = getEmployeeDepartmentAssignment(employeeName);
+  return assignment.canOrder === true || assignment.departments.length > 0;
+}
+
+/**
+ * Speichert Fachbereiche/canOrder für einen Mitarbeiter in teamDashboard.
+ * @param {string} employeeName
+ * @param {{ departments?: string[], canOrder?: boolean }} patch
+ */
+export async function saveEmployeeDepartmentAssignment(employeeName, patch = {}) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) throw new Error('Mitarbeitername fehlt');
+  if (!configState.tenantId) throw new Error('Mandant fehlt');
+
+  const current = getEmployeeDepartmentAssignment(cleanName);
+  const next = {
+    departments: patch.departments !== undefined
+      ? normalizeDepartmentList(patch.departments)
+      : current.departments,
+    canOrder: patch.canOrder !== undefined ? patch.canOrder === true : current.canOrder,
+  };
+
+  const assignments = { ...configState.departmentAssignments };
+  // Alten Key mit anderer Schreibweise ersetzen
+  Object.keys(assignments).forEach((key) => {
+    if (departmentLookupKey(key) === departmentLookupKey(cleanName)) {
+      delete assignments[key];
+    }
+  });
+  if (next.departments.length || next.canOrder) {
+    assignments[cleanName] = next;
+  }
+
+  const firebase = configState.getFirebase();
+  const payload = {
+    departmentAssignments: assignments,
+    tenantId: configState.tenantId,
+    updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
+    updatedBy: getActiveEmployeeNameLocal() || 'Admin',
+  };
+
+  await writeFirestoreDocOrQueue({
+    collectionPath: 'settings',
+    docId: TEAM_CONFIG_DOC_ID,
+    op: 'update',
+    onlineData: payload,
+    queueData: { ...payload, updatedAt: new Date().toISOString() },
+    offlineMessage: 'Zuständigkeiten werden synchronisiert.',
+  });
+
+  configState.departmentAssignments = assignments;
+  window.dispatchEvent(new CustomEvent('charculogic:team-config-changed', {
+    detail: {
+      employees: configState.employees,
+      groups: configState.groups,
+      departmentAssignments: assignments,
+    },
+  }));
+  return next;
 }
 
 /** Kanonischer Firestore-Pfad: tenants/{tenantId}/settings/teamDashboard */
@@ -247,14 +388,22 @@ function normalizeConfig(data) {
   return {
     employees: employees.length ? employees : [...tenantDefaults.employees],
     groups,
+    departmentAssignments: normalizeDepartmentAssignments(data?.departmentAssignments),
   };
 }
 
 function applyConfig(config) {
   configState.employees = config.employees;
   configState.groups = config.groups;
+  configState.departmentAssignments = normalizeDepartmentAssignments(config.departmentAssignments);
   syncEmployeeDatalist();
-  window.dispatchEvent(new CustomEvent('charculogic:team-config-changed', { detail: config }));
+  window.dispatchEvent(new CustomEvent('charculogic:team-config-changed', {
+    detail: {
+      employees: configState.employees,
+      groups: configState.groups,
+      departmentAssignments: configState.departmentAssignments,
+    },
+  }));
 }
 
 function syncEmployeeDatalist() {
@@ -328,10 +477,15 @@ function renderAdminTeamConfigForm(config = null) {
   const panel = document.getElementById('admin-team-config-panel');
   if (!panel || panel.classList.contains('hidden')) return;
 
-  const rawCfg = config || { employees: configState.employees, groups: configState.groups };
+  const rawCfg = config || {
+    employees: configState.employees,
+    groups: configState.groups,
+    departmentAssignments: configState.departmentAssignments,
+  };
   const cfg = normalizeConfig({
     employees: rawCfg.employees,
     groups: rawCfg.groups,
+    departmentAssignments: rawCfg.departmentAssignments,
   });
   const employeesEl = document.getElementById('team-config-employees');
   if (employeesEl && document.activeElement !== employeesEl) {
@@ -438,6 +592,7 @@ async function saveTeamConfigFromAdmin() {
     const payload = {
       employees: config.employees,
       groups: config.groups,
+      departmentAssignments: configState.departmentAssignments,
       tenantId: configState.tenantId,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedBy: getActiveEmployeeNameLocal() || 'Admin',
@@ -636,6 +791,7 @@ export function refreshAdminTeamConfigPanel() {
   const cfg = normalizeConfig({
     employees: configState.employees,
     groups: configState.groups,
+    departmentAssignments: configState.departmentAssignments,
   });
   applyConfig(cfg);
   renderAdminTeamConfigForm(cfg);

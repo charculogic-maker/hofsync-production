@@ -127,6 +127,7 @@ import {
   syncPushRegistration,
   verifyEmployeePin,
 } from './team-config.js';
+import { initQuickAlertModule } from './quick-alert.js';
 import { initGermanDateInputs } from './date-input.js';
 import { initDiscountMatrixUi } from './discount-matrix-ui.js';
 import {
@@ -5052,7 +5053,7 @@ let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-24T15:45:00+02:00';
+const APP_RELEASE_AT = '2026-10-25T16:30:00+02:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -5548,6 +5549,10 @@ async function bootstrapAuthenticatedApp() {
     getFirebase: () => firebase,
   });
   initTeamConfigModule(db, {
+    tenantId,
+    getFirebase: () => firebase,
+  });
+  initQuickAlertModule(db, {
     tenantId,
     getFirebase: () => firebase,
   });

@@ -25,6 +25,7 @@ import {
   sampleMhdItem,
   sampleProductMaster,
   sampleSettings,
+  sampleSupplyAlert,
   sampleTask,
   sampleTraceabilityRecord,
   sampleWareneingangDelivery,
@@ -985,6 +986,12 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const employee = authContext(testEnv, 'sh-employee-settings', TENANTS.STEVES_HOF, 'employee');
       const helper = authContext(testEnv, 'sh-helper-settings', TENANTS.STEVES_HOF, 'helper');
       await expectFirestoreAllow(admin, settingsPath, 'update', settings);
+      await expectFirestoreAllow(admin, settingsPath, 'update', {
+        ...settings,
+        departmentAssignments: {
+          Stephie: { departments: ['metzgerei'], canOrder: true },
+        },
+      });
       await expectFirestoreDeny(employee, settingsPath, 'update', settings);
       await expectFirestoreDeny(helper, settingsPath, 'update', settings);
       await expectFirestoreDeny(employee, settingsPath, 'delete');
@@ -1004,6 +1011,47 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(employee, employeePath, 'read');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'read');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'update', { displayName: 'Inject' });
+    });
+  });
+
+  describe('TEST CASE 9a: supply_alerts Schnellmelde', () => {
+    const alertPath = tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-weisswurst-1');
+
+    beforeEach(async () => {
+      await seedFirestoreDoc(testEnv, alertPath, sampleSupplyAlert(TENANTS.STEVES_HOF));
+    });
+
+    it('allows employee create/read/status-update and denies helper create', async () => {
+      const employee = authContext(testEnv, 'sh-employee-supply', TENANTS.STEVES_HOF, 'employee');
+      const helper = authContext(testEnv, 'sh-helper-supply', TENANTS.STEVES_HOF, 'helper');
+      const foreign = authContext(testEnv, 'tf-employee-supply', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreAllow(employee, alertPath, 'read');
+      await expectFirestoreAllow(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-new-1'),
+        'create',
+        sampleSupplyAlert(TENANTS.STEVES_HOF, { title: 'Wurstdärme knapp', category: 'metzgerei_bedarf' }),
+      );
+      await expectFirestoreAllow(employee, alertPath, 'update', {
+        status: 'ordered',
+        resolvedBy: 'Finn',
+        resolvedAt: '2026-10-25T13:00:00.000Z',
+        updatedAt: '2026-10-25T13:00:00.000Z',
+      });
+      await expectFirestoreDeny(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-helper'),
+        'create',
+        sampleSupplyAlert(TENANTS.STEVES_HOF),
+      );
+      await expectFirestoreDeny(foreign, alertPath, 'read');
+      await expectFirestoreDeny(
+        foreign,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-cross'),
+        'create',
+        sampleSupplyAlert(TENANTS.STEVES_HOF),
+      );
     });
   });
 

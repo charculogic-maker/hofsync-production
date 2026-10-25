@@ -248,6 +248,22 @@ export function sampleSettings(tenantId) {
   };
 }
 
+export function sampleSupplyAlert(tenantId, overrides = {}) {
+  return {
+    title: 'Weißwurst SB-Theke leer',
+    category: 'sb_theke',
+    departmentTarget: 'metzgerei',
+    urgency: 'sofort',
+    status: 'open',
+    createdBy: 'Stephie',
+    createdAt: '2026-10-25T12:00:00.000Z',
+    resolvedBy: null,
+    resolvedAt: null,
+    tenantId,
+    ...overrides,
+  };
+}
+
 /** Production path is bulletin/ (singular) – see web/teamboard.js */
 export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;
