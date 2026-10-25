@@ -1016,6 +1016,26 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
     });
 
+    it('allows teamDashboard set that includes sync.js createdAt', async () => {
+      const path = tenantDocPath(TENANTS.STEVES_HOF, 'settings', 'teamDashboard');
+      await seedFirestoreDoc(testEnv, path, {
+        ...sampleSettings(TENANTS.STEVES_HOF),
+        source: 'restored-from-profile-defaultTeam',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      const admin = authContext(testEnv, 'sh-admin-settings-createdat', TENANTS.STEVES_HOF, 'admin');
+      // writeFirestoreDocOrQueue(op:'set') injects createdAt — must stay allowlisted.
+      await expectFirestoreAllow(admin, path, 'create', {
+        ...sampleSettings(TENANTS.STEVES_HOF),
+        departmentAssignments: {
+          Paddy: { departments: ['metzgerei'], canOrder: true },
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: 'Admin',
+      });
+    });
+
     it('allows tenant admin to read own employees profiles and denies cross-tenant', async () => {
       const employeePath = tenantDocPath(TENANTS.STEVES_HOF, 'employees', 'paddy');
       await seedFirestoreDoc(testEnv, employeePath, {
