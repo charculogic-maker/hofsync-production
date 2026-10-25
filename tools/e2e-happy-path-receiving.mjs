@@ -11,11 +11,15 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const BASE = process.env.BASE_URL || 'https://hofsync-charculogic.vercel.app';
 const EMP = process.env.HOFSYNC_EMPLOYEE_EMAIL || 'bestellung@steveshof-hofladen.de';
 const EMP_PW = process.env.HOFSYNC_EMPLOYEE_PASSWORD || '';
 const ART = process.env.ART_DIR || '/opt/cursor/artifacts/c1-e2e-happy-path';
+/** When "1", serve local web/catalog-ean.js (verify fix while Vercel is rate-limited). */
+const INJECT_LOCAL_CATALOG = process.env.INJECT_LOCAL_CATALOG === '1';
+const LOCAL_CATALOG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../web/catalog-ean.js');
 
 function mhdIn3Days() {
   const d = new Date(Date.now() + 3 * 86400000);
@@ -61,8 +65,26 @@ async function main() {
     headless: true,
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   });
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'de-DE' });
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    locale: 'de-DE',
+    // Avoid SW serving a stale catalog-ean.js when verifying a local fix.
+    ...(INJECT_LOCAL_CATALOG ? { serviceWorkers: 'block' } : {}),
+  });
+  const page = await context.newPage();
   page.setDefaultTimeout(90000);
+  if (INJECT_LOCAL_CATALOG) {
+    const body = fs.readFileSync(LOCAL_CATALOG, 'utf8');
+    await page.route('**/catalog-ean.js*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/javascript; charset=utf-8',
+        body,
+        headers: { 'cache-control': 'no-store' },
+      });
+    });
+    report.injectLocalCatalog = true;
+  }
   const shot = async (name) => {
     try { await page.screenshot({ path: path.join(ART, name) }); } catch (_) { /* ignore */ }
   };
