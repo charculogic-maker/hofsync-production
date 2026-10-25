@@ -2184,6 +2184,16 @@
               <p class="learn-mode-desc">
                 Etikett fotografieren und LMIV-Herkunft für die Theke hinterlegen. Der Eintrag erscheint danach im Thekenbuch.
               </p>
+              <div id="trace-receiving-link-banner" class="trace-receiving-link-banner" hidden>
+                <div class="trace-receiving-link-copy">
+                  <strong>Offene LMIV aus Wareneingang</strong>
+                  <span>Charge / LOT: <span id="trace-receiving-link-lot">—</span></span>
+                </div>
+                <div class="trace-receiving-link-actions">
+                  <button type="button" class="btn btn-primary" id="trace-receiving-link-apply">Übernehmen</button>
+                  <button type="button" class="btn btn-secondary" id="trace-receiving-link-dismiss">Verwerfen</button>
+                </div>
+              </div>
 
               <input type="file" id="trace-photo-input" class="visually-hidden" accept="image/*" capture="environment">
               <button type="button" class="btn btn-primary btn-receiving-photo" id="trace-photo-btn">

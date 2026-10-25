@@ -14150,6 +14150,37 @@ body.role-firebase-auth #team-login-card {
   position: relative;
 }
 
+.trace-receiving-link-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.trace-receiving-link-banner[hidden] {
+  display: none !important;
+}
+
+.trace-receiving-link-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: #1e3a8a;
+}
+
+.trace-receiving-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .trace-label-scan-overlay {
   position: absolute;
   inset: 0;

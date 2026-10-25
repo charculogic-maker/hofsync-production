@@ -55,7 +55,11 @@ import {
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { logReceivingTemperatureCheck } from './haccp.js';
-import { prefillChargenDokuFromReceiving } from './traceability.js';
+import {
+  clearLmivPendingLocal,
+  prefillChargenDokuFromReceiving,
+  stashLmivPendingFromReceiving,
+} from './traceability.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
@@ -709,6 +713,7 @@ const DELIVERY_WRITE_FIELDS = new Set([
   'fotos', 'items', 'itemCount',
   'source', 'scannedBy', 'tenantId',
   'createdAt', 'updatedAt',
+  'lmivPending', 'lmivPendingAt', 'chargenDokuId',
 ]);
 
 function pickFirestoreFields(payload, allowedFields) {
@@ -8636,6 +8641,11 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
   if (head.temperatur != null && !Number.isNaN(head.temperatur)) {
     record.temperatur = head.temperatur;
   }
+  const headLot = String(head.lot || head.chargenNummer || '').trim();
+  if (headLot) {
+    record.lot = headLot;
+    record.chargenNummer = headLot;
+  }
   if (meisterOverrideReason) {
     record.meisterOverrideReason = meisterOverrideReason;
   }
@@ -8778,6 +8788,9 @@ function buildDeliveryBundlePayload(head, {
     if (head.schlachtgewichtKg != null && Number.isFinite(head.schlachtgewichtKg)) {
       bundle.schlachtgewichtKg = head.schlachtgewichtKg;
     }
+  }
+  // LOT/Charge: immer mitschreiben, wenn Kopf oder Fallback einen Wert liefert.
+  if (!bundle.lot) {
     const lot = head.lot || resolveMetzTraceLot({
       category: metzCategory,
       ohrmarke: head.ohrmarke,
@@ -9291,18 +9304,49 @@ async function bridgeMetzgereiDeliveryToDocs({
     || head?.ohrmarke
     || '',
   ).trim();
+  const deliveryId = String(deliveryBundle?.id || '').trim();
+  const animalType = inferAnimalTypeFromMetzCategory(
+    deliveryBundle?.warenKategorieMetzgerei || head?.warenKategorieMetzgerei || '',
+  );
   const choice = await showLmivHerkunftBridgePrompt({
     lotNumber,
     supplier: deliveryBundle?.lieferant || head?.supplier || '',
   });
-  if (choice !== 'go') return;
+  if (choice !== 'go') {
+    stashLmivPendingFromReceiving({
+      deliveryId,
+      lotNumber,
+      animalType,
+      tenantId: deliveryBundle?.tenantId || resolveMhdTenantId() || '',
+    });
+    if (deliveryId && mhdState.db) {
+      try {
+        await mhdState.db.collection('tenants').doc(resolveMhdTenantId() || deliveryBundle.tenantId)
+          .collection('wareneingang_lieferungen').doc(deliveryId)
+          .set({
+            lmivPending: true,
+            lmivPendingAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+      } catch (err) {
+        console.warn('[CharcuLogic Wareneingang] LMIV-Pending konnte nicht gespeichert werden:', err);
+      }
+    }
+    window.showToast?.(
+      lotNumber
+        ? `LMIV später: Charge ${lotNumber} liegt unter Herkunft bereit.`
+        : 'LMIV später unter Herkunft nachholen.',
+      'info',
+    );
+    return;
+  }
 
+  clearLmivPendingLocal(deliveryId);
   window.showTab?.('chargenDoku');
   prefillChargenDokuFromReceiving({
     lotNumber,
-    animalType: inferAnimalTypeFromMetzCategory(
-      deliveryBundle?.warenKategorieMetzgerei || head?.warenKategorieMetzgerei || '',
-    ),
+    animalType,
+    lieferungId: deliveryId,
   });
   window.showToast?.('Charge übernommen – bitte Öko-Kontrollstelle und Foto ergänzen.', 'info');
 }
