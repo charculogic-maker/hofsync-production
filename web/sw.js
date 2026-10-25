@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-pickup-tbd-v1';
+const CACHE_NAME = 'charculogic-v20261025-ready-fields-clarity-v4';
 
-const CACHE_SCHEMA = 'p0-packtisch-pickup-tbd-oct2026';
-/** Release – Packtisch: Abholdatum optional / Anfrage noch absprechen */
-const RELEASED_AT = '2026-10-25T12:30:00+02:00';
+const CACHE_SCHEMA = 'p0-packtisch-ready-fields-clarity-oct2026';
+/** Release – Abholbereit-Felder klar + Pickup-TBD (merge main) */
+const RELEASED_AT = '2026-10-25T12:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

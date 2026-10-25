@@ -47,7 +47,7 @@ describe('Packtisch Abholdatum noch absprechen', () => {
   });
 
   it('hebt Cache für Pickup-TBD an', () => {
-    assert.match(sw, /charculogic-v20261025-pickup-tbd-v1/);
-    assert.match(html, /20261025-pickup-tbd/);
+    assert.match(sw, /charculogic-v20261025-ready-fields-clarity-v4/);
+    assert.match(html, /20261025-ready-fields-clarity-v4/);
   });
 });
