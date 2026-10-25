@@ -310,6 +310,7 @@ function buildCustomerSignal(order, profile = {}, options = {}) {
   const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
   const shop = shopLabel(profile);
   const operator = operatorLabel(order);
+  const pickupNote = String(order?.customerPickupNote || '').trim();
   const isUpdate = options.kind === 'update';
   const lead = isUpdate
     ? `Hallo ${customerName}, kurzes Update zu deinem Genuss-Paket:`
@@ -317,23 +318,34 @@ function buildCustomerSignal(order, profile = {}, options = {}) {
   const htmlLead = isUpdate
     ? `<p>Hallo ${escapeHtml(customerName)},</p>\n<p>kurzes <strong>Update</strong> zu deinem Genuss-Paket:</p>`
     : `<p>Hallo ${escapeHtml(customerName)},</p>\n<p>dein <strong>Genuss-Paket</strong> ist fertig gepackt!</p>`;
-  const message = [
+  const messageParts = [
     lead,
     `${operator} hat alles frisch vorbereitet.`,
     `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
     `Du kannst es ${pickupWindow} abholen.`,
-    'Wir freuen uns auf dich!',
-    `Dein ${shop}-Team.`,
-  ].join(' ');
+  ];
+  if (pickupNote) {
+    messageParts.push(`Hinweis zur Abholung: ${pickupNote}`);
+  }
+  messageParts.push('Wir freuen uns auf dich!', `Dein ${shop}-Team.`);
+  const message = messageParts.join(' ');
 
-  const htmlMessage = [
+  const htmlParts = [
     htmlLead,
     `<p>${escapeHtml(operator)} hat alles frisch vorbereitet.</p>`,
     `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
     `<p>Du kannst es ${escapeHtml(pickupWindow)} abholen.</p>`,
-    '<p>Wir freuen uns auf dich!</p>',
-    `<p>Dein ${escapeHtml(shop)}-Team.</p>`,
-  ].join('\n');
+  ];
+  if (pickupNote) {
+    htmlParts.push(
+      `<div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#f3efe6;border:1px solid #d9cbb3;">`
+      + `<p style="margin:0 0 4px;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#6b5e4e;">Hinweis zur Abholung</p>`
+      + `<p style="margin:0;font-size:16px;font-weight:700;color:#2f2a24;">${escapeHtml(pickupNote)}</p>`
+      + `</div>`,
+    );
+  }
+  htmlParts.push('<p>Wir freuen uns auf dich!</p>', `<p>Dein ${escapeHtml(shop)}-Team.</p>`);
+  const htmlMessage = htmlParts.join('\n');
 
   return {
     to: {
