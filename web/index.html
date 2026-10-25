@@ -307,7 +307,7 @@
         traceability: { page: 'page-chargen-doku', title: 'Doku' },
         kitchen: { page: 'page-kitchen', title: 'Prod.' },
         avery: { page: 'page-avery', title: 'Etiketten' },
-        knowledge: { page: 'page-knowledge', title: 'Wissen' },
+        knowledge: { page: 'page-knowledge', title: 'Theken-Auskunft' },
         bedarf: { page: 'page-bedarf', title: 'Bedarf' },
       };
       const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
@@ -402,8 +402,9 @@
               <div class="admin-header-dropdown-menu" id="admin-header-dropdown-menu" role="menu" hidden>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="thekenbuch">📒 Thekenklade</button>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Wissen</button>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Theken-Auskunft</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro · Chargen</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="retterbox">📦 Retter-Box</button>
                 <a
                   class="admin-header-dropdown-item admin-header-dropdown-item--dashboard nav-mobile-admin-link"
                   id="admin-header-dashboard-link"
@@ -577,6 +578,8 @@
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="users">Zur Nutzerverwaltung</button>
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu meinem Betrieb</button>
                     <a class="dev-dashboard-action-btn" id="dev-dashboard-jump-thekenbuch" href="/#thekenbuch">Zur Thekenklade</a>
+                    <a class="dev-dashboard-action-btn" id="dev-dashboard-jump-retterbox" href="/#retter-box">Zur Retter-Box</a>
+                    <a class="dev-dashboard-action-btn" id="dev-dashboard-jump-theken-auskunft" href="/#theken-auskunft">Zur Theken-Auskunft</a>
                   </div>
                 </section>
               </div>
@@ -3280,10 +3283,13 @@
             <div class="admin-nav-accordion" id="admin-nav-accordion">
               <div class="admin-nav-popover" id="admin-nav-popover" hidden role="menu" aria-label="Admin-Menü">
                 <button type="button" class="admin-nav-option" id="tab-batches" data-tab="batches" role="menuitem">
-                  🏢 Büro &amp; Chargen
+                  🏢 Büro · Chargen
+                </button>
+                <button type="button" class="admin-nav-option" id="tab-retterbox" data-admin-module="retterbox" role="menuitem">
+                  📦 Retter-Box
                 </button>
                 <a class="admin-nav-option" id="nav-admin-dashboard" href="/dev-dashboard" data-nav-admin="dashboard" role="menuitem">
-                  🛠️ Dev-Dashboard
+                  🛠️ Verwaltung
                 </a>
               </div>
               <button
