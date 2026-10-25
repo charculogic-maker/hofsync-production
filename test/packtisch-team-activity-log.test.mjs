@@ -25,13 +25,17 @@ describe('Packtisch Team-Aktivitätsprotokoll', () => {
     assert.match(js, /type:\s*'team_activity'/);
     assert.match(js, /act_\$\{Date\.now\(\)\}|act_\$\{Date\.now/);
     assert.match(js, /data-order-action="add_activity"/);
+    assert.match(js, /data-order-action="toggle_activity"/);
+    assert.match(js, /Notiz hinzufügen/);
+    assert.match(js, /expandedActivityOrderId/);
     assert.match(js, /data-activity-chip/);
     assert.match(js, /activities:\s*nextActivities/);
     assert.match(css, /\.order-team-activity\b/);
+    assert.match(css, /\.packtisch-activity-toggle\b/);
   });
 
   it('hebt Cache für Activity-Log an', () => {
-    assert.match(sw, /charculogic-v20261025-ready-fields-clarity-v2/);
-    assert.match(html, /20261025-ready-fields-clarity-v2|order-activity-log|ready-fields-clarity/);
+    assert.match(sw, /charculogic-v20261025-ready-fields-clarity-v3/);
+    assert.match(html, /20261025-ready-fields-clarity-v3|ready-fields-clarity|packtisch-ux|optional-ready-price|order-activity-log|packtisch-notes|wholesaler-ordered/);
   });
 });
