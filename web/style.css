@@ -9774,6 +9774,48 @@ body.dev-dashboard-view .app-version-badge--footer {
   gap: 8px;
 }
 
+.customer-order-ready-panel {
+  margin: 4px 0 2px;
+  padding: 12px 12px 14px;
+  border-radius: var(--border-radius-sm);
+  background: color-mix(in srgb, #c47a3a 10%, var(--surface-secondary));
+  border: 1px solid color-mix(in srgb, #c47a3a 38%, var(--border-subtle));
+  border-left: 4px solid #a85f28;
+  display: grid;
+  gap: 8px;
+}
+
+.customer-order-ready-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b3f18;
+}
+
+.customer-order-ready-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.customer-order-ready-hint strong {
+  color: #6b3f18;
+}
+
+[data-theme="dark"] .customer-order-ready-panel {
+  background: color-mix(in srgb, #d49a62 14%, var(--surface-secondary));
+  border-color: color-mix(in srgb, #d49a62 40%, var(--border-subtle));
+  border-left-color: #d49a62;
+}
+
+[data-theme="dark"] .customer-order-ready-title,
+[data-theme="dark"] .customer-order-ready-hint strong {
+  color: #f0d2b0;
+}
+
 .customer-order-lines-head {
   display: flex;
   align-items: center;
