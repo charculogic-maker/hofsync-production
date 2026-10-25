@@ -34,7 +34,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
   it('wires quick-alert module into app boot and service worker cache', () => {
     expect(appJs).to.match(/import \{ initQuickAlertModule \} from '\.\/quick-alert\.js'/);
     expect(appJs).to.match(/initQuickAlertModule\(db/);
-    expect(swJs).to.match(/charculogic-v20261025-supply-alerts-v3/);
+    expect(swJs).to.match(/charculogic-v20261025-supply-alerts-v4/);
     expect(swJs).to.match(/\/quick-alert\.js/);
   });
 
@@ -42,12 +42,16 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(quickAlertJs).to.not.match(/export const QUICK_ALERT_CATEGORIES/);
     expect(quickAlertJs).to.match(/SUPPLY_CATALOG_COLLECTION\s*=\s*'supply_catalog'/);
     expect(quickAlertJs).to.match(/QUICK_BUTTON_MIN_USES\s*=\s*2/);
+    expect(quickAlertJs).to.match(/eigene_produktion/);
+    expect(quickAlertJs).to.match(/zukauf_fleisch_wurst/);
+    expect(quickAlertJs).to.match(/zukauf_laden/);
     expect(quickAlertJs).to.match(/export function catalogKeyFromLabel/);
     expect(quickAlertJs).to.match(/export async function upsertSupplyCatalogFromReport/);
     expect(quickAlertJs).to.match(/export function getQuickButtonCatalogItems/);
     expect(quickAlertJs).to.match(/export function renderSupplyCatalogAdminTable/);
     expect(quickAlertJs).to.match(/Bedarf gemeldet!/);
     expect(devDashboardJs).to.match(/renderSupplyCatalogAdminTable/);
+    expect(indexHtml).to.match(/id="quick-alert-category"/);
   });
 
   it('stores departmentAssignments on teamDashboard with canOrder', () => {

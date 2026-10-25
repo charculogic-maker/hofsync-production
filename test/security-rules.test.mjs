@@ -1024,7 +1024,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await seedFirestoreDoc(testEnv, catalogPath, sampleSupplyCatalogItem(TENANTS.STEVES_HOF));
     });
 
-    it('allows employee create/read/status-update and denies helper create', async () => {
+    it('allows employee and helper create/read/status-update; denies cross-tenant', async () => {
       const employee = authContext(testEnv, 'sh-employee-supply', TENANTS.STEVES_HOF, 'employee');
       const helper = authContext(testEnv, 'sh-helper-supply', TENANTS.STEVES_HOF, 'helper');
       const foreign = authContext(testEnv, 'tf-employee-supply', TENANTS.TORFABRIK, 'employee');
@@ -1036,8 +1036,18 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'create',
         sampleSupplyAlert(TENANTS.STEVES_HOF, {
           title: 'Wurstdärme knapp',
-          category: 'sonstig',
+          category: 'eigene_produktion',
           catalogItemId: 'wurstdarme_knapp',
+        }),
+      );
+      await expectFirestoreAllow(
+        helper,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-helper'),
+        'create',
+        sampleSupplyAlert(TENANTS.STEVES_HOF, {
+          title: 'Salsiccia',
+          category: 'zukauf_fleisch_wurst',
+          createdBy: 'Aushilfe',
         }),
       );
       await expectFirestoreAllow(employee, alertPath, 'update', {
@@ -1046,12 +1056,6 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         resolvedAt: '2026-10-25T13:00:00.000Z',
         updatedAt: '2026-10-25T13:00:00.000Z',
       });
-      await expectFirestoreDeny(
-        helper,
-        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-helper'),
-        'create',
-        sampleSupplyAlert(TENANTS.STEVES_HOF),
-      );
       await expectFirestoreDeny(foreign, alertPath, 'read');
       await expectFirestoreDeny(
         foreign,

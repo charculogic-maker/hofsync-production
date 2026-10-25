@@ -19,18 +19,31 @@ const OPEN_STATUSES = new Set(['open', 'in_progress', 'ordered']);
 /** Ab dieser Nutzungshäufigkeit erscheint ein Stammdaten-Eintrag als Schnell-Button. */
 export const QUICK_BUTTON_MIN_USES = 2;
 
+/**
+ * Bedarfs-Art (Herkunft) – steuert auch, wer die Meldung sieht (departmentTarget).
+ */
 export const SUPPLY_CATEGORY_OPTIONS = [
-  { value: 'sonstig', label: 'Sonstiges' },
-  { value: 'sb_theke', label: 'SB-Theke' },
-  { value: 'metzgerei_bedarf', label: 'Metzgerei' },
-  { value: 'verbrauchsmaterial', label: 'Laden / Hygiene' },
+  { value: 'eigene_produktion', label: 'Eigene Produktion', departmentTarget: 'metzgerei' },
+  { value: 'zukauf_fleisch_wurst', label: 'Zukauf Fleisch & Wurst', departmentTarget: 'metzgerei' },
+  { value: 'zukauf_laden', label: 'Zukauf Laden', departmentTarget: 'laden' },
+  { value: 'verbrauchsmaterial', label: 'Verbrauch / Hygiene', departmentTarget: 'laden' },
+  { value: 'sb_theke', label: 'SB-Theke nachfüllen', departmentTarget: 'metzgerei' },
+  { value: 'sonstig', label: 'Sonstiges', departmentTarget: 'all' },
 ];
 
 export const SUPPLY_DEPARTMENT_OPTIONS = [
   { value: 'all', label: 'Alle' },
   { value: 'metzgerei', label: 'Metzgerei' },
   { value: 'laden', label: 'Laden' },
+  { value: 'einkauf', label: 'Einkauf' },
 ];
+
+export const SUPPLY_CATEGORY_VALUES = SUPPLY_CATEGORY_OPTIONS.map((entry) => entry.value);
+
+export function departmentTargetForCategory(category) {
+  const match = SUPPLY_CATEGORY_OPTIONS.find((entry) => entry.value === category);
+  return match?.departmentTarget || 'all';
+}
 
 const alertState = {
   db: null,
@@ -124,6 +137,10 @@ function alertVisibleForEmployee(alert, employeeName) {
     return assignment.departments.includes('laden')
       || assignment.departments.includes('einkauf');
   }
+  if (target === 'einkauf') {
+    return assignment.departments.includes('einkauf')
+      || assignment.departments.includes('laden');
+  }
   return employeeHasDepartment(employeeName, target);
 }
 
@@ -137,6 +154,10 @@ function canResolveAlert(alert, employeeName) {
   if (target === 'laden') {
     return assignment.departments.includes('laden')
       || assignment.departments.includes('einkauf');
+  }
+  if (target === 'einkauf') {
+    return assignment.departments.includes('einkauf')
+      || assignment.departments.includes('laden');
   }
   return true;
 }
@@ -366,24 +387,22 @@ export async function createSupplyAlert({
 
   let catalogId = String(catalogItemId || '').trim();
   let resolvedCategory = String(category || 'sonstig');
-  let resolvedDepartment = String(departmentTarget || 'all');
+  if (!SUPPLY_CATEGORY_VALUES.includes(resolvedCategory)) {
+    resolvedCategory = 'sonstig';
+  }
+  let resolvedDepartment = String(
+    departmentTarget || departmentTargetForCategory(resolvedCategory) || 'all',
+  );
   let resolvedUrgency = String(urgency || 'nachbestellen');
 
-  if (seedCatalog) {
-    const catalogItem = await upsertSupplyCatalogFromReport({
-      label: cleanTitle,
-      category: resolvedCategory,
-      departmentTarget: resolvedDepartment,
-      urgency: resolvedUrgency,
-      employee,
-    });
-    catalogId = catalogItem.id;
-    resolvedCategory = catalogItem.category;
-    resolvedDepartment = catalogItem.departmentTarget;
-    resolvedUrgency = catalogItem.urgencyDefault;
+  const firebase = alertState.getFirebase();
+  const docId = `sa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // Zuerst Bedarf speichern – Stammdaten danach (darf die Meldung nicht blockieren).
+  if (seedCatalog && !catalogId) {
+    catalogId = catalogKeyFromLabel(cleanTitle);
   }
 
-  const firebase = alertState.getFirebase();
   const payload = {
     title: cleanTitle.slice(0, 160),
     category: resolvedCategory,
@@ -398,7 +417,6 @@ export async function createSupplyAlert({
     tenantId: alertState.tenantId,
   };
 
-  const docId = `sa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   await writeFirestoreDocOrQueue({
     collectionPath: SUPPLY_ALERTS_COLLECTION,
     docId,
@@ -407,6 +425,22 @@ export async function createSupplyAlert({
     queueData: { ...payload, createdAt: new Date().toISOString() },
     offlineMessage: 'Bedarf wird synchronisiert, sobald WLAN verfügbar ist.',
   });
+
+  if (seedCatalog) {
+    try {
+      const catalogItem = await upsertSupplyCatalogFromReport({
+        label: cleanTitle,
+        category: resolvedCategory,
+        departmentTarget: resolvedDepartment,
+        urgency: resolvedUrgency,
+        employee,
+      });
+      catalogId = catalogItem.id;
+    } catch (catalogErr) {
+      console.warn('[QuickAlert] Stammdaten nachziehen fehlgeschlagen:', catalogErr);
+    }
+  }
+
   return { alertId: docId, catalogItemId: catalogId };
 }
 
@@ -522,11 +556,19 @@ async function handleQuickAlertTap(button) {
   } catch (err) {
     console.error('[QuickAlert] Melden fehlgeschlagen:', err);
     if (!String(err?.message || '').includes('Kein aktiver')) {
-      window.showToast?.('Bedarf konnte nicht gemeldet werden. Bitte noch einmal tippen.', 'error');
+      window.showToast?.(mapSupplyWriteError(err), 'error');
     }
   } finally {
     button.disabled = false;
   }
+}
+
+function mapSupplyWriteError(err) {
+  const raw = `${err?.code || ''} ${err?.message || ''}`.toLowerCase();
+  if (raw.includes('permission') || raw.includes('insufficient')) {
+    return 'Speichern noch nicht freigeschaltet. Bitte App aktualisieren oder kurz im Büro Bescheid geben.';
+  }
+  return 'Bedarf konnte nicht gemeldet werden. Bitte noch einmal tippen.';
 }
 
 async function handleFreetextSubmit() {
@@ -538,14 +580,14 @@ async function handleFreetextSubmit() {
     return;
   }
   const urgency = document.getElementById('quick-alert-urgency')?.value || 'nachbestellen';
-  const department = document.getElementById('quick-alert-department')?.value || 'all';
+  const category = document.getElementById('quick-alert-category')?.value || 'sonstig';
   const btn = document.getElementById('quick-alert-freetext-submit');
   if (btn) btn.disabled = true;
   try {
     await createSupplyAlert({
       title,
-      category: 'sonstig',
-      departmentTarget: department,
+      category,
+      departmentTarget: departmentTargetForCategory(category),
       urgency,
       seedCatalog: true,
     });
@@ -554,7 +596,7 @@ async function handleFreetextSubmit() {
   } catch (err) {
     console.error('[QuickAlert] Freitext fehlgeschlagen:', err);
     if (!String(err?.message || '').includes('Kein aktiver')) {
-      window.showToast?.('Bedarf konnte nicht gemeldet werden. Bitte noch einmal tippen.', 'error');
+      window.showToast?.(mapSupplyWriteError(err), 'error');
     }
   } finally {
     if (btn) btn.disabled = false;
