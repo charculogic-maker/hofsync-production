@@ -24,7 +24,7 @@ describe('Packtisch Edit-Modal Viewport', () => {
 
   it('hat Edit-Modal-Markup und Cache-Buster', () => {
     assert.match(html, /id="order-edit-modal"/);
-    assert.match(html, /20261025-calendar-week|ready-fields-clarity|pickup-tbd|packtisch-ux|optional-ready-price|order-activity-log|ready-fields-clarity|packtisch-notes|wholesaler-ordered/);
+    assert.match(html, /20261025-month-calendar|ready-fields-clarity|pickup-tbd|packtisch-ux|optional-ready-price|order-activity-log|ready-fields-clarity|packtisch-notes|wholesaler-ordered/);
   });
 
   it('stellt Positionen und Änderungsnotiz oben im Edit-Modal bereit', () => {

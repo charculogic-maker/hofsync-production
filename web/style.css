@@ -10194,15 +10194,14 @@ body.dev-dashboard-view .app-version-badge--footer {
   margin-bottom: 10px;
 }
 
-.packtisch-calendar-mode,
 .packtisch-calendar-nav {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
 }
 
-.packtisch-calendar-mode .btn.is-active,
 .packtisch-calendar-day.is-selected {
   background: var(--primary-color);
   color: var(--text-on-primary, #fff);

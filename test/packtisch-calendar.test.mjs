@@ -15,10 +15,11 @@ describe('Packtisch Kalender & Abholbereit-Nachbearbeitung', () => {
     assert.match(indexHtml, /Abholung <strong>ab<\/strong>/);
   });
 
-  it('rendert Kalender-Modi und Tagesfilter', () => {
+  it('rendert Monatskalender und Tagesfilter', () => {
     assert.match(customerOrders, /function renderPacktischCalendar/);
-    assert.match(customerOrders, /data-calendar-mode="2weeks"/);
-    assert.match(customerOrders, /data-calendar-mode="month"/);
+    assert.doesNotMatch(customerOrders, /data-calendar-mode="2weeks"/);
+    assert.doesNotMatch(customerOrders, /2 Wochen/);
+    assert.match(customerOrders, /buildPacktischCalendarDays\(\s*['"]month['"]/);
     assert.match(customerOrders, /data-calendar-day=/);
     assert.match(customerOrders, /selectedPickupDayIso/);
   });

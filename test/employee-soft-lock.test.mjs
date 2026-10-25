@@ -115,7 +115,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for admin-idle / soft-lock scope fix', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-calendar-week-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-month-calendar-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
