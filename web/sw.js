@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-we-herkunft-lot-v1';
+const CACHE_NAME = 'charculogic-v20261025-admin-laden-wording-v1';
 
-const CACHE_SCHEMA = 'p0-we-herkunft-lot-oct2026';
-/** Release – Wareneingang↔Herkunft LOT-Kopplung */
-const RELEASED_AT = '2026-10-26T01:00:00+02:00';
+const CACHE_SCHEMA = 'p0-admin-laden-wording-oct2026';
+/** Release – Admin-Menü Laden-Wording (Büro / Retter-Box / Theken-Auskunft) */
+const RELEASED_AT = '2026-10-26T02:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

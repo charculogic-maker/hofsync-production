@@ -1032,7 +1032,13 @@ function bindAdminNavAccordion() {
   popover.querySelector('#tab-batches')?.addEventListener('click', (event) => {
     event.preventDefault();
     closeAdminNavAccordion();
-    window.showTab?.('batches');
+    void openAdminDropdownModule('buero');
+  });
+
+  popover.querySelector('#tab-retterbox')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    closeAdminNavAccordion();
+    void openAdminDropdownModule('retterbox');
   });
 
   popover.querySelector('#nav-admin-dashboard')?.addEventListener('click', () => {
@@ -1228,6 +1234,12 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
       thekenbuch: hasModule('chargenDoku', branding),
       knowledge: isTenantModuleEnabled('knowledge', branding),
       buero: isTenantModuleEnabled('buero', branding),
+      retterbox: isTenantModuleEnabled('buero', branding)
+        && (
+          branding?.modules?.retterBox === true
+          || window.BRANDING?.modules?.retterBox === true
+          || isTenantModuleEnabled('retterBox', branding)
+        ),
     };
     document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
       const moduleKey = item.getAttribute('data-admin-module');
@@ -3335,12 +3347,41 @@ function applyChargenDokuDeepLink() {
   return opened;
 }
 
+/** Deep-Links für Laden-Admin-Bereiche (⚙️-Menü / Dashboard-Sprungmarken). */
+function resolveAdminModuleFromHash(hash = window.location.hash) {
+  const clean = String(hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!clean) return '';
+  if (clean === 'retter-box' || clean === 'retterbox' || clean === 'retter') return 'retterbox';
+  if (
+    clean === 'theken-auskunft'
+    || clean === 'thekenauskunft'
+    || clean === 'wissen'
+    || clean === 'knowledge'
+  ) {
+    return 'knowledge';
+  }
+  if (clean === 'buero' || clean === 'büro' || clean === 'office' || clean === 'chargen-archiv') {
+    return 'buero';
+  }
+  return '';
+}
+
+function applyAdminModuleDeepLink() {
+  const moduleKey = resolveAdminModuleFromHash();
+  if (!moduleKey) return false;
+  void openAdminDropdownModule(moduleKey);
+  return true;
+}
+
 /** Genau einmal nach Auth: initialen Tab setzen. Daten-Loader dürfen das nicht aufrufen. */
 let __initialTabShown = false;
 function showInitialTab() {
   if (__initialTabShown) return getCurrentActiveTabId();
   __initialTabShown = true;
   if (applyChargenDokuDeepLink()) return 'chargenDoku';
+  if (applyAdminModuleDeepLink()) {
+    return resolveAdminModuleFromHash() === 'knowledge' ? 'knowledge' : 'batches';
+  }
   return showPreferredStartTab();
 }
 
@@ -3348,6 +3389,7 @@ if (typeof window !== 'undefined' && !window.__hofsyncChargenHashBound) {
   window.__hofsyncChargenHashBound = true;
   window.addEventListener('hashchange', () => {
     if (resolveChargenDokuPanelFromHash()) applyChargenDokuDeepLink();
+    else if (resolveAdminModuleFromHash()) applyAdminModuleDeepLink();
   });
 }
 
@@ -4523,6 +4565,20 @@ window.addEventListener('resize', () => {
 // iOS: Speichern-Balken ("X Änderungen ausstehend") oberhalb der virtuellen Tastatur halten
 bindMhdSaveBarViewportSync();
 
+function focusRetterBoxPanel() {
+  const panel = document.getElementById('retter-box-panel');
+  if (!panel || panel.hidden || panel.classList.contains('hidden')) return;
+  try {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (_) {
+    panel.scrollIntoView(true);
+  }
+  try {
+    panel.setAttribute('tabindex', '-1');
+    panel.focus({ preventScroll: true });
+  } catch (_) { /* ignore */ }
+}
+
 const ADMIN_DROPDOWN_MODULES = {
   haccp: {
     tabId: 'haccp',
@@ -4541,8 +4597,8 @@ const ADMIN_DROPDOWN_MODULES = {
   knowledge: {
     tabId: 'knowledge',
     pageId: 'page-knowledge',
-    title: 'Wissen',
-    subtitle: 'Theken-Auskunft & Fleisch-Lexikon',
+    title: 'Theken-Auskunft',
+    subtitle: 'Allergene, Zutaten & Fleisch-Lexikon',
     activate: () => {
       activateCounterRecipesTab();
       activateCutGlossaryTab();
@@ -4551,12 +4607,26 @@ const ADMIN_DROPDOWN_MODULES = {
   buero: {
     tabId: 'batches',
     pageId: 'page-batches',
-    title: 'Chargen-Archiv',
-    subtitle: 'Büro & Rückverfolgung',
+    title: 'Büro · Chargen',
+    subtitle: 'Archiv, Leitstand & Stammdaten',
     activate: () => {
       activateBatchesTab();
       refreshTeamboardAdminPanel();
       refreshAdminTeamConfigPanel();
+      refreshRetterBoxModule();
+    },
+  },
+  retterbox: {
+    tabId: 'batches',
+    pageId: 'page-batches',
+    title: 'Retter-Box',
+    subtitle: 'Vormerken, Drucken, Verkaufen',
+    activate: () => {
+      activateBatchesTab();
+      refreshTeamboardAdminPanel();
+      refreshAdminTeamConfigPanel();
+      refreshRetterBoxModule();
+      window.setTimeout(() => focusRetterBoxPanel(), 80);
     },
   },
 };
@@ -4883,13 +4953,13 @@ tabs.forEach(tab => {
       headerTitle.textContent = "HACCP-Protokoll";
     } else if (targetTab === 'knowledge') {
       showPage('page-knowledge');
-      headerTitle.textContent = "Wissen";
+      headerTitle.textContent = "Theken-Auskunft";
     } else if (targetTab === 'cuts') {
       showPage('page-knowledge');
-      headerTitle.textContent = "Wissen";
+      headerTitle.textContent = "Theken-Auskunft";
     } else if (targetTab === 'batches') {
       showPage('page-batches');
-      headerTitle.textContent = "Chargen-Archiv";
+      headerTitle.textContent = "Büro · Chargen";
     } else {
       showPage('page-teamboard');
       headerTitle.textContent = "Schwarzes Brett";
@@ -5534,7 +5604,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-we-herkunft-lot')
+    navigator.serviceWorker.register('./sw.js?v=20261025-admin-laden-wording')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
