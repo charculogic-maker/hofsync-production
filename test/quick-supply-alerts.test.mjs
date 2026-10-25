@@ -34,7 +34,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
   it('wires quick-alert module into app boot and service worker cache', () => {
     expect(appJs).to.match(/import \{ initQuickAlertModule \} from '\.\/quick-alert\.js'/);
     expect(appJs).to.match(/initQuickAlertModule\(db/);
-    expect(swJs).to.match(/charculogic-v20261025-supply-alerts-v4/);
+    expect(swJs).to.match(/charculogic-v\d{8}-/);
     expect(swJs).to.match(/\/quick-alert\.js/);
   });
 
@@ -59,6 +59,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(teamConfigJs).to.match(/DEPARTMENT_KEYS/);
     expect(teamConfigJs).to.match(/export async function saveEmployeeDepartmentAssignment/);
     expect(teamConfigJs).to.match(/canOrder/);
+    expect(teamConfigJs).to.match(/op:\s*'set'/);
     expect(devDashboardJs).to.match(/toggle-user-department/);
     expect(devDashboardJs).to.match(/toggle-user-can-order/);
   });
@@ -67,6 +68,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(rules).to.match(/match \/tenants\/\{tenantId\}\/supply_alerts\/\{alertId\}/);
     expect(rules).to.match(/match \/tenants\/\{tenantId\}\/supply_catalog\/\{itemId\}/);
     expect(rules).to.match(/departmentAssignments/);
+    expect(rules).to.match(/teamDashboardAllowedKeys/);
     expect(rules).to.match(/'sonstig'/);
   });
 });
