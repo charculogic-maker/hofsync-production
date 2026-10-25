@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-supply-alerts-v2';
+const CACHE_NAME = 'charculogic-v20261025-supply-alerts-v3';
 
-const CACHE_SCHEMA = 'p0-supply-catalog-oct2026';
-/** Release – Freitext-Bedarf + wachsende Stammdaten-Buttons */
-const RELEASED_AT = '2026-10-25T16:55:00+02:00';
+const CACHE_SCHEMA = 'p0-supply-start-cta-oct2026';
+/** Release – Bedarf melden CTA auf Start */
+const RELEASED_AT = '2026-10-25T17:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

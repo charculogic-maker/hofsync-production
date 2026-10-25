@@ -9087,6 +9087,46 @@ body.dev-dashboard-view .app-version-badge--footer {
   margin-bottom: 14px;
 }
 
+.supply-alert-start-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid color-mix(in srgb, var(--primary-color, #5d4037) 22%, transparent);
+  background: color-mix(in srgb, var(--primary-color, #5d4037) 8%, var(--surface-color, #fff));
+}
+
+.supply-alert-start-cta-text .task-token-heading {
+  margin: 0;
+}
+
+.supply-alert-start-cta-text .customer-order-hint {
+  margin: 4px 0 0;
+}
+
+.supply-alert-start-cta-btn {
+  min-height: 48px;
+  width: 100%;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+@media (min-width: 720px) {
+  .supply-alert-start-cta {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .supply-alert-start-cta-btn {
+    width: auto;
+    min-width: 200px;
+    flex-shrink: 0;
+  }
+}
+
 .team-login-card {
   border-radius: var(--border-radius-md);
   border: 1px solid var(--border-subtle);
