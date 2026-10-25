@@ -101,12 +101,11 @@ function callable(options, handler) {
     return impl(req, res);
   };
   func.run = handler;
+  // Nur callableTrigger — httpsTrigger parallel lehnt firebase-tools≥13 mit
+  // „Multiple triggers defined“ ab. Invoker bleibt in onCall(options) zur Laufzeit.
   func.__endpoint = {
     ...baseEndpoint(callableOptions),
     callableTrigger: {},
-    httpsTrigger: {
-      invoker: ['public'],
-    },
   };
   return func;
 }
