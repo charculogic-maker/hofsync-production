@@ -269,7 +269,7 @@ export function sampleSupplyCatalogItem(tenantId, overrides = {}) {
   return {
     label: 'Siegelrandbeutel',
     normalizedKey: 'siegelrandbeutel',
-    category: 'metzgerei_bedarf',
+    category: 'eigene_produktion',
     departmentTarget: 'metzgerei',
     urgencyDefault: 'nachbestellen',
     useCount: 1,

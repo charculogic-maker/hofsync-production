@@ -823,18 +823,33 @@ service cloud.firestore {
         );
     }
 
+    function isValidSupplyCategory(value) {
+      return value in [
+        'eigene_produktion',
+        'zukauf_fleisch_wurst',
+        'zukauf_laden',
+        'verbrauchsmaterial',
+        'sb_theke',
+        'metzgerei_bedarf', // Legacy
+        'sonstig'
+      ];
+    }
+
+    function isValidSupplyDepartment(value) {
+      return value in ['metzgerei', 'laden', 'einkauf', 'all'];
+    }
+
     match /tenants/{tenantId}/supply_alerts/{alertId} {
       allow read: if isTenantUser(tenantId);
 
-      allow create: if isEmployeeOrAdmin(tenantId)
+      // Wie Chargen-Doku: alle Betriebsrollen inkl. Aushilfe dürfen melden (Wet-Finger).
+      allow create: if isTenantUser(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data.title)
         && isNonEmptyString(request.resource.data.createdBy)
         && request.resource.data.status == 'open'
-        && request.resource.data.category in [
-          'sb_theke', 'metzgerei_bedarf', 'verbrauchsmaterial', 'sonstig'
-        ]
-        && request.resource.data.departmentTarget in ['metzgerei', 'laden', 'all']
+        && isValidSupplyCategory(request.resource.data.category)
+        && isValidSupplyDepartment(request.resource.data.departmentTarget)
         && request.resource.data.urgency in ['sofort', 'nachbestellen']
         && request.resource.data.keys().hasOnly([
           'title', 'category', 'departmentTarget', 'urgency', 'status',
@@ -847,7 +862,7 @@ service cloud.firestore {
           || isNonEmptyString(request.resource.data.catalogItemId)
         );
 
-      allow update: if isEmployeeOrAdmin(tenantId)
+      allow update: if isTenantUser(tenantId)
         && request.resource.data.tenantId == tenantId
         && (
           isAdmin(tenantId)
@@ -864,7 +879,7 @@ service cloud.firestore {
     match /tenants/{tenantId}/supply_catalog/{itemId} {
       allow read: if isTenantUser(tenantId);
 
-      allow create, update: if isEmployeeOrAdmin(tenantId)
+      allow create, update: if isTenantUser(tenantId)
         && request.resource.data.tenantId == tenantId
         && isNonEmptyString(request.resource.data.label)
         && request.resource.data.label.size() <= 120
@@ -873,10 +888,8 @@ service cloud.firestore {
           'useCount', 'quickEnabled', 'active', 'tenantId', 'updatedAt', 'lastUsedAt',
           'lastUsedBy', 'createdAt', 'createdBy'
         ])
-        && request.resource.data.category in [
-          'sb_theke', 'metzgerei_bedarf', 'verbrauchsmaterial', 'sonstig'
-        ]
-        && request.resource.data.departmentTarget in ['metzgerei', 'laden', 'all']
+        && isValidSupplyCategory(request.resource.data.category)
+        && isValidSupplyDepartment(request.resource.data.departmentTarget)
         && request.resource.data.urgencyDefault in ['sofort', 'nachbestellen']
         && request.resource.data.useCount is int
         && request.resource.data.useCount >= 0
