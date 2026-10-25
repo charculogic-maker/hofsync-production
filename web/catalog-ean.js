@@ -76,28 +76,64 @@ function indexCatalogEanDoc(data, docId, byArticle, byName, ambiguousNames) {
   });
 }
 
+// #region agent log
+function agentDbgLog(hypothesisId, location, message, data = {}) {
+  try {
+    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'pre-fix' };
+    const w = typeof window !== 'undefined' ? window : globalThis;
+    w.__agentDebugLog = w.__agentDebugLog || [];
+    w.__agentDebugLog.push(entry);
+    console.log('AGENT_DBG', JSON.stringify(entry));
+  } catch (_) { /* ignore */ }
+}
+// #endregion
+
 /** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
+  // #region agent log
+  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:entry', 'loadCatalogEanIndex start', {});
+  // #endregion
   const byArticle = new Map();
   const byName = new Map();
   const ambiguousNames = new Set();
   try {
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:stammdaten:before', 'before stammdaten.get', {});
+    // #endregion
     const snap = await getTenantCollection('stammdaten').limit(400).get();
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:stammdaten:after', 'after stammdaten.get', { size: snap?.size ?? null });
+    // #endregion
     snap.forEach((doc) => {
       indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
     });
   } catch (err) {
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:stammdaten:error', 'stammdaten.get failed', { message: String(err?.message || err), code: String(err?.code || '') });
+    // #endregion
     console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
   }
   // Manuell gelernte EANs aus dem Wareneingang (product_master).
   try {
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:product_master:before', 'before product_master.get', {});
+    // #endregion
     const snap = await getTenantCollection('product_master').limit(500).get();
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:product_master:after', 'after product_master.get', { size: snap?.size ?? null });
+    // #endregion
     snap.forEach((doc) => {
       indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
     });
   } catch (err) {
+    // #region agent log
+    agentDbgLog('A', 'catalog-ean.js:product_master:error', 'product_master.get failed', { message: String(err?.message || err), code: String(err?.code || '') });
+    // #endregion
     console.warn('[HofSync] product_master für EAN-Abgleich nicht lesbar:', err);
   }
   ambiguousNames.forEach((folded) => byName.delete(folded));
+  // #region agent log
+  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:exit', 'loadCatalogEanIndex done', { byArticle: byArticle.size, byName: byName.size });
+  // #endregion
   return { byArticle, byName };
 }

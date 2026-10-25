@@ -843,6 +843,18 @@ export async function safeServerWrite(collectionPath, payload) {
   }
 }
 
+// #region agent log
+function agentDbgLog(hypothesisId, location, message, data = {}) {
+  try {
+    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'pre-fix' };
+    const w = typeof window !== 'undefined' ? window : globalThis;
+    w.__agentDebugLog = w.__agentDebugLog || [];
+    w.__agentDebugLog.push(entry);
+    console.log('AGENT_DBG', JSON.stringify(entry));
+  } catch (_) { /* ignore */ }
+}
+// #endregion
+
 export async function writeFirestoreDocOrQueue({
   collectionPath,
   docId,
@@ -852,6 +864,15 @@ export async function writeFirestoreDocOrQueue({
   offlineMessage = "Wird automatisch synchronisiert, sobald WLAN verfügbar ist.",
   silentPermissionDenied = false,
 }) {
+  // #region agent log
+  agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:entry', 'write start', {
+    collectionPath: String(collectionPath || ''),
+    docId: String(docId || '').slice(0, 64),
+    op: String(op || ''),
+    online: typeof navigator !== 'undefined' ? navigator.onLine : null,
+    firebaseReady: Boolean(syncContext.isFirebaseReady?.()),
+  });
+  // #endregion
   const db = syncContext.getDatabase();
   if (!collectionPath) throw new Error('Firestore-Ziel fehlt');
   const syncOp = op;
@@ -875,6 +896,9 @@ export async function writeFirestoreDocOrQueue({
     if (!saved) throw new Error('Offline-Queue konnte nicht geschrieben werden');
     window.showToast?.(offlineMessage, 'warning');
     refreshSyncConnectivityUi();
+    // #region agent log
+    agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:queued-offline', 'write queued offline', { path: normalizedCollectionPath });
+    // #endregion
     return 'queued';
   }
 
@@ -903,6 +927,9 @@ export async function writeFirestoreDocOrQueue({
     } else if (isMhdAuditPath(normalizedCollectionPath)) {
       await withTimeout(writeMhdAuditDirect(db, firebase, normalizedCollectionPath, docId, writeOp, onlinePayload));
       refreshSyncConnectivityUi();
+      // #region agent log
+      agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:exit', 'audit written', { path: normalizedCollectionPath });
+      // #endregion
       return 'written';
     } else {
       const ref = tenantFirestoreDocRef(db, collectionPath, docId);
@@ -928,6 +955,9 @@ export async function writeFirestoreDocOrQueue({
         writePromise = ref.set(onlinePayload, { merge: true });
       }
     }
+    // #region agent log
+    agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:await', 'await withTimeout write', { path: normalizedCollectionPath, writeOp });
+    // #endregion
     await withTimeout(writePromise);
 
     if (qaState.active && qaState.teardown) {
@@ -936,8 +966,19 @@ export async function writeFirestoreDocOrQueue({
     }
 
     refreshSyncConnectivityUi();
+    // #region agent log
+    agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:exit', 'write written', { path: normalizedCollectionPath });
+    // #endregion
     return 'written';
   } catch (err) {
+    // #region agent log
+    agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:catch', 'write catch', {
+      path: normalizedCollectionPath,
+      name: String(err?.name || ''),
+      code: String(err?.code || ''),
+      message: String(err?.message || err || '').slice(0, 200),
+    });
+    // #endregion
     if (isMhdAuditPath(normalizedCollectionPath)) {
       console.warn('[CharcuLogic Sync] mhd_audit verworfen, Queue bleibt frei:', docId, err);
       return 'skipped';
@@ -960,6 +1001,9 @@ export async function writeFirestoreDocOrQueue({
     if (!saved) throw err;
     window.showToast?.(offlineMessage, 'warning');
     refreshSyncConnectivityUi();
+    // #region agent log
+    agentDbgLog('B', 'sync.js:writeFirestoreDocOrQueue:queued-error', 'write queued after error', { path: normalizedCollectionPath });
+    // #endregion
     return 'queued';
   }
 }
