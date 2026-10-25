@@ -707,13 +707,76 @@ function readActiveEmployeeName() {
   return String(haccpState.cleaningDoneBy || '').trim();
 }
 
-function renderActiveEmployeeChip() {
-  const employee = readActiveEmployeeName();
-  return `
-    <div class="haccp-employee-chip" aria-live="polite">
-      Aktiver Mitarbeiter: <strong>${escapeHtml(employee || 'Noch nicht gewählt')}</strong>
-    </div>
-  `;
+/**
+ * Mitarbeiter-Anzeige nur noch im Header (#btn-team / Status-Pille).
+ * Content-Chips „Aktiver Mitarbeiter: …“ wurden entfernt (Wet-Finger UX).
+ */
+function renderHaccpOperatorSelector() {
+  const container = document.getElementById('haccp-operator-container');
+  if (container) container.innerHTML = '';
+}
+
+/**
+ * Wareneingang → HACCP: Liefertemperatur als Wareneingangskontrolle persistieren.
+ * Kein zweites Tippen im HACCP-Tab nötig.
+ */
+export async function logReceivingTemperatureCheck({
+  temperature,
+  supplier = '',
+  category = '',
+  deliveryId = '',
+  employee = '',
+  limitC = 7,
+  overrideReason = '',
+} = {}) {
+  const temp = Number(temperature);
+  if (!Number.isFinite(temp)) return null;
+  if (!haccpState.writeOrQueueFirestore) return null;
+
+  const doneBy = String(employee || readActiveEmployeeName() || '').trim() || 'Team';
+  const limit = Number.isFinite(Number(limitC)) ? Number(limitC) : 7;
+  const hasOverride = Boolean(String(overrideReason || '').trim());
+  const status = hasOverride
+    ? 'abweichung_freigabe'
+    : (temp > limit ? 'abweichung' : 'ok');
+  const dateKey = localDateKey();
+  const safeDelivery = String(deliveryId || Date.now().toString(36))
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .slice(0, 48);
+  const docId = ['wareneingang_temp', dateKey, safeDelivery].join('_');
+  const massnahme = hasOverride
+    ? String(overrideReason).trim()
+    : (temp > limit
+      ? `Grenzwert ${limit} °C überschritten`
+      : 'Wareneingangskontrolle OK');
+
+  try {
+    return await saveHaccpLog({
+      docId,
+      logTyp: 'wareneingangskontrolle',
+      type: 'receiving_temperature',
+      doneBy,
+      user: doneBy,
+      deviceName: 'Wareneingangskontrolle',
+      facility: 'Wareneingang',
+      bereich: 'Wareneingang',
+      value: temp,
+      wert: temp,
+      einheit: '°C',
+      unit: '°C',
+      tempMax: limit,
+      sollMax: limit,
+      status,
+      lieferant: String(supplier || '').trim(),
+      warenKategorie: String(category || '').trim(),
+      deliveryId: String(deliveryId || '').trim(),
+      massnahme,
+      source: 'wareneingang',
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic HACCP] Wareneingangs-Temperatur konnte nicht protokolliert werden:', err);
+    return null;
+  }
 }
 
 function haccpDeviceDocId(name) {
@@ -1232,12 +1295,6 @@ function restoreHaccpDraftFields() {
   haccpState.restoreDraftFields(fieldIds);
 }
 
-function renderHaccpOperatorSelector() {
-  const container = document.getElementById('haccp-operator-container');
-  if (!container) return;
-  container.innerHTML = renderActiveEmployeeChip();
-}
-
 function cleaningDoneText(entry, pending) {
   if (entry) {
     const who = entry.user || entry.doneBy;
@@ -1276,7 +1333,6 @@ function renderCleaningChecks() {
       <strong>Reinigung</strong>
       <span>Wir haken nur ab, was heute dran ist oder nach Benutzung erledigt wurde.</span>
     </div>
-    ${renderActiveEmployeeChip()}
     ${groups.length ? `
     <div class="haccp-cleaning-groups">
       ${groups.map((group) => `
@@ -1430,7 +1486,6 @@ function renderTemperatureChecks() {
       <strong>Temperatur-Rundgang</strong>
       <span>Wir tragen die Temperaturen unserer Laden- und Lager-Kühlstellen ein. Ruhetage (z. B. Fleischtheke So–Mi) bleiben ausgeblendet.</span>
     </div>
-    ${renderActiveEmployeeChip()}
     <div class="haccp-temp-groups">
       ${renderManualSections(locked)}
     </div>
