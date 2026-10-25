@@ -290,6 +290,7 @@
         kitchen: { page: 'page-kitchen', title: 'Prod.' },
         avery: { page: 'page-avery', title: 'Etiketten' },
         knowledge: { page: 'page-knowledge', title: 'Wissen' },
+        bedarf: { page: 'page-bedarf', title: 'Bedarf' },
       };
       const preferred = tabId === 'traceability' ? 'chargenDoku' : (tabId || 'chargenDoku');
       const target = pageMap[preferred] || pageMap.chargenDoku || pageMap.mhd;
@@ -443,14 +444,6 @@
         <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
           <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
         </div>
-
-        <div
-          id="supply-alert-banner"
-          class="supply-alert-banner"
-          hidden
-          role="region"
-          aria-label="Offene Bedarfsmeldungen"
-        ></div>
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
@@ -1339,18 +1332,18 @@
 
               <div id="team-inbox-banner-start" class="team-inbox-banner hidden" role="status" aria-live="polite"></div>
 
-              <section class="supply-alert-start-cta" aria-label="Bedarf melden">
+              <section class="supply-alert-start-cta" aria-label="Bedarf öffnen">
                 <div class="supply-alert-start-cta-text">
-                  <h2 class="task-token-heading">Bedarf melden</h2>
+                  <h2 class="task-token-heading">Bedarf</h2>
                   <p class="customer-order-hint">
-                    Was fehlt an der Theke oder im Lager? Kurz eintippen – wir legen die Meldung fürs Team ab.
+                    Melden und offene Bedarfe bearbeiten – in einem eigenen Bereich, ohne die App zu überdecken.
                   </p>
                 </div>
                 <button
                   type="button"
                   class="btn btn-primary supply-alert-start-cta-btn"
                   id="btn-supply-alert-start"
-                >⚡ Bedarf eintragen</button>
+                >⚡ Zum Bedarf</button>
               </section>
 
               <div class="task-token-section team-inbox-section" id="team-inbox-start-section">
@@ -1422,6 +1415,33 @@
                   <div id="team-info-feed" class="team-info-feed"></div>
                 </div>
               </div>
+            </section>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SCREEN: BEDARF (interne Meldungen)             -->
+          <!-- ============================================== -->
+          <div class="page" id="page-bedarf" hidden style="display:none;">
+            <section class="bedarf-module" aria-label="Bedarfsmeldungen">
+              <header class="bedarf-module-head">
+                <div class="bedarf-module-head-text">
+                  <h2 class="task-token-heading">Bedarfsmeldungen</h2>
+                  <p class="customer-order-hint">
+                    Offene Meldungen für deinen Bereich. Neu melden per Freitext.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  id="btn-bedarf-melden"
+                >Bedarf melden</button>
+              </header>
+              <p class="bedarf-module-status" id="bedarf-module-status" aria-live="polite"></p>
+              <ul
+                class="supply-alert-list bedarf-module-list"
+                id="supply-alert-inbox"
+                aria-label="Offene Bedarfsmeldungen"
+              ></ul>
             </section>
           </div>
 
