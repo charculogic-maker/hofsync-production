@@ -58,7 +58,7 @@ describe('Packtisch Lagerort & Großhändler-Datalist', () => {
   });
 
   it('hebt Service-Worker-Cache für Packtisch-Notizen an', () => {
-    assert.match(sw, /charculogic-v20261025-packtisch-notes-v1/);
-    assert.match(html, /packtisch-notes/);
+    assert.match(sw, /charculogic-v20261025-order-activity-log-v1/);
+    assert.match(html, /order-activity-log|packtisch-notes/);
   });
 });

@@ -26,6 +26,6 @@ describe('Packtisch Großhändler-Vermerk', () => {
     assert.match(js, /order-line-wholesaler/);
     assert.match(js, /Bei Großhändler bestellt/);
     assert.match(css, /\.order-line-wholesaler\b/);
-    assert.match(html, /packtisch-notes|wholesaler-ordered/);
+    assert.match(html, /order-activity-log|packtisch-notes|wholesaler-ordered/);
   });
 });
