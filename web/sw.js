@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-phase-a-ux-v1';
+const CACHE_NAME = 'charculogic-v20261025-mein-betrieb-split-v1';
 
-const CACHE_SCHEMA = 'p0-phase-a-ux-hardening-oct2026';
-/** Release – Phase A: Soft-Lock Timeout, MHD Retry, Banner, HACCP Deep-Link */
-const RELEASED_AT = '2026-10-25T20:15:00+02:00';
+const CACHE_SCHEMA = 'p0-mein-betrieb-split-oct2026';
+/** Release – Mein Betrieb in Unterseiten (Stammdaten/Module/Hygiene/Geräte/SMTP) */
+const RELEASED_AT = '2026-10-25T21:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

@@ -651,14 +651,29 @@
               </div>
 
               <div id="dev-dashboard-view-settings" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-settings" hidden>
+                <div class="dev-dashboard-betrieb-header">
+                  <h2 class="dev-dashboard-section-title">Mein Betrieb</h2>
+                  <p class="dev-dashboard-intro">
+                    Stammdaten, Module, Hygiene, Geräte und E-Mail – jeweils auf einer eigenen Unterseite.
+                  </p>
+                  <nav class="dev-dashboard-subnav" role="tablist" aria-label="Mein Betrieb Bereiche">
+                    <button type="button" class="dev-dashboard-subnav-btn is-active" role="tab" id="betrieb-tab-stammdaten" data-betrieb-section="stammdaten" aria-selected="true" aria-controls="betrieb-panel-stammdaten">Stammdaten</button>
+                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-module" data-betrieb-section="module" aria-selected="false" aria-controls="betrieb-panel-module">Module &amp; Rollen</button>
+                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-hygiene" data-betrieb-section="hygiene" aria-selected="false" aria-controls="betrieb-panel-hygiene">Hygiene</button>
+                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-geraete" data-betrieb-section="geraete" aria-selected="false" aria-controls="betrieb-panel-geraete">Geräte</button>
+                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-smtp" data-betrieb-section="smtp" aria-selected="false" aria-controls="betrieb-panel-smtp">SMTP</button>
+                  </nav>
+                </div>
+
                 <div class="dev-dashboard-grid">
-                  <section class="dev-dashboard-panel" aria-label="Betriebseinstellungen">
-                    <h2 class="dev-dashboard-section-title">Mein Betrieb</h2>
-                    <p class="dev-dashboard-intro">
-                      Firmenname, Logo und Übersicht der freigeschalteten Module für den ausgewählten Betrieb.
-                    </p>
-                    <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
-                      <label class="dev-dashboard-field" for="dev-dashboard-settings-name">
+                  <div id="betrieb-panel-stammdaten" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-stammdaten" data-betrieb-panel="stammdaten">
+                    <section class="dev-dashboard-panel" aria-label="Stammdaten">
+                      <h2 class="dev-dashboard-section-title">Stammdaten</h2>
+                      <p class="dev-dashboard-intro">
+                        Firmenname, Logo und Laden-Einstellungen für den ausgewählten Betrieb.
+                      </p>
+                      <form id="dev-dashboard-settings-form" class="dev-dashboard-settings-form">
+<label class="dev-dashboard-field" for="dev-dashboard-settings-name">
                         <span>Firmenname</span>
                         <input id="dev-dashboard-settings-name" type="text" maxlength="120" autocomplete="organization" required>
                       </label>
@@ -673,69 +688,7 @@
                           <p class="dev-dashboard-intro">Vorschau für Kopfzeile und Verwaltung</p>
                         </div>
                       </div>
-                      <fieldset class="dev-dashboard-smtp-fieldset" aria-label="E-Mail-Server für Kundenbenachrichtigungen">
-                        <legend>E-Mail-Server (SMTP) für Kundenbenachrichtigungen</legend>
-                        <p class="dev-dashboard-intro">
-                          Eigene Zugangsdaten für Abhol-Nachrichten an Kundinnen und Kunden.
-                          Leer lassen, wenn die Plattform-Standard-Mail genutzt werden soll.
-                        </p>
-                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-from">
-                          <span>Absender-E-Mail</span>
-                          <input id="dev-dashboard-smtp-from" name="smtpFromEmail" type="text" maxlength="200"
-                            placeholder='z. B. Hofladen &lt;info@hof.de&gt;' autocomplete="off">
-                        </label>
-                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-host">
-                          <span>SMTP Host</span>
-                          <input id="dev-dashboard-smtp-host" name="smtpHost" type="text" maxlength="200"
-                            placeholder="z. B. smtp.gmail.com" autocomplete="off">
-                        </label>
-                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-port">
-                          <span>SMTP Port</span>
-                          <input id="dev-dashboard-smtp-port" name="smtpPort" type="text" maxlength="10"
-                            placeholder="z. B. 587" inputmode="numeric" autocomplete="off">
-                        </label>
-                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-user">
-                          <span>SMTP Benutzer</span>
-                          <input id="dev-dashboard-smtp-user" name="smtpUser" type="text" maxlength="200"
-                            placeholder="z. B. info@hof.de" autocomplete="off">
-                        </label>
-                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-pass">
-                          <span>SMTP Passwort</span>
-                          <input id="dev-dashboard-smtp-pass" name="smtpPass" type="password" maxlength="200"
-                            placeholder="Leer = bestehendes Passwort behalten" autocomplete="new-password">
-                        </label>
-                      </fieldset>
-                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
-                        <legend>Aktive Module</legend>
-                        <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
-                          Nur Anzeige. Freischaltungen nimmt die Plattform-Verwaltung unter „Plattform &amp; Mandanten“ vor.
-                        </p>
-                        <div
-                          class="dev-dashboard-module-badges"
-                          id="dev-dashboard-betrieb-modules-list"
-                          role="list"
-                          aria-live="polite"
-                        ></div>
-                      </fieldset>
-                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-role-modules">
-                        <legend>Module je Rolle</legend>
-                        <p class="dev-dashboard-intro" id="dev-dashboard-role-modules-hint">
-                          Welche Bereiche Admin, Mitarbeiter und Aushilfe standardmäßig sehen.
-                          Einzelne Nutzer können darunter weiter eingeschränkt werden.
-                        </p>
-                        <div
-                          class="dev-dashboard-role-modules-grid"
-                          id="dev-dashboard-role-modules-grid"
-                          aria-live="polite"
-                        ></div>
-                        <div class="dev-dashboard-form-actions">
-                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-role-modules-save">
-                            Rollen-Module speichern
-                          </button>
-                        </div>
-                        <p class="dev-dashboard-employee-status" id="dev-dashboard-role-modules-status" aria-live="polite"></p>
-                      </fieldset>
-                      <fieldset class="dev-dashboard-permissions-fieldset">
+                                              <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>MHD-Karten-Aktionen</legend>
                         <p class="dev-dashboard-intro">
                           Zusätzliche Buttons in der MHD-Karte auf diesem Laden-iPhone ein- oder ausblenden. Standard: aus.
@@ -759,12 +712,13 @@
                           </label>
                         </div>
                       </fieldset>
-                      <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
-                      <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
-                    </form>
-                  </section>
+                      
+                        <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
+                        <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
+                      </form>
+                    </section>
 
-                  <section
+<section
                     class="dev-dashboard-panel"
                     id="dev-dashboard-supply-catalog"
                     aria-label="Bedarfs-Stammdaten"
@@ -792,7 +746,8 @@
                     </div>
                   </section>
 
-                  <section
+                  
+<section
                     class="dev-dashboard-panel"
                     id="dev-dashboard-discount-matrix"
                     aria-label="MHD-Rabattstaffel"
@@ -830,15 +785,140 @@
                     </div>
                   </section>
 
-                  <section class="dev-dashboard-panel" id="dev-dashboard-haccp-setup" aria-label="HACCP und Hygiene Setup">
-                    <h2 class="dev-dashboard-section-title">HACCP &amp; Hygiene Setup</h2>
-                    <p class="dev-dashboard-intro">
-                      Temperatur-Messpunkte und Reinigungsaufgaben für das Laden-iPhone verwalten.
-                      Im Laden werden nur noch Messwerte und Abhakungen erfasst.
-                    </p>
+                                    </div>
 
-                    <div class="dev-dashboard-haccp-grid">
-                      <div class="dev-dashboard-haccp-panel" aria-label="Temperatur-Messpunkte verwalten">
+                  <div id="betrieb-panel-module" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-module" data-betrieb-panel="module" hidden>
+                    <section class="dev-dashboard-panel" aria-label="Module und Rollen">
+                      <h2 class="dev-dashboard-section-title">Module &amp; Rollen</h2>
+                      <p class="dev-dashboard-intro">
+                        Freigeschaltete Bereiche und Standardrechte je Rolle.
+                      </p>
+                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-betrieb-modules">
+                        <legend>Aktive Module</legend>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-betrieb-modules-hint">
+                          Nur Anzeige. Freischaltungen nimmt die Plattform-Verwaltung unter „Plattform &amp; Mandanten“ vor.
+                        </p>
+                        <div
+                          class="dev-dashboard-module-badges"
+                          id="dev-dashboard-betrieb-modules-list"
+                          role="list"
+                          aria-live="polite"
+                        ></div>
+                      </fieldset>
+                      
+                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-role-modules">
+                        <legend>Module je Rolle</legend>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-role-modules-hint">
+                          Welche Bereiche Admin, Mitarbeiter und Aushilfe standardmäßig sehen.
+                          Einzelne Nutzer können darunter weiter eingeschränkt werden.
+                        </p>
+                        <div
+                          class="dev-dashboard-role-modules-grid"
+                          id="dev-dashboard-role-modules-grid"
+                          aria-live="polite"
+                        ></div>
+                        <div class="dev-dashboard-form-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-role-modules-save">
+                            Rollen-Module speichern
+                          </button>
+                        </div>
+                        <p class="dev-dashboard-employee-status" id="dev-dashboard-role-modules-status" aria-live="polite"></p>
+                      </fieldset>
+                      
+                    </section>
+                  </div>
+
+                  <div id="betrieb-panel-hygiene" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-hygiene" data-betrieb-panel="hygiene" hidden>
+                    <section class="dev-dashboard-panel" id="dev-dashboard-hygiene-setup" aria-label="Hygiene und Reinigung">
+                      <h2 class="dev-dashboard-section-title">Hygiene &amp; Reinigung</h2>
+                      <p class="dev-dashboard-intro">
+                        Reinigungsaufgaben für das Laden-iPhone verwalten. Temperatur-Messpunkte liegen unter „Geräte“.
+                      </p>
+                      <div class="dev-dashboard-haccp-grid">
+                        <div class="dev-dashboard-haccp-panel" aria-label="Reinigungs-Aufgaben verwalten">
+                        <h3 class="dev-dashboard-subsection-title">Reinigungs-Aufgaben verwalten</h3>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-haccp-tasks-status" aria-live="polite">
+                          Liste wird geladen…
+                        </p>
+                        <div class="dev-dashboard-haccp-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-seed-tasks">
+                            Standard-Reinigungsaufgaben anlegen
+                          </button>
+                        </div>
+                        <div class="dev-dashboard-table-wrap">
+                          <table class="dev-dashboard-table" aria-label="Reinigungsaufgaben">
+                            <thead>
+                              <tr>
+                                <th scope="col">Aufgabe</th>
+                                <th scope="col">Kategorie</th>
+                                <th scope="col">Sortierung</th>
+                                <th scope="col">Produktion</th>
+                                <th scope="col">Aktionen</th>
+                              </tr>
+                            </thead>
+                            <tbody id="dev-dashboard-haccp-tasks-body"></tbody>
+                          </table>
+                        </div>
+                        <form id="dev-dashboard-haccp-task-form" class="dev-dashboard-haccp-form">
+                          <input type="hidden" id="dev-dashboard-haccp-task-edit-id" value="">
+                          <h4 class="dev-dashboard-haccp-form-title" id="dev-dashboard-haccp-task-form-title">Neue Aufgabe anlegen</h4>
+                          <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-name">
+                            <span>Name / Beschreibung</span>
+                            <input id="dev-dashboard-haccp-task-name" type="text" maxlength="120" required autocomplete="off">
+                          </label>
+                          <div class="dev-dashboard-haccp-form-row">
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-category">
+                              <span>Kategorie</span>
+                              <select id="dev-dashboard-haccp-task-category">
+                                <option value="Täglich">Täglich</option>
+                                <option value="Nach Nutzung">Nach Nutzung</option>
+                                <option value="Wöchentlich">Wöchentlich</option>
+                              </select>
+                            </label>
+                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-sort">
+                              <span>Sortiernummer</span>
+                              <input id="dev-dashboard-haccp-task-sort" type="number" step="1" value="100" inputmode="numeric">
+                            </label>
+                          </div>
+                          <label
+                            class="dev-dashboard-field"
+                            for="dev-dashboard-haccp-task-day"
+                            id="dev-dashboard-haccp-task-day-wrap"
+                            hidden
+                          >
+                            <span>Wochentag</span>
+                            <select id="dev-dashboard-haccp-task-day" aria-label="Wochentag für wöchentliche Aufgabe">
+                              <option value="1">Montag</option>
+                              <option value="2">Dienstag</option>
+                              <option value="3">Mittwoch</option>
+                              <option value="4">Donnerstag</option>
+                              <option value="5">Freitag</option>
+                              <option value="6">Samstag</option>
+                              <option value="0">Sonntag</option>
+                            </select>
+                          </label>
+                          <label class="dev-dashboard-toggle" for="dev-dashboard-haccp-task-production">
+                            <input id="dev-dashboard-haccp-task-production" type="checkbox">
+                            <span>Nur an Produktionstagen</span>
+                          </label>
+                          <div class="dev-dashboard-haccp-form-actions">
+                            <button type="submit" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-task-submit">Aufgabe speichern</button>
+                            <button type="button" class="dev-dashboard-secondary-btn" id="dev-dashboard-haccp-task-cancel" hidden>Abbrechen</button>
+                          </div>
+                        </form>
+                      </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div id="betrieb-panel-geraete" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-geraete" data-betrieb-panel="geraete" hidden>
+                    <section class="dev-dashboard-panel" id="dev-dashboard-haccp-setup" aria-label="HACCP Geräte und Messpunkte">
+                      <h2 class="dev-dashboard-section-title">Geräte &amp; Messpunkte</h2>
+                      <p class="dev-dashboard-intro">
+                        Temperatur-Messpunkte für den HACCP-Rundgang. Reinigungsaufgaben liegen unter „Hygiene“.
+                      </p>
+                      <div class="dev-dashboard-haccp-grid">
+                        <div class="dev-dashboard-haccp-panel" aria-label="Temperatur-Messpunkte verwalten">
                         <h3 class="dev-dashboard-subsection-title">Temperatur-Messpunkte verwalten</h3>
                         <p class="dev-dashboard-intro" id="dev-dashboard-haccp-devices-status" aria-live="polite">
                           Liste wird geladen…
@@ -917,80 +997,55 @@
                         </form>
                       </div>
 
-                      <div class="dev-dashboard-haccp-panel" aria-label="Reinigungs-Aufgaben verwalten">
-                        <h3 class="dev-dashboard-subsection-title">Reinigungs-Aufgaben verwalten</h3>
-                        <p class="dev-dashboard-intro" id="dev-dashboard-haccp-tasks-status" aria-live="polite">
-                          Liste wird geladen…
+                                            </div>
+                    </section>
+                  </div>
+
+                  <div id="betrieb-panel-smtp" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-smtp" data-betrieb-panel="smtp" hidden>
+                    <section class="dev-dashboard-panel" aria-label="SMTP E-Mail">
+                      <h2 class="dev-dashboard-section-title">E-Mail (SMTP)</h2>
+                      <p class="dev-dashboard-intro">
+                        Eigene Zugangsdaten für Abhol-Nachrichten an Kundinnen und Kunden.
+                      </p>
+                      <form id="dev-dashboard-smtp-form" class="dev-dashboard-settings-form">
+                        <fieldset class="dev-dashboard-smtp-fieldset" aria-label="E-Mail-Server für Kundenbenachrichtigungen">
+                        <legend>E-Mail-Server (SMTP) für Kundenbenachrichtigungen</legend>
+                        <p class="dev-dashboard-intro">
+                          Eigene Zugangsdaten für Abhol-Nachrichten an Kundinnen und Kunden.
+                          Leer lassen, wenn die Plattform-Standard-Mail genutzt werden soll.
                         </p>
-                        <div class="dev-dashboard-haccp-actions">
-                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-seed-tasks">
-                            Standard-Reinigungsaufgaben anlegen
-                          </button>
-                        </div>
-                        <div class="dev-dashboard-table-wrap">
-                          <table class="dev-dashboard-table" aria-label="Reinigungsaufgaben">
-                            <thead>
-                              <tr>
-                                <th scope="col">Aufgabe</th>
-                                <th scope="col">Kategorie</th>
-                                <th scope="col">Sortierung</th>
-                                <th scope="col">Produktion</th>
-                                <th scope="col">Aktionen</th>
-                              </tr>
-                            </thead>
-                            <tbody id="dev-dashboard-haccp-tasks-body"></tbody>
-                          </table>
-                        </div>
-                        <form id="dev-dashboard-haccp-task-form" class="dev-dashboard-haccp-form">
-                          <input type="hidden" id="dev-dashboard-haccp-task-edit-id" value="">
-                          <h4 class="dev-dashboard-haccp-form-title" id="dev-dashboard-haccp-task-form-title">Neue Aufgabe anlegen</h4>
-                          <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-name">
-                            <span>Name / Beschreibung</span>
-                            <input id="dev-dashboard-haccp-task-name" type="text" maxlength="120" required autocomplete="off">
-                          </label>
-                          <div class="dev-dashboard-haccp-form-row">
-                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-category">
-                              <span>Kategorie</span>
-                              <select id="dev-dashboard-haccp-task-category">
-                                <option value="Täglich">Täglich</option>
-                                <option value="Nach Nutzung">Nach Nutzung</option>
-                                <option value="Wöchentlich">Wöchentlich</option>
-                              </select>
-                            </label>
-                            <label class="dev-dashboard-field" for="dev-dashboard-haccp-task-sort">
-                              <span>Sortiernummer</span>
-                              <input id="dev-dashboard-haccp-task-sort" type="number" step="1" value="100" inputmode="numeric">
-                            </label>
-                          </div>
-                          <label
-                            class="dev-dashboard-field"
-                            for="dev-dashboard-haccp-task-day"
-                            id="dev-dashboard-haccp-task-day-wrap"
-                            hidden
-                          >
-                            <span>Wochentag</span>
-                            <select id="dev-dashboard-haccp-task-day" aria-label="Wochentag für wöchentliche Aufgabe">
-                              <option value="1">Montag</option>
-                              <option value="2">Dienstag</option>
-                              <option value="3">Mittwoch</option>
-                              <option value="4">Donnerstag</option>
-                              <option value="5">Freitag</option>
-                              <option value="6">Samstag</option>
-                              <option value="0">Sonntag</option>
-                            </select>
-                          </label>
-                          <label class="dev-dashboard-toggle" for="dev-dashboard-haccp-task-production">
-                            <input id="dev-dashboard-haccp-task-production" type="checkbox">
-                            <span>Nur an Produktionstagen</span>
-                          </label>
-                          <div class="dev-dashboard-haccp-form-actions">
-                            <button type="submit" class="dev-dashboard-submit-btn" id="dev-dashboard-haccp-task-submit">Aufgabe speichern</button>
-                            <button type="button" class="dev-dashboard-secondary-btn" id="dev-dashboard-haccp-task-cancel" hidden>Abbrechen</button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </section>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-from">
+                          <span>Absender-E-Mail</span>
+                          <input id="dev-dashboard-smtp-from" name="smtpFromEmail" type="text" maxlength="200"
+                            placeholder='z. B. Hofladen &lt;info@hof.de&gt;' autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-host">
+                          <span>SMTP Host</span>
+                          <input id="dev-dashboard-smtp-host" name="smtpHost" type="text" maxlength="200"
+                            placeholder="z. B. smtp.gmail.com" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-port">
+                          <span>SMTP Port</span>
+                          <input id="dev-dashboard-smtp-port" name="smtpPort" type="text" maxlength="10"
+                            placeholder="z. B. 587" inputmode="numeric" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-user">
+                          <span>SMTP Benutzer</span>
+                          <input id="dev-dashboard-smtp-user" name="smtpUser" type="text" maxlength="200"
+                            placeholder="z. B. info@hof.de" autocomplete="off">
+                        </label>
+                        <label class="dev-dashboard-field" for="dev-dashboard-smtp-pass">
+                          <span>SMTP Passwort</span>
+                          <input id="dev-dashboard-smtp-pass" name="smtpPass" type="password" maxlength="200"
+                            placeholder="Leer = bestehendes Passwort behalten" autocomplete="new-password">
+                        </label>
+                      </fieldset>
+                      
+                        <button type="submit" class="dev-dashboard-submit-btn">SMTP speichern</button>
+                        <p class="dev-dashboard-employee-status" id="dev-dashboard-smtp-status" aria-live="polite"></p>
+                      </form>
+                    </section>
+                  </div>
                 </div>
               </div>
 

@@ -1376,6 +1376,112 @@ function setSettingsFormStatus(message = '', tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
+function setSmtpFormStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('dev-dashboard-smtp-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.dataset.tone = tone;
+}
+
+const BETRIEB_SECTIONS = new Set(['stammdaten', 'module', 'hygiene', 'geraete', 'smtp']);
+
+/**
+ * Unterseiten in „Mein Betrieb“: Stammdaten | Module & Rollen | Hygiene | Geräte | SMTP.
+ */
+function setBetriebSection(sectionKey = 'stammdaten', { updateHash = false } = {}) {
+  const next = BETRIEB_SECTIONS.has(sectionKey) ? sectionKey : 'stammdaten';
+  dashboardState.betriebSection = next;
+
+  document.querySelectorAll('[data-betrieb-section]').forEach((btn) => {
+    const active = btn.getAttribute('data-betrieb-section') === next;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+
+  document.querySelectorAll('[data-betrieb-panel]').forEach((panel) => {
+    const match = panel.getAttribute('data-betrieb-panel') === next;
+    panel.hidden = !match;
+  });
+
+  if (updateHash) {
+    const hash = next === 'geraete' ? 'haccp-setup' : `betrieb-${next}`;
+    try {
+      if (window.history?.replaceState) {
+        const url = new URL(window.location.href);
+        url.hash = hash;
+        window.history.replaceState(null, '', `${url.pathname}${url.search}#${hash}`);
+      } else {
+        window.location.hash = hash;
+      }
+    } catch (_) { /* noop */ }
+  }
+
+  if (next === 'geraete' || next === 'hygiene') {
+    try {
+      syncDevDashboardHaccpAdmin({
+        db: dashboardState.db,
+        tenantId: dashboardState.selectedTenantId,
+        recordAudit,
+      });
+    } catch (err) {
+      console.warn('[Dev-Dashboard] HACCP-Admin Sync fehlgeschlagen:', err);
+    }
+  }
+  if (next === 'stammdaten') {
+    void refreshDiscountMatrixUi(dashboardState.selectedTenantId);
+    renderSupplyCatalogAdminTable();
+  }
+}
+
+function bindBetriebSubnav() {
+  const nav = document.querySelector('.dev-dashboard-subnav');
+  if (!nav || nav.dataset.bound === '1') return;
+  nav.dataset.bound = '1';
+  nav.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-betrieb-section]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+    setBetriebSection(btn.getAttribute('data-betrieb-section') || 'stammdaten', { updateHash: true });
+  });
+}
+
+function bindSmtpForm(dashboardStateRef = dashboardState) {
+  const form = document.getElementById('dev-dashboard-smtp-form');
+  if (!form || form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const tenantId = dashboardStateRef.selectedTenantId;
+    if (!tenantId) {
+      setSmtpFormStatus('Kein Betrieb ausgewählt.', 'error');
+      return;
+    }
+    const displayName = document.getElementById('dev-dashboard-settings-name')?.value.trim()
+      || preferredBetriebName(dashboardStateRef)
+      || 'Betrieb';
+    const logoUrl = document.getElementById('dev-dashboard-settings-logo')?.value.trim()
+      || window.BRANDING?.logoUrl
+      || '/icon-192.png';
+    const smtp = readSmtpFieldsFromForm();
+    setSmtpFormStatus('SMTP wird gespeichert…', 'info');
+    void persistTenantBetrieb(dashboardStateRef.db, tenantId, displayName, logoUrl, smtp)
+      .then(() => {
+        setSmtpFormStatus('SMTP gespeichert.', 'success');
+        fillSmtpFieldsInForm({
+          ...smtp,
+          smtpPass: smtp.smtpPass || '***',
+        });
+        recordAudit('settings', 'SMTP-Einstellungen gespeichert', 'change');
+        window.showToast?.('SMTP gespeichert.', 'success');
+      })
+      .catch((err) => {
+        console.error('[Dev-Dashboard] SMTP speichern fehlgeschlagen:', err);
+        setSmtpFormStatus('SMTP konnte nicht gespeichert werden.', 'error');
+        window.showToast?.('SMTP konnte nicht gespeichert werden.', 'error');
+      });
+  });
+}
+
 function persistMhdCardUiSetting(tenantId, key, enabled, { notify = true } = {}) {
   if (!tenantId || !MHD_CARD_UI_SETTING_KEYS.includes(key)) return;
   const current = readMhdCardUiSettings(tenantId);
@@ -2930,6 +3036,8 @@ const dashboardState = {
   userQuery: '',
   userRoleFilter: 'all',
   activeTab: 'overview',
+  /** Unterseite in Mein Betrieb: stammdaten | module | hygiene | geraete | smtp */
+  betriebSection: 'stammdaten',
   db: null,
   movementRows: [],
   editingMovement: null,
@@ -2965,6 +3073,7 @@ function setDevDashboardTab(tabKey = 'overview') {
   }
   if (nextTab === 'settings') {
     fillSettingsForm(dashboardState);
+    setBetriebSection(dashboardState.betriebSection || 'stammdaten');
     syncDevDashboardHaccpAdmin({
       db: dashboardState.db,
       tenantId: dashboardState.selectedTenantId,
@@ -2990,13 +3099,40 @@ function setDevDashboardTab(tabKey = 'overview') {
   }
 }
 
-/** Deep-Link aus HACCP Empty-State: /dev-dashboard#haccp-setup → Mein Betrieb + Anker. */
+/**
+ * Deep-Links in Mein Betrieb:
+ * #haccp-setup / #betrieb-geraete → Geräte (Messpunkte)
+ * #betrieb-hygiene / #hygiene → Hygiene
+ * #betrieb-smtp / #smtp → SMTP
+ * #betrieb-module → Module & Rollen
+ * #betrieb-stammdaten → Stammdaten
+ */
+function resolveBetriebSectionFromHash(hash = '') {
+  const clean = String(hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!clean) return '';
+  if (clean === 'haccp-setup' || clean === 'dev-dashboard-haccp-setup' || clean === 'betrieb-geraete' || clean === 'geraete') {
+    return 'geraete';
+  }
+  if (clean === 'betrieb-hygiene' || clean === 'hygiene') return 'hygiene';
+  if (clean === 'betrieb-smtp' || clean === 'smtp') return 'smtp';
+  if (clean === 'betrieb-module' || clean === 'module' || clean === 'module-rollen') return 'module';
+  if (clean === 'betrieb-stammdaten' || clean === 'stammdaten') return 'stammdaten';
+  return '';
+}
+
 function applyDevDashboardDeepLink() {
   const hash = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-  if (hash !== 'haccp-setup' && hash !== 'dev-dashboard-haccp-setup') return;
+  const section = resolveBetriebSectionFromHash(hash);
+  if (!section) return;
   setDevDashboardTab('settings');
+  setBetriebSection(section);
   window.setTimeout(() => {
-    const target = document.getElementById('dev-dashboard-haccp-setup');
+    const targetId = section === 'geraete'
+      ? 'dev-dashboard-haccp-setup'
+      : section === 'hygiene'
+        ? 'dev-dashboard-hygiene-setup'
+        : `betrieb-panel-${section}`;
+    const target = document.getElementById(targetId);
     if (!target) return;
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     try {
@@ -3183,8 +3319,10 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindDashboardStatusSignOut();
     bindDevDashboardBackButton();
     bindDevDashboardTabs();
+    bindBetriebSubnav();
     bindOverviewJumpLinks();
     bindSettingsForm(dashboardState);
+    bindSmtpForm(dashboardState);
     syncDevDashboardHaccpAdmin({
       db,
       tenantId: dashboardState.selectedTenantId,
