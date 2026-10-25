@@ -201,12 +201,11 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
-    // Legacy-Felder wie `source` (z. B. restored-from-profile-defaultTeam) dürfen
-    // bleiben; sonst scheitern Merge-Updates der Fachbereichs-Zuweisungen.
+    // Legacy `source` + sync.js hängt bei op:'set' automatisch `createdAt` an.
     function teamDashboardAllowedKeys() {
       return [
         'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy',
-        'departmentAssignments', 'source'
+        'departmentAssignments', 'source', 'createdAt'
       ];
     }
 
@@ -219,6 +218,11 @@ service cloud.firestore {
         && (
           !('source' in request.resource.data)
           || request.resource.data.source is string
+        )
+        && (
+          !('createdAt' in request.resource.data)
+          || request.resource.data.createdAt is timestamp
+          || request.resource.data.createdAt is string
         );
     }
 
