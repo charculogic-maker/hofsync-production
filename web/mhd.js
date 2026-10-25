@@ -395,7 +395,6 @@ const mhdBestandSeed = [
   {"id": "t5", "ean": "4006040007999", "produkt": "Bionella Schokocreme", "marke": "RAPUNZEL", "menge": 6, "tage": 45, "kategorie": "📦 Trockenware", "status": "aktiv"},
 ];
 
-
 const mhdState = {
   db: null,
   tenantId: '',
@@ -1377,7 +1376,6 @@ function showUtilityDialog(title, bodyHtml, options = {}) {
     resetScanState({ keepLearnOverlay: false });
   });
 }
-
 
 const RECEIVING_CATEGORIES = [
   { value: '🍎 Frische', label: '🍎 Frische' },
@@ -3332,7 +3330,6 @@ function showLearnModeDialog(ean) {
   });
 }
 
-
 function normalizeMhdCategory(kategorie) {
   const kat = (kategorie || '').trim();
   // Leere Kategorie nicht zu MoPro hochschreiben — Fallback entscheidet der Aufrufer / Keyword-Heuristik.
@@ -3359,7 +3356,6 @@ function getProductCategory(prod) {
   }
   return storedCategory;
 }
-
 
 function computeResttageFromMhd(mhdDateStr) {
   const iso = normalizeDateInputToIso(mhdDateStr);
@@ -5270,7 +5266,6 @@ function buildMhdCardHtml(prod = {}) {
     </div>
   `;
 }
-
 
 function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
@@ -9351,25 +9346,7 @@ async function bridgeMetzgereiDeliveryToDocs({
   window.showToast?.('Charge übernommen – bitte Öko-Kontrollstelle und Foto ergänzen.', 'info');
 }
 
-// #region agent log
-function agentDbgLog(hypothesisId, location, message, data = {}) {
-  try {
-    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'pre-fix' };
-    window.__agentDebugLog = window.__agentDebugLog || [];
-    window.__agentDebugLog.push(entry);
-    console.log('AGENT_DBG', JSON.stringify(entry));
-  } catch (_) { /* ignore */ }
-}
-// #endregion
-
 async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
-  // #region agent log
-  agentDbgLog('C', 'mhd.js:finalizeDelivery:entry', 'finalizeDelivery entry', {
-    itemCount: currentDeliveryItems.length,
-    skipReviewPrompt: Boolean(skipReviewPrompt),
-    draft: Boolean(activeEditingDraftId),
-  });
-  // #endregion
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
 
@@ -9383,16 +9360,10 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
   }
 
   const actor = await ensureReceivingActorOrWarn();
-  // #region agent log
-  agentDbgLog('C', 'mhd.js:finalizeDelivery:actor', 'actor resolved', { actor: String(actor || ''), hasActor: Boolean(actor) });
-  // #endregion
   if (!actor) return;
 
   if (!skipReviewPrompt) {
     const reviewChoice = await showDeliveryReviewPrompt();
-    // #region agent log
-    agentDbgLog('C', 'mhd.js:finalizeDelivery:review', 'review choice', { reviewChoice: String(reviewChoice || '') });
-    // #endregion
     if (reviewChoice === 'review') {
       setReceivingMode('schnell');
       document.getElementById('we-current-items-table')?.scrollIntoView?.({
@@ -9418,9 +9389,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     return;
   }
   await persistSupplierName(supplier, { toastOnCreate: false });
-  // #region agent log
-  agentDbgLog('C', 'mhd.js:finalizeDelivery:supplier', 'supplier ready', { supplier: String(supplier || '').slice(0, 40) });
-  // #endregion
 
   const head = readDeliveryHeadValues();
 
@@ -9436,19 +9404,10 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     releaseReceivingActionButtons();
     return;
   }
-  // #region agent log
-  agentDbgLog('D', 'mhd.js:finalizeDelivery:profile:before', 'before ensureInventoryProfileReadyForDelivery', { tenantId: String(activeTenantId || '') });
-  // #endregion
   if (!(await ensureInventoryProfileReadyForDelivery())) {
-    // #region agent log
-    agentDbgLog('D', 'mhd.js:finalizeDelivery:profile:fail', 'profile not ready', {});
-    // #endregion
     releaseReceivingActionButtons();
     return;
   }
-  // #region agent log
-  agentDbgLog('D', 'mhd.js:finalizeDelivery:profile:ok', 'profile ready', {});
-  // #endregion
 
   const { mhdItemStatus, meisterOverrideReason } = tempGuard;
   const existingDraft = isDraftCompletion
@@ -9504,13 +9463,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    // #region agent log
-    agentDbgLog('B', 'mhd.js:finalizeDelivery:deliveryWrite:before', 'before delivery writeOrQueue', {
-      deliveryPath: String(deliveryPath || ''),
-      deliveryId: String(deliveryId || '').slice(0, 48),
-      itemCount: currentDeliveryItems.length,
-    });
-    // #endregion
     await mhdState.writeOrQueueFirestore({
       collectionPath: deliveryPath,
       docId: deliveryId,
@@ -9521,20 +9473,8 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       // Fehler-UI übernimmt finalizeDelivery (lokal sichern + ruhiger Toast).
       silentPermissionDenied: true,
     });
-    // #region agent log
-    agentDbgLog('B', 'mhd.js:finalizeDelivery:deliveryWrite:after', 'after delivery writeOrQueue', {});
-    // #endregion
 
-    // #region agent log
-    agentDbgLog('A', 'mhd.js:finalizeDelivery:catalog:before', 'before loadCatalogEanIndex', {});
-    // #endregion
     const catalog = await loadCatalogEanIndex();
-    // #region agent log
-    agentDbgLog('A', 'mhd.js:finalizeDelivery:catalog:after', 'after loadCatalogEanIndex', {
-      byArticle: catalog?.byArticle?.size ?? null,
-      byName: catalog?.byName?.size ?? null,
-    });
-    // #endregion
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const matchedEan = lookupCatalogEan(catalog, {
         name: item.product,
@@ -9554,13 +9494,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
         { ...record, updatedAt: completedAt, tenantId: activeTenantId },
       );
       finalizeTargetPath = `${mhdPath}/${record.id}`;
-      // #region agent log
-      agentDbgLog('E', 'mhd.js:finalizeDelivery:mhdWrite:before', 'before mhd write', {
-        docId: String(record.id || '').slice(0, 48),
-        writeOp: String(writeOp || ''),
-        product: String(record.name || record.produkt || '').slice(0, 40),
-      });
-      // #endregion
       const result = await mhdState.writeOrQueueFirestore({
         collectionPath: mhdPath,
         docId: record.id,
@@ -9570,9 +9503,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
         offlineMessage: 'MHD-Posten wird nachträglich synchronisiert.',
         silentPermissionDenied: true,
       });
-      // #region agent log
-      agentDbgLog('E', 'mhd.js:finalizeDelivery:mhdWrite:after', 'after mhd write', { result: String(result || '') });
-      // #endregion
       saveProductMaster(record);
       void recordMhdMovement({
         product: record,
@@ -9584,13 +9514,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     });
 
     const mhdResults = await Promise.allSettled(mhdWrites);
-    // #region agent log
-    agentDbgLog('E', 'mhd.js:finalizeDelivery:mhdWrites:settled', 'mhd writes settled', {
-      total: mhdResults.length,
-      rejected: mhdResults.filter((r) => r.status === 'rejected').length,
-      fulfilled: mhdResults.filter((r) => r.status === 'fulfilled').length,
-    });
-    // #endregion
     const rejectedMhdWrite = mhdResults.find((result) => result.status === 'rejected');
     if (rejectedMhdWrite) {
       finalizeFailed = true;
@@ -9606,20 +9529,11 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       head: { ...head },
       meisterOverrideReason,
     };
-    // #region agent log
-    agentDbgLog('C', 'mhd.js:finalizeDelivery:resetForm', 'before resetReceivingForm', {});
-    // #endregion
     resetReceivingForm();
     const itemCount = deliveryBundle.itemCount;
     if (navigator.onLine) {
       try {
-        // #region agent log
-        agentDbgLog('C', 'mhd.js:finalizeDelivery:flush:before', 'before flushPendingSyncs', {});
-        // #endregion
         await flushPendingSyncs();
-        // #region agent log
-        agentDbgLog('C', 'mhd.js:finalizeDelivery:flush:after', 'after flushPendingSyncs', { remaining: getPendingSyncs().length });
-        // #endregion
       } catch (err) {
         console.warn('[CharcuLogic Wareneingang] Auto-Sync nach Lieferung fehlgeschlagen:', err);
       }
@@ -9634,9 +9548,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten gebucht` });
       window.showToast?.(`Lieferung gebucht & ${itemCount} Posten synchronisiert`, 'success');
       await bridgeMetzgereiDeliveryToDocs(metzBridgePayload);
-      // #region agent log
-      agentDbgLog('C', 'mhd.js:finalizeDelivery:success', 'finalize success online', { itemCount });
-      // #endregion
       return;
     }
     window.showSyncQueueDialog?.();
@@ -9645,14 +9556,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     await bridgeMetzgereiDeliveryToDocs(metzBridgePayload);
   } catch (err) {
     finalizeFailed = true;
-    // #region agent log
-    agentDbgLog('C', 'mhd.js:finalizeDelivery:catch', 'finalize catch', {
-      name: String(err?.name || ''),
-      code: String(err?.code || ''),
-      message: String(err?.message || err || '').slice(0, 200),
-      finalizeTargetPath: String(finalizeTargetPath || ''),
-    });
-    // #endregion
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);
     const isPermission = isPermissionDeniedError(err);
     // Rampe: Scan nie verlieren — lokal sichern, ruhiger Hinweis statt Dev-Jargon.
@@ -9686,13 +9589,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       maybeResetOnFirestorePermissionError(err, 'finalizeDelivery');
     }
   } finally {
-    // #region agent log
-    agentDbgLog('C', 'mhd.js:finalizeDelivery:finally', 'finalize finally', {
-      finalizeFailed,
-      itemsLeft: currentDeliveryItems.length,
-      saveLabel: String(saveBtn?.textContent || ''),
-    });
-    // #endregion
     if (finalizeFailed) {
       await persistDeliveryDraftToIndexedDB();
       releaseReceivingActionButtons();

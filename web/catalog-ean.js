@@ -96,39 +96,13 @@ function withCatalogReadTimeout(promise, collectionName, ms = CATALOG_READ_TIMEO
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-// #region agent log
-function agentDbgLog(hypothesisId, location, message, data = {}) {
-  try {
-    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'post-fix' };
-    const w = typeof window !== 'undefined' ? window : globalThis;
-    w.__agentDebugLog = w.__agentDebugLog || [];
-    w.__agentDebugLog.push(entry);
-    console.log('AGENT_DBG', JSON.stringify(entry));
-  } catch (_) { /* ignore */ }
-}
-// #endregion
-
 async function loadCatalogCollectionSnap(collectionName, limit) {
-  // #region agent log
-  agentDbgLog('A', `catalog-ean.js:${collectionName}:before`, `before ${collectionName}.get`, {});
-  // #endregion
   try {
-    const snap = await withCatalogReadTimeout(
+    return await withCatalogReadTimeout(
       getTenantCollection(collectionName).limit(limit).get(),
       collectionName,
     );
-    // #region agent log
-    agentDbgLog('A', `catalog-ean.js:${collectionName}:after`, `after ${collectionName}.get`, { size: snap?.size ?? null });
-    // #endregion
-    return snap;
   } catch (err) {
-    // #region agent log
-    agentDbgLog('A', `catalog-ean.js:${collectionName}:error`, `${collectionName}.get failed`, {
-      message: String(err?.message || err),
-      code: String(err?.code || ''),
-      timedOut: err?.name === 'CatalogReadTimeoutError',
-    });
-    // #endregion
     console.warn(`[HofSync] ${collectionName} für EAN-Abgleich nicht lesbar:`, err);
     return null;
   }
@@ -136,9 +110,6 @@ async function loadCatalogCollectionSnap(collectionName, limit) {
 
 /** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
-  // #region agent log
-  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:entry', 'loadCatalogEanIndex start', { timeoutMs: CATALOG_READ_TIMEOUT_MS });
-  // #endregion
   const byArticle = new Map();
   const byName = new Map();
   const ambiguousNames = new Set();
@@ -158,8 +129,5 @@ export async function loadCatalogEanIndex() {
   });
 
   ambiguousNames.forEach((folded) => byName.delete(folded));
-  // #region agent log
-  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:exit', 'loadCatalogEanIndex done', { byArticle: byArticle.size, byName: byName.size });
-  // #endregion
   return { byArticle, byName };
 }
