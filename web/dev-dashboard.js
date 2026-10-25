@@ -54,6 +54,7 @@ import {
   getEmployeeDepartmentAssignment,
   saveEmployeeDepartmentAssignment,
 } from './team-config.js';
+import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { getNamedTenantCollection, initTenantDb, setGlobalTenantId } from './tenant-db.js';
 import { persistProductMasterToFirestore } from './product-master.js';
@@ -2971,6 +2972,7 @@ function setDevDashboardTab(tabKey = 'overview') {
       setGlobalTenantId(dashboardState.selectedTenantId);
     }
     void refreshDiscountMatrixUi(dashboardState.selectedTenantId);
+    renderSupplyCatalogAdminTable();
   }
   if (nextTab === 'audit') {
     bindMovementReportControls();

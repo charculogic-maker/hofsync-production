@@ -1,6 +1,7 @@
 /**
- * Schnellmelde- & Bedarfs-Modul (1-Tap Supply Alerts).
- * Speichert unter tenants/{tenantId}/supply_alerts und filtert nach Fachbereich.
+ * Schnellmelde- & Bedarfs-Modul.
+ * Primär: Freitext → supply_alerts + supply_catalog (Stammdaten).
+ * Schnell-Buttons wachsen aus der verwaltbaren Stammdaten-Tabelle.
  */
 
 import { writeFirestoreDocOrQueue } from './sync.js';
@@ -13,56 +14,34 @@ import {
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
 const SUPPLY_ALERTS_COLLECTION = 'supply_alerts';
+const SUPPLY_CATALOG_COLLECTION = 'supply_catalog';
 const OPEN_STATUSES = new Set(['open', 'in_progress', 'ordered']);
+/** Ab dieser Nutzungshäufigkeit erscheint ein Stammdaten-Eintrag als Schnell-Button. */
+export const QUICK_BUTTON_MIN_USES = 2;
 
-/** @type {{ category: string, label: string, urgency: string, departmentTarget: string, items: Array<{ title: string, label: string }> }[]} */
-export const QUICK_ALERT_CATEGORIES = [
-  {
-    category: 'sb_theke',
-    label: '⚡ SB-Theke leer',
-    urgency: 'sofort',
-    departmentTarget: 'metzgerei',
-    items: [
-      { title: 'Weißwurst SB-Theke leer', label: 'Weißwurst' },
-      { title: 'Hackfleisch SB-Theke leer', label: 'Hackfleisch' },
-      { title: 'Rouladen SB-Theke leer', label: 'Rouladen' },
-      { title: 'Käsekrainer SB-Theke leer', label: 'Käsekrainer' },
-    ],
-  },
-  {
-    category: 'metzgerei_bedarf',
-    label: '🔪 Metzgerei-Material',
-    urgency: 'nachbestellen',
-    departmentTarget: 'metzgerei',
-    items: [
-      { title: 'Siegelrandbeutel knapp', label: 'Siegelrandbeutel' },
-      { title: 'Wurstdärme knapp', label: 'Wurstdärme' },
-      { title: 'Pökelsalz/Gewürze knapp', label: 'Pökelsalz/Gewürze' },
-      { title: 'Vakuumbeutel groß knapp', label: 'Vakuumbeutel groß' },
-    ],
-  },
-  {
-    category: 'verbrauchsmaterial',
-    label: '🧻 Laden & Hygiene',
-    urgency: 'nachbestellen',
-    departmentTarget: 'laden',
-    items: [
-      { title: 'Handtuchpapier knapp', label: 'Handtuchpapier' },
-      { title: 'Bonrollen knapp', label: 'Bonrollen' },
-      { title: 'Avery-Etiketten knapp', label: 'Avery-Etiketten' },
-      { title: 'Seife/Desinfektion knapp', label: 'Seife/Desinfektion' },
-    ],
-  },
+export const SUPPLY_CATEGORY_OPTIONS = [
+  { value: 'sonstig', label: 'Sonstiges' },
+  { value: 'sb_theke', label: 'SB-Theke' },
+  { value: 'metzgerei_bedarf', label: 'Metzgerei' },
+  { value: 'verbrauchsmaterial', label: 'Laden / Hygiene' },
+];
+
+export const SUPPLY_DEPARTMENT_OPTIONS = [
+  { value: 'all', label: 'Alle' },
+  { value: 'metzgerei', label: 'Metzgerei' },
+  { value: 'laden', label: 'Laden' },
 ];
 
 const alertState = {
   db: null,
   tenantId: '',
   getFirebase: () => null,
-  unsubscribe: null,
+  unsubscribeAlerts: null,
+  unsubscribeCatalog: null,
   alerts: [],
-  activeCategory: 'sb_theke',
+  catalog: [],
   bound: false,
+  adminBound: false,
 };
 
 function escapeHtml(value) {
@@ -89,10 +68,33 @@ function getActiveEmployeeName() {
   }
 }
 
+/** Normalisierter Schlüssel für Stammdaten-Deduplizierung. */
+export function catalogKeyFromLabel(label) {
+  const cleaned = String(label || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+  return cleaned || `item_${Date.now().toString(36)}`;
+}
+
 function alertsCollectionRef() {
   if (!alertState.db || !alertState.tenantId) return null;
   try {
     return getTenantCollection(SUPPLY_ALERTS_COLLECTION);
+  } catch {
+    return null;
+  }
+}
+
+function catalogCollectionRef() {
+  if (!alertState.db || !alertState.tenantId) return null;
+  try {
+    return getTenantCollection(SUPPLY_CATALOG_COLLECTION);
   } catch {
     return null;
   }
@@ -105,6 +107,11 @@ function statusLabel(status) {
   return 'Offen';
 }
 
+function categoryLabel(value) {
+  const match = SUPPLY_CATEGORY_OPTIONS.find((entry) => entry.value === value);
+  return match?.label || value || 'Sonstiges';
+}
+
 function alertVisibleForEmployee(alert, employeeName) {
   if (!alert || !OPEN_STATUSES.has(alert.status)) return false;
   const target = String(alert.departmentTarget || 'all').toLowerCase();
@@ -112,9 +119,7 @@ function alertVisibleForEmployee(alert, employeeName) {
   if (!employeeName) return false;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
   if (assignment.canOrder) return true;
-  if (target === 'metzgerei') {
-    return assignment.departments.includes('metzgerei');
-  }
+  if (target === 'metzgerei') return assignment.departments.includes('metzgerei');
   if (target === 'laden') {
     return assignment.departments.includes('laden')
       || assignment.departments.includes('einkauf');
@@ -141,7 +146,7 @@ function normalizeAlertDoc(docSnap) {
   return {
     id: docSnap.id,
     title: String(data.title || '').trim(),
-    category: String(data.category || '').trim(),
+    category: String(data.category || 'sonstig').trim(),
     departmentTarget: String(data.departmentTarget || 'all').trim(),
     urgency: String(data.urgency || 'nachbestellen').trim(),
     status: String(data.status || 'open').trim(),
@@ -149,8 +154,196 @@ function normalizeAlertDoc(docSnap) {
     createdAt: data.createdAt || null,
     resolvedBy: data.resolvedBy || null,
     resolvedAt: data.resolvedAt || null,
+    catalogItemId: String(data.catalogItemId || '').trim(),
     tenantId: String(data.tenantId || alertState.tenantId).trim(),
   };
+}
+
+function normalizeCatalogDoc(docSnap) {
+  const data = typeof docSnap?.data === 'function' ? (docSnap.data() || {}) : (docSnap || {});
+  const id = docSnap?.id || data.normalizedKey || catalogKeyFromLabel(data.label);
+  const useCount = Number(data.useCount) || 0;
+  const quickEnabled = data.quickEnabled === true
+    || (data.quickEnabled !== false && useCount >= QUICK_BUTTON_MIN_USES);
+  return {
+    id: String(id),
+    label: String(data.label || '').trim(),
+    normalizedKey: String(data.normalizedKey || id).trim(),
+    category: String(data.category || 'sonstig').trim(),
+    departmentTarget: String(data.departmentTarget || 'all').trim(),
+    urgencyDefault: String(data.urgencyDefault || 'nachbestellen').trim(),
+    useCount,
+    quickEnabled: data.quickEnabled === true ? true : (data.quickEnabled === false ? false : quickEnabled),
+    active: data.active !== false,
+    createdBy: String(data.createdBy || '').trim(),
+    lastUsedBy: String(data.lastUsedBy || '').trim(),
+    tenantId: String(data.tenantId || alertState.tenantId).trim(),
+  };
+}
+
+/** Einträge, die als Schnell-Buttons erscheinen dürfen. */
+export function getQuickButtonCatalogItems(catalog = alertState.catalog) {
+  return (Array.isArray(catalog) ? catalog : [])
+    .filter((item) => item.active !== false && item.quickEnabled === true && item.label)
+    .sort((a, b) => {
+      if (b.useCount !== a.useCount) return b.useCount - a.useCount;
+      return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
+    });
+}
+
+export function getSupplyCatalogItems() {
+  return [...alertState.catalog].sort((a, b) => a.label.localeCompare(b.label, 'de', { sensitivity: 'base' }));
+}
+
+async function readCatalogItem(docId) {
+  const ref = catalogCollectionRef();
+  if (!ref || !docId) return null;
+  try {
+    const snap = await ref.doc(docId).get();
+    return snap.exists ? normalizeCatalogDoc(snap) : null;
+  } catch (err) {
+    console.warn('[QuickAlert] Stammdaten lesen:', err);
+    return null;
+  }
+}
+
+/**
+ * Schreibt/erhöht Stammdaten aus einer Freitext- oder Button-Meldung.
+ * @returns {Promise<object>} aktualisierter Katalog-Eintrag
+ */
+export async function upsertSupplyCatalogFromReport({
+  label,
+  category = 'sonstig',
+  departmentTarget = 'all',
+  urgency = 'nachbestellen',
+  employee,
+  forceQuickEnabled = false,
+} = {}) {
+  const cleanLabel = String(label || '').trim().slice(0, 120);
+  if (!cleanLabel) throw new Error('Bezeichnung fehlt');
+  if (!alertState.tenantId) throw new Error('Mandant fehlt');
+
+  const key = catalogKeyFromLabel(cleanLabel);
+  const existing = await readCatalogItem(key);
+  const firebase = alertState.getFirebase();
+  const nextUseCount = (existing?.useCount || 0) + 1;
+  let quickEnabled = existing?.quickEnabled === true;
+  if (existing?.quickEnabled === false) {
+    quickEnabled = false;
+  } else if (forceQuickEnabled || nextUseCount >= QUICK_BUTTON_MIN_USES) {
+    quickEnabled = true;
+  }
+
+  const actor = String(employee || getActiveEmployeeName() || 'Team').trim() || 'Team';
+  const timestamp = firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString();
+  const payload = {
+    label: existing?.label || cleanLabel,
+    normalizedKey: key,
+    category: existing?.category || String(category || 'sonstig'),
+    departmentTarget: existing?.departmentTarget || String(departmentTarget || 'all'),
+    urgencyDefault: existing?.urgencyDefault || String(urgency || 'nachbestellen'),
+    useCount: nextUseCount,
+    quickEnabled,
+    active: existing?.active !== false,
+    tenantId: alertState.tenantId,
+    updatedAt: timestamp,
+    lastUsedAt: timestamp,
+    lastUsedBy: actor,
+    createdAt: existing?.createdAt || timestamp,
+    createdBy: existing?.createdBy || actor,
+  };
+
+  await writeFirestoreDocOrQueue({
+    collectionPath: SUPPLY_CATALOG_COLLECTION,
+    docId: key,
+    op: 'set',
+    onlineData: payload,
+    queueData: {
+      ...payload,
+      updatedAt: new Date().toISOString(),
+      lastUsedAt: new Date().toISOString(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+    },
+    offlineMessage: 'Stammdaten werden synchronisiert, sobald WLAN verfügbar ist.',
+  });
+
+  const next = normalizeCatalogDoc({ id: key, data: () => payload });
+  const idx = alertState.catalog.findIndex((entry) => entry.id === key);
+  if (idx >= 0) alertState.catalog[idx] = next;
+  else alertState.catalog.push(next);
+  renderQuickButtonGrid();
+  renderSupplyCatalogAdminTable();
+  window.dispatchEvent(new CustomEvent('charculogic:supply-catalog-changed', { detail: { items: getSupplyCatalogItems() } }));
+  return next;
+}
+
+export async function updateSupplyCatalogItem(itemId, patch = {}) {
+  const id = String(itemId || '').trim();
+  if (!id) throw new Error('Stammdaten-ID fehlt');
+  const existing = alertState.catalog.find((entry) => entry.id === id) || await readCatalogItem(id);
+  if (!existing) throw new Error('Eintrag nicht gefunden');
+
+  const firebase = alertState.getFirebase();
+  const nextLabel = patch.label !== undefined
+    ? String(patch.label || '').trim().slice(0, 120)
+    : existing.label;
+  if (!nextLabel) throw new Error('Bezeichnung fehlt');
+
+  const payload = {
+    label: nextLabel,
+    normalizedKey: existing.normalizedKey || id,
+    category: patch.category !== undefined ? String(patch.category) : existing.category,
+    departmentTarget: patch.departmentTarget !== undefined
+      ? String(patch.departmentTarget)
+      : existing.departmentTarget,
+    urgencyDefault: patch.urgencyDefault !== undefined
+      ? String(patch.urgencyDefault)
+      : existing.urgencyDefault,
+    useCount: existing.useCount,
+    quickEnabled: patch.quickEnabled !== undefined ? patch.quickEnabled === true : existing.quickEnabled,
+    active: patch.active !== undefined ? patch.active !== false : existing.active,
+    tenantId: alertState.tenantId,
+    updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
+    lastUsedAt: existing.lastUsedAt || null,
+    lastUsedBy: existing.lastUsedBy || '',
+    createdAt: existing.createdAt || null,
+    createdBy: existing.createdBy || '',
+  };
+
+  await writeFirestoreDocOrQueue({
+    collectionPath: SUPPLY_CATALOG_COLLECTION,
+    docId: id,
+    op: 'set',
+    onlineData: payload,
+    queueData: { ...payload, updatedAt: new Date().toISOString() },
+    offlineMessage: 'Stammdaten werden synchronisiert, sobald WLAN verfügbar ist.',
+  });
+
+  const next = normalizeCatalogDoc({ id, data: () => payload });
+  const idx = alertState.catalog.findIndex((entry) => entry.id === id);
+  if (idx >= 0) alertState.catalog[idx] = next;
+  else alertState.catalog.push(next);
+  renderQuickButtonGrid();
+  renderSupplyCatalogAdminTable();
+  window.dispatchEvent(new CustomEvent('charculogic:supply-catalog-changed', { detail: { items: getSupplyCatalogItems() } }));
+  return next;
+}
+
+export async function deleteSupplyCatalogItem(itemId) {
+  const id = String(itemId || '').trim();
+  if (!id) throw new Error('Stammdaten-ID fehlt');
+  await writeFirestoreDocOrQueue({
+    collectionPath: SUPPLY_CATALOG_COLLECTION,
+    docId: id,
+    op: 'delete',
+    onlineData: {},
+    queueData: {},
+    offlineMessage: 'Löschen wird synchronisiert, sobald WLAN verfügbar ist.',
+  });
+  alertState.catalog = alertState.catalog.filter((entry) => entry.id !== id);
+  renderQuickButtonGrid();
+  renderSupplyCatalogAdminTable();
+  window.dispatchEvent(new CustomEvent('charculogic:supply-catalog-changed', { detail: { items: getSupplyCatalogItems() } }));
 }
 
 export async function createSupplyAlert({
@@ -159,6 +352,8 @@ export async function createSupplyAlert({
   departmentTarget,
   urgency,
   createdBy,
+  catalogItemId,
+  seedCatalog = true,
 } = {}) {
   const cleanTitle = String(title || '').trim();
   if (!cleanTitle) throw new Error('Titel fehlt');
@@ -169,17 +364,37 @@ export async function createSupplyAlert({
   }
   if (!alertState.tenantId) throw new Error('Mandant fehlt');
 
+  let catalogId = String(catalogItemId || '').trim();
+  let resolvedCategory = String(category || 'sonstig');
+  let resolvedDepartment = String(departmentTarget || 'all');
+  let resolvedUrgency = String(urgency || 'nachbestellen');
+
+  if (seedCatalog) {
+    const catalogItem = await upsertSupplyCatalogFromReport({
+      label: cleanTitle,
+      category: resolvedCategory,
+      departmentTarget: resolvedDepartment,
+      urgency: resolvedUrgency,
+      employee,
+    });
+    catalogId = catalogItem.id;
+    resolvedCategory = catalogItem.category;
+    resolvedDepartment = catalogItem.departmentTarget;
+    resolvedUrgency = catalogItem.urgencyDefault;
+  }
+
   const firebase = alertState.getFirebase();
   const payload = {
     title: cleanTitle.slice(0, 160),
-    category: String(category || 'verbrauchsmaterial'),
-    departmentTarget: String(departmentTarget || 'all'),
-    urgency: String(urgency || 'nachbestellen'),
+    category: resolvedCategory,
+    departmentTarget: resolvedDepartment,
+    urgency: resolvedUrgency,
     status: 'open',
     createdBy: employee,
     createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
     resolvedBy: null,
     resolvedAt: null,
+    catalogItemId: catalogId || null,
     tenantId: alertState.tenantId,
   };
 
@@ -192,7 +407,7 @@ export async function createSupplyAlert({
     queueData: { ...payload, createdAt: new Date().toISOString() },
     offlineMessage: 'Bedarf wird synchronisiert, sobald WLAN verfügbar ist.',
   });
-  return docId;
+  return { alertId: docId, catalogItemId: catalogId };
 }
 
 export async function updateSupplyAlertStatus(alertId, status, resolvedBy) {
@@ -237,7 +452,12 @@ function openQuickAlertModal() {
   modal.setAttribute('aria-hidden', 'false');
   modal.classList.add('is-open');
   document.body.classList.add('quick-alert-open');
-  renderQuickAlertGrid();
+  renderQuickButtonGrid();
+  const input = document.getElementById('quick-alert-freetext');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 50);
+  }
 }
 
 function closeQuickAlertModal() {
@@ -251,50 +471,37 @@ function closeQuickAlertModal() {
   if (freetext) freetext.value = '';
 }
 
-function renderQuickAlertTabs() {
-  const host = document.getElementById('quick-alert-tabs');
-  if (!host) return;
-  host.innerHTML = QUICK_ALERT_CATEGORIES.map((cat) => `
-    <button
-      type="button"
-      class="quick-alert-tab ${alertState.activeCategory === cat.category ? 'is-active' : ''}"
-      data-quick-alert-tab="${escapeHtml(cat.category)}"
-      aria-pressed="${alertState.activeCategory === cat.category ? 'true' : 'false'}"
-    >${escapeHtml(cat.label)}</button>
-  `).join('');
-}
-
-function renderQuickAlertGrid() {
-  renderQuickAlertTabs();
+function renderQuickButtonGrid() {
   const host = document.getElementById('quick-alert-grid');
+  const empty = document.getElementById('quick-alert-empty');
+  const hint = document.getElementById('quick-alert-buttons-hint');
   if (!host) return;
-  const cat = QUICK_ALERT_CATEGORIES.find((c) => c.category === alertState.activeCategory)
-    || QUICK_ALERT_CATEGORIES[0];
-  host.innerHTML = `
-    ${cat.items.map((item) => `
-      <button
-        type="button"
-        class="quick-alert-tile"
-        data-quick-alert-item="1"
-        data-title="${escapeHtml(item.title)}"
-        data-category="${escapeHtml(cat.category)}"
-        data-department="${escapeHtml(cat.departmentTarget)}"
-        data-urgency="${escapeHtml(cat.urgency)}"
-      >${escapeHtml(item.label)}</button>
-    `).join('')}
+
+  const items = getQuickButtonCatalogItems();
+  if (!items.length) {
+    host.innerHTML = '';
+    if (empty) empty.hidden = false;
+    if (hint) hint.hidden = true;
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+  if (hint) {
+    hint.hidden = false;
+    hint.textContent = `${items.length} Schnell-Button${items.length === 1 ? '' : 's'} aus Stammdaten`;
+  }
+  host.innerHTML = items.map((item) => `
     <button
       type="button"
-      class="quick-alert-tile quick-alert-tile--freetext"
-      data-quick-alert-freetext-focus="1"
-    >+ Freitext</button>
-  `;
-  const freetextWrap = document.getElementById('quick-alert-freetext-wrap');
-  if (freetextWrap) {
-    freetextWrap.hidden = false;
-    freetextWrap.dataset.category = cat.category;
-    freetextWrap.dataset.department = cat.departmentTarget;
-    freetextWrap.dataset.urgency = cat.urgency;
-  }
+      class="quick-alert-tile"
+      data-quick-alert-item="1"
+      data-catalog-id="${escapeHtml(item.id)}"
+      data-title="${escapeHtml(item.label)}"
+      data-category="${escapeHtml(item.category)}"
+      data-department="${escapeHtml(item.departmentTarget)}"
+      data-urgency="${escapeHtml(item.urgencyDefault)}"
+    >${escapeHtml(item.label)}</button>
+  `).join('');
 }
 
 async function handleQuickAlertTap(button) {
@@ -304,9 +511,11 @@ async function handleQuickAlertTap(button) {
   try {
     await createSupplyAlert({
       title,
-      category: button.getAttribute('data-category'),
-      departmentTarget: button.getAttribute('data-department'),
-      urgency: button.getAttribute('data-urgency'),
+      category: button.getAttribute('data-category') || 'sonstig',
+      departmentTarget: button.getAttribute('data-department') || 'all',
+      urgency: button.getAttribute('data-urgency') || 'nachbestellen',
+      catalogItemId: button.getAttribute('data-catalog-id') || '',
+      seedCatalog: true,
     });
     window.showToast?.('Bedarf gemeldet!', 'success');
     closeQuickAlertModal();
@@ -322,21 +531,23 @@ async function handleQuickAlertTap(button) {
 
 async function handleFreetextSubmit() {
   const input = document.getElementById('quick-alert-freetext');
-  const wrap = document.getElementById('quick-alert-freetext-wrap');
   const title = String(input?.value || '').trim();
   if (!title) {
     window.showToast?.('Bitte kurz beschreiben, was fehlt.', 'warning');
     input?.focus();
     return;
   }
+  const urgency = document.getElementById('quick-alert-urgency')?.value || 'nachbestellen';
+  const department = document.getElementById('quick-alert-department')?.value || 'all';
   const btn = document.getElementById('quick-alert-freetext-submit');
   if (btn) btn.disabled = true;
   try {
     await createSupplyAlert({
       title,
-      category: wrap?.dataset.category || alertState.activeCategory,
-      departmentTarget: wrap?.dataset.department || 'all',
-      urgency: wrap?.dataset.urgency || 'nachbestellen',
+      category: 'sonstig',
+      departmentTarget: department,
+      urgency,
+      seedCatalog: true,
     });
     window.showToast?.('Bedarf gemeldet!', 'success');
     closeQuickAlertModal();
@@ -367,8 +578,8 @@ function renderAlertBanner() {
   const btn = document.getElementById('btn-quick-alert');
   if (btn) {
     btn.setAttribute('aria-label', count
-      ? `Schnellmeldung – ${count} offene Bedarfe`
-      : 'Schnellmeldung – Bedarf melden');
+      ? `Bedarf melden – ${count} offene Bedarfe`
+      : 'Bedarf melden');
     btn.classList.toggle('has-open-alerts', count > 0);
   }
 
@@ -409,13 +620,168 @@ function renderAlertBanner() {
   `;
 }
 
+export function renderSupplyCatalogAdminTable() {
+  const tbody = document.getElementById('dev-dashboard-supply-catalog-body');
+  const statusEl = document.getElementById('dev-dashboard-supply-catalog-status');
+  if (!tbody) return;
+
+  const items = getSupplyCatalogItems();
+  if (statusEl) {
+    statusEl.textContent = items.length
+      ? `${items.length} Stammdaten-Einträge · Schnell-Buttons ab ${QUICK_BUTTON_MIN_USES}× Nutzung oder manuell`
+      : 'Noch keine Einträge – Meldungen per Freitext füllen die Liste.';
+  }
+
+  if (!items.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">
+          Noch keine Bedarfs-Stammdaten. Sobald jemand per Text meldet, erscheinen die Einträge hier.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = items.map((item) => `
+    <tr data-catalog-row="${escapeHtml(item.id)}">
+      <td>
+        <input
+          type="text"
+          class="input-text-touch dev-dashboard-catalog-label"
+          data-catalog-field="label"
+          data-catalog-id="${escapeHtml(item.id)}"
+          value="${escapeHtml(item.label)}"
+          maxlength="120"
+          aria-label="Bezeichnung"
+        >
+      </td>
+      <td>
+        <select
+          class="dev-dashboard-catalog-select"
+          data-catalog-field="category"
+          data-catalog-id="${escapeHtml(item.id)}"
+          aria-label="Kategorie"
+        >
+          ${SUPPLY_CATEGORY_OPTIONS.map((opt) => `
+            <option value="${escapeHtml(opt.value)}" ${item.category === opt.value ? 'selected' : ''}>
+              ${escapeHtml(opt.label)}
+            </option>
+          `).join('')}
+        </select>
+      </td>
+      <td>
+        <select
+          class="dev-dashboard-catalog-select"
+          data-catalog-field="departmentTarget"
+          data-catalog-id="${escapeHtml(item.id)}"
+          aria-label="Zuständigkeit"
+        >
+          ${SUPPLY_DEPARTMENT_OPTIONS.map((opt) => `
+            <option value="${escapeHtml(opt.value)}" ${item.departmentTarget === opt.value ? 'selected' : ''}>
+              ${escapeHtml(opt.label)}
+            </option>
+          `).join('')}
+        </select>
+      </td>
+      <td class="dev-dashboard-catalog-count">${escapeHtml(String(item.useCount))}</td>
+      <td>
+        <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+          <input
+            type="checkbox"
+            data-catalog-field="quickEnabled"
+            data-catalog-id="${escapeHtml(item.id)}"
+            ${item.quickEnabled ? 'checked' : ''}
+          >
+          <span>Schnell-Button</span>
+        </label>
+        <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
+          <input
+            type="checkbox"
+            data-catalog-field="active"
+            data-catalog-id="${escapeHtml(item.id)}"
+            ${item.active ? 'checked' : ''}
+          >
+          <span>Aktiv</span>
+        </label>
+      </td>
+      <td>
+        <button
+          type="button"
+          class="dev-dashboard-action-btn"
+          data-catalog-save="${escapeHtml(item.id)}"
+        >Speichern</button>
+        <button
+          type="button"
+          class="dev-dashboard-action-btn dev-dashboard-action-btn--danger"
+          data-catalog-delete="${escapeHtml(item.id)}"
+          data-catalog-label="${escapeHtml(item.label)}"
+        >Löschen</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function bindSupplyCatalogAdminUi() {
+  const section = document.getElementById('dev-dashboard-supply-catalog');
+  if (!section || alertState.adminBound) return;
+  alertState.adminBound = true;
+
+  section.addEventListener('click', async (event) => {
+    const saveBtn = event.target.closest('[data-catalog-save]');
+    if (saveBtn instanceof HTMLButtonElement) {
+      const id = saveBtn.getAttribute('data-catalog-save');
+      const row = section.querySelector(`[data-catalog-row="${String(id).replace(/"/g, '')}"]`);
+      if (!row) return;
+      const label = row.querySelector('[data-catalog-field="label"]')?.value;
+      const category = row.querySelector('[data-catalog-field="category"]')?.value;
+      const departmentTarget = row.querySelector('[data-catalog-field="departmentTarget"]')?.value;
+      const quickEnabled = row.querySelector('[data-catalog-field="quickEnabled"]')?.checked === true;
+      const active = row.querySelector('[data-catalog-field="active"]')?.checked === true;
+      saveBtn.disabled = true;
+      try {
+        await updateSupplyCatalogItem(id, {
+          label,
+          category,
+          departmentTarget,
+          quickEnabled,
+          active,
+        });
+        window.showToast?.('Stammdaten gespeichert.', 'success');
+      } catch (err) {
+        console.error('[QuickAlert] Stammdaten speichern:', err);
+        window.showToast?.('Stammdaten konnten nicht gespeichert werden.', 'error');
+      } finally {
+        saveBtn.disabled = false;
+      }
+      return;
+    }
+
+    const deleteBtn = event.target.closest('[data-catalog-delete]');
+    if (deleteBtn instanceof HTMLButtonElement) {
+      const id = deleteBtn.getAttribute('data-catalog-delete');
+      const label = deleteBtn.getAttribute('data-catalog-label') || 'Eintrag';
+      if (!window.confirm(`„${label}“ aus den Stammdaten löschen?`)) return;
+      deleteBtn.disabled = true;
+      try {
+        await deleteSupplyCatalogItem(id);
+        window.showToast?.('Stammdaten-Eintrag gelöscht.', 'success');
+      } catch (err) {
+        console.error('[QuickAlert] Stammdaten löschen:', err);
+        window.showToast?.('Löschen fehlgeschlagen.', 'error');
+        deleteBtn.disabled = false;
+      }
+    }
+  });
+}
+
 function subscribeSupplyAlerts() {
-  alertState.unsubscribe?.();
-  alertState.unsubscribe = null;
+  alertState.unsubscribeAlerts?.();
+  alertState.unsubscribeAlerts = null;
   const ref = alertsCollectionRef();
   if (!ref) return;
 
-  alertState.unsubscribe = ref
+  alertState.unsubscribeAlerts = ref
     .where('status', 'in', ['open', 'in_progress', 'ordered'])
     .limit(40)
     .onSnapshot(
@@ -430,7 +796,27 @@ function subscribeSupplyAlerts() {
         renderAlertBanner();
       },
       (err) => {
-        console.warn('[QuickAlert] Snapshot:', err);
+        console.warn('[QuickAlert] Alerts-Snapshot:', err);
+      },
+    );
+}
+
+function subscribeSupplyCatalog() {
+  alertState.unsubscribeCatalog?.();
+  alertState.unsubscribeCatalog = null;
+  const ref = catalogCollectionRef();
+  if (!ref) return;
+
+  alertState.unsubscribeCatalog = ref
+    .limit(200)
+    .onSnapshot(
+      (snap) => {
+        alertState.catalog = snap.docs.map(normalizeCatalogDoc);
+        renderQuickButtonGrid();
+        renderSupplyCatalogAdminTable();
+      },
+      (err) => {
+        console.warn('[QuickAlert] Catalog-Snapshot:', err);
       },
     );
 }
@@ -453,22 +839,9 @@ function bindQuickAlertUi() {
     }
   });
 
-  document.getElementById('quick-alert-tabs')?.addEventListener('click', (event) => {
-    const tab = event.target.closest('[data-quick-alert-tab]');
-    if (!tab) return;
-    alertState.activeCategory = tab.getAttribute('data-quick-alert-tab') || 'sb_theke';
-    renderQuickAlertGrid();
-  });
-
   document.getElementById('quick-alert-grid')?.addEventListener('click', (event) => {
     const tile = event.target.closest('[data-quick-alert-item]');
-    if (tile) {
-      handleQuickAlertTap(tile);
-      return;
-    }
-    if (event.target.closest('[data-quick-alert-freetext-focus]')) {
-      document.getElementById('quick-alert-freetext')?.focus();
-    }
+    if (tile) handleQuickAlertTap(tile);
   });
 
   document.getElementById('quick-alert-freetext-submit')?.addEventListener('click', () => {
@@ -524,11 +897,18 @@ export function initQuickAlertModule(databaseInstance, options = {}) {
     : () => null;
 
   bindQuickAlertUi();
-  renderQuickAlertGrid();
+  bindSupplyCatalogAdminUi();
+  renderQuickButtonGrid();
+  renderSupplyCatalogAdminTable();
   subscribeSupplyAlerts();
+  subscribeSupplyCatalog();
   renderAlertBanner();
 }
 
 export function getOpenSupplyAlertsForTest() {
   return [...alertState.alerts];
+}
+
+export function categoryLabelForTest(value) {
+  return categoryLabel(value);
 }

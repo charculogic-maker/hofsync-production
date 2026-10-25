@@ -773,6 +773,34 @@
 
                   <section
                     class="dev-dashboard-panel"
+                    id="dev-dashboard-supply-catalog"
+                    aria-label="Bedarfs-Stammdaten"
+                  >
+                    <h2 class="dev-dashboard-section-title">Bedarfs-Stammdaten</h2>
+                    <p class="dev-dashboard-intro">
+                      Freitext-Meldungen füllen diese Liste. Daraus wachsen die Schnell-Buttons
+                      (automatisch ab 2 Nutzungen oder manuell per Haken).
+                    </p>
+                    <p class="dev-dashboard-employee-list-status" id="dev-dashboard-supply-catalog-status" aria-live="polite"></p>
+                    <div class="dev-dashboard-table-wrap">
+                      <table class="dev-dashboard-table" aria-label="Bedarfs-Stammdaten">
+                        <thead>
+                          <tr>
+                            <th scope="col">Bezeichnung</th>
+                            <th scope="col">Kategorie</th>
+                            <th scope="col">Zuständigkeit</th>
+                            <th scope="col">×</th>
+                            <th scope="col">Anzeige</th>
+                            <th scope="col">Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody id="dev-dashboard-supply-catalog-body"></tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section
+                    class="dev-dashboard-panel"
                     id="dev-dashboard-discount-matrix"
                     aria-label="MHD-Rabattstaffel"
                   >
@@ -3284,7 +3312,7 @@
           </div>
         </div>
 
-        <!-- Schnellmelde / Bedarfs-Modal (1-Tap) -->
+        <!-- Schnellmelde / Bedarfs-Modal (Freitext zuerst, Buttons aus Stammdaten) -->
         <div
           id="modal-quick-alert"
           class="quick-alert-overlay"
@@ -3298,29 +3326,50 @@
           <div class="quick-alert-sheet">
             <div class="quick-alert-sheet-head">
               <div>
-                <p class="quick-alert-kicker">1-Tap Meldung</p>
+                <p class="quick-alert-kicker">Bedarf melden</p>
                 <h2 id="quick-alert-title" class="quick-alert-title">Was fehlt?</h2>
               </div>
               <button type="button" class="quick-alert-close" id="quick-alert-close" aria-label="Schließen">×</button>
             </div>
-            <div class="quick-alert-tabs" id="quick-alert-tabs" role="tablist" aria-label="Bedarfsbereiche"></div>
-            <div class="quick-alert-grid" id="quick-alert-grid" role="group" aria-label="Schnellauswahl"></div>
             <div class="quick-alert-freetext-wrap" id="quick-alert-freetext-wrap">
-              <label class="quick-alert-freetext-label" for="quick-alert-freetext">Oder kurz selbst schreiben</label>
+              <label class="quick-alert-freetext-label" for="quick-alert-freetext">Kurz beschreiben – landet in der Bedarfsliste und in den Stammdaten</label>
               <div class="quick-alert-freetext-row">
                 <input
                   type="text"
                   id="quick-alert-freetext"
                   class="quick-alert-freetext"
                   maxlength="120"
-                  placeholder="z. B. Weißwurst-Theke nachfüllen"
+                  placeholder="z. B. Siegelrandbeutel klein leer"
                   autocomplete="off"
+                  enterkeyhint="send"
                 >
                 <button type="button" class="btn btn-primary quick-alert-freetext-submit" id="quick-alert-freetext-submit">
                   Melden
                 </button>
               </div>
+              <div class="quick-alert-meta-row">
+                <label class="quick-alert-meta-field" for="quick-alert-urgency">
+                  <span>Dringlichkeit</span>
+                  <select id="quick-alert-urgency" class="quick-alert-select">
+                    <option value="nachbestellen">Nachbestellen</option>
+                    <option value="sofort">Sofort</option>
+                  </select>
+                </label>
+                <label class="quick-alert-meta-field" for="quick-alert-department">
+                  <span>Zuständigkeit</span>
+                  <select id="quick-alert-department" class="quick-alert-select">
+                    <option value="all">Alle</option>
+                    <option value="metzgerei">Metzgerei</option>
+                    <option value="laden">Laden</option>
+                  </select>
+                </label>
+              </div>
             </div>
+            <p class="quick-alert-buttons-hint" id="quick-alert-buttons-hint" hidden></p>
+            <p class="quick-alert-empty" id="quick-alert-empty">
+              Noch keine Schnell-Buttons. Melde Bedarfe per Text – nach wiederholter Nutzung oder in der Verwaltung wachsen sie hier nach.
+            </p>
+            <div class="quick-alert-grid" id="quick-alert-grid" role="group" aria-label="Schnellauswahl aus Stammdaten"></div>
           </div>
         </div>
 
@@ -3529,6 +3578,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-supply-alerts-v1"></script>
+  <script type="module" src="/app.js?v=20261025-supply-alerts-v2"></script>
 </body>
 </html>

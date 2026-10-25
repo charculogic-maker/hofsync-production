@@ -26,6 +26,7 @@ import {
   sampleProductMaster,
   sampleSettings,
   sampleSupplyAlert,
+  sampleSupplyCatalogItem,
   sampleTask,
   sampleTraceabilityRecord,
   sampleWareneingangDelivery,
@@ -1016,9 +1017,11 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
   describe('TEST CASE 9a: supply_alerts Schnellmelde', () => {
     const alertPath = tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-weisswurst-1');
+    const catalogPath = tenantDocPath(TENANTS.STEVES_HOF, 'supply_catalog', 'siegelrandbeutel');
 
     beforeEach(async () => {
       await seedFirestoreDoc(testEnv, alertPath, sampleSupplyAlert(TENANTS.STEVES_HOF));
+      await seedFirestoreDoc(testEnv, catalogPath, sampleSupplyCatalogItem(TENANTS.STEVES_HOF));
     });
 
     it('allows employee create/read/status-update and denies helper create', async () => {
@@ -1031,7 +1034,11 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         employee,
         tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-new-1'),
         'create',
-        sampleSupplyAlert(TENANTS.STEVES_HOF, { title: 'Wurstdärme knapp', category: 'metzgerei_bedarf' }),
+        sampleSupplyAlert(TENANTS.STEVES_HOF, {
+          title: 'Wurstdärme knapp',
+          category: 'sonstig',
+          catalogItemId: 'wurstdarme_knapp',
+        }),
       );
       await expectFirestoreAllow(employee, alertPath, 'update', {
         status: 'ordered',
@@ -1052,6 +1059,34 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         'create',
         sampleSupplyAlert(TENANTS.STEVES_HOF),
       );
+    });
+
+    it('allows employee to upsert supply_catalog and admin to delete', async () => {
+      const employee = authContext(testEnv, 'sh-employee-catalog', TENANTS.STEVES_HOF, 'employee');
+      const admin = authContext(testEnv, 'sh-admin-catalog', TENANTS.STEVES_HOF, 'admin');
+      const foreign = authContext(testEnv, 'tf-employee-catalog', TENANTS.TORFABRIK, 'employee');
+
+      await expectFirestoreAllow(employee, catalogPath, 'read');
+      await expectFirestoreAllow(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_catalog', 'handtuchpapier'),
+        'create',
+        sampleSupplyCatalogItem(TENANTS.STEVES_HOF, {
+          label: 'Handtuchpapier',
+          normalizedKey: 'handtuchpapier',
+          category: 'verbrauchsmaterial',
+          departmentTarget: 'laden',
+        }),
+      );
+      await expectFirestoreAllow(employee, catalogPath, 'update', {
+        useCount: 2,
+        quickEnabled: true,
+        updatedAt: '2026-10-25T13:00:00.000Z',
+        lastUsedAt: '2026-10-25T13:00:00.000Z',
+        lastUsedBy: 'Finn',
+      });
+      await expectFirestoreAllow(admin, catalogPath, 'delete');
+      await expectFirestoreDeny(foreign, catalogPath, 'read');
     });
   });
 
