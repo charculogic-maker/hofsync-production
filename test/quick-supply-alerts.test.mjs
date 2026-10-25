@@ -38,10 +38,16 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(swJs).to.match(/\/quick-alert\.js/);
   });
 
-  it('grows quick buttons from supply_catalog instead of hardcoded tiles', () => {
+  it('grows quick buttons from supply_catalog and seeds 1-Tap standard chips', () => {
     expect(quickAlertJs).to.not.match(/export const QUICK_ALERT_CATEGORIES/);
     expect(quickAlertJs).to.match(/SUPPLY_CATALOG_COLLECTION\s*=\s*'supply_catalog'/);
     expect(quickAlertJs).to.match(/QUICK_BUTTON_MIN_USES\s*=\s*2/);
+    expect(quickAlertJs).to.match(/export const DEFAULT_QUICK_BUTTONS/);
+    expect(quickAlertJs).to.match(/Siegelrandbeutel klein/);
+    expect(quickAlertJs).to.match(/Kassenrollen/);
+    expect(quickAlertJs).to.match(/Handtuchpapier/);
+    expect(quickAlertJs).to.match(/Wurstdärme/);
+    expect(quickAlertJs).to.match(/export function resolveQuickAlertButtons/);
     expect(quickAlertJs).to.match(/eigene_produktion/);
     expect(quickAlertJs).to.match(/zukauf_fleisch_wurst/);
     expect(quickAlertJs).to.match(/zukauf_laden/);

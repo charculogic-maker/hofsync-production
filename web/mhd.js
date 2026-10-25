@@ -54,6 +54,8 @@ import {
   defaultSuppliersForArea,
 } from './receiving.js';
 import { logAndMapOperatorError } from './operator-errors.js';
+import { logReceivingTemperatureCheck } from './haccp.js';
+import { prefillChargenDokuFromReceiving } from './traceability.js';
 import { resolveEmployeeByPin, verifyMeisterPin } from './team-config.js';
 import {
   ACTIVE_EMPLOYEE_STORAGE_KEY,
@@ -9129,6 +9131,109 @@ function showMeisterOverrideModal(temperature, options = {}) {
   });
 }
 
+function inferAnimalTypeFromMetzCategory(category = '') {
+  const value = String(category || '').toLowerCase();
+  if (value.includes('schwein')) return 'schwein';
+  if (value.includes('geflügel') || value.includes('gefluegel') || value.includes('hähn') || value.includes('huhn')) {
+    return 'gefluegel';
+  }
+  if (value.includes('schaf')) return 'schaf';
+  if (value.includes('ziege')) return 'ziege';
+  if (value.includes('rind') || value.includes('kalb')) return 'rind';
+  return 'rind';
+}
+
+function showLmivHerkunftBridgePrompt({ lotNumber = '', supplier = '' } = {}) {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('lmiv-bridge-overlay');
+    existing?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lmiv-bridge-overlay';
+    overlay.className = 'learn-mode-overlay';
+    overlay.innerHTML = `
+      <div class="learn-mode-card" role="dialog" aria-modal="true" aria-labelledby="lmiv-bridge-title">
+        <div class="learn-mode-title" id="lmiv-bridge-title">LMIV-Herkunft erfassen?</div>
+        <p class="learn-mode-desc">
+          Metzgerei-Lieferung${supplier ? ` von <strong>${escapeHtml(supplier)}</strong>` : ''} ist gebucht.
+          ${lotNumber ? `Charge <strong>${escapeHtml(lotNumber)}</strong> können wir direkt ins Thekenbuch übernehmen.` : 'Als Nächstes die Herkunft fürs Thekenbuch nachziehen.'}
+        </p>
+        <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:8px;">
+          <button type="button" class="btn btn-primary" id="lmiv-bridge-go" style="width:100%;min-height:52px;">
+            Herkunft jetzt erfassen
+          </button>
+          <button type="button" class="btn" id="lmiv-bridge-later" style="width:100%;min-height:48px;background:#E5E5EA;color:#1C1C1E;">
+            Später
+          </button>
+        </div>
+      </div>
+    `;
+    document.querySelector('.app-container')?.appendChild(overlay);
+
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+    overlay.querySelector('#lmiv-bridge-go')?.addEventListener('click', () => close('go'));
+    overlay.querySelector('#lmiv-bridge-later')?.addEventListener('click', () => close('later'));
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close('later');
+    });
+    overlay.querySelector('#lmiv-bridge-go')?.focus();
+  });
+}
+
+async function bridgeMetzgereiDeliveryToDocs({
+  deliveryBundle,
+  head,
+  meisterOverrideReason = '',
+} = {}) {
+  const mode = head?.receivingMode || getReceivingMode();
+  if (mode !== 'metzgerei') return;
+
+  const temp = Number(deliveryBundle?.temperatur ?? head?.temperatur);
+  if (Number.isFinite(temp)) {
+    const category = deliveryBundle?.warenKategorieMetzgerei
+      || head?.warenKategorieMetzgerei
+      || '';
+    try {
+      await logReceivingTemperatureCheck({
+        temperature: temp,
+        supplier: deliveryBundle?.lieferant || head?.supplier || '',
+        category,
+        deliveryId: deliveryBundle?.id || '',
+        employee: deliveryBundle?.scannedBy || getActiveEmployee() || '',
+        limitC: getHaccpTempLimitForCategory(category),
+        overrideReason: meisterOverrideReason || deliveryBundle?.meisterOverrideReason || '',
+      });
+    } catch (err) {
+      console.warn('[CharcuLogic Wareneingang] HACCP-Temperatur-Brücke fehlgeschlagen:', err);
+    }
+  }
+
+  const lotNumber = String(
+    deliveryBundle?.lot
+    || deliveryBundle?.chargenNummer
+    || head?.lot
+    || head?.ohrmarke
+    || '',
+  ).trim();
+  const choice = await showLmivHerkunftBridgePrompt({
+    lotNumber,
+    supplier: deliveryBundle?.lieferant || head?.supplier || '',
+  });
+  if (choice !== 'go') return;
+
+  window.showTab?.('chargenDoku');
+  prefillChargenDokuFromReceiving({
+    lotNumber,
+    animalType: inferAnimalTypeFromMetzCategory(
+      deliveryBundle?.warenKategorieMetzgerei || head?.warenKategorieMetzgerei || '',
+    ),
+  });
+  window.showToast?.('Charge übernommen – bitte Öko-Kontrollstelle und Foto ergänzen.', 'info');
+}
+
 async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
   const saveBtn = document.getElementById('we-save-delivery-btn');
   const isDraftCompletion = Boolean(activeEditingDraftId);
@@ -9301,6 +9406,11 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       return;
     }
     mhdState.playClickSound(1300, 0.08, 0.2);
+    const metzBridgePayload = {
+      deliveryBundle: { ...deliveryBundle },
+      head: { ...head },
+      meisterOverrideReason,
+    };
     resetReceivingForm();
     const itemCount = deliveryBundle.itemCount;
     if (navigator.onLine) {
@@ -9314,15 +9424,18 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
         window.showSyncQueueDialog?.();
         renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten gebucht, ${remaining} warten auf Sync` });
         window.showToast?.(`Lieferung gebucht. ${remaining} Posten konnten nicht synchronisiert werden.`, 'warning');
+        await bridgeMetzgereiDeliveryToDocs(metzBridgePayload);
         return;
       }
       renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten gebucht` });
       window.showToast?.(`Lieferung gebucht & ${itemCount} Posten synchronisiert`, 'success');
+      await bridgeMetzgereiDeliveryToDocs(metzBridgePayload);
       return;
     }
     window.showSyncQueueDialog?.();
     renderReceivingStatus({ status: `Lieferung mit ${itemCount} Posten lokal vorgemerkt` });
     window.showToast?.('Lieferung lokal vorgemerkt. Sync startet, sobald Netz da ist.', 'warning');
+    await bridgeMetzgereiDeliveryToDocs(metzBridgePayload);
   } catch (err) {
     finalizeFailed = true;
     console.error('[CharcuLogic MHD] Lieferung abschließen fehlgeschlagen:', err);

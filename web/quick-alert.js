@@ -20,6 +20,37 @@ const OPEN_STATUSES = new Set(['open', 'in_progress', 'ordered']);
 export const QUICK_BUTTON_MIN_USES = 2;
 
 /**
+ * Feste 1-Tap-Standardchips für den Betriebsalltag (Wet-Finger UX).
+ * Erscheinen immer, auch ohne Stammdaten – Katalog-Einträge überschreiben gleiches Label.
+ */
+export const DEFAULT_QUICK_BUTTONS = [
+  {
+    label: 'Siegelrandbeutel klein',
+    category: 'verbrauchsmaterial',
+    departmentTarget: 'laden',
+    urgencyDefault: 'nachbestellen',
+  },
+  {
+    label: 'Kassenrollen',
+    category: 'verbrauchsmaterial',
+    departmentTarget: 'laden',
+    urgencyDefault: 'nachbestellen',
+  },
+  {
+    label: 'Handtuchpapier',
+    category: 'verbrauchsmaterial',
+    departmentTarget: 'laden',
+    urgencyDefault: 'nachbestellen',
+  },
+  {
+    label: 'Wurstdärme',
+    category: 'verbrauchsmaterial',
+    departmentTarget: 'metzgerei',
+    urgencyDefault: 'nachbestellen',
+  },
+];
+
+/**
  * Bedarfs-Art (Herkunft) – steuert auch, wer die Meldung sieht (departmentTarget).
  */
 export const SUPPLY_CATEGORY_OPTIONS = [
@@ -202,7 +233,7 @@ function normalizeCatalogDoc(docSnap) {
   };
 }
 
-/** Einträge, die als Schnell-Buttons erscheinen dürfen. */
+/** Einträge, die als Schnell-Buttons erscheinen dürfen (nur Stammdaten). */
 export function getQuickButtonCatalogItems(catalog = alertState.catalog) {
   return (Array.isArray(catalog) ? catalog : [])
     .filter((item) => item.active !== false && item.quickEnabled === true && item.label)
@@ -210,6 +241,41 @@ export function getQuickButtonCatalogItems(catalog = alertState.catalog) {
       if (b.useCount !== a.useCount) return b.useCount - a.useCount;
       return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
     });
+}
+
+/**
+ * Stammdaten-Schnellbuttons + feste Standardchips (ohne Duplikate nach Label-Key).
+ */
+export function resolveQuickAlertButtons(catalog = alertState.catalog) {
+  const fromCatalog = getQuickButtonCatalogItems(catalog);
+  const byKey = new Map();
+  fromCatalog.forEach((item) => {
+    const key = catalogKeyFromLabel(item.label);
+    if (key) byKey.set(key, item);
+  });
+  DEFAULT_QUICK_BUTTONS.forEach((seed) => {
+    const key = catalogKeyFromLabel(seed.label);
+    if (!key || byKey.has(key)) return;
+    byKey.set(key, {
+      id: key,
+      label: seed.label,
+      normalizedKey: key,
+      category: seed.category,
+      departmentTarget: seed.departmentTarget,
+      urgencyDefault: seed.urgencyDefault,
+      useCount: 0,
+      quickEnabled: true,
+      active: true,
+      isDefaultSeed: true,
+    });
+  });
+  return [...byKey.values()].sort((a, b) => {
+    if (Boolean(a.isDefaultSeed) !== Boolean(b.isDefaultSeed)) {
+      return a.isDefaultSeed ? 1 : -1;
+    }
+    if (b.useCount !== a.useCount) return b.useCount - a.useCount;
+    return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
+  });
 }
 
 export function getSupplyCatalogItems() {
@@ -511,7 +577,7 @@ function renderQuickButtonGrid() {
   const hint = document.getElementById('quick-alert-buttons-hint');
   if (!host) return;
 
-  const items = getQuickButtonCatalogItems();
+  const items = resolveQuickAlertButtons();
   if (!items.length) {
     host.innerHTML = '';
     if (empty) empty.hidden = false;
@@ -520,14 +586,22 @@ function renderQuickButtonGrid() {
   }
 
   if (empty) empty.hidden = true;
+  const catalogCount = items.filter((item) => !item.isDefaultSeed).length;
+  const seedCount = items.length - catalogCount;
   if (hint) {
     hint.hidden = false;
-    hint.textContent = `${items.length} Schnell-Button${items.length === 1 ? '' : 's'} aus Stammdaten`;
+    if (catalogCount && seedCount) {
+      hint.textContent = `${catalogCount} aus Stammdaten · ${seedCount} Standard`;
+    } else if (catalogCount) {
+      hint.textContent = `${catalogCount} Schnell-Button${catalogCount === 1 ? '' : 's'} aus Stammdaten`;
+    } else {
+      hint.textContent = '1-Tap-Standards – tippen genügt';
+    }
   }
   host.innerHTML = items.map((item) => `
     <button
       type="button"
-      class="quick-alert-tile"
+      class="quick-alert-tile${item.isDefaultSeed ? ' quick-alert-tile--seed' : ''}"
       data-quick-alert-item="1"
       data-catalog-id="${escapeHtml(item.id)}"
       data-title="${escapeHtml(item.label)}"

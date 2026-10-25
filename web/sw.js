@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261025-dept-createdat-v6';
+const CACHE_NAME = 'charculogic-v20261025-wet-finger-ux-v1';
 
 const CACHE_SCHEMA = 'p0-supply-categories-rules-oct2026';
 /** Release – Bedarfs-Arten + Rules für alle Betriebsrollen */

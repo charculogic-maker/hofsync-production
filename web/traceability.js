@@ -597,6 +597,37 @@ export function activateChargenDokuTab() {
   setChargenDokuPanel('capture');
 }
 
+/**
+ * Wareneingang (Metzgerei) → LMIV: Charge/LOT und Tierart vorbefüllen.
+ * Foto und Öko-Kontrollstelle bleiben bewusst manuell (Validierung).
+ */
+export function prefillChargenDokuFromReceiving({
+  lotNumber = '',
+  animalType = '',
+  healthMark = '',
+  organicControlBody = '',
+  singleOriginCountry = '',
+} = {}) {
+  activateChargenDokuTab();
+  const inferredAnimal = ANIMAL_TYPE_SET.has(animalType) ? animalType : '';
+  applyParsedLabelToForm({
+    lotNumber: String(lotNumber || '').trim(),
+    healthMark: String(healthMark || '').trim(),
+    organicControlBody: String(organicControlBody || '').trim(),
+    animalType: inferredAnimal || 'rind',
+    isSingleOrigin: true,
+    singleOriginCountry: String(singleOriginCountry || '').trim(),
+  });
+  const lotEl = document.getElementById('trace-lot-number');
+  if (lotEl && String(lotNumber || '').trim()) {
+    try {
+      lotEl.focus({ preventScroll: true });
+    } catch (_) {
+      lotEl.focus();
+    }
+  }
+}
+
 /** @deprecated Use activateChargenDokuTab */
 export function activateTraceabilityTab() {
   return activateChargenDokuTab();
