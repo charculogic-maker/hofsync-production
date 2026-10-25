@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-nutzer-mobil-v1';
+const CACHE_NAME = 'charculogic-v20261025-thekenklade-sichtbar-v1';
 
-const CACHE_SCHEMA = 'p0-nutzer-mobil-oct2026';
-/** Release – Nutzer mobil als Karten mit ⋯-Aktionen */
-const RELEASED_AT = '2026-10-25T23:00:00+02:00';
+const CACHE_SCHEMA = 'p0-thekenklade-sichtbar-oct2026';
+/** Release – Thekenklade wieder auffindbar (Herkunft-Nav + Admin-Shortcut) */
+const RELEASED_AT = '2026-10-26T00:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

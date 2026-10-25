@@ -40,8 +40,8 @@ describe('Nutzer mobil (Karten + ⋯)', () => {
     expect(css).to.match(/display: none !important;/);
   });
 
-  it('bumpt den Service-Worker-Cache für nutzer-mobil', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-nutzer-mobil-v1'");
-    expect(app).to.include('sw.js?v=20261025-nutzer-mobil');
+  it('bumpt den Service-Worker-Cache für thekenklade-sichtbar', () => {
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-thekenklade-sichtbar-v1'");
+    expect(app).to.include('sw.js?v=20261025-thekenklade-sichtbar');
   });
 });
