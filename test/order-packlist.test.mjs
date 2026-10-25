@@ -204,28 +204,23 @@ describe('order-packlist Packtisch', () => {
     assert.equal(counts.has('2099-01-01'), false);
   });
 
-  it('baut 14-Tage- und Monatsraster ab Montag (DE)', () => {
-    // 21.10.2026 = Mittwoch → Wochenstart Montag 19.10.
-    const twoWeeks = buildPacktischCalendarDays('2weeks', '2026-10-21', new Date('2026-10-21T12:00:00'));
-    assert.equal(twoWeeks.length, 14);
-    assert.equal(twoWeeks[0].iso, '2026-10-19');
-    assert.equal(twoWeeks[13].iso, '2026-11-01');
-    assert.equal(twoWeeks[2].iso, '2026-10-21'); // Mi unter Spalte 3
-
-    // 25.10.2026 = Sonntag → muss unter Spalte So (Index 6) liegen, nicht unter Mo.
-    const sundayAnchor = buildPacktischCalendarDays('2weeks', '2026-10-25', new Date('2026-10-25T14:42:00'));
-    assert.equal(sundayAnchor[0].iso, '2026-10-19');
-    assert.equal(sundayAnchor[6].iso, '2026-10-25');
-    assert.equal(sundayAnchor[6].isToday, true);
-    assert.equal(sundayAnchor[8].iso, '2026-10-27'); // Di
-
+  it('baut Monatsraster ab Montag (DE)', () => {
     const month = buildPacktischCalendarDays('month', '2026-10-15', new Date('2026-10-21T12:00:00'));
     assert.ok(month.length >= 28);
     assert.ok(month.some((cell) => cell.iso === '2026-10-01' && cell.inMonth));
     assert.ok(month.some((cell) => cell.isToday && cell.iso === '2026-10-21'));
-    // Monatsraster startet ebenfalls auf einem Montag
+    // Monatsraster startet auf einem Montag
     const [y0, m0, d0] = month[0].iso.split('-').map(Number);
     assert.equal(new Date(y0, m0 - 1, d0, 12).getDay(), 1);
+
+    // 25.10.2026 = Sonntag → unter Spalte So (Index 6 der ersten vollen Woche mit dem 25.)
+    const october = buildPacktischCalendarDays('month', '2026-10-25', new Date('2026-10-25T14:42:00'));
+    const idx25 = october.findIndex((cell) => cell.iso === '2026-10-25');
+    assert.ok(idx25 >= 0);
+    assert.equal(idx25 % 7, 6); // So
+    assert.equal(october[idx25].isToday, true);
+    const idx27 = october.findIndex((cell) => cell.iso === '2026-10-27');
+    assert.equal(idx27 % 7, 1); // Di
   });
 
   it('formatiert Abholung mit „ab“ statt „um“', () => {

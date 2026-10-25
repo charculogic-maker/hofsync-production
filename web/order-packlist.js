@@ -201,40 +201,29 @@ export function countOrdersByPickupDay(orders = [], opts = {}) {
 }
 
 /**
- * Kalenderzellen für Zwei-Wochen- oder Monatsübersicht.
- * Spaltenkopf ist immer Mo–So; beide Modi starten daher auf einem Montag.
- * @param {'2weeks'|'month'} mode
- * @param {string} [anchorIso] – beliebiger Tag in der gewünschten Woche/Monat
+ * Kalenderzellen für die Packtisch-Monatsübersicht (Mo–So).
+ * @param {'month'|string} [_mode] – nur Monat; Argument bleibt für Aufrufer-Kompatibilität
+ * @param {string} [anchorIso] – beliebiger Tag im gewünschten Monat
  * @param {Date} [now]
  * @returns {{ iso: string, inMonth: boolean, isToday: boolean }[]}
  */
-export function buildPacktischCalendarDays(mode = '2weeks', anchorIso = '', now = new Date()) {
+export function buildPacktischCalendarDays(_mode = 'month', anchorIso = '', now = new Date()) {
   const today = todayIsoLocal(now);
   const anchor = String(anchorIso || today).slice(0, 10);
-
-  if (mode === 'month') {
-    const monthStart = startOfMonthIso(anchor);
-    const monthEnd = endOfMonthIso(anchor);
-    const gridStart = startOfWeekMondayIso(monthStart);
-    const cells = [];
-    for (let i = 0; i < 42; i += 1) {
-      const iso = addDaysIso(gridStart, i);
-      cells.push({
-        iso,
-        inMonth: iso >= monthStart && iso <= monthEnd,
-        isToday: iso === today,
-      });
-      if (iso >= monthEnd && (i + 1) % 7 === 0 && i >= 27) break;
-    }
-    return cells;
+  const monthStart = startOfMonthIso(anchor);
+  const monthEnd = endOfMonthIso(anchor);
+  const gridStart = startOfWeekMondayIso(monthStart);
+  const cells = [];
+  for (let i = 0; i < 42; i += 1) {
+    const iso = addDaysIso(gridStart, i);
+    cells.push({
+      iso,
+      inMonth: iso >= monthStart && iso <= monthEnd,
+      isToday: iso === today,
+    });
+    if (iso >= monthEnd && (i + 1) % 7 === 0 && i >= 27) break;
   }
-
-  // 2 Wochen: Anker-Woche ab Montag – sonst landet z. B. Sonntag unter „Mo“.
-  const weekStart = startOfWeekMondayIso(anchor) || today;
-  return Array.from({ length: 14 }, (_, i) => {
-    const iso = addDaysIso(weekStart, i);
-    return { iso, inMonth: true, isToday: iso === today };
-  });
+  return cells;
 }
 
 /** Nächster Wochentag (0=So … 6=Sa). Wenn heute der Tag ist → heute. */

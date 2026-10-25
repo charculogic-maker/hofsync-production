@@ -16,7 +16,6 @@ import {
   addDaysIso,
   aggregatePastOrderProducts,
   buildPacktischCalendarDays,
-  startOfWeekMondayIso,
   butcherNotes,
   calculateLinePriceFromWeight,
   classifyPacktischBucket,
@@ -102,9 +101,7 @@ const orderState = {
   expandedWholesalerKeys: new Set(),
   weighDraftByKey: new Map(),
   weighSaveInFlight: false,
-  /** @type {'2weeks'|'month'} */
-  calendarMode: '2weeks',
-  /** Anker für Zwei-Wochen-Start bzw. Monat */
+  /** Anker-Tag im angezeigten Monat */
   calendarAnchorIso: '',
   /** Gewählter Abholtag (ISO) – leer = alle offenen */
   selectedPickupDayIso: '',
@@ -1913,38 +1910,21 @@ function renderPacktischCalendar() {
   if (!root) return;
 
   const anchor = ensureCalendarAnchor();
-  const mode = orderState.calendarMode === 'month' ? 'month' : '2weeks';
-  const cells = buildPacktischCalendarDays(mode, anchor);
+  const cells = buildPacktischCalendarDays('month', anchor);
   const counts = countOrdersByPickupDay(orderState.allOrders);
   const selected = orderState.selectedPickupDayIso;
 
-  const rangeLabel = mode === 'month'
-    ? (() => {
-      const parsed = Date.parse(`${startOfMonthIso(anchor)}T12:00:00`);
-      return Number.isFinite(parsed)
-        ? new Date(parsed).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
-        : 'Monat';
-    })()
-    : (() => {
-      const startIso = cells[0]?.iso || startOfWeekMondayIso(anchor) || anchor;
-      const endIso = cells[cells.length - 1]?.iso || addDaysIso(startIso, 13);
-      const a = Date.parse(`${startIso}T12:00:00`);
-      const b = Date.parse(`${endIso}T12:00:00`);
-      if (!Number.isFinite(a) || !Number.isFinite(b)) return 'Zwei Wochen';
-      const fmt = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-      return `${fmt(a)} – ${fmt(b)}`;
-    })();
+  const rangeParsed = Date.parse(`${startOfMonthIso(anchor)}T12:00:00`);
+  const rangeLabel = Number.isFinite(rangeParsed)
+    ? new Date(rangeParsed).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+    : 'Monat';
 
   root.innerHTML = `
     <div class="packtisch-calendar-toolbar">
-      <div class="packtisch-calendar-mode" role="group" aria-label="Kalenderzeitraum">
-        <button type="button" class="btn btn-secondary btn-compact${mode === '2weeks' ? ' is-active' : ''}" data-calendar-mode="2weeks">2 Wochen</button>
-        <button type="button" class="btn btn-secondary btn-compact${mode === 'month' ? ' is-active' : ''}" data-calendar-mode="month">Monat</button>
-      </div>
       <div class="packtisch-calendar-nav">
-        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="prev" aria-label="Zurück">‹</button>
+        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="prev" aria-label="Vorheriger Monat">‹</button>
         <strong class="packtisch-calendar-range">${escapeHtml(rangeLabel)}</strong>
-        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="next" aria-label="Weiter">›</button>
+        <button type="button" class="btn btn-secondary btn-compact" data-calendar-nav="next" aria-label="Nächster Monat">›</button>
       </div>
     </div>
     <div class="packtisch-calendar-weekdays" aria-hidden="true">
@@ -3977,15 +3957,10 @@ function bindOrderNotifyModal() {
 
 function shiftCalendarAnchor(direction) {
   const anchor = ensureCalendarAnchor();
-  if (orderState.calendarMode === 'month') {
-    const start = startOfMonthIso(anchor);
-    const [y, m] = start.split('-').map(Number);
-    const next = new Date(y, m - 1 + direction, 1, 12, 0, 0, 0);
-    orderState.calendarAnchorIso = todayIsoLocal(next);
-  } else {
-    const weekStart = startOfWeekMondayIso(anchor) || anchor;
-    orderState.calendarAnchorIso = addDaysIso(weekStart, direction * 14);
-  }
+  const start = startOfMonthIso(anchor);
+  const [y, m] = start.split('-').map(Number);
+  const next = new Date(y, m - 1 + direction, 1, 12, 0, 0, 0);
+  orderState.calendarAnchorIso = todayIsoLocal(next);
   renderPacktischCalendar();
 }
 
@@ -4000,15 +3975,6 @@ function bindOrdersViewSwitch() {
     const viewBtn = event.target.closest('[data-orders-view]');
     if (viewBtn?.dataset.ordersView) {
       setOrdersView(viewBtn.dataset.ordersView);
-      return;
-    }
-    const modeBtn = event.target.closest('[data-calendar-mode]');
-    if (modeBtn?.dataset.calendarMode) {
-      orderState.calendarMode = modeBtn.dataset.calendarMode === 'month' ? 'month' : '2weeks';
-      if (orderState.calendarMode === '2weeks' && !orderState.calendarAnchorIso) {
-        orderState.calendarAnchorIso = todayIsoLocal();
-      }
-      renderPacktischCalendar();
       return;
     }
     const navBtn = event.target.closest('[data-calendar-nav]');
