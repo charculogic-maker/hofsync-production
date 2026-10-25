@@ -10675,6 +10675,50 @@ body.dev-dashboard-view .app-version-badge--footer {
   color: var(--text-muted);
 }
 
+.customer-order-pickup-tbd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.customer-order-ready-grid.is-pickup-tbd {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.customer-order-pickup-tbd-label {
+  color: #8a5a12;
+}
+
+.customer-order-inquiry-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #c9842c 45%, var(--border-subtle));
+  background: color-mix(in srgb, #c9842c 16%, var(--surface-secondary));
+  color: #6b4410;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+[data-theme="dark"] .customer-order-pickup-tbd-label {
+  color: #f0c27a;
+}
+
+[data-theme="dark"] .customer-order-inquiry-badge {
+  border-color: color-mix(in srgb, #f0c27a 40%, var(--border-subtle));
+  background: color-mix(in srgb, #f0c27a 18%, var(--surface-secondary));
+  color: #f6d7a4;
+}
+
 .customer-order-items {
   margin: 8px 0;
   padding-left: 18px;

@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261025-packtisch-ux">
+  <link rel="stylesheet" href="/style.css?v=20261025-pickup-tbd">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1406,11 +1406,15 @@
                     <input type="email" id="order-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
                   </div>
 
-                  <div class="customer-order-ready-grid">
+                  <label class="task-routing-option customer-order-pickup-tbd">
+                    <input type="checkbox" id="order-pickup-tbd">
+                    Abholdatum noch absprechen (Anfrage / Spezialbestellung)
+                  </label>
+                  <div class="customer-order-ready-grid" data-ready-fields>
                     <label class="form-label" for="order-ready-date">Bereit am</label>
-                    <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                    <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
                     <label class="form-label" for="order-ready-time">Uhrzeit</label>
-                    <input type="time" id="order-ready-time" class="input-text-touch" required>
+                    <input type="time" id="order-ready-time" class="input-text-touch">
                   </div>
 
                   <div class="customer-order-lines-head">
@@ -1619,11 +1623,15 @@
                           <input type="email" id="order-edit-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
                         </div>
 
-                        <div class="customer-order-ready-grid">
+                        <label class="task-routing-option customer-order-pickup-tbd">
+                          <input type="checkbox" id="order-edit-pickup-tbd">
+                          Abholdatum noch absprechen (Anfrage / Spezialbestellung)
+                        </label>
+                        <div class="customer-order-ready-grid" data-ready-fields>
                           <label class="form-label" for="order-edit-ready-date">Bereit am</label>
-                          <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                          <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
                           <label class="form-label" for="order-edit-ready-time">Uhrzeit</label>
-                          <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
+                          <input type="time" id="order-edit-ready-time" class="input-text-touch">
                         </div>
 
                         <label class="form-label" for="order-edit-additional-wishes">Hinweise / Wünsche</label>
@@ -3453,6 +3461,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-packtisch-ux"></script>
+  <script type="module" src="/app.js?v=20261025-pickup-tbd"></script>
 </body>
 </html>
