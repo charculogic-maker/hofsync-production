@@ -611,63 +611,96 @@ async function handleFreetextSubmit() {
   }
 }
 
-function renderAlertBanner() {
-  const banner = document.getElementById('supply-alert-banner');
+function updateSupplyAlertBadge(count = 0) {
   const badge = document.getElementById('btn-quick-alert-badge');
-  if (!banner) return;
-
-  const employee = getActiveEmployeeName();
-  const visible = alertState.alerts.filter((alert) => alertVisibleForEmployee(alert, employee));
-  const count = visible.length;
-
   if (badge) {
     badge.hidden = count === 0;
     badge.textContent = String(count);
   }
-
   const btn = document.getElementById('btn-quick-alert');
   if (btn) {
     btn.setAttribute('aria-label', count
-      ? `Bedarf melden – ${count} offene Bedarfe`
-      : 'Bedarf melden');
+      ? `Bedarf – ${count} offene Meldungen`
+      : 'Bedarf öffnen');
     btn.classList.toggle('has-open-alerts', count > 0);
   }
+}
 
-  if (!count || !employee) {
+function buildSupplyAlertListItem(alert, employeeName) {
+  const actions = canResolveAlert(alert, employeeName)
+    ? `
+      <span class="supply-alert-actions">
+        <button type="button" class="supply-alert-action" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}">Bestellt</button>
+        <button type="button" class="supply-alert-action supply-alert-action--done" data-supply-alert-status="done" data-alert-id="${escapeHtml(alert.id)}">Erledigt</button>
+      </span>
+    `
+    : '';
+  return `
+    <li class="supply-alert-item supply-alert-item--${escapeHtml(alert.urgency)}">
+      <div class="supply-alert-item-main">
+        <strong>${escapeHtml(alert.title)}</strong>
+        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(statusLabel(alert.status))} · ${escapeHtml(categoryLabel(alert.category))}</span>
+      </div>
+      ${actions}
+    </li>
+  `;
+}
+
+/** Offene Meldungen nur im Bedarfs-Modul (kein globaler Overlay-Banner). */
+function renderSupplyAlertInbox() {
+  const inbox = document.getElementById('supply-alert-inbox');
+  const statusEl = document.getElementById('bedarf-module-status');
+  const employee = getActiveEmployeeName();
+  const visible = alertState.alerts.filter((alert) => alertVisibleForEmployee(alert, employee));
+  const count = visible.length;
+
+  updateSupplyAlertBadge(count);
+
+  // Legacy-Banner falls noch im DOM: dauerhaft ausblenden
+  const banner = document.getElementById('supply-alert-banner');
+  if (banner) {
     banner.hidden = true;
     banner.innerHTML = '';
+  }
+
+  if (!inbox) return;
+
+  if (!employee) {
+    if (statusEl) statusEl.textContent = 'Bitte Mitarbeiter wählen, dann siehst du die offenen Bedarfe.';
+    inbox.innerHTML = '';
     return;
   }
 
-  const canResolve = visible.some((alert) => canResolveAlert(alert, employee));
-  const preview = visible.slice(0, 3).map((alert) => {
-    const actions = canResolveAlert(alert, employee)
-      ? `
-        <span class="supply-alert-actions">
-          <button type="button" class="supply-alert-action" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}">Bestellt</button>
-          <button type="button" class="supply-alert-action supply-alert-action--done" data-supply-alert-status="done" data-alert-id="${escapeHtml(alert.id)}">Erledigt</button>
-        </span>
-      `
-      : '';
-    return `
-      <li class="supply-alert-item supply-alert-item--${escapeHtml(alert.urgency)}">
-        <div class="supply-alert-item-main">
-          <strong>${escapeHtml(alert.title)}</strong>
-          <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(statusLabel(alert.status))}</span>
-        </div>
-        ${actions}
-      </li>
-    `;
-  }).join('');
+  if (!count) {
+    if (statusEl) statusEl.textContent = 'Keine offenen Bedarfsmeldungen für deinen Bereich.';
+    inbox.innerHTML = '';
+    return;
+  }
 
-  banner.hidden = false;
-  banner.innerHTML = `
-    <div class="supply-alert-banner-head">
-      <strong>${count} offene ${count === 1 ? 'Bedarfsmeldung' : 'Bedarfsmeldungen'}</strong>
-      ${canResolve ? '<span class="supply-alert-banner-hint">Tippe Bestellt oder Erledigt</span>' : ''}
-    </div>
-    <ul class="supply-alert-list">${preview}</ul>
-  `;
+  if (statusEl) {
+    const canResolve = visible.some((alert) => canResolveAlert(alert, employee));
+    statusEl.textContent = canResolve
+      ? `${count} offen – tippe Bestellt oder Erledigt`
+      : `${count} offen`;
+  }
+  inbox.innerHTML = visible.map((alert) => buildSupplyAlertListItem(alert, employee)).join('');
+}
+
+/** Eigenes Modul öffnen (ohne Bottom-Nav-Tab – Einstieg über ⚡ / Start-CTA). */
+export function openSupplyAlertModule() {
+  document.querySelectorAll('#app-content .page').forEach((page) => {
+    const active = page.id === 'page-bedarf';
+    page.classList.toggle('active', active);
+    page.style.display = active ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
+    tab.classList.remove('active');
+  });
+  document.body.classList.remove('admin-module-view');
+  const headerTitle = document.getElementById('header-title');
+  if (headerTitle) headerTitle.textContent = 'Bedarf';
+  document.getElementById('app-content')?.scrollTo?.(0, 0);
+  renderSupplyAlertInbox();
 }
 
 export function renderSupplyCatalogAdminTable() {
@@ -843,7 +876,7 @@ function subscribeSupplyAlerts() {
             if (aUrgency !== bUrgency) return aUrgency - bUrgency;
             return String(b.id).localeCompare(String(a.id));
           });
-        renderAlertBanner();
+        renderSupplyAlertInbox();
       },
       (err) => {
         console.warn('[QuickAlert] Alerts-Snapshot:', err);
@@ -871,15 +904,39 @@ function subscribeSupplyCatalog() {
     );
 }
 
+async function handleSupplyAlertStatusClick(event) {
+  const btn = event.target.closest('[data-supply-alert-status]');
+  if (!(btn instanceof HTMLButtonElement)) return;
+  const alertId = btn.getAttribute('data-alert-id');
+  const status = btn.getAttribute('data-supply-alert-status');
+  btn.disabled = true;
+  try {
+    await updateSupplyAlertStatus(alertId, status);
+    window.showToast?.(
+      status === 'ordered' ? 'Als bestellt markiert.' : 'Als erledigt markiert.',
+      'success',
+    );
+  } catch (err) {
+    console.error('[QuickAlert] Status aktualisieren fehlgeschlagen:', err);
+    window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function bindQuickAlertUi() {
   if (alertState.bound) return;
   alertState.bound = true;
 
   document.getElementById('btn-quick-alert')?.addEventListener('click', () => {
-    openQuickAlertModal();
+    openSupplyAlertModule();
   });
 
   document.getElementById('btn-supply-alert-start')?.addEventListener('click', () => {
+    openSupplyAlertModule();
+  });
+
+  document.getElementById('btn-bedarf-melden')?.addEventListener('click', () => {
     openQuickAlertModal();
   });
 
@@ -909,31 +966,15 @@ function bindQuickAlertUi() {
     }
   });
 
-  document.getElementById('supply-alert-banner')?.addEventListener('click', async (event) => {
-    const btn = event.target.closest('[data-supply-alert-status]');
-    if (!(btn instanceof HTMLButtonElement)) return;
-    const alertId = btn.getAttribute('data-alert-id');
-    const status = btn.getAttribute('data-supply-alert-status');
-    btn.disabled = true;
-    try {
-      await updateSupplyAlertStatus(alertId, status);
-      window.showToast?.(
-        status === 'ordered' ? 'Als bestellt markiert.' : 'Als erledigt markiert.',
-        'success',
-      );
-    } catch (err) {
-      console.error('[QuickAlert] Status aktualisieren fehlgeschlagen:', err);
-      window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
-    } finally {
-      btn.disabled = false;
-    }
+  document.getElementById('supply-alert-inbox')?.addEventListener('click', (event) => {
+    void handleSupplyAlertStatusClick(event);
   });
 
   window.addEventListener('charculogic:active-employee-changed', () => {
-    renderAlertBanner();
+    renderSupplyAlertInbox();
   });
   window.addEventListener('charculogic:team-config-changed', () => {
-    renderAlertBanner();
+    renderSupplyAlertInbox();
   });
 
   document.addEventListener('keydown', (event) => {
@@ -956,7 +997,7 @@ export function initQuickAlertModule(databaseInstance, options = {}) {
   renderSupplyCatalogAdminTable();
   subscribeSupplyAlerts();
   subscribeSupplyCatalog();
-  renderAlertBanner();
+  renderSupplyAlertInbox();
 }
 
 export function getOpenSupplyAlertsForTest() {

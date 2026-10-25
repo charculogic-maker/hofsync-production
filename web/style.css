@@ -15766,30 +15766,45 @@ body.role-firebase-auth #team-login-card {
   box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.45);
 }
 
-.supply-alert-banner {
-  margin: 0 12px 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-alert, #c62828) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-alert, #c62828) 10%, var(--light-bg, #fff));
-}
-
+/* Legacy-Banner-Selektor: bewusst ausgeblendet – Liste lebt nur in page-bedarf */
+.supply-alert-banner,
 .supply-alert-banner[hidden] {
   display: none !important;
 }
 
-.supply-alert-banner-head {
+.bedarf-module {
+  padding: 12px 14px 24px;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.supply-alert-banner-hint {
-  font-size: 11px;
+.bedarf-module-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bedarf-module-head-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.bedarf-module-status {
+  margin: 0;
+  font-size: 13px;
   color: var(--text-secondary, #64748b);
+}
+
+.bedarf-module-list {
+  gap: 10px;
+}
+
+.bedarf-module-list .supply-alert-item {
+  padding: 12px;
+  background: var(--light-bg, #fff);
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .supply-alert-list {

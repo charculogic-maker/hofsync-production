@@ -18,17 +18,23 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
   const swJs = read('web/sw.js');
   const rules = read('firebase.rules');
 
-  it('exposes freitext-first modal, catalog admin table and banner', () => {
+  it('exposes freitext modal, Bedarf module page and catalog admin', () => {
     expect(indexHtml).to.match(/id="btn-quick-alert"/);
     expect(indexHtml).to.match(/id="modal-quick-alert"/);
-    expect(indexHtml).to.match(/id="supply-alert-banner"/);
+    expect(indexHtml).to.match(/id="page-bedarf"/);
+    expect(indexHtml).to.match(/id="supply-alert-inbox"/);
+    expect(indexHtml).to.match(/id="btn-bedarf-melden"/);
+    expect(indexHtml).to.not.match(/id="supply-alert-banner"/);
     expect(indexHtml).to.match(/id="quick-alert-freetext"/);
     expect(indexHtml).to.match(/id="quick-alert-empty"/);
     expect(indexHtml).to.match(/id="btn-supply-alert-start"/);
-    expect(indexHtml).to.match(/Bedarf eintragen/);
+    expect(indexHtml).to.match(/Zum Bedarf/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog"/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog-body"/);
     expect(indexHtml).to.match(/Bedarfs-Stammdaten/);
+    expect(quickAlertJs).to.match(/export function openSupplyAlertModule/);
+    expect(quickAlertJs).to.match(/renderSupplyAlertInbox/);
+    expect(quickAlertJs).to.not.match(/function renderAlertBanner/);
   });
 
   it('wires quick-alert module into app boot and service worker cache', () => {
