@@ -9868,6 +9868,52 @@ body.dev-dashboard-view .app-version-badge--footer {
   margin-top: 6px;
 }
 
+.order-line-wholesaler-mark-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.packtisch-wholesaler-toggle,
+.packtisch-activity-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--action-on-light, #6b4f3a);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.packtisch-wholesaler-toggle:hover,
+.packtisch-activity-toggle:hover,
+.packtisch-secondary-link:hover {
+  opacity: 0.85;
+}
+
+.packtisch-secondary-link,
+.btn-link.packtisch-secondary-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .order-edit-storage-fields,
 .order-storage-editor {
   display: grid;
@@ -9946,10 +9992,119 @@ body.dev-dashboard-view .app-version-badge--footer {
   border: 1px dashed var(--border-subtle);
 }
 
+.order-team-activity-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .order-team-activity-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.packtisch-actions--primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.packtisch-actions--primary .packtisch-primary-btn {
+  flex: 1 1 12rem;
+  min-height: 44px;
+  font-weight: 800;
+}
+
+.packtisch-actions--done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.packtisch-done-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.packtisch-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.packtisch-more-summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.packtisch-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.packtisch-more[open] .packtisch-more-summary {
+  border-color: color-mix(in srgb, var(--action-on-light, #6b4f3a) 40%, var(--border-subtle));
+  color: var(--text-primary);
+}
+
+.packtisch-more-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  display: grid;
+  min-width: 14rem;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-card);
+}
+
+.packtisch-more-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.packtisch-more-item:hover,
+.packtisch-more-item:focus-visible {
+  background: var(--surface-secondary);
+  outline: none;
+}
+
+.packtisch-more-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .customer-order-wish-tags {

@@ -57,7 +57,7 @@ describe('Packtisch optionaler Waagen-Endpreis in Ready-Mail', () => {
   });
 
   it('hebt Cache für optionale Preis-Mail an', () => {
-    assert.match(sw, /charculogic-v20261025-optional-ready-price-v1/);
-    assert.match(html, /optional-ready-price/);
+    assert.match(sw, /charculogic-v20261025-packtisch-ux-v1/);
+    assert.match(html, /packtisch-ux|optional-ready-price/);
   });
 });
