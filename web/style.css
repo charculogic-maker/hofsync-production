@@ -9913,6 +9913,45 @@ body.dev-dashboard-view .app-version-badge--footer {
   font-weight: 700;
 }
 
+.order-team-activity {
+  margin: 10px 0 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.order-team-activity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.order-team-activity-list li {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.order-team-activity-composer {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+  border: 1px dashed var(--border-subtle);
+}
+
+.order-team-activity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .customer-order-wish-tags {
   border: 1px solid var(--border-subtle);
   border-radius: var(--border-radius-sm);

@@ -129,7 +129,22 @@ const ORDER_ACTION_LOG_LABELS = Object.freeze({
   wholesaler_ordered: 'Beim Großhändler bestellt',
   wholesaler_cleared: 'Großhändler-Vermerk entfernt',
   storage_updated: 'Lagerort aktualisiert',
+  team_activity: 'Team-Aktivität',
 });
+
+const TEAM_ACTIVITY_CHIPS = Object.freeze([
+  'Kunde telefoniert',
+  'Preis angefragt',
+  'Beim Händler bestellt',
+  'Rückmeldung ausstehend',
+]);
+const TEAM_ACTIVITY_CHIP_PREFIX = Object.freeze({
+  'Kunde telefoniert': '📞 ',
+  'Preis angefragt': '🔍 ',
+  'Beim Händler bestellt': '🛒 ',
+  'Rückmeldung ausstehend': '⏳ ',
+});
+const TEAM_ACTIVITY_MAX = 80;
 
 const ACTION_LOG_MAX = 40;
 
@@ -150,6 +165,10 @@ function mergeOrderActionLog(existing, entry) {
 
 function mergeOrderHistory(existing, entry) {
   const prev = Array.isArray(existing) ? existing.filter((row) => row && typeof row === 'object') : [];
+  if (!entry || typeof entry !== 'object') return prev.slice(-ACTION_LOG_MAX);
+  if (entry.type === 'team_activity' || entry.action === 'team_activity') {
+    return [...prev, entry].slice(-TEAM_ACTIVITY_MAX);
+  }
   if (!entry?.action) return prev.slice(-ACTION_LOG_MAX);
   return [...prev, {
     type: entry.action,
@@ -159,6 +178,76 @@ function mergeOrderHistory(existing, entry) {
     timestamp: entry.at,
     detail: entry.detail || '',
   }].slice(-ACTION_LOG_MAX);
+}
+
+function resolveActiveTeamEmployee() {
+  const fromApi = String(globalThis.charculogic?.activeEmployee || '').trim();
+  if (fromApi) return fromApi;
+  try {
+    const fromLs = String(localStorage.getItem('charculogic.activeEmployee') || '').trim();
+    if (fromLs) return fromLs;
+  } catch {
+    /* private mode */
+  }
+  return String(getActiveEmployeeName() || '').trim() || 'Team';
+}
+
+function collectTeamActivities(order) {
+  const byId = new Map();
+  const push = (row) => {
+    if (!row || typeof row !== 'object') return;
+    const isActivity = row.type === 'team_activity' || row.action === 'team_activity';
+    if (!isActivity) return;
+    const text = String(row.text || row.detail || '').trim();
+    if (!text) return;
+    const id = String(row.id || `${row.timestamp || row.at || ''}|${row.employee || row.by || ''}|${text}`).trim();
+    if (!id || byId.has(id)) return;
+    byId.set(id, {
+      id,
+      timestamp: row.timestamp || row.at || null,
+      employee: String(row.employee || row.by || 'Team').trim() || 'Team',
+      text,
+      type: 'team_activity',
+    });
+  };
+  (Array.isArray(order?.activities) ? order.activities : []).forEach(push);
+  (Array.isArray(order?.history) ? order.history : []).forEach(push);
+  return [...byId.values()].sort((a, b) => {
+    const ta = toEpochMs(a.timestamp) || 0;
+    const tb = toEpochMs(b.timestamp) || 0;
+    return tb - ta; // neueste oben
+  });
+}
+
+function renderOrderTeamActivityBlock(order, { interactive = true } = {}) {
+  const activities = collectTeamActivities(order);
+  const listHtml = activities.length
+    ? `<ul class="order-team-activity-list">${activities.map((row) => {
+      const when = formatDateTimeDe(row.timestamp) || '–';
+      return `<li><strong>${escapeHtml(row.employee)}</strong> · ${escapeHtml(when)}: ${escapeHtml(row.text)}</li>`;
+    }).join('')}</ul>`
+    : '';
+  if (!interactive && !activities.length) return '';
+  const chips = TEAM_ACTIVITY_CHIPS.map((chip) => {
+    const label = `${TEAM_ACTIVITY_CHIP_PREFIX[chip] || ''}${chip}`;
+    return `<button type="button" class="btn btn-secondary btn-compact" data-activity-chip="${escapeHtml(chip)}" data-order-id="${escapeHtml(order.id)}">${escapeHtml(label.trim())}</button>`;
+  }).join('');
+  const composer = interactive
+    ? `
+      <div class="order-team-activity-composer" data-activity-composer="${escapeHtml(order.id)}">
+        <label class="form-label" for="activity-input-${escapeHtml(order.id)}">Aktivität / Notiz erfassen</label>
+        <input type="text" id="activity-input-${escapeHtml(order.id)}" class="input-text-touch" data-activity-input placeholder="Aktivität vermerken (z. B. 'Preise bei Stautenhof angefragt', 'Warten auf Rückruf Weiling')..." autocomplete="off">
+        <div class="order-team-activity-chips" role="group" aria-label="Schnellnotizen">${chips}</div>
+        <button type="button" class="btn btn-secondary btn-compact" data-order-action="add_activity" data-order-id="${escapeHtml(order.id)}">+ Eintragen</button>
+      </div>
+    `
+    : '';
+  return `
+    <div class="order-team-activity">
+      ${listHtml}
+      ${composer}
+    </div>
+  `;
 }
 
 function formatOrderActionLogLabel(entry = {}) {
@@ -370,7 +459,7 @@ function buildOrderLineRow(lineId) {
           <input type="checkbox" data-line-wholesaler-ordered>
           Beim Großhändler bestellt
         </label>
-        <input type="text" class="input-text-touch" data-line-wholesaler-name list="suppliers-list" placeholder="Großhändler wählen oder tippen…" autocomplete="off">
+        <input type="text" class="input-text-touch" data-line-wholesaler-name list="suppliers-list" placeholder="Lieferant optional..." autocomplete="off">
       </div>
       <button type="button" class="btn btn-secondary btn-compact order-line-remove" data-remove-line="${lineId}">Position entfernen</button>
     </div>
@@ -396,7 +485,8 @@ function getItemOrderedAt(item) {
 }
 
 function buildProcurementOrderedFields({ supplier, employee, atIso, previousItem = null }) {
-  const name = String(supplier || '').trim() || 'Weiling';
+  const name = String(supplier || '').trim();
+  if (!name) return buildProcurementClearedFields();
   const prevName = getItemSupplierName(previousItem);
   const keepStamp = isItemWholesalerOrdered(previousItem)
     && prevName.toLowerCase() === name.toLowerCase()
@@ -404,7 +494,7 @@ function buildProcurementOrderedFields({ supplier, employee, atIso, previousItem
     && getItemOrderedAt(previousItem);
   const by = keepStamp
     ? getItemOrderedBy(previousItem)
-    : (employee || getActiveEmployeeName() || getItemOrderedBy(previousItem) || null);
+    : (employee || resolveActiveTeamEmployee() || getItemOrderedBy(previousItem) || null);
   const at = keepStamp ? getItemOrderedAt(previousItem) : (atIso || new Date().toISOString());
   return {
     procurementStatus: 'ordered',
@@ -435,7 +525,8 @@ function buildProcurementClearedFields() {
 function readWholesalerFieldsFromCard(card, previousItem = null) {
   const ordered = Boolean(card?.querySelector('[data-line-wholesaler-ordered]')?.checked);
   if (!ordered) return buildProcurementClearedFields();
-  const name = card.querySelector('[data-line-wholesaler-name]')?.value?.trim() || 'Weiling';
+  const name = card.querySelector('[data-line-wholesaler-name]')?.value?.trim() || '';
+  if (!name) return buildProcurementClearedFields();
   return buildProcurementOrderedFields({
     supplier: name,
     previousItem,
@@ -645,7 +736,7 @@ function renderOrderItemsList(items, { orderId = '', interactive = false } = {})
     } else if (interactive && orderId) {
       wholesalerHtml = `
         <div class="order-line-wholesaler-mark">
-          <input type="text" class="input-text-touch" list="suppliers-list" data-wholesaler-input placeholder="Großhändler (z. B. Weiling)" value="Weiling" autocomplete="off" aria-label="Großhändler für ${escapeHtml(n.product || item.product || 'Artikel')}">
+          <input type="text" class="input-text-touch" list="suppliers-list" data-wholesaler-input placeholder="Lieferant optional..." value="" autocomplete="off" aria-label="Lieferant für ${escapeHtml(n.product || item.product || 'Artikel')}">
           <button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="confirm_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>
         </div>
       `;
@@ -1583,6 +1674,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
     : ''}
         ${actions}
       </div>
+      ${renderOrderTeamActivityBlock(order, { interactive: ACTIVE_ORDER_STATUSES.has(status) })}
       ${renderOrderActionLog(order)}
       ${expanded && ACTIVE_ORDER_STATUSES.has(status) ? renderPacktischDetail(order) : ''}
       ${adminView && status !== 'open' ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>` : ''}
@@ -2264,11 +2356,7 @@ function fillEditLineCard(card, item = {}) {
   if (width) width.value = item.width || item.cutLabel || '';
   if (notes) notes.value = item.lineNotes || item.note || '';
   if (wholesalerOrdered) wholesalerOrdered.checked = isItemWholesalerOrdered(item);
-  if (wholesalerName) {
-    wholesalerName.value = isItemWholesalerOrdered(item)
-      ? (getItemSupplierName(item) || 'Weiling')
-      : (getItemSupplierName(item) || '');
-  }
+  if (wholesalerName) wholesalerName.value = getItemSupplierName(item) || '';
 }
 
 function addEditOrderLine(item = null) {
@@ -2376,11 +2464,11 @@ async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
 }
 
 async function markOrderItemWholesalerOrdered(orderId, itemIndex, supplierInput = '') {
-  const employee = getActiveEmployeeName();
-  if (!employee) {
+  if (!getActiveEmployeeName()) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
     return;
   }
+  const employee = resolveActiveTeamEmployee();
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
   if (!order) {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
@@ -2396,7 +2484,11 @@ async function markOrderItemWholesalerOrdered(orderId, itemIndex, supplierInput 
     window.showToast?.('Diese Position ist bereits als bestellt markiert.', 'info');
     return;
   }
-  const supplier = String(supplierInput || getItemSupplierName(item) || 'Weiling').trim() || 'Weiling';
+  const supplier = String(supplierInput || getItemSupplierName(item) || '').trim();
+  if (!supplier) {
+    window.showToast?.('Bitte zuerst einen Lieferanten eingeben oder wählen.', 'warning');
+    return;
+  }
   const atIso = new Date().toISOString();
   items[itemIndex] = {
     ...item,
@@ -2406,6 +2498,80 @@ async function markOrderItemWholesalerOrdered(orderId, itemIndex, supplierInput 
   const logEntry = buildOrderActionLogEntry('wholesaler_ordered', employee, `${product} · ${supplier}`);
   const ok = await persistOrderItemsWithWholesalerLog(orderId, items, logEntry);
   if (ok) window.showToast?.(`„${product}“ bei ${supplier} als bestellt markiert.`, 'success');
+}
+
+async function addOrderTeamActivity(orderId, textInput = '') {
+  const text = String(textInput || '').trim();
+  if (!text) {
+    window.showToast?.('Bitte eine Aktivität eintragen.', 'warning');
+    return false;
+  }
+  if (!getActiveEmployeeName()) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return false;
+  }
+  const employee = resolveActiveTeamEmployee();
+  const existing = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!existing) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return false;
+  }
+  const timestamp = new Date().toISOString();
+  const activity = {
+    id: `act_${Date.now()}`,
+    timestamp,
+    employee,
+    text,
+    type: 'team_activity',
+  };
+  const nextActivities = [...(Array.isArray(existing.activities) ? existing.activities : []), activity]
+    .slice(-TEAM_ACTIVITY_MAX);
+  const nextHistory = mergeOrderHistory(existing.history, activity);
+  const firebase = orderState.getFirebase();
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : timestamp;
+  const onlineData = {
+    activities: nextActivities,
+    history: nextHistory,
+    updatedBy: employee,
+    updatedAt: serverTimestamp,
+    employeeName: employee,
+  };
+  const queueData = {
+    ...onlineData,
+    updatedAt: timestamp,
+  };
+  try {
+    await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData,
+      queueData,
+      offlineMessage: 'Aktivität wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      return {
+        ...entry,
+        activities: nextActivities,
+        history: nextHistory,
+        updatedBy: employee,
+        updatedAt: timestamp,
+        employeeName: employee,
+      };
+    });
+    renderOpenOrders();
+    renderAdminOrders();
+    renderPastOrdersView();
+    window.showToast?.('Aktivität eingetragen.', 'success');
+    return true;
+  } catch (err) {
+    console.error('[CustomerOrders] Team-Aktivität fehlgeschlagen:', err);
+    window.showToast?.('Aktivität konnte nicht gespeichert werden.', 'error');
+    return false;
+  }
 }
 
 async function clearOrderItemWholesalerOrdered(orderId, itemIndex) {
@@ -2666,7 +2832,7 @@ async function saveOrderEditFromModal() {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
           'wholesaler_ordered',
           employee,
-          `${product} · ${getItemSupplierName(item) || 'Weiling'}`,
+          `${product} · ${getItemSupplierName(item) || 'Großhändler'}`,
         ));
       } else if (!isItemWholesalerOrdered(item) && isItemWholesalerOrdered(prev)) {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
@@ -2682,7 +2848,7 @@ async function saveOrderEditFromModal() {
         nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
           'wholesaler_ordered',
           employee,
-          `${product} · ${getItemSupplierName(item) || 'Weiling'}`,
+          `${product} · ${getItemSupplierName(item) || 'Großhändler'}`,
         ));
       }
     });
@@ -3354,6 +3520,25 @@ function bindOrderForm() {
 function bindOrderListActions() {
   const handler = (event) => {
     if (event.target.closest('[data-actual-weight-order]')) return;
+    const activityChip = event.target.closest('[data-activity-chip]');
+    if (activityChip) {
+      const orderId = activityChip.dataset.orderId
+        || activityChip.closest('[data-activity-composer]')?.dataset.activityComposer
+        || '';
+      const composer = orderId
+        ? document.querySelector(`[data-activity-composer="${CSS.escape(orderId)}"]`)
+        : activityChip.closest('.order-team-activity-composer');
+      const input = composer?.querySelector('[data-activity-input]');
+      if (input) {
+        const chipText = String(activityChip.dataset.activityChip || '').trim();
+        const prefix = TEAM_ACTIVITY_CHIP_PREFIX[chipText] || '';
+        const addition = `${prefix}${chipText}`.trim();
+        const current = String(input.value || '').trim();
+        input.value = current ? `${current} · ${addition}` : addition;
+        input.focus();
+      }
+      return;
+    }
     const chipBtn = event.target.closest('[data-storage-chip]');
     if (chipBtn && chipBtn.closest('.order-storage-editor, .packtisch-detail')) {
       const orderId = chipBtn.dataset.orderId
@@ -3400,8 +3585,18 @@ function bindOrderListActions() {
       const itemIndex = Number(btn.dataset.itemIndex);
       if (!Number.isFinite(itemIndex)) return;
       const wrap = btn.closest('.order-line-wholesaler-mark');
-      const supplier = wrap?.querySelector('[data-wholesaler-input]')?.value?.trim() || 'Weiling';
+      const supplier = wrap?.querySelector('[data-wholesaler-input]')?.value?.trim() || '';
       markOrderItemWholesalerOrdered(orderId, itemIndex, supplier);
+      return;
+    }
+    if (action === 'add_activity') {
+      const composer = document.querySelector(`[data-activity-composer="${CSS.escape(orderId)}"]`)
+        || btn.closest('.order-team-activity-composer');
+      const input = composer?.querySelector('[data-activity-input]');
+      const text = input?.value || '';
+      addOrderTeamActivity(orderId, text).then((ok) => {
+        if (ok && input) input.value = '';
+      });
       return;
     }
     if (action === 'clear_wholesaler') {
@@ -3431,12 +3626,27 @@ function bindOrderListActions() {
   };
 
   const inputHandler = (event) => handleWeighInput(event);
+  const activityKeyHandler = (event) => {
+    if (event.key !== 'Enter') return;
+    const input = event.target.closest('[data-activity-input]');
+    if (!input) return;
+    event.preventDefault();
+    const composer = input.closest('[data-activity-composer]');
+    const orderId = composer?.dataset.activityComposer || '';
+    if (!orderId) return;
+    addOrderTeamActivity(orderId, input.value).then((ok) => {
+      if (ok) input.value = '';
+    });
+  };
 
   document.getElementById('customer-order-list')?.addEventListener('click', handler);
   document.getElementById('admin-customer-order-list')?.addEventListener('click', handler);
   document.getElementById('past-orders-list')?.addEventListener('click', handler);
   document.getElementById('customer-order-list')?.addEventListener('input', inputHandler);
   document.getElementById('admin-customer-order-list')?.addEventListener('input', inputHandler);
+  document.getElementById('customer-order-list')?.addEventListener('keydown', activityKeyHandler);
+  document.getElementById('admin-customer-order-list')?.addEventListener('keydown', activityKeyHandler);
+  document.getElementById('past-orders-list')?.addEventListener('keydown', activityKeyHandler);
 }
 
 function bindDeliveryNoteActions() {
