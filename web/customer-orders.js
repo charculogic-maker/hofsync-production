@@ -2105,6 +2105,35 @@ function readNotifyChannelsFromModal() {
   });
 }
 
+function orderHasReliableFinalPrice(order) {
+  const priced = calculateFinalOrderPrice(order);
+  return Number(priced?.total) > 0;
+}
+
+function readNotifyIncludePriceFromModal(order) {
+  if (!orderHasReliableFinalPrice(order)) return false;
+  return Boolean(document.getElementById('order-notify-include-price')?.checked);
+}
+
+function syncOrderNotifyPriceControls(order) {
+  const priceEl = document.getElementById('order-notify-include-price');
+  const priceHint = document.getElementById('order-notify-price-hint');
+  const fieldset = document.querySelector('.order-notify-price-options');
+  const reliable = orderHasReliableFinalPrice(order);
+  const amount = formatMoneyValue(calculateFinalOrderPrice(order).total || 0);
+  if (priceEl) {
+    priceEl.disabled = !reliable;
+    // Nie vorausgewählt – Mitarbeiter muss aktiv ankreuzen.
+    priceEl.checked = false;
+  }
+  if (fieldset) fieldset.classList.toggle('is-unavailable', !reliable);
+  if (priceHint) {
+    priceHint.textContent = reliable
+      ? `Optional. Aktuell berechneter Endpreis: ${amount} €. Standard: ohne Preis in der Nachricht.`
+      : 'Noch kein belastbarer Waagen-/Positionspreis – wird nicht in der Nachricht genannt.';
+  }
+}
+
 /** Modals unter #page-* mit transform/Animation sonst außerhalb des Viewports. */
 function mountOrderModalOnBody(modal) {
   if (!modal || modal.parentElement === document.body) return modal;
@@ -2139,6 +2168,7 @@ function openOrderNotifyModal(orderId, mode = 'ready') {
     emailEl.checked = channels.email;
     emailEl.disabled = !Boolean(order.customerEmail || order.customer?.email);
   }
+  syncOrderNotifyPriceControls(order);
   const title = document.getElementById('order-notify-title');
   if (title) {
     title.textContent = mode === 'notify_again'
@@ -2178,7 +2208,11 @@ function openOrderNotifyModal(orderId, mode = 'ready') {
   document.body.classList.add('modal-open');
 }
 
-async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, markReady = false } = {}) {
+async function applyReadyNotifyChannels(orderId, channels, {
+  sendNow = true,
+  markReady = false,
+  includePrice = false,
+} = {}) {
   const employee = getActiveEmployeeName();
   if (!employee) {
     window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
@@ -2192,16 +2226,22 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
   const normalized = normalizeNotifyChannels(channels);
   const skipNotify = !wantsAnyReadyNotify({ notifyChannels: normalized });
+  const notifyIncludePrice = !skipNotify
+    && Boolean(includePrice)
+    && orderHasReliableFinalPrice(order);
   const stamp = firebase.firestore.FieldValue.serverTimestamp();
   let action = 'ready';
   if (markReady && skipNotify) action = 'ready_no_notify';
   else if (markReady && !skipNotify) action = 'ready_notify';
   else if (!markReady && skipNotify) action = 'notify_again_skip';
   else action = 'notify_again';
+  const logDetail = skipNotify
+    ? ''
+    : (notifyIncludePrice ? 'E-Mail · mit Preis' : 'E-Mail · ohne Preis');
   const logEntry = buildOrderActionLogEntry(
     action,
     employee,
-    skipNotify ? '' : 'E-Mail',
+    logDetail,
   );
   const nextLog = mergeOrderActionLog(order?.actionLog, logEntry);
 
@@ -2209,6 +2249,7 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
     notifyChannels: normalized,
     skipNotify,
     notifySkipped: skipNotify,
+    notifyIncludePrice,
     employeeName: employee,
     actionLog: nextLog,
   };
@@ -2216,6 +2257,7 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
     notifyChannels: normalized,
     skipNotify,
     notifySkipped: skipNotify,
+    notifyIncludePrice,
     employeeName: employee,
     actionLog: nextLog,
   };
@@ -2259,6 +2301,7 @@ async function applyReadyNotifyChannels(orderId, channels, { sendNow = true, mar
         notifyChannels: normalized,
         skipNotify,
         notifySkipped: skipNotify,
+        notifyIncludePrice,
         actionLog: nextLog,
         employeeName: employee,
       };
@@ -2303,18 +2346,28 @@ async function confirmOrderNotifyModal({ skip = false } = {}) {
   const pending = orderState.pendingNotifyAction;
   if (!pending?.orderId) return;
   if (orderState.notifyReadyInFlight || orderState.statusUpdateInFlight) return;
+  const order = orderState.allOrders.find((entry) => entry.id === pending.orderId);
   const channels = skip
     ? { email: false, sms: false, whatsapp: false }
     : readNotifyChannelsFromModal();
+  const includePrice = skip ? false : readNotifyIncludePriceFromModal(order);
   if (pending.mode === 'notify_again') {
     if (skip) {
       closeOrderNotifyModal();
       return;
     }
-    await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: true, markReady: false });
+    await applyReadyNotifyChannels(pending.orderId, channels, {
+      sendNow: true,
+      markReady: false,
+      includePrice,
+    });
     return;
   }
-  await applyReadyNotifyChannels(pending.orderId, channels, { sendNow: !skip, markReady: true });
+  await applyReadyNotifyChannels(pending.orderId, channels, {
+    sendNow: !skip,
+    markReady: true,
+    includePrice,
+  });
 }
 
 function requestMarkOrderReady(orderId) {
