@@ -98,11 +98,37 @@ describe('HACCP Empty-State Deep-Link', () => {
     expect(haccp).to.match(/data-haccp-open-setup/);
     expect(haccp).to.match(/Messpunkte anlegen/);
     expect(haccp).to.match(/function openHaccpMesspunkteSetup/);
-    expect(haccp).to.match(/\/dev-dashboard#haccp-setup/);
+    expect(haccp).to.match(/dev-dashboard#/);
+    expect(haccp).to.match(/haccp-setup|betrieb-hygiene/);
     expect(dashboard).to.match(/function applyDevDashboardDeepLink/);
+    expect(dashboard).to.match(/function setBetriebSection/);
     expect(dashboard).to.match(/haccp-setup/);
     expect(dashboard).to.match(/setDevDashboardTab\('settings'\)/);
+    expect(dashboard).to.match(/setBetriebSection\(section\)/);
     expect(indexHtml).to.match(/id="dev-dashboard-haccp-setup"/);
+    expect(indexHtml).to.match(/data-betrieb-section="geraete"/);
+  });
+});
+
+describe('Mein Betrieb Unterseiten', () => {
+  it('splits settings into Stammdaten, Module, Hygiene, Geräte, SMTP', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const indexHtml = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
+    const dashboard = fs.readFileSync(path.join(root, 'web/dev-dashboard.js'), 'utf8');
+    const style = fs.readFileSync(path.join(root, 'web/style.css'), 'utf8');
+    for (const section of ['stammdaten', 'module', 'hygiene', 'geraete', 'smtp']) {
+      expect(indexHtml).to.match(new RegExp(`data-betrieb-section="${section}"`));
+      expect(indexHtml).to.match(new RegExp(`data-betrieb-panel="${section}"`));
+    }
+    expect(indexHtml).to.match(/id="dev-dashboard-smtp-form"/);
+    expect(indexHtml).to.match(/id="dev-dashboard-hygiene-setup"/);
+    expect(dashboard).to.match(/function bindBetriebSubnav/);
+    expect(dashboard).to.match(/function bindSmtpForm/);
+    expect(dashboard).to.match(/function resolveBetriebSectionFromHash/);
+    expect(style).to.match(/\.dev-dashboard-subnav/);
   });
 });
 

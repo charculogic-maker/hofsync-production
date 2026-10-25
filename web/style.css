@@ -14047,6 +14047,48 @@ body.role-firebase-auth #team-login-card {
   display: none !important;
 }
 
+.dev-dashboard-betrieb-header {
+  margin: 0 0 14px;
+}
+
+.dev-dashboard-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.dev-dashboard-subnav-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-color, #0f172a);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dev-dashboard-subnav-btn.is-active {
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 12%, #fff);
+  border-color: var(--primary-color, #2563eb);
+  color: var(--primary-color, #2563eb);
+}
+
+.dev-dashboard-betrieb-panel[hidden] {
+  display: none !important;
+}
+
+#betrieb-panel-geraete.is-deep-link-focus,
+#betrieb-panel-hygiene.is-deep-link-focus,
+#dev-dashboard-haccp-setup.is-deep-link-focus,
+#dev-dashboard-hygiene-setup.is-deep-link-focus {
+  outline: 2px solid var(--primary-color, #28a745);
+  outline-offset: 4px;
+}
+
 .dev-dashboard-view[hidden]:not(body) {
   display: none !important;
 }
@@ -14168,6 +14210,17 @@ body.role-firebase-auth #team-login-card {
     border-radius: 12px;
     font-size: 0.9rem;
     touch-action: manipulation;
+  }
+
+  .dev-dashboard-subnav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .dev-dashboard-subnav-btn {
+    width: 100%;
+    min-height: 44px;
   }
 
   .dev-dashboard-panel {

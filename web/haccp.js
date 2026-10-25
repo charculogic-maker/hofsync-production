@@ -1357,9 +1357,9 @@ function renderCleaningChecks() {
     ` : `
     <div class="haccp-daily-intro">
       <strong>Keine Aufgaben</strong>
-      <span>Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ Reinigungsaufgaben anlegen.</span>
-      <button type="button" class="btn btn-primary" data-haccp-open-setup="1" style="margin-top:12px;">
-        Messpunkte anlegen
+      <span>Bitte im Büro unter „Mein Betrieb → Hygiene“ Reinigungsaufgaben anlegen.</span>
+      <button type="button" class="btn btn-primary" data-haccp-open-hygiene="1" style="margin-top:12px;">
+        Hygiene einrichten
       </button>
     </div>
     `}
@@ -1479,7 +1479,7 @@ function renderTemperatureChecks() {
     return `
       <div class="haccp-daily-intro">
         <strong>Temperatur-Rundgang</strong>
-        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ die Messpunkte anlegen.</span>
+        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Bitte im Büro unter „Mein Betrieb → Geräte“ die Messpunkte anlegen.</span>
         <button type="button" class="btn btn-primary" data-haccp-open-setup="1" style="margin-top:12px;">
           Messpunkte anlegen
         </button>
@@ -1568,19 +1568,17 @@ function bindRenderedHaccpActions(container) {
   });
 }
 
-/** Deep-Link: HACCP Empty-State → Mein Betrieb → Messpunkte-Setup. */
-function openHaccpMesspunkteSetup() {
-  const target = '/dev-dashboard#haccp-setup';
+/** Deep-Link: HACCP Empty-State → Mein Betrieb → Geräte / Hygiene. */
+function openHaccpMesspunkteSetup(section = 'geraete') {
+  const hash = section === 'hygiene' ? 'betrieb-hygiene' : 'haccp-setup';
+  const target = `/dev-dashboard#${hash}`;
   try {
     window.location.assign(target);
   } catch (err) {
     console.warn('[HofSync HACCP] Setup-Deep-Link fehlgeschlagen:', err);
-    haccpState.showHUD(
-      'Büro nötig',
-      'Messpunkte legt das Büro unter „Mein Betrieb → HACCP & Hygiene Setup“ an.',
-      '!',
-    );
-    window.showToast?.('Messpunkte anlegen: Verwaltung → Mein Betrieb → HACCP Setup.', 'info');
+    const where = section === 'hygiene' ? 'Mein Betrieb → Hygiene' : 'Mein Betrieb → Geräte';
+    haccpState.showHUD('Büro nötig', `Bitte im Büro unter „${where}“ einrichten.`, '!');
+    window.showToast?.(`Einrichten: Verwaltung → ${where}.`, 'info');
   }
 }
 
@@ -1589,9 +1587,14 @@ function bindStaticHaccpControls() {
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
     dailyContainer.dataset.haccpDelegated = '1';
     dailyContainer.addEventListener('click', (event) => {
+      const openHygieneBtn = event.target.closest('[data-haccp-open-hygiene]');
+      if (openHygieneBtn) {
+        openHaccpMesspunkteSetup('hygiene');
+        return;
+      }
       const openSetupBtn = event.target.closest('[data-haccp-open-setup]');
       if (openSetupBtn) {
-        openHaccpMesspunkteSetup();
+        openHaccpMesspunkteSetup('geraete');
         return;
       }
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');

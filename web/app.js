@@ -5342,7 +5342,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-phase-a-ux')
+    navigator.serviceWorker.register('./sw.js?v=20261025-mein-betrieb-split')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
