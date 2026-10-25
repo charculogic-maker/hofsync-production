@@ -445,7 +445,7 @@ export async function updateSupplyAlertStatus(alertId, status, resolvedBy) {
   });
 }
 
-function openQuickAlertModal() {
+export function openQuickAlertModal() {
   const modal = document.getElementById('modal-quick-alert');
   if (!modal) return;
   modal.hidden = false;
@@ -826,6 +826,10 @@ function bindQuickAlertUi() {
   alertState.bound = true;
 
   document.getElementById('btn-quick-alert')?.addEventListener('click', () => {
+    openQuickAlertModal();
+  });
+
+  document.getElementById('btn-supply-alert-start')?.addEventListener('click', () => {
     openQuickAlertModal();
   });
 

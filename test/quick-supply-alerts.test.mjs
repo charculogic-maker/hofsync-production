@@ -24,6 +24,8 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(indexHtml).to.match(/id="supply-alert-banner"/);
     expect(indexHtml).to.match(/id="quick-alert-freetext"/);
     expect(indexHtml).to.match(/id="quick-alert-empty"/);
+    expect(indexHtml).to.match(/id="btn-supply-alert-start"/);
+    expect(indexHtml).to.match(/Bedarf eintragen/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog"/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog-body"/);
     expect(indexHtml).to.match(/Bedarfs-Stammdaten/);
@@ -32,7 +34,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
   it('wires quick-alert module into app boot and service worker cache', () => {
     expect(appJs).to.match(/import \{ initQuickAlertModule \} from '\.\/quick-alert\.js'/);
     expect(appJs).to.match(/initQuickAlertModule\(db/);
-    expect(swJs).to.match(/charculogic-v20261025-supply-alerts-v2/);
+    expect(swJs).to.match(/charculogic-v20261025-supply-alerts-v3/);
     expect(swJs).to.match(/\/quick-alert\.js/);
   });
 
