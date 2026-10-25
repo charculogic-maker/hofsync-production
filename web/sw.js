@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-laden-nav-max5-v1';
+const CACHE_NAME = 'charculogic-v20261025-nutzer-mobil-v1';
 
-const CACHE_SCHEMA = 'p0-laden-nav-max5-oct2026';
-/** Release – Laden-Nav max. 5 (MHD · Neu · Packtisch · Doku · Mehr) */
-const RELEASED_AT = '2026-10-25T22:00:00+02:00';
+const CACHE_SCHEMA = 'p0-nutzer-mobil-oct2026';
+/** Release – Nutzer mobil als Karten mit ⋯-Aktionen */
+const RELEASED_AT = '2026-10-25T23:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
