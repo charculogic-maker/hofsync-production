@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-mein-betrieb-split-v1';
+const CACHE_NAME = 'charculogic-v20261025-laden-nav-max5-v1';
 
-const CACHE_SCHEMA = 'p0-mein-betrieb-split-oct2026';
-/** Release – Mein Betrieb in Unterseiten (Stammdaten/Module/Hygiene/Geräte/SMTP) */
-const RELEASED_AT = '2026-10-25T21:00:00+02:00';
+const CACHE_SCHEMA = 'p0-laden-nav-max5-oct2026';
+/** Release – Laden-Nav max. 5 (MHD · Neu · Packtisch · Doku · Mehr) */
+const RELEASED_AT = '2026-10-25T22:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

@@ -139,6 +139,23 @@
           nodes[i].hidden = true;
           nodes[i].style.display = 'none';
         }
+        syncMehrBoot();
+      }
+      function syncMehrBoot() {
+        var wrap = document.getElementById('mehr-nav-accordion');
+        var trigger = document.getElementById('mehr-nav-trigger');
+        if (!wrap || !trigger) return;
+        var nodes = document.querySelectorAll('.nav-item--mehr[data-tab]');
+        var any = false;
+        for (var i = 0; i < nodes.length; i += 1) {
+          if (!nodes[i].hidden && nodes[i].style.display !== 'none') {
+            any = true;
+            break;
+          }
+        }
+        wrap.hidden = !any;
+        trigger.hidden = !any;
+        trigger.style.display = any ? '' : 'none';
       }
       function apply(modules) {
         // Ohne Cache: Tabs verborgen — kein HTML-/Branding-FOUC „alle Module“.
@@ -164,6 +181,7 @@
           tab.hidden = !enabled;
           tab.style.display = enabled ? '' : 'none';
         }
+        syncMehrBoot();
       }
       function run() { apply(readCache()); }
       if (document.readyState === 'loading') {
@@ -3185,43 +3203,60 @@
           <div class="app-nav-zone app-nav-zone--ops" aria-label="Laden-Alltag">
             <p class="app-nav-zone-label">Laden-Alltag</p>
             <div class="bottom-nav-scroll" id="bottom-nav-scroll">
-              <button class="nav-item" data-tab="teamboard" id="tab-teamboard" hidden style="display: none;">
-                <i>📌</i>
-                <span>Start</span>
-              </button>
-              <button class="nav-item" data-tab="team" id="tab-team" hidden style="display: none;">
-                <i>💬</i>
-                <span>Team</span>
-              </button>
-              <button class="nav-item" data-tab="orders" id="tab-orders" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('orders')">
-                <i>🛒</i>
-                <span>Packtisch</span>
-              </button>
+              <!-- Primär (max. 4 + Mehr): MHD · Neu · Packtisch · Doku -->
               <!-- Start hidden: Zero-Flicker bis Cache/Firestore enabledModules — kein FOUC der HTML-Defaults. -->
-              <button class="nav-item active" data-tab="mhd" id="tab-mhd" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
+              <button class="nav-item active" data-tab="mhd" data-nav-slot="primary" id="tab-mhd" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('mhd')">
                 <i>📅</i>
                 <span>MHD</span>
               </button>
-              <button class="nav-item" data-tab="receiving" id="tab-receiving" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
+              <button class="nav-item" data-tab="receiving" data-nav-slot="primary" id="tab-receiving" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('receiving')">
                 <i>📥</i>
                 <span>Neu</span>
               </button>
-              <button class="nav-item" data-tab="chargenDoku" id="tab-chargen-doku" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
+              <button class="nav-item" data-tab="orders" data-nav-slot="primary" id="tab-orders" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('orders')">
+                <i>🛒</i>
+                <span>Packtisch</span>
+              </button>
+              <button class="nav-item" data-tab="chargenDoku" data-nav-slot="primary" id="tab-chargen-doku" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
                 <i>🏷️</i>
                 <span>Doku</span>
               </button>
-              <button class="nav-item" data-tab="kitchen" id="tab-kitchen" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
-                <i>🥣</i>
-                <span>Prod.</span>
-              </button>
-              <button class="nav-item" data-tab="avery" id="nav-avery" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('avery')">
-                <i>🏷️</i>
-                <span>Etiketten</span>
-              </button>
-              <button class="nav-item" data-tab="haccp" id="tab-haccp" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('haccp')" aria-label="HACCP Tageskontrollen">
-                <i>🛡️</i>
-                <span>HACCP</span>
-              </button>
+              <div class="mehr-nav-accordion" id="mehr-nav-accordion" hidden>
+                <div class="mehr-nav-popover" id="mehr-nav-popover" hidden role="menu" aria-label="Weitere Bereiche">
+                  <button class="nav-item nav-item--mehr" data-tab="teamboard" data-nav-slot="mehr" id="tab-teamboard" role="menuitem" hidden style="display: none;">
+                    <i>📌</i>
+                    <span>Start</span>
+                  </button>
+                  <button class="nav-item nav-item--mehr" data-tab="team" data-nav-slot="mehr" id="tab-team" role="menuitem" hidden style="display: none;">
+                    <i>💬</i>
+                    <span>Team</span>
+                  </button>
+                  <button class="nav-item nav-item--mehr" data-tab="haccp" data-nav-slot="mehr" id="tab-haccp" role="menuitem" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('haccp')" aria-label="HACCP Tageskontrollen">
+                    <i>🛡️</i>
+                    <span>HACCP</span>
+                  </button>
+                  <button class="nav-item nav-item--mehr" data-tab="kitchen" data-nav-slot="mehr" id="tab-kitchen" role="menuitem" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('kitchen')">
+                    <i>🥣</i>
+                    <span>Prod.</span>
+                  </button>
+                  <button class="nav-item nav-item--mehr" data-tab="avery" data-nav-slot="mehr" id="nav-avery" role="menuitem" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('avery')">
+                    <i>🏷️</i>
+                    <span>Etiketten</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="mehr-nav-trigger"
+                  id="mehr-nav-trigger"
+                  aria-expanded="false"
+                  aria-controls="mehr-nav-popover"
+                  aria-label="Weitere Bereiche"
+                >
+                  <i aria-hidden="true">⋯</i>
+                  <span>Mehr</span>
+                </button>
+              </div>
+              <!-- Wissen bleibt Header-only (ADMIN_HEADER_ONLY), nicht in der Fußleiste. -->
               <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
                 <i>📖</i>
                 <span>Wissen</span>
