@@ -175,7 +175,13 @@ export async function saveEmployeeDepartmentAssignment(employeeName, patch = {})
   }
 
   const firebase = configState.getFirebase();
+  // Vollständiges Set (wie Team-Config-Speichern): Merge-Updates scheitern an
+  // Legacy-Feldern (z. B. `source`) in der Rules-Allowlist; Set ersetzt sauber.
   const payload = {
+    employees: Array.isArray(configState.employees) ? [...configState.employees] : [],
+    groups: configState.groups && typeof configState.groups === 'object'
+      ? JSON.parse(JSON.stringify(configState.groups))
+      : {},
     departmentAssignments: assignments,
     tenantId: configState.tenantId,
     updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
@@ -185,7 +191,7 @@ export async function saveEmployeeDepartmentAssignment(employeeName, patch = {})
   await writeFirestoreDocOrQueue({
     collectionPath: 'settings',
     docId: TEAM_CONFIG_DOC_ID,
-    op: 'update',
+    op: 'set',
     onlineData: payload,
     queueData: { ...payload, updatedAt: new Date().toISOString() },
     offlineMessage: 'Zuständigkeiten werden synchronisiert.',

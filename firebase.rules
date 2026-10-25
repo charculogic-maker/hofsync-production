@@ -201,14 +201,24 @@ service cloud.firestore {
       allow delete: if isAdmin(tenantId);
     }
 
-    function isTeamDashboardSettings() {
-      return request.resource.data.keys().hasOnly([
+    // Legacy-Felder wie `source` (z. B. restored-from-profile-defaultTeam) dürfen
+    // bleiben; sonst scheitern Merge-Updates der Fachbereichs-Zuweisungen.
+    function teamDashboardAllowedKeys() {
+      return [
         'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy',
-        'departmentAssignments'
-      ])
+        'departmentAssignments', 'source'
+      ];
+    }
+
+    function isTeamDashboardSettings() {
+      return request.resource.data.keys().hasOnly(teamDashboardAllowedKeys())
         && (
           !('departmentAssignments' in request.resource.data)
           || request.resource.data.departmentAssignments is map
+        )
+        && (
+          !('source' in request.resource.data)
+          || request.resource.data.source is string
         );
     }
 

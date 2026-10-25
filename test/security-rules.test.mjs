@@ -998,6 +998,24 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(employee, settingsPath, 'delete');
     });
 
+    it('allows departmentAssignments merge when legacy source field is present', async () => {
+      const legacyPath = tenantDocPath(TENANTS.STEVES_HOF, 'settings', 'teamDashboard');
+      await seedFirestoreDoc(testEnv, legacyPath, {
+        ...sampleSettings(TENANTS.STEVES_HOF),
+        source: 'restored-from-profile-defaultTeam',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      const admin = authContext(testEnv, 'sh-admin-settings-legacy', TENANTS.STEVES_HOF, 'admin');
+      await expectFirestoreAllow(admin, legacyPath, 'update', {
+        tenantId: TENANTS.STEVES_HOF,
+        departmentAssignments: {
+          Paddy: { departments: ['metzgerei', 'laden'], canOrder: true },
+        },
+        updatedAt: serverTimestamp(),
+        updatedBy: 'Admin',
+      });
+    });
+
     it('allows tenant admin to read own employees profiles and denies cross-tenant', async () => {
       const employeePath = tenantDocPath(TENANTS.STEVES_HOF, 'employees', 'paddy');
       await seedFirestoreDoc(testEnv, employeePath, {
