@@ -107,6 +107,22 @@ export function startOfMonthIso(isoDay) {
   return `${base.slice(0, 8)}01`;
 }
 
+/**
+ * Montag der ISO-Kalenderwoche (DE) für einen Tag.
+ * Lokal mittags geparst – kein UTC-Drift.
+ * @param {string} [isoDay]
+ * @returns {string} YYYY-MM-DD
+ */
+export function startOfWeekMondayIso(isoDay) {
+  const base = String(isoDay || todayIsoLocal()).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) return '';
+  const [y, m, d] = base.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+  // getDay: 0=So … 6=Sa → Montag=0 … Sonntag=6
+  const weekdayMon0 = (date.getDay() + 6) % 7;
+  return addDaysIso(base, -weekdayMon0);
+}
+
 export function endOfMonthIso(isoDay) {
   const start = startOfMonthIso(isoDay);
   if (!start) return '';
@@ -186,8 +202,9 @@ export function countOrdersByPickupDay(orders = [], opts = {}) {
 
 /**
  * Kalenderzellen für Zwei-Wochen- oder Monatsübersicht.
+ * Spaltenkopf ist immer Mo–So; beide Modi starten daher auf einem Montag.
  * @param {'2weeks'|'month'} mode
- * @param {string} [anchorIso] – Starttag (2 Wochen) bzw. beliebiger Tag im Monat
+ * @param {string} [anchorIso] – beliebiger Tag in der gewünschten Woche/Monat
  * @param {Date} [now]
  * @returns {{ iso: string, inMonth: boolean, isToday: boolean }[]}
  */
@@ -198,11 +215,7 @@ export function buildPacktischCalendarDays(mode = '2weeks', anchorIso = '', now 
   if (mode === 'month') {
     const monthStart = startOfMonthIso(anchor);
     const monthEnd = endOfMonthIso(anchor);
-    const [y, m, d] = monthStart.split('-').map(Number);
-    const first = new Date(y, m - 1, d, 12, 0, 0, 0);
-    // Montag als Wochenstart (DE)
-    const weekdayMon0 = (first.getDay() + 6) % 7;
-    const gridStart = addDaysIso(monthStart, -weekdayMon0);
+    const gridStart = startOfWeekMondayIso(monthStart);
     const cells = [];
     for (let i = 0; i < 42; i += 1) {
       const iso = addDaysIso(gridStart, i);
@@ -216,9 +229,10 @@ export function buildPacktischCalendarDays(mode = '2weeks', anchorIso = '', now 
     return cells;
   }
 
-  const start = /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? anchor : today;
+  // 2 Wochen: Anker-Woche ab Montag – sonst landet z. B. Sonntag unter „Mo“.
+  const weekStart = startOfWeekMondayIso(anchor) || today;
   return Array.from({ length: 14 }, (_, i) => {
-    const iso = addDaysIso(start, i);
+    const iso = addDaysIso(weekStart, i);
     return { iso, inMonth: true, isToday: iso === today };
   });
 }

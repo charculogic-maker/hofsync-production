@@ -29,6 +29,6 @@ describe('Packtisch Großhändler-Vermerk', () => {
     assert.match(js, /canMarkWholesalerOnCard/);
     assert.match(js, /expandedWholesalerKeys/);
     assert.match(css, /\.order-line-wholesaler\b/);
-    assert.match(html, /20261025-ready-fields-clarity-v4|optional-ready-price|order-activity-log|ready-fields-clarity|packtisch-notes|wholesaler-ordered/);
+    assert.match(html, /20261025-calendar-week|optional-ready-price|order-activity-log|ready-fields-clarity|packtisch-notes|wholesaler-ordered/);
   });
 });

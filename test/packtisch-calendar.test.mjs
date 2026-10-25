@@ -24,8 +24,8 @@ describe('Packtisch Kalender & Abholbereit-Nachbearbeitung', () => {
   });
 
   it('erlaubt Weiterbearbeiten und erneute Kunden-Benachrichtigung', () => {
-    assert.match(customerOrders, /data-order-action="reopen"/);
-    assert.match(customerOrders, /data-order-action="notify_ready"/);
+    assert.match(customerOrders, /data-order-action="reopen"|renderPacktischMoreItem\(\s*['"]reopen['"]/);
+    assert.match(customerOrders, /data-order-action="notify_ready"|renderPacktischMoreItem\(\s*['"]notify_ready['"]/);
     assert.match(customerOrders, /function requestNotifyCustomerReadyAgain/);
     assert.match(customerOrders, /readyNotifyAt/);
   });

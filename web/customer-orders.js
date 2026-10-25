@@ -16,6 +16,7 @@ import {
   addDaysIso,
   aggregatePastOrderProducts,
   buildPacktischCalendarDays,
+  startOfWeekMondayIso,
   butcherNotes,
   calculateLinePriceFromWeight,
   classifyPacktischBucket,
@@ -1925,9 +1926,10 @@ function renderPacktischCalendar() {
         : 'Monat';
     })()
     : (() => {
-      const end = addDaysIso(anchor, 13);
-      const a = Date.parse(`${anchor}T12:00:00`);
-      const b = Date.parse(`${end}T12:00:00`);
+      const startIso = cells[0]?.iso || startOfWeekMondayIso(anchor) || anchor;
+      const endIso = cells[cells.length - 1]?.iso || addDaysIso(startIso, 13);
+      const a = Date.parse(`${startIso}T12:00:00`);
+      const b = Date.parse(`${endIso}T12:00:00`);
       if (!Number.isFinite(a) || !Number.isFinite(b)) return 'Zwei Wochen';
       const fmt = (ts) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
       return `${fmt(a)} – ${fmt(b)}`;
@@ -3981,7 +3983,8 @@ function shiftCalendarAnchor(direction) {
     const next = new Date(y, m - 1 + direction, 1, 12, 0, 0, 0);
     orderState.calendarAnchorIso = todayIsoLocal(next);
   } else {
-    orderState.calendarAnchorIso = addDaysIso(anchor, direction * 14);
+    const weekStart = startOfWeekMondayIso(anchor) || anchor;
+    orderState.calendarAnchorIso = addDaysIso(weekStart, direction * 14);
   }
   renderPacktischCalendar();
 }

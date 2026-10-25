@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-ready-fields-clarity-v4';
+const CACHE_NAME = 'charculogic-v20261025-calendar-week-v1';
 
-const CACHE_SCHEMA = 'p0-packtisch-ready-fields-clarity-oct2026';
-/** Release – Abholbereit-Felder klar + Pickup-TBD (merge main) */
-const RELEASED_AT = '2026-10-25T12:50:00+02:00';
+const CACHE_SCHEMA = 'p0-packtisch-calendar-week-oct2026';
+/** Release – Packtisch-Kalender: 2-Wochen ab Montag (DE) */
+const RELEASED_AT = '2026-10-25T14:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
