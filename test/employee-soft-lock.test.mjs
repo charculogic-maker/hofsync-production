@@ -129,7 +129,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache for phase-a ux hardening', () => {
+  it('bumps the service-worker cache for mein-betrieb split', () => {
     expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-mein-betrieb-split-v1'");
   });
 
