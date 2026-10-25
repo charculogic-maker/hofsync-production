@@ -677,6 +677,13 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   flex: 0 0 auto;
 }
 
+.employee-picker-load-hint {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--text-secondary, #666);
+}
+
 #employee-picker-list,
 .employee-picker-card .profile-picker-list {
   flex: 1 1 auto;
@@ -15642,6 +15649,12 @@ body.role-firebase-auth #team-login-card {
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: var(--light-bg, #f8fafc);
+}
+
+#dev-dashboard-haccp-setup.is-deep-link-focus {
+  outline: 2px solid var(--primary-color, #28a745);
+  outline-offset: 4px;
+  transition: outline-color 0.2s ease;
 }
 
 .dev-dashboard-haccp-form {

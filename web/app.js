@@ -232,8 +232,11 @@ const EMPLOYEE_ACTIVITY_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown
 const SOFT_LOCK_EMPLOYEE_STORAGE_KEY = 'charculogic.activeEmployee';
 const EMPLOYEE_PICKER_FALLBACK = ['Paddy', 'Laden-Team', 'Küche', 'Metzgerei', 'Büro'];
 const CACHED_EMPLOYEES_STORAGE_KEY = 'charculogic.cachedEmployees';
+/** Soft-Lock: nie endlos „Lade Mitarbeiter…“ – nach Timeout Fallback + Retry. */
+const EMPLOYEE_PICKER_LOAD_TIMEOUT_MS = 5000;
 const PROFILE_OTHER_LABEL = 'Andere';
 const INVENTORY_PROFILE_TABS = new Set(['mhd', 'receiving', 'chargenDoku']);
+const UPDATE_TOAST_DISMISSED_SESSION_KEY = 'hofsync.updateToastDismissed';
 function isEmployeePinRequired(branding = window.BRANDING) {
   if (isFirebaseRoleAuth(branding)) return false;
   if (getTerminalSettings().bypassPin === true) return false;
@@ -1655,6 +1658,7 @@ const employeePickerState = {
   mandatory: false,
   resolve: null,
   bound: false,
+  loadToken: 0,
 };
 
 function escapeEmployeePickerHtml(value) {
@@ -1815,14 +1819,70 @@ function employeePickerListsEqual(left = [], right = []) {
   return left.every((name, index) => name === right[index]);
 }
 
-function renderEmployeePickerList(names = []) {
+function withEmployeePickerLoadTimeout(promise, ms = EMPLOYEE_PICKER_LOAD_TIMEOUT_MS) {
+  let timerId = 0;
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = window.setTimeout(() => {
+      reject(new Error(`Mitarbeiterliste Timeout nach ${ms}ms`));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timerId) window.clearTimeout(timerId);
+  });
+}
+
+function renderEmployeePickerList(names = [], { showRetry = false, hint = '' } = {}) {
   const listEl = document.getElementById('employee-picker-list');
   if (!listEl) return;
   const items = normalizeEmployeePickerNames(names);
-  listEl.innerHTML = `${items.map((name) => (
+  const hintHtml = hint
+    ? `<p class="pin-auth-scan employee-picker-load-hint">${escapeEmployeePickerHtml(hint)}</p>`
+    : '';
+  const retryHtml = showRetry
+    ? '<button type="button" class="btn btn-secondary profile-picker-btn" data-employee-picker-retry="1">Erneut laden</button>'
+    : '';
+  listEl.innerHTML = `${hintHtml}${items.map((name) => (
     `<button type="button" class="btn btn-primary profile-picker-btn" data-employee-picker-name="${escapeEmployeePickerHtml(name)}">${escapeEmployeePickerHtml(name)}</button>`
   )).join('')}
+  ${retryHtml}
   <button type="button" class="btn btn-secondary profile-picker-btn profile-picker-other" data-employee-picker-other="1">${escapeEmployeePickerHtml(PROFILE_OTHER_LABEL)}</button>`;
+}
+
+function refreshEmployeePickerNames({ forceFallbackOnError = true } = {}) {
+  const listEl = document.getElementById('employee-picker-list');
+  const cachedEmployees = readCachedEmployeePickerList();
+  const hasCache = cachedEmployees.length > 0;
+  const loadToken = (employeePickerState.loadToken || 0) + 1;
+  employeePickerState.loadToken = loadToken;
+
+  if (!hasCache && listEl) {
+    listEl.innerHTML = '<p class="pin-auth-scan">Lade Mitarbeiter…</p>';
+  }
+
+  return withEmployeePickerLoadTimeout(loadEmployeePickerNamesFromFirestore())
+    .then((names) => {
+      if (employeePickerState.loadToken !== loadToken || !isEmployeePickerOpen()) return names;
+      if (hasCache && employeePickerListsEqual(cachedEmployees, names)) return names;
+      renderEmployeePickerList(names);
+      if (!hasCache) listEl?.querySelector('button')?.focus();
+      return names;
+    })
+    .catch((err) => {
+      console.warn('[HofSync Soft-Lock] Mitarbeiterliste Timeout/Fallback:', err);
+      if (employeePickerState.loadToken !== loadToken || !isEmployeePickerOpen()) return cachedEmployees;
+      if (hasCache) {
+        window.showToast?.('Aktuelle Liste konnte nicht aktualisiert werden – Cache bleibt sichtbar.', 'warning');
+        return cachedEmployees;
+      }
+      if (!forceFallbackOnError) return [];
+      const fallback = [...EMPLOYEE_PICKER_FALLBACK];
+      renderEmployeePickerList(fallback, {
+        showRetry: true,
+        hint: 'Laden dauerte zu lange – Standardnamen nutzen oder erneut versuchen.',
+      });
+      listEl?.querySelector('button')?.focus();
+      return fallback;
+    });
 }
 
 function promptOtherEmployeeName() {
@@ -1894,6 +1954,11 @@ function bindEmployeePickerModalOnce() {
       selectEmployeeFromPicker(picked);
       return;
     }
+    if (event.target.closest('[data-employee-picker-retry]')) {
+      event.preventDefault();
+      void refreshEmployeePickerNames();
+      return;
+    }
     if (event.target.closest('[data-employee-picker-other]')) {
       event.preventDefault();
       promptOtherEmployeeName();
@@ -1934,7 +1999,7 @@ function openEmployeePickerModal(options = {}) {
     const cachedEmployees = readCachedEmployeePickerList();
     const hasCache = cachedEmployees.length > 0;
 
-    // Stale-While-Revalidate: Cache sofort rendern, Firestore nur im Hintergrund.
+    // Stale-While-Revalidate: Cache sofort rendern, Firestore mit Timeout im Hintergrund.
     if (hasCache) {
       renderEmployeePickerList(cachedEmployees);
     } else if (listEl) {
@@ -1948,18 +2013,7 @@ function openEmployeePickerModal(options = {}) {
       listEl?.querySelector('button')?.focus();
     }
 
-    void loadEmployeePickerNamesFromFirestore()
-      .then((names) => {
-        if (!isEmployeePickerOpen()) return;
-        if (hasCache && employeePickerListsEqual(cachedEmployees, names)) return;
-        renderEmployeePickerList(names);
-        if (!hasCache) listEl?.querySelector('button')?.focus();
-      })
-      .catch((err) => {
-        console.warn('[CharcuLogic Soft-Lock] Mitarbeiterliste Fallback:', err);
-        if (!isEmployeePickerOpen() || hasCache) return;
-        renderEmployeePickerList(EMPLOYEE_PICKER_FALLBACK);
-      });
+    void refreshEmployeePickerNames();
   });
 }
 
@@ -5131,12 +5185,34 @@ function requestServiceWorkerVersion() {
   }
 }
 
+function isUpdateToastDismissedThisSession() {
+  try {
+    return sessionStorage.getItem(UPDATE_TOAST_DISMISSED_SESSION_KEY) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function markUpdateToastDismissedThisSession() {
+  try {
+    sessionStorage.setItem(UPDATE_TOAST_DISMISSED_SESSION_KEY, '1');
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
+function clearUpdateToastDismissedThisSession() {
+  try {
+    sessionStorage.removeItem(UPDATE_TOAST_DISMISSED_SESSION_KEY);
+  } catch (_) { /* private mode / blocked storage */ }
+}
+
 function showUpdateToast() {
+  if (isUpdateToastDismissedThisSession()) return;
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.add('is-visible');
 }
 
-function hideUpdateToast() {
+function hideUpdateToast({ rememberDismiss = false } = {}) {
+  if (rememberDismiss) markUpdateToastDismissedThisSession();
   const toast = document.getElementById('update-toast');
   if (toast) toast.classList.remove('is-visible');
 }
@@ -5208,6 +5284,7 @@ function applyUpdate(force) {
     });
     return;
   }
+  clearUpdateToastDismissedThisSession();
   hideUpdateToast();
   refreshAppFromNetwork();
 }
@@ -5219,7 +5296,9 @@ document.getElementById('update-toast-btn')?.addEventListener('click', () => {
   }
   applyUpdate(false);
 });
-document.getElementById('update-toast-dismiss')?.addEventListener('click', hideUpdateToast);
+document.getElementById('update-toast-dismiss')?.addEventListener('click', () => {
+  hideUpdateToast({ rememberDismiss: true });
+});
 document.getElementById('app-refresh-btn')?.addEventListener('click', () => applyUpdate(false));
 
 document.getElementById('version-changelog-modal')?.addEventListener('click', (event) => {
@@ -5263,7 +5342,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261024-mhd-filter-ampel-datum')
+    navigator.serviceWorker.register('./sw.js?v=20261025-phase-a-ux')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

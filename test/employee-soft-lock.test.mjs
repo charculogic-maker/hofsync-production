@@ -87,6 +87,21 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(teamConfigJs).to.match(/entry\.active\s*===\s*false/);
   });
 
+  it('times out employee list load and offers retry + fallback', () => {
+    expect(appJs).to.match(/EMPLOYEE_PICKER_LOAD_TIMEOUT_MS\s*=\s*5000/);
+    expect(appJs).to.match(/function withEmployeePickerLoadTimeout/);
+    expect(appJs).to.match(/function refreshEmployeePickerNames/);
+    expect(appJs).to.match(/data-employee-picker-retry/);
+    expect(appJs).to.match(/Standardnamen nutzen oder erneut versuchen/);
+  });
+
+  it('dismisses the update toast once per session', () => {
+    expect(appJs).to.match(/UPDATE_TOAST_DISMISSED_SESSION_KEY\s*=\s*'hofsync\.updateToastDismissed'/);
+    expect(appJs).to.match(/function isUpdateToastDismissedThisSession/);
+    expect(appJs).to.match(/hideUpdateToast\(\{\s*rememberDismiss:\s*true\s*\}\)/);
+    expect(appJs).to.match(/if \(isUpdateToastDismissedThisSession\(\)\) return;/);
+  });
+
   it('shows TEAM badge when anonymous and named badge otherwise', () => {
     expect(appJs).to.match(/👤 TEAM/);
     expect(appJs).to.match(/`👤 \$\{firstName\}`/);
@@ -114,8 +129,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache for admin-idle / soft-lock scope fix', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-month-calendar-v1'");
+  it('bumps the service-worker cache for phase-a ux hardening', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-phase-a-ux-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

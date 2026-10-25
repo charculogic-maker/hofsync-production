@@ -4176,7 +4176,7 @@ function clearMhdCloudSyncTimeout() {
 function markMhdCloudSyncLoading() {
   setMhdCloudSyncStatus('loading');
   clearMhdCloudSyncTimeout();
-  // Nach max. 3s: lokalen Bestand zeigen falls vorhanden — niemals „leer“ vortäuschen.
+  // Nach max. 3s: lokalen Bestand zeigen falls vorhanden — sonst Fehler + Retry (kein Dauer-Skeleton).
   mhdState.cloudSyncTimeoutId = setTimeout(() => {
     if (mhdState.cloudSyncStatus !== 'loading') return;
     if (hasMhdCachedProducts()) {
@@ -4185,7 +4185,8 @@ function markMhdCloudSyncLoading() {
       renderMhdList();
       return;
     }
-    // Kein Cache: Skeleton behalten, Sync darf nachliefern (kein Empty-Flash).
+    // Kein Cache: Fehlerzustand mit Retry statt endlosem Skeleton.
+    markMhdCloudSyncError();
     renderMhdList();
   }, MHD_CLOUD_SYNC_TIMEOUT_MS);
 }
@@ -4237,6 +4238,29 @@ function buildMhdLoadingHtml() {
       <div class="mhd-loading-spinner" aria-hidden="true"></div>
       <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
     </div>`;
+}
+
+function buildMhdLoadErrorHtml() {
+  return `
+    <div class="mhd-loading-hint mhd-load-error" role="alert" aria-live="assertive">
+      <p class="mhd-loading-text">Frische-Bestand konnte nicht geladen werden.</p>
+      <p class="mhd-loading-text" style="font-size:0.85rem;opacity:0.85;">Netz prüfen und erneut versuchen – lokale Scans bleiben erhalten.</p>
+      <button type="button" class="btn btn-primary" data-mhd-retry-cloud="1">Erneut laden</button>
+    </div>`;
+}
+
+function bindMhdLoadRetryOnce() {
+  const container = document.getElementById('mhd-items-container');
+  if (!container || container.dataset.mhdRetryBound === '1') return;
+  container.dataset.mhdRetryBound = '1';
+  container.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-mhd-retry-cloud]')) return;
+    event.preventDefault();
+    mhdState.pendingCloudSync = true;
+    markMhdCloudSyncLoading();
+    renderMhdList();
+    startMhdLiveSync();
+  });
 }
 
 function mhdLocalSnapshotKey(tenantId = '') {
@@ -5246,6 +5270,7 @@ function buildMhdCardHtml(prod = {}) {
 function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
+  bindMhdLoadRetryOnce();
 
   if (shouldShowMhdCloudLoadingState()) {
     updateMhdToolbarLimitHint(0);
@@ -5257,6 +5282,17 @@ function renderMhdList() {
     return;
   }
   updateZeroQtyToggleUi();
+
+  // Timeout/Fehler ohne Cache: klarer Fehler + Retry statt Dauer-Skeleton oder Fake-Leer.
+  if (mhdState.cloudSyncStatus === 'error' && !hasMhdCachedProducts()) {
+    updateMhdToolbarLimitHint(0);
+    if (container.dataset.mhdRenderMode !== 'error') {
+      container.dataset.mhdRenderMode = 'error';
+      container.dataset.mhdRenderKey = 'cloud-error';
+      container.innerHTML = buildMhdLoadErrorHtml();
+    }
+    return;
+  }
 
   // Leermeldung nur nach abgeschlossenem Ladevorgang — nie während idle/loading.
   if (!mhdState.products.length) {
@@ -7979,29 +8015,51 @@ function clearDeliveryItemFields() {
   eanEl?.focus();
 }
 
-async function addDeliveryItem() {
-  if (window.isProfileEmployeeAuth?.()) {
-    const actor = await resolveInventoryActorForScan();
-    if (!actor) {
-      mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
-      return;
-    }
+function notifyReceivingValidation(title, message, { focusId = '' } = {}) {
+  mhdState.showHUD(title, message, '!');
+  window.showToast?.(message || title, 'warning');
+  if (focusId) document.getElementById(focusId)?.focus();
+}
+
+async function ensureReceivingActorOrWarn() {
+  const actor = await resolveInventoryActorForScan();
+  if (actor) return actor;
+  const softLockName = String(window.readActiveEmployee?.() || getActiveEmployee() || '').trim();
+  if (softLockName) return softLockName;
+  if (typeof window.ensureSoftLockEmployeeSelected === 'function') {
+    const picked = await window.ensureSoftLockEmployeeSelected();
+    if (picked) return picked;
+  } else if (typeof window.openEmployeePickerModal === 'function') {
+    const picked = await window.openEmployeePickerModal({ mandatory: true });
+    if (picked) return picked;
   }
+  notifyReceivingValidation(
+    'Profil fehlt',
+    'Bitte zuerst unter „Wer arbeitet gerade?“ einen Namen wählen.',
+  );
+  return '';
+}
+
+async function addDeliveryItem() {
+  const actor = await ensureReceivingActorOrWarn();
+  if (!actor) return;
   recordInventoryProfileActivity();
   const { product, barcode, qtyValue, qtyUnit, mhdDate, category, herstellerZusatz } = readDeliveryItemDraftValues();
   if (!barcode) {
-    mhdState.showHUD('EAN fehlt', 'Bitte Barcode scannen oder EAN eintippen.', '!');
-    document.getElementById('we-ean')?.focus();
+    notifyReceivingValidation('EAN fehlt', 'Bitte Barcode scannen oder EAN eintippen.', { focusId: 'we-ean' });
     return;
   }
   if (!category) {
-    mhdState.showHUD('Kategorie fehlt', 'Bitte zuerst eine Kategorie wählen.', '!');
-    document.getElementById('we-category-quick')?.focus();
+    notifyReceivingValidation('Kategorie fehlt', 'Bitte zuerst eine Kategorie wählen.', { focusId: 'we-category-quick' });
     return;
   }
   rememberReceivingHeadCategory(category);
   if (!product) {
-    mhdState.showHUD('Produkt fehlt', 'EAN unbekannt – bitte „Artikel manuell anlegen“ nutzen und Namen eintragen.', '!');
+    notifyReceivingValidation(
+      'Produkt fehlt',
+      'EAN unbekannt – bitte „Artikel manuell anlegen“ nutzen und Namen eintragen.',
+      { focusId: 'we-product-name' },
+    );
     if (!document.getElementById('we-product-manual-wrap')?.classList.contains('is-manual-open')) {
       openReceivingManualCreateForm();
     } else {
@@ -8011,18 +8069,19 @@ async function addDeliveryItem() {
     return;
   }
   if (!Number.isFinite(qtyValue) || qtyValue <= 0) {
-    mhdState.showHUD('Menge ungültig', `Bitte eine Menge in ${qtyUnit} größer 0 eingeben.`, '!');
-    document.getElementById('we-qty')?.focus();
+    notifyReceivingValidation(
+      'Menge ungültig',
+      `Bitte eine Menge in ${qtyUnit} größer 0 eingeben.`,
+      { focusId: 'we-qty' },
+    );
     return;
   }
   if (!mhdDate) {
-    const toastMessage = 'Bitte MHD eintragen, bevor der Posten zur Lieferung hinzugefügt wird.';
-    if (isAdvancedKaeseUpgradeEnabled()) {
-      window.showToast?.(toastMessage, 'error');
-    } else {
-      mhdState.showHUD('MHD fehlt', 'Bitte MHD als TT.MM.JJJJ eintippen.', '!');
-    }
-    document.getElementById('we-mhd')?.focus();
+    notifyReceivingValidation(
+      'MHD fehlt',
+      'Bitte MHD als TT.MM.JJJJ eintippen, bevor der Posten zur Lieferung hinzugefügt wird.',
+      { focusId: 'we-mhd' },
+    );
     return;
   }
 
@@ -8926,6 +8985,17 @@ async function saveDeliveryDraft() {
     return;
   }
 
+  const actor = await ensureReceivingActorOrWarn();
+  if (!actor) return;
+
+  if (!currentDeliveryItems.length && !currentDeliveryPhotos.length) {
+    notifyReceivingValidation(
+      'Nichts zu speichern',
+      'Bitte zuerst Posten hinzufügen oder ein Lieferschein-Foto aufnehmen – nichts wurde gespeichert.',
+    );
+    return;
+  }
+
   const supplier = await ensureDeliverySupplierSelected({ purpose: 'draft' });
   if (!supplier) return;
   await persistSupplierName(supplier, { toastOnCreate: false });
@@ -8939,8 +9009,11 @@ async function saveDeliveryDraft() {
       return;
     }
     setReceivingMode('metzgerei');
-    mhdState.showHUD('Foto fehlt', 'Mindestens ein Lieferschein-Foto ist für den Entwurf Pflicht.', '!');
-    document.getElementById('we-photo-btn')?.focus();
+    notifyReceivingValidation(
+      'Foto fehlt',
+      'Mindestens ein Lieferschein-Foto ist für den Entwurf Pflicht.',
+      { focusId: 'we-photo-btn' },
+    );
     return;
   }
 
@@ -9240,9 +9313,15 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
 
   if (!currentDeliveryItems.length) {
     setReceivingMode('schnell');
-    mhdState.showHUD('Keine Posten', 'Bitte mindestens einen Waren-Posten unter Schnellerfassung hinzufügen.', '!');
+    notifyReceivingValidation(
+      'Keine Posten',
+      'Bitte mindestens einen Waren-Posten unter Schnellerfassung hinzufügen – nichts wurde gespeichert.',
+    );
     return;
   }
+
+  const actor = await ensureReceivingActorOrWarn();
+  if (!actor) return;
 
   if (!skipReviewPrompt) {
     const reviewChoice = await showDeliveryReviewPrompt();

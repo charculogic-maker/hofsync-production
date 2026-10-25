@@ -17,7 +17,20 @@ describe('MHD Lade-Guard', () => {
     expect(mhd).to.include('Frische-Bestand StevesHof wird geladen');
     expect(mhd).to.include('shouldShowMhdCloudLoadingState');
     expect(mhd).to.match(/Leermeldung nur nach abgeschlossenem Ladevorgang/);
-    // Timeout ohne Cache darf nicht „ready/empty“ erzwingen
-    expect(mhd).to.match(/Kein Cache: Skeleton behalten/);
+  });
+
+  it('shows error + retry after timeout without cache', () => {
+    expect(mhd).to.match(/Kein Cache: Fehlerzustand mit Retry/);
+    expect(mhd).to.include('buildMhdLoadErrorHtml');
+    expect(mhd).to.include('data-mhd-retry-cloud');
+    expect(mhd).to.include('Frische-Bestand konnte nicht geladen werden');
+    expect(mhd).to.match(/cloudSyncStatus === 'error'/);
+  });
+
+  it('validates wareneingang with toast and blocks empty saves', () => {
+    expect(mhd).to.include('function notifyReceivingValidation');
+    expect(mhd).to.include('function ensureReceivingActorOrWarn');
+    expect(mhd).to.match(/Nichts zu speichern/);
+    expect(mhd).to.match(/nichts wurde gespeichert/i);
   });
 });
