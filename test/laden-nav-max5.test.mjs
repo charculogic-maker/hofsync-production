@@ -68,8 +68,8 @@ describe('Laden-Nav max. 5', () => {
   });
 
   it('bumpt den Service-Worker-Cache für we-herkunft-lot', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-admin-laden-wording-v1'");
-    expect(app).to.include("sw.js?v=20261025-admin-laden-wording");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-finalize-catalog-timeout-v1'");
+    expect(app).to.include("sw.js?v=20261025-finalize-catalog-timeout");
   });
 
   it('FOUC-Boot synchronisiert Mehr-Trigger', () => {
