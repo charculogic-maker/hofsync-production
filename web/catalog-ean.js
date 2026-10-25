@@ -76,10 +76,30 @@ function indexCatalogEanDoc(data, docId, byArticle, byName, ambiguousNames) {
   });
 }
 
+/** Lie-Fi Schutz: Stammdaten-GETs dürfen finalizeDelivery nicht blockieren. */
+const CATALOG_READ_TIMEOUT_MS = 3500;
+
+class CatalogReadTimeoutError extends Error {
+  constructor(collectionName, ms) {
+    super(`EAN-Katalog (${collectionName}) hat nach ${ms}ms nicht geantwortet.`);
+    this.name = 'CatalogReadTimeoutError';
+    this.code = 'catalog-read-timeout';
+    this.collectionName = collectionName;
+  }
+}
+
+function withCatalogReadTimeout(promise, collectionName, ms = CATALOG_READ_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new CatalogReadTimeoutError(collectionName, ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 // #region agent log
 function agentDbgLog(hypothesisId, location, message, data = {}) {
   try {
-    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'pre-fix' };
+    const entry = { hypothesisId, location, message, data, timestamp: Date.now(), runId: 'post-fix' };
     const w = typeof window !== 'undefined' ? window : globalThis;
     w.__agentDebugLog = w.__agentDebugLog || [];
     w.__agentDebugLog.push(entry);
@@ -91,7 +111,7 @@ function agentDbgLog(hypothesisId, location, message, data = {}) {
 /** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
   // #region agent log
-  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:entry', 'loadCatalogEanIndex start', {});
+  agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:entry', 'loadCatalogEanIndex start', { timeoutMs: CATALOG_READ_TIMEOUT_MS });
   // #endregion
   const byArticle = new Map();
   const byName = new Map();
@@ -100,7 +120,10 @@ export async function loadCatalogEanIndex() {
     // #region agent log
     agentDbgLog('A', 'catalog-ean.js:stammdaten:before', 'before stammdaten.get', {});
     // #endregion
-    const snap = await getTenantCollection('stammdaten').limit(400).get();
+    const snap = await withCatalogReadTimeout(
+      getTenantCollection('stammdaten').limit(400).get(),
+      'stammdaten',
+    );
     // #region agent log
     agentDbgLog('A', 'catalog-ean.js:stammdaten:after', 'after stammdaten.get', { size: snap?.size ?? null });
     // #endregion
@@ -109,7 +132,11 @@ export async function loadCatalogEanIndex() {
     });
   } catch (err) {
     // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:stammdaten:error', 'stammdaten.get failed', { message: String(err?.message || err), code: String(err?.code || '') });
+    agentDbgLog('A', 'catalog-ean.js:stammdaten:error', 'stammdaten.get failed', {
+      message: String(err?.message || err),
+      code: String(err?.code || ''),
+      timedOut: err?.name === 'CatalogReadTimeoutError',
+    });
     // #endregion
     console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
   }
@@ -118,7 +145,10 @@ export async function loadCatalogEanIndex() {
     // #region agent log
     agentDbgLog('A', 'catalog-ean.js:product_master:before', 'before product_master.get', {});
     // #endregion
-    const snap = await getTenantCollection('product_master').limit(500).get();
+    const snap = await withCatalogReadTimeout(
+      getTenantCollection('product_master').limit(500).get(),
+      'product_master',
+    );
     // #region agent log
     agentDbgLog('A', 'catalog-ean.js:product_master:after', 'after product_master.get', { size: snap?.size ?? null });
     // #endregion
@@ -127,7 +157,11 @@ export async function loadCatalogEanIndex() {
     });
   } catch (err) {
     // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:product_master:error', 'product_master.get failed', { message: String(err?.message || err), code: String(err?.code || '') });
+    agentDbgLog('A', 'catalog-ean.js:product_master:error', 'product_master.get failed', {
+      message: String(err?.message || err),
+      code: String(err?.code || ''),
+      timedOut: err?.name === 'CatalogReadTimeoutError',
+    });
     // #endregion
     console.warn('[HofSync] product_master für EAN-Abgleich nicht lesbar:', err);
   }

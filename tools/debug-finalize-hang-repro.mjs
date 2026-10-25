@@ -135,59 +135,93 @@ async function main() {
   await page.screenshot({ path: path.join(ART, '02-profile.png') });
 
   await page.evaluate(() => {
-    window.fallbackShowTab?.('receiving');
+    window.showTab?.('receiving') || window.fallbackShowTab?.('receiving');
     const p = document.getElementById('page-receiving');
     if (p) { p.hidden = false; p.style.display = 'block'; }
   });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
+  // Receiving is PIN-protected — picker may reopen as mandatory
+  await page.evaluate(() => {
+    const pick = document.querySelector('#employee-picker-list [data-employee-picker-name]');
+    if (pick) pick.click();
+    else {
+      const overlay = document.getElementById('modal-employee-picker');
+      if (overlay) {
+        overlay.classList.remove('is-open', 'is-mandatory');
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    }
+  });
+  await page.waitForTimeout(800);
 
-  const product = `TEST-DBG ${new Date().toISOString().slice(11, 19)}`;
+  const product = `TEST – Nicht relevant DBG ${new Date().toISOString().slice(11, 19)}`;
   const ean = `200${Date.now().toString().slice(-10)}`;
   const mhdDe = mhdIn3Days();
 
-  await page.evaluate(({ product, ean, mhdDe }) => {
-    const set = (id, val) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.value = val;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    };
+  await page.evaluate(() => {
     const supplier = document.getElementById('we-supplier');
     if (supplier) {
       const opt = [...supplier.options].find((o) => /bartke/i.test(o.textContent || o.value));
       if (opt) supplier.value = opt.value;
       supplier.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    set('we-ean', ean);
-    set('we-product-name', product);
-    set('we-qty', '1');
-    set('we-mhd', mhdDe);
-    // Prefer Trockenware if category required
-    const cat = document.getElementById('we-category') || document.getElementById('we-waren-kategorie');
-    if (cat && !cat.value) {
-      const opt = [...(cat.options || [])].find((o) => /trocken/i.test(o.textContent || ''));
+    for (const id of ['we-temperature-head', 'we-temperature']) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.value = '4';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+    const cat = document.getElementById('we-category-quick') || document.getElementById('we-category');
+    if (cat) {
+      const opt = [...(cat.options || [])].find((o) => /trocken|kühl|kuehl|mopro/i.test(o.textContent || ''));
       if (opt) {
         cat.value = opt.value;
         cat.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
+  });
+  await page.fill('#we-product-name', product);
+  await page.fill('#we-qty', '1');
+  await page.fill('#we-mhd', mhdDe);
+  await page.fill('#we-ean', ean);
+  await page.evaluate(() => {
     window.__toasts = [];
+    // Close any leftover picker before add
+    const overlay = document.getElementById('modal-employee-picker');
+    if (overlay?.classList.contains('is-open')) {
+      document.querySelector('#employee-picker-list [data-employee-picker-name]')?.click();
+    }
     document.getElementById('we-add-item-btn')?.click();
-  }, { product, ean, mhdDe });
+  });
   await page.waitForTimeout(2000);
   await page.screenshot({ path: path.join(ART, '03-item-added.png') });
 
-  const afterAdd = await page.evaluate(() => ({
-    toasts: window.__toasts,
-    items: window.getCurrentDeliveryItems?.()?.length
-      ?? document.querySelectorAll('#we-current-items-table tbody tr, .we-item-card').length,
-    saveLabel: document.getElementById('we-save-delivery-btn')?.textContent,
-  }));
+  const afterAdd = await page.evaluate((productName) => {
+    const table = document.getElementById('we-current-items-table')?.innerText || '';
+    return {
+      toasts: window.__toasts,
+      hasProduct: table.includes(productName) || /TEST/.test(table),
+      items: window.getCurrentDeliveryItems?.()?.length
+        ?? document.querySelectorAll('#we-current-items-table tr, .we-item-row, [data-item-id]').length,
+      saveDisabled: document.getElementById('we-save-delivery-btn')?.disabled,
+      saveLabel: document.getElementById('we-save-delivery-btn')?.textContent,
+      tableSnippet: table.replace(/\s+/g, ' ').slice(0, 240),
+    };
+  }, product);
   console.log('afterAdd', JSON.stringify(afterAdd));
   appendNdjson([{ hypothesisId: 'C', location: 'repro:afterAdd', message: 'item add snapshot', data: afterAdd, timestamp: Date.now() }]);
+  if (!afterAdd.hasProduct && afterAdd.saveDisabled !== false) {
+    throw new Error(`add item failed: ${JSON.stringify(afterAdd)}`);
+  }
 
-  await page.locator('#we-save-delivery-btn').click();
+  await page.evaluate(() => {
+    const btn = document.getElementById('we-save-delivery-btn');
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-disabled'); }
+  });
+  await page.locator('#we-save-delivery-btn').click({ force: true });
   await page.waitForSelector('#delivery-review-modal.is-open, #delivery-review-proceed', { timeout: 10000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.locator('#delivery-review-proceed').click({ timeout: 10000 }).catch(async () => {
