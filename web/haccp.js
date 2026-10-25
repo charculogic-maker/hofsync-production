@@ -1358,6 +1358,9 @@ function renderCleaningChecks() {
     <div class="haccp-daily-intro">
       <strong>Keine Aufgaben</strong>
       <span>Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ Reinigungsaufgaben anlegen.</span>
+      <button type="button" class="btn btn-primary" data-haccp-open-setup="1" style="margin-top:12px;">
+        Messpunkte anlegen
+      </button>
     </div>
     `}
   `;
@@ -1477,6 +1480,9 @@ function renderTemperatureChecks() {
       <div class="haccp-daily-intro">
         <strong>Temperatur-Rundgang</strong>
         <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Bitte im Büro unter „Mein Betrieb → HACCP &amp; Hygiene Setup“ die Messpunkte anlegen.</span>
+        <button type="button" class="btn btn-primary" data-haccp-open-setup="1" style="margin-top:12px;">
+          Messpunkte anlegen
+        </button>
       </div>
     `;
   }
@@ -1562,11 +1568,32 @@ function bindRenderedHaccpActions(container) {
   });
 }
 
+/** Deep-Link: HACCP Empty-State → Mein Betrieb → Messpunkte-Setup. */
+function openHaccpMesspunkteSetup() {
+  const target = '/dev-dashboard#haccp-setup';
+  try {
+    window.location.assign(target);
+  } catch (err) {
+    console.warn('[HofSync HACCP] Setup-Deep-Link fehlgeschlagen:', err);
+    haccpState.showHUD(
+      'Büro nötig',
+      'Messpunkte legt das Büro unter „Mein Betrieb → HACCP & Hygiene Setup“ an.',
+      '!',
+    );
+    window.showToast?.('Messpunkte anlegen: Verwaltung → Mein Betrieb → HACCP Setup.', 'info');
+  }
+}
+
 function bindStaticHaccpControls() {
   const dailyContainer = document.getElementById('haccp-daily-container');
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
     dailyContainer.dataset.haccpDelegated = '1';
     dailyContainer.addEventListener('click', (event) => {
+      const openSetupBtn = event.target.closest('[data-haccp-open-setup]');
+      if (openSetupBtn) {
+        openHaccpMesspunkteSetup();
+        return;
+      }
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');
       if (saveRoundBtn) {
         void saveTemperatureRound();

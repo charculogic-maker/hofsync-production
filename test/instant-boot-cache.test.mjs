@@ -45,7 +45,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for module-nav zero-flicker release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-month-calendar-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-phase-a-ux-v1'");
     expect(swJs).to.match(/isStandaloneHtmlDoc/);
   });
 

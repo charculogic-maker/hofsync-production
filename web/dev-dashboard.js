@@ -2990,6 +2990,22 @@ function setDevDashboardTab(tabKey = 'overview') {
   }
 }
 
+/** Deep-Link aus HACCP Empty-State: /dev-dashboard#haccp-setup → Mein Betrieb + Anker. */
+function applyDevDashboardDeepLink() {
+  const hash = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (hash !== 'haccp-setup' && hash !== 'dev-dashboard-haccp-setup') return;
+  setDevDashboardTab('settings');
+  window.setTimeout(() => {
+    const target = document.getElementById('dev-dashboard-haccp-setup');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    try {
+      target.classList.add('is-deep-link-focus');
+      window.setTimeout(() => target.classList.remove('is-deep-link-focus'), 2400);
+    } catch (_) { /* noop */ }
+  }, 80);
+}
+
 function bindDevDashboardTabs() {
   const tabs = document.querySelector('.dev-dashboard-tabs');
   if (!tabs || tabs.dataset.bound === '1') return;
@@ -3205,6 +3221,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
 
     recordAudit('login', 'Verwaltung geöffnet', 'security');
     setDevDashboardTab(dashboardState.activeTab || 'overview');
+    applyDevDashboardDeepLink();
     await refreshEmployeeTable(dashboardState);
     renderOverviewCards(dashboardState);
 

@@ -86,6 +86,26 @@ describe('StevesHof HACCP seed (Laden & Lager)', () => {
   });
 });
 
+describe('HACCP Empty-State Deep-Link', () => {
+  it('offers Messpunkte-Setup button and dashboard hash target', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const haccp = fs.readFileSync(path.join(root, 'web/haccp.js'), 'utf8');
+    const dashboard = fs.readFileSync(path.join(root, 'web/dev-dashboard.js'), 'utf8');
+    const indexHtml = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
+    expect(haccp).to.match(/data-haccp-open-setup/);
+    expect(haccp).to.match(/Messpunkte anlegen/);
+    expect(haccp).to.match(/function openHaccpMesspunkteSetup/);
+    expect(haccp).to.match(/\/dev-dashboard#haccp-setup/);
+    expect(dashboard).to.match(/function applyDevDashboardDeepLink/);
+    expect(dashboard).to.match(/haccp-setup/);
+    expect(dashboard).to.match(/setDevDashboardTab\('settings'\)/);
+    expect(indexHtml).to.match(/id="dev-dashboard-haccp-setup"/);
+  });
+});
+
 describe('HACCP Temperatur-Eingabe (Minuszeichen)', () => {
   it('parst führendes Minus und Komma', () => {
     expect(parseTempInput('-18')).to.deep.equal({ value: -18, draft: '-18', complete: true });

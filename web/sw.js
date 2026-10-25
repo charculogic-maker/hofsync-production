@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-bedarf-module-v11';
+const CACHE_NAME = 'charculogic-v20261025-phase-a-ux-v1';
 
-const CACHE_SCHEMA = 'p0-supply-categories-rules-oct2026';
-/** Release – Fachbereich-tenantId-Fix + Wet-Finger-UX */
-const RELEASED_AT = '2026-10-25T19:40:00+02:00';
+const CACHE_SCHEMA = 'p0-phase-a-ux-hardening-oct2026';
+/** Release – Phase A: Soft-Lock Timeout, MHD Retry, Banner, HACCP Deep-Link */
+const RELEASED_AT = '2026-10-25T20:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
