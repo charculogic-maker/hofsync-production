@@ -1,6 +1,6 @@
 # CharcuLogic / HofSync – App-Dokumentation (aktueller Stand)
 
-> **Stand:** Juli 2026  
+> **Stand:** Oktober 2026
 > **Zielgruppe:** Entwicklung, Betrieb, Admins und Kolleginnen/Kollegen mit technischem Hintergrund  
 > **Produktivsystem:** Progressive Web App im Ordner `web/` (Vanilla JavaScript + Firebase)  
 > **Nicht produktiv:** `lib/main.dart` (früher Flutter-Prototyp)
@@ -40,6 +40,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 | **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
 | **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen, DIN-A4-Datenblatt |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
+| **Wissen** | Theken-Auskunft für Allergene/Zutaten, Fleisch-Lexikon und Handbücher |
 | **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
 | **Büro** | Chargen-Archiv, Leitstand, Team-Konfiguration (Admin) |
 
@@ -123,7 +124,7 @@ Pro Mandant konfigurierbar:
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `traceability` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
-| `cutGlossary` / `knowledge` | Wissen / Cuts (Admin-Header) |
+| `cutGlossary` / `knowledge` | Wissen mit Theken-Auskunft und Cuts (Admin-Header) |
 | `haccp` | **HACCP** (Admin-Header) |
 | `teamboard` | Tab **Start** (Teamboard) |
 | `team` | Tab **Team** (nur wenn explizit `true` oder abhängige Module aktiv) |
@@ -151,7 +152,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS, DIN-A4-Datenblatt |
 
-**Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
+**Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts` (Theken-Auskunft & Fleisch-Lexikon), `batches` (Büro).
 **Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
 
 ### MHD-Monitor (`web/mhd.js`)
@@ -206,12 +207,33 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 - Meister-Override bei Temperatur-Abweichung (PIN via `verifyTerminalPin`)
 - Druckansicht für Tagesprotokoll
 
-### Cut-Lexikon (`web/cuts.js`)
+### Wissen / Theken-Auskunft (`web/recipes-counter.js`, `web/cuts.js`)
 
-- Optionaler Tab **Cuts** ueber `modules.cutGlossary: true`
-- Kuratierte Offline-Liste fuer Rind, Schwein und Lamm
-- Suche ueber Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
-- Keine Firestore-Daten und keine Schreibvorgaenge; reines Nachschlage-Modul
+Der Tab **Wissen** ist ein Admin-Header-Modul (`knowledge`) und wird in `app.js` mit `activateCounterRecipesTab()` plus `activateCutGlossaryTab()` gestartet. Er bleibt vom Produktions-/Kutter-Rechner getrennt, damit Laden-iPhones schnell kundenkonforme Auskünfte anzeigen können.
+
+**Theken-Auskunft (Allergene & Zutaten):**
+
+- Katalogsuche nach Artikel, Zutat, Verkehrsbezeichnung, Kategorie, Allergenen und Hinweisen
+- Schnellfilter: Alle, glutenfrei, laktosefrei, Rind, Schwein, Feinkost
+- Detail-Sheet mit Verkehrsbezeichnung, Allergen-Box, Zutatenliste, Fleischanteil, Lagerung und Verzehrhinweis
+- Allergen-Markierung in der Zutatenliste über `highlightAllergensInDeclaration()`
+- Keine Gewürzgrammaturen in der Kundenansicht; Produktionsdaten werden beim Normalisieren auf eine Deklaration reduziert
+
+**Katalog- und Offline-Verhalten:**
+
+1. `loadCounterRecipesCatalog()` versucht tenant-scoped Firestore über `getTenantCollection()` in dieser Reihenfolge: `recipes` -> `products` -> `rezepte` (jeweils max. 200 Dokumente).
+2. Treffer werden über `normalizeCounterItem()` auf Felder wie `name`, `verkehrsbezeichnung`, `category`, `allergens`, `ingredientsDeclaration`, `glutenFree`, `lactoseFree`, `meatContent`, `storageTemp`, `consumptionNotes` normalisiert.
+3. Der letzte erfolgreiche Katalog wird mandantenpräfixiert in `localStorage` gespeichert: `charculogic.cachedCounterRecipes.{normalizeTenantId(tenantId)}`.
+4. Beim Start zeigt das Modul sofort Cache oder `STEVESHOF_COUNTER_FALLBACK`; danach läuft ein Firestore-Refresh im Hintergrund.
+
+**Aktuelle Rules-Grenze:** `firebase.rules` erlaubt `tenants/{tenantId}/rezepte` nur für Mandanten-Nutzer mit aktivem `wurstkueche`-Modul und Admin-Schreibrechten. Für `recipes` und `products` gibt es derzeit keine expliziten Rules, sie fallen also auf Default-Deny. Neue tenant-spezifische Thekenkataloge unter diesen Alias-Collections brauchen zuerst Rules + Tests; sonst sehen Wissen-only-Mandanten Cache/Fallback.
+
+**Fleisch-Lexikon (`web/cuts.js`):**
+
+- Optional über `modules.cutGlossary: true` bzw. `knowledge`
+- Kuratierte Offline-Liste für Rind, Schwein, Lamm, Geflügel, Innereien und allgemeines Wurstküchen-Wissen
+- Suche über Cut-Namen, regionale Synonyme, anatomische Lage, Muskelgruppe und Menschen-Vergleich
+- Keine Firestore-Schreibvorgänge; reines Nachschlage-Modul
 
 ### Team & Teamboard
 
@@ -444,7 +466,7 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `wareneingang_lieferungen` | Lieferungen inkl. Fotos |
 | `stammdaten` | Artikelstammdaten |
 | `inventory` | KI-Lieferschein-Bestand (TorFabrik) |
-| `rezepte` | Rezepturen |
+| `rezepte` | Rezepturen; Fallback-Quelle für Theken-Auskunft |
 | `produktion_chargen` | Produktionschargen |
 | `fleischpreise` | Wochen-Fleischpreise (nur Functions schreiben) |
 | `haccp_geraete` | HACCP-Messpunkte/Geräte |
@@ -459,6 +481,8 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `pushTokens` | FCM-Tokens |
 | `terminalCredentials` | Gehashte PINs (Client: kein Lesen) |
 | `pinAttempts` | PIN-Lockout (Client: kein Zugriff) |
+
+Hinweis zur Theken-Auskunft: `web/recipes-counter.js` versucht zusätzlich `recipes` und `products`, aber diese Alias-Collections sind in `firebase.rules` aktuell nicht freigeschaltet. Bis Rules + Tests ergänzt sind, ist `rezepte` die einzige Firestore-Quelle im dokumentierten Produktionsvertrag.
 
 **Global (nicht mandantenbezogen):**
 
@@ -547,6 +571,8 @@ craft_food_app/
 │   ├── mhd.js              # MHD + Wareneingang
 │   ├── haccp.js            # HACCP Tageskontrollen
 │   ├── production.js       # Wurstküche, Chargen
+│   ├── recipes-counter.js  # Wissen: Theken-Auskunft Allergene/Zutaten
+│   ├── cuts.js             # Wissen: Fleisch-Lexikon
 │   ├── customer-orders.js  # Kundenbestellungen
 │   ├── teamboard.js        # Start-Tab
 │   └── …
@@ -587,4 +613,4 @@ Bei UI-Änderungen diese Doku und die Kollegen-Anleitungen gemeinsam pflegen.
 
 ---
 
-*CharcuLogic / HofSync · Dokumentation generiert aus Codebase-Stand Juli 2026*
+*CharcuLogic / HofSync · Dokumentation generiert aus Codebase-Stand Oktober 2026*
