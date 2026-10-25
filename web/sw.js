@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-order-activity-log-v1';
+const CACHE_NAME = 'charculogic-v20261025-optional-ready-price-v1';
 
-const CACHE_SCHEMA = 'p0-packtisch-team-activity-log-oct2026';
-/** Release – Packtisch Team-Aktivitätsprotokoll ohne Weiling-Default */
-const RELEASED_AT = '2026-10-25T11:20:00+02:00';
+const CACHE_SCHEMA = 'p0-packtisch-optional-ready-price-oct2026';
+/** Release – Ready-Mail: Waagen-Endpreis optional */
+const RELEASED_AT = '2026-10-25T11:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
