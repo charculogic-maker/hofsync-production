@@ -2483,52 +2483,67 @@ function renderEmployeeRow(employee, currentUserUid) {
 
   return `
     <tr data-employee-row="${safeUid}" ${isDisabled ? 'data-employee-inactive="1"' : ''}>
-      <td class="dev-dashboard-employee-name">
+      <td class="dev-dashboard-employee-name" data-label="Person">
         <strong>${safeDisplayName}</strong>
         <span class="dev-dashboard-tenant-sub">${safeEmail || '—'}</span>
       </td>
-      <td>
+      <td data-label="Rolle">
         <span class="dev-dashboard-role-badge dev-dashboard-role-badge--${escapeHtml(role)}">${escapeHtml(roleLabel)}</span>
         ${isDisabled ? '<span class="dev-dashboard-role-badge dev-dashboard-role-badge--inactive">Deaktiviert</span>' : ''}
       </td>
-      <td class="dev-dashboard-employee-modules">
+      <td class="dev-dashboard-employee-modules" data-label="Module">
         ${renderEmployeeModuleToggles(employee)}
       </td>
-      <td class="dev-dashboard-employee-departments">
+      <td class="dev-dashboard-employee-departments" data-label="Bereiche">
         ${renderEmployeeDepartmentToggles(employee)}
       </td>
-      <td class="dev-dashboard-employee-actions">
-        <button
-          type="button"
-          class="dev-dashboard-action-btn"
-          data-action="toggle-role"
-          data-uid="${safeUid}"
-          data-tenant-id="${safeTenantId}"
-          data-next-role="${escapeHtml(nextRole)}"
-          data-display-name="${safeDisplayAttr}"
-          ${isSelf || isDisabled || isProfile ? 'disabled title="Rolle kann jetzt nicht geändert werden"' : ''}
-        >Rolle ändern</button>
-        <button
-          type="button"
-          class="dev-dashboard-action-btn"
-          data-action="reset-password"
-          data-uid="${safeUid}"
-          data-tenant-id="${safeTenantId}"
-          data-display-name="${safeDisplayAttr}"
-          ${isDisabled || isProfile ? 'disabled title="Konto ist deaktiviert"' : ''}
-        >Passwort zurücksetzen</button>
-        <button
-          type="button"
-          class="dev-dashboard-action-btn ${isDisabled ? '' : 'dev-dashboard-action-btn--danger'}"
-          data-action="${disableAction}"
-          data-uid="${safeUid}"
-          data-tenant-id="${safeTenantId}"
-          data-display-name="${safeDisplayAttr}"
-          ${isSelf || isProfile ? 'disabled' : ''}
-          title="${isProfile
-            ? 'Team-Profil — Konto in der Anmeldung anlegen, um zu sperren'
-            : (isSelf ? 'Eigenes Konto bleibt aktiv' : 'Konto vorübergehend sperren')}"
-        >${escapeHtml(disableLabel)}</button>
+      <td class="dev-dashboard-employee-actions" data-label="Aktionen">
+        <div class="dev-dashboard-employee-actions-bar">
+          <button
+            type="button"
+            class="dev-dashboard-employee-more-btn"
+            data-action="toggle-employee-menu"
+            aria-expanded="false"
+            aria-haspopup="menu"
+            aria-label="Aktionen für ${safeDisplayAttr}"
+          >⋯</button>
+          <div class="dev-dashboard-employee-more-menu" hidden role="menu">
+            <button
+              type="button"
+              class="dev-dashboard-action-btn"
+              role="menuitem"
+              data-action="toggle-role"
+              data-uid="${safeUid}"
+              data-tenant-id="${safeTenantId}"
+              data-next-role="${escapeHtml(nextRole)}"
+              data-display-name="${safeDisplayAttr}"
+              ${isSelf || isDisabled || isProfile ? 'disabled title="Rolle kann jetzt nicht geändert werden"' : ''}
+            >Rolle ändern</button>
+            <button
+              type="button"
+              class="dev-dashboard-action-btn"
+              role="menuitem"
+              data-action="reset-password"
+              data-uid="${safeUid}"
+              data-tenant-id="${safeTenantId}"
+              data-display-name="${safeDisplayAttr}"
+              ${isDisabled || isProfile ? 'disabled title="Konto ist deaktiviert"' : ''}
+            >Passwort zurücksetzen</button>
+            <button
+              type="button"
+              class="dev-dashboard-action-btn ${isDisabled ? '' : 'dev-dashboard-action-btn--danger'}"
+              role="menuitem"
+              data-action="${disableAction}"
+              data-uid="${safeUid}"
+              data-tenant-id="${safeTenantId}"
+              data-display-name="${safeDisplayAttr}"
+              ${isSelf || isProfile ? 'disabled' : ''}
+              title="${isProfile
+                ? 'Team-Profil — Konto in der Anmeldung anlegen, um zu sperren'
+                : (isSelf ? 'Eigenes Konto bleibt aktiv' : 'Konto vorübergehend sperren')}"
+            >${escapeHtml(disableLabel)}</button>
+          </div>
+        </div>
       </td>
     </tr>
   `;
@@ -2659,6 +2674,26 @@ function bindEmployeeTableActions(dashboardState) {
   if (!section || section.dataset.bound === '1') return;
   section.dataset.bound = '1';
 
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('.dev-dashboard-employee-actions-bar')) return;
+    section.querySelectorAll('.dev-dashboard-employee-more-menu').forEach((menu) => {
+      menu.hidden = true;
+      const trigger = menu.closest('.dev-dashboard-employee-actions-bar')
+        ?.querySelector('[data-action="toggle-employee-menu"]');
+      trigger?.setAttribute('aria-expanded', 'false');
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    section.querySelectorAll('.dev-dashboard-employee-more-menu').forEach((menu) => {
+      menu.hidden = true;
+      const trigger = menu.closest('.dev-dashboard-employee-actions-bar')
+        ?.querySelector('[data-action="toggle-employee-menu"]');
+      trigger?.setAttribute('aria-expanded', 'false');
+    });
+  });
+
   section.addEventListener('change', async (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
@@ -2760,6 +2795,16 @@ function bindEmployeeTableActions(dashboardState) {
     }
   });
 
+  const closeAllEmployeeMenus = (exceptMenu = null) => {
+    section.querySelectorAll('.dev-dashboard-employee-more-menu').forEach((menu) => {
+      if (exceptMenu && menu === exceptMenu) return;
+      menu.hidden = true;
+      const trigger = menu.closest('.dev-dashboard-employee-actions-bar')
+        ?.querySelector('[data-action="toggle-employee-menu"]');
+      trigger?.setAttribute('aria-expanded', 'false');
+    });
+  };
+
   section.addEventListener('click', async (event) => {
     const btn = event.target.closest('[data-action]');
     if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
@@ -2770,6 +2815,20 @@ function bindEmployeeTableActions(dashboardState) {
       || action === 'toggle-user-department'
       || action === 'toggle-user-can-order'
     ) return;
+
+    if (action === 'toggle-employee-menu') {
+      event.preventDefault();
+      event.stopPropagation();
+      const bar = btn.closest('.dev-dashboard-employee-actions-bar');
+      const menu = bar?.querySelector('.dev-dashboard-employee-more-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      closeAllEmployeeMenus(willOpen ? menu : null);
+      menu.hidden = !willOpen;
+      btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      return;
+    }
+
     const uid = String(btn.getAttribute('data-uid') || '').trim();
     const tenantId = String(btn.getAttribute('data-tenant-id') || '').trim();
     if (!uid || !tenantId) {
@@ -2777,6 +2836,7 @@ function bindEmployeeTableActions(dashboardState) {
       window.showToast?.('Aktion nicht möglich: Nutzer oder Betrieb fehlt.', 'error');
       return;
     }
+    closeAllEmployeeMenus();
     if (isProfileEmployeeUid(uid)) {
       window.showToast?.('Team-Profil — bitte zuerst ein Anmeldekonto anlegen.', 'error');
       return;

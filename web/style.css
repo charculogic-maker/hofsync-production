@@ -13943,6 +13943,52 @@ tr[data-employee-inactive="1"] {
   flex-wrap: wrap;
   gap: 8px;
   white-space: nowrap;
+  position: relative;
+}
+
+.dev-dashboard-employee-actions-bar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.dev-dashboard-employee-more-btn {
+  appearance: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 12px;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #0f172a);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dev-dashboard-employee-more-btn[aria-expanded="true"] {
+  background: var(--surface-muted, #f1f5f9);
+  border-color: #94a3b8;
+}
+
+.dev-dashboard-employee-more-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dev-dashboard-employee-more-menu[hidden] {
+  display: none !important;
 }
 
 .dev-dashboard-action-btn {
@@ -14453,8 +14499,164 @@ body.role-firebase-auth #team-login-card {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Nutzer mobil: Karten statt horizontaler Tabelle, Aktionen hinter ⋯ */
+  .dev-dashboard-table-wrap:has(.dev-dashboard-table--employees) {
+    overflow: visible;
+  }
+
+  .dev-dashboard-table--employees {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+  }
+
+  .dev-dashboard-table--employees thead {
+    display: none;
+  }
+
+  .dev-dashboard-table--employees tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name actions"
+      "role role"
+      "modules modules"
+      "depts depts";
+    gap: 10px 12px;
+    width: 100%;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 14px;
+    background: var(--card-bg, #fff);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted, #64748b);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-name {
+    grid-area: name;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-name[data-label]::before {
+    display: none;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td[data-label="Rolle"] {
+    grid-area: role;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-modules {
+    grid-area: modules;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-departments {
+    grid-area: depts;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-actions {
+    grid-area: actions;
+    justify-self: end;
+    align-self: start;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .dev-dashboard-table--employees tbody tr[data-employee-row] > td.dev-dashboard-employee-actions[data-label]::before {
+    display: none;
+  }
+
+  .dev-dashboard-employee-more-btn {
+    display: inline-flex;
+  }
+
+  .dev-dashboard-employee-more-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    min-width: 220px;
+    padding: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 14px;
+    background: #111827;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28);
+  }
+
+  .dev-dashboard-employee-more-menu .dev-dashboard-action-btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f8fafc;
+    text-align: left;
+  }
+
+  .dev-dashboard-employee-more-menu .dev-dashboard-action-btn--danger {
+    color: #fecaca;
+  }
+
+  .dev-dashboard-employee-more-menu .dev-dashboard-action-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .dev-dashboard-table--employees tbody tr:not([data-employee-row]) td {
+    display: block;
+    padding: 16px 8px;
+    text-align: center;
+  }
+
   .dev-dashboard-settings-form {
     max-width: none;
+  }
+}
+
+/* Desktop: Aktionen weiterhin inline, ⋯ ausblenden */
+@media (min-width: 769px) {
+  .dev-dashboard-employee-more-btn {
+    display: none !important;
+  }
+
+  .dev-dashboard-employee-more-menu,
+  .dev-dashboard-employee-more-menu[hidden] {
+    display: flex !important;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 }
 

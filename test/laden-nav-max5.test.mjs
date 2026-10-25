@@ -67,9 +67,9 @@ describe('Laden-Nav max. 5', () => {
     expect(app).to.match(/BOTTOM_NAV_TAB_PRIORITY\s*=\s*\['mhd',\s*'receiving',\s*'orders',\s*'chargenDoku'/);
   });
 
-  it('bumpt den Service-Worker-Cache für laden-nav-max5', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-laden-nav-max5-v1'");
-    expect(app).to.include("sw.js?v=20261025-laden-nav-max5");
+  it('bumpt den Service-Worker-Cache für nutzer-mobil', () => {
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-nutzer-mobil-v1'");
+    expect(app).to.include("sw.js?v=20261025-nutzer-mobil");
   });
 
   it('FOUC-Boot synchronisiert Mehr-Trigger', () => {
