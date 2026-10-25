@@ -81,6 +81,8 @@ function getActiveEmployeeName() {
       const fromApi = String(window.readActiveEmployee() || '').trim();
       if (fromApi) return fromApi;
     }
+    const softLock = String(localStorage.getItem('charculogic.activeEmployee') || '').trim();
+    if (softLock) return softLock;
     return readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, alertState.tenantId) || '';
   } catch (_) {
     return '';
