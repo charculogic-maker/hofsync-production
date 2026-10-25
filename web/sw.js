@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-dept-tenantid-v9';
+const CACHE_NAME = 'charculogic-v20261025-no-default-chips-v10';
 
 const CACHE_SCHEMA = 'p0-supply-categories-rules-oct2026';
 /** Release – Fachbereich-tenantId-Fix + Wet-Finger-UX */
-const RELEASED_AT = '2026-10-25T19:15:00+02:00';
+const RELEASED_AT = '2026-10-25T19:25:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

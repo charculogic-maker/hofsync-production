@@ -38,15 +38,14 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(swJs).to.match(/\/quick-alert\.js/);
   });
 
-  it('grows quick buttons from supply_catalog and seeds 1-Tap standard chips', () => {
+  it('grows quick buttons from supply_catalog instead of hardcoded tiles', () => {
     expect(quickAlertJs).to.not.match(/export const QUICK_ALERT_CATEGORIES/);
+    expect(quickAlertJs).to.not.match(/DEFAULT_QUICK_BUTTONS/);
+    expect(quickAlertJs).to.not.match(/Handtuchpapier/);
+    expect(quickAlertJs).to.not.match(/Kassenrollen/);
+    expect(quickAlertJs).to.not.match(/isDefaultSeed/);
     expect(quickAlertJs).to.match(/SUPPLY_CATALOG_COLLECTION\s*=\s*'supply_catalog'/);
     expect(quickAlertJs).to.match(/QUICK_BUTTON_MIN_USES\s*=\s*2/);
-    expect(quickAlertJs).to.match(/export const DEFAULT_QUICK_BUTTONS/);
-    expect(quickAlertJs).to.match(/Siegelrandbeutel klein/);
-    expect(quickAlertJs).to.match(/Kassenrollen/);
-    expect(quickAlertJs).to.match(/Handtuchpapier/);
-    expect(quickAlertJs).to.match(/Wurstdärme/);
     expect(quickAlertJs).to.match(/export function resolveQuickAlertButtons/);
     expect(quickAlertJs).to.match(/eigene_produktion/);
     expect(quickAlertJs).to.match(/zukauf_fleisch_wurst/);
@@ -58,6 +57,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(quickAlertJs).to.match(/Bedarf gemeldet!/);
     expect(devDashboardJs).to.match(/renderSupplyCatalogAdminTable/);
     expect(indexHtml).to.match(/id="quick-alert-category"/);
+    expect(indexHtml).to.match(/Noch keine Schnell-Buttons/);
   });
 
   it('stores departmentAssignments on teamDashboard with canOrder', () => {
