@@ -9811,6 +9811,57 @@ body.dev-dashboard-view .app-version-badge--footer {
   margin-top: 8px;
 }
 
+.order-line-wholesaler-fields {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.order-line-wholesaler-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.order-line-wholesaler-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.customer-order-item {
+  margin: 0 0 8px;
+}
+
+.customer-order-item:last-child {
+  margin-bottom: 0;
+}
+
+.order-line-wholesaler {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: var(--border-radius-sm);
+  background: color-mix(in srgb, #2f6f4e 14%, var(--surface-secondary));
+  border: 1px solid color-mix(in srgb, #2f6f4e 35%, var(--border-subtle));
+  color: #1f4d35;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .order-line-wholesaler {
+  background: color-mix(in srgb, #6fbf8f 18%, var(--surface-secondary));
+  border-color: color-mix(in srgb, #6fbf8f 40%, var(--border-subtle));
+  color: #c6efd4;
+}
+
+.order-line-wholesaler-btn {
+  margin-top: 6px;
+}
+
 .customer-order-wish-tags {
   border: 1px solid var(--border-subtle);
   border-radius: var(--border-radius-sm);

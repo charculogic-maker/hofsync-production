@@ -24,7 +24,7 @@ describe('Packtisch Edit-Modal Viewport', () => {
 
   it('hat Edit-Modal-Markup und Cache-Buster', () => {
     assert.match(html, /id="order-edit-modal"/);
-    assert.match(html, /order-amendments/);
+    assert.match(html, /order-amendments|wholesaler-ordered/);
   });
 
   it('stellt Positionen und Änderungsnotiz oben im Edit-Modal bereit', () => {

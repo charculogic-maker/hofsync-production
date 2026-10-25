@@ -108,6 +108,8 @@ const ORDER_ACTION_LOG_LABELS = Object.freeze({
   cancelled: 'Storniert',
   edited: 'Bestellung bearbeitet',
   edited_reopen: 'Bestellung bearbeitet · wieder in Bearbeitung',
+  wholesaler_ordered: 'Beim Großhändler bestellt',
+  wholesaler_cleared: 'Großhändler-Vermerk entfernt',
 });
 
 const ACTION_LOG_MAX = 40;
@@ -331,9 +333,53 @@ function buildOrderLineRow(lineId) {
         <label class="form-label">Hinweis Position</label>
         <input type="text" class="input-text-touch" data-line-notes placeholder="z. B. ohne Fett">
       </div>
+      <div class="order-line-wholesaler-fields">
+        <label class="order-line-wholesaler-check">
+          <input type="checkbox" data-line-wholesaler-ordered>
+          Beim Großhändler bestellt
+        </label>
+        <input type="text" class="input-text-touch" data-line-wholesaler-name placeholder="Großhändler, z. B. Weiling" autocomplete="off">
+      </div>
       <button type="button" class="btn btn-secondary btn-compact order-line-remove" data-remove-line="${lineId}">Position entfernen</button>
     </div>
   `;
+}
+
+function readWholesalerFieldsFromCard(card, previousItem = null) {
+  const ordered = Boolean(card?.querySelector('[data-line-wholesaler-ordered]')?.checked);
+  if (!ordered) {
+    return {
+      wholesalerOrdered: false,
+      wholesalerName: null,
+      wholesalerOrderedBy: null,
+      wholesalerOrderedAt: null,
+    };
+  }
+  const name = card.querySelector('[data-line-wholesaler-name]')?.value?.trim() || 'Weiling';
+  const prevName = String(previousItem?.wholesalerName || '').trim() || 'Weiling';
+  const keepStamp = Boolean(previousItem?.wholesalerOrdered)
+    && prevName.toLowerCase() === name.toLowerCase()
+    && previousItem?.wholesalerOrderedBy
+    && previousItem?.wholesalerOrderedAt;
+  return {
+    wholesalerOrdered: true,
+    wholesalerName: name,
+    wholesalerOrderedBy: keepStamp
+      ? previousItem.wholesalerOrderedBy
+      : (getActiveEmployeeName() || previousItem?.wholesalerOrderedBy || null),
+    wholesalerOrderedAt: keepStamp
+      ? previousItem.wholesalerOrderedAt
+      : new Date().toISOString(),
+  };
+}
+
+function formatWholesalerOrderedLabel(item) {
+  if (!item?.wholesalerOrdered) return '';
+  const supplier = String(item.wholesalerName || 'Großhändler').trim() || 'Großhändler';
+  const who = String(item.wholesalerOrderedBy || '').trim();
+  const when = formatDateTimeDe(item.wholesalerOrderedAt) || '';
+  const meta = [who, when].filter(Boolean).join(' · ');
+  return `Bei ${supplier} bestellt${meta ? ` · ${meta}` : ''}`;
 }
 
 function ensureDefaultOrderLine() {
@@ -368,6 +414,7 @@ function readOrderLinesFromDom() {
       weight: weight || null,
       width: width || null,
       lineNotes: lineNotes || null,
+      ...readWholesalerFieldsFromCard(card),
     });
   });
   return items;
@@ -433,9 +480,9 @@ function renderOrderSlipAttachments(attachments = []) {
   }).join('');
 }
 
-function renderOrderItemsList(items) {
+function renderOrderItemsList(items, { orderId = '', interactive = false } = {}) {
   if (!Array.isArray(items) || items.length === 0) return '<span>–</span>';
-  return items.map((item) => {
+  return items.map((item, index) => {
     const n = normalizeOrderItem(item);
     const qtyParts = [];
     if (n.pieces > 0) qtyParts.push(`${formatQuantityValue(n.pieces)} Stück`);
@@ -453,7 +500,17 @@ function renderOrderItemsList(items) {
       item.lineNotes,
     ].filter(Boolean);
     const uniqueExtras = [...new Set(extras.map((e) => String(e)))];
-    return `<li><strong>${escapeHtml(n.product || item.product || 'Artikel')}</strong> – ${escapeHtml(qtyParts.join(' · ') || '–')}${uniqueExtras.length ? ` <span class="customer-order-item-meta">(${escapeHtml(uniqueExtras.join(' · '))})</span>` : ''}</li>`;
+    const wholesalerLabel = formatWholesalerOrderedLabel(item);
+    let wholesalerHtml = '';
+    if (wholesalerLabel) {
+      wholesalerHtml = `<div class="order-line-wholesaler" role="status">${escapeHtml(wholesalerLabel)}</div>`;
+      if (interactive && orderId) {
+        wholesalerHtml += `<button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="clear_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Vermerk entfernen</button>`;
+      }
+    } else if (interactive && orderId) {
+      wholesalerHtml = `<button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="mark_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>`;
+    }
+    return `<li class="customer-order-item"><div><strong>${escapeHtml(n.product || item.product || 'Artikel')}</strong> – ${escapeHtml(qtyParts.join(' · ') || '–')}${uniqueExtras.length ? ` <span class="customer-order-item-meta">(${escapeHtml(uniqueExtras.join(' · '))})</span>` : ''}</div>${wholesalerHtml}</li>`;
   }).join('');
 }
 
@@ -1375,7 +1432,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
       <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || 'Portal')}</p>
       <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
-      <ul class="customer-order-items">${renderOrderItemsList(order.items)}</ul>
+      <ul class="customer-order-items">${renderOrderItemsList(order.items, { orderId: order.id, interactive: ACTIVE_ORDER_STATUSES.has(status) })}</ul>
       ${renderOrderAmendmentBlock(order)}
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
       <div class="packtisch-actions">
@@ -2046,6 +2103,8 @@ function fillEditLineCard(card, item = {}) {
   const weight = card.querySelector('[data-line-weight]');
   const width = card.querySelector('[data-line-width]');
   const notes = card.querySelector('[data-line-notes]');
+  const wholesalerOrdered = card.querySelector('[data-line-wholesaler-ordered]');
+  const wholesalerName = card.querySelector('[data-line-wholesaler-name]');
   if (product) product.value = item.product || item.name || '';
   if (quantity) quantity.value = item.quantity != null ? String(item.quantity) : (item.pieces != null ? String(item.pieces) : '');
   if (unit) {
@@ -2061,6 +2120,10 @@ function fillEditLineCard(card, item = {}) {
   if (weight) weight.value = item.weight || (item.weightKg ? `${item.weightKg} kg` : '');
   if (width) width.value = item.width || item.cutLabel || '';
   if (notes) notes.value = item.lineNotes || item.note || '';
+  if (wholesalerOrdered) wholesalerOrdered.checked = Boolean(item.wholesalerOrdered);
+  if (wholesalerName) wholesalerName.value = item.wholesalerOrdered
+    ? (item.wholesalerName || 'Weiling')
+    : (item.wholesalerName || '');
 }
 
 function addEditOrderLine(item = null) {
@@ -2073,10 +2136,10 @@ function addEditOrderLine(item = null) {
   if (item) fillEditLineCard(card, item);
 }
 
-function readEditOrderLinesFromDom() {
+function readEditOrderLinesFromDom(previousItems = []) {
   const cards = document.querySelectorAll('#order-edit-lines-container .order-line-card');
   const items = [];
-  cards.forEach((card) => {
+  cards.forEach((card, index) => {
     const product = card.querySelector('[data-line-product]')?.value?.trim() || '';
     const quantity = card.querySelector('[data-line-quantity]')?.value?.trim() || '';
     const unit = card.querySelector('[data-line-unit]')?.value?.trim() || '';
@@ -2091,9 +2154,143 @@ function readEditOrderLinesFromDom() {
       weight: weight || null,
       width: width || null,
       lineNotes: lineNotes || null,
+      ...readWholesalerFieldsFromCard(card, previousItems[index] || null),
     });
   });
   return items;
+}
+
+function wholesalerFingerprint(items) {
+  if (!Array.isArray(items)) return '';
+  return items.map((item) => [
+    item?.wholesalerOrdered ? '1' : '0',
+    String(item?.wholesalerName || '').trim().toLowerCase(),
+  ].join('|')).join('||');
+}
+
+async function persistOrderItemsWithWholesalerLog(orderId, items, logEntry) {
+  const existing = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!existing) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return false;
+  }
+  const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
+  const firebase = orderState.getFirebase();
+  const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
+    ? firebase.firestore.FieldValue.serverTimestamp()
+    : new Date().toISOString();
+  const atIso = logEntry?.at || new Date().toISOString();
+  const onlineData = {
+    items,
+    updatedBy: logEntry?.by || getActiveEmployeeName() || null,
+    updatedAt: serverTimestamp,
+    actionLog: nextLog,
+    employeeName: logEntry?.by || getActiveEmployeeName() || null,
+  };
+  const queueData = {
+    ...onlineData,
+    updatedAt: atIso,
+    actionLog: nextLog,
+  };
+  try {
+    await writeFirestoreDocOrQueue({
+      collectionPath: 'customerOrders',
+      docId: orderId,
+      op: 'update',
+      onlineData,
+      queueData,
+      offlineMessage: 'Großhändler-Vermerk wird synchronisiert, sobald WLAN verfügbar ist.',
+    });
+    orderState.allOrders = orderState.allOrders.map((entry) => {
+      if (entry.id !== orderId) return entry;
+      return {
+        ...entry,
+        items,
+        updatedBy: onlineData.updatedBy,
+        updatedAt: atIso,
+        actionLog: nextLog,
+        employeeName: onlineData.employeeName,
+      };
+    });
+    renderOpenOrders();
+    renderAdminOrders();
+    renderPastOrdersView();
+    renderZuschnittliste();
+    renderProductionTasks();
+    return true;
+  } catch (err) {
+    console.error('[CustomerOrders] Großhändler-Vermerk fehlgeschlagen:', err);
+    window.showToast?.('Großhändler-Vermerk konnte nicht gespeichert werden.', 'error');
+    return false;
+  }
+}
+
+async function markOrderItemWholesalerOrdered(orderId, itemIndex) {
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  const items = cloneOrderItemsSnapshot(order.items);
+  const item = items[itemIndex];
+  if (!item) {
+    window.showToast?.('Position wurde nicht gefunden.', 'error');
+    return;
+  }
+  if (item.wholesalerOrdered) {
+    window.showToast?.('Diese Position ist bereits als bestellt markiert.', 'info');
+    return;
+  }
+  const suggested = String(item.wholesalerName || 'Weiling').trim() || 'Weiling';
+  const supplierRaw = window.prompt('Bei welchem Großhändler bestellt?', suggested);
+  if (supplierRaw === null) return;
+  const supplier = supplierRaw.trim() || 'Weiling';
+  const atIso = new Date().toISOString();
+  items[itemIndex] = {
+    ...item,
+    wholesalerOrdered: true,
+    wholesalerName: supplier,
+    wholesalerOrderedBy: employee,
+    wholesalerOrderedAt: atIso,
+  };
+  const product = normalizeOrderItem(item).product || item.product || 'Artikel';
+  const logEntry = buildOrderActionLogEntry('wholesaler_ordered', employee, `${product} · ${supplier}`);
+  const ok = await persistOrderItemsWithWholesalerLog(orderId, items, logEntry);
+  if (ok) window.showToast?.(`„${product}“ bei ${supplier} als bestellt markiert.`, 'success');
+}
+
+async function clearOrderItemWholesalerOrdered(orderId, itemIndex) {
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst als Mitarbeiter anmelden.', 'warning');
+    return;
+  }
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  const items = cloneOrderItemsSnapshot(order.items);
+  const item = items[itemIndex];
+  if (!item?.wholesalerOrdered) return;
+  if (!window.confirm('Großhändler-Vermerk für diese Position entfernen?')) return;
+  const supplier = String(item.wholesalerName || 'Großhändler').trim() || 'Großhändler';
+  items[itemIndex] = {
+    ...item,
+    wholesalerOrdered: false,
+    wholesalerName: null,
+    wholesalerOrderedBy: null,
+    wholesalerOrderedAt: null,
+  };
+  const product = normalizeOrderItem(item).product || item.product || 'Artikel';
+  const logEntry = buildOrderActionLogEntry('wholesaler_cleared', employee, `${product} · ${supplier}`);
+  const ok = await persistOrderItemsWithWholesalerLog(orderId, items, logEntry);
+  if (ok) window.showToast?.('Großhändler-Vermerk entfernt.', 'success');
 }
 
 function closeOrderEditModal() {
@@ -2187,7 +2384,7 @@ async function saveOrderEditFromModal() {
   const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
   const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
   const amendmentNote = document.getElementById('order-edit-amendment-note')?.value?.trim() || '';
-  const items = readEditOrderLinesFromDom();
+  const items = readEditOrderLinesFromDom(existing.items);
 
   if (!items.length) {
     window.showToast?.('Mindestens eine Position eintragen.', 'warning');
@@ -2216,17 +2413,50 @@ async function saveOrderEditFromModal() {
   const prevStatus = orderStatus(existing);
   const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
   const itemsChanged = orderItemsFingerprint(existing.items) !== orderItemsFingerprint(items);
+  const wholesalerChanged = wholesalerFingerprint(existing.items) !== wholesalerFingerprint(items);
   const noteChanged = String(existing.amendmentNote || '').trim() !== amendmentNote;
   if (!itemsChanged && !noteChanged && !shouldReopen) {
-    // still allow saving contact/ready tweaks without forcing amendment banner
+    // still allow saving contact/ready tweaks / wholesaler stamps without forcing amendment banner
   }
   const originalItems = Array.isArray(existing.originalItems) && existing.originalItems.length
     ? existing.originalItems
     : cloneOrderItemsSnapshot(existing.items);
-  const logDetail = amendmentNote || (itemsChanged ? 'Positionen angepasst' : '');
-  const logAction = shouldReopen ? 'edited_reopen' : 'edited';
-  const logEntry = buildOrderActionLogEntry(logAction, employee, logDetail);
-  const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
+  let nextLog = Array.isArray(existing?.actionLog) ? existing.actionLog.slice() : [];
+  if (itemsChanged || noteChanged || shouldReopen) {
+    const logDetail = amendmentNote || (itemsChanged ? 'Positionen angepasst' : '');
+    const logAction = shouldReopen ? 'edited_reopen' : 'edited';
+    nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(logAction, employee, logDetail));
+  }
+  if (wholesalerChanged) {
+    items.forEach((item, index) => {
+      const prev = existing.items?.[index];
+      const product = normalizeOrderItem(item).product || item.product || 'Artikel';
+      if (item.wholesalerOrdered && !prev?.wholesalerOrdered) {
+        nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
+          'wholesaler_ordered',
+          employee,
+          `${product} · ${item.wholesalerName || 'Weiling'}`,
+        ));
+      } else if (!item.wholesalerOrdered && prev?.wholesalerOrdered) {
+        nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
+          'wholesaler_cleared',
+          employee,
+          `${product} · ${prev.wholesalerName || 'Großhändler'}`,
+        ));
+      } else if (
+        item.wholesalerOrdered
+        && prev?.wholesalerOrdered
+        && String(item.wholesalerName || '').trim().toLowerCase()
+          !== String(prev.wholesalerName || '').trim().toLowerCase()
+      ) {
+        nextLog = mergeOrderActionLog(nextLog, buildOrderActionLogEntry(
+          'wholesaler_ordered',
+          employee,
+          `${product} · ${item.wholesalerName || 'Weiling'}`,
+        ));
+      }
+    });
+  }
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
@@ -2891,6 +3121,18 @@ function bindOrderListActions() {
     }
     if (action === 'edit') {
       openOrderEditModal(orderId);
+      return;
+    }
+    if (action === 'mark_wholesaler') {
+      const itemIndex = Number(btn.dataset.itemIndex);
+      if (!Number.isFinite(itemIndex)) return;
+      markOrderItemWholesalerOrdered(orderId, itemIndex);
+      return;
+    }
+    if (action === 'clear_wholesaler') {
+      const itemIndex = Number(btn.dataset.itemIndex);
+      if (!Number.isFinite(itemIndex)) return;
+      clearOrderItemWholesalerOrdered(orderId, itemIndex);
       return;
     }
     if (action === 'notify_ready') {
