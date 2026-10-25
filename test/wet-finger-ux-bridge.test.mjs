@@ -33,11 +33,13 @@ describe('Wet-Finger UX Bridge', () => {
 
   it('bridges Metzgerei delivery to HACCP log and LMIV prefill', () => {
     expect(mhdJs).to.match(/import \{ logReceivingTemperatureCheck \} from '\.\/haccp\.js'/);
-    expect(mhdJs).to.match(/import \{ prefillChargenDokuFromReceiving \} from '\.\/traceability\.js'/);
+    expect(mhdJs).to.match(/prefillChargenDokuFromReceiving/);
+    expect(mhdJs).to.match(/stashLmivPendingFromReceiving/);
     expect(mhdJs).to.match(/async function bridgeMetzgereiDeliveryToDocs/);
     expect(mhdJs).to.match(/showLmivHerkunftBridgePrompt/);
     expect(mhdJs).to.match(/await bridgeMetzgereiDeliveryToDocs\(/);
     expect(traceabilityJs).to.match(/export function prefillChargenDokuFromReceiving/);
+    expect(traceabilityJs).to.match(/lieferungId/);
   });
 
   it('makes MHD OK the dominant primary action (≥48px touch target)', () => {

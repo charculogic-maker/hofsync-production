@@ -49,6 +49,8 @@ const COUNTRY_OPTIONS = [
 const ANIMAL_TYPE_SET = new Set(ANIMAL_TYPES.map((item) => item.value));
 const COUNTRY_VALUE_SET = new Set(COUNTRY_OPTIONS.map((item) => item.value));
 
+const LMIV_PENDING_STORAGE_KEY = 'charculogic.lmivPending.v1';
+
 const traceState = {
   db: null,
   writeOrQueueFirestore: null,
@@ -60,6 +62,8 @@ const traceState = {
   pendingPhotoFile: null,
   pendingPhotoPreviewUrl: '',
   labelParseToken: 0,
+  /** @type {{ lieferungId?: string, receivingLot?: string, animalType?: string }|null} */
+  receivingLink: null,
   adminRecords: [],
   adminUnsubscribe: null,
   adminSearchQuery: '',
@@ -67,6 +71,48 @@ const traceState = {
   selectedRecordId: '',
   adminTenantId: '',
 };
+
+function readLmivPendingLocal() {
+  try {
+    const raw = localStorage.getItem(LMIV_PENDING_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeLmivPendingLocal(payload) {
+  try {
+    if (!payload) {
+      localStorage.removeItem(LMIV_PENDING_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(LMIV_PENDING_STORAGE_KEY, JSON.stringify(payload));
+  } catch (_) { /* ignore quota */ }
+}
+
+export function stashLmivPendingFromReceiving(payload = {}) {
+  const next = {
+    deliveryId: String(payload.deliveryId || payload.lieferungId || '').trim(),
+    lotNumber: String(payload.lotNumber || payload.receivingLot || '').trim(),
+    animalType: String(payload.animalType || '').trim(),
+    tenantId: String(payload.tenantId || resolveTenantId() || '').trim(),
+    at: new Date().toISOString(),
+  };
+  if (!next.deliveryId && !next.lotNumber) return;
+  writeLmivPendingLocal(next);
+  syncReceivingLinkBanner();
+}
+
+export function clearLmivPendingLocal(deliveryId = '') {
+  const pending = readLmivPendingLocal();
+  if (!pending) return;
+  if (deliveryId && pending.deliveryId && pending.deliveryId !== deliveryId) return;
+  writeLmivPendingLocal(null);
+  syncReceivingLinkBanner();
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -457,7 +503,64 @@ function resetCaptureForm() {
   const plant = document.getElementById('trace-cutting-plant');
   if (plant) plant.value = '';
   clearPendingPhoto();
+  traceState.receivingLink = null;
   syncOriginFieldsVisibility();
+  syncReceivingLinkBanner();
+}
+
+function syncReceivingLinkBanner() {
+  const banner = document.getElementById('trace-receiving-link-banner');
+  const lotEl = document.getElementById('trace-receiving-link-lot');
+  if (!banner) return;
+  const pending = readLmivPendingLocal();
+  const link = traceState.receivingLink;
+  const lot = String(link?.receivingLot || pending?.lotNumber || '').trim();
+  const hasLink = Boolean(lot || link?.lieferungId || pending?.deliveryId);
+  banner.hidden = !hasLink;
+  if (lotEl) lotEl.textContent = lot || '—';
+}
+
+function bindReceivingLinkBanner() {
+  const applyBtn = document.getElementById('trace-receiving-link-apply');
+  const dismissBtn = document.getElementById('trace-receiving-link-dismiss');
+  if (applyBtn && applyBtn.dataset.bound !== '1') {
+    applyBtn.dataset.bound = '1';
+    applyBtn.addEventListener('click', () => {
+      const pending = readLmivPendingLocal();
+      if (!pending) return;
+      prefillChargenDokuFromReceiving({
+        lotNumber: pending.lotNumber,
+        animalType: pending.animalType,
+        lieferungId: pending.deliveryId,
+      });
+      window.showToast?.('Charge aus Wareneingang übernommen.', 'info');
+    });
+  }
+  if (dismissBtn && dismissBtn.dataset.bound !== '1') {
+    dismissBtn.dataset.bound = '1';
+    dismissBtn.addEventListener('click', () => {
+      clearLmivPendingLocal();
+      window.showToast?.('LMIV-Erinnerung verworfen.', 'info');
+    });
+  }
+}
+
+async function markDeliveryHerkunftLinked(lieferungId, recordId) {
+  const tenantId = resolveTenantId();
+  const deliveryId = String(lieferungId || '').trim();
+  if (!traceState.db || !tenantId || !deliveryId) return;
+  try {
+    await waitForAppCheckReady();
+    await traceState.db.collection('tenants').doc(tenantId)
+      .collection('wareneingang_lieferungen').doc(deliveryId)
+      .set({
+        lmivPending: false,
+        chargenDokuId: String(recordId || '').trim(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+  } catch (err) {
+    console.warn('[CharcuLogic Traceability] Lieferung konnte nicht als LMIV-verknüpft markiert werden:', err);
+  }
 }
 
 async function saveTraceabilityRecord() {
@@ -495,6 +598,9 @@ async function saveTraceabilityRecord() {
   const recordId = createRecordId();
   try {
     const imageUrl = await uploadTraceabilityPhoto(traceState.pendingPhotoFile, recordId, tenantId);
+    const receivingLink = traceState.receivingLink || {};
+    const lieferungId = String(receivingLink.lieferungId || '').trim();
+    const receivingLot = String(receivingLink.receivingLot || lotNumber || '').trim();
     const payload = {
       id: recordId,
       createdBy,
@@ -507,7 +613,10 @@ async function saveTraceabilityRecord() {
       animalType,
       origin,
       tenantId,
+      source: lieferungId ? 'wareneingang' : 'manual',
     };
+    if (lieferungId) payload.lieferungId = lieferungId;
+    if (receivingLot) payload.receivingLot = receivingLot;
     const nowIso = new Date().toISOString();
     await traceState.writeOrQueueFirestore({
       collectionPath: path,
@@ -517,8 +626,19 @@ async function saveTraceabilityRecord() {
       queueData: { ...payload, createdAt: nowIso },
       offlineMessage: 'Herkunftseintrag wird automatisch synchronisiert, sobald WLAN verfügbar ist.',
     });
+    if (lieferungId) {
+      await markDeliveryHerkunftLinked(lieferungId, recordId);
+      clearLmivPendingLocal(lieferungId);
+    } else {
+      clearLmivPendingLocal();
+    }
     resetCaptureForm();
-    traceState.showHUD('Gespeichert', 'Herkunft ist erfasst und im Thekenbuch aktiv.');
+    traceState.showHUD(
+      'Gespeichert',
+      lieferungId
+        ? 'Herkunft ist erfasst und mit dem Wareneingang verknüpft.'
+        : 'Herkunft ist erfasst und im Thekenbuch aktiv.',
+    );
   } catch (err) {
     console.error('[CharcuLogic Traceability] Speichern fehlgeschlagen:', err);
     traceState.showHUD(
@@ -585,8 +705,10 @@ export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFu
   if (!traceState.initialized) {
     fillCountrySelects();
     bindCaptureControls();
+    bindReceivingLinkBanner();
     bindChargenDokuSubnav();
     syncOriginFieldsVisibility();
+    syncReceivingLinkBanner();
     traceState.initialized = true;
   }
 }
@@ -596,7 +718,9 @@ export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFu
  */
 export function activateChargenDokuTab(options = {}) {
   bindChargenDokuSubnav();
+  bindReceivingLinkBanner();
   syncOriginFieldsVisibility();
+  syncReceivingLinkBanner();
   const panel = options?.panel === 'book' ? 'book' : 'capture';
   setChargenDokuPanel(panel);
 }
@@ -609,6 +733,7 @@ export function activateThekenbuchPanel() {
 /**
  * Wareneingang (Metzgerei) → LMIV: Charge/LOT und Tierart vorbefüllen.
  * Foto und Öko-Kontrollstelle bleiben bewusst manuell (Validierung).
+ * Optional: lieferungId für persistente Kopplung Wareneingang ↔ Herkunft.
  */
 export function prefillChargenDokuFromReceiving({
   lotNumber = '',
@@ -616,19 +741,29 @@ export function prefillChargenDokuFromReceiving({
   healthMark = '',
   organicControlBody = '',
   singleOriginCountry = '',
+  lieferungId = '',
+  deliveryId = '',
 } = {}) {
-  activateChargenDokuTab();
+  activateChargenDokuTab({ panel: 'capture' });
+  const lot = String(lotNumber || '').trim();
+  const linkedDeliveryId = String(lieferungId || deliveryId || '').trim();
+  traceState.receivingLink = {
+    lieferungId: linkedDeliveryId,
+    receivingLot: lot,
+    animalType: String(animalType || '').trim(),
+  };
   const inferredAnimal = ANIMAL_TYPE_SET.has(animalType) ? animalType : '';
   applyParsedLabelToForm({
-    lotNumber: String(lotNumber || '').trim(),
+    lotNumber: lot,
     healthMark: String(healthMark || '').trim(),
     organicControlBody: String(organicControlBody || '').trim(),
     animalType: inferredAnimal || 'rind',
     isSingleOrigin: true,
     singleOriginCountry: String(singleOriginCountry || '').trim(),
   });
+  syncReceivingLinkBanner();
   const lotEl = document.getElementById('trace-lot-number');
-  if (lotEl && String(lotNumber || '').trim()) {
+  if (lotEl && lot) {
     try {
       lotEl.focus({ preventScroll: true });
     } catch (_) {
@@ -793,6 +928,13 @@ function renderAdminDetail(record) {
           <div><dt>Status</dt><dd>${escapeHtml(bookStatusMeta(record).label)}</dd></div>
           <div><dt>Erfasst am</dt><dd>${escapeHtml(formatDateTimeDe(record.createdAt))}</dd></div>
           <div><dt>Erfasst von (User-ID)</dt><dd><code>${escapeHtml(record.createdBy || '–')}</code></dd></div>
+          ${record.lieferungId
+    ? `<div><dt>Wareneingang</dt><dd><code class="chargen-mono">${escapeHtml(record.lieferungId)}</code>${
+      record.receivingLot && record.receivingLot !== record.lotNumber
+        ? ` · LOT ${escapeHtml(record.receivingLot)}`
+        : ''
+    }</dd></div>`
+    : ''}
         </dl>
         ${formatBioCertificationSection(record)}
         <h4 class="trace-detail-origin-title">Herkunft laut LMIV</h4>

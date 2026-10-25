@@ -129,8 +129,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache for thekenklade sichtbar', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-thekenklade-sichtbar-v1'");
+  it('bumps the service-worker cache for we-herkunft-lot', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261025-we-herkunft-lot-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

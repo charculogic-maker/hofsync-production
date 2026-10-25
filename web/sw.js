@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-thekenklade-sichtbar-v1';
+const CACHE_NAME = 'charculogic-v20261025-we-herkunft-lot-v1';
 
-const CACHE_SCHEMA = 'p0-thekenklade-sichtbar-oct2026';
-/** Release – Thekenklade wieder auffindbar (Herkunft-Nav + Admin-Shortcut) */
-const RELEASED_AT = '2026-10-26T00:00:00+02:00';
+const CACHE_SCHEMA = 'p0-we-herkunft-lot-oct2026';
+/** Release – Wareneingang↔Herkunft LOT-Kopplung */
+const RELEASED_AT = '2026-10-26T01:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

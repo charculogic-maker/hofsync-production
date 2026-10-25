@@ -5534,7 +5534,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-thekenklade-sichtbar')
+    navigator.serviceWorker.register('./sw.js?v=20261025-we-herkunft-lot')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

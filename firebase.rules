@@ -561,7 +561,8 @@ service cloud.firestore {
           'erfassungsDatum', 'completedAt', 'status', 'meisterOverrideReason',
           'fotos', 'items', 'itemCount',
           'source', 'scannedBy', 'tenantId',
-          'createdAt', 'updatedAt'
+          'createdAt', 'updatedAt',
+          'lmivPending', 'lmivPendingAt', 'chargenDokuId'
         ])
         && isNonEmptyString(request.resource.data.lieferant)
         && request.resource.data.tenantId == tenantId
@@ -966,7 +967,8 @@ service cloud.firestore {
           'id', 'createdAt', 'createdBy', 'status',
           'lotNumber', 'healthMark', 'imageUrl',
           'animalType', 'origin', 'tenantId',
-          'organicControlBody', 'organicAssociation'
+          'organicControlBody', 'organicAssociation',
+          'lieferungId', 'receivingLot', 'source'
         ])
         && isNonEmptyString(request.resource.data.id)
         && isNonEmptyString(request.resource.data.createdBy)
@@ -987,6 +989,18 @@ service cloud.firestore {
         && (
           !('organicAssociation' in request.resource.data)
           || request.resource.data.organicAssociation is string
+        )
+        && (
+          !('lieferungId' in request.resource.data)
+          || request.resource.data.lieferungId is string
+        )
+        && (
+          !('receivingLot' in request.resource.data)
+          || request.resource.data.receivingLot is string
+        )
+        && (
+          !('source' in request.resource.data)
+          || request.resource.data.source is string
         )
         && (
           request.resource.data.createdAt == request.time
