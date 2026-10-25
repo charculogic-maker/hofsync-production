@@ -108,6 +108,32 @@ function agentDbgLog(hypothesisId, location, message, data = {}) {
 }
 // #endregion
 
+async function loadCatalogCollectionSnap(collectionName, limit) {
+  // #region agent log
+  agentDbgLog('A', `catalog-ean.js:${collectionName}:before`, `before ${collectionName}.get`, {});
+  // #endregion
+  try {
+    const snap = await withCatalogReadTimeout(
+      getTenantCollection(collectionName).limit(limit).get(),
+      collectionName,
+    );
+    // #region agent log
+    agentDbgLog('A', `catalog-ean.js:${collectionName}:after`, `after ${collectionName}.get`, { size: snap?.size ?? null });
+    // #endregion
+    return snap;
+  } catch (err) {
+    // #region agent log
+    agentDbgLog('A', `catalog-ean.js:${collectionName}:error`, `${collectionName}.get failed`, {
+      message: String(err?.message || err),
+      code: String(err?.code || ''),
+      timedOut: err?.name === 'CatalogReadTimeoutError',
+    });
+    // #endregion
+    console.warn(`[HofSync] ${collectionName} für EAN-Abgleich nicht lesbar:`, err);
+    return null;
+  }
+}
+
 /** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
   // #region agent log
@@ -116,55 +142,21 @@ export async function loadCatalogEanIndex() {
   const byArticle = new Map();
   const byName = new Map();
   const ambiguousNames = new Set();
-  try {
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:stammdaten:before', 'before stammdaten.get', {});
-    // #endregion
-    const snap = await withCatalogReadTimeout(
-      getTenantCollection('stammdaten').limit(400).get(),
-      'stammdaten',
-    );
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:stammdaten:after', 'after stammdaten.get', { size: snap?.size ?? null });
-    // #endregion
-    snap.forEach((doc) => {
-      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
-    });
-  } catch (err) {
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:stammdaten:error', 'stammdaten.get failed', {
-      message: String(err?.message || err),
-      code: String(err?.code || ''),
-      timedOut: err?.name === 'CatalogReadTimeoutError',
-    });
-    // #endregion
-    console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
-  }
+
+  // Parallel + per-read timeout: finalize waits at most ~3.5s, not 7s stacked.
+  const [stammdatenSnap, productMasterSnap] = await Promise.all([
+    loadCatalogCollectionSnap('stammdaten', 400),
+    loadCatalogCollectionSnap('product_master', 500),
+  ]);
+
+  stammdatenSnap?.forEach((doc) => {
+    indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
+  });
   // Manuell gelernte EANs aus dem Wareneingang (product_master).
-  try {
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:product_master:before', 'before product_master.get', {});
-    // #endregion
-    const snap = await withCatalogReadTimeout(
-      getTenantCollection('product_master').limit(500).get(),
-      'product_master',
-    );
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:product_master:after', 'after product_master.get', { size: snap?.size ?? null });
-    // #endregion
-    snap.forEach((doc) => {
-      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
-    });
-  } catch (err) {
-    // #region agent log
-    agentDbgLog('A', 'catalog-ean.js:product_master:error', 'product_master.get failed', {
-      message: String(err?.message || err),
-      code: String(err?.code || ''),
-      timedOut: err?.name === 'CatalogReadTimeoutError',
-    });
-    // #endregion
-    console.warn('[HofSync] product_master für EAN-Abgleich nicht lesbar:', err);
-  }
+  productMasterSnap?.forEach((doc) => {
+    indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
+  });
+
   ambiguousNames.forEach((folded) => byName.delete(folded));
   // #region agent log
   agentDbgLog('A', 'catalog-ean.js:loadCatalogEanIndex:exit', 'loadCatalogEanIndex done', { byArticle: byArticle.size, byName: byName.size });

@@ -228,6 +228,7 @@ async function main() {
     await page.evaluate(() => document.getElementById('delivery-review-proceed')?.click());
   });
 
+  const finalizeStartedAt = Date.now();
   // Poll while hung — harvest agent logs each tick
   for (let tick = 0; tick < 12; tick += 1) {
     await page.waitForTimeout(2000);
@@ -238,20 +239,22 @@ async function main() {
         ?? document.querySelectorAll('#we-current-items-table tbody tr, .we-item-card').length) > 0,
       toasts: window.__toasts?.slice(-5) || [],
       agentLogCount: (window.__agentDebugLog || []).length,
-      lastAgent: (window.__agentDebugLog || []).slice(-3),
+      lastAgent: (window.__agentDebugLog || []).slice(-5),
+      catalogTimedOut: (window.__agentDebugLog || []).some((e) => e?.data?.timedOut === true),
     }));
     console.log(`tick ${tick}`, JSON.stringify(snap));
     appendNdjson([{
       hypothesisId: 'C',
       location: `repro:tick:${tick}`,
       message: 'finalize poll',
-      data: snap,
+      data: { ...snap, elapsedMs: Date.now() - finalizeStartedAt },
       timestamp: Date.now(),
+      runId: 'post-fix',
     }]);
     await harvest(page, `tick-${tick}`);
     await page.screenshot({ path: path.join(ART, `tick-${tick}.png`) });
     if (!/Speichere Lieferung|Schließe Lieferung/i.test(snap.saveLabel || '') && !snap.itemsLeft) {
-      console.log('finalize appears complete');
+      console.log('finalize appears complete', { elapsedMs: Date.now() - finalizeStartedAt });
       break;
     }
   }
