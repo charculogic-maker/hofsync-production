@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-optional-ready-price-v1';
+const CACHE_NAME = 'charculogic-v20261025-packtisch-ux-v1';
 
-const CACHE_SCHEMA = 'p0-packtisch-optional-ready-price-oct2026';
-/** Release – Ready-Mail: Waagen-Endpreis optional */
-const RELEASED_AT = '2026-10-25T11:50:00+02:00';
+const CACHE_SCHEMA = 'p0-packtisch-card-one-primary-oct2026';
+/** Release – Packtisch: 1 Primary Action, Mehr-Menü, Notiz-Akkordeon */
+const RELEASED_AT = '2026-10-25T12:15:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

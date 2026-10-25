@@ -25,7 +25,11 @@ describe('Packtisch Großhändler-Vermerk', () => {
   it('zeigt Vermerk auf der Karte und im Edit-Formular', () => {
     assert.match(js, /order-line-wholesaler/);
     assert.match(js, /Bei Großhändler bestellt/);
+    assert.match(js, /Großhändler vermerken/);
+    assert.match(js, /canMarkWholesalerOnCard/);
+    assert.match(js, /expandedWholesalerKeys/);
     assert.match(css, /\.order-line-wholesaler\b/);
-    assert.match(html, /optional-ready-price|order-activity-log|packtisch-notes|wholesaler-ordered/);
+    assert.match(css, /\.packtisch-wholesaler-toggle\b/);
+    assert.match(html, /packtisch-ux|optional-ready-price|order-activity-log|packtisch-notes|wholesaler-ordered/);
   });
 });

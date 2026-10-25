@@ -93,6 +93,10 @@ const orderState = {
   ordersView: 'packtisch',
   zuschnittDayIso: '',
   expandedPackOrderId: '',
+  /** Eingeklappte Aktivitätserfassung: welche Karte ist geöffnet */
+  expandedActivityOrderId: '',
+  /** Aufgeklappte Großhändler-Eingaben: `${orderId}:${itemIndex}` */
+  expandedWholesalerKeys: new Set(),
   weighDraftByKey: new Map(),
   weighSaveInFlight: false,
   /** @type {'2weeks'|'month'} */
@@ -117,6 +121,7 @@ const orderState = {
 const ORDER_ACTION_LOG_LABELS = Object.freeze({
   in_progress: 'In Bearbeitung gesetzt',
   reopen: 'Wieder in Bearbeitung',
+  back_to_open: 'Zurück auf Eingegangen',
   ready: 'Als Abholbereit markiert',
   ready_notify: 'Als Abholbereit markiert · Kunde benachrichtigt',
   ready_no_notify: 'Als Abholbereit markiert · ohne Kunden-Nachricht',
@@ -232,16 +237,25 @@ function renderOrderTeamActivityBlock(order, { interactive = true } = {}) {
     const label = `${TEAM_ACTIVITY_CHIP_PREFIX[chip] || ''}${chip}`;
     return `<button type="button" class="btn btn-secondary btn-compact" data-activity-chip="${escapeHtml(chip)}" data-order-id="${escapeHtml(order.id)}">${escapeHtml(label.trim())}</button>`;
   }).join('');
-  const composer = interactive
-    ? `
-      <div class="order-team-activity-composer" data-activity-composer="${escapeHtml(order.id)}">
+  const composerOpen = interactive && orderState.expandedActivityOrderId === order.id;
+  let composer = '';
+  if (interactive) {
+    composer = composerOpen
+      ? `
+      <div class="order-team-activity-composer is-open" data-activity-composer="${escapeHtml(order.id)}">
         <label class="form-label" for="activity-input-${escapeHtml(order.id)}">Aktivität / Notiz erfassen</label>
         <input type="text" id="activity-input-${escapeHtml(order.id)}" class="input-text-touch" data-activity-input placeholder="Aktivität vermerken (z. B. 'Preise bei Stautenhof angefragt', 'Warten auf Rückruf Weiling')..." autocomplete="off">
         <div class="order-team-activity-chips" role="group" aria-label="Schnellnotizen">${chips}</div>
-        <button type="button" class="btn btn-secondary btn-compact" data-order-action="add_activity" data-order-id="${escapeHtml(order.id)}">+ Eintragen</button>
+        <div class="order-team-activity-composer-actions">
+          <button type="button" class="btn btn-secondary btn-compact" data-order-action="add_activity" data-order-id="${escapeHtml(order.id)}">+ Eintragen</button>
+          <button type="button" class="btn-link packtisch-secondary-link" data-order-action="toggle_activity" data-order-id="${escapeHtml(order.id)}">Abbrechen</button>
+        </div>
       </div>
     `
-    : '';
+      : `
+      <button type="button" class="packtisch-activity-toggle" data-order-action="toggle_activity" data-order-id="${escapeHtml(order.id)}">💬 Notiz hinzufügen</button>
+    `;
+  }
   return `
     <div class="order-team-activity">
       ${listHtml}
@@ -706,7 +720,11 @@ function renderOrderSlipAttachments(attachments = []) {
   }).join('');
 }
 
-function renderOrderItemsList(items, { orderId = '', interactive = false } = {}) {
+function canMarkWholesalerOnCard(status) {
+  return status === 'open' || status === 'pending' || status === 'eingegangen';
+}
+
+function renderOrderItemsList(items, { orderId = '', interactive = false, status = '' } = {}) {
   if (!Array.isArray(items) || items.length === 0) return '<span>–</span>';
   return items.map((item, index) => {
     const n = normalizeOrderItem(item);
@@ -730,19 +748,104 @@ function renderOrderItemsList(items, { orderId = '', interactive = false } = {})
     let wholesalerHtml = '';
     if (wholesalerLabel) {
       wholesalerHtml = `<div class="order-line-wholesaler" role="status">${escapeHtml(wholesalerLabel)}</div>`;
-      if (interactive && orderId) {
-        wholesalerHtml += `<button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="clear_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Vermerk entfernen</button>`;
-      }
-    } else if (interactive && orderId) {
-      wholesalerHtml = `
-        <div class="order-line-wholesaler-mark">
+    } else if (interactive && orderId && canMarkWholesalerOnCard(status)) {
+      const key = `${orderId}:${index}`;
+      const formOpen = orderState.expandedWholesalerKeys.has(key);
+      wholesalerHtml = formOpen
+        ? `
+        <div class="order-line-wholesaler-mark is-open">
           <input type="text" class="input-text-touch" list="suppliers-list" data-wholesaler-input placeholder="Lieferant optional..." value="" autocomplete="off" aria-label="Lieferant für ${escapeHtml(n.product || item.product || 'Artikel')}">
-          <button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="confirm_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>
+          <div class="order-line-wholesaler-mark-actions">
+            <button type="button" class="btn btn-secondary btn-compact order-line-wholesaler-btn" data-order-action="confirm_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Bei Großhändler bestellt</button>
+            <button type="button" class="btn-link packtisch-secondary-link" data-order-action="toggle_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">Abbrechen</button>
+          </div>
         </div>
+      `
+        : `
+        <button type="button" class="packtisch-wholesaler-toggle" data-order-action="toggle_wholesaler" data-order-id="${escapeHtml(orderId)}" data-item-index="${index}">+ Großhändler vermerken</button>
       `;
     }
     return `<li class="customer-order-item"><div><strong>${escapeHtml(n.product || item.product || 'Artikel')}</strong> – ${escapeHtml(qtyParts.join(' · ') || '–')}${uniqueExtras.length ? ` <span class="customer-order-item-meta">(${escapeHtml(uniqueExtras.join(' · '))})</span>` : ''}</div>${wholesalerHtml}</li>`;
   }).join('');
+}
+
+function renderPacktischMoreMenu(menuButtons = []) {
+  const items = menuButtons.filter(Boolean);
+  if (!items.length) return '';
+  return `
+    <details class="packtisch-more">
+      <summary class="packtisch-more-summary">··· Mehr</summary>
+      <div class="packtisch-more-menu" role="menu">
+        ${items.join('')}
+      </div>
+    </details>
+  `;
+}
+
+function renderPacktischMoreItem(action, orderId, label, { disabled = false, busy = false } = {}) {
+  const attrs = [
+    disabled ? 'disabled' : '',
+    busy ? 'aria-busy="true"' : '',
+  ].filter(Boolean).join(' ');
+  return `<button type="button" class="packtisch-more-item" role="menuitem" data-order-action="${escapeHtml(action)}" data-order-id="${escapeHtml(orderId)}"${attrs ? ` ${attrs}` : ''}>${escapeHtml(label)}</button>`;
+}
+
+function renderPacktischCardActions(order, {
+  isUpdatingThisOrder = false,
+  expanded = false,
+} = {}) {
+  const status = orderStatus(order);
+  const id = order.id;
+  const dis = isUpdatingThisOrder;
+
+  if (status === 'open' || status === 'pending' || status === 'eingegangen') {
+    return `
+      <div class="packtisch-actions packtisch-actions--primary">
+        <button type="button" class="btn btn-primary packtisch-primary-btn" data-order-action="in_progress" data-order-id="${escapeHtml(id)}"${dis ? ' disabled' : ''}>📦 In Bearbeitung nehmen</button>
+        ${renderPacktischMoreMenu([
+    renderPacktischMoreItem('edit', id, 'Bearbeiten / erweitern', { disabled: dis }),
+    renderPacktischMoreItem('cancel', id, 'Stornieren'),
+  ])}
+      </div>
+    `;
+  }
+
+  if (status === 'in_progress') {
+    return `
+      <div class="packtisch-actions packtisch-actions--primary">
+        <button type="button" class="btn btn-primary packtisch-primary-btn" data-order-action="weigh_ready" data-order-id="${escapeHtml(id)}"${dis ? ' disabled' : ''}>⚖️ Nachwiegen &amp; Bereitstellen</button>
+        ${renderPacktischMoreMenu([
+    renderPacktischMoreItem('toggle_detail', id, expanded ? 'Details schließen' : 'Details / Positionen'),
+    renderPacktischMoreItem('back_to_open', id, 'Zurück auf Offen', { disabled: dis }),
+    renderPacktischMoreItem('cancel', id, 'Stornieren'),
+  ])}
+      </div>
+    `;
+  }
+
+  if (status === 'ready') {
+    return `
+      <div class="packtisch-actions packtisch-actions--primary">
+        <button type="button" class="btn btn-primary packtisch-primary-btn" data-order-action="picked_up" data-order-id="${escapeHtml(id)}"${dis ? ' disabled aria-busy="true"' : ''}>${dis ? 'Wird abgeholt…' : '🤝 Als abgeholt markieren'}</button>
+        ${renderPacktischMoreMenu([
+    renderPacktischMoreItem('notify_ready', id, '✉️ Kunde erneut benachrichtigen', { disabled: dis }),
+    renderPacktischMoreItem('reopen', id, '↩️ Zurück in Bearbeitung', { disabled: dis }),
+    renderPacktischMoreItem('edit', id, 'Bearbeiten', { disabled: dis }),
+  ])}
+      </div>
+    `;
+  }
+
+  if (status === 'picked_up' || status === 'cancelled') {
+    return `
+      <div class="packtisch-actions packtisch-actions--done">
+        <span class="packtisch-done-label">Erledigt</span>
+        <button type="button" class="btn-link packtisch-secondary-link" data-order-action="reopen" data-order-id="${escapeHtml(id)}"${dis ? ' disabled' : ''}>↩️ Wiedereröffnen</button>
+      </div>
+    `;
+  }
+
+  return '';
 }
 
 function cloneOrderItemsSnapshot(items) {
@@ -1610,43 +1713,10 @@ function renderOrderCard(order, { adminView = false } = {}) {
   const slot = orderPickupSlotLabel(order);
   const ref = orderRefLabel(order);
   const expanded = orderState.expandedPackOrderId === order.id;
-
-  const canEditContent = status === 'open'
-    || status === 'pending'
-    || status === 'eingegangen'
-    || status === 'in_progress'
-    || status === 'ready';
-  const editBtn = canEditContent
-    ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="edit" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Bearbeiten / erweitern</button>`
-    : '';
-
-  let actions = '';
-  if (status === 'open' || status === 'pending' || status === 'eingegangen') {
-    actions = `
-      ${editBtn}
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="in_progress" data-order-id="${escapeHtml(order.id)}">In Bearbeitung</button>
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
-    `;
-  } else if (status === 'in_progress') {
-    actions = `
-      ${editBtn}
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="ready" data-order-id="${escapeHtml(order.id)}">Als Abholbereit markieren</button>
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="cancel" data-order-id="${escapeHtml(order.id)}">Stornieren</button>
-    `;
-  } else if (status === 'ready') {
-    actions = `
-      ${editBtn}
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Zurück in Bearbeitung</button>
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="notify_ready" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Kunde erneut benachrichtigen</button>
-      <button type="button" class="btn btn-primary btn-compact" data-order-action="picked_up" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled aria-busy="true"' : ''}>${isUpdatingThisOrder ? 'Wird abgeholt…' : 'Als abgeholt markieren'}</button>
-    `;
-  } else if (status === 'picked_up' || status === 'cancelled') {
-    actions = `
-      <button type="button" class="btn btn-secondary btn-compact" data-order-action="reopen" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Wieder in Bearbeitung</button>
-      ${editBtn || `<button type="button" class="btn btn-secondary btn-compact" data-order-action="edit" data-order-id="${escapeHtml(order.id)}"${isUpdatingThisOrder ? ' disabled' : ''}>Bearbeiten / erweitern</button>`}
-    `;
-  }
+  const actions = renderPacktischCardActions(order, {
+    isUpdatingThisOrder,
+    expanded,
+  });
 
   const bucket = classifyPacktischBucket(order);
   const bucketLabel = bucket ? PACKTISCH_DASHBOARD_LABELS[bucket] : '';
@@ -1664,17 +1734,16 @@ function renderOrderCard(order, { adminView = false } = {}) {
       <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || 'Portal')}</p>
       <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
-      <ul class="customer-order-items">${renderOrderItemsList(order.items, { orderId: order.id, interactive: ACTIVE_ORDER_STATUSES.has(status) })}</ul>
+      <ul class="customer-order-items">${renderOrderItemsList(order.items, {
+    orderId: order.id,
+    interactive: ACTIVE_ORDER_STATUSES.has(status),
+    status,
+  })}</ul>
       ${renderOrderStorageBlock(order, { interactive: false })}
       ${renderOrderAmendmentBlock(order)}
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
-      <div class="packtisch-actions">
-        ${ACTIVE_ORDER_STATUSES.has(status)
-    ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>`
-    : ''}
-        ${actions}
-      </div>
       ${renderOrderTeamActivityBlock(order, { interactive: ACTIVE_ORDER_STATUSES.has(status) })}
+      ${actions}
       ${renderOrderActionLog(order)}
       ${expanded && ACTIVE_ORDER_STATUSES.has(status) ? renderPacktischDetail(order) : ''}
       ${adminView && status !== 'open' ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>` : ''}
@@ -2550,7 +2619,11 @@ async function markOrderItemWholesalerOrdered(orderId, itemIndex, supplierInput 
   const product = normalizeOrderItem(item).product || item.product || 'Artikel';
   const logEntry = buildOrderActionLogEntry('wholesaler_ordered', employee, `${product} · ${supplier}`);
   const ok = await persistOrderItemsWithWholesalerLog(orderId, items, logEntry);
-  if (ok) window.showToast?.(`„${product}“ bei ${supplier} als bestellt markiert.`, 'success');
+  if (ok) {
+    orderState.expandedWholesalerKeys.delete(`${orderId}:${itemIndex}`);
+    window.showToast?.(`„${product}“ bei ${supplier} als bestellt markiert.`, 'success');
+  }
+  return ok;
 }
 
 async function addOrderTeamActivity(orderId, textInput = '') {
@@ -3164,6 +3237,7 @@ async function updateOrderStatus(orderId, nextStatus, { action = '' } = {}) {
     renderAdminOrders();
     renderZuschnittliste();
     const labels = {
+      open: 'zurück auf „Eingegangen“ gesetzt',
       in_progress: 'auf „In Bearbeitung“ gesetzt',
       picked_up: 'als abgeholt markiert',
       cancelled: 'storniert',
@@ -3619,6 +3693,37 @@ function bindOrderListActions() {
       renderAdminOrders();
       return;
     }
+    if (action === 'toggle_activity') {
+      orderState.expandedActivityOrderId = orderState.expandedActivityOrderId === orderId ? '' : orderId;
+      renderOpenOrders();
+      renderAdminOrders();
+      return;
+    }
+    if (action === 'toggle_wholesaler') {
+      const itemIndex = Number(btn.dataset.itemIndex);
+      if (!Number.isFinite(itemIndex)) return;
+      const key = `${orderId}:${itemIndex}`;
+      if (orderState.expandedWholesalerKeys.has(key)) {
+        orderState.expandedWholesalerKeys.delete(key);
+      } else {
+        orderState.expandedWholesalerKeys.add(key);
+      }
+      renderOpenOrders();
+      renderAdminOrders();
+      return;
+    }
+    if (action === 'weigh_ready') {
+      orderState.expandedPackOrderId = orderId;
+      renderOpenOrders();
+      renderAdminOrders();
+      requestMarkOrderReady(orderId);
+      return;
+    }
+    if (action === 'back_to_open') {
+      if (!window.confirm('Bestellung wirklich zurück auf Eingegangen setzen?')) return;
+      updateOrderStatus(orderId, 'open', { action: 'back_to_open' });
+      return;
+    }
     if (action === 'cancel') {
       if (!window.confirm('Bestellung wirklich stornieren?')) return;
       updateOrderStatus(orderId, 'cancelled');
@@ -3648,7 +3753,12 @@ function bindOrderListActions() {
       const input = composer?.querySelector('[data-activity-input]');
       const text = input?.value || '';
       addOrderTeamActivity(orderId, text).then((ok) => {
-        if (ok && input) input.value = '';
+        if (ok) {
+          if (input) input.value = '';
+          orderState.expandedActivityOrderId = '';
+          renderOpenOrders();
+          renderAdminOrders();
+        }
       });
       return;
     }
@@ -3688,7 +3798,12 @@ function bindOrderListActions() {
     const orderId = composer?.dataset.activityComposer || '';
     if (!orderId) return;
     addOrderTeamActivity(orderId, input.value).then((ok) => {
-      if (ok) input.value = '';
+      if (ok) {
+        input.value = '';
+        orderState.expandedActivityOrderId = '';
+        renderOpenOrders();
+        renderAdminOrders();
+      }
     });
   };
 
