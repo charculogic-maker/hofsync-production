@@ -48,6 +48,13 @@ import {
   leaveDevDashboardToPhoneApp,
   renderFallbackUI,
 } from './tenant-admin-auth.js';
+import {
+  DEPARTMENT_KEYS,
+  DEPARTMENT_LABELS,
+  getEmployeeDepartmentAssignment,
+  saveEmployeeDepartmentAssignment,
+} from './team-config.js';
+import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { getNamedTenantCollection, initTenantDb, setGlobalTenantId } from './tenant-db.js';
 import { persistProductMasterToFirestore } from './product-master.js';
@@ -550,6 +557,67 @@ function renderEmployeeModuleToggles(employee) {
     return '<span class="dev-dashboard-tenant-sub">Keine Module freigeschaltet</span>';
   }
   return `<div class="dev-dashboard-toggles dev-dashboard-toggles--user">${toggles}</div>`;
+}
+
+/**
+ * Fachbereichs-Tags + Bestellrecht für Schnellmelde/Bedarfe (teamDashboard.departmentAssignments).
+ * @param {object} employee
+ * @returns {string}
+ */
+function renderEmployeeDepartmentToggles(employee) {
+  const isDisabled = employee.disabled === true || employee.status === 'inactive';
+  const displayName = String(employee.displayName || '').trim();
+  const assignment = displayName
+    ? getEmployeeDepartmentAssignment(displayName)
+    : { departments: [], canOrder: false };
+  const fromEmployee = Array.isArray(employee.departments)
+    ? employee.departments
+    : assignment.departments;
+  const departments = new Set(
+    (fromEmployee.length ? fromEmployee : assignment.departments).map((d) => String(d).toLowerCase()),
+  );
+  const canOrder = employee.canOrder === true || assignment.canOrder === true;
+  const safeUid = escapeHtml(employee.uid);
+  const safeTenantId = escapeHtml(employee.tenantId);
+  const safeName = escapeHtml(displayName);
+
+  const deptToggles = DEPARTMENT_KEYS.map((key) => {
+    const label = DEPARTMENT_LABELS[key] || key;
+    const checked = departments.has(key);
+    return `
+      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="${escapeHtml(label)}">
+        <input
+          type="checkbox"
+          data-action="toggle-user-department"
+          data-uid="${safeUid}"
+          data-tenant-id="${safeTenantId}"
+          data-display-name="${safeName}"
+          data-department-key="${escapeHtml(key)}"
+          ${checked ? 'checked' : ''}
+          ${isDisabled || !displayName ? 'disabled' : ''}
+        >
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }).join('');
+
+  return `
+    <div class="dev-dashboard-toggles dev-dashboard-toggles--departments" data-employee-departments="${safeUid}">
+      ${deptToggles}
+      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="Darf Bedarfe als bestellt/erledigt markieren">
+        <input
+          type="checkbox"
+          data-action="toggle-user-can-order"
+          data-uid="${safeUid}"
+          data-tenant-id="${safeTenantId}"
+          data-display-name="${safeName}"
+          ${canOrder ? 'checked' : ''}
+          ${isDisabled || !displayName ? 'disabled' : ''}
+        >
+        <span>Darf bestellen</span>
+      </label>
+    </div>
+  `;
 }
 
 /**
@@ -2319,6 +2387,9 @@ function renderEmployeeRow(employee, currentUserUid) {
       <td class="dev-dashboard-employee-modules">
         ${renderEmployeeModuleToggles(employee)}
       </td>
+      <td class="dev-dashboard-employee-departments">
+        ${renderEmployeeDepartmentToggles(employee)}
+      </td>
       <td class="dev-dashboard-employee-actions">
         <button
           type="button"
@@ -2362,7 +2433,7 @@ function renderEmployeeTableLoading() {
   tbody.innerHTML = '';
   tbody.innerHTML = `
     <tr>
-      <td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
+      <td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--loading">
         <span class="dev-dashboard-table-spinner" aria-hidden="true"></span>
         Nutzer werden geladen…
       </td>
@@ -2381,11 +2452,11 @@ function renderEmployeeTable(employees, currentUserUid) {
     role: dashboardState.userRoleFilter,
   });
   if (!deduped.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Noch keine Nutzer für diesen Betrieb.</td></tr>';
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--info">Keine Nutzer für diese Suche/Filter.</td></tr>';
     return;
   }
   tbody.innerHTML = filtered.map((emp) => renderEmployeeRow(emp, currentUserUid)).join('');
@@ -2395,7 +2466,7 @@ function renderEmployeeTableError(message) {
   const tbody = document.getElementById('dev-dashboard-employee-body');
   if (!tbody) return;
   tbody.innerHTML = '';
-  tbody.innerHTML = `<tr><td colspan="4" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="dev-dashboard-empty-msg dev-dashboard-empty-msg--error">${escapeHtml(message)}</td></tr>`;
 }
 
 async function refreshEmployeeTable(dashboardStateRef) {
@@ -2484,7 +2555,59 @@ function bindEmployeeTableActions(dashboardState) {
   section.addEventListener('change', async (event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
-    if (input.getAttribute('data-action') !== 'toggle-user-module') return;
+    const action = String(input.getAttribute('data-action') || '').trim();
+
+    if (action === 'toggle-user-department' || action === 'toggle-user-can-order') {
+      const displayName = String(input.getAttribute('data-display-name') || '').trim();
+      const uid = String(input.getAttribute('data-uid') || '').trim();
+      if (!displayName) {
+        input.checked = !input.checked;
+        window.showToast?.('Name fehlt — Zuständigkeit kann nicht gespeichert werden.', 'warning');
+        return;
+      }
+      const employee = (dashboardState.employees || []).find((entry) => entry.uid === uid);
+      const current = getEmployeeDepartmentAssignment(displayName);
+      const row = input.closest('[data-employee-departments]');
+      const nextDepartments = DEPARTMENT_KEYS.filter((key) => {
+        const box = row?.querySelector(`[data-department-key="${key}"]`);
+        return box instanceof HTMLInputElement ? box.checked : current.departments.includes(key);
+      });
+      const canOrderBox = row?.querySelector('[data-action="toggle-user-can-order"]');
+      const nextCanOrder = canOrderBox instanceof HTMLInputElement
+        ? canOrderBox.checked
+        : current.canOrder;
+      input.disabled = true;
+      try {
+        const saved = await saveEmployeeDepartmentAssignment(displayName, {
+          departments: nextDepartments,
+          canOrder: nextCanOrder,
+        });
+        if (employee) {
+          employee.departments = saved.departments;
+          employee.canOrder = saved.canOrder;
+        }
+        window.showToast?.(
+          action === 'toggle-user-can-order'
+            ? (nextCanOrder ? 'Bestellrecht gesetzt.' : 'Bestellrecht entfernt.')
+            : 'Fachbereich gespeichert.',
+          'success',
+        );
+        recordAudit(
+          'user_departments',
+          `Zuständigkeit ${displayName}: ${saved.departments.join(', ') || 'keine'}${saved.canOrder ? ' · Bestellung' : ''}`,
+          'change',
+        );
+      } catch (err) {
+        console.error('[Dev-Dashboard] Fachbereich speichern fehlgeschlagen:', err);
+        input.checked = !input.checked;
+        window.showToast?.(logAndMapOperatorError(err, 'admin-user-action'), 'error');
+      } finally {
+        input.disabled = false;
+      }
+      return;
+    }
+
+    if (action !== 'toggle-user-module') return;
 
     const uid = String(input.getAttribute('data-uid') || '').trim();
     const tenantId = String(input.getAttribute('data-tenant-id') || '').trim();
@@ -2535,7 +2658,11 @@ function bindEmployeeTableActions(dashboardState) {
     if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
 
     const action = btn.getAttribute('data-action');
-    if (action === 'toggle-user-module') return;
+    if (
+      action === 'toggle-user-module'
+      || action === 'toggle-user-department'
+      || action === 'toggle-user-can-order'
+    ) return;
     const uid = String(btn.getAttribute('data-uid') || '').trim();
     const tenantId = String(btn.getAttribute('data-tenant-id') || '').trim();
     if (!uid || !tenantId) {
@@ -2845,6 +2972,7 @@ function setDevDashboardTab(tabKey = 'overview') {
       setGlobalTenantId(dashboardState.selectedTenantId);
     }
     void refreshDiscountMatrixUi(dashboardState.selectedTenantId);
+    renderSupplyCatalogAdminTable();
   }
   if (nextTab === 'audit') {
     bindMovementReportControls();
@@ -3049,6 +3177,14 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindEmployeeCreateForm(dashboardState);
     bindEmployeeTableActions(dashboardState);
     bindRoleModuleSave(dashboardState);
+
+    if (!window.__hofsyncDeptAssignmentListener) {
+      window.__hofsyncDeptAssignmentListener = true;
+      window.addEventListener('charculogic:team-config-changed', () => {
+        if (!dashboardState.employees?.length) return;
+        renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
+      });
+    }
 
     bindTenantSelector(dashboardState, [{
       id: dashboardState.selectedTenantId,

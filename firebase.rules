@@ -203,8 +203,13 @@ service cloud.firestore {
 
     function isTeamDashboardSettings() {
       return request.resource.data.keys().hasOnly([
-        'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy'
-      ]);
+        'employees', 'groups', 'tenantId', 'updatedAt', 'updatedBy',
+        'departmentAssignments'
+      ])
+        && (
+          !('departmentAssignments' in request.resource.data)
+          || request.resource.data.departmentAssignments is map
+        );
     }
 
     // Keys, die Client/Admin in settings/profile schreiben dürfen.
@@ -799,6 +804,84 @@ service cloud.firestore {
           || isTaskCompletionOnly()
         )
         || isTaskCommentOnly(tenantId);
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // SCHNELLMELDE / BEDARFE (supply_alerts)
+    // =========================================================================
+
+    function isSupplyAlertStatusTransition() {
+      return resource.data.status in ['open', 'in_progress', 'ordered']
+        && request.resource.data.status in ['open', 'in_progress', 'ordered', 'done']
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'resolvedBy', 'resolvedAt', 'updatedAt'])
+        && (
+          request.resource.data.status == 'open'
+          || isNonEmptyString(request.resource.data.resolvedBy)
+        );
+    }
+
+    match /tenants/{tenantId}/supply_alerts/{alertId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.title)
+        && isNonEmptyString(request.resource.data.createdBy)
+        && request.resource.data.status == 'open'
+        && request.resource.data.category in [
+          'sb_theke', 'metzgerei_bedarf', 'verbrauchsmaterial', 'sonstig'
+        ]
+        && request.resource.data.departmentTarget in ['metzgerei', 'laden', 'all']
+        && request.resource.data.urgency in ['sofort', 'nachbestellen']
+        && request.resource.data.keys().hasOnly([
+          'title', 'category', 'departmentTarget', 'urgency', 'status',
+          'createdBy', 'createdAt', 'resolvedBy', 'resolvedAt', 'tenantId',
+          'updatedAt', 'catalogItemId'
+        ])
+        && (
+          !('catalogItemId' in request.resource.data)
+          || request.resource.data.catalogItemId == null
+          || isNonEmptyString(request.resource.data.catalogItemId)
+        );
+
+      allow update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && (
+          isAdmin(tenantId)
+          || isSupplyAlertStatusTransition()
+        );
+
+      allow delete: if isAdmin(tenantId);
+    }
+
+    // =========================================================================
+    // BEDARFS-STAMMDATEN (supply_catalog) – wachsende Schnell-Buttons
+    // =========================================================================
+
+    match /tenants/{tenantId}/supply_catalog/{itemId} {
+      allow read: if isTenantUser(tenantId);
+
+      allow create, update: if isEmployeeOrAdmin(tenantId)
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.label)
+        && request.resource.data.label.size() <= 120
+        && request.resource.data.keys().hasOnly([
+          'label', 'normalizedKey', 'category', 'departmentTarget', 'urgencyDefault',
+          'useCount', 'quickEnabled', 'active', 'tenantId', 'updatedAt', 'lastUsedAt',
+          'lastUsedBy', 'createdAt', 'createdBy'
+        ])
+        && request.resource.data.category in [
+          'sb_theke', 'metzgerei_bedarf', 'verbrauchsmaterial', 'sonstig'
+        ]
+        && request.resource.data.departmentTarget in ['metzgerei', 'laden', 'all']
+        && request.resource.data.urgencyDefault in ['sofort', 'nachbestellen']
+        && request.resource.data.useCount is int
+        && request.resource.data.useCount >= 0
+        && request.resource.data.quickEnabled is bool
+        && request.resource.data.active is bool;
 
       allow delete: if isAdmin(tenantId);
     }

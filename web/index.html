@@ -417,6 +417,16 @@
             </button>
             <button
               type="button"
+              id="btn-quick-alert"
+              class="btn-quick-alert"
+              aria-label="Schnellmeldung – Bedarf melden"
+              title="Bedarf melden"
+            >
+              <span class="btn-quick-alert-icon" aria-hidden="true">⚡</span>
+              <span id="btn-quick-alert-badge" class="btn-quick-alert-badge" hidden>0</span>
+            </button>
+            <button
+              type="button"
               id="btn-team"
               class="employee-session-badge btn-team-switch"
               style="display: none;"
@@ -433,6 +443,14 @@
         <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
           <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
         </div>
+
+        <div
+          id="supply-alert-banner"
+          class="supply-alert-banner"
+          hidden
+          role="region"
+          aria-label="Offene Bedarfsmeldungen"
+        ></div>
 
         <!-- Main Dynamic App Content Areas -->
         <main class="app-content" id="app-content">
@@ -557,8 +575,9 @@
                       <div>
                         <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
                         <p class="dev-dashboard-intro">
-                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe) und Module je Person
-                          einschränken. Der Betrieb gibt die Decke vor — Rolle und Nutzer können nur weniger freigeben.
+                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe), Module und Fachbereiche
+                          (Metzgerei, Laden, Einkauf) je Person steuern. Der Betrieb gibt die Decke vor —
+                          Rolle und Nutzer können nur weniger freigeben.
                         </p>
                       </div>
                       <label class="dev-dashboard-tenant-select-field" id="dev-dashboard-tenant-select-wrap" hidden>
@@ -625,6 +644,7 @@
                                 <th scope="col">Person</th>
                                 <th scope="col">Rolle</th>
                                 <th scope="col">Module</th>
+                                <th scope="col">Bereiche</th>
                                 <th scope="col">Aktionen</th>
                               </tr>
                             </thead>
@@ -749,6 +769,34 @@
                       <button type="submit" class="dev-dashboard-submit-btn">Betrieb speichern</button>
                       <p class="dev-dashboard-employee-status" id="dev-dashboard-settings-status" aria-live="polite"></p>
                     </form>
+                  </section>
+
+                  <section
+                    class="dev-dashboard-panel"
+                    id="dev-dashboard-supply-catalog"
+                    aria-label="Bedarfs-Stammdaten"
+                  >
+                    <h2 class="dev-dashboard-section-title">Bedarfs-Stammdaten</h2>
+                    <p class="dev-dashboard-intro">
+                      Freitext-Meldungen füllen diese Liste. Daraus wachsen die Schnell-Buttons
+                      (automatisch ab 2 Nutzungen oder manuell per Haken).
+                    </p>
+                    <p class="dev-dashboard-employee-list-status" id="dev-dashboard-supply-catalog-status" aria-live="polite"></p>
+                    <div class="dev-dashboard-table-wrap">
+                      <table class="dev-dashboard-table" aria-label="Bedarfs-Stammdaten">
+                        <thead>
+                          <tr>
+                            <th scope="col">Bezeichnung</th>
+                            <th scope="col">Kategorie</th>
+                            <th scope="col">Zuständigkeit</th>
+                            <th scope="col">×</th>
+                            <th scope="col">Anzeige</th>
+                            <th scope="col">Aktionen</th>
+                          </tr>
+                        </thead>
+                        <tbody id="dev-dashboard-supply-catalog-body"></tbody>
+                      </table>
+                    </div>
                   </section>
 
                   <section
@@ -3264,6 +3312,67 @@
           </div>
         </div>
 
+        <!-- Schnellmelde / Bedarfs-Modal (Freitext zuerst, Buttons aus Stammdaten) -->
+        <div
+          id="modal-quick-alert"
+          class="quick-alert-overlay"
+          hidden
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quick-alert-title"
+        >
+          <div class="quick-alert-backdrop" data-quick-alert-dismiss="1"></div>
+          <div class="quick-alert-sheet">
+            <div class="quick-alert-sheet-head">
+              <div>
+                <p class="quick-alert-kicker">Bedarf melden</p>
+                <h2 id="quick-alert-title" class="quick-alert-title">Was fehlt?</h2>
+              </div>
+              <button type="button" class="quick-alert-close" id="quick-alert-close" aria-label="Schließen">×</button>
+            </div>
+            <div class="quick-alert-freetext-wrap" id="quick-alert-freetext-wrap">
+              <label class="quick-alert-freetext-label" for="quick-alert-freetext">Kurz beschreiben – landet in der Bedarfsliste und in den Stammdaten</label>
+              <div class="quick-alert-freetext-row">
+                <input
+                  type="text"
+                  id="quick-alert-freetext"
+                  class="quick-alert-freetext"
+                  maxlength="120"
+                  placeholder="z. B. Siegelrandbeutel klein leer"
+                  autocomplete="off"
+                  enterkeyhint="send"
+                >
+                <button type="button" class="btn btn-primary quick-alert-freetext-submit" id="quick-alert-freetext-submit">
+                  Melden
+                </button>
+              </div>
+              <div class="quick-alert-meta-row">
+                <label class="quick-alert-meta-field" for="quick-alert-urgency">
+                  <span>Dringlichkeit</span>
+                  <select id="quick-alert-urgency" class="quick-alert-select">
+                    <option value="nachbestellen">Nachbestellen</option>
+                    <option value="sofort">Sofort</option>
+                  </select>
+                </label>
+                <label class="quick-alert-meta-field" for="quick-alert-department">
+                  <span>Zuständigkeit</span>
+                  <select id="quick-alert-department" class="quick-alert-select">
+                    <option value="all">Alle</option>
+                    <option value="metzgerei">Metzgerei</option>
+                    <option value="laden">Laden</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <p class="quick-alert-buttons-hint" id="quick-alert-buttons-hint" hidden></p>
+            <p class="quick-alert-empty" id="quick-alert-empty">
+              Noch keine Schnell-Buttons. Melde Bedarfe per Text – nach wiederholter Nutzung oder in der Verwaltung wachsen sie hier nach.
+            </p>
+            <div class="quick-alert-grid" id="quick-alert-grid" role="group" aria-label="Schnellauswahl aus Stammdaten"></div>
+          </div>
+        </div>
+
         <!-- Mitarbeiter-Schnellwechsler (Soft-Lock) -->
         <div
           id="modal-employee-picker"
@@ -3469,6 +3578,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-month-calendar"></script>
+  <script type="module" src="/app.js?v=20261025-supply-alerts-v2"></script>
 </body>
 </html>

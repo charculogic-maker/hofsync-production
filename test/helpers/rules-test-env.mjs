@@ -248,6 +248,43 @@ export function sampleSettings(tenantId) {
   };
 }
 
+export function sampleSupplyAlert(tenantId, overrides = {}) {
+  return {
+    title: 'Weißwurst SB-Theke leer',
+    category: 'sb_theke',
+    departmentTarget: 'metzgerei',
+    urgency: 'sofort',
+    status: 'open',
+    createdBy: 'Stephie',
+    createdAt: '2026-10-25T12:00:00.000Z',
+    resolvedBy: null,
+    resolvedAt: null,
+    catalogItemId: 'weisswurst_sb_theke_leer',
+    tenantId,
+    ...overrides,
+  };
+}
+
+export function sampleSupplyCatalogItem(tenantId, overrides = {}) {
+  return {
+    label: 'Siegelrandbeutel',
+    normalizedKey: 'siegelrandbeutel',
+    category: 'metzgerei_bedarf',
+    departmentTarget: 'metzgerei',
+    urgencyDefault: 'nachbestellen',
+    useCount: 1,
+    quickEnabled: false,
+    active: true,
+    tenantId,
+    createdBy: 'Stephie',
+    lastUsedBy: 'Stephie',
+    createdAt: '2026-10-25T12:00:00.000Z',
+    updatedAt: '2026-10-25T12:00:00.000Z',
+    lastUsedAt: '2026-10-25T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
 /** Production path is bulletin/ (singular) – see web/teamboard.js */
 export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;

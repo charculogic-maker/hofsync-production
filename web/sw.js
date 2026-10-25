@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-month-calendar-v1';
+const CACHE_NAME = 'charculogic-v20261025-supply-alerts-v2';
 
-const CACHE_SCHEMA = 'p0-packtisch-month-calendar-oct2026';
-/** Release – Packtisch: nur Monatskalender */
-const RELEASED_AT = '2026-10-25T15:20:00+02:00';
+const CACHE_SCHEMA = 'p0-supply-catalog-oct2026';
+/** Release – Freitext-Bedarf + wachsende Stammdaten-Buttons */
+const RELEASED_AT = '2026-10-25T16:55:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -26,6 +26,7 @@ const CRITICAL_ASSETS = [
   '/teamboard.js',
   '/team-tab.js',
   '/team-config.js',
+  '/quick-alert.js',
   '/team-notify.js',
   '/customer-orders.js',
   '/order-packlist.js',
