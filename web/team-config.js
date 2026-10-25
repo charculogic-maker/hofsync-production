@@ -6,8 +6,20 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
+
+/** Mandant aus Modul-State oder globalem Auth/Dashboard-Kontext. */
+function resolveTeamConfigTenantId() {
+  const fromState = String(configState.tenantId || '').trim();
+  if (fromState) return fromState;
+  const fromGlobal = String(getGlobalTenantId() || '').trim();
+  if (fromGlobal) {
+    configState.tenantId = fromGlobal;
+    return fromGlobal;
+  }
+  return '';
+}
 
 function getActiveEmployeeNameLocal() {
   try {
@@ -153,7 +165,9 @@ export function employeeCanResolveSupplyAlerts(employeeName) {
 export async function saveEmployeeDepartmentAssignment(employeeName, patch = {}) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) throw new Error('Mitarbeitername fehlt');
-  if (!configState.tenantId) throw new Error('Mandant fehlt');
+  // Dev-Dashboard setzt oft nur getGlobalTenantId(); team-config.tenantId kann leer sein.
+  const tenantId = resolveTeamConfigTenantId();
+  if (!tenantId) throw new Error('Mandant fehlt');
 
   const current = getEmployeeDepartmentAssignment(cleanName);
   const next = {
@@ -179,7 +193,7 @@ export async function saveEmployeeDepartmentAssignment(employeeName, patch = {})
   // was die teamDashboard-Rules-Allowlist sprengt. Merge lässt Legacy-Felder stehen.
   const payload = {
     departmentAssignments: assignments,
-    tenantId: configState.tenantId,
+    tenantId,
     updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
     updatedBy: getActiveEmployeeNameLocal() || 'Admin',
   };
@@ -772,9 +786,16 @@ export async function syncPushRegistration() {
   await registerFcmTokenIfPossible(employee);
 }
 
+export function setTeamConfigTenantId(tenantId) {
+  const next = String(tenantId || '').trim();
+  if (!next || next === configState.tenantId) return configState.tenantId;
+  configState.tenantId = next;
+  return configState.tenantId;
+}
+
 export function initTeamConfigModule(databaseInstance, options = {}) {
   configState.db = databaseInstance;
-  configState.tenantId = options.tenantId || '';
+  configState.tenantId = options.tenantId || getGlobalTenantId() || '';
   configState.verifyPinCallable = null;
   configState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : configState.getFirebase;
 
