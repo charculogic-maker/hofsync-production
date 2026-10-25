@@ -31,7 +31,7 @@ describe('Packtisch Team-Aktivitätsprotokoll', () => {
   });
 
   it('hebt Cache für Activity-Log an', () => {
-    assert.match(sw, /charculogic-v20261025-ready-fields-clarity-v1/);
-    assert.match(html, /ready-fields-clarity|order-activity-log/);
+    assert.match(sw, /charculogic-v20261025-ready-fields-clarity-v2/);
+    assert.match(html, /20261025-ready-fields-clarity-v2|order-activity-log|ready-fields-clarity/);
   });
 });

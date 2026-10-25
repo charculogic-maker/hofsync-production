@@ -283,6 +283,14 @@ function calculateFinalOrderPrice(order) {
   return Math.round(total * 100) / 100;
 }
 
+/** Preis nur auf Wunsch und nur bei belastbarem Betrag (> 0). */
+function shouldIncludeFinalPriceInSignal(order = {}) {
+  if (order.notifyIncludePrice !== true && order.includeFinalPriceInNotify !== true) {
+    return false;
+  }
+  return calculateFinalOrderPrice(order) > 0;
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -307,7 +315,9 @@ function operatorLabel(order = {}) {
 function buildCustomerSignal(order, profile = {}, options = {}) {
   const customerName = String(order?.customerName || 'lieber Hofladen-Gast').trim();
   const pickupWindow = formatPickupWindow(order?.readyAt);
-  const finalPrice = formatMoneyValue(calculateFinalOrderPrice(order));
+  const finalPriceValue = calculateFinalOrderPrice(order);
+  const includePrice = shouldIncludeFinalPriceInSignal(order);
+  const finalPrice = formatMoneyValue(finalPriceValue);
   const shop = shopLabel(profile);
   const operator = operatorLabel(order);
   const pickupNote = String(order?.customerPickupNote || '').trim();
@@ -321,9 +331,11 @@ function buildCustomerSignal(order, profile = {}, options = {}) {
   const messageParts = [
     lead,
     `${operator} hat alles frisch vorbereitet.`,
-    `Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`,
-    `Du kannst es ${pickupWindow} abholen.`,
   ];
+  if (includePrice) {
+    messageParts.push(`Der genaue Waagen-Endpreis beträgt ${finalPrice} €.`);
+  }
+  messageParts.push(`Du kannst es ${pickupWindow} abholen.`);
   if (pickupNote) {
     messageParts.push(`Hinweis zur Abholung: ${pickupNote}`);
   }
@@ -333,9 +345,13 @@ function buildCustomerSignal(order, profile = {}, options = {}) {
   const htmlParts = [
     htmlLead,
     `<p>${escapeHtml(operator)} hat alles frisch vorbereitet.</p>`,
-    `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
-    `<p>Du kannst es ${escapeHtml(pickupWindow)} abholen.</p>`,
   ];
+  if (includePrice) {
+    htmlParts.push(
+      `<p>Der genaue Waagen-Endpreis beträgt <strong>${escapeHtml(finalPrice)}&nbsp;€</strong>.</p>`,
+    );
+  }
+  htmlParts.push(`<p>Du kannst es ${escapeHtml(pickupWindow)} abholen.</p>`);
   if (pickupNote) {
     htmlParts.push(
       `<div style="margin:16px 0;padding:14px 16px;border-radius:10px;background:#f3efe6;border:1px solid #d9cbb3;">`
@@ -608,6 +624,7 @@ exports.onOrderReadySendSignal = onDocumentUpdated(
 exports._test = {
   buildCustomerSignal,
   calculateFinalOrderPrice,
+  shouldIncludeFinalPriceInSignal,
   formatPickupWindow,
   shouldSendReadySignal,
   wantsAnyReadyNotify,

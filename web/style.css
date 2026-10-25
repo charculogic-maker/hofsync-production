@@ -10444,6 +10444,28 @@ body.dev-dashboard-view .app-version-badge--footer {
   min-height: 44px;
 }
 
+.order-notify-price-options {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  background: var(--surface-secondary);
+}
+
+.order-notify-price-options legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-notify-price-options .customer-order-hint {
+  margin: 6px 0 0;
+}
+
+.order-notify-price-options.is-unavailable {
+  opacity: 0.72;
+}
+
 .order-notify-channels {
   display: flex;
   flex-direction: column;

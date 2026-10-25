@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261025-ready-fields-clarity">
+  <link rel="stylesheet" href="/style.css?v=20261025-ready-fields-clarity-v2">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1525,6 +1525,14 @@
                       <input type="checkbox" id="order-notify-whatsapp" name="order-notify-channel" value="whatsapp" disabled>
                       Per WhatsApp <span class="order-notify-soon-tag">demnächst</span>
                     </label>
+                  </fieldset>
+                  <fieldset class="order-notify-price-options">
+                    <legend>Inhalt der Nachricht</legend>
+                    <label class="task-routing-option" id="order-notify-include-price-label">
+                      <input type="checkbox" id="order-notify-include-price">
+                      Waagen-Endpreis in der Nachricht nennen
+                    </label>
+                    <p class="customer-order-hint" id="order-notify-price-hint">Standard: ohne Preis. Nur ankreuzen, wenn der Endpreis schon stimmt.</p>
                   </fieldset>
                   <p class="customer-order-hint" id="order-notify-hint"></p>
                   <div class="order-notify-actions">
@@ -3453,6 +3461,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-ready-fields-clarity"></script>
+  <script type="module" src="/app.js?v=20261025-ready-fields-clarity-v2"></script>
 </body>
 </html>

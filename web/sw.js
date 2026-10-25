@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-ready-fields-clarity-v1';
+const CACHE_NAME = 'charculogic-v20261025-ready-fields-clarity-v2';
 
 const CACHE_SCHEMA = 'p0-packtisch-ready-fields-clarity-oct2026';
-/** Release – Aufnahme-Maske: Abholbereit-Felder klar abgegrenzt */
-const RELEASED_AT = '2026-10-25T11:40:00+02:00';
+/** Release – Abholbereit-Felder klar + optionaler Ready-Preis (merge main) */
+const RELEASED_AT = '2026-10-25T12:00:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
