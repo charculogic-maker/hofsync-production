@@ -835,9 +835,12 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   display: block;
 }
 
+/* Nur Opacity – transform am .page würde position:fixed-Modals (z. B. Bestellung
+   bearbeiten) in einen falschen Containing Block zwingen und außerhalb des
+   Viewports rendern. */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* --- NAVIGATION BAR (BOTTOM / SIDEBAR) --- */
@@ -10121,7 +10124,9 @@ body.dev-dashboard-view .app-version-badge--footer {
   align-items: flex-end;
   justify-content: center;
   padding: 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
   background: rgba(15, 23, 42, 0.45);
+  overflow: hidden;
 }
 
 .order-edit-modal.is-open,
@@ -10133,11 +10138,89 @@ body.dev-dashboard-view .app-version-badge--footer {
 .order-notify-view {
   width: min(560px, 100%);
   max-height: min(92vh, 900px);
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--surface-color, #fff);
   border-radius: 16px 16px 12px 12px;
   padding: 14px;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+}
+
+.order-edit-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
+.order-edit-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+.order-edit-section {
+  margin: 0 0 14px;
+}
+
+.order-edit-section--primary {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-color, #fff));
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.1));
+}
+
+.order-edit-meta {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.1));
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.order-edit-meta > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 4px 0;
+}
+
+.order-edit-meta[open] > summary {
+  margin-bottom: 10px;
+}
+
+.order-edit-original-list {
+  margin: 6px 0 0;
+  opacity: 0.85;
+}
+
+.order-amendment-banner {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border-left: 4px solid var(--primary-color, #8b5a2b);
+  background: color-mix(in srgb, var(--primary-color) 10%, #fff);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.order-amendment-banner strong {
+  display: inline;
+}
+
+.order-original-details {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+
+.order-original-details summary {
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
 }
 
 .order-edit-toolbar,
@@ -10160,7 +10243,22 @@ body.dev-dashboard-view .app-version-badge--footer {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 8px;
+}
+
+.order-edit-actions {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  padding-top: 10px;
+  background: linear-gradient(to top, var(--surface-color, #fff) 70%, transparent);
+  border-top: 1px solid var(--border-subtle, rgba(15, 23, 42, 0.08));
+  z-index: 1;
+}
+
+.order-edit-actions .btn {
+  flex: 1 1 auto;
+  min-height: 44px;
 }
 
 .order-notify-channels {

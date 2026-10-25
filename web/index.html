@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261024-packtisch-mhd">
+  <link rel="stylesheet" href="/style.css?v=20261025-order-amendments">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1527,38 +1527,53 @@
                 <div class="order-edit-view">
                   <header class="order-edit-toolbar">
                     <div>
-                      <p class="customer-order-hint" id="order-edit-kicker">Bestellung anpassen</p>
+                      <p class="customer-order-hint" id="order-edit-kicker">Positionen zuerst – Ursprung bleibt erhalten</p>
                       <h2 id="order-edit-title">Bestellung bearbeiten</h2>
                     </div>
                     <button type="button" class="btn btn-secondary btn-compact" id="order-edit-close-btn" aria-label="Bearbeiten schließen">Schließen</button>
                   </header>
                   <form id="order-edit-form" class="customer-order-form order-edit-form">
                     <input type="hidden" id="order-edit-id" value="">
-                    <label class="form-label" for="order-edit-customer-name">Name des Kunden</label>
-                    <input type="text" id="order-edit-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+                    <div class="order-edit-scroll">
+                      <section class="order-edit-section order-edit-section--primary" aria-labelledby="order-edit-lines-heading">
+                        <div class="customer-order-lines-head">
+                          <h3 class="customer-order-lines-title" id="order-edit-lines-heading">Aktuelle Positionen (zum Packen)</h3>
+                          <button type="button" class="btn btn-secondary btn-compact" id="order-edit-add-line-btn">+ Position</button>
+                        </div>
+                        <p class="customer-order-hint">Was jetzt gepackt wird. Die ursprüngliche Bestellung bleibt unverändert sichtbar.</p>
+                        <label class="form-label" for="order-edit-amendment-note">Kurznotiz zur Änderung (fürs Team)</label>
+                        <textarea id="order-edit-amendment-note" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. +1,5 kg Rehgulasch auf Kundenwunsch am 24.10."></textarea>
+                        <div id="order-edit-lines-container" class="order-lines-container"></div>
+                      </section>
 
-                    <div class="customer-order-contact-grid">
-                      <label class="form-label" for="order-edit-callback-phone">Rückrufnummer</label>
-                      <input type="tel" id="order-edit-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
-                      <label class="form-label" for="order-edit-customer-email">oder E-Mail</label>
-                      <input type="email" id="order-edit-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                      <section class="order-edit-section" id="order-edit-original-section" hidden aria-labelledby="order-edit-original-heading">
+                        <h3 class="customer-order-lines-title" id="order-edit-original-heading">Ursprüngliche Bestellung</h3>
+                        <ul class="customer-order-items order-edit-original-list" id="order-edit-original-list"></ul>
+                      </section>
+
+                      <details class="order-edit-meta">
+                        <summary>Kunde, Abholung &amp; Hinweise</summary>
+                        <label class="form-label" for="order-edit-customer-name">Name des Kunden</label>
+                        <input type="text" id="order-edit-customer-name" class="input-text-touch" required placeholder="z. B. Müller" autocomplete="name">
+
+                        <div class="customer-order-contact-grid">
+                          <label class="form-label" for="order-edit-callback-phone">Rückrufnummer</label>
+                          <input type="tel" id="order-edit-callback-phone" class="input-text-touch" placeholder="z. B. 0170 …" autocomplete="tel">
+                          <label class="form-label" for="order-edit-customer-email">oder E-Mail</label>
+                          <input type="email" id="order-edit-customer-email" class="input-text-touch" placeholder="name@beispiel.de" autocomplete="email">
+                        </div>
+
+                        <div class="customer-order-ready-grid">
+                          <label class="form-label" for="order-edit-ready-date">Bereit am</label>
+                          <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                          <label class="form-label" for="order-edit-ready-time">Uhrzeit</label>
+                          <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
+                        </div>
+
+                        <label class="form-label" for="order-edit-additional-wishes">Hinweise / Wünsche</label>
+                        <textarea id="order-edit-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. ohne Fett, separat vakuumieren"></textarea>
+                      </details>
                     </div>
-
-                    <div class="customer-order-ready-grid">
-                      <label class="form-label" for="order-edit-ready-date">Bereit am</label>
-                      <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
-                      <label class="form-label" for="order-edit-ready-time">Uhrzeit</label>
-                      <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
-                    </div>
-
-                    <div class="customer-order-lines-head">
-                      <h3 class="customer-order-lines-title">Bestellpositionen</h3>
-                      <button type="button" class="btn btn-secondary btn-compact" id="order-edit-add-line-btn">+ Position</button>
-                    </div>
-                    <div id="order-edit-lines-container" class="order-lines-container"></div>
-
-                    <label class="form-label" for="order-edit-additional-wishes">Hinweise / Wünsche</label>
-                    <textarea id="order-edit-additional-wishes" class="bulletin-message-input customer-order-notes" rows="2" placeholder="z. B. zusätzlich 2 Glas Fleischsalat"></textarea>
 
                     <p class="customer-order-hint order-save-status" id="order-edit-status" role="status" aria-live="polite"></p>
                     <div class="order-edit-actions">
@@ -3382,6 +3397,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261018-ios-inpage-print"></script>
+  <script type="module" src="/app.js?v=20261025-order-amendments"></script>
 </body>
 </html>

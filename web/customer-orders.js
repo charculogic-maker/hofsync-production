@@ -457,6 +457,57 @@ function renderOrderItemsList(items) {
   }).join('');
 }
 
+function cloneOrderItemsSnapshot(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+    return { ...item };
+  });
+}
+
+function orderItemsFingerprint(items) {
+  if (!Array.isArray(items)) return '';
+  return items.map((item) => {
+    const n = normalizeOrderItem(item);
+    return [
+      n.product || item?.product || '',
+      item?.quantity ?? n.quantity ?? '',
+      item?.unit || n.unit || '',
+      item?.weight || '',
+      n.weightKg || '',
+      n.pieces || '',
+      item?.lineNotes || n.note || '',
+    ].join('|').toLowerCase();
+  }).join('||');
+}
+
+function orderHasVisibleAmendment(order) {
+  const original = Array.isArray(order?.originalItems) ? order.originalItems : null;
+  if (!original?.length) return Boolean(order?.amendmentNote);
+  return orderItemsFingerprint(original) !== orderItemsFingerprint(order?.items)
+    || Boolean(order?.amendmentNote);
+}
+
+function renderOrderAmendmentBlock(order) {
+  if (!orderHasVisibleAmendment(order)) return '';
+  const when = formatDateTimeDe(order.amendedAt || order.updatedAt) || '–';
+  const who = order.amendedBy || order.updatedBy || '–';
+  const note = String(order.amendmentNote || '').trim();
+  const original = Array.isArray(order.originalItems) ? order.originalItems : [];
+  return `
+    <div class="order-amendment-banner">
+      <strong>Änderung</strong> · ${escapeHtml(who)} · ${escapeHtml(when)}
+      ${note ? `<div>${escapeHtml(note)}</div>` : '<div>Positionen wurden angepasst (siehe aktuelle Liste).</div>'}
+    </div>
+    ${original.length ? `
+      <details class="order-original-details">
+        <summary>Ursprüngliche Bestellung anzeigen</summary>
+        <ul class="customer-order-items">${renderOrderItemsList(original)}</ul>
+      </details>
+    ` : ''}
+  `;
+}
+
 function parseQuantityValue(value) {
   const normalized = String(value ?? '')
     .trim()
@@ -1325,14 +1376,15 @@ function renderOrderCard(order, { adminView = false } = {}) {
       <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items)}</ul>
+      ${renderOrderAmendmentBlock(order)}
       ${order.orderSlipAttachments?.length ? `<div class="customer-order-slips">${renderOrderSlipAttachments(order.orderSlipAttachments)}</div>` : ''}
-      ${renderOrderActionLog(order)}
       <div class="packtisch-actions">
         ${ACTIVE_ORDER_STATUSES.has(status)
     ? `<button type="button" class="btn btn-secondary btn-compact" data-order-action="toggle_detail" data-order-id="${escapeHtml(order.id)}">${expanded ? 'Details schließen' : 'Details / Nachwiegen'}</button>`
     : ''}
         ${actions}
       </div>
+      ${renderOrderActionLog(order)}
       ${expanded && ACTIVE_ORDER_STATUSES.has(status) ? renderPacktischDetail(order) : ''}
       ${adminView && status !== 'open' ? `<span class="customer-order-meta">${escapeHtml(statusLabel)}</span>` : ''}
     </article>
@@ -1761,6 +1813,13 @@ function readNotifyChannelsFromModal() {
   });
 }
 
+/** Modals unter #page-* mit transform/Animation sonst außerhalb des Viewports. */
+function mountOrderModalOnBody(modal) {
+  if (!modal || modal.parentElement === document.body) return modal;
+  document.body.appendChild(modal);
+  return modal;
+}
+
 function closeOrderNotifyModal() {
   const modal = document.getElementById('order-notify-modal');
   if (!modal) return;
@@ -1772,7 +1831,7 @@ function closeOrderNotifyModal() {
 
 function openOrderNotifyModal(orderId, mode = 'ready') {
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  const modal = document.getElementById('order-notify-modal');
+  const modal = mountOrderModalOnBody(document.getElementById('order-notify-modal'));
   if (!order || !modal) {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
     return;
@@ -2050,7 +2109,7 @@ function closeOrderEditModal() {
 
 function openOrderEditModal(orderId) {
   const order = orderState.allOrders.find((entry) => entry.id === orderId);
-  const modal = document.getElementById('order-edit-modal');
+  const modal = mountOrderModalOnBody(document.getElementById('order-edit-modal'));
   if (!order || !modal) {
     window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
     return;
@@ -2061,6 +2120,8 @@ function openOrderEditModal(orderId) {
   document.getElementById('order-edit-callback-phone').value = customerPhone(order);
   document.getElementById('order-edit-customer-email').value = order.customerEmail || order.customer?.email || '';
   document.getElementById('order-edit-additional-wishes').value = order.additionalWishes || order.butcherNotes || '';
+  const amendmentEl = document.getElementById('order-edit-amendment-note');
+  if (amendmentEl) amendmentEl.value = order.amendmentNote || '';
 
   const readyIso = orderPickupDayIso(order) || todayIsoLocal();
   const readyTimeMatch = String(order.readyAt || '').match(/T(\d{2}:\d{2})/);
@@ -2073,19 +2134,36 @@ function openOrderEditModal(orderId) {
   if (items.length) items.forEach((item) => addEditOrderLine(item));
   else addEditOrderLine();
 
+  const original = Array.isArray(order.originalItems) && order.originalItems.length
+    ? order.originalItems
+    : items;
+  const originalSection = document.getElementById('order-edit-original-section');
+  const originalList = document.getElementById('order-edit-original-list');
+  if (originalSection && originalList) {
+    originalList.innerHTML = renderOrderItemsList(original);
+    originalSection.hidden = !original.length;
+  }
+
   const title = document.getElementById('order-edit-title');
   if (title) title.textContent = `Bestellung ${orderRefLabel(order)} bearbeiten`;
   const kicker = document.getElementById('order-edit-kicker');
   if (kicker) {
     kicker.textContent = orderStatus(order) === 'ready' || PAST_ORDER_STATUSES.has(orderStatus(order))
       ? 'Wird beim Speichern wieder in Bearbeitung gesetzt'
-      : 'Positionen ändern oder ergänzen';
+      : 'Positionen oben ändern – Ursprung bleibt sichtbar';
   }
+
+  const meta = modal.querySelector('.order-edit-meta');
+  if (meta) meta.open = false;
+  const scroll = modal.querySelector('.order-edit-scroll');
+  if (scroll) scroll.scrollTop = 0;
 
   modal.classList.add('is-open');
   modal.removeAttribute('hidden');
   document.body.classList.add('modal-open');
   initGermanDateInputs(modal);
+  const firstProduct = container?.querySelector('[data-line-product]');
+  (firstProduct || amendmentEl)?.focus?.({ preventScroll: true });
 }
 
 async function saveOrderEditFromModal() {
@@ -2108,39 +2186,58 @@ async function saveOrderEditFromModal() {
   const readyDate = readGermanDateField(document.getElementById('order-edit-ready-date')) || '';
   const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
   const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
+  const amendmentNote = document.getElementById('order-edit-amendment-note')?.value?.trim() || '';
   const items = readEditOrderLinesFromDom();
 
-  if (!customerName) {
-    window.showToast?.('Bitte Kundennamen eingeben.', 'warning');
-    return;
-  }
-  if (!readyDate || !readyTime) {
-    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
-    return;
-  }
   if (!items.length) {
     window.showToast?.('Mindestens eine Position eintragen.', 'warning');
     return;
   }
+  if (!customerName) {
+    window.showToast?.('Bitte Kundennamen eingeben (unter „Kunde, Abholung & Hinweise“).', 'warning');
+    const meta = document.querySelector('#order-edit-modal .order-edit-meta');
+    if (meta) meta.open = true;
+    document.getElementById('order-edit-customer-name')?.focus?.();
+    return;
+  }
+  if (!readyDate || !readyTime) {
+    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
+    const meta = document.querySelector('#order-edit-modal .order-edit-meta');
+    if (meta) meta.open = true;
+    return;
+  }
   if (!callbackPhone && !customerEmail) {
     window.showToast?.('Bitte Rückrufnummer oder E-Mail angeben.', 'warning');
+    const meta = document.querySelector('#order-edit-modal .order-edit-meta');
+    if (meta) meta.open = true;
     return;
   }
 
   const prevStatus = orderStatus(existing);
   const shouldReopen = prevStatus === 'ready' || PAST_ORDER_STATUSES.has(prevStatus);
+  const itemsChanged = orderItemsFingerprint(existing.items) !== orderItemsFingerprint(items);
+  const noteChanged = String(existing.amendmentNote || '').trim() !== amendmentNote;
+  if (!itemsChanged && !noteChanged && !shouldReopen) {
+    // still allow saving contact/ready tweaks without forcing amendment banner
+  }
+  const originalItems = Array.isArray(existing.originalItems) && existing.originalItems.length
+    ? existing.originalItems
+    : cloneOrderItemsSnapshot(existing.items);
+  const logDetail = amendmentNote || (itemsChanged ? 'Positionen angepasst' : '');
   const logAction = shouldReopen ? 'edited_reopen' : 'edited';
-  const logEntry = buildOrderActionLogEntry(logAction, employee);
+  const logEntry = buildOrderActionLogEntry(logAction, employee, logDetail);
   const nextLog = mergeOrderActionLog(existing?.actionLog, logEntry);
   const firebase = orderState.getFirebase();
   const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
     : new Date().toISOString();
+  const amendedAtIso = new Date().toISOString();
 
   const onlineData = {
     customerName,
     readyAt: `${readyDate}T${readyTime}`,
     items,
+    originalItems,
     employeeName: employee,
     updatedBy: employee,
     updatedAt: serverTimestamp,
@@ -2152,6 +2249,12 @@ async function saveOrderEditFromModal() {
   else onlineData.customerEmail = null;
   if (additionalWishes) onlineData.additionalWishes = additionalWishes;
   else onlineData.additionalWishes = null;
+  if (amendmentNote) onlineData.amendmentNote = amendmentNote;
+  else onlineData.amendmentNote = null;
+  if (itemsChanged || noteChanged || amendmentNote) {
+    onlineData.amendedBy = employee;
+    onlineData.amendedAt = serverTimestamp;
+  }
 
   if (shouldReopen) {
     onlineData.status = 'in_progress';
@@ -2161,11 +2264,12 @@ async function saveOrderEditFromModal() {
 
   const queueData = {
     ...onlineData,
-    updatedAt: new Date().toISOString(),
+    updatedAt: amendedAtIso,
     actionLog: nextLog,
   };
+  if (onlineData.amendedAt) queueData.amendedAt = amendedAtIso;
   if (shouldReopen) {
-    queueData.inProgressAt = new Date().toISOString();
+    queueData.inProgressAt = amendedAtIso;
   }
 
   const statusEl = document.getElementById('order-edit-status');
@@ -2193,17 +2297,23 @@ async function saveOrderEditFromModal() {
         customerName,
         readyAt: `${readyDate}T${readyTime}`,
         items,
+        originalItems,
+        amendmentNote: amendmentNote || null,
         callbackPhone: callbackPhone || null,
         customerEmail: customerEmail || null,
         additionalWishes: additionalWishes || null,
         updatedBy: employee,
-        updatedAt: new Date().toISOString(),
+        updatedAt: amendedAtIso,
         actionLog: nextLog,
       };
+      if (itemsChanged || noteChanged || amendmentNote) {
+        next.amendedBy = employee;
+        next.amendedAt = amendedAtIso;
+      }
       if (shouldReopen) {
         next.status = 'in_progress';
         next.inProgressBy = employee;
-        next.inProgressAt = new Date().toISOString();
+        next.inProgressAt = amendedAtIso;
       }
       return next;
     });
