@@ -53,6 +53,7 @@ import {
   DEPARTMENT_LABELS,
   getEmployeeDepartmentAssignment,
   saveEmployeeDepartmentAssignment,
+  setTeamConfigTenantId,
 } from './team-config.js';
 import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -2864,6 +2865,10 @@ function bindTenantSelector(dashboardStateRef, tenants) {
     fillSettingsForm(dashboardStateRef);
     renderOverviewCards(dashboardStateRef);
     renderAuditTable(dashboardStateRef.selectedTenantId);
+    if (dashboardStateRef.selectedTenantId) {
+      setGlobalTenantId(dashboardStateRef.selectedTenantId);
+      setTeamConfigTenantId(dashboardStateRef.selectedTenantId);
+    }
     void refreshEmployeeTable(dashboardStateRef);
     if (dashboardStateRef.activeTab === 'settings') {
       syncDevDashboardHaccpAdmin({
@@ -2871,9 +2876,6 @@ function bindTenantSelector(dashboardStateRef, tenants) {
         tenantId: dashboardStateRef.selectedTenantId,
         recordAudit,
       });
-      if (dashboardStateRef.selectedTenantId) {
-        setGlobalTenantId(dashboardStateRef.selectedTenantId);
-      }
       void refreshDiscountMatrixUi(dashboardStateRef.selectedTenantId);
     } else {
       refreshDevDashboardHaccpAdmin();
@@ -2980,6 +2982,10 @@ function setDevDashboardTab(tabKey = 'overview') {
     void loadMovementReport();
   }
   if (nextTab === 'users') {
+    if (dashboardState.selectedTenantId) {
+      setGlobalTenantId(dashboardState.selectedTenantId);
+      setTeamConfigTenantId(dashboardState.selectedTenantId);
+    }
     renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
   }
 }

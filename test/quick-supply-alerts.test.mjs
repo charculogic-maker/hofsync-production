@@ -59,7 +59,9 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(teamConfigJs).to.match(/DEPARTMENT_KEYS/);
     expect(teamConfigJs).to.match(/export async function saveEmployeeDepartmentAssignment/);
     expect(teamConfigJs).to.match(/canOrder/);
+    expect(teamConfigJs).to.match(/resolveTeamConfigTenantId|getGlobalTenantId/);
     expect(teamConfigJs).to.match(/saveEmployeeDepartmentAssignment[\s\S]*?op:\s*'update'/);
+    expect(devDashboardJs).to.match(/setTeamConfigTenantId/);
     expect(devDashboardJs).to.match(/toggle-user-department/);
     expect(devDashboardJs).to.match(/toggle-user-can-order/);
   });
