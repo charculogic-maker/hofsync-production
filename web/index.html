@@ -323,7 +323,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261025-ready-fields-clarity-v3">
+  <link rel="stylesheet" href="/style.css?v=20261025-ready-fields-clarity-v4">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1409,11 +1409,15 @@
                   <section class="customer-order-ready-panel" aria-labelledby="order-ready-heading">
                     <h3 class="customer-order-ready-title" id="order-ready-heading">Abholbereit ab</h3>
                     <p class="customer-order-ready-hint">Gewünschter Abhol-/Bereitstellungstermin für den Kunden – <strong>nicht</strong> der Zeitpunkt der Aufnahme.</p>
-                    <div class="customer-order-ready-grid">
+                    <label class="task-routing-option customer-order-pickup-tbd">
+                      <input type="checkbox" id="order-pickup-tbd">
+                      Abholdatum noch absprechen (Anfrage / Spezialbestellung)
+                    </label>
+                    <div class="customer-order-ready-grid" data-ready-fields>
                       <label class="form-label" for="order-ready-date">Datum (Abholung möglich ab)</label>
-                      <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                      <input type="text" id="order-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
                       <label class="form-label" for="order-ready-time">Uhrzeit (Abholung möglich ab)</label>
-                      <input type="time" id="order-ready-time" class="input-text-touch" required>
+                      <input type="time" id="order-ready-time" class="input-text-touch">
                     </div>
                   </section>
 
@@ -1626,11 +1630,15 @@
                         <section class="customer-order-ready-panel" aria-labelledby="order-edit-ready-heading">
                           <h3 class="customer-order-ready-title" id="order-edit-ready-heading">Abholbereit ab</h3>
                           <p class="customer-order-ready-hint">Abhol-/Bereitstellungstermin für den Kunden – <strong>nicht</strong> der Aufnahmezeitpunkt.</p>
-                          <div class="customer-order-ready-grid">
+                          <label class="task-routing-option customer-order-pickup-tbd">
+                            <input type="checkbox" id="order-edit-pickup-tbd">
+                            Abholdatum noch absprechen (Anfrage / Spezialbestellung)
+                          </label>
+                          <div class="customer-order-ready-grid" data-ready-fields>
                             <label class="form-label" for="order-edit-ready-date">Datum (Abholung möglich ab)</label>
-                            <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10" required>
+                            <input type="text" id="order-edit-ready-date" class="input-text-touch input-date-de" placeholder="TT.MM.JJJJ" inputmode="numeric" autocomplete="off" maxlength="10">
                             <label class="form-label" for="order-edit-ready-time">Uhrzeit (Abholung möglich ab)</label>
-                            <input type="time" id="order-edit-ready-time" class="input-text-touch" required>
+                            <input type="time" id="order-edit-ready-time" class="input-text-touch">
                           </div>
                         </section>
 
@@ -3461,6 +3469,6 @@
   <!-- Module erst nach Firebase-SDK; Cache-Bust erzwingt frischen Init-Fix auf dem iPhone. -->
   <script type="module" src="/fast-onboarding.js?v=20261018-ios-inpage-print"></script>
   <script type="module" src="/tenant-admin-auth.js?v=20261018-ios-inpage-print"></script>
-  <script type="module" src="/app.js?v=20261025-ready-fields-clarity-v3"></script>
+  <script type="module" src="/app.js?v=20261025-ready-fields-clarity-v4"></script>
 </body>
 </html>

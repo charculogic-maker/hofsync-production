@@ -140,6 +140,32 @@ export function formatPickupReadyLabel(readyAt) {
   return `${weekday}, ${dayMonth} ab ${time} Uhr`;
 }
 
+/** Freitext-Hinweise, die auf fehlenden Abholtermin deuten (Import / Mail). */
+const PICKUP_TBD_HINT_RE = /abholdatum\s+noch\s+absprechen|termin\s+noch\s+offen|ohne\s+abholtermin|abholung\s+noch\s+absprechen|noch\s+zu\s+absprechen/i;
+
+/**
+ * Spezialanfragen ohne festen Abholtermin (z. B. Rehfleisch besorgen).
+ * @param {object} order
+ * @returns {boolean}
+ */
+export function isOrderPickupTbd(order) {
+  if (!order || typeof order !== 'object') return false;
+  if (order.pickupTbd === true || order.pickupDateTbd === true) return true;
+  const day = orderPickupDayIso(order);
+  if (day) return false;
+  const wishes = String(order.additionalWishes || order.butcherNotes || order.notes || '');
+  return PICKUP_TBD_HINT_RE.test(wishes);
+}
+
+/**
+ * @param {object} order
+ * @returns {string}
+ */
+export function formatOrderPickupLabel(order) {
+  if (isOrderPickupTbd(order)) return 'noch absprechen';
+  return formatPickupReadyLabel(order?.readyAt || order?.pickupDate);
+}
+
 /**
  * Zählt aktive Bestellungen je Abholtag (für Packtisch-Kalender).
  * @param {object[]} orders
@@ -647,6 +673,8 @@ export function classifyPacktischBucket(order, todayIso = todayIsoLocal()) {
   if (status === 'ready') return 'ready';
   if (status === 'in_progress') return 'in_progress';
   if (status === 'open' || status === 'pending' || status === 'eingegangen') {
+    // Anfragen ohne Termin bleiben sichtbar unter „Fällig / heute“.
+    if (isOrderPickupTbd(order)) return 'due';
     const day = orderPickupDayIso(order);
     if (day && day <= todayIso) return 'due';
     return 'open';

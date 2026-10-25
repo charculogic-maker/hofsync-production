@@ -23,8 +23,10 @@ import {
   customerDisplayName,
   customerPhone,
   filterPastOrders,
+  formatOrderPickupLabel,
   formatPickupReadyLabel,
   generateZuschnittAggregation,
+  isOrderPickupTbd,
   nextStatusInPipeline,
   nextWeekdayIso,
   normalizeNotifyChannels,
@@ -376,6 +378,43 @@ function formatReadyAt(readyAt) {
   return formatPickupReadyLabel(readyAt);
 }
 
+function syncPickupTbdUi(prefix = 'order') {
+  const tbdEl = document.getElementById(`${prefix}-pickup-tbd`);
+  const dateEl = document.getElementById(`${prefix}-ready-date`);
+  const timeEl = document.getElementById(`${prefix}-ready-time`);
+  const grid = dateEl?.closest('[data-ready-fields]') || dateEl?.closest('.customer-order-ready-grid');
+  const tbd = Boolean(tbdEl?.checked);
+  if (dateEl) {
+    dateEl.disabled = tbd;
+    dateEl.required = !tbd;
+    if (tbd) dateEl.value = '';
+    else if (!readGermanDateField(dateEl)) setGermanDateField(dateEl, todayIsoLocal());
+  }
+  if (timeEl) {
+    timeEl.disabled = tbd;
+    timeEl.required = !tbd;
+    if (tbd) timeEl.value = '';
+    else if (!timeEl.value) timeEl.value = defaultReadyTimeLocal();
+  }
+  if (grid) grid.classList.toggle('is-pickup-tbd', tbd);
+  return tbd;
+}
+
+function readPickupScheduleFromForm(prefix = 'order') {
+  const tbd = Boolean(document.getElementById(`${prefix}-pickup-tbd`)?.checked);
+  if (tbd) {
+    return { pickupTbd: true, readyAt: null, readyDate: '', readyTime: '' };
+  }
+  const readyDate = readGermanDateField(document.getElementById(`${prefix}-ready-date`)) || '';
+  const readyTime = document.getElementById(`${prefix}-ready-time`)?.value?.trim() || '';
+  return {
+    pickupTbd: false,
+    readyAt: readyDate && readyTime ? `${readyDate}T${readyTime}` : '',
+    readyDate,
+    readyTime,
+  };
+}
+
 function ensureCalendarAnchor() {
   if (!orderState.calendarAnchorIso) {
     orderState.calendarAnchorIso = todayIsoLocal();
@@ -404,7 +443,9 @@ function ordersForPacktischList() {
   const today = todayIsoLocal();
   let open = orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o)));
   if (orderState.selectedPickupDayIso) {
-    open = open.filter((o) => orderPickupDayIso(o) === orderState.selectedPickupDayIso);
+    open = open.filter((o) => (
+      isOrderPickupTbd(o) || orderPickupDayIso(o) === orderState.selectedPickupDayIso
+    ));
   }
   if (orderState.dashboardFilter) {
     open = open.filter((o) => classifyPacktischBucket(o, today) === orderState.dashboardFilter);
@@ -669,10 +710,13 @@ function resetOrderForm() {
   orderState.pendingSlips = [];
   renderPendingSlipPreview();
   ensureDefaultOrderLine();
+  const tbdEl = document.getElementById('order-pickup-tbd');
+  if (tbdEl) tbdEl.checked = false;
   const readyDate = document.getElementById('order-ready-date');
   const readyTime = document.getElementById('order-ready-time');
   if (readyDate) setGermanDateField(readyDate, todayIsoLocal());
   if (readyTime) readyTime.value = defaultReadyTimeLocal();
+  syncPickupTbdUi('order');
 }
 
 function setOrderSaveStatus(message = '') {
@@ -1499,7 +1543,7 @@ function openDeliveryNote(orderId) {
       <header class="delivery-note-sheet-head">
         <p>Kisten-Zettel · ${escapeHtml(orderRefLabel(order))}</p>
         <h1>${escapeHtml(customerDisplayName(order))}</h1>
-        <div>Abholung: ${escapeHtml(formatReadyAt(order.readyAt || order.pickupDate))} · ${escapeHtml(orderPickupChannelLabel(order))}</div>
+        <div>Abholung: ${escapeHtml(formatOrderPickupLabel(order))} · ${escapeHtml(orderPickupChannelLabel(order))}</div>
       </header>
       <table class="delivery-note-table">
         <thead>
@@ -1705,7 +1749,8 @@ function renderOrderCard(order, { adminView = false } = {}) {
   const status = orderStatus(order);
   const statusLabel = ORDER_STATUS_LABELS[status] || status;
   const acceptedAt = formatDateTimeDe(order.acceptedAt || order.createdAt);
-  const readyLabel = formatReadyAt(order.readyAt || order.pickupDate);
+  const readyLabel = formatOrderPickupLabel(order);
+  const pickupTbd = isOrderPickupTbd(order);
   const name = customerDisplayName(order);
   const contact = [customerPhone(order), order.customerEmail || order.customer?.email].filter(Boolean).join(' · ');
   const isUpdatingThisOrder = orderState.statusUpdateOrderIds.has(order.id);
@@ -1732,7 +1777,7 @@ function renderOrderCard(order, { adminView = false } = {}) {
       </header>
       ${bucketLabel && ACTIVE_ORDER_STATUSES.has(status) ? `<p class="customer-order-meta packtisch-bucket-label">${escapeHtml(bucketLabel)}</p>` : ''}
       <p class="customer-order-meta">Angenommen: ${escapeHtml(acceptedAt)} · ${escapeHtml(order.acceptedBy || 'Portal')}</p>
-      <p class="customer-order-meta">Abholung: <strong>${escapeHtml(readyLabel)}</strong></p>
+      <p class="customer-order-meta">Abholung: <strong class="${pickupTbd ? 'customer-order-pickup-tbd-label' : ''}">${escapeHtml(readyLabel)}</strong>${pickupTbd ? ' <span class="customer-order-inquiry-badge">Anfrage</span>' : ''}</p>
       <p class="customer-order-meta">Kontakt: ${escapeHtml(contact || '–')}</p>
       <ul class="customer-order-items">${renderOrderItemsList(order.items, {
     orderId: order.id,
@@ -1757,7 +1802,9 @@ function renderPacktischDashboard() {
   const today = todayIsoLocal();
   let scoped = orderState.allOrders.filter((o) => ACTIVE_ORDER_STATUSES.has(orderStatus(o)));
   if (orderState.selectedPickupDayIso) {
-    scoped = scoped.filter((o) => orderPickupDayIso(o) === orderState.selectedPickupDayIso);
+    scoped = scoped.filter((o) => (
+      isOrderPickupTbd(o) || orderPickupDayIso(o) === orderState.selectedPickupDayIso
+    ));
   }
   const counts = summarizePacktischDashboard(scoped, today);
   const filter = orderState.dashboardFilter;
@@ -2044,12 +2091,11 @@ async function createOrderFromForm() {
   let customerName = document.getElementById('order-customer-name')?.value?.trim() || '';
   const callbackPhone = document.getElementById('order-callback-phone')?.value?.trim() || '';
   const customerEmail = document.getElementById('order-customer-email')?.value?.trim() || '';
-  const readyDate = readGermanDateField(document.getElementById('order-ready-date')) || '';
-  const readyTime = document.getElementById('order-ready-time')?.value?.trim() || '';
+  const schedule = readPickupScheduleFromForm('order');
   const hasSlips = orderState.pendingSlips.length > 0;
 
-  if (!readyDate || !readyTime) {
-    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
+  if (!schedule.pickupTbd && (!schedule.readyDate || !schedule.readyTime)) {
+    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben – oder „Abholdatum noch absprechen“ wählen.', 'warning');
     return;
   }
 
@@ -2074,7 +2120,6 @@ async function createOrderFromForm() {
     return;
   }
 
-  const readyAt = `${readyDate}T${readyTime}`;
   const orderId = typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -2113,7 +2158,8 @@ async function createOrderFromForm() {
 
     const payload = {
       customerName,
-      readyAt,
+      readyAt: schedule.readyAt,
+      pickupTbd: schedule.pickupTbd,
       items,
       inputMode,
       acceptedBy: employee,
@@ -2123,6 +2169,9 @@ async function createOrderFromForm() {
       tenantId: orderState.tenantId,
       createdAt: serverTimestamp,
     };
+    if (schedule.pickupTbd) {
+      payload.pickupDate = null;
+    }
     if (callbackPhone) payload.callbackPhone = callbackPhone;
     if (customerEmail) payload.customerEmail = customerEmail;
     if (additionalWishes) payload.additionalWishes = additionalWishes;
@@ -2440,6 +2489,19 @@ async function confirmOrderNotifyModal({ skip = false } = {}) {
 }
 
 function requestMarkOrderReady(orderId) {
+  const order = orderState.allOrders.find((entry) => entry.id === orderId);
+  if (!order) {
+    window.showToast?.('Bestellung wurde nicht gefunden.', 'error');
+    return;
+  }
+  if (isOrderPickupTbd(order) || !orderPickupDayIso(order)) {
+    window.showToast?.('Bitte zuerst einen Abholtermin setzen – oder Termin mit der Kundin absprechen.', 'warning');
+    openOrderEditModal(orderId);
+    const meta = document.querySelector('#order-edit-modal .order-edit-meta');
+    if (meta) meta.open = true;
+    document.getElementById('order-edit-ready-date')?.focus?.();
+    return;
+  }
   openOrderNotifyModal(orderId, 'ready');
 }
 
@@ -2841,10 +2903,21 @@ function openOrderEditModal(orderId) {
   }
   ensureSuppliersDatalist();
 
-  const readyIso = orderPickupDayIso(order) || todayIsoLocal();
+  const readyIso = orderPickupDayIso(order);
   const readyTimeMatch = String(order.readyAt || '').match(/T(\d{2}:\d{2})/);
-  setGermanDateField(document.getElementById('order-edit-ready-date'), readyIso);
-  document.getElementById('order-edit-ready-time').value = readyTimeMatch?.[1] || defaultReadyTimeLocal();
+  const tbdCheckbox = document.getElementById('order-edit-pickup-tbd');
+  const pickupTbd = isOrderPickupTbd(order) || !readyIso;
+  if (tbdCheckbox) tbdCheckbox.checked = pickupTbd;
+  if (pickupTbd) {
+    const dateEl = document.getElementById('order-edit-ready-date');
+    const timeEl = document.getElementById('order-edit-ready-time');
+    if (dateEl) dateEl.value = '';
+    if (timeEl) timeEl.value = '';
+  } else {
+    setGermanDateField(document.getElementById('order-edit-ready-date'), readyIso);
+    document.getElementById('order-edit-ready-time').value = readyTimeMatch?.[1] || defaultReadyTimeLocal();
+  }
+  syncPickupTbdUi('order-edit');
 
   const container = document.getElementById('order-edit-lines-container');
   if (container) container.innerHTML = '';
@@ -2901,8 +2974,7 @@ async function saveOrderEditFromModal() {
   const customerName = document.getElementById('order-edit-customer-name')?.value?.trim() || '';
   const callbackPhone = document.getElementById('order-edit-callback-phone')?.value?.trim() || '';
   const customerEmail = document.getElementById('order-edit-customer-email')?.value?.trim() || '';
-  const readyDate = readGermanDateField(document.getElementById('order-edit-ready-date')) || '';
-  const readyTime = document.getElementById('order-edit-ready-time')?.value?.trim() || '';
+  const schedule = readPickupScheduleFromForm('order-edit');
   const additionalWishes = document.getElementById('order-edit-additional-wishes')?.value?.trim() || '';
   const amendmentNote = document.getElementById('order-edit-amendment-note')?.value?.trim() || '';
   const internalStorageLocation = document.getElementById('order-edit-internal-storage')?.value?.trim() || '';
@@ -2920,10 +2992,11 @@ async function saveOrderEditFromModal() {
     document.getElementById('order-edit-customer-name')?.focus?.();
     return;
   }
-  if (!readyDate || !readyTime) {
-    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben.', 'warning');
+  if (!schedule.pickupTbd && (!schedule.readyDate || !schedule.readyTime)) {
+    window.showToast?.('Bitte Datum und Uhrzeit für „Bereit“ angeben – oder „Abholdatum noch absprechen“ wählen.', 'warning');
     const meta = document.querySelector('#order-edit-modal .order-edit-meta');
     if (meta) meta.open = true;
+    document.getElementById('order-edit-ready-date')?.focus?.();
     return;
   }
   if (!callbackPhone && !customerEmail) {
@@ -3005,7 +3078,8 @@ async function saveOrderEditFromModal() {
 
   const onlineData = {
     customerName,
-    readyAt: `${readyDate}T${readyTime}`,
+    readyAt: schedule.readyAt,
+    pickupTbd: schedule.pickupTbd,
     items,
     originalItems,
     employeeName: employee,
@@ -3016,6 +3090,9 @@ async function saveOrderEditFromModal() {
     internalStorageLocation: internalStorageLocation || null,
     customerPickupNote: customerPickupNote || null,
   };
+  if (schedule.pickupTbd) {
+    onlineData.pickupDate = null;
+  }
   if (callbackPhone) onlineData.callbackPhone = callbackPhone;
   else onlineData.callbackPhone = null;
   if (customerEmail) onlineData.customerEmail = customerEmail;
@@ -3069,7 +3146,8 @@ async function saveOrderEditFromModal() {
       const next = {
         ...entry,
         customerName,
-        readyAt: `${readyDate}T${readyTime}`,
+        readyAt: schedule.readyAt,
+        pickupTbd: schedule.pickupTbd,
         items,
         originalItems,
         amendmentNote: amendmentNote || null,
@@ -3083,6 +3161,7 @@ async function saveOrderEditFromModal() {
         actionLog: nextLog,
         history: nextHistory,
       };
+      if (schedule.pickupTbd) next.pickupDate = null;
       if (itemsChanged || noteChanged || amendmentNote) {
         next.amendedBy = employee;
         next.amendedAt = amendedAtIso;
@@ -3482,7 +3561,7 @@ function openAveryLabel(orderId) {
     <div class="avery-label-sheet">
       <div class="avery-label-ref">${escapeHtml(orderRefLabel(order))}</div>
       <div class="avery-label-name">${escapeHtml(customerDisplayName(order))}</div>
-      <div class="avery-label-meta">${escapeHtml(orderPickupChannelLabel(order))} · ${escapeHtml(formatReadyAt(order.readyAt || order.pickupDate))}</div>
+      <div class="avery-label-meta">${escapeHtml(orderPickupChannelLabel(order))} · ${escapeHtml(formatOrderPickupLabel(order))}</div>
       ${storage ? `<div class="avery-label-storage">Lagerort: ${escapeHtml(storage)}</div>` : ''}
       <ul class="avery-label-items">${itemsHtml || '<li>–</li>'}</ul>
       <div class="avery-label-total">Waage / Endpreis: ${escapeHtml(formatMoneyValue(price.total))}</div>
@@ -3593,6 +3672,10 @@ function bindOrderForm() {
   const readyTime = document.getElementById('order-ready-time');
   if (readyDate && !readGermanDateField(readyDate)) setGermanDateField(readyDate, todayIsoLocal());
   if (readyTime && !readyTime.value) readyTime.value = defaultReadyTimeLocal();
+  document.getElementById('order-pickup-tbd')?.addEventListener('change', () => {
+    syncPickupTbdUi('order');
+  });
+  syncPickupTbdUi('order');
 
   document.getElementById('order-add-line-btn')?.addEventListener('click', () => addOrderLine());
 
@@ -3843,6 +3926,9 @@ function bindOrderEditModal() {
   const modal = document.getElementById('order-edit-modal');
   if (!modal || modal.dataset.orderEditBound === '1') return;
   modal.dataset.orderEditBound = '1';
+  document.getElementById('order-edit-pickup-tbd')?.addEventListener('change', () => {
+    syncPickupTbdUi('order-edit');
+  });
   document.getElementById('order-edit-close-btn')?.addEventListener('click', closeOrderEditModal);
   document.getElementById('order-edit-cancel-btn')?.addEventListener('click', closeOrderEditModal);
   document.getElementById('order-edit-add-line-btn')?.addEventListener('click', () => addEditOrderLine());
@@ -4127,7 +4213,9 @@ export {
   calculateLinePriceFromWeight,
   ORDER_STATUS_LABELS,
   nextStatusInPipeline,
+  formatOrderPickupLabel,
   formatPickupReadyLabel,
+  isOrderPickupTbd,
   countOrdersByPickupDay,
   buildPacktischCalendarDays,
   summarizePacktischDashboard,
