@@ -36,7 +36,7 @@ describe('Packtisch Karten: 1 Primary Action', () => {
   });
 
   it('hebt Cache für Packtisch-UX-Verschlankung an', () => {
-    assert.match(sw, /charculogic-v20261025-packtisch-ux-v1/);
-    assert.match(html, /20261025-packtisch-ux/);
+    assert.match(sw, /charculogic-v20261025-pickup-tbd-v1/);
+    assert.match(html, /20261025-pickup-tbd/);
   });
 });

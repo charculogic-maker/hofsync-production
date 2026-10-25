@@ -8,6 +8,8 @@ import {
   aggregatePastOrderProducts,
   classifyPacktischBucket,
   filterPastOrders,
+  formatOrderPickupLabel,
+  isOrderPickupTbd,
   normalizeNotifyChannels,
   summarizePacktischDashboard,
   wantsAnyReadyNotify,
@@ -24,9 +26,12 @@ describe('Packtisch Dashboard & Vergangene (Logik)', () => {
   it('ordnet Bestellungen in Dashboard-Buckets', () => {
     assert.equal(classifyPacktischBucket({ status: 'open', readyAt: '2026-10-24T10:00' }, today), 'due');
     assert.equal(classifyPacktischBucket({ status: 'open', readyAt: '2026-10-26T10:00' }, today), 'open');
+    assert.equal(classifyPacktischBucket({ status: 'open', pickupTbd: true }, today), 'due');
     assert.equal(classifyPacktischBucket({ status: 'in_progress', readyAt: '2026-10-26T10:00' }, today), 'in_progress');
     assert.equal(classifyPacktischBucket({ status: 'ready', readyAt: '2026-10-24T10:00' }, today), 'ready');
     assert.equal(classifyPacktischBucket({ status: 'picked_up' }, today), null);
+    assert.equal(isOrderPickupTbd({ pickupTbd: true }), true);
+    assert.equal(formatOrderPickupLabel({ pickupTbd: true }), 'noch absprechen');
   });
 
   it('summiert Dashboard-Zähler', () => {
@@ -123,7 +128,7 @@ describe('Packtisch Dashboard & Vergangene (Markup)', () => {
   it('rendert Dashboard und Bearbeiten/Notify-Flows im Frontend', () => {
     assert.match(customerOrders, /function renderPacktischDashboard/);
     assert.match(customerOrders, /function renderPastOrdersView/);
-    assert.match(customerOrders, /data-order-action="edit"/);
+    assert.match(customerOrders, /data-order-action="edit"|renderPacktischMoreItem\(\s*['"]edit['"]/);
     assert.match(customerOrders, /function openOrderEditModal/);
     assert.match(customerOrders, /function openOrderNotifyModal/);
     assert.match(customerOrders, /notifyChannels/);

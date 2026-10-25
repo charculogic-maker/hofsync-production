@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261025-packtisch-ux-v1';
+const CACHE_NAME = 'charculogic-v20261025-pickup-tbd-v1';
 
-const CACHE_SCHEMA = 'p0-packtisch-card-one-primary-oct2026';
-/** Release – Packtisch: 1 Primary Action, Mehr-Menü, Notiz-Akkordeon */
-const RELEASED_AT = '2026-10-25T12:15:00+02:00';
+const CACHE_SCHEMA = 'p0-packtisch-pickup-tbd-oct2026';
+/** Release – Packtisch: Abholdatum optional / Anfrage noch absprechen */
+const RELEASED_AT = '2026-10-25T12:30:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',
