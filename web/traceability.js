@@ -591,10 +591,19 @@ export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFu
   }
 }
 
-export function activateChargenDokuTab() {
+/**
+ * @param {{ panel?: 'capture' | 'book' }} [options]
+ */
+export function activateChargenDokuTab(options = {}) {
   bindChargenDokuSubnav();
   syncOriginFieldsVisibility();
-  setChargenDokuPanel('capture');
+  const panel = options?.panel === 'book' ? 'book' : 'capture';
+  setChargenDokuPanel(panel);
+}
+
+/** Deep-Link / Admin-Shortcut: Digitale Thekenklade (Buchansicht). */
+export function activateThekenbuchPanel() {
+  return activateChargenDokuTab({ panel: 'book' });
 }
 
 /**
@@ -914,7 +923,7 @@ function bindChargenDokuSubnav() {
   });
 }
 
-function setChargenDokuPanel(panelKey = 'capture') {
+export function setChargenDokuPanel(panelKey = 'capture') {
   const capture = document.getElementById('chargen-doku-panel-capture');
   const book = document.getElementById('chargen-doku-panel-book');
   const showBook = panelKey === 'book';

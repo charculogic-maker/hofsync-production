@@ -54,6 +54,7 @@ import {
 } from './haccp.js';
 import {
   activateChargenDokuTab,
+  activateThekenbuchPanel,
   initTraceabilityModule,
   stopChargenDokuBookView,
 } from './traceability.js';
@@ -1224,6 +1225,7 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
     const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
     const itemModuleMap = {
       haccp: isTenantModuleEnabled('haccp', branding),
+      thekenbuch: hasModule('chargenDoku', branding),
       knowledge: isTenantModuleEnabled('knowledge', branding),
       buero: isTenantModuleEnabled('buero', branding),
     };
@@ -3304,12 +3306,49 @@ function showPreferredStartTab() {
   return ensureActiveTabAllowed({ force: true });
 }
 
+/** Deep-Link: #thekenbuch / #thekenklade → Herkunft-Tab, Buchansicht. */
+function resolveChargenDokuPanelFromHash(hash = window.location.hash) {
+  const clean = String(hash || '').replace(/^#/, '').trim().toLowerCase();
+  if (!clean) return '';
+  if (
+    clean === 'thekenbuch'
+    || clean === 'thekenklade'
+    || clean === 'chargen-book'
+    || clean === 'herkunft-book'
+  ) {
+    return 'book';
+  }
+  if (clean === 'herkunft' || clean === 'chargen-doku' || clean === 'chargendoku') {
+    return 'capture';
+  }
+  return '';
+}
+
+function applyChargenDokuDeepLink() {
+  const panel = resolveChargenDokuPanelFromHash();
+  if (!panel) return false;
+  const opened = showTab('chargenDoku');
+  window.setTimeout(() => {
+    if (panel === 'book') activateThekenbuchPanel();
+    else activateChargenDokuTab({ panel: 'capture' });
+  }, 0);
+  return opened;
+}
+
 /** Genau einmal nach Auth: initialen Tab setzen. Daten-Loader dürfen das nicht aufrufen. */
 let __initialTabShown = false;
 function showInitialTab() {
   if (__initialTabShown) return getCurrentActiveTabId();
   __initialTabShown = true;
+  if (applyChargenDokuDeepLink()) return 'chargenDoku';
   return showPreferredStartTab();
+}
+
+if (typeof window !== 'undefined' && !window.__hofsyncChargenHashBound) {
+  window.__hofsyncChargenHashBound = true;
+  window.addEventListener('hashchange', () => {
+    if (resolveChargenDokuPanelFromHash()) applyChargenDokuDeepLink();
+  });
 }
 
 window.resolveDefaultBottomNavTab = resolveDefaultBottomNavTab;
@@ -4492,6 +4531,13 @@ const ADMIN_DROPDOWN_MODULES = {
     subtitle: 'Tageskontrollen',
     activate: () => activateHaccpTab(),
   },
+  thekenbuch: {
+    tabId: 'chargenDoku',
+    pageId: 'page-chargen-doku',
+    title: 'Thekenklade',
+    subtitle: 'Digitale Herkunft & LMIV',
+    activate: () => activateThekenbuchPanel(),
+  },
   knowledge: {
     tabId: 'knowledge',
     pageId: 'page-knowledge',
@@ -4825,7 +4871,7 @@ tabs.forEach(tab => {
       headerTitle.textContent = "Wareneingang";
     } else if (targetTab === 'chargenDoku') {
       showPage('page-chargen-doku');
-      headerTitle.textContent = "Doku";
+      headerTitle.textContent = "Herkunft";
     } else if (targetTab === 'kitchen') {
       showPage('page-kitchen');
       headerTitle.textContent = "Wurstküche";
@@ -4858,7 +4904,10 @@ tabs.forEach(tab => {
       if (targetTab === 'orders') activateOrdersHubTab();
       if (targetTab === 'mhd') await activateMhdTab();
       if (targetTab === 'receiving') await activateReceivingTab();
-      if (targetTab === 'chargenDoku') activateChargenDokuTab();
+      if (targetTab === 'chargenDoku') {
+        const panel = resolveChargenDokuPanelFromHash() || 'capture';
+        activateChargenDokuTab({ panel });
+      }
       if (targetTab === 'kitchen') activateKitchenTab();
       if (targetTab === 'avery') activateAveryLabelsTab();
       if (targetTab === 'haccp') activateHaccpTab();
@@ -5485,7 +5534,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-nutzer-mobil')
+    navigator.serviceWorker.register('./sw.js?v=20261025-thekenklade-sichtbar')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

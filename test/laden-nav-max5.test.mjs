@@ -1,5 +1,5 @@
 /**
- * Laden-Nav: max. 5 Primärslots — MHD · Neu · Packtisch · Doku · Mehr.
+ * Laden-Nav: max. 5 Primärslots — MHD · Neu · Packtisch · Herkunft · Mehr.
  */
 import { expect } from 'chai';
 import fs from 'node:fs';
@@ -19,7 +19,7 @@ describe('Laden-Nav max. 5', () => {
   const app = read('web/app.js');
   const sw = read('web/sw.js');
 
-  it('ordnet Primärtabs MHD · Neu · Packtisch · Doku vor Mehr', () => {
+  it('ordnet Primärtabs MHD · Neu · Packtisch · Herkunft vor Mehr', () => {
     const scrollMatch = html.match(/id="bottom-nav-scroll"([\s\S]*?)<\/div>\s*<div class="app-nav-zone app-nav-zone--admin/);
     expect(scrollMatch, 'bottom-nav-scroll block').to.be.ok;
     const block = scrollMatch[1];
@@ -67,9 +67,9 @@ describe('Laden-Nav max. 5', () => {
     expect(app).to.match(/BOTTOM_NAV_TAB_PRIORITY\s*=\s*\['mhd',\s*'receiving',\s*'orders',\s*'chargenDoku'/);
   });
 
-  it('bumpt den Service-Worker-Cache für nutzer-mobil', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-nutzer-mobil-v1'");
-    expect(app).to.include("sw.js?v=20261025-nutzer-mobil");
+  it('bumpt den Service-Worker-Cache für thekenklade-sichtbar', () => {
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-thekenklade-sichtbar-v1'");
+    expect(app).to.include("sw.js?v=20261025-thekenklade-sichtbar");
   });
 
   it('FOUC-Boot synchronisiert Mehr-Trigger', () => {

@@ -401,6 +401,7 @@
               </button>
               <div class="admin-header-dropdown-menu" id="admin-header-dropdown-menu" role="menu" hidden>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
+                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="thekenbuch">📒 Thekenklade</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Wissen</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro</button>
                 <a
@@ -575,6 +576,7 @@
                   <div class="dev-dashboard-overview-actions">
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="users">Zur Nutzerverwaltung</button>
                     <button type="button" class="dev-dashboard-action-btn" data-dev-jump="settings">Zu meinem Betrieb</button>
+                    <a class="dev-dashboard-action-btn" id="dev-dashboard-jump-thekenbuch" href="/#thekenbuch">Zur Thekenklade</a>
                   </div>
                 </section>
               </div>
@@ -2171,9 +2173,9 @@
           <!-- SCREEN: CHARGEN-DOKU / THEKENBUCH (LMIV)        -->
           <!-- ============================================== -->
           <div class="page" id="page-chargen-doku">
-            <div class="chargen-doku-subnav" role="tablist" aria-label="Chargen-Doku Bereiche">
+            <div class="chargen-doku-subnav" role="tablist" aria-label="Herkunft und Thekenklade">
               <button type="button" class="chargen-doku-subnav-btn is-active" role="tab" data-chargen-panel="capture" aria-selected="true">Erfassen</button>
-              <button type="button" class="chargen-doku-subnav-btn" role="tab" data-chargen-panel="book" aria-selected="false">Thekenbuch</button>
+              <button type="button" class="chargen-doku-subnav-btn" role="tab" data-chargen-panel="book" aria-selected="false">Thekenklade</button>
             </div>
 
             <div id="chargen-doku-panel-capture" class="chargen-doku-panel">
@@ -3217,9 +3219,9 @@
                 <i>🛒</i>
                 <span>Packtisch</span>
               </button>
-              <button class="nav-item" data-tab="chargenDoku" data-nav-slot="primary" id="tab-chargen-doku" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')">
-                <i>🏷️</i>
-                <span>Doku</span>
+              <button class="nav-item" data-tab="chargenDoku" data-nav-slot="primary" id="tab-chargen-doku" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('chargenDoku')" aria-label="Herkunft und Thekenklade">
+                <i>📒</i>
+                <span>Herkunft</span>
               </button>
               <div class="mehr-nav-accordion" id="mehr-nav-accordion" hidden>
                 <div class="mehr-nav-popover" id="mehr-nav-popover" hidden role="menu" aria-label="Weitere Bereiche">
