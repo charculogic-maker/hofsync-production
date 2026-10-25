@@ -20,37 +20,6 @@ const OPEN_STATUSES = new Set(['open', 'in_progress', 'ordered']);
 export const QUICK_BUTTON_MIN_USES = 2;
 
 /**
- * Feste 1-Tap-Standardchips für den Betriebsalltag (Wet-Finger UX).
- * Erscheinen immer, auch ohne Stammdaten – Katalog-Einträge überschreiben gleiches Label.
- */
-export const DEFAULT_QUICK_BUTTONS = [
-  {
-    label: 'Siegelrandbeutel klein',
-    category: 'verbrauchsmaterial',
-    departmentTarget: 'laden',
-    urgencyDefault: 'nachbestellen',
-  },
-  {
-    label: 'Kassenrollen',
-    category: 'verbrauchsmaterial',
-    departmentTarget: 'laden',
-    urgencyDefault: 'nachbestellen',
-  },
-  {
-    label: 'Handtuchpapier',
-    category: 'verbrauchsmaterial',
-    departmentTarget: 'laden',
-    urgencyDefault: 'nachbestellen',
-  },
-  {
-    label: 'Wurstdärme',
-    category: 'verbrauchsmaterial',
-    departmentTarget: 'metzgerei',
-    urgencyDefault: 'nachbestellen',
-  },
-];
-
-/**
  * Bedarfs-Art (Herkunft) – steuert auch, wer die Meldung sieht (departmentTarget).
  */
 export const SUPPLY_CATEGORY_OPTIONS = [
@@ -244,38 +213,11 @@ export function getQuickButtonCatalogItems(catalog = alertState.catalog) {
 }
 
 /**
- * Stammdaten-Schnellbuttons + feste Standardchips (ohne Duplikate nach Label-Key).
+ * Nur Schnell-Buttons aus Stammdaten (keine vorgefertigten Standardchips).
+ * Alias zu getQuickButtonCatalogItems für bestehende Aufrufer.
  */
 export function resolveQuickAlertButtons(catalog = alertState.catalog) {
-  const fromCatalog = getQuickButtonCatalogItems(catalog);
-  const byKey = new Map();
-  fromCatalog.forEach((item) => {
-    const key = catalogKeyFromLabel(item.label);
-    if (key) byKey.set(key, item);
-  });
-  DEFAULT_QUICK_BUTTONS.forEach((seed) => {
-    const key = catalogKeyFromLabel(seed.label);
-    if (!key || byKey.has(key)) return;
-    byKey.set(key, {
-      id: key,
-      label: seed.label,
-      normalizedKey: key,
-      category: seed.category,
-      departmentTarget: seed.departmentTarget,
-      urgencyDefault: seed.urgencyDefault,
-      useCount: 0,
-      quickEnabled: true,
-      active: true,
-      isDefaultSeed: true,
-    });
-  });
-  return [...byKey.values()].sort((a, b) => {
-    if (Boolean(a.isDefaultSeed) !== Boolean(b.isDefaultSeed)) {
-      return a.isDefaultSeed ? 1 : -1;
-    }
-    if (b.useCount !== a.useCount) return b.useCount - a.useCount;
-    return a.label.localeCompare(b.label, 'de', { sensitivity: 'base' });
-  });
+  return getQuickButtonCatalogItems(catalog);
 }
 
 export function getSupplyCatalogItems() {
@@ -586,22 +528,14 @@ function renderQuickButtonGrid() {
   }
 
   if (empty) empty.hidden = true;
-  const catalogCount = items.filter((item) => !item.isDefaultSeed).length;
-  const seedCount = items.length - catalogCount;
   if (hint) {
     hint.hidden = false;
-    if (catalogCount && seedCount) {
-      hint.textContent = `${catalogCount} aus Stammdaten · ${seedCount} Standard`;
-    } else if (catalogCount) {
-      hint.textContent = `${catalogCount} Schnell-Button${catalogCount === 1 ? '' : 's'} aus Stammdaten`;
-    } else {
-      hint.textContent = '1-Tap-Standards – tippen genügt';
-    }
+    hint.textContent = `${items.length} Schnell-Button${items.length === 1 ? '' : 's'} aus Stammdaten`;
   }
   host.innerHTML = items.map((item) => `
     <button
       type="button"
-      class="quick-alert-tile${item.isDefaultSeed ? ' quick-alert-tile--seed' : ''}"
+      class="quick-alert-tile"
       data-quick-alert-item="1"
       data-catalog-id="${escapeHtml(item.id)}"
       data-title="${escapeHtml(item.label)}"

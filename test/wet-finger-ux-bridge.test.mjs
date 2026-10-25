@@ -47,9 +47,10 @@ describe('Wet-Finger UX Bridge', () => {
     expect(styleCss).to.match(/\.btn-mhd-action\.btn-mhd-soldout\s*\{[\s\S]*?#94a3b8/);
   });
 
-  it('seeds Bedarf 1-Tap standards and bumps SW cache', () => {
-    expect(quickAlertJs).to.match(/DEFAULT_QUICK_BUTTONS/);
+  it('keeps Bedarf freitext-first without hardcoded 1-Tap seeds', () => {
+    expect(quickAlertJs).to.not.match(/DEFAULT_QUICK_BUTTONS/);
     expect(quickAlertJs).to.match(/resolveQuickAlertButtons/);
-    expect(swJs).to.match(/wet-finger-ux/);
+    expect(quickAlertJs).to.match(/getQuickButtonCatalogItems/);
+    expect(swJs).to.match(/charculogic-v\d{8}-/);
   });
 });
