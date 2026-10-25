@@ -157,6 +157,7 @@ import {
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
+  ACCESS_MODULE_TO_TAB,
   applyEffectiveModulesToBranding,
   effectiveModulesEqual,
   hasAnyAdminModuleEnabled,
@@ -164,9 +165,12 @@ import {
   isKitchenModuleVisibleForSession,
   isTenantModuleEnabled,
   loadTenantEnabledModules,
+  normalizeRoleModuleDefaults,
+  normalizeTenantRoleForModules,
   publishEffectiveModules,
   readActiveEmployeeFromStorage,
   readCachedEffectiveModules,
+  resolveAccessModules,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
 import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
@@ -3119,21 +3123,69 @@ window.ensureActiveTabAllowed = ensureActiveTabAllowed;
 window.showPreferredStartTab = showPreferredStartTab;
 window.showInitialTab = showInitialTab;
 
-function resolveFirebaseEmployeeAllowedTabs(authSession) {
-  const allowed = authSession?.profile?.allowedModules
-    || authSession?.claims?.allowedModules
-    || null;
-  if (!allowed || typeof allowed !== 'object') {
-    return new Set(['mhd', 'receiving', 'chargenDoku', 'haccp']);
-  }
-  const tabs = new Set(['chargenDoku', 'haccp']);
-  if (allowed.mhd !== false) tabs.add('mhd');
-  if (allowed.kitchen !== false) tabs.add('kitchen');
-  if (allowed.averyLabels !== false && allowed.avery !== false) tabs.add('avery');
-  if (allowed.buero !== false) tabs.add('batches');
-  if (allowed.haccp === false) tabs.delete('haccp');
+/**
+ * Session-Zugriff Tenant ∩ Rolle ∩ Nutzer → erlaubte Tab-IDs.
+ * @param {object|null|undefined} authSession
+ * @returns {Set<string>}
+ */
+function resolveSessionAllowedTabs(authSession) {
+  const branding = window.BRANDING || {};
+  const role = normalizeTenantRoleForModules(
+    authSession?.role
+      || (authSession?.isHelper || isHelperUser() ? 'helper' : '')
+      || (isOfficeUser(authSession) ? 'admin' : 'employee'),
+  );
+  const access = resolveAccessModules({
+    tenantModules: {
+      ...(branding.modules || {}),
+      ...(branding.enabledModules || {}),
+    },
+    role,
+    roleModuleDefaults: window.__hofsyncRoleModuleDefaults || null,
+    allowedModules: authSession?.profile?.allowedModules
+      || authSession?.claims?.allowedModules
+      || null,
+  });
+  const tabs = new Set();
+  Object.entries(ACCESS_MODULE_TO_TAB).forEach(([accessKey, tabId]) => {
+    if (access[accessKey] === true) tabs.add(tabId);
+  });
   return tabs;
 }
+
+/** @deprecated Prefer resolveSessionAllowedTabs — kept for older call sites. */
+function resolveFirebaseEmployeeAllowedTabs(authSession) {
+  return resolveSessionAllowedTabs(authSession);
+}
+
+/**
+ * Lädt Rollen-Modul-Defaults aus settings/role_modules (Tenant-Admin).
+ * @param {FirebaseFirestore|null|undefined} db
+ * @param {string} tenantId
+ * @returns {Promise<Record<string, Record<string, boolean>>>}
+ */
+async function loadRoleModuleDefaults(db, tenantId) {
+  const fallback = normalizeRoleModuleDefaults(null);
+  if (!db || !tenantId) {
+    window.__hofsyncRoleModuleDefaults = fallback;
+    return fallback;
+  }
+  try {
+    const snap = await db.collection('tenants').doc(tenantId)
+      .collection('settings').doc('role_modules').get();
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const normalized = normalizeRoleModuleDefaults(data);
+    window.__hofsyncRoleModuleDefaults = normalized;
+    return normalized;
+  } catch (err) {
+    console.warn('[CharcuLogic] role_modules konnten nicht geladen werden:', err);
+    window.__hofsyncRoleModuleDefaults = fallback;
+    return fallback;
+  }
+}
+
+window.loadRoleModuleDefaults = loadRoleModuleDefaults;
+window.resolveSessionAllowedTabs = resolveSessionAllowedTabs;
 
 function applyRoleBasedUi(authSession) {
   const isHelper = authSession?.isHelper || isHelperUser();
@@ -3151,16 +3203,21 @@ function applyRoleBasedUi(authSession) {
   // Zuerst Modul-Sichtbarkeit — verhindert Zwischenframe mit allen Tabs.
   applyModuleVisibility(window.BRANDING || {});
 
-  // HACCP bewusst NICHT in helperHiddenTabs — Tageskontrollen für alle Rollen / Terminal.
-  const helperHiddenTabs = new Set(['team', 'orders', 'receiving', 'kitchen', 'avery', 'knowledge', 'cuts', 'batches']);
-  const firebaseEmployeeTabs = resolveFirebaseEmployeeAllowedTabs(authSession);
-  const haccpModuleOn = isModuleEnabledForUi('haccp', window.BRANDING || {});
+  const sessionTabs = resolveSessionAllowedTabs(authSession);
+  const haccpModuleOn = isModuleEnabledForUi('haccp', window.BRANDING || {})
+    && sessionTabs.has('haccp');
 
   document.querySelectorAll('.nav-item[data-tab]').forEach((tab) => {
     if (tab.hidden || tab.style.display === 'none') return;
     const tabId = tab.getAttribute('data-tab');
-    if (tabId === 'batches') return;
-    // HACCP: nie per Rollen-Filter ausblenden, solange das Modul freigeschaltet ist.
+    if (tabId === 'batches') {
+      // Büro-Tab: Tenant + Rolle/Nutzer + Office-Login (bestehende Regel in applyModuleVisibility).
+      if (!sessionTabs.has('batches')) {
+        tab.style.display = 'none';
+        tab.hidden = true;
+      }
+      return;
+    }
     if (tabId === 'haccp') {
       tab.style.display = haccpModuleOn ? '' : 'none';
       tab.hidden = !haccpModuleOn;
@@ -3170,12 +3227,10 @@ function applyRoleBasedUi(authSession) {
       tab.style.display = 'none';
       return;
     }
-    if (firebaseRoleAuth && authSession?.role === 'employee' && !isOffice) {
-      tab.style.display = firebaseEmployeeTabs.has(tabId) ? '' : 'none';
-      return;
+    if (!sessionTabs.has(tabId)) {
+      tab.style.display = 'none';
+      tab.hidden = true;
     }
-    const hideForHelper = isHelper && helperHiddenTabs.has(tabId);
-    if (hideForHelper) tab.style.display = 'none';
   });
 
   if (firebaseRoleAuth) {
@@ -5370,6 +5425,7 @@ async function bootstrapAuthenticatedApp() {
   bootCachedModuleVisibility();
   setGlobalTenantId(authSession.tenantId);
   await loadTenantEnabledModules(db, authSession.tenantId);
+  await loadRoleModuleDefaults(db, authSession.tenantId);
   await loadTenantShopSettings(db, authSession.tenantId);
   window.__hofsyncModulesPending = false;
   applyFixedTerminalSettings();
@@ -5394,6 +5450,7 @@ async function bootstrapAuthenticatedApp() {
     if (nextSession?.tenantId) {
       setGlobalTenantId(nextSession.tenantId);
       void loadTenantEnabledModules(db, nextSession.tenantId)
+        .then(() => loadRoleModuleDefaults(db, nextSession.tenantId))
         .then(() => loadTenantShopSettings(db, nextSession.tenantId))
         .then(() => {
           window.__hofsyncModulesPending = false;

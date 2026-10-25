@@ -557,8 +557,8 @@
                       <div>
                         <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
                         <p class="dev-dashboard-intro">
-                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe) und neue Zugänge anlegen.
-                          Module gehören zum Betrieb — nicht zu einzelnen Nutzern.
+                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe) und Module je Person
+                          einschränken. Der Betrieb gibt die Decke vor — Rolle und Nutzer können nur weniger freigeben.
                         </p>
                       </div>
                       <label class="dev-dashboard-tenant-select-field" id="dev-dashboard-tenant-select-wrap" hidden>
@@ -578,6 +578,7 @@
                           <option value="all">Alle</option>
                           <option value="employee">Mitarbeiter</option>
                           <option value="admin">Admin</option>
+                          <option value="helper">Aushilfe</option>
                         </select>
                       </label>
                       <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-invite-open-btn">
@@ -623,6 +624,7 @@
                               <tr>
                                 <th scope="col">Person</th>
                                 <th scope="col">Rolle</th>
+                                <th scope="col">Module</th>
                                 <th scope="col">Aktionen</th>
                               </tr>
                             </thead>
@@ -701,6 +703,24 @@
                           role="list"
                           aria-live="polite"
                         ></div>
+                      </fieldset>
+                      <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-role-modules">
+                        <legend>Module je Rolle</legend>
+                        <p class="dev-dashboard-intro" id="dev-dashboard-role-modules-hint">
+                          Welche Bereiche Admin, Mitarbeiter und Aushilfe standardmäßig sehen.
+                          Einzelne Nutzer können darunter weiter eingeschränkt werden.
+                        </p>
+                        <div
+                          class="dev-dashboard-role-modules-grid"
+                          id="dev-dashboard-role-modules-grid"
+                          aria-live="polite"
+                        ></div>
+                        <div class="dev-dashboard-form-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-role-modules-save">
+                            Rollen-Module speichern
+                          </button>
+                        </div>
+                        <p class="dev-dashboard-employee-status" id="dev-dashboard-role-modules-status" aria-live="polite"></p>
                       </fieldset>
                       <fieldset class="dev-dashboard-permissions-fieldset">
                         <legend>MHD-Karten-Aktionen</legend>
