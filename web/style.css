@@ -16377,6 +16377,25 @@ body.role-firebase-auth #team-login-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
+.bedarf-module-list .supply-alert-item--status-open {
+  border-left: 3px solid #94a3b8;
+}
+
+.bedarf-module-list .supply-alert-item--status-in_progress {
+  border-left: 3px solid #2563eb;
+  background: color-mix(in srgb, #2563eb 8%, #fff);
+}
+
+.bedarf-module-list .supply-alert-item--status-ordered {
+  border-left: 3px solid #d97706;
+  background: color-mix(in srgb, #d97706 14%, #fff);
+}
+
+.bedarf-module-list .supply-alert-item--status-done {
+  border-left: 3px solid #16a34a;
+  background: color-mix(in srgb, #16a34a 10%, #fff);
+}
+
 .supply-alert-list {
   list-style: none;
   margin: 0;
