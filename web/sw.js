@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261026-bedarf-status-v1';
+const CACHE_NAME = 'charculogic-v20261026-avery-sync-rand-v1';
 
-const CACHE_SCHEMA = 'p0-bedarf-status-oct2026';
-/** Release – Bedarf Status Bestellt/Erledigt sichtbar */
-const RELEASED_AT = '2026-10-26T12:40:00+02:00';
+const CACHE_SCHEMA = 'p0-avery-sync-rand-oct2026';
+/** Release – Avery Phone↔PC Sync + Druckränder */
+const RELEASED_AT = '2026-10-26T14:10:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

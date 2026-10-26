@@ -1,6 +1,7 @@
 /**
  * Avery 3475 Modul — PLU-Katalog, Trimmings, Freifeld, Plain-Text, Sheet-Planung.
  */
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 import {
@@ -94,6 +95,26 @@ describe('Avery 3475 labels module', () => {
     expect(parsed.totalLabels).to.equal(4 + 2 + 3 + 6 + 1);
     expect(parsed.items.find((i) => i.name === 'Picanha')?.cut).to.equal(null);
     expect(parsed.items.find((i) => i.plu === '514')?.cut?.id).to.equal('rue-514');
+  });
+
+  it('shares drafts via merge-update (no op:set createdAt clash)', () => {
+    const source = readFileSync(
+      new URL('../web/avery-labels.js', import.meta.url),
+      'utf8',
+    );
+    const rules = readFileSync(
+      new URL('../firebase.rules', import.meta.url),
+      'utf8',
+    );
+    expect(source).to.match(/AVERY_DRAFT_COLLECTION/);
+    expect(rules).to.match(/match \/tenants\/\{tenantId\}\/averyDrafts/);
+    expect(rules).to.match(/'createdAt'/);
+    const flushBlock = source.slice(
+      source.indexOf('async function flushAveryDraftToCloud'),
+      source.indexOf('function scheduleAveryDraftCloudWrite'),
+    );
+    expect(flushBlock).to.match(/writeFirestoreDocOrQueue\(\{[\s\S]*?op:\s*'update'/);
+    expect(flushBlock).to.not.match(/writeFirestoreDocOrQueue\(\{[\s\S]*?op:\s*'set'/);
   });
 
   it('serializes and applies shared Phone↔PC draft payloads', () => {
