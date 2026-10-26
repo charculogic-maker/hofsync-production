@@ -95,3 +95,24 @@ describe('catalogKeyFromLabel helpers (source contract)', () => {
     expect(source).to.match(/normalize\('NFD'\)/);
   });
 });
+
+describe('Bedarf status visibility (Bestellt / Erledigt)', () => {
+  const quickAlertJs = read('web/quick-alert.js');
+  const styleCss = read('web/style.css');
+
+  it('marks ordered cards and active Bestellt control in markup', () => {
+    expect(quickAlertJs).to.match(/supply-alert-item--status-\$/);
+    expect(quickAlertJs).to.match(/supply-alert-status--\$/);
+    expect(quickAlertJs).to.match(/aria-pressed=/);
+    expect(quickAlertJs).to.match(/✓ Bestellt/);
+    expect(quickAlertJs).to.match(/export function supplyAlertStatusClass/);
+    expect(quickAlertJs).to.match(/bestellt/);
+  });
+
+  it('styles ordered vs open states distinctly', () => {
+    expect(styleCss).to.match(/\.supply-alert-item--status-ordered/);
+    expect(styleCss).to.match(/\.supply-alert-status--ordered/);
+    expect(styleCss).to.match(/\.supply-alert-action--ordered\.is-active/);
+    expect(styleCss).to.match(/\.supply-alert-action--done\.is-next/);
+  });
+});

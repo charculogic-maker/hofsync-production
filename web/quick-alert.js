@@ -120,6 +120,13 @@ function statusLabel(status) {
   return 'Offen';
 }
 
+/** CSS-/aria-Statusklasse für Inbox-Karten (open | in_progress | ordered | done). */
+export function supplyAlertStatusClass(status) {
+  const normalized = String(status || 'open').toLowerCase();
+  if (OPEN_STATUSES.has(normalized) || normalized === 'done') return normalized;
+  return 'open';
+}
+
 function categoryLabel(value) {
   const match = SUPPLY_CATEGORY_OPTIONS.find((entry) => entry.value === value);
   return match?.label || value || 'Sonstiges';
@@ -627,19 +634,30 @@ function updateSupplyAlertBadge(count = 0) {
 }
 
 function buildSupplyAlertListItem(alert, employeeName) {
+  const status = supplyAlertStatusClass(alert.status);
+  const isOrdered = status === 'ordered';
+  const isInProgress = status === 'in_progress';
+  const orderedPressed = isOrdered ? 'true' : 'false';
+  const orderedClass = isOrdered
+    ? 'supply-alert-action supply-alert-action--ordered is-active'
+    : 'supply-alert-action supply-alert-action--ordered';
+  const orderedLabel = isOrdered ? '✓ Bestellt' : 'Bestellt';
   const actions = canResolveAlert(alert, employeeName)
     ? `
       <span class="supply-alert-actions">
-        <button type="button" class="supply-alert-action" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}">Bestellt</button>
-        <button type="button" class="supply-alert-action supply-alert-action--done" data-supply-alert-status="done" data-alert-id="${escapeHtml(alert.id)}">Erledigt</button>
+        <button type="button" class="${orderedClass}" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}" aria-pressed="${orderedPressed}"${isOrdered ? ' disabled' : ''}>${orderedLabel}</button>
+        <button type="button" class="supply-alert-action supply-alert-action--done${isOrdered || isInProgress ? ' is-next' : ''}" data-supply-alert-status="done" data-alert-id="${escapeHtml(alert.id)}">Erledigt</button>
       </span>
     `
     : '';
   return `
-    <li class="supply-alert-item supply-alert-item--${escapeHtml(alert.urgency)}">
+    <li class="supply-alert-item supply-alert-item--${escapeHtml(alert.urgency || '')} supply-alert-item--status-${escapeHtml(status)}" data-supply-status="${escapeHtml(status)}">
       <div class="supply-alert-item-main">
-        <strong>${escapeHtml(alert.title)}</strong>
-        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(statusLabel(alert.status))} · ${escapeHtml(categoryLabel(alert.category))}</span>
+        <div class="supply-alert-item-title-row">
+          <strong>${escapeHtml(alert.title)}</strong>
+          <span class="supply-alert-status supply-alert-status--${escapeHtml(status)}" aria-label="Status: ${escapeHtml(statusLabel(status))}">${escapeHtml(statusLabel(status))}</span>
+        </div>
+        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(categoryLabel(alert.category))}</span>
       </div>
       ${actions}
     </li>
@@ -679,9 +697,15 @@ function renderSupplyAlertInbox() {
 
   if (statusEl) {
     const canResolve = visible.some((alert) => canResolveAlert(alert, employee));
+    const orderedCount = visible.filter((alert) => alert.status === 'ordered').length;
+    const openCount = count - orderedCount;
+    const parts = [];
+    if (openCount > 0) parts.push(`${openCount} offen`);
+    if (orderedCount > 0) parts.push(`${orderedCount} bestellt`);
+    const summary = parts.join(' · ') || `${count} Meldungen`;
     statusEl.textContent = canResolve
-      ? `${count} offen – tippe Bestellt oder Erledigt`
-      : `${count} offen`;
+      ? `${summary} – tippe Bestellt oder Erledigt`
+      : summary;
   }
   inbox.innerHTML = visible.map((alert) => buildSupplyAlertListItem(alert, employee)).join('');
 }
