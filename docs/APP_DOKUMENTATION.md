@@ -327,13 +327,27 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 
 Login schlägt fehl ohne `tenantId` **und** `role` in den Custom Claims.
 
+### Claims ↔ sichtbare Tabs (B.4)
+
+Kanone: [`docs/CLAIMS_TABS_MAPPING.md`](./CLAIMS_TABS_MAPPING.md) und `resolveTabsForClaimRole` in `web/tenant-modules.js`.
+
+Auflösung: **Tenant.enabledModules ∩ role_modules[role] ∩ allowedModules** → Tab-IDs → `applyRoleBasedUi`.
+
+| Unterschied Employee vs Admin (Code-Default, alle Module an) | Employee | Admin |
+|--------------------------------------------------------------|:--------:|:-----:|
+| Primärtabs MHD · Neu · Packtisch · Herkunft | ✅ | ✅ |
+| Mehr: Start · Team · HACCP · Prod. · Etiketten | ✅ | ✅ |
+| Wissen (`knowledge`) | ❌ | ✅ |
+| Büro (`batches`) | ❌ | ✅ |
+
+Helper zusätzlich ohne Neu / Packtisch / Team / Prod. / Etiketten / Wissen / Büro (siehe Matrix in der Claims-Doku).
+
 ### UI-Filter (`applyRoleBasedUi` in `web/app.js`)
 
 | Element | Helper | Employee | Admin (Büro) |
 |---------|--------|----------|----------------|
-| Tabs team, receiving, kitchen, batches | ausgeblendet | — | — |
-| Tab HACCP bei StevesHof | **sichtbar** (Ausnahme) | sichtbar | sichtbar |
-| Tab Büro bei StevesHof | ausgeblendet | ausgeblendet | sichtbar |
+| Tabs team, receiving, kitchen, batches | ausgeblendet | batches ausgeblendet | batches sichtbar |
+| Tab Wissen | ausgeblendet | ausgeblendet | sichtbar (wenn Modul an) |
 | Stammdaten, KI-Lieferschein, Office-Tools | ausgeblendet | ausgeblendet | sichtbar |
 | MHD Speichern-Leiste | ausgeblendet | sichtbar | sichtbar |
 | WRS „Preise aktualisieren“ | ausgeblendet | ausgeblendet | sichtbar |

@@ -30,7 +30,7 @@ describe('Catalog EAN timeout (finalize guard)', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261025-finalize-catalog-timeout-v1'");
-    expect(app).to.include('sw.js?v=20261025-finalize-catalog-timeout');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261026-claims-tabs-mapping-v1'");
+    expect(app).to.include('sw.js?v=20261026-claims-tabs-mapping');
   });
 });
