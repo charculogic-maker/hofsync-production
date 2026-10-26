@@ -76,28 +76,58 @@ function indexCatalogEanDoc(data, docId, byArticle, byName, ambiguousNames) {
   });
 }
 
+/** Lie-Fi Schutz: Stammdaten-GETs dürfen finalizeDelivery nicht blockieren. */
+const CATALOG_READ_TIMEOUT_MS = 3500;
+
+class CatalogReadTimeoutError extends Error {
+  constructor(collectionName, ms) {
+    super(`EAN-Katalog (${collectionName}) hat nach ${ms}ms nicht geantwortet.`);
+    this.name = 'CatalogReadTimeoutError';
+    this.code = 'catalog-read-timeout';
+    this.collectionName = collectionName;
+  }
+}
+
+function withCatalogReadTimeout(promise, collectionName, ms = CATALOG_READ_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new CatalogReadTimeoutError(collectionName, ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function loadCatalogCollectionSnap(collectionName, limit) {
+  try {
+    return await withCatalogReadTimeout(
+      getTenantCollection(collectionName).limit(limit).get(),
+      collectionName,
+    );
+  } catch (err) {
+    console.warn(`[HofSync] ${collectionName} für EAN-Abgleich nicht lesbar:`, err);
+    return null;
+  }
+}
+
 /** Lädt einen Index byArticle/byName aus stammdaten + product_master. */
 export async function loadCatalogEanIndex() {
   const byArticle = new Map();
   const byName = new Map();
   const ambiguousNames = new Set();
-  try {
-    const snap = await getTenantCollection('stammdaten').limit(400).get();
-    snap.forEach((doc) => {
-      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
-    });
-  } catch (err) {
-    console.warn('[HofSync] Stammdaten für EAN-Abgleich nicht lesbar:', err);
-  }
+
+  // Parallel + per-read timeout: finalize waits at most ~3.5s, not 7s stacked.
+  const [stammdatenSnap, productMasterSnap] = await Promise.all([
+    loadCatalogCollectionSnap('stammdaten', 400),
+    loadCatalogCollectionSnap('product_master', 500),
+  ]);
+
+  stammdatenSnap?.forEach((doc) => {
+    indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
+  });
   // Manuell gelernte EANs aus dem Wareneingang (product_master).
-  try {
-    const snap = await getTenantCollection('product_master').limit(500).get();
-    snap.forEach((doc) => {
-      indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
-    });
-  } catch (err) {
-    console.warn('[HofSync] product_master für EAN-Abgleich nicht lesbar:', err);
-  }
+  productMasterSnap?.forEach((doc) => {
+    indexCatalogEanDoc(doc.data() || {}, doc.id, byArticle, byName, ambiguousNames);
+  });
+
   ambiguousNames.forEach((folded) => byName.delete(folded));
   return { byArticle, byName };
 }
