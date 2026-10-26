@@ -159,7 +159,6 @@ import {
 import { initAppCheckModule, waitForAppCheckReady } from './app-check.js';
 import { areLocalFirebaseEmulatorsAttached } from './firebase-emulator.js';
 import {
-  ACCESS_MODULE_TO_TAB,
   applyEffectiveModulesToBranding,
   effectiveModulesEqual,
   hasAnyAdminModuleEnabled,
@@ -172,7 +171,7 @@ import {
   publishEffectiveModules,
   readActiveEmployeeFromStorage,
   readCachedEffectiveModules,
-  resolveAccessModules,
+  resolveTabsForClaimRole,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
 import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
@@ -3410,22 +3409,16 @@ function resolveSessionAllowedTabs(authSession) {
       || (authSession?.isHelper || isHelperUser() ? 'helper' : '')
       || (isOfficeUser(authSession) ? 'admin' : 'employee'),
   );
-  const access = resolveAccessModules({
+  return new Set(resolveTabsForClaimRole(role, {
     tenantModules: {
       ...(branding.modules || {}),
       ...(branding.enabledModules || {}),
     },
-    role,
     roleModuleDefaults: window.__hofsyncRoleModuleDefaults || null,
     allowedModules: authSession?.profile?.allowedModules
       || authSession?.claims?.allowedModules
       || null,
-  });
-  const tabs = new Set();
-  Object.entries(ACCESS_MODULE_TO_TAB).forEach(([accessKey, tabId]) => {
-    if (access[accessKey] === true) tabs.add(tabId);
-  });
-  return tabs;
+  }));
 }
 
 /** @deprecated Prefer resolveSessionAllowedTabs — kept for older call sites. */
@@ -5604,7 +5597,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261025-finalize-catalog-timeout')
+    navigator.serviceWorker.register('./sw.js?v=20261026-claims-tabs-mapping')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

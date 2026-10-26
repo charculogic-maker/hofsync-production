@@ -405,6 +405,36 @@ export function resolveAccessModules(options = {}) {
 }
 
 /**
+ * Sichtbare Bottom-/App-Tab-IDs aus Custom-Claim-Rolle (Tenant ∩ Rolle ∩ Nutzer).
+ * Spiegel der Session-Logik hinter `resolveSessionAllowedTabs` in `app.js`.
+ * `retterBox` hat keinen Nav-Tab und erscheint hier nicht.
+ *
+ * @param {string} role Claim-Rolle (`admin` | `employee` | `helper` | Alias)
+ * @param {{
+ *   tenantModules?: Record<string, boolean>|null,
+ *   roleModuleDefaults?: Record<string, Record<string, boolean>>|null,
+ *   allowedModules?: Record<string, boolean>|null,
+ * }} [options]
+ * @returns {string[]} Tab-IDs in ACCESS_MODULE_KEYS-Reihenfolge
+ */
+export function resolveTabsForClaimRole(role, options = {}) {
+  const access = resolveAccessModules({
+    tenantModules: options.tenantModules,
+    role,
+    roleModuleDefaults: options.roleModuleDefaults,
+    allowedModules: options.allowedModules,
+  });
+  /** @type {string[]} */
+  const tabs = [];
+  ACCESS_MODULE_KEYS.forEach((key) => {
+    if (access[key] !== true) return;
+    const tabId = ACCESS_MODULE_TO_TAB[key];
+    if (tabId) tabs.push(tabId);
+  });
+  return tabs;
+}
+
+/**
  * Wendet Rollen-/Nutzer-Zugriff auf eine Modul-Map an (lokal, kein Cache).
  * @param {Record<string, boolean>|null|undefined} modules
  * @param {{
@@ -842,6 +872,7 @@ if (typeof window !== 'undefined') {
   window.resolveEmployeeKitchenAccess = resolveEmployeeKitchenAccess;
   window.applySessionKitchenModuleOverride = applySessionKitchenModuleOverride;
   window.resolveAccessModules = resolveAccessModules;
+  window.resolveTabsForClaimRole = resolveTabsForClaimRole;
   window.applySessionAccessModuleOverride = applySessionAccessModuleOverride;
   window.normalizeAccessModuleMap = normalizeAccessModuleMap;
   window.normalizeRoleModuleDefaults = normalizeRoleModuleDefaults;
