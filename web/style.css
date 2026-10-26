@@ -420,6 +420,75 @@ h1, h2, h3, h4,
   z-index: 110;
 }
 
+/* Kopfzeilen-Overflow: Darstellung / Refresh / Version */
+.header-tools-dropdown {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.header-tools-trigger {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--header-text, #fff);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.header-tools-trigger:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.header-tools-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface-color, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  z-index: 120;
+}
+
+.header-tools-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color, #1e293b);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header-tools-item:active,
+.header-tools-item:hover {
+  background: var(--primary-alpha-08, rgba(0, 0, 0, 0.06));
+}
+
+.header-tools-dropdown.is-open .header-tools-trigger {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Mobile-first: Sekundäraktionen (Theme/Refresh/Version) hinter ⋯ */
+.app-header-actions .header-action--secondary {
+  display: none;
+}
+
 .header-action-btn {
   min-height: 28px;
   padding: 0 9px;
@@ -8520,7 +8589,16 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
   .app-header-actions {
     max-width: none;
     flex: 0 0 auto;
-    gap: 4px;
+    gap: 6px;
+  }
+
+  /* Laden-Headline: Titel atmen lassen — Sekundäraktionen hinter ⋯ */
+  .app-header-actions .header-action--secondary {
+    display: none !important;
+  }
+
+  .header-tools-dropdown {
+    display: block;
   }
 
   .tenant-header {
@@ -8530,13 +8608,19 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 
   .tenant-header-name,
   .app-subtitle {
-    font-size: 10px;
-    letter-spacing: 0.6px;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    max-width: 100%;
   }
 
   .tenant-header-page,
   .app-header h1 {
-    font-size: 17px;
+    font-size: 18px;
+  }
+
+  .app-update-info {
+    font-size: 11px;
+    padding: 4px 12px;
   }
 
   .app-badge {
@@ -9220,6 +9304,17 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 
   .app-version-badge--footer .app-version-status {
     display: none;
+  }
+}
+
+/* Desktop/Tablet: ⋯-Menü aus, Sekundäraktionen sichtbar */
+@media (min-width: 769px) {
+  .header-tools-dropdown {
+    display: none;
+  }
+
+  .app-header-actions .header-action--secondary {
+    display: inline-flex;
   }
 }
 

@@ -190,14 +190,25 @@ export function isPlatformSuperAdmin(user, authContext = null) {
 }
 
 /**
- * Tenant-Admin = Claim-Rolle admin / isAdmin, oder Plattform-Super-Admin.
+ * Betriebs-Admin = Claim-Rolle admin / isAdmin (ohne Plattform-Super-Admin).
+ * @param {{ email?: string, uid?: string }|null|undefined} user
+ * @param {{ role?: string, isAdmin?: boolean, tenantId?: string }|null|undefined} authContext
+ * @returns {boolean}
+ */
+export function isBetriebsAdmin(user, authContext = null) {
+  if (isPlatformSuperAdmin(user, authContext)) return false;
+  return authContext?.role === TENANT_ADMIN_ROLE || authContext?.isAdmin === true;
+}
+
+/**
+ * Dashboard-Zugang: Betriebs-Admin oder Plattform-Super-Admin.
+ * UI trennt beide über `isPlatformSuperAdmin` / `isBetriebsAdmin`.
  * @param {{ email?: string, uid?: string }|null|undefined} user
  * @param {{ role?: string, isAdmin?: boolean, tenantId?: string }|null|undefined} authContext
  * @returns {boolean}
  */
 export function isTenantAdmin(user, authContext = null) {
-  if (authContext?.role === TENANT_ADMIN_ROLE || authContext?.isAdmin === true) return true;
-  return isPlatformSuperAdmin(user, authContext);
+  return isBetriebsAdmin(user, authContext) || isPlatformSuperAdmin(user, authContext);
 }
 
 /**

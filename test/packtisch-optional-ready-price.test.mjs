@@ -57,7 +57,7 @@ describe('Packtisch optionaler Waagen-Endpreis in Ready-Mail', () => {
   });
 
   it('hebt Cache für optionale Preis-Mail an', () => {
-    assert.match(sw, /charculogic-v20261026-claims-tabs-mapping-v1/);
+    assert.match(sw, /charculogic-v20261026-phase-d-header-v1/);
     assert.match(html, /20261025-month-calendar|ready-fields-clarity|pickup-tbd|packtisch-ux|optional-ready-price|order-activity-log|packtisch-notes|wholesaler-ordered/);
   });
 });

@@ -4694,6 +4694,7 @@ function bindAdminHeaderDropdown() {
       }
       const willOpen = menu.hidden;
       closeAdminHeaderDropdownMenu();
+      closeHeaderToolsMenu();
       if (!willOpen) return;
       dropdown.classList.add('is-open');
       menu.hidden = false;
@@ -4732,6 +4733,65 @@ function bindAdminHeaderDropdown() {
   }
 }
 bindAdminHeaderDropdown();
+
+function closeHeaderToolsMenu() {
+  const dropdown = document.getElementById('header-tools-dropdown');
+  const trigger = document.getElementById('header-tools-btn');
+  const menu = document.getElementById('header-tools-menu');
+  if (!dropdown || !trigger || !menu) return;
+  dropdown.classList.remove('is-open');
+  menu.hidden = true;
+  trigger.setAttribute('aria-expanded', 'false');
+}
+
+/** Mobile: Darstellung / Refresh / Version hinter ⋯, Primär bleibt ⚡ + Profil. */
+function bindHeaderToolsDropdown() {
+  const dropdown = document.getElementById('header-tools-dropdown');
+  const trigger = document.getElementById('header-tools-btn');
+  const menu = document.getElementById('header-tools-menu');
+  if (!dropdown || !trigger || !menu || dropdown.dataset.bound === '1') return;
+  dropdown.dataset.bound = '1';
+
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const willOpen = menu.hidden;
+    closeHeaderToolsMenu();
+    closeAdminHeaderDropdownMenu();
+    if (!willOpen) return;
+    dropdown.classList.add('is-open');
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  });
+
+  menu.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-header-tool]');
+    if (!(item instanceof HTMLElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const tool = item.getAttribute('data-header-tool');
+    closeHeaderToolsMenu();
+    if (tool === 'theme') {
+      document.getElementById('btn-theme-toggle')?.click();
+      return;
+    }
+    if (tool === 'refresh') {
+      if (typeof window.forceAppUpdate === 'function') window.forceAppUpdate();
+      else window.location.reload();
+      return;
+    }
+    if (tool === 'version') {
+      document.getElementById('app-version-badge-header')?.click();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!dropdown.contains(event.target)) closeHeaderToolsMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeHeaderToolsMenu();
+  });
+}
+bindHeaderToolsDropdown();
 
 function showTab(tabId) {
   const adminModuleKey = {
@@ -5597,7 +5657,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261026-claims-tabs-mapping')
+    navigator.serviceWorker.register('./sw.js?v=20261026-phase-d-header')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

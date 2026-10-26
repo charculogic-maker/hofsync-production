@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261026-claims-tabs-mapping-v1';
+const CACHE_NAME = 'charculogic-v20261026-phase-d-header-v1';
 
-const CACHE_SCHEMA = 'p0-claims-tabs-mapping-oct2026';
-/** Release – Claims ↔ Tabs Mapping (B.4) */
+const CACHE_SCHEMA = 'p0-phase-d-header-oct2026';
+/** Release – Phase D Admin + Header-Entschlackung */
 const RELEASED_AT = '2026-10-26T08:00:00+02:00';
 
 const CRITICAL_ASSETS = [

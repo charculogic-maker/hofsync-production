@@ -1139,6 +1139,39 @@ function applyReportRangeDays(daysBack) {
   void loadMovementReport();
 }
 
+/** Aktiver Soft-Lock- / Session-Name für Protokoll „Meine Schicht“. */
+function resolveReportSessionActorName() {
+  try {
+    const fromApi = String(window.readActiveEmployee?.() || '').trim();
+    if (fromApi) return fromApi;
+  } catch (_) { /* noop */ }
+  return String(document.getElementById('employee-session-name')?.textContent || '').trim();
+}
+
+/** Heute + aktiver Mitarbeiter (Soft-Lock). */
+function applyMeineSchichtFilter() {
+  const today = berlinTodayIso();
+  const fromEl = document.getElementById('dev-dashboard-report-from');
+  const toEl = document.getElementById('dev-dashboard-report-to');
+  if (fromEl) fromEl.value = today;
+  if (toEl) toEl.value = today;
+  const actor = resolveReportSessionActorName();
+  fillReportActorOptions(actor ? [actor] : []);
+  const select = document.getElementById('dev-dashboard-report-actor');
+  if (select) {
+    if (actor) {
+      if (![...select.options].some((opt) => opt.value === actor)) {
+        select.appendChild(new Option(actor, actor));
+      }
+      select.value = actor;
+    } else {
+      select.value = '';
+      setReportStatus('Kein aktives Profil — Zeitraum heute, alle Mitarbeiter.', 'info');
+    }
+  }
+  void loadMovementReport();
+}
+
 function bindMovementReportControls() {
   const form = document.getElementById('dev-dashboard-report-filters');
   const exportBtn = document.getElementById('dev-dashboard-report-export-btn');
@@ -1148,7 +1181,8 @@ function bindMovementReportControls() {
   const toEl = document.getElementById('dev-dashboard-report-to');
   if (fromEl && !fromEl.value) fromEl.value = defaultReportFromIso();
   if (toEl && !toEl.value) toEl.value = today;
-  fillReportActorOptions();
+  const sessionActor = resolveReportSessionActorName();
+  fillReportActorOptions(sessionActor ? [sessionActor] : []);
   if (form && form.dataset.bound !== '1') {
     form.dataset.bound = '1';
     form.addEventListener('change', () => {
@@ -1158,6 +1192,11 @@ function bindMovementReportControls() {
   if (presets && presets.dataset.bound !== '1') {
     presets.dataset.bound = '1';
     presets.addEventListener('click', (event) => {
+      const shiftBtn = event.target.closest('[data-report-shift="mine"]');
+      if (shiftBtn instanceof HTMLButtonElement) {
+        applyMeineSchichtFilter();
+        return;
+      }
       const btn = event.target.closest('[data-report-days]');
       if (!(btn instanceof HTMLButtonElement)) return;
       applyReportRangeDays(btn.getAttribute('data-report-days'));
@@ -1210,6 +1249,8 @@ function exposeMovementReportApi() {
     bind: bindMovementReportControls,
     load: loadMovementReport,
     download: downloadMovementCsv,
+    applyMeineSchicht: applyMeineSchichtFilter,
+    resolveSessionActor: resolveReportSessionActorName,
     getRows: () => dashboardState.movementRows,
     openEdit: openReportEditModal,
     saveEdit: saveReportCorrection,
@@ -3010,7 +3051,7 @@ function bindTenantSelector(dashboardStateRef, tenants) {
   }
 
   if (wrap) {
-    wrap.hidden = !dashboardStateRef.selectedTenantId;
+    wrap.hidden = dashboardStateRef.isSuperAdmin ? false : !dashboardStateRef.selectedTenantId;
   }
   select.disabled = !dashboardStateRef.isSuperAdmin && Boolean(dashboardStateRef.selectedTenantId);
 
@@ -3036,6 +3077,7 @@ function bindTenantSelector(dashboardStateRef, tenants) {
       setTeamConfigTenantId(dashboardStateRef.selectedTenantId);
     }
     void refreshEmployeeTable(dashboardStateRef);
+    applyDashboardVisibility(dashboardStateRef);
     if (dashboardStateRef.activeTab === 'settings') {
       syncDevDashboardHaccpAdmin({
         db: dashboardStateRef.db,
@@ -3049,16 +3091,51 @@ function bindTenantSelector(dashboardStateRef, tenants) {
   });
 }
 
+/**
+ * Progressive Disclosure: Hygiene/Geräte nur mit HACCP-Modul,
+ * Rabattstaffel nur mit MHD-Modul (Super-Admin sieht alles).
+ */
+function syncBetriebProgressivePanels(dashboardStateRef = dashboardState) {
+  const modules = dashboardStateRef.tenantModules || {};
+  const modulesLoaded = Object.keys(modules).length > 0;
+  const isSuper = Boolean(dashboardStateRef.isSuperAdmin);
+  const haccpOn = !modulesLoaded || isSuper || modules.haccp === true;
+  const mhdOn = !modulesLoaded || isSuper
+    || modules.mhd === true
+    || modules.mhdMonitor === true;
+
+  const hygieneTab = document.getElementById('betrieb-tab-hygiene');
+  const geraeteTab = document.getElementById('betrieb-tab-geraete');
+  if (hygieneTab) hygieneTab.hidden = !haccpOn;
+  if (geraeteTab) geraeteTab.hidden = !haccpOn;
+
+  const discount = document.getElementById('dev-dashboard-discount-matrix');
+  if (discount) discount.hidden = !mhdOn;
+
+  const section = dashboardStateRef.betriebSection || 'stammdaten';
+  if ((section === 'hygiene' || section === 'geraete') && !haccpOn) {
+    setBetriebSection('stammdaten');
+  }
+}
+
 function applyDashboardVisibility(dashboardStateRef) {
   const globalPanel = document.getElementById('dev-dashboard-global-panel');
   const platformTab = document.getElementById('dev-dashboard-tab-platform');
   const tenantSelectWrap = document.getElementById('dev-dashboard-tenant-select-wrap');
   const tenantSelect = document.getElementById('dev-dashboard-tenant-select');
   const roleBadge = document.getElementById('dev-dashboard-role-badge');
+  const needsTenantPick = dashboardStateRef.isSuperAdmin && !dashboardStateRef.selectedTenantId;
+
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle('role-super-admin', Boolean(dashboardStateRef.isSuperAdmin));
+    document.body.classList.toggle('role-betriebs-admin', !dashboardStateRef.isSuperAdmin);
+  }
 
   if (roleBadge) {
+    const isBetriebs = !dashboardStateRef.isSuperAdmin;
     roleBadge.textContent = dashboardStateRef.isSuperAdmin ? 'Super-Admin' : 'Betriebs-Admin';
     roleBadge.dataset.role = dashboardStateRef.isSuperAdmin ? 'super' : 'tenant';
+    roleBadge.dataset.betriebsAdmin = isBetriebs ? '1' : '0';
   }
 
   if (platformTab) {
@@ -3070,13 +3147,35 @@ function applyDashboardVisibility(dashboardStateRef) {
   if (!dashboardStateRef.isSuperAdmin && dashboardStateRef.activeTab === 'platform') {
     dashboardStateRef.activeTab = 'overview';
   }
+  if (dashboardStateRef.isSuperAdmin && needsTenantPick && dashboardStateRef.activeTab !== 'platform') {
+    dashboardStateRef.activeTab = 'platform';
+  }
+  // Super-Admin braucht den Selector immer, um einen Betrieb zu wählen.
   if (tenantSelectWrap) {
-    tenantSelectWrap.hidden = !dashboardStateRef.selectedTenantId;
+    tenantSelectWrap.hidden = dashboardStateRef.isSuperAdmin
+      ? false
+      : !dashboardStateRef.selectedTenantId;
   }
   if (tenantSelect) {
     tenantSelect.disabled = !dashboardStateRef.isSuperAdmin && Boolean(dashboardStateRef.selectedTenantId);
   }
+  document.querySelectorAll('.dev-dashboard-tab[data-dev-tab]').forEach((btn) => {
+    const tab = btn.getAttribute('data-dev-tab');
+    if (tab === 'platform') {
+      btn.disabled = false;
+      btn.removeAttribute('title');
+      return;
+    }
+    if (needsTenantPick) {
+      btn.disabled = true;
+      btn.title = 'Zuerst Betrieb in Plattform wählen';
+    } else {
+      btn.disabled = false;
+      btn.removeAttribute('title');
+    }
+  });
   fillBetriebModuleToggles(dashboardStateRef);
+  syncBetriebProgressivePanels(dashboardStateRef);
 }
 
 let tenantsUnsubscribe = null;
@@ -3364,6 +3463,10 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     dashboardState.tenantDisplayName = String(
       window.BRANDING?.betriebsName || dashboardState.selectedTenantId || '',
     ).trim();
+    // Super-Admin startet auf Plattform, bis ein Betrieb gewählt ist.
+    if (dashboardState.isSuperAdmin && !dashboardState.selectedTenantId) {
+      dashboardState.activeTab = 'platform';
+    }
 
     applyDashboardVisibility(dashboardState);
 
