@@ -500,9 +500,11 @@ service cloud.firestore {
     // =========================================================================
 
     function isAveryDraftPayload(tenantId) {
+      // createdAt optional: sync.js op:'set' injiziert es – Clients nutzen Merge-Update.
       return hasOnly([
           'tenantId', 'header', 'queue', 'startSlot', 'activeTab',
-          'updatedAt', 'updatedAtMs', 'updatedBy', 'deviceId', 'revision'
+          'updatedAt', 'updatedAtMs', 'updatedBy', 'deviceId', 'revision',
+          'createdAt'
         ])
         && request.resource.data.tenantId == tenantId
         && request.resource.data.header is map

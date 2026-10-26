@@ -877,20 +877,29 @@ async function flushAveryDraftToCloud() {
       if (typeof serverTs === 'function') updatedAt = serverTs();
     } catch (_) { /* ISO-Fallback */ }
     const onlineData = { ...payload, updatedAt };
+    // Merge-Update (kein op:'set'): sync.js injiziert bei set automatisch createdAt,
+    // was die averyDrafts-Rules-Allowlist (hasOnly) sprengt → silent permission-denied.
     const result = await writeFirestoreDocOrQueue({
       collectionPath: AVERY_DRAFT_COLLECTION,
       docId: AVERY_DRAFT_DOC_ID,
-      op: 'set',
+      op: 'update',
       onlineData,
       queueData: payload,
       offlineMessage: 'Etikettenliste wird geteilt, sobald WLAN verfügbar ist.',
-      silentPermissionDenied: true,
+      silentPermissionDenied: false,
     });
     if (result === 'queued') setCloudStatus('offline', payload.updatedBy);
     else setCloudStatus('live', payload.updatedBy);
   } catch (err) {
     console.error('[avery] draft cloud write failed', err);
     setCloudStatus(navigator.onLine ? 'error' : 'offline', payload.updatedBy);
+    const code = String(err?.code || err?.message || '').toLowerCase();
+    if (code.includes('permission-denied')) {
+      window.showToast?.(
+        'Etikettenliste konnte nicht geteilt werden (keine Berechtigung). Bitte neu anmelden.',
+        'error',
+      );
+    }
   } finally {
     cloud.writing = false;
   }
@@ -916,7 +925,15 @@ function persistDraft() {
 function handleAveryDraftSnapshot(snap) {
   if (!snap) return;
   if (!snap.exists) {
-    setCloudStatus(navigator.onLine ? 'live' : 'offline');
+    // Noch kein Cloud-Draft: lokale Liste (z. B. iPhone) einmal hochladen.
+    setCloudStatus(navigator.onLine ? 'syncing' : 'offline');
+    if (navigator.onLine && (state.queue.length > 0 || cloud.lastLocalWriteMs)) {
+      flushAveryDraftToCloud().catch((err) => {
+        console.error('[avery] seed draft after empty snapshot', err);
+      });
+    } else {
+      setCloudStatus(navigator.onLine ? 'live' : 'offline');
+    }
     return;
   }
   const data = snap.data() || {};

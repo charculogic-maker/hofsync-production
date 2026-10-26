@@ -725,13 +725,20 @@
 
 /*
  * Avery 3475 In-Page-Druck (iOS Safari): window.print() im Haupt-DOM.
- * @page margin 0 + 4.5mm Padding am Print-Container = Avery-Rand.
- * Scoped auf body.print-avery-labels, damit andere Druckwege (Kisten-Zettel) intakt bleiben.
+ * Vertikal: @page 4.5mm (Papier-Rand Avery). Kein zusätzliches Container-Padding.
+ * Horizontal: Etiketten bleiben 70mm (Bogen-Passung); Text in Randspalten
+ * zusätzlich eingerückt, weil Drucker ~3–5mm nicht bedrucken.
  */
-/* Named page: kein globales @page (sonst Kisten-Zettel o. ä. betroffen) */
 @page avery-inpage {
   size: A4 portrait;
-  margin: 0;
+  margin: 4.5mm 0;
+  marks: none;
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
 }
 
 @media print {
@@ -756,9 +763,9 @@
     top: 0 !important;
     width: 210mm !important;
     height: auto !important;
-    min-height: 297mm !important;
+    min-height: 0 !important;
     margin: 0 !important;
-    padding: 4.5mm 0 !important;
+    padding: 0 !important;
     background: #ffffff !important;
     z-index: 99999 !important;
     overflow: visible !important;
@@ -818,11 +825,22 @@
     width: 70mm;
     height: 36mm;
     aspect-ratio: auto;
-    padding: 1.8mm 2.6mm 1.4mm;
+    padding: 1.6mm 3.2mm 1.2mm;
     border: none;
     background: #ffffff !important;
     color: #000000 !important;
     font-family: Helvetica, Arial, sans-serif;
+  }
+
+  /* Linke/rechte Spalte: zusätzlicher Innenrand gegen Drucker-Clipping */
+  body.print-avery-labels .avery-label:nth-child(3n + 1) .label-card {
+    padding-left: 4.8mm;
+    padding-right: 2.8mm;
+  }
+
+  body.print-avery-labels .avery-label:nth-child(3n) .label-card {
+    padding-left: 2.8mm;
+    padding-right: 4.8mm;
   }
 
   body.print-avery-labels .lbl-farm {
@@ -862,11 +880,17 @@
 
   body.print-avery-labels .lbl-meta {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     margin-top: 0.4mm;
     padding-top: 1mm;
     border-top: 0.6pt solid #000;
-    gap: 0.4mm 2mm;
+    gap: 0.4mm 1.2mm;
+    min-width: 0;
+  }
+
+  body.print-avery-labels .lbl-meta-col {
+    min-width: 0;
+    overflow: hidden;
   }
 
   body.print-avery-labels .lbl-meta-right {
@@ -875,22 +899,26 @@
 
   body.print-avery-labels .lbl-meta-main,
   body.print-avery-labels .lbl-meta-sub {
-    font-size: 5.5pt;
+    font-size: 5.2pt;
     font-weight: 700;
     line-height: 1.25;
     white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   body.print-avery-labels .lbl-foot {
     margin-top: 0.5mm;
     padding-top: 0.5mm;
     border-top: 0.3pt dashed #64748b;
-    font-size: 4.8pt;
+    font-size: 4.6pt;
     font-weight: 600;
     text-align: center;
     color: #1e293b !important;
     -webkit-text-fill-color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

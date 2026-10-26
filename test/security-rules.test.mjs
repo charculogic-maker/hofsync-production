@@ -1423,6 +1423,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreAllow(employee, path, 'read');
     });
 
+    it('allows Avery draft write even with sync.js createdAt injection', async () => {
+      const employee = authContext(testEnv, 'sh-avery-createdAt', TENANTS.STEVES_HOF, 'employee');
+      const path = draftPath(TENANTS.STEVES_HOF);
+      await expectFirestoreAllow(
+        employee,
+        path,
+        'create',
+        sampleDraft(TENANTS.STEVES_HOF, { createdAt: '2026-10-26T12:00:00.000Z' }),
+      );
+    });
+
     it('denies cross-tenant read/write on StevesHof avery draft', async () => {
       const path = draftPath(TENANTS.STEVES_HOF);
       await seedFirestoreDoc(testEnv, path, sampleDraft(TENANTS.STEVES_HOF));
