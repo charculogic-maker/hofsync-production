@@ -416,8 +416,27 @@
                 >🛠️ Verwaltung</a>
               </div>
             </div>
-            <button type="button" class="btn-theme-toggle" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
-            <button type="button" class="app-refresh-btn" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
+            <div class="header-tools-dropdown" id="header-tools-dropdown">
+              <button
+                type="button"
+                class="header-tools-trigger"
+                id="header-tools-btn"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="header-tools-menu"
+                aria-label="Weitere Kopfzeilen-Aktionen"
+                title="Mehr"
+              >
+                <span aria-hidden="true">⋯</span>
+              </button>
+              <div class="header-tools-menu" id="header-tools-menu" role="menu" hidden>
+                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-theme" data-header-tool="theme">🌙 Darstellung</button>
+                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-refresh" data-header-tool="refresh">↻ App aktualisieren</button>
+                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-version" data-header-tool="version" data-app-version-badge>ℹ️ Version</button>
+              </div>
+            </div>
+            <button type="button" class="btn-theme-toggle header-action--secondary" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
+            <button type="button" class="app-refresh-btn header-action--secondary" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
               <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
             </button>
             <div class="sync-indicator" id="sync-indicator" title="Sync-Status">
@@ -426,7 +445,7 @@
             </div>
             <button
               type="button"
-              class="app-version-badge app-version-badge--header"
+              class="app-version-badge app-version-badge--header header-action--secondary"
               id="app-version-badge-header"
               data-app-version-badge
               aria-haspopup="dialog"
@@ -1254,6 +1273,7 @@
                   <p class="dev-dashboard-intro">
                     Warenbewegungen und MHD-Änderungen unseres Betriebs. Standard ist
                     <strong>seit vorgestern</strong> — so sehen wir die komplette Schichtfolge, nicht nur heute.
+                    <strong>Meine Schicht</strong> filtert auf heute und den aktiven Soft-Lock-Mitarbeiter.
                     Über <strong>Korrigieren</strong> ändern wir Umlautfehler, Menge oder MHD.
                     Den Artikelnamen merken wir uns für alle Posten mit derselben EAN und für den nächsten Wareneingang.
                     Menge und MHD gelten nur für diesen Posten.
@@ -1262,6 +1282,7 @@
                     <button type="button" class="dev-dashboard-action-btn" data-report-days="0">Heute</button>
                     <button type="button" class="dev-dashboard-action-btn" data-report-days="2">Seit vorgestern</button>
                     <button type="button" class="dev-dashboard-action-btn" data-report-days="6">7 Tage</button>
+                    <button type="button" class="dev-dashboard-action-btn" data-report-shift="mine" title="Heute + aktiver Soft-Lock-Mitarbeiter">Meine Schicht</button>
                   </div>
                   <form class="dev-dashboard-report-filters" id="dev-dashboard-report-filters">
                     <label class="dev-dashboard-field" for="dev-dashboard-report-from">

@@ -1,7 +1,14 @@
 # Testmatrix: Betriebs-Admin UI & RBAC
 
 Manuelle / E2E-Checks für `/dev-dashboard` und die Verwaltungs-Navigation.
-Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:rules`.
+Automatisierte Gegenstücke: `npm run test:functions:security`, `npm run test:rules`,
+`npx mocha test/phase-d-admin-feinschliff.test.mjs`, `npx mocha test/claims-tabs-mapping.test.mjs`.
+
+Laden-Tabs (Employee / Admin / Helper): siehe [`docs/CLAIMS_TABS_MAPPING.md`](../CLAIMS_TABS_MAPPING.md).
+
+**Phase D:** Super-Admin startet ohne Tenant auf **Plattform**; Betriebs-Tabs erst nach Betriebswahl.
+Protokoll: Preset **Meine Schicht**. Mein Betrieb blendet Hygiene/Geräte ohne HACCP-Modul und
+Rabattstaffel ohne MHD-Modul aus (Super-Admin sieht alles).
 
 **Umgebung:** nur Staging / Whitelabel-Test / Emulator — nicht Production (`hofsync-production`).
 
