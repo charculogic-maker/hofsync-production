@@ -870,13 +870,17 @@ service cloud.firestore {
         && request.resource.data.urgency in ['sofort', 'nachbestellen']
         && request.resource.data.keys().hasOnly([
           'title', 'category', 'departmentTarget', 'urgency', 'status',
-          'createdBy', 'createdAt', 'resolvedBy', 'resolvedAt', 'tenantId',
+          'createdBy', 'assignedTo', 'createdAt', 'resolvedBy', 'resolvedAt', 'tenantId',
           'updatedAt', 'catalogItemId'
         ])
         && (
           !('catalogItemId' in request.resource.data)
           || request.resource.data.catalogItemId == null
           || isNonEmptyString(request.resource.data.catalogItemId)
+        )
+        && (
+          !('assignedTo' in request.resource.data)
+          || request.resource.data.assignedTo is string
         );
 
       allow update: if isTenantUser(tenantId)

@@ -1088,6 +1088,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
           createdBy: 'Aushilfe',
         }),
       );
+      await expectFirestoreAllow(
+        employee,
+        tenantDocPath(TENANTS.STEVES_HOF, 'supply_alerts', 'sa-assigned'),
+        'create',
+        sampleSupplyAlert(TENANTS.STEVES_HOF, {
+          title: 'Sauerbratenbeize',
+          category: 'eigene_produktion',
+          assignedTo: 'Heiko',
+          createdBy: 'Paddy',
+        }),
+      );
       await expectFirestoreAllow(employee, alertPath, 'update', {
         status: 'ordered',
         resolvedBy: 'Finn',

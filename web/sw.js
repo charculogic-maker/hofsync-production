@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261027-mhd-ean-reveal-v1';
+const CACHE_NAME = 'charculogic-v20261027-bedarf-assign-v1';
 
 const CACHE_SCHEMA = 'p0-avery-sync-rand-oct2026';
 /** Release – Avery Phone↔PC Sync + Druckränder */
-const RELEASED_AT = '2026-10-26T14:10:00+02:00';
+const RELEASED_AT = '2026-10-27T15:45:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
