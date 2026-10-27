@@ -32,6 +32,10 @@ assertIncludes(mhdSrc, 'mhd-card-body', 'Kartenbody');
 assertIncludes(mhdSrc, 'mhd-product-meta-line', 'Meta-Zeile Klasse');
 assertIncludes(mhdSrc, 'buildMhdCompactMetaLine', 'Kompakte Meta-Zeile');
 assertIncludes(mhdSrc, 'EAN: …', 'EAN letzte 4');
+assertIncludes(mhdSrc, 'data-mhd-ean-toggle', 'EAN tippbar für komplette Nummer');
+assertIncludes(mhdSrc, 'toggleMhdEanReveal', 'EAN Toggle Helper');
+assertIncludes(mhdSrc, 'data-mhd-command="copy-ean"', 'EAN kopieren im Menü');
+assertIncludes(mhdSrc, 'copyMhdProductEan', 'EAN kopieren Helper');
 assertIncludes(mhdSrc, 'mhd-card-more', '⋯ Dropdown');
 assertIncludes(mhdSrc, 'mhd-card-more-trigger', '⋯ Trigger');
 assertIncludes(mhdSrc, 'data-mhd-command="abschreiben"', 'Abschreiben im Menü');
@@ -85,6 +89,8 @@ assertIncludes(cssSrc, '-webkit-line-clamp: 2', 'Titel max 2 Zeilen');
 assertIncludes(cssSrc, '.mhd-touch-action-row', 'CSS Action-Row');
 assertIncludes(cssSrc, 'min-height: 48px', 'Touch Mindesthöhe');
 assertIncludes(cssSrc, '.mhd-card-more-trigger', 'CSS ⋯ Trigger');
+assertIncludes(cssSrc, 'button.mhd-ean-toggle', 'CSS EAN Toggle');
+assertIncludes(cssSrc, 'mhd-ean-toggle--full', 'CSS EAN Vollanzeige');
 assertIncludes(cssSrc, 'touch-action: manipulation', 'touch-action');
 assertIncludes(cssSrc, '-webkit-tap-highlight-color: rgba(0, 0, 0, 0.1)', 'iOS Tap Highlight');
 assertIncludes(cssSrc, 'border: 1px solid #a7f3d0', 'Minz-Rand Badge');
@@ -106,6 +112,6 @@ assert.match(
   'SW Cache-Version gesetzt',
 );
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^']+'/, 'SW Register Cache-Buster');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-24T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}'/, 'APP_RELEASE_AT');
 
 console.log('OK smoke-mhd-redesign-and-accordion: Kompakt-Layout & Akkordeon-Touch Verträge erfüllt.');

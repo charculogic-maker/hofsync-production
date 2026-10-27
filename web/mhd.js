@@ -3804,6 +3804,33 @@ function buildMhdAmpelBadgeHtml(resttage, prod = null) {
     >${escapeHtml(daysLabel)}</button>`;
 }
 
+function formatMhdEanShortLabel(barcode) {
+  return `EAN: …${String(barcode || '').slice(-4)}`;
+}
+
+function formatMhdEanFullLabel(barcode) {
+  return `EAN: ${String(barcode || '')}`;
+}
+
+/** Tippbare EAN: zuerst gekürzt, tippen zeigt die komplette Nummer (Bestellportale). */
+function buildMhdEanToggleHtml(barcode) {
+  const clean = cleanScannedBarcode(barcode);
+  if (!clean || clean.length < 4) return '';
+  const shortLabel = formatMhdEanShortLabel(clean);
+  const fullLabel = formatMhdEanFullLabel(clean);
+  return `<button
+    type="button"
+    class="mhd-ean-toggle"
+    data-mhd-ean-toggle="1"
+    data-mhd-ean-short="${escapeHtml(shortLabel)}"
+    data-mhd-ean-full="${escapeHtml(fullLabel)}"
+    data-mhd-ean-value="${escapeHtml(clean)}"
+    data-mhd-ean-mode="short"
+    aria-label="Komplette EAN anzeigen"
+    title="Tippen für komplette EAN"
+  >${escapeHtml(shortLabel)}</button>`;
+}
+
 function buildMhdCompactMetaLine(prod = {}) {
   const parts = [];
   const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
@@ -3830,24 +3857,95 @@ function resolveMhdCardUiSettings() {
 }
 
 function buildMhdProductMetaHtml(prod = {}) {
-  const compact = buildMhdCompactMetaLine(prod);
-  if (compact) return escapeHtml(compact);
   const parts = [];
-  const brand = String(prod.brand || prod.marke || '').trim();
-  const secondaryLabel = resolveMhdProductMetaSecondaryLabel(prod);
-  if (brand) parts.push(brand);
-  if (secondaryLabel) parts.push(secondaryLabel);
-  if (isOfficeUser()) {
+  const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  if (barcode && barcode.length >= 4) {
+    parts.push(buildMhdEanToggleHtml(barcode));
+  } else if (isOfficeUser()) {
     const barcodeLabel = resolveMhdRecordBarcodeLabel(prod);
-    if (barcodeLabel) parts.push(barcodeLabel);
+    if (barcodeLabel) parts.push(`<span>${escapeHtml(barcodeLabel)}</span>`);
   }
-  return parts.map((part) => escapeHtml(part)).join(' · ');
+  const teamOrKuerzel = resolveMhdRecordActor(prod)
+    || String(prod.brand || prod.marke || '').trim()
+    || resolveMhdCardKuerzel(prod);
+  if (teamOrKuerzel) {
+    parts.push(`<span>${escapeHtml(teamOrKuerzel)}</span>`);
+  } else {
+    const brand = String(prod.brand || prod.marke || '').trim();
+    const secondaryLabel = resolveMhdProductMetaSecondaryLabel(prod);
+    if (brand) parts.push(`<span>${escapeHtml(brand)}</span>`);
+    if (secondaryLabel) parts.push(`<span>${escapeHtml(secondaryLabel)}</span>`);
+  }
+  const createdAt = resolveMhdRecordCreatedAt(prod);
+  if (createdAt) {
+    const dateStr = createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    parts.push(`<span>${escapeHtml(`Erfasst: ${dateStr}`)}</span>`);
+  } else {
+    const mhdDate = formatMhdDateForCardMeta(prod);
+    if (mhdDate) parts.push(`<span>${escapeHtml(`MHD: ${mhdDate}`)}</span>`);
+  }
+  if (parts.length) {
+    return parts.join('<span class="mhd-product-meta-sep" aria-hidden="true"> · </span>');
+  }
+  return escapeHtml(buildMhdCompactMetaLine(prod));
 }
 
 function resolveMhdRecordBarcodeLabel(prod = {}) {
   const barcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
   if (!barcode || !/^\d{4,}$/.test(barcode)) return '';
-  return `EAN: ${barcode}`;
+  return formatMhdEanFullLabel(barcode);
+}
+
+function toggleMhdEanReveal(button) {
+  if (!button) return;
+  const shortLabel = button.dataset.mhdEanShort || '';
+  const fullLabel = button.dataset.mhdEanFull || '';
+  const showingFull = button.dataset.mhdEanMode === 'full';
+  if (showingFull) {
+    button.textContent = shortLabel;
+    button.dataset.mhdEanMode = 'short';
+    button.setAttribute('aria-label', 'Komplette EAN anzeigen');
+    button.title = 'Tippen für komplette EAN';
+    button.classList.remove('mhd-ean-toggle--full');
+    return;
+  }
+  button.textContent = fullLabel;
+  button.dataset.mhdEanMode = 'full';
+  button.setAttribute('aria-label', 'EAN wieder kürzen');
+  button.title = 'Tippen zum Einklappen';
+  button.classList.add('mhd-ean-toggle--full');
+}
+
+async function copyMhdProductEan(prodOrId) {
+  const prod = prodOrId && typeof prodOrId === 'object'
+    ? prodOrId
+    : mhdState.products.find((entry) => entry.id === prodOrId);
+  const barcode = cleanScannedBarcode(prod?.ean || prod?.barcode || prod?.scanBarcode);
+  if (!barcode) {
+    window.showToast?.('Für diesen Artikel ist keine EAN hinterlegt.', 'warning');
+    return false;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(barcode);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = barcode;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    window.showToast?.(`EAN ${barcode} kopiert.`, 'success');
+    return true;
+  } catch (err) {
+    console.error('[CharcuLogic MHD] EAN kopieren fehlgeschlagen:', err);
+    window.showToast?.('EAN konnte nicht kopiert werden.', 'error');
+    return false;
+  }
 }
 
 function getProductBarcode(prod = {}) {
@@ -5178,6 +5276,10 @@ function buildMhdCardHtml(prod = {}) {
     ? `<button type="button" class="mhd-card-more-item" data-mhd-command="mhd-date" data-mhd-id="${prod.id}">MHD ändern</button>`
     : '';
   const stammdatenEditButton = `<button type="button" class="mhd-card-more-item" data-mhd-command="stammdaten" data-mhd-id="${prod.id}">Bearbeiten</button>`;
+  const productBarcode = cleanScannedBarcode(prod.ean || prod.barcode || prod.scanBarcode);
+  const eanCopyButton = productBarcode
+    ? `<button type="button" class="mhd-card-more-item" data-mhd-command="copy-ean" data-mhd-id="${prod.id}">EAN kopieren</button>`
+    : '';
   const displayParts = resolveMhdProductDisplayParts(prod);
   const displayName = escapeHtml(displayParts.title);
   const grammageBadge = displayParts.grammageBadge
@@ -5232,6 +5334,7 @@ function buildMhdCardHtml(prod = {}) {
             <button type="button" class="mhd-card-more-item" data-mhd-command="soldout" data-mhd-id="${prod.id}">Ausverkauft</button>
             ${mhdDateEditButton}
             ${stammdatenEditButton}
+            ${eanCopyButton}
             ${kitchenMoreItem}
             ${retterBoxMoreItem}
             ${stichprobeLink}
@@ -6879,6 +6982,13 @@ function bindMhdCardActions() {
       toggleMhdDaysBadge(daysBadge);
       return;
     }
+    const eanToggle = event.target.closest('[data-mhd-ean-toggle]');
+    if (eanToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMhdEanReveal(eanToggle);
+      return;
+    }
     const moreTrigger = event.target.closest('.mhd-card-more-trigger');
     if (moreTrigger) {
       // Native <details> öffnen – keine StopPropagation nötig.
@@ -6935,6 +7045,11 @@ function bindMhdCardActions() {
     if (command === 'category') openMhdCategoryEditor(id);
     if (command === 'mhd-date') openMhdDateEditor(id);
     if (command === 'stammdaten') openMhdStammdatenEditor(id);
+    if (command === 'copy-ean') {
+      event.preventDefault();
+      void copyMhdProductEan(id);
+      return;
+    }
     if (command === 'merge-duplicates') mergeMhdDuplicateBatch(id);
     if (command === 'stichprobe') {
       const prod = mhdState.products.find((entry) => entry.id === id);
