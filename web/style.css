@@ -16745,6 +16745,14 @@ body.role-firebase-auth #team-login-card {
   padding: 0 14px;
 }
 
+.quick-alert-meta-field--full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  width: 100%;
+}
+
 .quick-alert-meta-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

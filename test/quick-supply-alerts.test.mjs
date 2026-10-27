@@ -63,7 +63,11 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(quickAlertJs).to.match(/Bedarf gemeldet!/);
     expect(devDashboardJs).to.match(/renderSupplyCatalogAdminTable/);
     expect(indexHtml).to.match(/id="quick-alert-category"/);
+    expect(indexHtml).to.match(/id="quick-alert-assignee"/);
+    expect(indexHtml).to.match(/Zuweisen an/);
     expect(indexHtml).to.match(/Noch keine Schnell-Buttons/);
+    expect(quickAlertJs).to.match(/assignedTo/);
+    expect(quickAlertJs).to.match(/populateAssigneeSelect/);
   });
 
   it('stores departmentAssignments on teamDashboard with canOrder', () => {
@@ -84,6 +88,7 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(rules).to.match(/departmentAssignments/);
     expect(rules).to.match(/teamDashboardAllowedKeys/);
     expect(rules).to.match(/'sonstig'/);
+    expect(rules).to.match(/'assignedTo'/);
   });
 });
 

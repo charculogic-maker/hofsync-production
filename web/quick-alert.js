@@ -10,6 +10,7 @@ import {
   employeeCanResolveSupplyAlerts,
   employeeHasDepartment,
   getEmployeeDepartmentAssignment,
+  getTeamEmployees,
 } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
@@ -132,11 +133,17 @@ function categoryLabel(value) {
   return match?.label || value || 'Sonstiges';
 }
 
+function namesMatch(left, right) {
+  return String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+}
+
 function alertVisibleForEmployee(alert, employeeName) {
   if (!alert || !OPEN_STATUSES.has(alert.status)) return false;
+  if (!employeeName) return false;
+  // Zugewiesene Person sieht die Meldung immer.
+  if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
   const target = String(alert.departmentTarget || 'all').toLowerCase();
   if (target === 'all') return true;
-  if (!employeeName) return false;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
   if (assignment.canOrder) return true;
   if (target === 'metzgerei') return assignment.departments.includes('metzgerei');
@@ -153,6 +160,7 @@ function alertVisibleForEmployee(alert, employeeName) {
 
 function canResolveAlert(alert, employeeName) {
   if (!employeeName || !alert) return false;
+  if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
   if (!employeeCanResolveSupplyAlerts(employeeName)) return false;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
   if (assignment.canOrder) return true;
@@ -179,6 +187,7 @@ function normalizeAlertDoc(docSnap) {
     urgency: String(data.urgency || 'nachbestellen').trim(),
     status: String(data.status || 'open').trim(),
     createdBy: String(data.createdBy || '').trim(),
+    assignedTo: String(data.assignedTo || '').trim(),
     createdAt: data.createdAt || null,
     resolvedBy: data.resolvedBy || null,
     resolvedAt: data.resolvedAt || null,
@@ -388,6 +397,7 @@ export async function createSupplyAlert({
   departmentTarget,
   urgency,
   createdBy,
+  assignedTo,
   catalogItemId,
   seedCatalog = true,
 } = {}) {
@@ -409,6 +419,7 @@ export async function createSupplyAlert({
     departmentTarget || departmentTargetForCategory(resolvedCategory) || 'all',
   );
   let resolvedUrgency = String(urgency || 'nachbestellen');
+  const resolvedAssignee = String(assignedTo || '').trim().slice(0, 80);
 
   const firebase = alertState.getFirebase();
   const docId = `sa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -425,6 +436,7 @@ export async function createSupplyAlert({
     urgency: resolvedUrgency,
     status: 'open',
     createdBy: employee,
+    assignedTo: resolvedAssignee,
     createdAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
     resolvedBy: null,
     resolvedAt: null,
@@ -494,6 +506,26 @@ export async function updateSupplyAlertStatus(alertId, status, resolvedBy) {
   });
 }
 
+function populateAssigneeSelect() {
+  const select = document.getElementById('quick-alert-assignee');
+  if (!(select instanceof HTMLSelectElement)) return;
+  const previous = select.value;
+  const names = getTeamEmployees()
+    .map((name) => String(name || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base' }));
+  const options = ['<option value="">Niemand (nur Fachbereich)</option>']
+    .concat(names.map((name) => (
+      `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+    )));
+  select.innerHTML = options.join('');
+  if (previous && names.some((name) => namesMatch(name, previous))) {
+    select.value = names.find((name) => namesMatch(name, previous)) || '';
+  } else {
+    select.value = '';
+  }
+}
+
 export function openQuickAlertModal() {
   const modal = document.getElementById('modal-quick-alert');
   if (!modal) return;
@@ -501,6 +533,7 @@ export function openQuickAlertModal() {
   modal.setAttribute('aria-hidden', 'false');
   modal.classList.add('is-open');
   document.body.classList.add('quick-alert-open');
+  populateAssigneeSelect();
   renderQuickButtonGrid();
   const input = document.getElementById('quick-alert-freetext');
   if (input) {
@@ -518,6 +551,8 @@ function closeQuickAlertModal() {
   document.body.classList.remove('quick-alert-open');
   const freetext = document.getElementById('quick-alert-freetext');
   if (freetext) freetext.value = '';
+  const assignee = document.getElementById('quick-alert-assignee');
+  if (assignee instanceof HTMLSelectElement) assignee.value = '';
 }
 
 function renderQuickButtonGrid() {
@@ -563,6 +598,7 @@ async function handleQuickAlertTap(button) {
       category: button.getAttribute('data-category') || 'sonstig',
       departmentTarget: button.getAttribute('data-department') || 'all',
       urgency: button.getAttribute('data-urgency') || 'nachbestellen',
+      assignedTo: document.getElementById('quick-alert-assignee')?.value || '',
       catalogItemId: button.getAttribute('data-catalog-id') || '',
       seedCatalog: true,
     });
@@ -596,6 +632,7 @@ async function handleFreetextSubmit() {
   }
   const urgency = document.getElementById('quick-alert-urgency')?.value || 'nachbestellen';
   const category = document.getElementById('quick-alert-category')?.value || 'sonstig';
+  const assignedTo = document.getElementById('quick-alert-assignee')?.value || '';
   const btn = document.getElementById('quick-alert-freetext-submit');
   if (btn) btn.disabled = true;
   try {
@@ -604,6 +641,7 @@ async function handleFreetextSubmit() {
       category,
       departmentTarget: departmentTargetForCategory(category),
       urgency,
+      assignedTo,
       seedCatalog: true,
     });
     window.showToast?.('Bedarf gemeldet!', 'success');
@@ -657,7 +695,11 @@ function buildSupplyAlertListItem(alert, employeeName) {
           <strong>${escapeHtml(alert.title)}</strong>
           <span class="supply-alert-status supply-alert-status--${escapeHtml(status)}" aria-label="Status: ${escapeHtml(statusLabel(status))}">${escapeHtml(statusLabel(status))}</span>
         </div>
-        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(categoryLabel(alert.category))}</span>
+        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(categoryLabel(alert.category))}${
+          alert.assignedTo
+            ? ` · für <strong>${escapeHtml(alert.assignedTo)}</strong>`
+            : ''
+        }</span>
       </div>
       ${actions}
     </li>
