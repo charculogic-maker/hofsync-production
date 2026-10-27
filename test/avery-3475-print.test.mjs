@@ -15,6 +15,7 @@ import {
   buildAveryLot,
   buildLabelHtml,
   expandQueueToLabels,
+  formatAgingZusatz,
   formatDateDe,
   formatLabelTitle,
   getCutByArtNr,
@@ -33,6 +34,7 @@ import {
   resolveAveryCutId,
   resolveQueueCut,
   serializeAveryDraft,
+  shouldPreferTypedCutName,
   storageFootLine,
   storageHintForCut,
 } from '../web/avery-labels.js';
@@ -292,7 +294,9 @@ describe('Avery 3475 labels module', () => {
     expect(htmlWithPlu).to.include('lbl-hero');
     expect(htmlWithPlu).to.include('lbl-meta');
     expect(htmlWithPlu).to.include('lbl-foot');
+    expect(htmlWithPlu).to.include('lbl-zusatz');
     expect(htmlWithPlu).to.include('R I · Spieße');
+    expect(htmlWithPlu).to.include('frisch');
     expect(htmlWithPlu).to.include('PLU: 535');
     expect(htmlWithPlu).to.include('Gekühlt bei 0–2 °C lagern');
     expect(htmlWithPlu).to.not.include('ART.');
@@ -325,9 +329,108 @@ describe('Avery 3475 labels module', () => {
       printPlu: true,
     }, 'SH-DE123-20261018');
     expect(longHtml).to.include('Falsches Filet');
+    expect(longHtml).to.include('14 T');
     expect(longHtml).to.include('PLU: 510');
     expect(longHtml).to.include('lbl-farm');
     expect(longHtml).to.include('StevesHof Galloway');
     expect(longHtml).to.include('OHR DE123');
+  });
+
+  it('keeps typed cut names and aging zusatz on labels (Phone↔PC)', () => {
+    expect(formatAgingZusatz(14)).to.equal('14 T');
+    expect(formatAgingZusatz(0)).to.equal('frisch');
+    expect(shouldPreferTypedCutName('Dickes Bugstück', 'Schmorbraten Schulter')).to.equal(true);
+    expect(shouldPreferTypedCutName('Falsches Filet', 'Falsches Filet')).to.equal(false);
+
+    const parsed = parseAveryPlainTextList([
+      'Dickes Bugstück 1',
+      'Filet Bulle 2',
+      'R I Mager 1',
+      'Picanha Spezial 1',
+    ].join('\n'));
+    expect(parsed.items.find((i) => i.name === 'Dickes Bugstück')?.cut?.id).to.equal('sch-506');
+    expect(parsed.items.find((i) => i.name === 'Filet Bulle')?.cut?.id).to.equal('rue-501');
+    expect(parsed.items.find((i) => i.name === 'R I Mager')?.cut?.id).to.equal('tr-r1-mager');
+    expect(parsed.items.find((i) => i.name === 'Picanha Spezial')?.cut).to.equal(null);
+
+    applyAveryDraftPayload({
+      header: {
+        betrieb: 'StevesHof Hofladen',
+        oeko: 'DE-ÖKO-006',
+        ohrmarke: 'DE123',
+        schlachtDatum: '2026-10-27',
+        zerlegeDatum: '2026-10-27',
+        brand: 'SH',
+        printPlu: true,
+      },
+      queue: [
+        { cutId: 'sch-506', qty: 1, name: 'Dickes Bugstück' },
+        { cutId: 'rue-501', qty: 2, name: 'Filet Bulle' },
+        { cutId: 'tr-r1-mager', qty: 1 },
+        {
+          cutId: 'custom-picanha',
+          qty: 1,
+          isCustom: true,
+          name: 'Picanha Spezial',
+          days: 0,
+        },
+      ],
+      startSlot: 1,
+      activeTab: 'schultern',
+      updatedAtMs: 1,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+
+    const draft = serializeAveryDraft({
+      updatedAtMs: 1,
+      updatedBy: 'Metzgerei',
+      deviceId: 'phone-1',
+    });
+    expect(draft.queue.find((row) => row.cutId === 'sch-506')).to.include({
+      qty: 1,
+      name: 'Dickes Bugstück',
+    });
+    expect(draft.queue.find((row) => row.cutId === 'rue-501')).to.include({
+      qty: 2,
+      name: 'Filet Bulle',
+    });
+    expect(draft.queue.find((row) => row.cutId === 'tr-r1-mager')?.name).to.equal(undefined);
+
+    const bugCut = resolveQueueCut(draft.queue.find((row) => row.cutId === 'sch-506'));
+    expect(bugCut.name).to.equal('Dickes Bugstück');
+    expect(bugCut.artNr).to.equal('506');
+    expect(bugCut.days).to.equal(14);
+
+    const bugHtml = buildLabelHtml(bugCut, {
+      oeko: 'DE-ÖKO-006',
+      printPlu: true,
+      zerlegeDatum: '2026-10-27',
+    }, 'SH-OHR-20261027');
+    expect(bugHtml).to.include('Dickes Bugstück');
+    expect(bugHtml).to.include('14 T');
+    expect(bugHtml).to.include('PLU: 506');
+
+    const filetHtml = buildLabelHtml(
+      resolveQueueCut(draft.queue.find((row) => row.cutId === 'rue-501')),
+      { oeko: 'DE-ÖKO-006', printPlu: true },
+      'SH-OHR-20261027',
+    );
+    expect(filetHtml).to.include('Filet Bulle');
+    expect(filetHtml).to.include('28 T');
+
+    const customHtml = buildLabelHtml(
+      resolveQueueCut(draft.queue.find((row) => row.isCustom)),
+      { oeko: 'DE-ÖKO-006', printPlu: false },
+      'SH-OHR-20261027',
+    );
+    expect(customHtml).to.include('Picanha Spezial');
+    expect(customHtml).to.include('frisch');
+
+    // Phone↔PC: Bezeichnung überlebt normalizeQueueRow / applyAveryDraftPayload
+    applyAveryDraftPayload(draft);
+    const roundTrip = serializeAveryDraft({ updatedAtMs: 2, updatedBy: 'PC', deviceId: 'pc1' });
+    expect(roundTrip.queue.find((row) => row.cutId === 'sch-506')?.name).to.equal('Dickes Bugstück');
+    expect(roundTrip.queue.find((row) => row.cutId === 'rue-501')?.name).to.equal('Filet Bulle');
   });
 });

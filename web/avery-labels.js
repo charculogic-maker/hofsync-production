@@ -215,6 +215,9 @@ const DEFAULT_HEADER = Object.freeze({
  *   name?: string,
  *   days?: number,
  * }} AveryQueueRow
+ *
+ * `name` auf Katalog-Zeilen = angegebene Teilstückbezeichnung (Notiz/Freitext),
+ * wenn sie vom Katalognamen abweicht. `days` nur bei Freifeld.
  */
 
 /** @type {{ header: Record<string, string|boolean>, queue: AveryQueueRow[], startSlot: number, previewSheetIndex: number, activeTab: string, initialized: boolean, herkunftOptions: Array<Record<string, unknown>>, herkunftStatus: string, packlistStatus: string, packlistCount: number }} */
@@ -569,7 +572,31 @@ export function parseAveryPlainTextList(text) {
 }
 
 /**
+ * True, wenn die angegebene Bezeichnung auf dem Etikett statt des Katalognamens stehen soll.
+ * @param {string} typedName
+ * @param {string} catalogName
+ */
+export function shouldPreferTypedCutName(typedName, catalogName) {
+  const typed = String(typedName || '').trim();
+  if (!typed) return false;
+  const catalog = String(catalogName || '').trim();
+  if (!catalog) return true;
+  return normalizeAveryMatchKey(typed) !== normalizeAveryMatchKey(catalog);
+}
+
+/**
+ * Zusatz / Reife-Hinweis wie in der Druckliste („14 T“ / „frisch“).
+ * @param {number|null|undefined} days
+ */
+export function formatAgingZusatz(days) {
+  const n = Number(days);
+  if (Number.isFinite(n) && n > 0) return `${n} T`;
+  return 'frisch';
+}
+
+/**
  * Löst Queue-Zeile zu einem Etiketten-Cut auf (Katalog oder Freifeld).
+ * Katalog-Treffer behalten PLU/Reife, nutzen aber die angegebene Bezeichnung falls gesetzt.
  * @param {AveryQueueRow} row
  * @returns {AveryCut|null}
  */
@@ -586,7 +613,13 @@ export function resolveQueueCut(row) {
       isCustom: true,
     };
   }
-  return getCutById(row.cutId);
+  const cut = getCutById(row.cutId);
+  if (!cut) return null;
+  const typedName = String(row.name || '').trim();
+  if (shouldPreferTypedCutName(typedName, cut.name)) {
+    return { ...cut, name: typedName };
+  }
+  return cut;
 }
 
 export function expandQueueToLabels(queue = []) {
@@ -1032,8 +1065,15 @@ function normalizeQueueRow(row) {
     };
   }
   const cutId = resolveAveryCutId(row.cutId);
-  if (!cutId || !getCutById(cutId)) return null;
-  return { cutId, qty };
+  const catalog = cutId ? getCutById(cutId) : null;
+  if (!cutId || !catalog) return null;
+  const typedName = String(row.name || '').trim();
+  /** @type {AveryQueueRow} */
+  const normalized = { cutId, qty };
+  if (shouldPreferTypedCutName(typedName, catalog.name)) {
+    normalized.name = typedName;
+  }
+  return normalized;
 }
 
 function coercePrintFlag(value, fallback = false) {
@@ -1087,7 +1127,48 @@ function queueTotalQty() {
 
 function queueRowKey(row) {
   if (row.isCustom) return `custom:${row.cutId}`;
-  return `cut:${row.cutId}`;
+  const override = String(row.name || '').trim();
+  return override
+    ? `cut:${row.cutId}:${normalizeAveryMatchKey(override)}`
+    : `cut:${row.cutId}`;
+}
+
+/**
+ * Findet bestehende Katalog-Zeile (optional mit eigener Bezeichnung).
+ * @param {string} cutId
+ * @param {string} [typedName]
+ */
+function findCatalogQueueRow(cutId, typedName = '') {
+  const override = String(typedName || '').trim();
+  const overrideKey = override ? normalizeAveryMatchKey(override) : '';
+  return state.queue.find((row) => {
+    if (row.isCustom || row.cutId !== cutId) return false;
+    const rowKey = String(row.name || '').trim()
+      ? normalizeAveryMatchKey(row.name)
+      : '';
+    return rowKey === overrideKey;
+  });
+}
+
+/**
+ * Katalog-Treffer in die Queue legen; abweichende Bezeichnung bleibt erhalten.
+ * @param {{ cut: AveryCut, qty: number, name?: string }} item
+ */
+function pushCatalogQueueItem(item) {
+  const qty = Math.max(1, Math.min(999, item.qty || 1));
+  const typedName = String(item.name || '').trim();
+  const useOverride = shouldPreferTypedCutName(typedName, item.cut.name);
+  const overrideName = useOverride ? typedName : '';
+  const existing = findCatalogQueueRow(item.cut.id, overrideName);
+  if (existing) {
+    existing.qty += qty;
+    return qty;
+  }
+  /** @type {AveryQueueRow} */
+  const row = { cutId: item.cut.id, qty };
+  if (overrideName) row.name = overrideName;
+  state.queue.push(row);
+  return qty;
 }
 
 function setQueueQty(cutId, qty) {
@@ -1180,10 +1261,11 @@ export function importAveryPlainTextToQueue(text, options = {}) {
   parsed.items.forEach((item) => {
     const qty = Math.max(1, Math.min(999, item.qty || 1));
     if (item.cut) {
-      const existing = state.queue.find((row) => !row.isCustom && row.cutId === item.cut.id);
-      if (existing) existing.qty += qty;
-      else state.queue.push({ cutId: item.cut.id, qty });
-      addedLabels += qty;
+      addedLabels += pushCatalogQueueItem({
+        cut: item.cut,
+        qty,
+        name: item.name || item.cut.name,
+      });
       return;
     }
     const name = String(item.name || '').trim();
@@ -1242,10 +1324,11 @@ export function importButcheryPacklistToQueue(tasks, options = {}) {
   mapped.items.forEach((item) => {
     const qty = Math.max(1, Math.min(999, item.qty || 1));
     if (item.cut) {
-      const existing = state.queue.find((row) => !row.isCustom && row.cutId === item.cut.id);
-      if (existing) existing.qty += qty;
-      else state.queue.push({ cutId: item.cut.id, qty });
-      addedLabels += qty;
+      addedLabels += pushCatalogQueueItem({
+        cut: item.cut,
+        qty,
+        name: item.product || item.name || item.cut.name,
+      });
       return;
     }
     const name = String(item.name || item.product || '').trim();
@@ -1394,6 +1477,7 @@ export function buildLabelHtml(cut, header, lot) {
   const schl = formatDateDe(header.schlachtDatum) || '';
   const zerl = formatDateDe(header.zerlegeDatum) || '';
   const title = formatLabelTitle(cut.name);
+  const zusatz = formatAgingZusatz(cut.days);
   const foot = storageFootLine(cut, oeko);
   const ohrRow = ohr
     ? `<div class="lbl-meta-sub">OHR ${escapeHtml(ohr)}</div>`
@@ -1409,6 +1493,7 @@ export function buildLabelHtml(cut, header, lot) {
       ${showBetrieb ? `<div class="lbl-farm">${escapeHtml(String(header.betrieb).trim())}</div>` : ''}
       <div class="lbl-hero">
         <span class="lbl-title">${escapeHtml(title)}</span>
+        <span class="lbl-zusatz">${escapeHtml(zusatz)}</span>
         ${pluHtml}
       </div>
       <div class="lbl-meta">
@@ -1650,7 +1735,7 @@ function renderQueue() {
     tbody.innerHTML = state.queue.map((row) => {
       const cut = resolveQueueCut(row);
       const name = cut?.name || row.name || row.cutId;
-      const days = cut ? (cut.days > 0 ? `${cut.days} T` : 'frisch') : '';
+      const days = cut ? formatAgingZusatz(cut.days) : '';
       const key = queueRowKey(row);
       const badge = row.isCustom ? '<span class="avery-queue-custom">Freifeld</span>' : '';
       return `
