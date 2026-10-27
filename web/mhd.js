@@ -76,10 +76,11 @@ import {
   resolveMhdActionKey,
 } from './mhd-rabatt.js';
 import {
-  MHD_MONITOR_GROUP_LABELS,
   getMhdCategoryFilterLabel,
   getMhdMonitorHorizonDays,
   getMhdStammdatenBucket,
+  getMhdUrgencyBucketId,
+  getMhdUrgencyBucketLabel,
   matchesMhdMonitorGroupFilter,
   matchesMhdMonitorHorizonDays,
   resolveMhdCategoryFilter,
@@ -1560,7 +1561,7 @@ function updateMhdMonitorHintText(monitorHint) {
   if (!monitorHint) return;
   const filter = resolveMhdCategoryFilter(mhdState.categoryFilter);
   if (filter === 'alle') {
-    monitorHint.textContent = 'Alle Warengruppen: MHD 0-7 Tage (zuerst MoPro, dann Kühlware, dann Trockenware)';
+    monitorHint.textContent = 'Alle Warengruppen: MHD 0-7 Tage (zuerst die dringendsten MHDs, unabhängig von der Warengruppe)';
     return;
   }
   if (filter === 'mopro') {
@@ -3388,7 +3389,7 @@ function sortMhdProductsByResttage(products) {
   return [...products].sort((a, b) => getMhdResttage(a) - getMhdResttage(b));
 }
 
-/** Allgemeine Ansicht: zuerst MoPro/Kühlware, dann Trockenware; innerhalb der Gruppe nach Resttagen. */
+/** Allgemeine Ansicht: zuerst nach Resttagen; bei Gleichstand MoPro → Kühlware → Trockenware. */
 function sortMhdProductsForMonitor(products, categoryFilter = mhdState.categoryFilter) {
   return sortMhdProductsForMonitorPure(products, {
     categoryFilter,
@@ -5480,19 +5481,19 @@ function renderMhdList() {
   }
   container.dataset.mhdRenderMode = 'list';
   container.dataset.mhdRenderKey = renderKey;
-  const showGroupHeaders = resolveMhdCategoryFilter(mhdState.categoryFilter) === 'alle';
-  let lastMonitorGroup = '';
+  const showUrgencyHeaders = resolveMhdCategoryFilter(mhdState.categoryFilter) === 'alle';
+  let lastUrgencyBucket = '';
   container.innerHTML = renderedProducts
     .map((prod) => {
       const cardHtml = buildMhdCardHtml(prod).replace(
         'class="mhd-card ',
         'class="mhd-card mhd-card--enter ',
       );
-      if (!showGroupHeaders) return cardHtml;
-      const group = getMhdMonitorGroup(prod);
-      if (group === lastMonitorGroup) return cardHtml;
-      lastMonitorGroup = group;
-      const headerLabel = MHD_MONITOR_GROUP_LABELS[group] || MHD_MONITOR_GROUP_LABELS.trockenware;
+      if (!showUrgencyHeaders) return cardHtml;
+      const urgencyId = getMhdUrgencyBucketId(getMhdResttage(prod));
+      if (urgencyId === lastUrgencyBucket) return cardHtml;
+      lastUrgencyBucket = urgencyId;
+      const headerLabel = getMhdUrgencyBucketLabel(getMhdResttage(prod));
       return `<div class="mhd-monitor-group-header" role="presentation">${escapeHtml(headerLabel)}</div>${cardHtml}`;
     })
     .join('');

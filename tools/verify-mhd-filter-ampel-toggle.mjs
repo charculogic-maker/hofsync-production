@@ -69,7 +69,7 @@ const result = await page.evaluate(async () => {
   };
   const seed = [
     {
-      id: 'mopro-1',
+      id: 'mopro-spaet',
       ean: '4035626114608',
       name: 'Joghurt Natur mild 3,5%',
       produkt: 'Joghurt Natur mild 3,5%',
@@ -77,14 +77,14 @@ const result = await page.evaluate(async () => {
       qty: 6,
       menge: 6,
       kategorie: '🥛MoPro',
-      mhdDate: isoDaysFromToday(1),
-      mhd: isoDaysFromToday(1),
+      mhdDate: isoDaysFromToday(2),
+      mhd: isoDaysFromToday(2),
       status: 'aktiv',
       scannedBy: 'Paddy',
       createdAt: new Date().toISOString(),
     },
     {
-      id: 'kuehl-1',
+      id: 'kuehl-heute',
       ean: '4008471492122',
       name: 'Vegane Mayo Bioland 125g',
       produkt: 'Vegane Mayo Bioland 125g',
@@ -92,8 +92,8 @@ const result = await page.evaluate(async () => {
       qty: 3,
       menge: 3,
       kategorie: '🥗 Kühlware',
-      mhdDate: isoDaysFromToday(2),
-      mhd: isoDaysFromToday(2),
+      mhdDate: isoDaysFromToday(0),
+      mhd: isoDaysFromToday(0),
       status: 'aktiv',
       scannedBy: 'Stephanie',
       createdAt: new Date().toISOString(),
@@ -180,6 +180,7 @@ const result = await page.evaluate(async () => {
     .map((el) => el.textContent.trim());
   const alleHeaders = [...document.querySelectorAll('.mhd-monitor-group-header')]
     .map((el) => el.textContent.trim());
+  const alleFirstAmpel = document.querySelector('#mhd-items-container .mhd-ampel-badge')?.textContent?.trim() || '';
 
   await clickFilter('mopro');
   const moproNames = [...document.querySelectorAll('#mhd-items-container .mhd-product-name')]
@@ -208,6 +209,7 @@ const result = await page.evaluate(async () => {
     filterButtons,
     alleNames,
     alleHeaders,
+    alleFirstAmpel,
     moproNames,
     kuehlNames,
     trockenNames,
@@ -243,6 +245,12 @@ console.log(JSON.stringify(result, null, 2));
 const fail = [];
 if (!result.filterButtons.includes('kuehlware')) fail.push('kein Kühlware-Filter');
 if (!result.filterButtons.includes('mopro')) fail.push('kein MoPro-Filter');
+if (!result.alleNames[0]?.includes('Mayo')) {
+  fail.push(`Dringlichkeit: Kühlware HEUTE muss oben stehen, war: ${result.alleNames[0]}`);
+}
+if (!/HEUTE/i.test(result.alleFirstAmpel || '')) {
+  fail.push(`Erste Ampel muss HEUTE sein, war: ${result.alleFirstAmpel}`);
+}
 if (!result.moproNames.some((n) => n.includes('Joghurt'))) fail.push('MoPro-Filter zeigt Joghurt nicht');
 if (result.moproNames.some((n) => n.includes('Mayo') || n.includes('Limette') || n.includes('Dinkel'))) {
   fail.push('MoPro-Filter enthält Nicht-MoPro');
@@ -256,8 +264,12 @@ if (!result.trockenNames.some((n) => n.includes('Dinkel'))) fail.push('Trockenwa
 if (!/^MHD /.test(result.ampelAfter || '')) fail.push(`Ampel zeigt kein MHD-Datum: ${result.ampelAfter}`);
 if (result.ampelMode !== 'date') fail.push('Ampel-Mode nicht date');
 if (result.ampelBack !== result.ampelBefore) fail.push('Ampel-Toggle zurück fehlgeschlagen');
-if (!result.alleHeaders.some((h) => /MoPro/.test(h))) fail.push('Gruppenkopf MoPro fehlt');
-if (!result.alleHeaders.some((h) => /Kühlware/.test(h))) fail.push('Gruppenkopf Kühlware fehlt');
+if (!result.alleHeaders.some((h) => /Morgen|Heute|2–4|Später|Überfällig/.test(h))) {
+  fail.push(`Dringlichkeits-Gruppenkopf fehlt: ${result.alleHeaders.join(' | ')}`);
+}
+if (result.alleHeaders.some((h) => /MoPro|Kühlware|Trockenware/.test(h))) {
+  fail.push(`Warengruppen-Köpfe dürfen in „Alle“ nicht erscheinen: ${result.alleHeaders.join(' | ')}`);
+}
 
 await context.close();
 await browser.close();

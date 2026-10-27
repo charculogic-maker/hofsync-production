@@ -1,10 +1,12 @@
 /**
- * MHD-Monitor: allgemeine 7-Tage-Ansicht inkl. Sortierung MoPro → Kühlware → Trockenware.
+ * MHD-Monitor: allgemeine 7-Tage-Ansicht inkl. Dringlichkeits-Sortierung.
  */
 import { expect } from 'chai';
 import {
   getMhdMonitorHorizonDays,
   getMhdStammdatenBucket,
+  getMhdUrgencyBucketId,
+  getMhdUrgencyBucketLabel,
   matchesMhdMonitorGroupFilter,
   matchesMhdMonitorHorizonDays,
   resolveMhdCategoryFilter,
@@ -56,14 +58,27 @@ describe('MHD-Monitor Filter „Alle (7 Tage)“', () => {
     expect(getMhdStammdatenBucket('trockenware')).to.equal('trockenware');
   });
 
-  it('sortiert in „alle“ zuerst MoPro, dann Kühlware, dann Trockenware, danach Resttage', () => {
+  it('bildet Dringlichkeits-Abschnitte aus Resttagen', () => {
+    expect(getMhdUrgencyBucketId(-2)).to.equal('ueberfaellig');
+    expect(getMhdUrgencyBucketLabel(-1)).to.equal('Überfällig');
+    expect(getMhdUrgencyBucketId(0)).to.equal('heute');
+    expect(getMhdUrgencyBucketLabel(0)).to.equal('Heute fällig');
+    expect(getMhdUrgencyBucketId(1)).to.equal('morgen');
+    expect(getMhdUrgencyBucketId(3)).to.equal('bald');
+    expect(getMhdUrgencyBucketLabel(4)).to.equal('In 2–4 Tagen');
+    expect(getMhdUrgencyBucketId(6)).to.equal('spaeter');
+    expect(getMhdUrgencyBucketLabel(7)).to.equal('Später (5–7 Tage)');
+  });
+
+  it('sortiert in „alle“ zuerst nach Resttagen, bei Gleichstand MoPro → Kühlware → Trockenware', () => {
     const products = [
       { id: 't-spaet', group: 'trockenware', tage: 6 },
       { id: 'k-spaet', group: 'kuehlware', tage: 3 },
       { id: 'm-spaet', group: 'mopro', tage: 3 },
       { id: 't-frueh', group: 'trockenware', tage: 1 },
-      { id: 'k-frueh', group: 'kuehlware', tage: 0 },
-      { id: 'm-frueh', group: 'mopro', tage: 0 },
+      { id: 'k-heute', group: 'kuehlware', tage: 0 },
+      { id: 'm-spaeter', group: 'mopro', tage: 4 },
+      { id: 'm-heute', group: 'mopro', tage: 0 },
     ];
     const sorted = sortMhdProductsForMonitor(products, {
       categoryFilter: 'alle',
@@ -71,11 +86,12 @@ describe('MHD-Monitor Filter „Alle (7 Tage)“', () => {
       getMonitorGroup: (p) => p.group,
     });
     expect(sorted.map((p) => p.id)).to.deep.equal([
-      'm-frueh',
-      'm-spaet',
-      'k-frueh',
-      'k-spaet',
+      'm-heute',
+      'k-heute',
       't-frueh',
+      'm-spaet',
+      'k-spaet',
+      'm-spaeter',
       't-spaet',
     ]);
   });

@@ -7,7 +7,7 @@ Der Tab **MHD** ist der zentrale Bereich für den täglichen Morgencheck: Welche
 ## Wofür?
 
 - Qualitätssicherung im Hofladen
-- Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst MoPro, dann Kühlware, dann Trockenware
+- Startansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst nach Dringlichkeit (Überfällig / Heute / Morgen / …)
 - Optional fokussieren auf **MoPro (0-2 Tage)**, **Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)**
 - Einzelne **Posten** bearbeiten (gleiche Artikel können mehrfach vorkommen)
 
@@ -33,7 +33,7 @@ Die Staffel ist mandantenspezifisch: In der Verwaltung unter **Mein Betrieb → 
 |---------|----------|
 | **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro (0-2 Tage)**, **Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)** |
 
-In der Ansicht **Alle** erscheinen Gruppenüberschriften (MoPro zuerst, danach Kühlware, danach Trockenware). Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
+In der Ansicht **Alle** erscheinen Gruppenüberschriften nach Dringlichkeit (**Überfällig**, **Heute fällig**, **Morgen**, **In 2–4 Tagen**, **Später**). Bei gleichem Resttag stehen MoPro vor Kühlware vor Trockenware. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
 ### 2. MHD-Karte (Posten)
 
