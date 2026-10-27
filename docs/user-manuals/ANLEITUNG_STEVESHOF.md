@@ -52,7 +52,7 @@ Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACC
 
 ## 3. MHD-Monitor (vereinfacht)
 
-Der MHD-Tab startet in **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro**, dann **Kühlware**, dann **Trockenware**. Zusätzlich können wir gezielt filtern:
+Der MHD-Tab startet in **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst nach **Dringlichkeit** (Überfällig / Heute / Morgen / …), bei gleichem Resttag MoPro vor Kühlware vor Trockenware. Zusätzlich können wir gezielt filtern:
 
 - **Alle (7 Tage)** — Gesamtansicht aller Warengruppen
 - **MoPro** — fokussiert 0-2 Tage

@@ -30,5 +30,9 @@ assert.ok(/data-mhd-category-filter="mopro"[^>]*>\s*🥛 MoPro\s*</.test(htmlSrc
 assert.ok(filterSrc.includes("kuehlware: 2"), 'Kühlware-Horizont 2 Tage');
 assert.ok(filterSrc.includes("mopro: '🥛 MoPro'"), 'MoPro-Label getrennt');
 assert.ok(filterSrc.includes("kuehlware: '❄️ Kühlware'"), 'Kühlware-Label getrennt');
+assert.ok(filterSrc.includes('getMhdUrgencyBucketId'), 'Dringlichkeits-Bucket Helper');
+assert.ok(filterSrc.includes('restDiff'), 'Sortierung nach Resttagen zuerst');
+assert.ok(mhdSrc.includes('getMhdUrgencyBucketLabel'), 'Dringlichkeits-Köpfe in der Liste');
+assert.ok(mhdSrc.includes('zuerst die dringendsten MHDs'), 'Hinweistext Dringlichkeit');
 
 console.log('OK smoke-mhd-ampel-date-toggle: Filter-Split + Ampel-Datum-Toggle vorhanden.');

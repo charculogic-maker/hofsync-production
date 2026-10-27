@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261024-mhd-filter-ampel-datum-v1';
+const CACHE_NAME = 'charculogic-v20261027-mhd-urgency-sort-v1';
 
-const CACHE_SCHEMA = 'p0-mhd-filter-ampel-datum-oct2026';
-/** Release – MHD-Filter MoPro/Kühlware getrennt + Ampel zeigt MHD-Datum */
-const RELEASED_AT = '2026-10-24T15:45:00+02:00';
+const CACHE_SCHEMA = 'p0-mhd-urgency-sort-oct2026';
+/** Release – MHD-Alle-Ansicht nach Dringlichkeit sortiert */
+const RELEASED_AT = '2026-10-27T15:50:00+02:00';
 
 const CRITICAL_ASSETS = [
   '/',

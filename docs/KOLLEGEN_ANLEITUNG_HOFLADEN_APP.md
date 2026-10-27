@@ -54,7 +54,7 @@ Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit
 
 ## 1. MHD-Kontrolle
 
-Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst **MoPro**, dann **Kühlware**, dann **Trockenware**. Mit den Filter-Buttons können wir gezielt nur **MoPro (0-2 Tage)**, nur **Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen. Tippen wir auf die Ampel **IN x TAGEN**, zeigt unsere App das genaue MHD-Datum.
+Im Tab **MHD** startet unsere App in der Ansicht **Alle (7 Tage)**: alle fälligen Posten der nächsten sieben Tage, sortiert zuerst nach **Dringlichkeit** (Überfällig / Heute / Morgen / …), unabhängig von der Warengruppe. Mit den Filter-Buttons können wir gezielt nur **MoPro (0-2 Tage)**, nur **Kühlware (0-2 Tage)** oder nur **Trockenware (0-30 Tage)** prüfen. Tippen wir auf die Ampel **IN x TAGEN**, zeigt unsere App das genaue MHD-Datum.
 
 Die Rabatt-Empfehlung auf der MHD-Karte richtet sich nach der **MHD-Rabattstaffel** unseres Betriebs. Die Vorlage lautet:
 

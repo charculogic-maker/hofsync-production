@@ -106,6 +106,6 @@ assert.match(
   'SW Cache-Version gesetzt',
 );
 assert.match(appSrc, /sw\.js\?v=\d{8}-[^']+'/, 'SW Register Cache-Buster');
-assert.match(appSrc, /APP_RELEASE_AT = '2026-10-24T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
+assert.match(appSrc, /APP_RELEASE_AT = '2026-10-27T\d{2}:\d{2}:\d{2}\+02:00'/, 'APP_RELEASE_AT');
 
 console.log('OK smoke-mhd-redesign-and-accordion: Kompakt-Layout & Akkordeon-Touch Verträge erfüllt.');
