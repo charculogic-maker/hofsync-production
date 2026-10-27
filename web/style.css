@@ -3197,6 +3197,42 @@ button.mhd-ampel-badge.mhd-days-badge.mhd-days-badge--date {
   line-height: 1.35;
 }
 
+.mhd-product-meta-sep {
+  color: inherit;
+  opacity: 0.7;
+}
+
+button.mhd-ean-toggle {
+  appearance: none;
+  background: rgba(15, 23, 42, 0.06);
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1.2;
+  margin: 0;
+  min-height: 24px;
+  padding: 2px 6px;
+  text-align: left;
+  text-transform: none;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+button.mhd-ean-toggle:active {
+  opacity: 0.9;
+  transform: scale(0.97);
+}
+
+button.mhd-ean-toggle.mhd-ean-toggle--full {
+  background: rgba(15, 23, 42, 0.1);
+  font-weight: 700;
+  word-break: break-all;
+}
+
 .mhd-date-edit-button {
   background: rgba(0, 0, 0, 0.06);
   border: 0;

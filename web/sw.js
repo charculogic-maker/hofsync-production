@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261026-avery-sync-rand-v1';
+const CACHE_NAME = 'charculogic-v20261027-mhd-ean-reveal-v1';
 
 const CACHE_SCHEMA = 'p0-avery-sync-rand-oct2026';
 /** Release – Avery Phone↔PC Sync + Druckränder */
