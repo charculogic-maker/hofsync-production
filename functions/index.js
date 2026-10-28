@@ -375,6 +375,36 @@ lazyExport('archiveZeroStockBatchesScheduled', () => scheduled(
   },
 ));
 
+lazyExport('mhdSlaReminderScheduled', () => scheduled(
+  {
+    region: REGION,
+    schedule: '30 7 * * *',
+    timeZone: 'Europe/Berlin',
+    retryCount: 1,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+  },
+  async (event) => {
+    ensureAdminApp();
+    return require('./mhdSla').handleMhdSlaReminderScheduled(event);
+  },
+));
+
+lazyExport('mhdSlaEscalateScheduled', () => scheduled(
+  {
+    region: REGION,
+    schedule: '0 10 * * *',
+    timeZone: 'Europe/Berlin',
+    retryCount: 1,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+  },
+  async (event) => {
+    ensureAdminApp();
+    return require('./mhdSla').handleMhdSlaEscalateScheduled(event);
+  },
+));
+
 // —— Firestore triggers ——
 
 lazyExport('processDeliveryNoteDraft', () => firestoreTrigger(
