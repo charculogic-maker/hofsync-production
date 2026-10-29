@@ -245,6 +245,7 @@ const state = {
  *   deviceId: string,
  *   status: 'local'|'connecting'|'live'|'syncing'|'offline'|'error',
  *   updatedBy: string,
+ *   cloudHydrated: boolean,
  * }} */
 const cloud = {
   unsubscribe: null,
@@ -256,6 +257,8 @@ const cloud = {
   deviceId: '',
   status: 'local',
   updatedBy: '',
+  /** Erster Snapshot nach Subscribe = Hydration, kein „übernommen“-Toast */
+  cloudHydrated: false,
 };
 
 function escapeHtml(value) {
@@ -844,11 +847,29 @@ export function applyAveryDraftPayload(raw) {
 function persistDraftLocal() {
   try {
     localStorage.setItem(draftStorageKey(), JSON.stringify(serializeAveryDraft({
-      updatedAtMs: cloud.lastLocalWriteMs || Date.now(),
+      // Remote-Hydration: remoteMs in lastAppliedMs behalten (kein Date.now()-Inflation)
+      updatedAtMs: cloud.lastLocalWriteMs || cloud.lastAppliedMs || Date.now(),
       updatedBy: cloud.updatedBy || resolveAveryUpdatedBy(),
       deviceId: getAveryDeviceId(),
     })));
   } catch (_) { /* private mode */ }
+}
+
+/**
+ * Toast nur bei Live-Update vom anderen Gerät — nicht beim ersten Snapshot nach Neustart.
+ * @param {{
+ *   cloudHydrated?: boolean,
+ *   changed?: boolean,
+ *   remoteDevice?: string,
+ *   ourDevice?: string,
+ * }} [input]
+ */
+export function shouldToastAveryDraftTakeover(input = {}) {
+  if (!input.cloudHydrated || !input.changed) return false;
+  const remote = String(input.remoteDevice || '').trim();
+  const ours = String(input.ourDevice || '').trim();
+  if (!remote || !ours || remote === ours) return false;
+  return true;
 }
 
 function setCloudStatus(status, updatedBy = cloud.updatedBy) {
@@ -957,67 +978,84 @@ function persistDraft() {
 
 function handleAveryDraftSnapshot(snap) {
   if (!snap) return;
-  if (!snap.exists) {
-    // Noch kein Cloud-Draft: lokale Liste (z. B. iPhone) einmal hochladen.
-    setCloudStatus(navigator.onLine ? 'syncing' : 'offline');
-    if (navigator.onLine && (state.queue.length > 0 || cloud.lastLocalWriteMs)) {
-      flushAveryDraftToCloud().catch((err) => {
-        console.error('[avery] seed draft after empty snapshot', err);
-      });
-    } else {
-      setCloudStatus(navigator.onLine ? 'live' : 'offline');
-    }
-    return;
-  }
-  const data = snap.data() || {};
-  const remoteMs = averyDraftUpdatedAtMs(data.updatedAtMs) || averyDraftUpdatedAtMs(data.updatedAt);
-  const remoteDevice = String(data.deviceId || '');
-  const ourDevice = getAveryDeviceId();
-
-  // Echo der eigenen Schreiboperation überspringen
-  if (remoteDevice && remoteDevice === ourDevice && remoteMs <= cloud.lastLocalWriteMs + 1500) {
-    cloud.lastAppliedMs = Math.max(cloud.lastAppliedMs, remoteMs);
-    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
-    return;
-  }
-
-  if (remoteMs && remoteMs <= cloud.lastAppliedMs) {
-    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
-    return;
-  }
-
-  // Ältere Cloud-Version nicht über neuere lokale Tipps legen
-  if (remoteMs && cloud.lastLocalWriteMs && remoteMs < cloud.lastLocalWriteMs) {
-    setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
-    return;
-  }
-
-  cloud.applyingRemote = true;
+  // Erster Snapshot nach Subscribe = Hydration (PWA-Neustart) → still übernehmen, kein Toast.
+  const mayAnnounceTakeover = cloud.cloudHydrated;
   try {
-    const changed = applyAveryDraftPayload(data);
-    cloud.lastAppliedMs = Math.max(remoteMs, cloud.lastAppliedMs);
-    cloud.updatedBy = String(data.updatedBy || '');
-    persistDraftLocal();
-    if (changed && state.initialized) {
-      renderAll();
-      if (remoteDevice && remoteDevice !== ourDevice) {
-        window.showToast?.(
-          cloud.updatedBy
-            ? `Etikettenliste von ${cloud.updatedBy} übernommen.`
-            : 'Etikettenliste vom anderen Gerät übernommen.',
-          'info',
-        );
+    if (!snap.exists) {
+      // Noch kein Cloud-Draft: lokale Liste (z. B. iPhone) einmal hochladen.
+      setCloudStatus(navigator.onLine ? 'syncing' : 'offline');
+      if (navigator.onLine && (state.queue.length > 0 || cloud.lastLocalWriteMs)) {
+        flushAveryDraftToCloud().catch((err) => {
+          console.error('[avery] seed draft after empty snapshot', err);
+        });
+      } else {
+        setCloudStatus(navigator.onLine ? 'live' : 'offline');
       }
+      return;
     }
-    setCloudStatus('live', cloud.updatedBy);
+    const data = snap.data() || {};
+    const remoteMs = averyDraftUpdatedAtMs(data.updatedAtMs) || averyDraftUpdatedAtMs(data.updatedAt);
+    const remoteDevice = String(data.deviceId || '');
+    const ourDevice = getAveryDeviceId();
+
+    // Echo der eigenen Schreiboperation überspringen
+    if (remoteDevice && remoteDevice === ourDevice && remoteMs <= cloud.lastLocalWriteMs + 1500) {
+      cloud.lastAppliedMs = Math.max(cloud.lastAppliedMs, remoteMs);
+      setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+      return;
+    }
+
+    if (remoteMs && remoteMs <= cloud.lastAppliedMs) {
+      setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+      return;
+    }
+
+    // Ältere Cloud-Version nicht über neuere lokale Tipps legen
+    if (remoteMs && cloud.lastLocalWriteMs && remoteMs < cloud.lastLocalWriteMs) {
+      setCloudStatus('live', String(data.updatedBy || cloud.updatedBy || ''));
+      return;
+    }
+
+    cloud.applyingRemote = true;
+    try {
+      const changed = applyAveryDraftPayload(data);
+      cloud.lastAppliedMs = Math.max(remoteMs, cloud.lastAppliedMs);
+      // Remote-Zeitstempel lokal spiegeln — sonst schreibt persistDraftLocal Date.now()
+      // und jeder Neustart wirkt wie „frisch übernommen“.
+      if (remoteMs) {
+        cloud.lastLocalWriteMs = Math.max(cloud.lastLocalWriteMs, remoteMs);
+      }
+      cloud.updatedBy = String(data.updatedBy || '');
+      persistDraftLocal();
+      if (changed && state.initialized) {
+        renderAll();
+        if (shouldToastAveryDraftTakeover({
+          cloudHydrated: mayAnnounceTakeover,
+          changed: true,
+          remoteDevice,
+          ourDevice,
+        })) {
+          window.showToast?.(
+            cloud.updatedBy
+              ? `Etikettenliste von ${cloud.updatedBy} übernommen.`
+              : 'Etikettenliste vom anderen Gerät übernommen.',
+            'info',
+          );
+        }
+      }
+      setCloudStatus('live', cloud.updatedBy);
+    } finally {
+      cloud.applyingRemote = false;
+    }
   } finally {
-    cloud.applyingRemote = false;
+    cloud.cloudHydrated = true;
   }
 }
 
 export function startAveryDraftSync() {
   cloud.unsubscribe?.();
   cloud.unsubscribe = null;
+  cloud.cloudHydrated = false;
   const ref = averyDraftRef();
   if (!ref) {
     setCloudStatus('local');

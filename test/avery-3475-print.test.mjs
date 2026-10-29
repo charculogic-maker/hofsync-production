@@ -35,6 +35,7 @@ import {
   resolveQueueCut,
   serializeAveryDraft,
   shouldPreferTypedCutName,
+  shouldToastAveryDraftTakeover,
   storageFootLine,
   storageHintForCut,
 } from '../web/avery-labels.js';
@@ -117,6 +118,52 @@ describe('Avery 3475 labels module', () => {
     );
     expect(flushBlock).to.match(/writeFirestoreDocOrQueue\(\{[\s\S]*?op:\s*'update'/);
     expect(flushBlock).to.not.match(/writeFirestoreDocOrQueue\(\{[\s\S]*?op:\s*'set'/);
+  });
+
+  it('does not toast draft takeover on PWA restart hydration', () => {
+    // Erster Snapshot nach Subscribe (= Neustart): stille Hydration
+    expect(shouldToastAveryDraftTakeover({
+      cloudHydrated: false,
+      changed: true,
+      remoteDevice: 'phone-paddy',
+      ourDevice: 'pc-laden',
+    })).to.equal(false);
+
+    // Live-Update vom anderen Gerät nach Hydration: Toast ok
+    expect(shouldToastAveryDraftTakeover({
+      cloudHydrated: true,
+      changed: true,
+      remoteDevice: 'phone-paddy',
+      ourDevice: 'pc-laden',
+    })).to.equal(true);
+
+    // Eigenes Gerät / keine Änderung: kein Toast
+    expect(shouldToastAveryDraftTakeover({
+      cloudHydrated: true,
+      changed: true,
+      remoteDevice: 'pc-laden',
+      ourDevice: 'pc-laden',
+    })).to.equal(false);
+    expect(shouldToastAveryDraftTakeover({
+      cloudHydrated: true,
+      changed: false,
+      remoteDevice: 'phone-paddy',
+      ourDevice: 'pc-laden',
+    })).to.equal(false);
+
+    const source = readFileSync(
+      new URL('../web/avery-labels.js', import.meta.url),
+      'utf8',
+    );
+    expect(source).to.match(/cloudHydrated:\s*false/);
+    expect(source).to.match(/mayAnnounceTakeover/);
+    expect(source).to.match(/shouldToastAveryDraftTakeover\(/);
+    // Remote-Hydration darf localStorage nicht mit Date.now() „aufblasen“
+    const persistBlock = source.slice(
+      source.indexOf('function persistDraftLocal'),
+      source.indexOf('export function shouldToastAveryDraftTakeover'),
+    );
+    expect(persistBlock).to.match(/lastLocalWriteMs\s*\|\|\s*cloud\.lastAppliedMs/);
   });
 
   it('serializes and applies shared Phone↔PC draft payloads', () => {
