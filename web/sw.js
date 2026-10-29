@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261029-bedarf-checklist-v1';
+const CACHE_NAME = 'charculogic-v20261029-bedarf-checklist-v2';
 
 const CACHE_SCHEMA = 'p0-bedarf-checklist-oct2026';
-/** Release – Bedarfsliste als Checkliste (BRING!-ähnlich) */
-const RELEASED_AT = '2026-10-29T19:20:00+01:00';
+/** Release – Bedarfsliste als Checkliste (BRING!-ähnlich), all-Ziel abhakbar */
+const RELEASED_AT = '2026-10-29T19:25:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

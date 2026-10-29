@@ -121,6 +121,7 @@ describe('Bedarf status visibility (Bestellt / Erledigt)', () => {
     expect(quickAlertJs).to.match(/export function supplyAlertStatusClass/);
     expect(quickAlertJs).to.match(/bedarf-check-item\.is-interactive/);
     expect(quickAlertJs).to.match(/bestellt/);
+    expect(quickAlertJs).to.match(/Freie Bedarfsliste \(all\)/);
   });
 
   it('styles ordered vs open checklist states distinctly', () => {

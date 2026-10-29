@@ -161,10 +161,14 @@ function alertVisibleForEmployee(alert, employeeName) {
 function canResolveAlert(alert, employeeName) {
   if (!employeeName || !alert) return false;
   if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
+  const target = String(alert.departmentTarget || 'all').toLowerCase();
+  // Freie Bedarfsliste (all): jeder, der die Zeile sieht, darf abhaken – wie BRING!
+  if (target === 'all' || target === '') {
+    return alertVisibleForEmployee(alert, employeeName);
+  }
   if (!employeeCanResolveSupplyAlerts(employeeName)) return false;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
   if (assignment.canOrder) return true;
-  const target = String(alert.departmentTarget || '').toLowerCase();
   if (target === 'metzgerei') return assignment.departments.includes('metzgerei');
   if (target === 'laden') {
     return assignment.departments.includes('laden')
