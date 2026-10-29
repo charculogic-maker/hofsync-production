@@ -671,42 +671,67 @@ function updateSupplyAlertBadge(count = 0) {
   }
 }
 
+function groupAlertsByCategory(alerts) {
+  const groups = new Map();
+  (Array.isArray(alerts) ? alerts : []).forEach((alert) => {
+    const key = String(alert.category || 'sonstig');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(alert);
+  });
+  const order = SUPPLY_CATEGORY_OPTIONS.map((opt) => opt.value);
+  return order
+    .filter((key) => groups.has(key))
+    .concat([...groups.keys()].filter((key) => !order.includes(key)))
+    .map((key) => ({
+      category: key,
+      label: categoryLabel(key),
+      items: groups.get(key) || [],
+    }));
+}
+
+/** BRING!-ähnliche Checklistenzeile: Tippen = Erledigt, optional Bestellt. */
 function buildSupplyAlertListItem(alert, employeeName) {
   const status = supplyAlertStatusClass(alert.status);
   const isOrdered = status === 'ordered';
-  const isInProgress = status === 'in_progress';
-  const orderedPressed = isOrdered ? 'true' : 'false';
-  const orderedClass = isOrdered
-    ? 'supply-alert-action supply-alert-action--ordered is-active'
-    : 'supply-alert-action supply-alert-action--ordered';
-  const orderedLabel = isOrdered ? '✓ Bestellt' : 'Bestellt';
-  const actions = canResolveAlert(alert, employeeName)
-    ? `
-      <span class="supply-alert-actions">
-        <button type="button" class="${orderedClass}" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}" aria-pressed="${orderedPressed}"${isOrdered ? ' disabled' : ''}>${orderedLabel}</button>
-        <button type="button" class="supply-alert-action supply-alert-action--done${isOrdered || isInProgress ? ' is-next' : ''}" data-supply-alert-status="done" data-alert-id="${escapeHtml(alert.id)}">Erledigt</button>
-      </span>
-    `
+  const canResolve = canResolveAlert(alert, employeeName);
+  const metaParts = [];
+  if (alert.createdBy) metaParts.push(`von ${alert.createdBy}`);
+  if (alert.assignedTo) metaParts.push(`für ${alert.assignedTo}`);
+  if (isOrdered) metaParts.push('bestellt');
+  if (alert.urgency === 'sofort') metaParts.push('sofort');
+  const orderedBtn = canResolve && !isOrdered
+    ? `<button type="button" class="bedarf-check-ordered" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}" aria-label="Als bestellt markieren">Bestellt</button>`
     : '';
+  const checkLabel = canResolve
+    ? (isOrdered ? 'Als erledigt abhaken' : 'Abhaken / erledigen')
+    : 'Nur Ansicht';
   return `
-    <li class="supply-alert-item supply-alert-item--${escapeHtml(alert.urgency || '')} supply-alert-item--status-${escapeHtml(status)}" data-supply-status="${escapeHtml(status)}">
-      <div class="supply-alert-item-main">
-        <div class="supply-alert-item-title-row">
-          <strong>${escapeHtml(alert.title)}</strong>
-          <span class="supply-alert-status supply-alert-status--${escapeHtml(status)}" aria-label="Status: ${escapeHtml(statusLabel(status))}">${escapeHtml(statusLabel(status))}</span>
-        </div>
-        <span class="supply-alert-meta">von ${escapeHtml(alert.createdBy)} · ${escapeHtml(categoryLabel(alert.category))}${
-          alert.assignedTo
-            ? ` · für <strong>${escapeHtml(alert.assignedTo)}</strong>`
-            : ''
-        }</span>
+    <div
+      class="bedarf-check-item bedarf-check-item--${escapeHtml(status)}${alert.urgency === 'sofort' ? ' bedarf-check-item--urgent' : ''}${canResolve ? ' is-interactive' : ''}"
+      role="listitem"
+      data-alert-id="${escapeHtml(alert.id)}"
+      data-supply-status="${escapeHtml(status)}"
+    >
+      <button
+        type="button"
+        class="bedarf-check-toggle"
+        data-supply-alert-status="done"
+        data-alert-id="${escapeHtml(alert.id)}"
+        aria-label="${escapeHtml(checkLabel)}"
+        ${canResolve ? '' : 'disabled'}
+      >
+        <span class="bedarf-check-box" aria-hidden="true">${isOrdered ? '◐' : '○'}</span>
+      </button>
+      <div class="bedarf-check-body">
+        <strong class="bedarf-check-title">${escapeHtml(alert.title)}</strong>
+        ${metaParts.length ? `<span class="bedarf-check-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
       </div>
-      ${actions}
-    </li>
+      ${orderedBtn}
+    </div>
   `;
 }
 
-/** Offene Meldungen nur im Bedarfs-Modul (kein globaler Overlay-Banner). */
+/** Offene Meldungen als gruppierte Checkliste (kein Overlay-Banner). */
 function renderSupplyAlertInbox() {
   const inbox = document.getElementById('supply-alert-inbox');
   const statusEl = document.getElementById('bedarf-module-status');
@@ -716,7 +741,6 @@ function renderSupplyAlertInbox() {
 
   updateSupplyAlertBadge(count);
 
-  // Legacy-Banner falls noch im DOM: dauerhaft ausblenden
   const banner = document.getElementById('supply-alert-banner');
   if (banner) {
     banner.hidden = true;
@@ -726,13 +750,13 @@ function renderSupplyAlertInbox() {
   if (!inbox) return;
 
   if (!employee) {
-    if (statusEl) statusEl.textContent = 'Bitte Mitarbeiter wählen, dann siehst du die offenen Bedarfe.';
+    if (statusEl) statusEl.textContent = 'Bitte Mitarbeiter wählen, dann siehst du die Liste.';
     inbox.innerHTML = '';
     return;
   }
 
   if (!count) {
-    if (statusEl) statusEl.textContent = 'Keine offenen Bedarfsmeldungen für deinen Bereich.';
+    if (statusEl) statusEl.textContent = 'Liste leer – oben etwas eintragen.';
     inbox.innerHTML = '';
     return;
   }
@@ -744,12 +768,21 @@ function renderSupplyAlertInbox() {
     const parts = [];
     if (openCount > 0) parts.push(`${openCount} offen`);
     if (orderedCount > 0) parts.push(`${orderedCount} bestellt`);
-    const summary = parts.join(' · ') || `${count} Meldungen`;
+    const summary = parts.join(' · ') || `${count} Einträge`;
     statusEl.textContent = canResolve
-      ? `${summary} – tippe Bestellt oder Erledigt`
+      ? `${summary} – Zeile tippen = erledigt`
       : summary;
   }
-  inbox.innerHTML = visible.map((alert) => buildSupplyAlertListItem(alert, employee)).join('');
+
+  const groups = groupAlertsByCategory(visible);
+  inbox.innerHTML = groups.map((group) => `
+    <section class="bedarf-check-group" aria-label="${escapeHtml(group.label)}">
+      <h3 class="bedarf-check-group-title">${escapeHtml(group.label)}</h3>
+      <div class="bedarf-check-group-items">
+        ${group.items.map((alert) => buildSupplyAlertListItem(alert, employee)).join('')}
+      </div>
+    </section>
+  `).join('');
 }
 
 /** Eigenes Modul öffnen (ohne Bottom-Nav-Tab – Einstieg über ⚡ / Start-CTA). */
@@ -767,6 +800,8 @@ export function openSupplyAlertModule() {
   if (headerTitle) headerTitle.textContent = 'Bedarf';
   document.getElementById('app-content')?.scrollTo?.(0, 0);
   renderSupplyAlertInbox();
+  const quickInput = document.getElementById('bedarf-quick-add-input');
+  if (quickInput) setTimeout(() => quickInput.focus(), 40);
 }
 
 export function renderSupplyCatalogAdminTable() {
@@ -971,22 +1006,72 @@ function subscribeSupplyCatalog() {
 }
 
 async function handleSupplyAlertStatusClick(event) {
-  const btn = event.target.closest('[data-supply-alert-status]');
-  if (!(btn instanceof HTMLButtonElement)) return;
-  const alertId = btn.getAttribute('data-alert-id');
-  const status = btn.getAttribute('data-supply-alert-status');
-  btn.disabled = true;
+  const statusBtn = event.target.closest('[data-supply-alert-status]');
+  const row = event.target.closest('.bedarf-check-item.is-interactive');
+  let alertId = null;
+  let status = null;
+  let control = null;
+
+  if (statusBtn instanceof HTMLButtonElement) {
+    if (statusBtn.disabled) return;
+    alertId = statusBtn.getAttribute('data-alert-id');
+    status = statusBtn.getAttribute('data-supply-alert-status');
+    control = statusBtn;
+  } else if (row) {
+    // Zeile tippen (Titel/Meta) = erledigen – wie BRING!
+    alertId = row.getAttribute('data-alert-id');
+    status = 'done';
+    control = row.querySelector('.bedarf-check-toggle');
+    if (control?.disabled) return;
+  } else {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (control) control.disabled = true;
   try {
     await updateSupplyAlertStatus(alertId, status);
     window.showToast?.(
-      status === 'ordered' ? 'Als bestellt markiert.' : 'Als erledigt markiert.',
+      status === 'ordered' ? 'Als bestellt markiert.' : 'Erledigt – von der Liste genommen.',
       'success',
     );
   } catch (err) {
     console.error('[QuickAlert] Status aktualisieren fehlgeschlagen:', err);
     window.showToast?.('Status konnte nicht gespeichert werden.', 'error');
+    if (control) control.disabled = false;
+  }
+}
+
+async function handleBedarfQuickAdd(event) {
+  event?.preventDefault?.();
+  const input = document.getElementById('bedarf-quick-add-input');
+  const title = String(input?.value || '').trim();
+  if (!title) {
+    window.showToast?.('Bitte kurz beschreiben, was fehlt.', 'warning');
+    input?.focus();
+    return;
+  }
+  const btn = document.getElementById('bedarf-quick-add-btn');
+  if (btn) btn.disabled = true;
+  try {
+    await createSupplyAlert({
+      title,
+      category: 'sonstig',
+      departmentTarget: 'all',
+      urgency: 'nachbestellen',
+      seedCatalog: true,
+    });
+    if (input) input.value = '';
+    window.showToast?.('Zur Liste hinzugefügt.', 'success');
+    input?.focus();
+  } catch (err) {
+    console.error('[QuickAlert] Schnell-Hinzufügen fehlgeschlagen:', err);
+    if (!String(err?.message || '').includes('Kein aktiver')) {
+      window.showToast?.(mapSupplyWriteError(err), 'error');
+    }
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -1004,6 +1089,10 @@ function bindQuickAlertUi() {
 
   document.getElementById('btn-bedarf-melden')?.addEventListener('click', () => {
     openQuickAlertModal();
+  });
+
+  document.getElementById('bedarf-quick-add')?.addEventListener('submit', (event) => {
+    void handleBedarfQuickAdd(event);
   });
 
   document.getElementById('quick-alert-close')?.addEventListener('click', () => {

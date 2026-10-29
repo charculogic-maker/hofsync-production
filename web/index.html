@@ -1521,26 +1521,39 @@
           <!-- SCREEN: BEDARF (interne Meldungen)             -->
           <!-- ============================================== -->
           <div class="page" id="page-bedarf" hidden style="display:none;">
-            <section class="bedarf-module" aria-label="Bedarfsmeldungen">
+            <section class="bedarf-module" aria-label="Bedarfsliste">
               <header class="bedarf-module-head">
                 <div class="bedarf-module-head-text">
-                  <h2 class="task-token-heading">Bedarfsmeldungen</h2>
+                  <h2 class="task-token-heading">Bedarfsliste</h2>
                   <p class="customer-order-hint">
-                    Offene Meldungen für deinen Bereich. Neu melden per Freitext.
+                    Wie eine Einkaufsliste: eintragen, abhaken. Tippe die Zeile zum Erledigen.
                   </p>
                 </div>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-secondary btn-compact"
                   id="btn-bedarf-melden"
-                >Bedarf melden</button>
+                >Mehr…</button>
               </header>
+              <form class="bedarf-quick-add" id="bedarf-quick-add" autocomplete="off">
+                <input
+                  type="text"
+                  id="bedarf-quick-add-input"
+                  class="bedarf-quick-add-input"
+                  maxlength="120"
+                  placeholder="Was fehlt? z. B. Sauerbratenbeize"
+                  enterkeyhint="done"
+                  aria-label="Neuen Bedarf eintragen"
+                >
+                <button type="submit" class="btn btn-primary bedarf-quick-add-btn" id="bedarf-quick-add-btn" aria-label="Hinzufügen">+</button>
+              </form>
               <p class="bedarf-module-status" id="bedarf-module-status" aria-live="polite"></p>
-              <ul
-                class="supply-alert-list bedarf-module-list"
+              <div
+                class="bedarf-checklist"
                 id="supply-alert-inbox"
-                aria-label="Offene Bedarfsmeldungen"
-              ></ul>
+                role="list"
+                aria-label="Offene Bedarfsliste"
+              ></div>
             </section>
           </div>
 
