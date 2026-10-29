@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261027-mhd-urgency-sort-v1';
+const CACHE_NAME = 'charculogic-v20261028-mhd-sla-reminder-v1';
 
-const CACHE_SCHEMA = 'p0-mhd-urgency-sort-oct2026';
-/** Release – MHD-Alle-Ansicht nach Dringlichkeit sortiert */
-const RELEASED_AT = '2026-10-27T15:50:00+02:00';
+const CACHE_SCHEMA = 'p0-mhd-sla-reminder-oct2026';
+/** Release – MHD-Tageslauf Reminder/Eskalation (Badge + Banner + Cron) */
+const RELEASED_AT = '2026-10-28T20:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -36,6 +36,7 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/barcode-normalize.js',
   '/mhd.js',
+  '/mhd-sla.js',
   '/receiving.js',
   '/mhd-monitor-filter.js',
   '/mhd-rabatt.js',
@@ -315,6 +316,7 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/sw.js')
     || pathname.endsWith('/sync.js')
     || pathname.endsWith('/mhd.js')
+    || pathname.endsWith('/mhd-sla.js')
     || pathname.endsWith('/receiving.js')
     || pathname.endsWith('/delivery-upload.js')
     || pathname.endsWith('/catalog-ean.js')
