@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261029-bedarf-checklist-v2';
+const CACHE_NAME = 'charculogic-v20261029-bedarf-checklist-mhd-sla-v1';
 
-const CACHE_SCHEMA = 'p0-bedarf-checklist-oct2026';
-/** Release – Bedarfsliste als Checkliste (BRING!-ähnlich), all-Ziel abhakbar */
-const RELEASED_AT = '2026-10-29T19:25:00+01:00';
+const CACHE_SCHEMA = 'p0-bedarf-checklist-mhd-sla-oct2026';
+/** Release – Bedarf-Checkliste + MHD-Tageslauf-Reminder (Merge main) */
+const RELEASED_AT = '2026-10-29T19:40:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -36,6 +36,7 @@ const CRITICAL_ASSETS = [
   '/scanner.js',
   '/barcode-normalize.js',
   '/mhd.js',
+  '/mhd-sla.js',
   '/receiving.js',
   '/mhd-monitor-filter.js',
   '/mhd-rabatt.js',
@@ -315,6 +316,7 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/sw.js')
     || pathname.endsWith('/sync.js')
     || pathname.endsWith('/mhd.js')
+    || pathname.endsWith('/mhd-sla.js')
     || pathname.endsWith('/receiving.js')
     || pathname.endsWith('/delivery-upload.js')
     || pathname.endsWith('/catalog-ean.js')

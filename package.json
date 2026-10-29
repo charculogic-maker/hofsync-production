@@ -15,6 +15,7 @@
     "test:functions:security": "npm --prefix functions run test:security",
     "test:admin": "node tools/check-admin-module.mjs",
     "test:mhd-audit": "mocha test/mhd-audit.test.mjs",
+    "test:mhd-sla": "mocha test/mhd-sla.test.mjs",
     "test:sync-queue": "mocha test/sync-queue.test.mjs",
     "test:datasheet": "mocha test/production-datasheet.test.mjs",
     "screenshots:modules": "node tools/capture-module-screenshots.mjs",

@@ -1358,6 +1358,34 @@ body:not(.role-admin):not(.role-super-admin):not(.role-office) .app-nav-zone--ad
   line-height: 1.35;
 }
 
+.mhd-sla-banner {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(220, 53, 69, 0.45);
+  border-radius: var(--border-radius-sm);
+  background: var(--alert-tint-bg, rgba(220, 53, 69, 0.12));
+  color: var(--text-primary, #222);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mhd-sla-banner.hidden,
+.mhd-sla-banner[hidden] {
+  display: none;
+}
+
+.mhd-sla-banner:active {
+  filter: brightness(0.97);
+}
+
+.nav-item.has-mhd-sla-alert {
+  position: relative;
+}
+
 .team-inbox-section {
   margin-bottom: 14px;
 }

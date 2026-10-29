@@ -92,6 +92,7 @@ import {
   buildMovementRecord,
   inferMovementAction,
 } from './mhd-audit.js';
+import { refreshMhdSlaUi } from './mhd-sla.js';
 import { readMhdCardUiSettings } from './admin-tenant-models.js';
 import {
   validateDeliveryUploadFile,
@@ -960,6 +961,39 @@ function countMhdOpenProducts(products = mhdState.products) {
 function countMhdCompletedTodayProducts(products = mhdState.products) {
   return filterMhdProductsByMonitorScope(products, { includeSearch: false })
     .filter((prod) => isMhdCheckedToday(prod)).length;
+}
+
+function openMhdCriticalSlaView() {
+  mhdState.completionFilter = 'offen';
+  mhdState.categoryFilter = 'alle';
+  mhdState.searchQuery = '';
+  const searchInput = document.getElementById('mhd-search-input');
+  if (searchInput) searchInput.value = '';
+  document.querySelectorAll('[data-mhd-category-filter]').forEach((button) => {
+    const isAlle = (button.dataset.mhdCategoryFilter || '') === 'alle';
+    button.classList.toggle('is-active', isAlle);
+    button.setAttribute('aria-pressed', isAlle ? 'true' : 'false');
+  });
+  updateMhdCompletionToggle();
+  renderMhdList();
+  if (typeof window.showTab === 'function') {
+    window.showTab('mhd');
+  } else {
+    document.getElementById('tab-mhd')?.click();
+  }
+}
+
+function refreshMhdSlaIndicators() {
+  try {
+    refreshMhdSlaUi(mhdState.products || [], {
+      todayIso: getMhdTodayIso(),
+      getResttage: getMhdResttage,
+      resolveEffective: getEffectiveMhdProduct,
+      onOpen: openMhdCriticalSlaView,
+    });
+  } catch (err) {
+    console.warn('[CharcuLogic MHD] SLA-Anzeige fehlgeschlagen', err);
+  }
 }
 
 function updateMhdCompletionToggle() {
@@ -5380,6 +5414,7 @@ function renderMhdList() {
   const container = document.getElementById('mhd-items-container');
   if (!container) return;
   bindMhdLoadRetryOnce();
+  refreshMhdSlaIndicators();
 
   if (shouldShowMhdCloudLoadingState()) {
     updateMhdToolbarLimitHint(0);
@@ -10273,6 +10308,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
     bindMhdToolbar();
     bindMhdStammdatenModal();
     loadVpeMasterFromCsv();
+    refreshMhdSlaIndicators();
     mhdState.initialized = true;
   }
   void refreshSharedProductMaster();
@@ -10280,6 +10316,7 @@ export function initMhdModule(databaseInstance, syncEngineAPI = {}, soundAPI = {
   applyMhdCategoryFilterOptions();
   updateMhdAdminSearchVisibility(isOfficeUser());
   renderReceivingStatus();
+  refreshMhdSlaIndicators();
   if (canStartMhdFirestoreLiveSync() && isFirebaseReady()) {
     startMhdLiveSync();
   } else {
