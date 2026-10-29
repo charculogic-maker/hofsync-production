@@ -18,22 +18,28 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
   const swJs = read('web/sw.js');
   const rules = read('firebase.rules');
 
-  it('exposes freitext modal, Bedarf module page and catalog admin', () => {
+  it('exposes freitext modal, Bedarf checklist page and catalog admin', () => {
     expect(indexHtml).to.match(/id="btn-quick-alert"/);
     expect(indexHtml).to.match(/id="modal-quick-alert"/);
     expect(indexHtml).to.match(/id="page-bedarf"/);
     expect(indexHtml).to.match(/id="supply-alert-inbox"/);
+    expect(indexHtml).to.match(/id="bedarf-quick-add"/);
+    expect(indexHtml).to.match(/id="bedarf-quick-add-input"/);
     expect(indexHtml).to.match(/id="btn-bedarf-melden"/);
     expect(indexHtml).to.not.match(/id="supply-alert-banner"/);
     expect(indexHtml).to.match(/id="quick-alert-freetext"/);
     expect(indexHtml).to.match(/id="quick-alert-empty"/);
     expect(indexHtml).to.match(/id="btn-supply-alert-start"/);
     expect(indexHtml).to.match(/Zum Bedarf/);
+    expect(indexHtml).to.match(/Bedarfsliste/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog"/);
     expect(indexHtml).to.match(/id="dev-dashboard-supply-catalog-body"/);
     expect(indexHtml).to.match(/Bedarfs-Stammdaten/);
     expect(quickAlertJs).to.match(/export function openSupplyAlertModule/);
     expect(quickAlertJs).to.match(/renderSupplyAlertInbox/);
+    expect(quickAlertJs).to.match(/groupAlertsByCategory/);
+    expect(quickAlertJs).to.match(/handleBedarfQuickAdd/);
+    expect(quickAlertJs).to.match(/bedarf-check-item/);
     expect(quickAlertJs).to.not.match(/function renderAlertBanner/);
   });
 
@@ -105,19 +111,24 @@ describe('Bedarf status visibility (Bestellt / Erledigt)', () => {
   const quickAlertJs = read('web/quick-alert.js');
   const styleCss = read('web/style.css');
 
-  it('marks ordered cards and active Bestellt control in markup', () => {
-    expect(quickAlertJs).to.match(/supply-alert-item--status-\$/);
-    expect(quickAlertJs).to.match(/supply-alert-status--\$/);
-    expect(quickAlertJs).to.match(/aria-pressed=/);
-    expect(quickAlertJs).to.match(/✓ Bestellt/);
+  it('renders checklist rows with optional Bestellt and tap-to-done', () => {
+    expect(quickAlertJs).to.match(/bedarf-check-item--\$\{/);
+    expect(quickAlertJs).to.match(/bedarf-check-ordered/);
+    expect(quickAlertJs).to.match(/Als bestellt markieren/);
+    expect(quickAlertJs).to.match(/>Bestellt</);
+    expect(quickAlertJs).to.match(/data-supply-alert-status="done"/);
+    expect(quickAlertJs).to.match(/data-supply-alert-status="ordered"/);
     expect(quickAlertJs).to.match(/export function supplyAlertStatusClass/);
+    expect(quickAlertJs).to.match(/bedarf-check-item\.is-interactive/);
     expect(quickAlertJs).to.match(/bestellt/);
+    expect(quickAlertJs).to.match(/Freie Bedarfsliste \(all\)/);
   });
 
-  it('styles ordered vs open states distinctly', () => {
-    expect(styleCss).to.match(/\.supply-alert-item--status-ordered/);
-    expect(styleCss).to.match(/\.supply-alert-status--ordered/);
-    expect(styleCss).to.match(/\.supply-alert-action--ordered\.is-active/);
-    expect(styleCss).to.match(/\.supply-alert-action--done\.is-next/);
+  it('styles ordered vs open checklist states distinctly', () => {
+    expect(styleCss).to.match(/\.bedarf-check-item--ordered/);
+    expect(styleCss).to.match(/\.bedarf-check-item--urgent/);
+    expect(styleCss).to.match(/\.bedarf-check-ordered/);
+    expect(styleCss).to.match(/\.bedarf-check-toggle/);
+    expect(styleCss).to.match(/\.bedarf-quick-add/);
   });
 });

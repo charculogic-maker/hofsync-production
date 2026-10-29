@@ -16407,10 +16407,12 @@ body.role-firebase-auth #team-login-card {
 }
 
 .bedarf-module {
-  padding: 12px 14px 24px;
+  padding: 12px 14px 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
 }
 
 .bedarf-module-head {
@@ -16431,33 +16433,147 @@ body.role-firebase-auth #team-login-card {
   color: var(--text-secondary, #64748b);
 }
 
-.bedarf-module-list {
-  gap: 10px;
+.bedarf-quick-add {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
 }
 
-.bedarf-module-list .supply-alert-item {
-  padding: 12px;
-  background: var(--light-bg, #fff);
+.bedarf-quick-add-input {
+  flex: 1;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #fff;
+  color: var(--text-primary, #0f172a);
+}
+
+.bedarf-quick-add-btn {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  border-radius: 12px;
+}
+
+.bedarf-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bedarf-check-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #64748b);
+}
+
+.bedarf-check-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bedarf-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-.bedarf-module-list .supply-alert-item--status-open {
-  border-left: 3px solid #94a3b8;
+.bedarf-check-item.is-interactive {
+  cursor: pointer;
 }
 
-.bedarf-module-list .supply-alert-item--status-in_progress {
-  border-left: 3px solid #2563eb;
-  background: color-mix(in srgb, #2563eb 8%, #fff);
+.bedarf-check-item.is-interactive:active {
+  background: color-mix(in srgb, var(--primary-color, #5d4037) 6%, #fff);
 }
 
-.bedarf-module-list .supply-alert-item--status-ordered {
-  border-left: 3px solid #d97706;
-  background: color-mix(in srgb, #d97706 14%, #fff);
+.bedarf-check-item--urgent {
+  border-color: color-mix(in srgb, #c62828 35%, transparent);
 }
 
-.bedarf-module-list .supply-alert-item--status-done {
-  border-left: 3px solid #16a34a;
-  background: color-mix(in srgb, #16a34a 10%, #fff);
+.bedarf-check-item--ordered {
+  background: color-mix(in srgb, #d97706 10%, #fff);
+}
+
+.bedarf-check-toggle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.bedarf-check-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bedarf-check-box {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  color: #d97706;
+  background: #fff;
+}
+
+.bedarf-check-item--ordered .bedarf-check-box {
+  border-color: #d97706;
+}
+
+.bedarf-check-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bedarf-check-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary, #0f172a);
+}
+
+.bedarf-check-meta {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+}
+
+.bedarf-check-ordered {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #92400e;
 }
 
 .supply-alert-list {

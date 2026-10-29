@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261028-mhd-sla-reminder-v1';
+const CACHE_NAME = 'charculogic-v20261029-bedarf-checklist-mhd-sla-v1';
 
-const CACHE_SCHEMA = 'p0-mhd-sla-reminder-oct2026';
-/** Release – MHD-Tageslauf Reminder/Eskalation (Badge + Banner + Cron) */
-const RELEASED_AT = '2026-10-28T20:00:00+01:00';
+const CACHE_SCHEMA = 'p0-bedarf-checklist-mhd-sla-oct2026';
+/** Release – Bedarf-Checkliste + MHD-Tageslauf-Reminder (Merge main) */
+const RELEASED_AT = '2026-10-29T19:40:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
