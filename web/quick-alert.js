@@ -537,6 +537,47 @@ export async function updateSupplyAlertStatus(alertId, status, resolvedBy) {
   });
 }
 
+/** Nachträgliche Zuordnung: Person und/oder Fachbereich. */
+export async function updateSupplyAlertAssignment(alertId, {
+  assignedTo,
+  departmentTarget,
+  updatedBy,
+} = {}) {
+  const id = String(alertId || '').trim();
+  if (!id) throw new Error('Meldung fehlt');
+  const employee = String(updatedBy || getActiveEmployeeName() || '').trim();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst dein Profil wählen.', 'warning');
+    throw new Error('Kein aktiver Mitarbeiter');
+  }
+  const nextDepartment = normalizeDepartmentTarget(departmentTarget);
+  const nextAssignee = String(assignedTo || '').trim().slice(0, 80);
+  const firebase = alertState.getFirebase();
+  const payload = {
+    departmentTarget: nextDepartment,
+    assignedTo: nextAssignee,
+    updatedBy: employee,
+    updatedAt: firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString(),
+  };
+  await writeFirestoreDocOrQueue({
+    collectionPath: SUPPLY_ALERTS_COLLECTION,
+    docId: id,
+    op: 'update',
+    onlineData: payload,
+    queueData: {
+      ...payload,
+      updatedAt: new Date().toISOString(),
+    },
+    offlineMessage: 'Zuordnung wird synchronisiert, sobald WLAN verfügbar ist.',
+  });
+  const local = alertState.alerts.find((entry) => entry.id === id);
+  if (local) {
+    local.departmentTarget = nextDepartment;
+    local.assignedTo = nextAssignee;
+  }
+  renderSupplyAlertInbox();
+}
+
 function readSelectedDepartmentTarget() {
   const select = document.getElementById('quick-alert-department');
   if (select instanceof HTMLSelectElement) {
@@ -769,18 +810,29 @@ function groupAlertsByCategory(alerts) {
     }));
 }
 
-/** BRING!-ähnliche Checklistenzeile: Tippen = Erledigt, optional Bestellt. */
+/** BRING!-ähnliche Checklistenzeile: Tippen = Erledigt, optional Bestellt + Zuordnen. */
 function buildSupplyAlertListItem(alert, employeeName) {
   const status = supplyAlertStatusClass(alert.status);
   const isOrdered = status === 'ordered';
   const canResolve = canResolveAlert(alert, employeeName);
+  const canAssign = Boolean(employeeName);
+  const dept = normalizeDepartmentTarget(alert.departmentTarget);
   const metaParts = [];
   if (alert.createdBy) metaParts.push(`von ${alert.createdBy}`);
   if (alert.assignedTo) metaParts.push(`für ${alert.assignedTo}`);
+  if (dept && dept !== 'all') metaParts.push(departmentLabel(dept));
   if (isOrdered) metaParts.push('bestellt');
   if (alert.urgency === 'sofort') metaParts.push('sofort');
   const orderedBtn = canResolve && !isOrdered
     ? `<button type="button" class="bedarf-check-ordered" data-supply-alert-status="ordered" data-alert-id="${escapeHtml(alert.id)}" aria-label="Als bestellt markieren">Bestellt</button>`
+    : '';
+  const assignBtn = canAssign
+    ? `<button
+        type="button"
+        class="bedarf-check-assign"
+        data-supply-alert-assign="${escapeHtml(alert.id)}"
+        aria-label="Person oder Fachbereich zuordnen"
+      >Zuordnen</button>`
     : '';
   const checkLabel = canResolve
     ? (isOrdered ? 'Als erledigt abhaken' : 'Abhaken / erledigen')
@@ -806,7 +858,10 @@ function buildSupplyAlertListItem(alert, employeeName) {
         <strong class="bedarf-check-title">${escapeHtml(alert.title)}</strong>
         ${metaParts.length ? `<span class="bedarf-check-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
       </div>
-      ${orderedBtn}
+      <div class="bedarf-check-actions">
+        ${assignBtn}
+        ${orderedBtn}
+      </div>
     </div>
   `;
 }
@@ -1085,7 +1140,89 @@ function subscribeSupplyCatalog() {
     );
 }
 
+function populateAssignModalAssigneeSelect(departmentTarget, selectedName = '') {
+  const select = document.getElementById('bedarf-assign-assignee');
+  if (!(select instanceof HTMLSelectElement)) return;
+  const target = normalizeDepartmentTarget(departmentTarget);
+  const names = getTeamEmployees()
+    .map((name) => String(name || '').trim())
+    .filter(Boolean)
+    .filter((name) => employeeMatchesDepartmentTarget(name, target))
+    .sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base' }));
+  const niemandLabel = target === 'all'
+    ? 'Niemand (alle Bereiche)'
+    : `Niemand (${departmentLabel(target)})`;
+  select.innerHTML = [`<option value="">${escapeHtml(niemandLabel)}</option>`]
+    .concat(names.map((name) => (
+      `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+    )))
+    .join('');
+  if (selectedName && names.some((name) => namesMatch(name, selectedName))) {
+    select.value = names.find((name) => namesMatch(name, selectedName)) || '';
+  } else {
+    select.value = '';
+  }
+}
+
+export function openBedarfAssignModal(alertId) {
+  const id = String(alertId || '').trim();
+  const alert = alertState.alerts.find((entry) => entry.id === id);
+  const modal = document.getElementById('modal-bedarf-assign');
+  if (!alert || !modal) return;
+  const employee = getActiveEmployeeName();
+  if (!employee) {
+    window.showToast?.('Bitte zuerst dein Profil wählen.', 'warning');
+    return;
+  }
+  const idInput = document.getElementById('bedarf-assign-alert-id');
+  const titleEl = document.getElementById('bedarf-assign-item-title');
+  const deptSelect = document.getElementById('bedarf-assign-department');
+  if (idInput) idInput.value = alert.id;
+  if (titleEl) titleEl.textContent = alert.title || 'Bedarf';
+  const dept = normalizeDepartmentTarget(alert.departmentTarget);
+  if (deptSelect instanceof HTMLSelectElement) deptSelect.value = dept;
+  populateAssignModalAssigneeSelect(dept, alert.assignedTo || '');
+  modal.hidden = false;
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.add('is-open');
+  document.body.classList.add('bedarf-assign-open');
+}
+
+function closeBedarfAssignModal() {
+  const modal = document.getElementById('modal-bedarf-assign');
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute('aria-hidden', 'true');
+  modal.classList.remove('is-open');
+  document.body.classList.remove('bedarf-assign-open');
+  const idInput = document.getElementById('bedarf-assign-alert-id');
+  if (idInput) idInput.value = '';
+}
+
+async function handleBedarfAssignSave() {
+  const id = String(document.getElementById('bedarf-assign-alert-id')?.value || '').trim();
+  const departmentTarget = normalizeDepartmentTarget(
+    document.getElementById('bedarf-assign-department')?.value,
+  );
+  const assignedTo = document.getElementById('bedarf-assign-assignee')?.value || '';
+  const btn = document.getElementById('bedarf-assign-save');
+  if (!id) return;
+  if (btn) btn.disabled = true;
+  try {
+    await updateSupplyAlertAssignment(id, { departmentTarget, assignedTo });
+    window.showToast?.('Zuordnung gespeichert.', 'success');
+    closeBedarfAssignModal();
+  } catch (err) {
+    console.error('[QuickAlert] Zuordnung speichern fehlgeschlagen:', err);
+    window.showToast?.(mapSupplyWriteError(err), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function handleSupplyAlertStatusClick(event) {
+  if (event.target.closest('[data-supply-alert-assign]')) return;
+
   const statusBtn = event.target.closest('[data-supply-alert-status]');
   const row = event.target.closest('.bedarf-check-item.is-interactive');
   let alertId = null;
@@ -1210,7 +1347,39 @@ function bindQuickAlertUi() {
   });
 
   document.getElementById('supply-alert-inbox')?.addEventListener('click', (event) => {
+    const assignBtn = event.target.closest('[data-supply-alert-assign]');
+    if (assignBtn instanceof HTMLButtonElement) {
+      event.preventDefault();
+      event.stopPropagation();
+      openBedarfAssignModal(assignBtn.getAttribute('data-supply-alert-assign'));
+      return;
+    }
     void handleSupplyAlertStatusClick(event);
+  });
+
+  document.getElementById('bedarf-assign-close')?.addEventListener('click', () => {
+    closeBedarfAssignModal();
+  });
+  document.getElementById('bedarf-assign-cancel')?.addEventListener('click', () => {
+    closeBedarfAssignModal();
+  });
+  document.getElementById('bedarf-assign-save')?.addEventListener('click', () => {
+    void handleBedarfAssignSave();
+  });
+  document.getElementById('bedarf-assign-department')?.addEventListener('change', () => {
+    const dept = normalizeDepartmentTarget(
+      document.getElementById('bedarf-assign-department')?.value,
+    );
+    const previous = document.getElementById('bedarf-assign-assignee')?.value || '';
+    populateAssignModalAssigneeSelect(dept, previous);
+  });
+  document.getElementById('modal-bedarf-assign')?.addEventListener('click', (event) => {
+    if (
+      event.target?.id === 'modal-bedarf-assign'
+      || event.target?.dataset?.bedarfAssignDismiss === '1'
+    ) {
+      closeBedarfAssignModal();
+    }
   });
 
   window.addEventListener('charculogic:active-employee-changed', () => {
@@ -1221,10 +1390,22 @@ function bindQuickAlertUi() {
     if (document.body.classList.contains('quick-alert-open')) {
       populateAssigneeSelect(readSelectedDepartmentTarget());
     }
+    if (document.body.classList.contains('bedarf-assign-open')) {
+      const dept = normalizeDepartmentTarget(
+        document.getElementById('bedarf-assign-department')?.value,
+      );
+      const previous = document.getElementById('bedarf-assign-assignee')?.value || '';
+      populateAssignModalAssigneeSelect(dept, previous);
+    }
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && document.body.classList.contains('quick-alert-open')) {
+    if (event.key !== 'Escape') return;
+    if (document.body.classList.contains('bedarf-assign-open')) {
+      closeBedarfAssignModal();
+      return;
+    }
+    if (document.body.classList.contains('quick-alert-open')) {
       closeQuickAlertModal();
     }
   });
