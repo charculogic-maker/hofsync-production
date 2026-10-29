@@ -76,16 +76,22 @@ describe('Schnellmelde & Bedarfs-Stammdaten', () => {
     expect(quickAlertJs).to.match(/populateAssigneeSelect/);
   });
 
-  it('stores departmentAssignments on teamDashboard with canOrder', () => {
+  it('stores departmentAssignments on teamDashboard with primary + canOrder', () => {
     expect(teamConfigJs).to.match(/departmentAssignments/);
     expect(teamConfigJs).to.match(/DEPARTMENT_KEYS/);
     expect(teamConfigJs).to.match(/export async function saveEmployeeDepartmentAssignment/);
+    expect(teamConfigJs).to.match(/export function normalizeDepartmentAssignmentEntry/);
+    expect(teamConfigJs).to.match(/primaryDepartment/);
     expect(teamConfigJs).to.match(/canOrder/);
     expect(teamConfigJs).to.match(/resolveTeamConfigTenantId|getGlobalTenantId/);
     expect(teamConfigJs).to.match(/saveEmployeeDepartmentAssignment[\s\S]*?op:\s*'update'/);
     expect(devDashboardJs).to.match(/setTeamConfigTenantId/);
+    expect(devDashboardJs).to.match(/set-user-primary-department/);
     expect(devDashboardJs).to.match(/toggle-user-department/);
     expect(devDashboardJs).to.match(/toggle-user-can-order/);
+    expect(devDashboardJs).to.match(/Bedarfe erledigen/);
+    expect(devDashboardJs).to.match(/readDepartmentAssignmentFromRow/);
+    expect(indexHtml).to.match(/Fachbereiche/);
   });
 
   it('allows supply_alerts and supply_catalog in Firestore rules', () => {
