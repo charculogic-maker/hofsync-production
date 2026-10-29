@@ -51,6 +51,7 @@ import {
 import {
   DEPARTMENT_KEYS,
   DEPARTMENT_LABELS,
+  PRIMARY_DEPARTMENT_NONE,
   getEmployeeDepartmentAssignment,
   saveEmployeeDepartmentAssignment,
   setTeamConfigTenantId,
@@ -561,7 +562,7 @@ function renderEmployeeModuleToggles(employee) {
 }
 
 /**
- * Fachbereichs-Tags + Bestellrecht für Schnellmelde/Bedarfe (teamDashboard.departmentAssignments).
+ * Primärbereich + Mitwirkung + Bedarfs-Recht (teamDashboard.departmentAssignments).
  * @param {object} employee
  * @returns {string}
  */
@@ -570,23 +571,42 @@ function renderEmployeeDepartmentToggles(employee) {
   const displayName = String(employee.displayName || '').trim();
   const assignment = displayName
     ? getEmployeeDepartmentAssignment(displayName)
-    : { departments: [], canOrder: false };
+    : { departments: [], primaryDepartment: PRIMARY_DEPARTMENT_NONE, canOrder: false };
   const fromEmployee = Array.isArray(employee.departments)
     ? employee.departments
     : assignment.departments;
   const departments = new Set(
     (fromEmployee.length ? fromEmployee : assignment.departments).map((d) => String(d).toLowerCase()),
   );
+  const primaryFromEmployee = String(employee.primaryDepartment || '').trim().toLowerCase();
+  const primaryDepartment = DEPARTMENT_KEYS.includes(primaryFromEmployee)
+    ? primaryFromEmployee
+    : (assignment.primaryDepartment || PRIMARY_DEPARTMENT_NONE);
+  if (primaryDepartment) departments.add(primaryDepartment);
   const canOrder = employee.canOrder === true || assignment.canOrder === true;
+  const controlsDisabled = isDisabled || !displayName;
   const safeUid = escapeHtml(employee.uid);
   const safeTenantId = escapeHtml(employee.tenantId);
   const safeName = escapeHtml(displayName);
 
-  const deptToggles = DEPARTMENT_KEYS.map((key) => {
+  const primaryOptions = [
+    `<option value="">— keiner —</option>`,
+    ...DEPARTMENT_KEYS.map((key) => `
+      <option value="${escapeHtml(key)}" ${primaryDepartment === key ? 'selected' : ''}>
+        ${escapeHtml(DEPARTMENT_LABELS[key] || key)}
+      </option>
+    `),
+  ].join('');
+
+  const mitwirkungToggles = DEPARTMENT_KEYS.map((key) => {
     const label = DEPARTMENT_LABELS[key] || key;
+    const isPrimary = primaryDepartment === key;
     const checked = departments.has(key);
     return `
-      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="${escapeHtml(label)}">
+      <label
+        class="dev-dashboard-toggle dev-dashboard-toggle--compact${isPrimary ? ' is-primary-dept' : ''}"
+        title="${isPrimary ? 'Primärbereich (immer dabei)' : escapeHtml(label)}"
+      >
         <input
           type="checkbox"
           data-action="toggle-user-department"
@@ -594,8 +614,8 @@ function renderEmployeeDepartmentToggles(employee) {
           data-tenant-id="${safeTenantId}"
           data-display-name="${safeName}"
           data-department-key="${escapeHtml(key)}"
-          ${checked ? 'checked' : ''}
-          ${isDisabled || !displayName ? 'disabled' : ''}
+          ${checked || isPrimary ? 'checked' : ''}
+          ${controlsDisabled || isPrimary ? 'disabled' : ''}
         >
         <span>${escapeHtml(label)}</span>
       </label>
@@ -603,9 +623,32 @@ function renderEmployeeDepartmentToggles(employee) {
   }).join('');
 
   return `
-    <div class="dev-dashboard-toggles dev-dashboard-toggles--departments" data-employee-departments="${safeUid}">
-      ${deptToggles}
-      <label class="dev-dashboard-toggle dev-dashboard-toggle--compact" title="Darf Bedarfe als bestellt/erledigt markieren">
+    <div
+      class="dev-dashboard-dept-assign"
+      data-employee-departments="${safeUid}"
+    >
+      <label class="dev-dashboard-dept-primary">
+        <span class="dev-dashboard-dept-label">Primär</span>
+        <select
+          class="dev-dashboard-dept-primary-select"
+          data-action="set-user-primary-department"
+          data-uid="${safeUid}"
+          data-tenant-id="${safeTenantId}"
+          data-display-name="${safeName}"
+          aria-label="Primärbereich"
+          ${controlsDisabled ? 'disabled' : ''}
+        >${primaryOptions}</select>
+      </label>
+      <div class="dev-dashboard-dept-extra" role="group" aria-label="Mitwirkung in weiteren Bereichen">
+        <span class="dev-dashboard-dept-label">Auch</span>
+        <div class="dev-dashboard-toggles dev-dashboard-toggles--departments">
+          ${mitwirkungToggles}
+        </div>
+      </div>
+      <label
+        class="dev-dashboard-toggle dev-dashboard-toggle--compact dev-dashboard-dept-can-order"
+        title="Darf Bedarfe als bestellt oder erledigt markieren – unabhängig vom Fachbereich"
+      >
         <input
           type="checkbox"
           data-action="toggle-user-can-order"
@@ -613,12 +656,32 @@ function renderEmployeeDepartmentToggles(employee) {
           data-tenant-id="${safeTenantId}"
           data-display-name="${safeName}"
           ${canOrder ? 'checked' : ''}
-          ${isDisabled || !displayName ? 'disabled' : ''}
+          ${controlsDisabled ? 'disabled' : ''}
         >
-        <span>Darf bestellen</span>
+        <span>Bedarfe erledigen</span>
       </label>
     </div>
   `;
+}
+
+/** Liest Primär + Mitwirkung + Bedarfs-Recht aus der Admin-Zeile. */
+function readDepartmentAssignmentFromRow(row, fallback = {}) {
+  const primarySelect = row?.querySelector('[data-action="set-user-primary-department"]');
+  const primaryDepartment = primarySelect instanceof HTMLSelectElement
+    ? String(primarySelect.value || '').trim().toLowerCase()
+    : String(fallback.primaryDepartment || '').trim().toLowerCase();
+  const checkedExtras = DEPARTMENT_KEYS.filter((key) => {
+    const box = row?.querySelector(`[data-department-key="${key}"]`);
+    return box instanceof HTMLInputElement ? box.checked : false;
+  });
+  const departments = DEPARTMENT_KEYS.filter((key) => (
+    key === primaryDepartment || checkedExtras.includes(key)
+  ));
+  const canOrderBox = row?.querySelector('[data-action="toggle-user-can-order"]');
+  const canOrder = canOrderBox instanceof HTMLInputElement
+    ? canOrderBox.checked
+    : fallback.canOrder === true;
+  return { departments, primaryDepartment, canOrder };
 }
 
 /**
@@ -2737,52 +2800,70 @@ function bindEmployeeTableActions(dashboardState) {
 
   section.addEventListener('change', async (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLInputElement)) return;
+    const isSelect = input instanceof HTMLSelectElement;
+    const isCheckbox = input instanceof HTMLInputElement;
+    if (!isSelect && !isCheckbox) return;
     const action = String(input.getAttribute('data-action') || '').trim();
 
-    if (action === 'toggle-user-department' || action === 'toggle-user-can-order') {
+    if (
+      action === 'toggle-user-department'
+      || action === 'toggle-user-can-order'
+      || action === 'set-user-primary-department'
+    ) {
       const displayName = String(input.getAttribute('data-display-name') || '').trim();
       const uid = String(input.getAttribute('data-uid') || '').trim();
       if (!displayName) {
-        input.checked = !input.checked;
+        if (isCheckbox) input.checked = !input.checked;
         window.showToast?.('Name fehlt — Zuständigkeit kann nicht gespeichert werden.', 'warning');
         return;
       }
       const employee = (dashboardState.employees || []).find((entry) => entry.uid === uid);
       const current = getEmployeeDepartmentAssignment(displayName);
       const row = input.closest('[data-employee-departments]');
-      const nextDepartments = DEPARTMENT_KEYS.filter((key) => {
-        const box = row?.querySelector(`[data-department-key="${key}"]`);
-        return box instanceof HTMLInputElement ? box.checked : current.departments.includes(key);
-      });
-      const canOrderBox = row?.querySelector('[data-action="toggle-user-can-order"]');
-      const nextCanOrder = canOrderBox instanceof HTMLInputElement
-        ? canOrderBox.checked
-        : current.canOrder;
+      const previousPrimary = isSelect ? current.primaryDepartment : null;
+      const previousChecked = isCheckbox ? input.checked : null;
+      const next = readDepartmentAssignmentFromRow(row, current);
       input.disabled = true;
       try {
-        const saved = await saveEmployeeDepartmentAssignment(displayName, {
-          departments: nextDepartments,
-          canOrder: nextCanOrder,
-        });
+        const saved = await saveEmployeeDepartmentAssignment(displayName, next);
         if (employee) {
           employee.departments = saved.departments;
+          employee.primaryDepartment = saved.primaryDepartment;
           employee.canOrder = saved.canOrder;
         }
-        window.showToast?.(
-          action === 'toggle-user-can-order'
-            ? (nextCanOrder ? 'Bestellrecht gesetzt.' : 'Bestellrecht entfernt.')
-            : 'Fachbereich gespeichert.',
-          'success',
-        );
+        // Primärwechsel: Mitwirkungs-Haken neu zeichnen (Primär = checked+disabled).
+        if (action === 'set-user-primary-department') {
+          const tableHost = document.getElementById('dev-dashboard-employee-body');
+          const tr = tableHost?.querySelector(`[data-employee-row="${CSS.escape(uid)}"]`);
+          const cell = tr?.querySelector('.dev-dashboard-employee-departments');
+          const renderTarget = employee || {
+            uid,
+            displayName,
+            tenantId: String(input.getAttribute('data-tenant-id') || ''),
+            departments: saved.departments,
+            primaryDepartment: saved.primaryDepartment,
+            canOrder: saved.canOrder,
+          };
+          if (cell) cell.innerHTML = renderEmployeeDepartmentToggles(renderTarget);
+        }
+        const toastMsg = action === 'toggle-user-can-order'
+          ? (saved.canOrder ? 'Recht „Bedarfe erledigen“ gesetzt.' : 'Recht „Bedarfe erledigen“ entfernt.')
+          : action === 'set-user-primary-department'
+            ? 'Primärbereich gespeichert.'
+            : 'Mitwirkung gespeichert.';
+        window.showToast?.(toastMsg, 'success');
+        const primaryLabel = saved.primaryDepartment
+          ? (DEPARTMENT_LABELS[saved.primaryDepartment] || saved.primaryDepartment)
+          : 'keiner';
         recordAudit(
           'user_departments',
-          `Zuständigkeit ${displayName}: ${saved.departments.join(', ') || 'keine'}${saved.canOrder ? ' · Bestellung' : ''}`,
+          `Zuständigkeit ${displayName}: Primär ${primaryLabel} · ${saved.departments.join(', ') || 'keine'}${saved.canOrder ? ' · Bedarfe erledigen' : ''}`,
           'change',
         );
       } catch (err) {
         console.error('[Dev-Dashboard] Fachbereich speichern fehlgeschlagen:', err);
-        input.checked = !input.checked;
+        if (isCheckbox && previousChecked !== null) input.checked = !previousChecked;
+        if (isSelect && previousPrimary !== null) input.value = previousPrimary || '';
         window.showToast?.(logAndMapOperatorError(err, 'admin-user-action'), 'error');
       } finally {
         input.disabled = false;
@@ -2790,7 +2871,7 @@ function bindEmployeeTableActions(dashboardState) {
       return;
     }
 
-    if (action !== 'toggle-user-module') return;
+    if (!(input instanceof HTMLInputElement) || action !== 'toggle-user-module') return;
 
     const uid = String(input.getAttribute('data-uid') || '').trim();
     const tenantId = String(input.getAttribute('data-tenant-id') || '').trim();
@@ -2855,6 +2936,7 @@ function bindEmployeeTableActions(dashboardState) {
       action === 'toggle-user-module'
       || action === 'toggle-user-department'
       || action === 'toggle-user-can-order'
+      || action === 'set-user-primary-department'
     ) return;
 
     if (action === 'toggle-employee-menu') {

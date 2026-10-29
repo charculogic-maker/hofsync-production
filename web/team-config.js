@@ -64,6 +64,13 @@ export const DEPARTMENT_LABELS = {
   einkauf: 'Einkauf / Büro',
 };
 
+/** Leerer Primärbereich = noch nicht zugeordnet. */
+export const PRIMARY_DEPARTMENT_NONE = '';
+
+/**
+ * @typedef {{ departments: string[], primaryDepartment: string, canOrder: boolean }} DepartmentAssignment
+ */
+
 const configState = {
   db: null,
   tenantId: '',
@@ -72,7 +79,7 @@ const configState = {
   verifyPinCallable: null,
   employees: [...DEFAULT_EMPLOYEES],
   groups: JSON.parse(JSON.stringify(DEFAULT_GROUPS)),
-  /** @type {Record<string, { departments: string[], canOrder: boolean }>} */
+  /** @type {Record<string, DepartmentAssignment>} */
   departmentAssignments: {},
 };
 
@@ -100,10 +107,36 @@ function normalizeDepartmentList(value) {
   return result;
 }
 
+function normalizePrimaryDepartment(value, departments = []) {
+  const key = String(value || '').trim().toLowerCase();
+  if (key && DEPARTMENT_KEYS.includes(key)) return key;
+  // Legacy: erster Eintrag gilt als Primär, wenn keines gesetzt war.
+  if (departments.length) return departments[0];
+  return PRIMARY_DEPARTMENT_NONE;
+}
+
+/**
+ * Stellt sicher: Primär ist in departments enthalten (oder beides leer).
+ * @param {{ departments?: string[], primaryDepartment?: string, canOrder?: boolean }} input
+ * @returns {DepartmentAssignment}
+ */
+export function normalizeDepartmentAssignmentEntry(input = {}) {
+  const canOrder = input?.canOrder === true;
+  let departments = normalizeDepartmentList(input?.departments);
+  let primaryDepartment = normalizePrimaryDepartment(input?.primaryDepartment, departments);
+  if (primaryDepartment && !departments.includes(primaryDepartment)) {
+    departments = [primaryDepartment, ...departments];
+  }
+  if (!primaryDepartment && !departments.length && !canOrder) {
+    return { departments: [], primaryDepartment: PRIMARY_DEPARTMENT_NONE, canOrder: false };
+  }
+  return { departments, primaryDepartment, canOrder };
+}
+
 /**
  * Normalisiert departmentAssignments aus Firestore (Keys = Mitarbeiternamen).
  * @param {unknown} raw
- * @returns {Record<string, { departments: string[], canOrder: boolean }>}
+ * @returns {Record<string, DepartmentAssignment>}
  */
 export function normalizeDepartmentAssignments(raw) {
   const result = {};
@@ -111,13 +144,10 @@ export function normalizeDepartmentAssignments(raw) {
   Object.entries(raw).forEach(([name, entry]) => {
     const cleanName = String(name || '').trim();
     if (!cleanName) return;
-    const departments = normalizeDepartmentList(
-      entry && typeof entry === 'object' ? entry.departments : entry,
-    );
-    const canOrder = entry && typeof entry === 'object'
-      ? entry.canOrder === true
-      : false;
-    result[cleanName] = { departments, canOrder };
+    const rawEntry = entry && typeof entry === 'object'
+      ? entry
+      : { departments: entry };
+    result[cleanName] = normalizeDepartmentAssignmentEntry(rawEntry);
   });
   return result;
 }
@@ -129,19 +159,21 @@ export function getDepartmentAssignments() {
 /**
  * Zuständigkeiten für einen Mitarbeiternamen (Soft-Lock / Anzeigename).
  * @param {string} employeeName
- * @returns {{ departments: string[], canOrder: boolean }}
+ * @returns {DepartmentAssignment}
  */
 export function getEmployeeDepartmentAssignment(employeeName) {
+  const empty = {
+    departments: [],
+    primaryDepartment: PRIMARY_DEPARTMENT_NONE,
+    canOrder: false,
+  };
   const key = departmentLookupKey(employeeName);
-  if (!key) return { departments: [], canOrder: false };
+  if (!key) return empty;
   const match = Object.entries(configState.departmentAssignments).find(
     ([name]) => departmentLookupKey(name) === key,
   );
-  if (!match) return { departments: [], canOrder: false };
-  return {
-    departments: [...(match[1].departments || [])],
-    canOrder: match[1].canOrder === true,
-  };
+  if (!match) return empty;
+  return normalizeDepartmentAssignmentEntry(match[1]);
 }
 
 export function employeeHasDepartment(employeeName, department) {
@@ -160,7 +192,7 @@ export function employeeCanResolveSupplyAlerts(employeeName) {
 /**
  * Speichert Fachbereiche/canOrder für einen Mitarbeiter in teamDashboard.
  * @param {string} employeeName
- * @param {{ departments?: string[], canOrder?: boolean }} patch
+ * @param {{ departments?: string[], primaryDepartment?: string, canOrder?: boolean }} patch
  */
 export async function saveEmployeeDepartmentAssignment(employeeName, patch = {}) {
   const cleanName = String(employeeName || '').trim();
@@ -170,12 +202,13 @@ export async function saveEmployeeDepartmentAssignment(employeeName, patch = {})
   if (!tenantId) throw new Error('Mandant fehlt');
 
   const current = getEmployeeDepartmentAssignment(cleanName);
-  const next = {
-    departments: patch.departments !== undefined
-      ? normalizeDepartmentList(patch.departments)
-      : current.departments,
+  const next = normalizeDepartmentAssignmentEntry({
+    departments: patch.departments !== undefined ? patch.departments : current.departments,
+    primaryDepartment: patch.primaryDepartment !== undefined
+      ? patch.primaryDepartment
+      : current.primaryDepartment,
     canOrder: patch.canOrder !== undefined ? patch.canOrder === true : current.canOrder,
-  };
+  });
 
   const assignments = { ...configState.departmentAssignments };
   // Alten Key mit anderer Schreibweise ersetzen
@@ -184,7 +217,7 @@ export async function saveEmployeeDepartmentAssignment(employeeName, patch = {})
       delete assignments[key];
     }
   });
-  if (next.departments.length || next.canOrder) {
+  if (next.departments.length || next.primaryDepartment || next.canOrder) {
     assignments[cleanName] = next;
   }
 
