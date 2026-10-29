@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261029-admin-dept-primary-v1';
+const CACHE_NAME = 'charculogic-v20261029-bedarf-dept-dialog-v1';
 
-const CACHE_SCHEMA = 'p0-admin-dept-primary-oct2026';
-/** Release – Admin: Primärbereich + Mitwirkung + Bedarfe erledigen */
-const RELEASED_AT = '2026-10-29T20:00:00+01:00';
+const CACHE_SCHEMA = 'p0-bedarf-dept-dialog-oct2026';
+/** Release – Bedarf melden: Fachbereich sichtbar + Zuweisen gefiltert */
+const RELEASED_AT = '2026-10-29T20:20:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

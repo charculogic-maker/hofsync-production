@@ -33,17 +33,44 @@ export const SUPPLY_CATEGORY_OPTIONS = [
 ];
 
 export const SUPPLY_DEPARTMENT_OPTIONS = [
-  { value: 'all', label: 'Alle' },
-  { value: 'metzgerei', label: 'Metzgerei' },
-  { value: 'laden', label: 'Laden' },
-  { value: 'einkauf', label: 'Einkauf' },
+  { value: 'all', label: 'Alle Bereiche' },
+  { value: 'metzgerei', label: 'Metzgerei / Produktion' },
+  { value: 'laden', label: 'Laden / Verkauf' },
+  { value: 'einkauf', label: 'Einkauf / Büro' },
 ];
 
 export const SUPPLY_CATEGORY_VALUES = SUPPLY_CATEGORY_OPTIONS.map((entry) => entry.value);
+export const SUPPLY_DEPARTMENT_VALUES = SUPPLY_DEPARTMENT_OPTIONS.map((entry) => entry.value);
 
 export function departmentTargetForCategory(category) {
   const match = SUPPLY_CATEGORY_OPTIONS.find((entry) => entry.value === category);
   return match?.departmentTarget || 'all';
+}
+
+export function departmentLabel(value) {
+  const key = String(value || 'all').trim().toLowerCase();
+  const match = SUPPLY_DEPARTMENT_OPTIONS.find((entry) => entry.value === key);
+  return match?.label || 'Alle Bereiche';
+}
+
+/** Normalisiert departmentTarget aus Select/Katalog. */
+export function normalizeDepartmentTarget(value) {
+  const key = String(value || '').trim().toLowerCase();
+  return SUPPLY_DEPARTMENT_VALUES.includes(key) ? key : 'all';
+}
+
+/**
+ * Passt der Mitarbeiter zum gewählten Fachbereich (Primär, Mitwirkung oder Bedarfs-Recht)?
+ * @param {string} employeeName
+ * @param {string} departmentTarget
+ */
+export function employeeMatchesDepartmentTarget(employeeName, departmentTarget) {
+  const target = normalizeDepartmentTarget(departmentTarget);
+  if (target === 'all') return true;
+  const assignment = getEmployeeDepartmentAssignment(employeeName);
+  if (assignment.canOrder) return true;
+  if (assignment.primaryDepartment === target) return true;
+  return assignment.departments.includes(target);
 }
 
 const alertState = {
@@ -419,7 +446,7 @@ export async function createSupplyAlert({
   if (!SUPPLY_CATEGORY_VALUES.includes(resolvedCategory)) {
     resolvedCategory = 'sonstig';
   }
-  let resolvedDepartment = String(
+  let resolvedDepartment = normalizeDepartmentTarget(
     departmentTarget || departmentTargetForCategory(resolvedCategory) || 'all',
   );
   let resolvedUrgency = String(urgency || 'nachbestellen');
@@ -510,15 +537,37 @@ export async function updateSupplyAlertStatus(alertId, status, resolvedBy) {
   });
 }
 
-function populateAssigneeSelect() {
+function readSelectedDepartmentTarget() {
+  const select = document.getElementById('quick-alert-department');
+  if (select instanceof HTMLSelectElement) {
+    return normalizeDepartmentTarget(select.value);
+  }
+  const category = document.getElementById('quick-alert-category')?.value || 'sonstig';
+  return departmentTargetForCategory(category);
+}
+
+function syncDepartmentSelectFromCategory() {
+  const categorySelect = document.getElementById('quick-alert-category');
+  const deptSelect = document.getElementById('quick-alert-department');
+  if (!(categorySelect instanceof HTMLSelectElement)) return;
+  if (!(deptSelect instanceof HTMLSelectElement)) return;
+  deptSelect.value = departmentTargetForCategory(categorySelect.value);
+}
+
+function populateAssigneeSelect(departmentTarget = readSelectedDepartmentTarget()) {
   const select = document.getElementById('quick-alert-assignee');
   if (!(select instanceof HTMLSelectElement)) return;
+  const target = normalizeDepartmentTarget(departmentTarget);
   const previous = select.value;
   const names = getTeamEmployees()
     .map((name) => String(name || '').trim())
     .filter(Boolean)
+    .filter((name) => employeeMatchesDepartmentTarget(name, target))
     .sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base' }));
-  const options = ['<option value="">Niemand (nur Fachbereich)</option>']
+  const niemandLabel = target === 'all'
+    ? 'Niemand (alle Bereiche)'
+    : `Niemand (${departmentLabel(target)})`;
+  const options = [`<option value="">${escapeHtml(niemandLabel)}</option>`]
     .concat(names.map((name) => (
       `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
     )));
@@ -530,6 +579,15 @@ function populateAssigneeSelect() {
   }
 }
 
+function onQuickAlertCategoryChange() {
+  syncDepartmentSelectFromCategory();
+  populateAssigneeSelect(readSelectedDepartmentTarget());
+}
+
+function onQuickAlertDepartmentChange() {
+  populateAssigneeSelect(readSelectedDepartmentTarget());
+}
+
 export function openQuickAlertModal() {
   const modal = document.getElementById('modal-quick-alert');
   if (!modal) return;
@@ -537,7 +595,8 @@ export function openQuickAlertModal() {
   modal.setAttribute('aria-hidden', 'false');
   modal.classList.add('is-open');
   document.body.classList.add('quick-alert-open');
-  populateAssigneeSelect();
+  syncDepartmentSelectFromCategory();
+  populateAssigneeSelect(readSelectedDepartmentTarget());
   renderQuickButtonGrid();
   const input = document.getElementById('quick-alert-freetext');
   if (input) {
@@ -557,6 +616,9 @@ function closeQuickAlertModal() {
   if (freetext) freetext.value = '';
   const assignee = document.getElementById('quick-alert-assignee');
   if (assignee instanceof HTMLSelectElement) assignee.value = '';
+  const category = document.getElementById('quick-alert-category');
+  if (category instanceof HTMLSelectElement) category.value = 'sonstig';
+  syncDepartmentSelectFromCategory();
 }
 
 function renderQuickButtonGrid() {
@@ -597,10 +659,23 @@ async function handleQuickAlertTap(button) {
   if (!title) return;
   button.disabled = true;
   try {
+    const category = button.getAttribute('data-category') || 'sonstig';
+    const departmentTarget = normalizeDepartmentTarget(
+      button.getAttribute('data-department') || departmentTargetForCategory(category),
+    );
+    const categorySelect = document.getElementById('quick-alert-category');
+    const deptSelect = document.getElementById('quick-alert-department');
+    if (categorySelect instanceof HTMLSelectElement && SUPPLY_CATEGORY_VALUES.includes(category)) {
+      categorySelect.value = category;
+    }
+    if (deptSelect instanceof HTMLSelectElement) {
+      deptSelect.value = departmentTarget;
+    }
+    populateAssigneeSelect(departmentTarget);
     await createSupplyAlert({
       title,
-      category: button.getAttribute('data-category') || 'sonstig',
-      departmentTarget: button.getAttribute('data-department') || 'all',
+      category,
+      departmentTarget,
       urgency: button.getAttribute('data-urgency') || 'nachbestellen',
       assignedTo: document.getElementById('quick-alert-assignee')?.value || '',
       catalogItemId: button.getAttribute('data-catalog-id') || '',
@@ -636,6 +711,7 @@ async function handleFreetextSubmit() {
   }
   const urgency = document.getElementById('quick-alert-urgency')?.value || 'nachbestellen';
   const category = document.getElementById('quick-alert-category')?.value || 'sonstig';
+  const departmentTarget = readSelectedDepartmentTarget();
   const assignedTo = document.getElementById('quick-alert-assignee')?.value || '';
   const btn = document.getElementById('quick-alert-freetext-submit');
   if (btn) btn.disabled = true;
@@ -643,7 +719,7 @@ async function handleFreetextSubmit() {
     await createSupplyAlert({
       title,
       category,
-      departmentTarget: departmentTargetForCategory(category),
+      departmentTarget,
       urgency,
       assignedTo,
       seedCatalog: true,
@@ -1125,6 +1201,14 @@ function bindQuickAlertUi() {
     }
   });
 
+  document.getElementById('quick-alert-category')?.addEventListener('change', () => {
+    onQuickAlertCategoryChange();
+  });
+
+  document.getElementById('quick-alert-department')?.addEventListener('change', () => {
+    onQuickAlertDepartmentChange();
+  });
+
   document.getElementById('supply-alert-inbox')?.addEventListener('click', (event) => {
     void handleSupplyAlertStatusClick(event);
   });
@@ -1134,6 +1218,9 @@ function bindQuickAlertUi() {
   });
   window.addEventListener('charculogic:team-config-changed', () => {
     renderSupplyAlertInbox();
+    if (document.body.classList.contains('quick-alert-open')) {
+      populateAssigneeSelect(readSelectedDepartmentTarget());
+    }
   });
 
   document.addEventListener('keydown', (event) => {
