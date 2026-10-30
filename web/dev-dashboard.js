@@ -2494,12 +2494,12 @@ function bindEmployeeCreateForm(dashboardState) {
     } catch (err) {
       console.error('[Dev-Dashboard] Mitarbeiter-Anlage fehlgeschlagen:', err);
       const detailsReason = String(err?.details?.reason || err?.customData?.reason || '').trim();
-      const rawMessage = String(err?.message || 'Anlage fehlgeschlagen.');
-      const message = detailsReason && !rawMessage.includes(detailsReason)
-        ? `${rawMessage} (${detailsReason})`
-        : rawMessage;
+      const mapped = logAndMapOperatorError(err, 'admin-user-action');
+      const message = detailsReason && !mapped.includes(detailsReason)
+        ? `${mapped} (${detailsReason})`
+        : mapped;
       setEmployeeFormStatus(message, 'error');
-      window.showToast?.('Mitarbeiter konnte nicht angelegt werden.', 'error');
+      window.showToast?.(message, 'error');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }

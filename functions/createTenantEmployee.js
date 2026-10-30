@@ -1,7 +1,6 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('./firebaseAdmin');
 const adminDb = require('./adminDb');
-const { resolveAuthContext } = require('./authContext');
 const { normalizeAllowedModules, assertAdminAccessForTenant } = require('./manageTenantEmployees');
 
 const REGION = 'europe-west3';
@@ -27,10 +26,14 @@ async function handleCreateTenantEmployee(request) {
   if (!admin.apps.length) {
     admin.initializeApp();
   }
-  const baseCtx = resolveAuthContext(request.auth);
+  // tenantId aus Payload oder Claims — assertAdminAccessForTenant prüft Auth/Admin zuerst.
+  // Nicht resolveAuthContext vorab: Super-Admins ohne tenant-Claim würden sonst scheitern,
+  // und App-Check-Fehler („Unauthenticated“) kämen vermischt mit Auth-Fehlern an.
   const requestedTenantId = String(request.data?.tenantId || '').trim();
-  const ctx = assertAdminAccessForTenant(request.auth, requestedTenantId || baseCtx.tenantId);
-  const targetTenantId = (requestedTenantId || ctx.tenantId || baseCtx.tenantId || '').trim();
+  const token = request.auth?.token || {};
+  const claimTenantId = String(token.tenantId || token.tenant_id || token.tenantID || '').trim();
+  const targetTenantId = (requestedTenantId || claimTenantId).trim();
+  const ctx = assertAdminAccessForTenant(request.auth, targetTenantId);
 
   if (!targetTenantId) {
     throw new HttpsError('invalid-argument', 'Mandant (tenantId) konnte nicht ermittelt werden.');

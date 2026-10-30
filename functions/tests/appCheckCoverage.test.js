@@ -145,19 +145,22 @@ describe('App Check coverage – Callable registration contract', () => {
 
   test('createTenantEmployee allows Vercel hosts and still requires auth', () => {
     const source = readFunctionSource('createTenantEmployee.js');
-    const block = onCallOptionsSlice(source, 'exports.createTenantEmployee');
-    expect(block).toMatch(/cors:\s*true/);
-    expect(block).toMatch(/enforceAppCheck:\s*false/);
-    expect(block).toMatch(/invoker:\s*'public'/);
+    expect(source).toMatch(/CALLABLE_BASE_OPTIONS\s*=\s*\{[\s\S]*?cors:\s*true/);
+    expect(source).toMatch(/CALLABLE_BASE_OPTIONS\s*=\s*\{[\s\S]*?enforceAppCheck:\s*false/);
+    expect(source).toMatch(/CALLABLE_BASE_OPTIONS\s*=\s*\{[\s\S]*?invoker:\s*'public'/);
+    expect(source).toMatch(/onCall\(\s*\n?\s*CALLABLE_BASE_OPTIONS/);
     expect(source).toMatch(/assertAdminAccessForTenant/);
+    // Auth-Gate über assertAdminAccess — nicht resolveAuthContext vorab (Super-Admin / App-Check).
+    expect(source).not.toMatch(/resolveAuthContext\s*\(\s*request\.auth\s*\)/);
 
     const index = readFunctionSource('index.js');
     const exportAt = index.indexOf("lazyExport('createTenantEmployee'");
     expect(exportAt).toBeGreaterThanOrEqual(0);
-    const exportBlock = index.slice(exportAt, exportAt + 700);
+    const exportBlock = index.slice(exportAt, exportAt + 900);
     expect(exportBlock).toMatch(/cors:\s*true/);
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
     expect(exportBlock).toMatch(/handleCreateTenantEmployee/);
+    expect(exportBlock).toMatch(/App Check|Unauthenticated/);
     expect(index).toMatch(/invoker:\s*'public'/);
   });
 
