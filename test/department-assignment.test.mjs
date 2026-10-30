@@ -125,4 +125,18 @@ describe('team-config listener source contract', () => {
     const earlyReturn = source.slice(dashIdx, dashIdx + 2500);
     expect(earlyReturn).to.match(/initTeamConfigModule\(db/);
   });
+
+  it('admin team save merges teamDashboard instead of replacing department assignments', async () => {
+    const { readFileSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join } = await import('path');
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const source = readFileSync(join(root, 'web/team-config.js'), 'utf8');
+    const saveStart = source.indexOf('async function saveTeamConfigFromAdmin()');
+    expect(saveStart).to.be.greaterThan(-1);
+    const saveBlock = source.slice(saveStart, source.indexOf('function bindAdminTeamConfigPanel()', saveStart));
+    expect(saveBlock).to.include('departmentAssignments: configState.departmentAssignments');
+    expect(saveBlock).to.match(/op:\s*'update'/);
+    expect(saveBlock).to.not.match(/op:\s*'set'/);
+  });
 });
