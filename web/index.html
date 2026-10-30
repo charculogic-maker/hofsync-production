@@ -24,15 +24,14 @@
       var BOOT_BG = '#1c130e';
       try {
         var root = document.documentElement;
-        var theme = localStorage.getItem('charculogic.theme')
-          || localStorage.getItem('charculogic_theme');
-        if (theme !== 'dark' && theme !== 'light') {
-          theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-            ? 'dark'
-            : 'light';
-        }
+        // Laden-iPhone: feste Tag-Darstellung (beste Lesbarkeit bei Tageslicht/Neon).
+        var theme = 'light';
+        try {
+          localStorage.setItem('charculogic.theme', 'light');
+          localStorage.setItem('charculogic_theme', 'light');
+        } catch (eTheme) { /* private mode */ }
         root.setAttribute('data-theme', theme);
-        root.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+        root.style.colorScheme = 'light';
 
         var brandBg = localStorage.getItem('charculogic_brand_bg');
         var bootBg = (brandBg && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(brandBg))
@@ -40,9 +39,6 @@
           : BOOT_BG;
         root.style.setProperty('--boot-bg', bootBg);
         root.style.setProperty('--dark-header-bg', bootBg);
-        if (theme === 'dark') {
-          root.style.setProperty('--bg-color', bootBg);
-        }
 
         var primary = localStorage.getItem('charculogic_brand_primary');
         if (primary && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(primary)) {
@@ -342,7 +338,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261030-mhd-mobile-density">
+  <link rel="stylesheet" href="/style.css?v=20261030-mhd-lesen-guard">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
