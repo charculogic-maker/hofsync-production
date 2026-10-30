@@ -24,9 +24,12 @@ const fnSla = read('functions/mhdSla.js');
 assertIncludes(slaSrc, 'countMhdSlaCriticalOpen', 'Frontend Zähler');
 assertIncludes(slaSrc, 'updateMhdSlaBadge', 'Frontend Badge');
 assertIncludes(slaSrc, 'MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE = 1', 'Schwelle 1');
-assertIncludes(slaSrc, 'MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL = -90', 'Untergrenze absurde MHDs');
 assertIncludes(styleSrc, 'white-space: nowrap', 'Banner-Zähler nowrap');
 assertIncludes(slaSrc, 'mhd-sla-banner-count', 'Banner-Zähler-Span');
+assert.ok(
+  !slaSrc.includes('MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL'),
+  'Keine Untergrenze: Tippfehler-MHDs bleiben im Tageslauf',
+);
 
 assertIncludes(mhdSrc, "from './mhd-sla.js'", 'mhd.js importiert mhd-sla');
 assertIncludes(mhdSrc, 'refreshMhdSlaIndicators()', 'SLA-Refresh angebunden');

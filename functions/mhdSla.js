@@ -9,8 +9,6 @@ const { cleanTenantId } = require('./authContext');
 
 const TIME_ZONE = 'Europe/Berlin';
 const DEFAULT_CRITICAL_MAX_RESTTAGE = 1;
-/** Absurde Tippfehler-MHDs (z. B. −8000 Tage) nicht als Tageslauf-kritisch zählen. */
-const DEFAULT_CRITICAL_MIN_RESTTAGE = -90;
 const DEFAULT_OPEN_DAYS = Object.freeze([1, 2, 3, 4, 5, 6]); // Mo–Sa (JS getDay)
 const DEFAULT_AUDIENCE_GROUP = 'laden';
 const INACTIVE_STATUSES = new Set([
@@ -97,17 +95,14 @@ function isCheckedToday(data = {}, todayIso) {
   return Boolean(checked) && checked === todayIso;
 }
 
-function isCriticalOpen(data = {}, {
-  todayIso,
-  criticalMaxResttage = DEFAULT_CRITICAL_MAX_RESTTAGE,
-  criticalMinResttage = DEFAULT_CRITICAL_MIN_RESTTAGE,
-} = {}) {
+function isCriticalOpen(data = {}, { todayIso, criticalMaxResttage = DEFAULT_CRITICAL_MAX_RESTTAGE } = {}) {
   if (!todayIso) return false;
   if (!isActiveMhdItem(data)) return false;
   if (isCheckedToday(data, todayIso)) return false;
   const resttage = resolveResttage(data, todayIso);
   if (!Number.isFinite(resttage)) return false;
-  return resttage <= criticalMaxResttage && resttage >= criticalMinResttage;
+  // Absurde Vergangenheit bleibt kritisch, damit Tippfehler im Tageslauf korrigiert werden.
+  return resttage <= criticalMaxResttage;
 }
 
 function countCriticalOpen(items = [], options = {}) {

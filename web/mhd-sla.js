@@ -5,12 +5,6 @@
 
 export const MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE = 1;
 
-/**
- * Untergrenze für Tageslauf-SLA: absurde Tippfehler-MHDs (z. B. Jahr 2002 → −8000 Tage)
- * zählen nicht als „heute noch prüfen“. Echte Überzieher bis ca. 3 Monate bleiben drin.
- */
-export const MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL = -90;
-
 export const MHD_SLA_INACTIVE_STATUSES = Object.freeze(new Set([
   'raus',
   'ausverkauft',
@@ -105,12 +99,10 @@ export function isMhdSlaCriticalOpen(item = {}, options = {}) {
   const maxRest = Number.isFinite(Number(options.criticalMaxResttage))
     ? Number(options.criticalMaxResttage)
     : MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE;
-  const minRest = Number.isFinite(Number(options.criticalMinResttage))
-    ? Number(options.criticalMinResttage)
-    : MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL;
   const resttage = resolveMhdSlaResttage(item, todayIso, options.getResttage);
   if (!Number.isFinite(resttage)) return false;
-  return resttage <= maxRest && resttage >= minRest;
+  // Auch absurde Vergangenheit (Tippfehler-Jahr) zählt mit — sonst fehlt der Korrektur-Anreiz im Tageslauf.
+  return resttage <= maxRest;
 }
 
 /**

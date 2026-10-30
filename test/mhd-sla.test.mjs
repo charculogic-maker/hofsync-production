@@ -4,7 +4,6 @@
 import { expect } from 'chai';
 import {
   MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE,
-  MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL,
   computeMhdSlaResttage,
   countMhdSlaCriticalOpen,
   formatMhdSlaBannerText,
@@ -56,17 +55,14 @@ describe('MHD-SLA Zähllogik', () => {
     expect(isMhdSlaCriticalOpen(item, { todayIso: today, criticalMaxResttage: 2 })).to.equal(true);
   });
 
-  it('schließt absurde MHD-Tippfehler aus dem Tageslauf aus', () => {
-    expect(MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL).to.equal(-90);
-    // −30 Tage: noch im Tageslauf-Fenster
+  it('zählt absurde MHD-Tippfehler mit (Korrektur im Tageslauf)', () => {
     const overdue = { menge: 1, mhdDate: '2026-09-28', status: 'aktiv' };
-    expect(isMhdSlaCriticalOpen(overdue, { todayIso: today })).to.equal(true);
-    // −233 / Jahr 2002: Datenfehler, nicht „heute prüfen“
     const farPast = { menge: 1, mhdDate: '2026-03-09', status: 'aktiv' };
     const typoYear = { menge: 1, mhdDate: '2002-10-28', status: 'aktiv' };
-    expect(isMhdSlaCriticalOpen(farPast, { todayIso: today })).to.equal(false);
-    expect(isMhdSlaCriticalOpen(typoYear, { todayIso: today })).to.equal(false);
-    expect(countMhdSlaCriticalOpen([overdue, farPast, typoYear], { todayIso: today })).to.equal(1);
+    expect(isMhdSlaCriticalOpen(overdue, { todayIso: today })).to.equal(true);
+    expect(isMhdSlaCriticalOpen(farPast, { todayIso: today })).to.equal(true);
+    expect(isMhdSlaCriticalOpen(typoYear, { todayIso: today })).to.equal(true);
+    expect(countMhdSlaCriticalOpen([overdue, farPast, typoYear], { todayIso: today })).to.equal(3);
   });
 
   it('formatiert Banner-Text', () => {
