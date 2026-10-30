@@ -3,6 +3,7 @@
  */
 import { expect } from 'chai';
 import {
+  buildAllDepartmentsAssignment,
   normalizeDepartmentAssignmentEntry,
   normalizeDepartmentAssignments,
   PRIMARY_DEPARTMENT_NONE,
@@ -70,5 +71,20 @@ describe('normalizeDepartmentAssignments', () => {
     expect(map.Stephie.primaryDepartment).to.equal('laden');
     expect(map.Stephie.departments).to.include('einkauf');
     expect(map.Heiko.departments).to.deep.equal(['zerlegung', 'wurstproduktion']);
+  });
+});
+
+describe('buildAllDepartmentsAssignment', () => {
+  it('assigns every Fachbereich and keeps the chosen primary', () => {
+    const next = buildAllDepartmentsAssignment('laden', { canOrder: true });
+    expect(next.primaryDepartment).to.equal('laden');
+    expect(next.departments).to.deep.equal([...DEPARTMENT_KEYS]);
+    expect(next.canOrder).to.equal(true);
+  });
+
+  it('defaults primary to the first Fachbereich when none is set', () => {
+    const next = buildAllDepartmentsAssignment('', { canOrder: false });
+    expect(next.primaryDepartment).to.equal(DEPARTMENT_KEYS[0]);
+    expect(next.departments).to.have.length(DEPARTMENT_KEYS.length);
   });
 });

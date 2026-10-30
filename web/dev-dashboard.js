@@ -52,7 +52,9 @@ import {
   DEPARTMENT_KEYS,
   DEPARTMENT_LABELS,
   PRIMARY_DEPARTMENT_NONE,
+  buildAllDepartmentsAssignment,
   getEmployeeDepartmentAssignment,
+  getDepartmentAssignments,
   saveEmployeeDepartmentAssignment,
   setTeamConfigTenantId,
 } from './team-config.js';
@@ -640,7 +642,19 @@ function renderEmployeeDepartmentToggles(employee) {
         >${primaryOptions}</select>
       </label>
       <div class="dev-dashboard-dept-extra" role="group" aria-label="Mitwirkung in weiteren Bereichen">
-        <span class="dev-dashboard-dept-label">Auch</span>
+        <div class="dev-dashboard-dept-extra-head">
+          <span class="dev-dashboard-dept-label">Auch</span>
+          <button
+            type="button"
+            class="dev-dashboard-dept-quick-btn"
+            data-action="assign-all-user-departments"
+            data-uid="${safeUid}"
+            data-tenant-id="${safeTenantId}"
+            data-display-name="${safeName}"
+            ${controlsDisabled ? 'disabled' : ''}
+            title="Alle Fachbereiche für diese Person setzen"
+          >Alle</button>
+        </div>
         <div class="dev-dashboard-toggles dev-dashboard-toggles--departments">
           ${mitwirkungToggles}
         </div>
@@ -662,6 +676,48 @@ function renderEmployeeDepartmentToggles(employee) {
       </label>
     </div>
   `;
+}
+
+/**
+ * Übernimmt gespeicherte Fachbereiche aus teamDashboard in die Nutzerzeilen.
+ * Ohne diesen Merge zeigt die Tabelle leere Haken, obwohl Firestore Zuordnungen hat.
+ * @param {object} dashboardStateRef
+ */
+function syncEmployeeDepartmentsFromTeamConfig(dashboardStateRef) {
+  const employees = Array.isArray(dashboardStateRef?.employees) ? dashboardStateRef.employees : [];
+  const assignments = getDepartmentAssignments();
+  const hasAssignments = Object.keys(assignments).length > 0;
+  employees.forEach((employee) => {
+    const displayName = String(employee?.displayName || '').trim();
+    if (!displayName) return;
+    const assignment = getEmployeeDepartmentAssignment(displayName);
+    // Nur überschreiben wenn teamDashboard etwas kennt — sonst manuelle Session-Werte behalten.
+    if (!hasAssignments && !assignment.departments.length && !assignment.primaryDepartment && !assignment.canOrder) {
+      return;
+    }
+    employee.departments = assignment.departments;
+    employee.primaryDepartment = assignment.primaryDepartment;
+    employee.canOrder = assignment.canOrder;
+  });
+}
+
+/**
+ * Speichert alle Fachbereiche für eine Person (Primär beibehalten oder ersten setzen).
+ * @param {string} displayName
+ * @param {{ canOrder?: boolean }} [options]
+ */
+async function assignAllDepartmentsForEmployee(displayName, options = {}) {
+  const current = getEmployeeDepartmentAssignment(displayName);
+  const primary = current.primaryDepartment || DEPARTMENT_KEYS[0];
+  const canOrder = options.canOrder !== undefined
+    ? options.canOrder === true
+    : current.canOrder === true;
+  const next = buildAllDepartmentsAssignment(primary, { canOrder });
+  return saveEmployeeDepartmentAssignment(displayName, {
+    primaryDepartment: next.primaryDepartment || primary,
+    departments: next.departments,
+    canOrder: next.canOrder,
+  });
 }
 
 /** Liest Primär + Mitwirkung + Bedarfs-Recht aus der Admin-Zeile. */
@@ -2705,6 +2761,9 @@ async function refreshEmployeeTable(dashboardStateRef) {
     return;
   }
 
+  // Fachbereiche liegen in teamDashboard — Listener starten, falls Init ohne tenantId lief.
+  setTeamConfigTenantId(tenantId);
+
   const callable = getManageEmployeesCallable();
   if (!callable) {
     console.error('[Dev-Dashboard] manageTenantEmployees Callable fehlt', {
@@ -2715,6 +2774,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
       await loadEmployeeProfileFallback(tenantId, dashboardStateRef.db),
     );
     dashboardStateRef.employees = fallback;
+    syncEmployeeDepartmentsFromTeamConfig(dashboardStateRef);
     renderEmployeeTable(fallback, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
     if (statusEl) {
@@ -2740,6 +2800,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
     }
     const deduped = dedupeEmployeesForDisplay(employees);
     dashboardStateRef.employees = deduped;
+    syncEmployeeDepartmentsFromTeamConfig(dashboardStateRef);
     renderEmployeeTable(deduped, dashboardStateRef.currentUserUid);
     renderOverviewCards(dashboardStateRef);
     if (statusEl) statusEl.textContent = `${deduped.length} Nutzer`;
@@ -2761,6 +2822,7 @@ async function refreshEmployeeTable(dashboardStateRef) {
     }
     const dedupedFallback = dedupeEmployeesForDisplay(fallback);
     dashboardStateRef.employees = dedupedFallback;
+    syncEmployeeDepartmentsFromTeamConfig(dashboardStateRef);
     if (dedupedFallback.length) {
       renderEmployeeTable(dedupedFallback, dashboardStateRef.currentUserUid);
       if (statusEl) statusEl.textContent = `${dedupedFallback.length} Team-Profile — ${message}`;
@@ -2770,6 +2832,77 @@ async function refreshEmployeeTable(dashboardStateRef) {
     }
     renderOverviewCards(dashboardStateRef);
     window.showToast?.(message, 'error');
+  }
+}
+
+/**
+ * Setzt für alle sichtbaren (Filter/Suche) Nutzer alle Fachbereiche.
+ * @param {object} dashboardStateRef
+ */
+async function bulkAssignAllDepartmentsToVisible(dashboardStateRef) {
+  const employees = dedupeEmployeesForDisplay(dashboardStateRef.employees || []);
+  const visible = filterTenantUsers(employees, {
+    query: dashboardStateRef.userQuery,
+    role: dashboardStateRef.userRoleFilter,
+  }).filter((entry) => {
+    const name = String(entry?.displayName || '').trim();
+    if (!name) return false;
+    if (entry.disabled === true || entry.status === 'inactive') return false;
+    return true;
+  });
+
+  if (!visible.length) {
+    window.showToast?.('Keine sichtbaren Nutzer für die Zuordnung.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('dev-dashboard-dept-bulk-all-btn');
+  if (btn) btn.disabled = true;
+  let ok = 0;
+  let failed = 0;
+  try {
+    for (const employee of visible) {
+      const displayName = String(employee.displayName || '').trim();
+      try {
+        const saved = await assignAllDepartmentsForEmployee(displayName);
+        employee.departments = saved.departments;
+        employee.primaryDepartment = saved.primaryDepartment;
+        employee.canOrder = saved.canOrder;
+        ok += 1;
+      } catch (err) {
+        failed += 1;
+        console.error('[Dev-Dashboard] Bulk-Fachbereiche fehlgeschlagen:', displayName, err);
+      }
+    }
+    renderEmployeeTable(dashboardStateRef.employees, dashboardStateRef.currentUserUid);
+    recordAudit(
+      'user_departments_bulk',
+      `Allen sichtbaren alle Fachbereiche: ${ok} gesetzt${failed ? `, ${failed} fehlgeschlagen` : ''}`,
+      'change',
+    );
+    if (failed) {
+      window.showToast?.(
+        `${ok} Personen aktualisiert, ${failed} nicht speicherbar. Bitte einzeln prüfen.`,
+        'warning',
+      );
+    } else {
+      window.showToast?.(
+        `Alle Fachbereiche für ${ok} sichtbare Personen gesetzt. Einzelne Haken kannst du jetzt entfernen.`,
+        'success',
+      );
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function bindEmployeeDepartmentBulkControls(dashboardState) {
+  const bulkBtn = document.getElementById('dev-dashboard-dept-bulk-all-btn');
+  if (bulkBtn && bulkBtn.dataset.bound !== '1') {
+    bulkBtn.dataset.bound = '1';
+    bulkBtn.addEventListener('click', () => {
+      void bulkAssignAllDepartmentsToVisible(dashboardState);
+    });
   }
 }
 
@@ -2796,6 +2929,53 @@ function bindEmployeeTableActions(dashboardState) {
         ?.querySelector('[data-action="toggle-employee-menu"]');
       trigger?.setAttribute('aria-expanded', 'false');
     });
+  });
+
+  section.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const btn = target.closest('[data-action="assign-all-user-departments"]');
+    if (!(btn instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    const displayName = String(btn.getAttribute('data-display-name') || '').trim();
+    const uid = String(btn.getAttribute('data-uid') || '').trim();
+    if (!displayName) {
+      window.showToast?.('Name fehlt — Zuständigkeit kann nicht gespeichert werden.', 'warning');
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const saved = await assignAllDepartmentsForEmployee(displayName);
+      const employee = (dashboardState.employees || []).find((entry) => entry.uid === uid);
+      if (employee) {
+        employee.departments = saved.departments;
+        employee.primaryDepartment = saved.primaryDepartment;
+        employee.canOrder = saved.canOrder;
+      }
+      const tableHost = document.getElementById('dev-dashboard-employee-body');
+      const tr = tableHost?.querySelector(`[data-employee-row="${CSS.escape(uid)}"]`);
+      const cell = tr?.querySelector('.dev-dashboard-employee-departments');
+      const renderTarget = employee || {
+        uid,
+        displayName,
+        tenantId: String(btn.getAttribute('data-tenant-id') || ''),
+        departments: saved.departments,
+        primaryDepartment: saved.primaryDepartment,
+        canOrder: saved.canOrder,
+      };
+      if (cell) cell.innerHTML = renderEmployeeDepartmentToggles(renderTarget);
+      window.showToast?.(`Alle Fachbereiche für ${displayName} gesetzt.`, 'success');
+      recordAudit(
+        'user_departments',
+        `Zuständigkeit ${displayName}: alle Fachbereiche`,
+        'change',
+      );
+    } catch (err) {
+      console.error('[Dev-Dashboard] Alle Fachbereiche speichern fehlgeschlagen:', err);
+      window.showToast?.(logAndMapOperatorError(err, 'admin-user-action'), 'error');
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   section.addEventListener('change', async (event) => {
@@ -3581,13 +3761,17 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindTenantCreateForm(db);
     bindEmployeeCreateForm(dashboardState);
     bindEmployeeTableActions(dashboardState);
+    bindEmployeeDepartmentBulkControls(dashboardState);
     bindRoleModuleSave(dashboardState);
 
     if (!window.__hofsyncDeptAssignmentListener) {
       window.__hofsyncDeptAssignmentListener = true;
       window.addEventListener('charculogic:team-config-changed', () => {
         if (!dashboardState.employees?.length) return;
-        renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
+        syncEmployeeDepartmentsFromTeamConfig(dashboardState);
+        if (dashboardState.activeTab === 'users') {
+          renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
+        }
       });
     }
 
