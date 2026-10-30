@@ -1,4 +1,5 @@
-# Flutter-Prototyp und Backend dürfen die statische PWA-Erkennung nicht stören
+# Flutter-Prototyp und Backend dürfen die statische PWA-Erkennung nicht stören.
+# functions/ wird über Firebase deployt und gehört nicht in den Vercel-Frontend-Build.
 lib/
 functions/
 .firebase/
@@ -12,12 +13,41 @@ functions/
 .tmp-npm-cache/
 .tools/
 test/
+tests/
+playwright-report/
+test-results/
+legacy/
 docs/
 public/
 scripts/
+.git/
+
+# Dev- und Smoke-Werkzeug. `npm run build` auf Vercel ruft nur diese zwei Skripte auf.
+tools/**
+!tools/check-web-app.mjs
+!tools/prepare-pwa-output.mjs
+
+# Betriebs-Dumps und SOPs. Der Prebuild liest nur die beiden BEFFE-CSVs.
+data/**
+!data/beffe_rohstoffe.csv
+!data/beffe_rezepte.csv
+
+# Markdown ist Dokumentation. Weder `npm run build` noch die PWA laden eine *.md-Datei,
+# deshalb gibt es keine Ausnahme. README und Anleitungen bleiben im Git.
+*.md
+
+# Nur Screenshots im Repository-Root. PWA-Icons liegen unter web/ und müssen mit.
+/*.png
+/*.jpg
+/*.jpeg
+/*.PNG
+/*.JPG
+/*.JPEG
 
 # Schwere / ungenutzte Artefakte, die den Upload aufblasen oder den Build stören
 node_modules/
+dist/
+coverage/
 /MHD-Daten_KW22-2026.csv
 /mhd-import.csv
 google-sync.gs
@@ -29,3 +59,5 @@ server-err.log
 server-out.log
 **/.DS_Store
 **/Thumbs.db
+.env
+.env.*
