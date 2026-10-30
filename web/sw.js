@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-bedarf-reassign-v2';
+const CACHE_NAME = 'charculogic-v20261030-fachbereiche-v1';
 
 const CACHE_SCHEMA = 'p0-bedarf-reassign-oct2026';
-/** Release – Melder behält Sichtbarkeit nach Fachbereichs-Zuordnung */
-const RELEASED_AT = '2026-10-30T08:00:00+01:00';
+/** Release – Fachbereiche: Küche, Zerlegung, Wurstproduktion, Laden, Einkauf */
+const RELEASED_AT = '2026-10-30T09:15:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

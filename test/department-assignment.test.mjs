@@ -6,17 +6,29 @@ import {
   normalizeDepartmentAssignmentEntry,
   normalizeDepartmentAssignments,
   PRIMARY_DEPARTMENT_NONE,
+  DEPARTMENT_KEYS,
 } from '../web/team-config.js';
 
 describe('normalizeDepartmentAssignmentEntry', () => {
   it('adds primary into departments and keeps canOrder separate', () => {
     const next = normalizeDepartmentAssignmentEntry({
-      primaryDepartment: 'metzgerei',
+      primaryDepartment: 'zerlegung',
       departments: ['laden'],
       canOrder: true,
     });
-    expect(next.primaryDepartment).to.equal('metzgerei');
-    expect(next.departments).to.deep.equal(['metzgerei', 'laden']);
+    expect(next.primaryDepartment).to.equal('zerlegung');
+    expect(next.departments).to.deep.equal(['zerlegung', 'laden']);
+    expect(next.canOrder).to.equal(true);
+  });
+
+  it('migrates legacy metzgerei to kueche', () => {
+    const next = normalizeDepartmentAssignmentEntry({
+      primaryDepartment: 'metzgerei',
+      departments: ['metzgerei', 'laden'],
+      canOrder: true,
+    });
+    expect(next.primaryDepartment).to.equal('kueche');
+    expect(next.departments).to.deep.equal(['kueche', 'laden']);
     expect(next.canOrder).to.equal(true);
   });
 
@@ -35,6 +47,16 @@ describe('normalizeDepartmentAssignmentEntry', () => {
     expect(next.departments).to.deep.equal([]);
     expect(next.canOrder).to.equal(true);
   });
+
+  it('exposes the five operational Fachbereiche', () => {
+    expect(DEPARTMENT_KEYS).to.deep.equal([
+      'kueche',
+      'zerlegung',
+      'wurstproduktion',
+      'laden',
+      'einkauf',
+    ]);
+  });
 });
 
 describe('normalizeDepartmentAssignments', () => {
@@ -42,9 +64,11 @@ describe('normalizeDepartmentAssignments', () => {
     const map = normalizeDepartmentAssignments({
       Paddy: { departments: ['metzgerei'], canOrder: true },
       Stephie: { departments: ['laden', 'einkauf'] },
+      Heiko: { departments: ['zerlegung', 'wurstproduktion'] },
     });
-    expect(map.Paddy.primaryDepartment).to.equal('metzgerei');
+    expect(map.Paddy.primaryDepartment).to.equal('kueche');
     expect(map.Stephie.primaryDepartment).to.equal('laden');
     expect(map.Stephie.departments).to.include('einkauf');
+    expect(map.Heiko.departments).to.deep.equal(['zerlegung', 'wurstproduktion']);
   });
 });

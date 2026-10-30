@@ -9,8 +9,10 @@ import { getTenantCollection } from './tenant-db.js';
 import {
   employeeCanResolveSupplyAlerts,
   employeeHasDepartment,
+  employeeHasProductionDepartment,
   getEmployeeDepartmentAssignment,
   getTeamEmployees,
+  PRODUCTION_DEPARTMENT_KEYS,
 } from './team-config.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
@@ -22,25 +24,37 @@ export const QUICK_BUTTON_MIN_USES = 2;
 
 /**
  * Bedarfs-Art (Herkunft) – steuert auch, wer die Meldung sieht (departmentTarget).
+ * Produktions-Kategorien → „Alle“, damit Küche / Zerlegung / Wurst bewusst gewählt wird.
  */
 export const SUPPLY_CATEGORY_OPTIONS = [
-  { value: 'eigene_produktion', label: 'Eigene Produktion', departmentTarget: 'metzgerei' },
-  { value: 'zukauf_fleisch_wurst', label: 'Zukauf Fleisch & Wurst', departmentTarget: 'metzgerei' },
+  { value: 'eigene_produktion', label: 'Eigene Produktion', departmentTarget: 'all' },
+  { value: 'zukauf_fleisch_wurst', label: 'Zukauf Fleisch & Wurst', departmentTarget: 'all' },
   { value: 'zukauf_laden', label: 'Zukauf Laden', departmentTarget: 'laden' },
   { value: 'verbrauchsmaterial', label: 'Verbrauch / Hygiene', departmentTarget: 'laden' },
-  { value: 'sb_theke', label: 'SB-Theke nachfüllen', departmentTarget: 'metzgerei' },
+  { value: 'sb_theke', label: 'SB-Theke nachfüllen', departmentTarget: 'all' },
   { value: 'sonstig', label: 'Sonstiges', departmentTarget: 'all' },
 ];
 
 export const SUPPLY_DEPARTMENT_OPTIONS = [
   { value: 'all', label: 'Alle Bereiche' },
-  { value: 'metzgerei', label: 'Metzgerei / Produktion' },
+  { value: 'kueche', label: 'Küche' },
+  { value: 'zerlegung', label: 'Zerlegung' },
+  { value: 'wurstproduktion', label: 'Wurstproduktion' },
   { value: 'laden', label: 'Laden / Verkauf' },
   { value: 'einkauf', label: 'Einkauf / Büro' },
 ];
 
+/** Alte Meldungen dürfen departmentTarget=metzgerei behalten, bis neu zugeordnet. */
+export const LEGACY_SUPPLY_DEPARTMENT_OPTIONS = [
+  { value: 'metzgerei', label: 'Metzgerei / Produktion' },
+];
+
 export const SUPPLY_CATEGORY_VALUES = SUPPLY_CATEGORY_OPTIONS.map((entry) => entry.value);
 export const SUPPLY_DEPARTMENT_VALUES = SUPPLY_DEPARTMENT_OPTIONS.map((entry) => entry.value);
+export const ALL_SUPPLY_DEPARTMENT_VALUES = [
+  ...SUPPLY_DEPARTMENT_VALUES,
+  ...LEGACY_SUPPLY_DEPARTMENT_OPTIONS.map((entry) => entry.value),
+];
 
 export function departmentTargetForCategory(category) {
   const match = SUPPLY_CATEGORY_OPTIONS.find((entry) => entry.value === category);
@@ -49,14 +63,33 @@ export function departmentTargetForCategory(category) {
 
 export function departmentLabel(value) {
   const key = String(value || 'all').trim().toLowerCase();
-  const match = SUPPLY_DEPARTMENT_OPTIONS.find((entry) => entry.value === key);
+  const match = SUPPLY_DEPARTMENT_OPTIONS.find((entry) => entry.value === key)
+    || LEGACY_SUPPLY_DEPARTMENT_OPTIONS.find((entry) => entry.value === key);
   return match?.label || 'Alle Bereiche';
 }
 
-/** Normalisiert departmentTarget aus Select/Katalog. */
+/** Normalisiert departmentTarget aus Select/Katalog (inkl. Legacy). */
 export function normalizeDepartmentTarget(value) {
   const key = String(value || '').trim().toLowerCase();
-  return SUPPLY_DEPARTMENT_VALUES.includes(key) ? key : 'all';
+  return ALL_SUPPLY_DEPARTMENT_VALUES.includes(key) ? key : 'all';
+}
+
+/**
+ * Füllt ein Fachbereich-Select; Legacy-Option nur wenn aktueller Wert noch metzgerei ist.
+ * @param {HTMLSelectElement|null} select
+ * @param {string} [currentValue]
+ */
+export function fillDepartmentSelectOptions(select, currentValue = 'all') {
+  if (!(select instanceof HTMLSelectElement)) return;
+  const current = normalizeDepartmentTarget(currentValue);
+  const options = [...SUPPLY_DEPARTMENT_OPTIONS];
+  if (current === 'metzgerei') {
+    options.splice(1, 0, ...LEGACY_SUPPLY_DEPARTMENT_OPTIONS);
+  }
+  select.innerHTML = options.map((opt) => (
+    `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`
+  )).join('');
+  select.value = options.some((opt) => opt.value === current) ? current : 'all';
 }
 
 /**
@@ -69,8 +102,32 @@ export function employeeMatchesDepartmentTarget(employeeName, departmentTarget) 
   if (target === 'all') return true;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
   if (assignment.canOrder) return true;
+  if (target === 'metzgerei') {
+    return employeeHasProductionDepartment(employeeName);
+  }
   if (assignment.primaryDepartment === target) return true;
   return assignment.departments.includes(target);
+}
+
+function employeeSeesDepartmentTarget(employeeName, targetRaw) {
+  const target = normalizeDepartmentTarget(targetRaw);
+  if (target === 'all') return true;
+  const assignment = getEmployeeDepartmentAssignment(employeeName);
+  if (assignment.canOrder) return true;
+  if (target === 'metzgerei') return employeeHasProductionDepartment(employeeName);
+  if (target === 'laden') {
+    return assignment.departments.includes('laden')
+      || assignment.departments.includes('einkauf');
+  }
+  if (target === 'einkauf') {
+    return assignment.departments.includes('einkauf')
+      || assignment.departments.includes('laden');
+  }
+  if (PRODUCTION_DEPARTMENT_KEYS.includes(target)) {
+    return assignment.departments.includes(target)
+      || assignment.primaryDepartment === target;
+  }
+  return employeeHasDepartment(employeeName, target);
 }
 
 const alertState = {
@@ -171,20 +228,7 @@ function alertVisibleForEmployee(alert, employeeName) {
   if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
   // Melder behält die Zeile auch nach Fachbereichs-Zuordnung (sonst „verschwindet“ sie).
   if (alert.createdBy && namesMatch(alert.createdBy, employeeName)) return true;
-  const target = String(alert.departmentTarget || 'all').toLowerCase();
-  if (target === 'all') return true;
-  const assignment = getEmployeeDepartmentAssignment(employeeName);
-  if (assignment.canOrder) return true;
-  if (target === 'metzgerei') return assignment.departments.includes('metzgerei');
-  if (target === 'laden') {
-    return assignment.departments.includes('laden')
-      || assignment.departments.includes('einkauf');
-  }
-  if (target === 'einkauf') {
-    return assignment.departments.includes('einkauf')
-      || assignment.departments.includes('laden');
-  }
-  return employeeHasDepartment(employeeName, target);
+  return employeeSeesDepartmentTarget(employeeName, alert.departmentTarget);
 }
 
 function canResolveAlert(alert, employeeName) {
@@ -192,24 +236,13 @@ function canResolveAlert(alert, employeeName) {
   if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
   // Melder darf die eigene Meldung weiter bearbeiten/abhaken.
   if (alert.createdBy && namesMatch(alert.createdBy, employeeName)) return true;
-  const target = String(alert.departmentTarget || 'all').toLowerCase();
+  const target = normalizeDepartmentTarget(alert.departmentTarget);
   // Freie Bedarfsliste (all): jeder, der die Zeile sieht, darf abhaken – wie BRING!
-  if (target === 'all' || target === '') {
+  if (target === 'all') {
     return alertVisibleForEmployee(alert, employeeName);
   }
   if (!employeeCanResolveSupplyAlerts(employeeName)) return false;
-  const assignment = getEmployeeDepartmentAssignment(employeeName);
-  if (assignment.canOrder) return true;
-  if (target === 'metzgerei') return assignment.departments.includes('metzgerei');
-  if (target === 'laden') {
-    return assignment.departments.includes('laden')
-      || assignment.departments.includes('einkauf');
-  }
-  if (target === 'einkauf') {
-    return assignment.departments.includes('einkauf')
-      || assignment.departments.includes('laden');
-  }
-  return true;
+  return employeeSeesDepartmentTarget(employeeName, target);
 }
 
 function normalizeAlertDoc(docSnap) {
@@ -596,7 +629,7 @@ function syncDepartmentSelectFromCategory() {
   const deptSelect = document.getElementById('quick-alert-department');
   if (!(categorySelect instanceof HTMLSelectElement)) return;
   if (!(deptSelect instanceof HTMLSelectElement)) return;
-  deptSelect.value = departmentTargetForCategory(categorySelect.value);
+  fillDepartmentSelectOptions(deptSelect, departmentTargetForCategory(categorySelect.value));
 }
 
 function populateAssigneeSelect(departmentTarget = readSelectedDepartmentTarget()) {
@@ -713,9 +746,7 @@ async function handleQuickAlertTap(button) {
     if (categorySelect instanceof HTMLSelectElement && SUPPLY_CATEGORY_VALUES.includes(category)) {
       categorySelect.value = category;
     }
-    if (deptSelect instanceof HTMLSelectElement) {
-      deptSelect.value = departmentTarget;
-    }
+    fillDepartmentSelectOptions(deptSelect, departmentTarget);
     populateAssigneeSelect(departmentTarget);
     await createSupplyAlert({
       title,
@@ -1184,7 +1215,7 @@ export function openBedarfAssignModal(alertId) {
   if (idInput) idInput.value = alert.id;
   if (titleEl) titleEl.textContent = alert.title || 'Bedarf';
   const dept = normalizeDepartmentTarget(alert.departmentTarget);
-  if (deptSelect instanceof HTMLSelectElement) deptSelect.value = dept;
+  fillDepartmentSelectOptions(deptSelect, dept);
   populateAssignModalAssigneeSelect(dept, alert.assignedTo || '');
   modal.hidden = false;
   modal.setAttribute('aria-hidden', 'false');
@@ -1424,6 +1455,8 @@ export function initQuickAlertModule(databaseInstance, options = {}) {
 
   bindQuickAlertUi();
   bindSupplyCatalogAdminUi();
+  fillDepartmentSelectOptions(document.getElementById('quick-alert-department'), 'all');
+  fillDepartmentSelectOptions(document.getElementById('bedarf-assign-department'), 'all');
   renderQuickButtonGrid();
   renderSupplyCatalogAdminTable();
   subscribeSupplyAlerts();

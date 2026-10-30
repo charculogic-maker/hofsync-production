@@ -16995,7 +16995,7 @@ body.role-firebase-auth #team-login-card {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-width: 280px;
+  max-width: 360px;
 }
 
 .dev-dashboard-dept-assign {
