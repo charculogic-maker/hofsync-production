@@ -730,7 +730,7 @@ async function saveTeamConfigFromAdmin() {
       await writeFirestoreDocOrQueue({
         collectionPath: 'settings',
         docId: TEAM_CONFIG_DOC_ID,
-        op: 'set',
+        op: 'update',
         onlineData: payload,
         queueData: { ...payload, updatedAt: new Date().toISOString() },
         offlineMessage: 'Team-Konfiguration wird synchronisiert.',
