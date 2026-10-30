@@ -88,3 +88,16 @@ describe('buildAllDepartmentsAssignment', () => {
     expect(next.departments).to.have.length(DEPARTMENT_KEYS.length);
   });
 });
+
+describe('team-config listener source contract', () => {
+  it('uses getNamedTenantCollection for teamDashboard (not requireGlobalTenantId)', async () => {
+    const { readFileSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join } = await import('path');
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const source = readFileSync(join(root, 'web/team-config.js'), 'utf8');
+    expect(source).to.match(/getNamedTenantCollection\s*\(/);
+    expect(source).to.match(/getNamedTenantCollection\(tenantId,\s*'settings'\)/);
+    expect(source).not.to.match(/return getTenantCollection\('settings'\)/);
+  });
+});

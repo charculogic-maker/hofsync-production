@@ -2763,6 +2763,21 @@ async function refreshEmployeeTable(dashboardStateRef) {
 
   // Fachbereiche liegen in teamDashboard — Listener starten, falls Init ohne tenantId lief.
   setTeamConfigTenantId(tenantId);
+  // Kurz auf Snapshot warten (Race: Tabelle sonst vor teamDashboard-Load leer).
+  if (!Object.keys(getDepartmentAssignments()).length) {
+    await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        window.removeEventListener('charculogic:team-config-changed', onReady);
+        resolve();
+      }, 2500);
+      function onReady() {
+        clearTimeout(timer);
+        window.removeEventListener('charculogic:team-config-changed', onReady);
+        resolve();
+      }
+      window.addEventListener('charculogic:team-config-changed', onReady, { once: true });
+    });
+  }
 
   const callable = getManageEmployeesCallable();
   if (!callable) {

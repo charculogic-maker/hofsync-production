@@ -6,7 +6,7 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, getNamedTenantCollection, setGlobalTenantId } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
 /** Mandant aus Modul-State oder globalem Auth/Dashboard-Kontext. */
@@ -432,10 +432,15 @@ function escapeHtml(value) {
 }
 
 function configRef() {
-  if (!configState.db || !configState.tenantId) return null;
+  const tenantId = resolveTeamConfigTenantId();
+  if (!configState.db || !tenantId) return null;
   try {
-    return getTenantCollection('settings').doc(TEAM_CONFIG_DOC_ID);
-  } catch {
+    // Explizit named Tenant — nicht getTenantCollection()/requireGlobalTenantId,
+    // sonst scheitert der Listener still, wenn nur configState.tenantId gesetzt ist
+    // (Dev-Dashboard) und globalTenantId noch fehlt → leere Fachbereich-Haken.
+    return getNamedTenantCollection(tenantId, 'settings').doc(TEAM_CONFIG_DOC_ID);
+  } catch (err) {
+    console.warn('[TeamConfig] configRef fehlgeschlagen:', err?.message || err);
     return null;
   }
 }
@@ -507,9 +512,13 @@ async function handleTeamConfigSnapshot(snap) {
 }
 
 function subscribeTeamConfig() {
-  configState.unsubscribe?.();
   const ref = configRef();
-  if (!ref) return;
+  if (!ref) {
+    console.warn('[TeamConfig] Kein settings/teamDashboard-Ref — Listener bleibt unverändert.');
+    return;
+  }
+  // Alten Listener erst ersetzen, wenn neuer Ref steht (sonst Fenster ohne Zuordnungen).
+  configState.unsubscribe?.();
   configState.unsubscribe = ref.onSnapshot(
     (snap) => {
       handleTeamConfigSnapshot(snap).catch((err) => {
@@ -872,8 +881,12 @@ export function setTeamConfigTenantId(tenantId) {
     // Nicht die Zuordnung des vorherigen Mandanten anzeigen.
     configState.departmentAssignments = {};
   }
+  // Globalen Tenant-Kontext mitziehen (andere Module + Rules-Pfade).
+  if (next && getGlobalTenantId() !== next) {
+    setGlobalTenantId(next);
+  }
 
-  // Gleicher Mandant, aber Listener fehlt (Init oft ohne tenantId) → nachziehen.
+  // Gleicher Mandant, aber Listener fehlt (Init oft ohne tenantId / globalTenantId) → nachziehen.
   if (tenantChanged || (configState.db && !configState.unsubscribe)) {
     subscribeTeamConfig();
   }
