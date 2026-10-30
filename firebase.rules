@@ -870,7 +870,11 @@ service cloud.firestore {
     }
 
     function isValidSupplyDepartment(value) {
-      return value in ['metzgerei', 'laden', 'einkauf', 'all'];
+      return value in [
+        'kueche', 'zerlegung', 'wurstproduktion',
+        'laden', 'einkauf', 'all',
+        'metzgerei' // Legacy bis nachträgliche Neu-Zuordnung
+      ];
     }
 
     match /tenants/{tenantId}/supply_alerts/{alertId} {

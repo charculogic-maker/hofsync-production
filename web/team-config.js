@@ -56,13 +56,29 @@ function getTenantTeamDefaults() {
 }
 
 /** Erlaubte Fachbereichs-Tags für Schnellmelde/Bedarfe. */
-export const DEPARTMENT_KEYS = ['metzgerei', 'laden', 'einkauf'];
+export const DEPARTMENT_KEYS = [
+  'kueche',
+  'zerlegung',
+  'wurstproduktion',
+  'laden',
+  'einkauf',
+];
 
 export const DEPARTMENT_LABELS = {
-  metzgerei: 'Metzgerei / Produktion',
+  kueche: 'Küche',
+  zerlegung: 'Zerlegung',
+  wurstproduktion: 'Wurstproduktion',
   laden: 'Laden / Verkauf',
   einkauf: 'Einkauf / Büro',
 };
+
+/** Legacy: „Metzgerei / Produktion“ → Küche (Admin kann Feinschliff setzen). */
+export const LEGACY_DEPARTMENT_MIGRATIONS = {
+  metzgerei: 'kueche',
+};
+
+/** Produktions-Bereiche (sehen alte Meldungen mit departmentTarget=metzgerei). */
+export const PRODUCTION_DEPARTMENT_KEYS = ['kueche', 'zerlegung', 'wurstproduktion'];
 
 /** Leerer Primärbereich = noch nicht zugeordnet. */
 export const PRIMARY_DEPARTMENT_NONE = '';
@@ -95,12 +111,19 @@ function departmentLookupKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function migrateDepartmentKey(rawKey) {
+  const key = String(rawKey || '').trim().toLowerCase();
+  if (!key) return '';
+  if (LEGACY_DEPARTMENT_MIGRATIONS[key]) return LEGACY_DEPARTMENT_MIGRATIONS[key];
+  return key;
+}
+
 function normalizeDepartmentList(value) {
   const allowed = new Set(DEPARTMENT_KEYS);
   const raw = Array.isArray(value) ? value : [];
   const result = [];
   raw.forEach((entry) => {
-    const key = String(entry || '').trim().toLowerCase();
+    const key = migrateDepartmentKey(entry);
     if (!allowed.has(key) || result.includes(key)) return;
     result.push(key);
   });
@@ -108,7 +131,7 @@ function normalizeDepartmentList(value) {
 }
 
 function normalizePrimaryDepartment(value, departments = []) {
-  const key = String(value || '').trim().toLowerCase();
+  const key = migrateDepartmentKey(value);
   if (key && DEPARTMENT_KEYS.includes(key)) return key;
   // Legacy: erster Eintrag gilt als Primär, wenn keines gesetzt war.
   if (departments.length) return departments[0];
@@ -177,11 +200,24 @@ export function getEmployeeDepartmentAssignment(employeeName) {
 }
 
 export function employeeHasDepartment(employeeName, department) {
-  const dept = String(department || '').trim().toLowerCase();
-  if (!dept) return false;
+  const raw = String(department || '').trim().toLowerCase();
+  if (!raw) return false;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
-  if (dept === 'all') return assignment.departments.length > 0;
+  if (raw === 'all') return assignment.departments.length > 0;
+  // Alte Meldungen „Metzgerei“: jeder Produktions-Fachbereich sieht sie.
+  if (raw === 'metzgerei') {
+    return PRODUCTION_DEPARTMENT_KEYS.some((key) => assignment.departments.includes(key));
+  }
+  const dept = migrateDepartmentKey(raw);
   return assignment.departments.includes(dept);
+}
+
+/** Hat der Mitarbeiter einen der Produktions-Fachbereiche? */
+export function employeeHasProductionDepartment(employeeName) {
+  const assignment = getEmployeeDepartmentAssignment(employeeName);
+  return PRODUCTION_DEPARTMENT_KEYS.some(
+    (key) => assignment.primaryDepartment === key || assignment.departments.includes(key),
+  );
 }
 
 export function employeeCanResolveSupplyAlerts(employeeName) {

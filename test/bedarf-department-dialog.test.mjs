@@ -15,11 +15,17 @@ describe('Bedarf Melden-Dialog Fachbereich', () => {
 
   it('exposes Fachbereich select with clear department labels', () => {
     expect(indexHtml).to.match(/id="quick-alert-department"/);
-    expect(indexHtml).to.match(/Metzgerei \/ Produktion/);
+    expect(indexHtml).to.match(/Küche/);
+    expect(indexHtml).to.match(/Zerlegung/);
+    expect(indexHtml).to.match(/Wurstproduktion/);
     expect(indexHtml).to.match(/Laden \/ Verkauf/);
     expect(indexHtml).to.match(/Einkauf \/ Büro/);
     expect(indexHtml).to.match(/Alle Bereiche/);
+    expect(indexHtml).not.to.match(/value="metzgerei"/);
     expect(quickAlertJs).to.match(/SUPPLY_DEPARTMENT_OPTIONS/);
+    expect(quickAlertJs).to.match(/value: 'kueche'/);
+    expect(quickAlertJs).to.match(/value: 'zerlegung'/);
+    expect(quickAlertJs).to.match(/value: 'wurstproduktion'/);
     expect(quickAlertJs).to.match(/Alle Bereiche/);
   });
 
@@ -30,6 +36,7 @@ describe('Bedarf Melden-Dialog Fachbereich', () => {
     expect(quickAlertJs).to.match(/employeeMatchesDepartmentTarget/);
     expect(quickAlertJs).to.match(/primaryDepartment === target/);
     expect(quickAlertJs).to.match(/Niemand \(alle Bereiche\)/);
+    expect(quickAlertJs).to.match(/fillDepartmentSelectOptions/);
     expect(quickAlertJs).to.match(/handleFreetextSubmit[\s\S]*?readSelectedDepartmentTarget/);
   });
 });
