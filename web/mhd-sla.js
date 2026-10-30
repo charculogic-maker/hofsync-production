@@ -5,6 +5,12 @@
 
 export const MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE = 1;
 
+/**
+ * Untergrenze für Tageslauf-SLA: absurde Tippfehler-MHDs (z. B. Jahr 2002 → −8000 Tage)
+ * zählen nicht als „heute noch prüfen“. Echte Überzieher bis ca. 3 Monate bleiben drin.
+ */
+export const MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL = -90;
+
 export const MHD_SLA_INACTIVE_STATUSES = Object.freeze(new Set([
   'raus',
   'ausverkauft',
@@ -99,9 +105,12 @@ export function isMhdSlaCriticalOpen(item = {}, options = {}) {
   const maxRest = Number.isFinite(Number(options.criticalMaxResttage))
     ? Number(options.criticalMaxResttage)
     : MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE;
+  const minRest = Number.isFinite(Number(options.criticalMinResttage))
+    ? Number(options.criticalMinResttage)
+    : MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL;
   const resttage = resolveMhdSlaResttage(item, todayIso, options.getResttage);
   if (!Number.isFinite(resttage)) return false;
-  return resttage <= maxRest;
+  return resttage <= maxRest && resttage >= minRest;
 }
 
 /**
@@ -162,11 +171,11 @@ export function updateMhdSlaBanner(count = 0, { onOpen } = {}) {
   }
   banner.hidden = false;
   banner.classList.remove('hidden');
-  // Ein Fließtext (kein Flex-Spalten-Layout): Zahl inline, Satz bleibt lesbar beim Umbruch.
+  // Fließtext: Zahl in nowrap-Span, NBSP hält sie am Folgewort (kein „4“ über „0“).
   const body = n === 1
     ? 'kritisches MHD heute noch offen – antippen zum Prüfen'
     : 'kritische MHDs heute noch offen – antippen zum Prüfen';
-  banner.innerHTML = `<span class="mhd-sla-banner-count">${escapeHtml(String(n))}</span> ${escapeHtml(body)}`;
+  banner.innerHTML = `<span class="mhd-sla-banner-count">${escapeHtml(String(n))}</span>&nbsp;${escapeHtml(body)}`;
   if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
     banner.dataset.mhdSlaBound = '1';
     banner.addEventListener('click', (event) => {

@@ -1385,7 +1385,12 @@ body:not(.role-admin):not(.role-super-admin):not(.role-office) .app-nav-zone--ad
 }
 
 .mhd-sla-banner-count {
+  /* Mehrstellige Zahlen (z. B. 40) dürfen nie als „4“ / „0“ umbrechen. */
+  display: inline;
   font-weight: 900;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .mhd-sla-banner.hidden,
