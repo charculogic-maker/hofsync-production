@@ -6,7 +6,7 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getGlobalTenantId, getNamedTenantCollection, setGlobalTenantId } from './tenant-db.js';
+import { getGlobalTenantId, setGlobalTenantId } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
 /** Mandant aus Modul-State oder globalem Auth/Dashboard-Kontext. */
@@ -435,10 +435,14 @@ function configRef() {
   const tenantId = resolveTeamConfigTenantId();
   if (!configState.db || !tenantId) return null;
   try {
-    // Explizit named Tenant — nicht getTenantCollection()/requireGlobalTenantId,
-    // sonst scheitert der Listener still, wenn nur configState.tenantId gesetzt ist
-    // (Dev-Dashboard) und globalTenantId noch fehlt → leere Fachbereich-Haken.
-    return getNamedTenantCollection(tenantId, 'settings').doc(TEAM_CONFIG_DOC_ID);
+    // Direkt über configState.db + tenantId — nicht getTenantCollection()
+    // (requireGlobalTenantId) und nicht getNamedTenantCollection() (eigenes
+    // firestoreDb aus initTenantDb, das im Dev-Dashboard-Pfad leer sein kann).
+    return configState.db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('settings')
+      .doc(TEAM_CONFIG_DOC_ID);
   } catch (err) {
     console.warn('[TeamConfig] configRef fehlgeschlagen:', err?.message || err);
     return null;

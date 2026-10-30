@@ -90,14 +90,15 @@ describe('buildAllDepartmentsAssignment', () => {
 });
 
 describe('team-config listener source contract', () => {
-  it('uses getNamedTenantCollection for teamDashboard (not requireGlobalTenantId)', async () => {
+  it('binds teamDashboard via configState.db tenants/{tenantId}/settings', async () => {
     const { readFileSync } = await import('fs');
     const { fileURLToPath } = await import('url');
     const { dirname, join } = await import('path');
     const root = join(dirname(fileURLToPath(import.meta.url)), '..');
     const source = readFileSync(join(root, 'web/team-config.js'), 'utf8');
-    expect(source).to.match(/getNamedTenantCollection\s*\(/);
-    expect(source).to.match(/getNamedTenantCollection\(tenantId,\s*'settings'\)/);
-    expect(source).not.to.match(/return getTenantCollection\('settings'\)/);
+    expect(source).to.match(/configState\.db[\s\S]*?\.collection\('tenants'\)/);
+    expect(source).to.match(/\.collection\('settings'\)[\s\S]*?\.doc\(TEAM_CONFIG_DOC_ID\)/);
+    expect(source).to.not.match(/getTenantCollection\('settings'\)/);
+    expect(source).to.not.match(/getNamedTenantCollection\(/);
   });
 });
