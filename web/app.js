@@ -5746,6 +5746,12 @@ async function bootstrapAuthenticatedApp() {
     window.__charculogicDevDashboardReady = false;
     showDevDashboardLoginRequired();
 
+    // Früh binden: dieser Pfad returnt vor dem normalen initTeamConfigModule weiter unten.
+    initTeamConfigModule(db, {
+      tenantId: getAuthContext()?.tenantId || '',
+      getFirebase: () => firebase,
+    });
+
     const stayOnLoginGate = () => {
       window.__charculogicDevDashboardReady = false;
       showDevDashboardLoginRequired();
@@ -5757,6 +5763,10 @@ async function bootstrapAuthenticatedApp() {
         return false;
       }
       try {
+        initTeamConfigModule(db, {
+          tenantId: session.tenantId,
+          getFirebase: () => firebase,
+        });
         const ok = await initDevDashboard(db, { currentUser: user, authContext: session });
         if (!ok) stayOnLoginGate();
         return ok;

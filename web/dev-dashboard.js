@@ -58,6 +58,7 @@ import {
   saveEmployeeDepartmentAssignment,
   setTeamConfigTenantId,
   ensureTeamConfigLoaded,
+  initTeamConfigModule,
 } from './team-config.js';
 import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -3740,6 +3741,19 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     // Super-Admin startet auf Plattform, bis ein Betrieb gewählt ist.
     if (dashboardState.isSuperAdmin && !dashboardState.selectedTenantId) {
       dashboardState.activeTab = 'platform';
+    }
+
+    // /dev-dashboard bricht in app.js vor initTeamConfigModule ab — ohne db/tenantId
+    // bleibt configRef() null und Fachbereich-Haken wirken „gelöscht“.
+    if (dashboardState.selectedTenantId) {
+      setGlobalTenantId(dashboardState.selectedTenantId);
+    }
+    initTeamConfigModule(db, {
+      tenantId: dashboardState.selectedTenantId || '',
+      getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
+    });
+    if (dashboardState.selectedTenantId) {
+      setTeamConfigTenantId(dashboardState.selectedTenantId);
     }
 
     applyDashboardVisibility(dashboardState);
