@@ -19,6 +19,18 @@ function shouldShowMhdCloudLoadingState({ products = [], status = 'idle', pendin
   return status === 'loading' || status === 'idle' || pending === true;
 }
 
+function snapshotsIncludeServerData(snapshots = []) {
+  return (snapshots || []).filter(Boolean).some((snap) => {
+    const meta = snap?.metadata;
+    return Boolean(meta) && meta.fromCache === false;
+  });
+}
+
+function shouldShowSlaLoadingBanner({ awaitingServer = true, status = 'loading' } = {}) {
+  if (status === 'error') return false;
+  return awaitingServer === true;
+}
+
 function shouldShowEmpty({ products = [], status = 'idle', visible = 0 } = {}) {
   if (shouldShowMhdCloudLoadingState({ products, status })) return false;
   if (!(status === 'ready' || status === 'error')) return false;
@@ -56,5 +68,12 @@ assert.equal(shouldKeepMhdCloudLoading([emptyFromServer, emptyFromServer], 2), f
 
 // 8) Cache mit Docs → Hydration sofort
 assert.equal(shouldKeepMhdCloudLoading([cachedDocs, emptyFromCache], 2), false);
+
+// 9) Cache-Docs ≠ Server – Banner bleibt im Ladezustand
+assert.equal(snapshotsIncludeServerData([cachedDocs, cachedDocs]), false);
+assert.equal(snapshotsIncludeServerData([cachedDocs, emptyFromServer]), true);
+assert.equal(shouldShowSlaLoadingBanner({ awaitingServer: true, status: 'ready' }), true);
+assert.equal(shouldShowSlaLoadingBanner({ awaitingServer: false, status: 'ready' }), false);
+assert.equal(shouldShowSlaLoadingBanner({ awaitingServer: true, status: 'error' }), false);
 
 console.log('OK verify-mhd-loading-logic: Loading vs Empty Entscheidung korrekt.');

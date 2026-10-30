@@ -1,6 +1,7 @@
 /**
- * MHD-Tageslauf-SLA (kritische offene Posten): reine Zähllogik + Badge/Banner.
+ * MHD-Tageslauf (intern: SLA): kritische offene Posten – Zähllogik + Badge/Banner.
  * Schwelle Default: Resttage ≤ 1, aktiv, heute noch ohne Check-Stempel.
+ * UI-Sprache: „kritische MHDs“ / „Bestand wird geladen“ – kein Entwickler-Kürzel „SLA“.
  */
 
 export const MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE = 1;
@@ -151,9 +152,27 @@ export function updateMhdSlaBadge(count = 0) {
   tab.setAttribute('aria-label', label);
 }
 
-export function updateMhdSlaBanner(count = 0, { onOpen } = {}) {
+export function updateMhdSlaBanner(count = 0, { onOpen, loading = false } = {}) {
   const banner = document.getElementById('mhd-sla-banner');
   if (!banner) return;
+  if (loading) {
+    banner.hidden = false;
+    banner.classList.remove('hidden');
+    banner.classList.add('mhd-sla-banner--loading');
+    banner.setAttribute('aria-busy', 'true');
+    banner.innerHTML = '<span class="mhd-sla-banner-loading-dot" aria-hidden="true"></span>'
+      + '&nbsp;Bestand wird geladen – kritische MHDs erscheinen gleich';
+    if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
+      banner.dataset.mhdSlaBound = '1';
+      banner.addEventListener('click', (event) => {
+        event.preventDefault();
+        onOpen();
+      });
+    }
+    return;
+  }
+  banner.classList.remove('mhd-sla-banner--loading');
+  banner.removeAttribute('aria-busy');
   const n = Math.max(0, Number(count) || 0);
   if (n <= 0) {
     banner.hidden = true;
@@ -180,11 +199,16 @@ export function updateMhdSlaBanner(count = 0, { onOpen } = {}) {
 /**
  * Aktualisiert Badge + Banner aus der aktuellen MHD-Liste.
  * @param {object[]} products
- * @param {{ todayIso: string, getResttage?: Function, resolveEffective?: Function, onOpen?: Function, criticalMaxResttage?: number }} options
+ * @param {{ todayIso: string, getResttage?: Function, resolveEffective?: Function, onOpen?: Function, criticalMaxResttage?: number, loading?: boolean }} options
  */
 export function refreshMhdSlaUi(products, options = {}) {
+  if (options.loading) {
+    updateMhdSlaBadge(0);
+    updateMhdSlaBanner(0, { onOpen: options.onOpen, loading: true });
+    return 0;
+  }
   const count = countMhdSlaCriticalOpen(products, options);
   updateMhdSlaBadge(count);
-  updateMhdSlaBanner(count, { onOpen: options.onOpen });
+  updateMhdSlaBanner(count, { onOpen: options.onOpen, loading: false });
   return count;
 }

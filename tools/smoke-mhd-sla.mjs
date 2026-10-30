@@ -36,10 +36,13 @@ assertIncludes(mhdSrc, 'refreshMhdSlaIndicators()', 'SLA-Refresh angebunden');
 assertIncludes(mhdSrc, 'openMhdCriticalSlaView', 'Banner öffnet MHD-Ansicht');
 
 assertIncludes(indexSrc, 'id="mhd-sla-banner"', 'Banner im Markup');
+assertIncludes(indexSrc, 'id="mhd-server-sync-hint"', 'Cloud-Sync-Hinweis');
 assertIncludes(styleSrc, '.mhd-sla-banner', 'Banner-CSS');
+assertIncludes(styleSrc, '.mhd-server-sync-hint', 'Sync-Hinweis-CSS');
+assertIncludes(slaSrc, 'Bestand wird geladen', 'Banner-Ladezustand');
 
 assertIncludes(swSrc, '/mhd-sla.js', 'SW cached mhd-sla.js');
-assertIncludes(swSrc, 'mhd-sla-wrap', 'SW Cache-Bump');
+assertIncludes(swSrc, 'sync-version-hint', 'SW Cache-Bump');
 
 assertIncludes(fnSla, 'handleMhdSlaScheduled', 'Backend Scheduler Handler');
 assertIncludes(fnSla, "normalizedStage = stage === 's2' ? 's2' : 's1'", 'Backend Stufen s1/s2');

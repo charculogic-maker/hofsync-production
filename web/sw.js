@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-mhd-sla-wrap-v3';
+const CACHE_NAME = 'charculogic-v20261030-sync-version-hint-v1';
 
-const CACHE_SCHEMA = 'p0-fachbereiche-dashboard-init-oct2026';
-/** Release – /dev-dashboard initialisiert teamConfig (db+tenant) vor Nutzer-Tabelle */
-const RELEASED_AT = '2026-10-30T15:15:00+01:00';
+const CACHE_SCHEMA = 'p0-mhd-sync-version-hint-oct2026';
+/** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen */
+const RELEASED_AT = '2026-10-30T18:30:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

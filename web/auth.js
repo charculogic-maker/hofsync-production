@@ -317,6 +317,7 @@ function ensureLoginOverlay() {
             <button type="submit">Mit Zugangscode anmelden</button>
           </form>
         </details>
+        <p class="auth-lock-boot-status" id="auth-lock-boot-status" role="status" aria-live="polite" hidden></p>
         <p class="auth-lock-meta" id="auth-lock-meta"></p>
         <div id="auth-login-error" class="auth-lock-error" role="alert"></div>
         <p class="auth-lock-legal">
@@ -387,6 +388,36 @@ function ensureLoginOverlay() {
       .auth-lock-help code {
         font-size: 12px;
         color: #e2e8f0;
+      }
+      .auth-lock-boot-status {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 14px !important;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(59, 130, 246, 0.16);
+        border: 1px solid rgba(147, 197, 253, 0.35);
+        color: #dbeafe !important;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .auth-lock-boot-status.is-visible {
+        display: flex !important;
+      }
+      .auth-lock-boot-status::before {
+        content: '';
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(219, 234, 254, 0.35);
+        border-top-color: #93c5fd;
+        animation: auth-lock-spin 0.8s linear infinite;
+        flex: 0 0 auto;
+      }
+      @keyframes auth-lock-spin {
+        to { transform: rotate(360deg); }
       }
       .auth-lock-meta {
         margin: 14px 0 0 !important;
@@ -561,6 +592,27 @@ function updateAuthLockMeta() {
   meta.textContent = `Firebase: ${config.projectId} · Auth-Domain: ${config.authDomain} · Host: ${host}.${localHint}`;
 }
 
+/** Sichtbarer Ladehinweis auf dem Anmeldebildschirm (über Auth-Overlay). */
+export function setAuthLockBootStatus(message = '') {
+  ensureLoginOverlay();
+  const status = document.getElementById('auth-lock-boot-status');
+  if (!status) return;
+  const text = String(message || '').trim();
+  if (!text) {
+    status.hidden = true;
+    status.classList.remove('is-visible');
+    status.textContent = '';
+    return;
+  }
+  status.hidden = false;
+  status.classList.add('is-visible');
+  status.textContent = text;
+}
+
+if (typeof window !== 'undefined') {
+  window.setAuthLockBootStatus = setAuthLockBootStatus;
+}
+
 async function probeAuthBackendReachable() {
   const config = resolveFirebaseConfig();
   if (!config?.apiKey) return;
@@ -599,6 +651,7 @@ function hideLoginOverlay() {
   document.body?.classList.remove('auth-lock-open');
   window.__charculogicLoginPromptOpen = false;
   setAuthError('');
+  setAuthLockBootStatus('');
   try {
     window.dispatchEvent(new CustomEvent('charculogic:auth-ready'));
   } catch (_) { /* noop */ }
