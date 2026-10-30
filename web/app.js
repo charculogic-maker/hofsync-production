@@ -3666,6 +3666,9 @@ function isFirebaseConfigGraceOpen() {
 
 function showStartupLoading(visible) {
   const existing = document.getElementById('startup-firebase-loading');
+  try {
+    window.setAuthLockBootStatus?.(visible ? 'Betriebsdaten werden geladen…' : '');
+  } catch (_) { /* noop */ }
   if (!visible) {
     existing?.remove();
     return;
@@ -5407,7 +5410,7 @@ let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-30T16:15:00+01:00';
+const APP_RELEASE_AT = '2026-10-30T18:30:00+01:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -5642,7 +5645,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261030-mhd-sla-wrap-v3')
+    navigator.serviceWorker.register('./sw.js?v=20261030-sync-version-hint-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

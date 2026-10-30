@@ -884,9 +884,74 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   letter-spacing: 0.01em;
 }
 
+.app-update-info--tappable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-update-info--tappable:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .app-update-info #app-update-info-text {
   display: inline-block;
   max-width: 100%;
+}
+
+.app-update-info-hint {
+  opacity: 0.72;
+  font-weight: 500;
+}
+
+.mhd-server-sync-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm, 8px);
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--text-primary, #1f2937);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.mhd-server-sync-hint.hidden,
+.mhd-server-sync-hint[hidden] {
+  display: none !important;
+}
+
+.mhd-server-sync-hint-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(37, 99, 235, 0.25);
+  border-top-color: #2563eb;
+  animation: mhd-loading-spin 0.9s linear infinite;
+  flex: 0 0 auto;
+}
+
+.mhd-sla-banner--loading {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--text-primary, #1f2937);
+  font-weight: 700;
+}
+
+.mhd-sla-banner-loading-dot {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  margin-right: 0.15em;
+  border-radius: 50%;
+  border: 2px solid rgba(37, 99, 235, 0.25);
+  border-top-color: #2563eb;
+  animation: mhd-loading-spin 0.9s linear infinite;
+  vertical-align: -0.05em;
 }
 
 .hidden {
@@ -1175,16 +1240,18 @@ body.admin-module-view .bottom-nav .nav-item.active::after {
   position: fixed;
   top: max(8px, env(safe-area-inset-top, 0px));
   left: 50%;
-  z-index: 13000;
+  /* Über dem Anmelde-Overlay, sonst unsichtbar während Login. */
+  z-index: 2147483647;
   transform: translateX(-50%);
-  padding: 6px 12px;
+  padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(17, 24, 39, 0.88);
+  background: rgba(17, 24, 39, 0.92);
   color: #e5e7eb;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.01em;
   pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
 .app-nav-zone--admin[hidden] {
@@ -8869,6 +8936,13 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
     font-size: 12px;
     line-height: 1.25;
     border-radius: 8px;
+  }
+
+  .mhd-server-sync-hint {
+    width: calc(100% - 16px);
+    margin: 4px 8px 0;
+    padding: 6px 10px;
+    font-size: 11px;
   }
 
   .app-content:has(#page-mhd.active) {

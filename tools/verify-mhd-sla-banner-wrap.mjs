@@ -36,6 +36,7 @@ const fixtureHtml = `<!doctype html>
   </div>
   <script type="module">
     import { updateMhdSlaBanner } from '/mhd-sla.js';
+    window.__updateMhdSlaBanner = updateMhdSlaBanner;
     updateMhdSlaBanner(40, { onOpen: () => {} });
     window.__slaBannerReady = true;
   </script>
@@ -105,6 +106,22 @@ const shotPath = path.join(artifactsDir, 'mhd-sla-banner-40-nowrap.png');
 await page.screenshot({ path: shotPath, fullPage: false });
 writeFileSync(path.join(artifactsDir, 'mhd-sla-banner-40-nowrap.json'), JSON.stringify(result, null, 2));
 
+const loading = await page.evaluate(() => {
+  window.__updateMhdSlaBanner(9, { loading: true, onOpen: () => {} });
+  const banner = document.getElementById('mhd-sla-banner');
+  const text = (banner?.innerText || '').replace(/\s+/g, ' ').trim();
+  return {
+    ok: Boolean(banner)
+      && banner.classList.contains('mhd-sla-banner--loading')
+      && /Bestand wird geladen/i.test(text)
+      && !/\b9\b/.test(text),
+    text,
+  };
+});
+const loadingShot = path.join(artifactsDir, 'mhd-sla-banner-loading.png');
+await page.screenshot({ path: loadingShot, fullPage: false });
+writeFileSync(path.join(artifactsDir, 'mhd-sla-banner-loading.json'), JSON.stringify(loading, null, 2));
+
 await browser.close();
 server.close();
 
@@ -112,5 +129,11 @@ if (!result.ok) {
   console.error('FAIL verify-mhd-sla-banner-wrap', result);
   process.exit(1);
 }
+if (!loading.ok) {
+  console.error('FAIL verify-mhd-sla-banner-loading', loading);
+  process.exit(1);
+}
 console.log('OK verify-mhd-sla-banner-wrap', result);
+console.log('OK verify-mhd-sla-banner-loading', loading);
 console.log('screenshot', shotPath);
+console.log('screenshot', loadingShot);

@@ -1,23 +1,38 @@
 /**
  * HofSync App-Version & Release-Hinweise (PWA).
  * Zentrale Konstanten für Badge, einmaligen Update-Toast und Changelog-Popover.
+ *
+ * Pflege-Regel: Bei jedem Release APP_VERSION / APP_RELEASE_DATE anheben und
+ * einen neuen Eintrag ganz oben in RELEASE_NOTES ergänzen. Die UI zeigt immer
+ * die neuesten 5 Bullet-Punkte (getLatestReleaseHighlights).
  */
 
-export const APP_VERSION = '1.5.0';
+export const APP_VERSION = '1.5.1';
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
-export const APP_VERSION_TAG = `v${APP_VERSION}-20261018`;
-export const APP_RELEASE_DATE = '2026-10-18';
+export const APP_VERSION_TAG = `v${APP_VERSION}-20261030`;
+export const APP_RELEASE_DATE = '2026-10-30';
+
+/** Neueste zuerst – UI nimmt davon die ersten 5. */
+export const RELEASE_NOTES = Object.freeze([
+  'Kritische-MHD-Banner: mehrstellige Zahlen (z. B. 40) brechen nicht mehr um',
+  'Hinweis „Bestand wird geladen…“, bis die Cloud-Daten wirklich da sind',
+  'Versionshinweis zeigt immer die letzten fünf Änderungen',
+  'MHD-Datums-Guard: absurde Jahre/Tippfehler schon beim Einbuchen abfangen',
+  'MHD-Monitor auf dem Laden-iPhone dichter – mehr Karten sichtbar',
+  'Fachbereiche nach App↔Dashboard-Wechsel sichtbar halten',
+  'Avery-Etiketten: Druckdialog auf iOS Safari wieder zuverlässig',
+]);
+
+export function getLatestReleaseHighlights(limit = 5) {
+  const n = Math.max(1, Number(limit) || 5);
+  return RELEASE_NOTES.slice(0, n);
+}
+
+/** @deprecated Prefer getLatestReleaseHighlights() – bleibt für bestehende Importe. */
+export const RELEASE_HIGHLIGHTS = getLatestReleaseHighlights(5);
 
 export const RELEASE_TOAST_MESSAGE =
-  'HofSync aktualisiert: Avery-Druck auf dem Laden-iPhone (iOS) läuft wieder zuverlässig.';
-
-export const RELEASE_HIGHLIGHTS = [
-  'Avery-Etiketten: Druckdialog auf iOS Safari wieder zuverlässig',
-  'Druckbogen wird im Hintergrund vorbereitet – Tippen startet direkt den Druck',
-  'Print-Area als body-Kind (kein versteckter Bogen mehr)',
-  'Nutzerverwaltung ohne Modul-Duplikate',
-  'Modul-Freischaltung mit klarerem Feedback',
-];
+  'HofSync aktualisiert: Kritische-MHD-Banner lesbar, Ladehinweis bis Cloud-Daten da sind.';
 
 const SEEN_RELEASE_STORAGE_KEY = 'hofsync_seen_release_version';
 const RELEASE_TOAST_MS = 4000;
@@ -162,14 +177,14 @@ function ensureChangelogModalEl() {
 
 export function openChangelogModal({
   versionLabel = APP_VERSION_LABEL,
-  highlights = RELEASE_HIGHLIGHTS,
+  highlights = getLatestReleaseHighlights(5),
   releaseDate = APP_RELEASE_DATE,
 } = {}) {
   const modal = ensureChangelogModalEl();
   const meta = document.getElementById('version-changelog-meta');
   const list = document.getElementById('version-changelog-list');
   if (meta) {
-    meta.textContent = `${versionLabel} · ${releaseDate}`;
+    meta.textContent = `${versionLabel} · ${releaseDate} · letzte 5 Änderungen`;
   }
   if (list) {
     list.innerHTML = highlights
@@ -239,12 +254,31 @@ export function initAppVersionUi({
     });
   });
 
+  const updateInfo = document.getElementById('app-update-info');
+  if (updateInfo && updateInfo.dataset.changelogBound !== '1') {
+    updateInfo.dataset.changelogBound = '1';
+    updateInfo.classList.add('app-update-info--tappable');
+    updateInfo.setAttribute('role', 'button');
+    updateInfo.tabIndex = 0;
+    updateInfo.title = 'Tippen: Was ist neu (letzte 5 Änderungen)';
+    const open = (event) => {
+      event.preventDefault();
+      openChangelogModal();
+    };
+    updateInfo.addEventListener('click', open);
+    updateInfo.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') open(event);
+    });
+  }
+
   window.HofSyncVersion = {
     version: APP_VERSION,
     label: versionLabel,
     tag: APP_VERSION_TAG,
+    notes: RELEASE_NOTES,
     openChangelog: openChangelogModal,
     showReleaseToast: maybeShowReleaseToast,
+    getLatestReleaseHighlights,
   };
 
   scheduleReleaseToastAttempts();

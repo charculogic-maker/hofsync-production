@@ -71,4 +71,5 @@ describe('MHD-SLA Zähllogik', () => {
     expect(formatMhdSlaBannerText(4)).to.include('4 kritische MHDs');
     expect(formatMhdSlaBannerText(40)).to.include('40 kritische MHDs');
   });
+
 });

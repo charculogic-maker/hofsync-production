@@ -445,12 +445,17 @@ const mhdState = {
   cloudSyncStatus: 'idle',
   pendingCloudSync: false,
   cloudSyncTimeoutId: null,
+  /** True erst nach Firestore-Snapshot vom Server (nicht nur lokaler Cache). */
+  awaitingServerSnapshot: true,
+  serverWaitTimeoutId: null,
   /** @type {string} Tenant-ID der letzten erfolgreichen MHD-Hydration */
   lastSyncedTenantId: '',
 };
 
 /** Max. Wartezeit auf Firestore-Netzwerk; danach lokaler Snapshot / Skeleton, nie Leermeldung vortäuschen. */
 const MHD_CLOUD_SYNC_TIMEOUT_MS = 3000;
+/** Wie lange der Hinweis „Bestand wird geladen…“ maximal wartet, wenn nur Cache da ist. */
+const MHD_SERVER_SYNC_HINT_TIMEOUT_MS = 45000;
 const MHD_LOCAL_SNAPSHOT_PREFIX = 'charculogic_mhd_snapshot_v1:';
 const MHD_LOCAL_SNAPSHOT_MAX_ITEMS = 400;
 const MHD_ADMIN_SEARCH_LIMIT = 40;
@@ -987,6 +992,11 @@ function openMhdCriticalSlaView() {
   }
 }
 
+function isMhdAwaitingServerData() {
+  if (mhdState.cloudSyncStatus === 'error') return false;
+  return mhdState.awaitingServerSnapshot === true;
+}
+
 function refreshMhdSlaIndicators() {
   try {
     refreshMhdSlaUi(mhdState.products || [], {
@@ -994,9 +1004,11 @@ function refreshMhdSlaIndicators() {
       getResttage: getMhdResttage,
       resolveEffective: getEffectiveMhdProduct,
       onOpen: openMhdCriticalSlaView,
+      // Kein vorläufiger Zähler (9→40): Banner erst nach Server-Snapshot.
+      loading: isMhdAwaitingServerData(),
     });
   } catch (err) {
-    console.warn('[CharcuLogic MHD] SLA-Anzeige fehlgeschlagen', err);
+    console.warn('[CharcuLogic MHD] Tageslauf-Anzeige fehlgeschlagen', err);
   }
 }
 
@@ -4327,9 +4339,39 @@ function clearMhdCloudSyncTimeout() {
   mhdState.cloudSyncTimeoutId = null;
 }
 
+function clearMhdServerWaitTimeout() {
+  if (!mhdState.serverWaitTimeoutId) return;
+  clearTimeout(mhdState.serverWaitTimeoutId);
+  mhdState.serverWaitTimeoutId = null;
+}
+
+function markMhdServerSnapshotSeen() {
+  mhdState.awaitingServerSnapshot = false;
+  clearMhdServerWaitTimeout();
+}
+
+function startMhdServerWaitHintTimeout() {
+  clearMhdServerWaitTimeout();
+  mhdState.serverWaitTimeoutId = setTimeout(() => {
+    if (!mhdState.awaitingServerSnapshot) return;
+    // Offline / sehr langsames Netz: Hinweis ausblenden, Cache weiter nutzen.
+    mhdState.awaitingServerSnapshot = false;
+    renderMhdList();
+  }, MHD_SERVER_SYNC_HINT_TIMEOUT_MS);
+}
+
+function snapshotsIncludeServerData(snapshots = []) {
+  return (snapshots || []).filter(Boolean).some((snap) => {
+    const meta = snap?.metadata;
+    return Boolean(meta) && meta.fromCache === false;
+  });
+}
+
 function markMhdCloudSyncLoading() {
   setMhdCloudSyncStatus('loading');
+  mhdState.awaitingServerSnapshot = true;
   clearMhdCloudSyncTimeout();
+  startMhdServerWaitHintTimeout();
   // Nach max. 3s: lokalen Bestand zeigen falls vorhanden — sonst Fehler + Retry (kein Dauer-Skeleton).
   mhdState.cloudSyncTimeoutId = setTimeout(() => {
     if (mhdState.cloudSyncStatus !== 'loading') return;
@@ -4353,7 +4395,9 @@ function markMhdCloudSyncReady() {
 
 function markMhdCloudSyncError() {
   clearMhdCloudSyncTimeout();
+  clearMhdServerWaitTimeout();
   mhdState.pendingCloudSync = false;
+  mhdState.awaitingServerSnapshot = false;
   setMhdCloudSyncStatus('error');
 }
 
@@ -4390,8 +4434,17 @@ function buildMhdLoadingHtml() {
         <div class="mhd-skeleton-card"></div>
       </div>
       <div class="mhd-loading-spinner" aria-hidden="true"></div>
-      <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
+      <p class="mhd-loading-text">Frische-Bestand wird geladen…</p>
     </div>`;
+}
+
+function updateMhdServerSyncHint() {
+  const hint = document.getElementById('mhd-server-sync-hint');
+  if (!hint) return;
+  const show = isMhdAwaitingServerData();
+  hint.hidden = !show;
+  hint.classList.toggle('hidden', !show);
+  hint.setAttribute('aria-busy', show ? 'true' : 'false');
 }
 
 function buildMhdLoadErrorHtml() {
@@ -4680,8 +4733,12 @@ function loadMhdFromCloud() {
     mergeMhdLiveProducts();
 
     const waitingForServer = shouldKeepMhdCloudLoading(inStockSnaps, 2);
+    if (snapshotsIncludeServerData(inStockSnaps)) {
+      markMhdServerSnapshotSeen();
+    }
     // Cache-Hydration: sobald Artikel da sind (auch fromCache), sofort zeigen.
     // Nur bei unvollständigen/leeren fromCache-Snapshots weiter laden.
+    // Hinweis „Cloud-Abgleich“ bleibt bis zum echten Server-Snapshot (oder Timeout).
     if (!waitingForServer || hasMhdCachedProducts()) {
       markMhdCloudSyncReady();
       if (tenantId) mhdState.lastSyncedTenantId = tenantId;
@@ -5433,6 +5490,7 @@ function renderMhdList() {
   if (!container) return;
   bindMhdLoadRetryOnce();
   refreshMhdSlaIndicators();
+  updateMhdServerSyncHint();
 
   if (shouldShowMhdCloudLoadingState()) {
     updateMhdToolbarLimitHint(0);
