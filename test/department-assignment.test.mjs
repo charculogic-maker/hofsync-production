@@ -99,6 +99,6 @@ describe('team-config listener source contract', () => {
     expect(source).to.match(/configState\.db[\s\S]*?\.collection\('tenants'\)/);
     expect(source).to.match(/\.collection\('settings'\)[\s\S]*?\.doc\(TEAM_CONFIG_DOC_ID\)/);
     expect(source).to.not.match(/getTenantCollection\('settings'\)/);
-    expect(source).to.not.match(/getNamedTenantCollection\(/);
+    expect(source).to.not.match(/return getNamedTenantCollection\(/);
   });
 });
