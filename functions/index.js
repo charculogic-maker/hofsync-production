@@ -215,7 +215,9 @@ lazyExport('verifyTerminalPin', () => callable(
 lazyExport('createTenantEmployee', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,
-    // Wie manageTenantEmployees: Vercel-Hosts scheitern an reCAPTCHA App Check.
+    // Wie manageTenantEmployees: Vercel-Hosts scheitern an reCAPTCHA App Check
+    // (SDK wirft dann engl. „Unauthenticated“ vor dem Handler). Nach jeder
+    // Änderung an enforceAppCheck diese Function gezielt neu deployen.
     // Auth und Admin-/Super-Admin-Prüfung bleiben Pflicht.
     cors: true,
     enforceAppCheck: false,
