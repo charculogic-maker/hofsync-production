@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261029-bedarf-reassign-v1';
+const CACHE_NAME = 'charculogic-v20261030-bedarf-reassign-v2';
 
 const CACHE_SCHEMA = 'p0-bedarf-reassign-oct2026';
-/** Release – Bestehende Bedarfe nachträglich Person/Fachbereich zuordnen */
-const RELEASED_AT = '2026-10-29T20:45:00+01:00';
+/** Release – Melder behält Sichtbarkeit nach Fachbereichs-Zuordnung */
+const RELEASED_AT = '2026-10-30T08:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

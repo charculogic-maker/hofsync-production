@@ -160,6 +160,7 @@ describe('Bedarf nachträgliche Zuordnung', () => {
     expect(indexHtml).to.match(/id="bedarf-assign-assignee"/);
     expect(indexHtml).to.match(/id="bedarf-assign-save"/);
     expect(quickAlertJs).to.match(/updateSupplyAlertAssignment/);
+    expect(quickAlertJs).to.match(/Melder behält die Zeile/);
     expect(rules).to.match(/isSupplyAlertAssignmentUpdate/);
     expect(rules).to.match(/assignedTo',\s*'departmentTarget',\s*'updatedAt',\s*'updatedBy'/);
   });

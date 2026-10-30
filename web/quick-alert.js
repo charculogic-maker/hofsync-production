@@ -169,6 +169,8 @@ function alertVisibleForEmployee(alert, employeeName) {
   if (!employeeName) return false;
   // Zugewiesene Person sieht die Meldung immer.
   if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
+  // Melder behält die Zeile auch nach Fachbereichs-Zuordnung (sonst „verschwindet“ sie).
+  if (alert.createdBy && namesMatch(alert.createdBy, employeeName)) return true;
   const target = String(alert.departmentTarget || 'all').toLowerCase();
   if (target === 'all') return true;
   const assignment = getEmployeeDepartmentAssignment(employeeName);
@@ -188,6 +190,8 @@ function alertVisibleForEmployee(alert, employeeName) {
 function canResolveAlert(alert, employeeName) {
   if (!employeeName || !alert) return false;
   if (alert.assignedTo && namesMatch(alert.assignedTo, employeeName)) return true;
+  // Melder darf die eigene Meldung weiter bearbeiten/abhaken.
+  if (alert.createdBy && namesMatch(alert.createdBy, employeeName)) return true;
   const target = String(alert.departmentTarget || 'all').toLowerCase();
   // Freie Bedarfsliste (all): jeder, der die Zeile sieht, darf abhaken – wie BRING!
   if (target === 'all' || target === '') {
