@@ -162,11 +162,11 @@ export function updateMhdSlaBanner(count = 0, { onOpen } = {}) {
   }
   banner.hidden = false;
   banner.classList.remove('hidden');
-  banner.innerHTML = `<strong>${escapeHtml(String(n))}</strong> ${escapeHtml(
-    n === 1
-      ? 'kritisches MHD heute noch offen – antippen zum Prüfen'
-      : 'kritische MHDs heute noch offen – antippen zum Prüfen',
-  )}`;
+  // Ein Fließtext (kein Flex-Spalten-Layout): Zahl inline, Satz bleibt lesbar beim Umbruch.
+  const body = n === 1
+    ? 'kritisches MHD heute noch offen – antippen zum Prüfen'
+    : 'kritische MHDs heute noch offen – antippen zum Prüfen';
+  banner.innerHTML = `<span class="mhd-sla-banner-count">${escapeHtml(String(n))}</span> ${escapeHtml(body)}`;
   if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
     banner.dataset.mhdSlaBound = '1';
     banner.addEventListener('click', (event) => {
