@@ -41,8 +41,14 @@ assertIncludes(styleSrc, '.mhd-sla-banner', 'Banner-CSS');
 assertIncludes(styleSrc, '.mhd-server-sync-hint', 'Sync-Hinweis-CSS');
 assertIncludes(slaSrc, 'Bestand wird geladen', 'Banner-Ladezustand');
 
+const metaSrc = read('web/mhd-record-meta.js');
+assertIncludes(metaSrc, 'buildMhdCaptureCorrectionMetaParts', 'Erfasst/Korrigiert Meta');
+assertIncludes(metaSrc, 'qtyCorrectedAt', 'Mengenkorrektur-Feld');
+assertIncludes(mhdSrc, "from './mhd-record-meta.js'", 'mhd.js importiert Record-Meta');
+
 assertIncludes(swSrc, '/mhd-sla.js', 'SW cached mhd-sla.js');
-assertIncludes(swSrc, 'sync-version-hint', 'SW Cache-Bump');
+assertIncludes(swSrc, 'erfasst-korrektur', 'SW Cache-Bump');
+assertIncludes(swSrc, '/mhd-record-meta.js', 'SW cached Record-Meta');
 
 assertIncludes(fnSla, 'handleMhdSlaScheduled', 'Backend Scheduler Handler');
 assertIncludes(fnSla, "normalizedStage = stage === 's2' ? 's2' : 's1'", 'Backend Stufen s1/s2');
