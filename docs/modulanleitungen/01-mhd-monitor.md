@@ -33,6 +33,8 @@ Die Staffel ist mandantenspezifisch: In der Verwaltung unter **Mein Betrieb → 
 |---------|----------|
 | **Prüfgruppe** | **Alle (7 Tage)** (Standard), **MoPro (0-2 Tage)**, **Kühlware (0-2 Tage)** oder **Trockenware (0-30 Tage)** |
 
+Die Toolbar ist auf dem Laden-iPhone einklappbar (**Suche/Filter**). Eingeklappt bleibt nur eine kompakte Zeile – so passen mehr MHD-Karten auf den Bildschirm. Die optionale **Erweiterte Suche** (Büro/Admin) steckt im aufgeklappten Panel, nicht als zweite Leiste über der Liste.
+
 In der Ansicht **Alle** erscheinen Gruppenüberschriften nach Dringlichkeit (**Überfällig**, **Heute fällig**, **Morgen**, **In 2–4 Tagen**, **Später**). Bei gleichem Resttag stehen MoPro vor Kühlware vor Trockenware. Kritische Ware erscheint automatisch, sobald das MHD im gewählten Zeitraum liegt.
 
 ### 2. MHD-Karte (Posten)

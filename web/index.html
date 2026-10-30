@@ -342,7 +342,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
   <script src="/libs/html5-qrcode.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20261027-mhd-urgency-sort">
+  <link rel="stylesheet" href="/style.css?v=20261030-mhd-mobile-density">
   <link rel="stylesheet" href="/order-print.css?v=20261024-packtisch-mhd">
   <link rel="stylesheet" href="/avery-labels.css?v=20261021-packliste-herkunft">
 </head>
@@ -1920,27 +1920,26 @@
                     >👁️ 0er-Bestände anzeigen</button>
                   </div>
                   <div class="mhd-render-limit-hint mhd-toolbar-limit-hint hidden" id="mhd-toolbar-limit-hint" role="status" aria-live="polite"></div>
+                  <details class="mhd-admin-search" id="mhd-admin-search" hidden>
+                    <summary class="mhd-admin-search-summary">Erweiterte Suche</summary>
+                    <div class="mhd-admin-search-panel">
+                      <div class="mhd-admin-search-field">
+                        <input
+                          type="search"
+                          id="mhd-admin-search-input"
+                          class="input-text-touch mhd-admin-search-input"
+                          placeholder="Produktname oder Barcode suchen..."
+                          autocomplete="off"
+                          aria-label="Admin-Suche im MHD-Bestand"
+                        >
+                      </div>
+                      <p class="mhd-admin-search-status" id="mhd-admin-search-status" hidden></p>
+                      <div class="mhd-list mhd-admin-search-results" id="mhd-admin-search-results" hidden></div>
+                    </div>
+                  </details>
                 </div>
               </details>
             </div>
-
-            <details class="mhd-admin-search" id="mhd-admin-search" hidden>
-              <summary class="mhd-admin-search-summary">Erweiterte Suche</summary>
-              <div class="mhd-admin-search-panel">
-                <div class="mhd-admin-search-field">
-                  <input
-                    type="search"
-                    id="mhd-admin-search-input"
-                    class="input-text-touch mhd-admin-search-input"
-                    placeholder="Produktname oder Barcode suchen..."
-                    autocomplete="off"
-                    aria-label="Admin-Suche im MHD-Bestand"
-                  >
-                </div>
-                <p class="mhd-admin-search-status" id="mhd-admin-search-status" hidden></p>
-                <div class="mhd-list mhd-admin-search-results" id="mhd-admin-search-results" hidden></div>
-              </div>
-            </details>
 
             <div class="mhd-list" id="mhd-items-container" data-mhd-render-mode="loading" aria-busy="true">
               <div class="mhd-loading-hint" role="status" aria-live="polite">

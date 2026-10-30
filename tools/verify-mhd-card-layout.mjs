@@ -220,7 +220,7 @@ console.log(JSON.stringify(result, null, 2));
 
 const fail = [];
 if (result.cardCount < 2) fail.push('zu wenige Karten');
-if (result.maxHeight > 230) fail.push(`maxHeight ${result.maxHeight} > 230 (Ziel kompakt)`);
+if (result.maxHeight > 200) fail.push(`maxHeight ${result.maxHeight} > 200 (Ziel kompakt, Laden-iPhone)`);
 if (!result.hasTop || !result.hasActionRow || !result.hasMore) fail.push('Layout-Klassen fehlen');
 if (result.hasBadge && !result.openAfter) fail.push('Akkordeon öffnete nicht');
 if (fail.length) {
