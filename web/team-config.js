@@ -6,7 +6,7 @@ import { writeFirestoreDocOrQueue } from './sync.js';
 import { getAuthContext, verifyAdminAction } from './auth.js';
 import { waitForAppCheckReady } from './app-check.js';
 import { createHttpsCallable } from './firebase-functions.js';
-import { getGlobalTenantId, getTenantCollection } from './tenant-db.js';
+import { getGlobalTenantId, setGlobalTenantId } from './tenant-db.js';
 import { ACTIVE_EMPLOYEE_STORAGE_KEY, readScopedLocalStorageValue } from './teamboard-storage.js';
 
 /** Mandant aus Modul-State oder globalem Auth/Dashboard-Kontext. */
@@ -322,22 +322,45 @@ export function extractActiveEmployeeNames(list = []) {
 }
 
 /**
- * Frische One-Shot-Ladung der kanonischen Team-Liste (settings/teamDashboard).
- * Aktualisiert den In-Memory-State von team-config — dieselbe Quelle wie Teamboard.
+ * Frische One-Shot-Ladung von settings/teamDashboard (Mitarbeiter + Fachbereiche).
+ * Aktualisiert den In-Memory-State — zuverlässiger als auf team-config-changed zu warten
+ * (Race: leeres applyConfig(null) oder Snapshot vor dem Event-Listener).
  */
 export async function ensureTeamEmployeesLoaded() {
+  const loaded = await ensureTeamConfigLoaded();
+  return loaded.employees;
+}
+
+/**
+ * One-Shot-Read von teamDashboard inkl. departmentAssignments.
+ * @returns {Promise<{ employees: string[], departmentAssignments: Record<string, DepartmentAssignment>, ok: boolean }>}
+ */
+export async function ensureTeamConfigLoaded() {
   const ref = configRef();
   if (!ref) {
-    return getTeamEmployees();
+    return {
+      employees: getTeamEmployees(),
+      departmentAssignments: getDepartmentAssignments(),
+      ok: false,
+    };
   }
   try {
     const snap = await ref.get();
     const config = normalizeConfig(snap.exists ? snap.data() : null);
     applyConfig(config);
+    return {
+      employees: [...configState.employees],
+      departmentAssignments: getDepartmentAssignments(),
+      ok: true,
+    };
   } catch (err) {
-    console.warn('[TeamConfig] ensureTeamEmployeesLoaded fehlgeschlagen:', err);
+    console.warn('[TeamConfig] ensureTeamConfigLoaded fehlgeschlagen:', err);
+    return {
+      employees: getTeamEmployees(),
+      departmentAssignments: getDepartmentAssignments(),
+      ok: false,
+    };
   }
-  return getTeamEmployees();
 }
 
 function getVerifyPinCallable() {
@@ -432,10 +455,19 @@ function escapeHtml(value) {
 }
 
 function configRef() {
-  if (!configState.db || !configState.tenantId) return null;
+  const tenantId = resolveTeamConfigTenantId();
+  if (!configState.db || !tenantId) return null;
   try {
-    return getTenantCollection('settings').doc(TEAM_CONFIG_DOC_ID);
-  } catch {
+    // Direkt über configState.db + tenantId — nicht getTenantCollection()
+    // (requireGlobalTenantId) und nicht getNamedTenantCollection() (eigenes
+    // firestoreDb aus initTenantDb, das im Dev-Dashboard-Pfad leer sein kann).
+    return configState.db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('settings')
+      .doc(TEAM_CONFIG_DOC_ID);
+  } catch (err) {
+    console.warn('[TeamConfig] configRef fehlgeschlagen:', err?.message || err);
     return null;
   }
 }
@@ -507,9 +539,13 @@ async function handleTeamConfigSnapshot(snap) {
 }
 
 function subscribeTeamConfig() {
-  configState.unsubscribe?.();
   const ref = configRef();
-  if (!ref) return;
+  if (!ref) {
+    console.warn('[TeamConfig] Kein settings/teamDashboard-Ref — Listener bleibt unverändert.');
+    return;
+  }
+  // Alten Listener erst ersetzen, wenn neuer Ref steht (sonst Fenster ohne Zuordnungen).
+  configState.unsubscribe?.();
   configState.unsubscribe = ref.onSnapshot(
     (snap) => {
       handleTeamConfigSnapshot(snap).catch((err) => {
@@ -517,7 +553,14 @@ function subscribeTeamConfig() {
         applyConfig(normalizeConfig(snap.exists ? snap.data() : null));
       });
     },
-    (err) => console.warn('[TeamConfig] Stream:', err),
+    (err) => {
+      console.warn('[TeamConfig] Stream:', err);
+      // permission-denied / Netz: Listener freigeben, damit setTeamConfigTenantId erneut abonnieren kann.
+      try {
+        configState.unsubscribe?.();
+      } catch (_) { /* noop */ }
+      configState.unsubscribe = null;
+    },
   );
 }
 
@@ -872,9 +915,17 @@ export function setTeamConfigTenantId(tenantId) {
     // Nicht die Zuordnung des vorherigen Mandanten anzeigen.
     configState.departmentAssignments = {};
   }
+  // Globalen Tenant-Kontext mitziehen (andere Module + Rules-Pfade).
+  if (next && getGlobalTenantId() !== next) {
+    setGlobalTenantId(next);
+  }
 
-  // Gleicher Mandant, aber Listener fehlt (Init oft ohne tenantId) → nachziehen.
-  if (tenantChanged || (configState.db && !configState.unsubscribe)) {
+  // Neu abonnieren wenn: Mandant gewechselt, Listener fehlt, oder Zuordnungen noch leer
+  // (z. B. früherer Stream mit permission-denied bevor Auth fertig war).
+  const needsSubscribe = tenantChanged
+    || (configState.db && !configState.unsubscribe)
+    || (configState.db && !Object.keys(configState.departmentAssignments).length);
+  if (needsSubscribe) {
     subscribeTeamConfig();
   }
   return configState.tenantId;

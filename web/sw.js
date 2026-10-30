@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-fachbereiche-bulk-v1';
+const CACHE_NAME = 'charculogic-v20261030-fachbereiche-dashboard-init-v5';
 
-const CACHE_SCHEMA = 'p0-fachbereiche-bulk-oct2026';
-/** Release – Fachbereiche laden + Sammelauswahl in der Nutzerverwaltung */
-const RELEASED_AT = '2026-10-30T13:00:00+01:00';
+const CACHE_SCHEMA = 'p0-fachbereiche-dashboard-init-oct2026';
+/** Release – /dev-dashboard initialisiert teamConfig (db+tenant) vor Nutzer-Tabelle */
+const RELEASED_AT = '2026-10-30T15:15:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

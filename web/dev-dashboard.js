@@ -57,6 +57,8 @@ import {
   getDepartmentAssignments,
   saveEmployeeDepartmentAssignment,
   setTeamConfigTenantId,
+  ensureTeamConfigLoaded,
+  initTeamConfigModule,
 } from './team-config.js';
 import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -2761,8 +2763,11 @@ async function refreshEmployeeTable(dashboardStateRef) {
     return;
   }
 
-  // Fachbereiche liegen in teamDashboard — Listener starten, falls Init ohne tenantId lief.
+  // Fachbereiche liegen in teamDashboard — Listener starten + One-Shot laden.
+  // Event-Wait allein reicht nicht: leeres applyConfig(null) oder Snapshot vor dem
+  // Listener lassen die Tabelle sonst dauerhaft ohne Haken.
   setTeamConfigTenantId(tenantId);
+  await ensureTeamConfigLoaded();
 
   const callable = getManageEmployeesCallable();
   if (!callable) {
@@ -3516,6 +3521,14 @@ function setDevDashboardTab(tabKey = 'overview') {
       setGlobalTenantId(dashboardState.selectedTenantId);
       setTeamConfigTenantId(dashboardState.selectedTenantId);
     }
+    // Soft-Nav / Tab-Wechsel: One-Shot nachziehen, sonst leere Haken trotz Firestore.
+    void ensureTeamConfigLoaded().then(() => {
+      syncEmployeeDepartmentsFromTeamConfig(dashboardState);
+      if (dashboardState.activeTab === 'users') {
+        renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
+      }
+    });
+    syncEmployeeDepartmentsFromTeamConfig(dashboardState);
     renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
   }
 }
@@ -3728,6 +3741,19 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     // Super-Admin startet auf Plattform, bis ein Betrieb gewählt ist.
     if (dashboardState.isSuperAdmin && !dashboardState.selectedTenantId) {
       dashboardState.activeTab = 'platform';
+    }
+
+    // /dev-dashboard bricht in app.js vor initTeamConfigModule ab — ohne db/tenantId
+    // bleibt configRef() null und Fachbereich-Haken wirken „gelöscht“.
+    if (dashboardState.selectedTenantId) {
+      setGlobalTenantId(dashboardState.selectedTenantId);
+    }
+    initTeamConfigModule(db, {
+      tenantId: dashboardState.selectedTenantId || '',
+      getFirebase: () => (typeof firebase !== 'undefined' ? firebase : null),
+    });
+    if (dashboardState.selectedTenantId) {
+      setTeamConfigTenantId(dashboardState.selectedTenantId);
     }
 
     applyDashboardVisibility(dashboardState);
