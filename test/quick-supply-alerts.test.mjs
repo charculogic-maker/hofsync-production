@@ -134,13 +134,34 @@ describe('Bedarf status visibility (Bestellt / Erledigt)', () => {
     expect(quickAlertJs).to.match(/bedarf-check-item\.is-interactive/);
     expect(quickAlertJs).to.match(/bestellt/);
     expect(quickAlertJs).to.match(/Freie Bedarfsliste \(all\)/);
+    expect(quickAlertJs).to.match(/data-supply-alert-assign/);
+    expect(quickAlertJs).to.match(/export async function updateSupplyAlertAssignment/);
+    expect(quickAlertJs).to.match(/export function openBedarfAssignModal/);
   });
 
   it('styles ordered vs open checklist states distinctly', () => {
     expect(styleCss).to.match(/\.bedarf-check-item--ordered/);
     expect(styleCss).to.match(/\.bedarf-check-item--urgent/);
     expect(styleCss).to.match(/\.bedarf-check-ordered/);
+    expect(styleCss).to.match(/\.bedarf-check-assign/);
     expect(styleCss).to.match(/\.bedarf-check-toggle/);
     expect(styleCss).to.match(/\.bedarf-quick-add/);
+  });
+});
+
+describe('Bedarf nachträgliche Zuordnung', () => {
+  const indexHtml = read('web/index.html');
+  const quickAlertJs = read('web/quick-alert.js');
+  const rules = read('firebase.rules');
+
+  it('exposes assign modal and rules allow assignment updates', () => {
+    expect(indexHtml).to.match(/id="modal-bedarf-assign"/);
+    expect(indexHtml).to.match(/id="bedarf-assign-department"/);
+    expect(indexHtml).to.match(/id="bedarf-assign-assignee"/);
+    expect(indexHtml).to.match(/id="bedarf-assign-save"/);
+    expect(quickAlertJs).to.match(/updateSupplyAlertAssignment/);
+    expect(quickAlertJs).to.match(/Melder behält die Zeile/);
+    expect(rules).to.match(/isSupplyAlertAssignmentUpdate/);
+    expect(rules).to.match(/assignedTo',\s*'departmentTarget',\s*'updatedAt',\s*'updatedBy'/);
   });
 });

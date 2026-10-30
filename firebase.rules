@@ -840,6 +840,23 @@ service cloud.firestore {
         );
     }
 
+    // Nachträgliche Zuordnung: Person und/oder Fachbereich.
+    function isSupplyAlertAssignmentUpdate() {
+      return resource.data.status in ['open', 'in_progress', 'ordered']
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['assignedTo', 'departmentTarget', 'updatedAt', 'updatedBy'])
+        && isValidSupplyDepartment(request.resource.data.departmentTarget)
+        && (
+          !('assignedTo' in request.resource.data)
+          || request.resource.data.assignedTo is string
+        )
+        && (
+          !('updatedBy' in request.resource.data)
+          || request.resource.data.updatedBy is string
+        );
+    }
+
     function isValidSupplyCategory(value) {
       return value in [
         'eigene_produktion',
@@ -888,6 +905,7 @@ service cloud.firestore {
         && (
           isAdmin(tenantId)
           || isSupplyAlertStatusTransition()
+          || isSupplyAlertAssignmentUpdate()
         );
 
       allow delete: if isAdmin(tenantId);

@@ -1105,6 +1105,13 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         resolvedAt: '2026-10-25T13:00:00.000Z',
         updatedAt: '2026-10-25T13:00:00.000Z',
       });
+      await seedFirestoreDoc(testEnv, alertPath, sampleSupplyAlert(TENANTS.STEVES_HOF));
+      await expectFirestoreAllow(employee, alertPath, 'update', {
+        assignedTo: 'Heiko',
+        departmentTarget: 'metzgerei',
+        updatedBy: 'Paddy',
+        updatedAt: '2026-10-29T20:40:00.000Z',
+      });
       await expectFirestoreDeny(foreign, alertPath, 'read');
       await expectFirestoreDeny(
         foreign,

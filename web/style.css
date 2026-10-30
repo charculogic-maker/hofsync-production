@@ -16564,6 +16564,14 @@ body.role-firebase-auth #team-login-card {
   color: var(--text-secondary, #64748b);
 }
 
+.bedarf-check-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bedarf-check-assign,
 .bedarf-check-ordered {
   flex-shrink: 0;
   min-height: 36px;
@@ -16573,7 +16581,32 @@ body.role-firebase-auth #team-login-card {
   background: #fff;
   font-size: 12px;
   font-weight: 700;
+}
+
+.bedarf-check-assign {
+  color: var(--text-secondary, #475569);
+}
+
+.bedarf-check-ordered {
   color: #92400e;
+}
+
+.bedarf-assign-item-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.bedarf-assign-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.bedarf-assign-actions .btn {
+  flex: 1;
+  min-height: 44px;
 }
 
 .supply-alert-list {

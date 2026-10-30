@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261029-bedarf-dept-dialog-v1';
+const CACHE_NAME = 'charculogic-v20261030-bedarf-reassign-v2';
 
-const CACHE_SCHEMA = 'p0-bedarf-dept-dialog-oct2026';
-/** Release – Bedarf melden: Fachbereich sichtbar + Zuweisen gefiltert */
-const RELEASED_AT = '2026-10-29T20:20:00+01:00';
+const CACHE_SCHEMA = 'p0-bedarf-reassign-oct2026';
+/** Release – Melder behält Sichtbarkeit nach Fachbereichs-Zuordnung */
+const RELEASED_AT = '2026-10-30T08:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

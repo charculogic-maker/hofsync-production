@@ -3577,6 +3577,49 @@
           </div>
         </div>
 
+        <!-- Bestehenden Bedarf zuordnen (Person / Fachbereich) -->
+        <div
+          id="modal-bedarf-assign"
+          class="quick-alert-overlay bedarf-assign-overlay"
+          hidden
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bedarf-assign-title-heading"
+        >
+          <div class="quick-alert-backdrop" data-bedarf-assign-dismiss="1"></div>
+          <div class="quick-alert-sheet bedarf-assign-sheet">
+            <div class="quick-alert-sheet-head">
+              <div>
+                <p class="quick-alert-kicker">Zuordnen</p>
+                <h2 id="bedarf-assign-title-heading" class="quick-alert-title">Person &amp; Fachbereich</h2>
+              </div>
+              <button type="button" class="quick-alert-close" id="bedarf-assign-close" aria-label="Schließen">×</button>
+            </div>
+            <p class="bedarf-assign-item-title" id="bedarf-assign-item-title"></p>
+            <input type="hidden" id="bedarf-assign-alert-id" value="">
+            <label class="quick-alert-meta-field quick-alert-meta-field--full" for="bedarf-assign-department">
+              <span>Fachbereich</span>
+              <select id="bedarf-assign-department" class="quick-alert-select" aria-label="Fachbereich zuordnen">
+                <option value="all">Alle Bereiche</option>
+                <option value="metzgerei">Metzgerei / Produktion</option>
+                <option value="laden">Laden / Verkauf</option>
+                <option value="einkauf">Einkauf / Büro</option>
+              </select>
+            </label>
+            <label class="quick-alert-meta-field quick-alert-meta-field--full" for="bedarf-assign-assignee">
+              <span>Zuweisen an</span>
+              <select id="bedarf-assign-assignee" class="quick-alert-select" aria-label="Mitarbeiter zuweisen">
+                <option value="">Niemand (nur Fachbereich)</option>
+              </select>
+            </label>
+            <div class="bedarf-assign-actions">
+              <button type="button" class="btn btn-secondary" id="bedarf-assign-cancel">Abbrechen</button>
+              <button type="button" class="btn btn-primary" id="bedarf-assign-save">Speichern</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Mitarbeiter-Schnellwechsler (Soft-Lock) -->
         <div
           id="modal-employee-picker"
