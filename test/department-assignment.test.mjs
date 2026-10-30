@@ -100,5 +100,16 @@ describe('team-config listener source contract', () => {
     expect(source).to.match(/\.collection\('settings'\)[\s\S]*?\.doc\(TEAM_CONFIG_DOC_ID\)/);
     expect(source).to.not.match(/getTenantCollection\('settings'\)/);
     expect(source).to.not.match(/return getNamedTenantCollection\(/);
+    expect(source).to.match(/export async function ensureTeamConfigLoaded/);
+  });
+
+  it('dev-dashboard loads teamDashboard via ensureTeamConfigLoaded before employee table', async () => {
+    const { readFileSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join } = await import('path');
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+    const source = readFileSync(join(root, 'web/dev-dashboard.js'), 'utf8');
+    expect(source).to.match(/ensureTeamConfigLoaded/);
+    expect(source).to.match(/await ensureTeamConfigLoaded\(\)/);
   });
 });

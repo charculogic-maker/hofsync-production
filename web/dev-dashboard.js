@@ -57,6 +57,7 @@ import {
   getDepartmentAssignments,
   saveEmployeeDepartmentAssignment,
   setTeamConfigTenantId,
+  ensureTeamConfigLoaded,
 } from './team-config.js';
 import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
@@ -2761,23 +2762,11 @@ async function refreshEmployeeTable(dashboardStateRef) {
     return;
   }
 
-  // Fachbereiche liegen in teamDashboard — Listener starten, falls Init ohne tenantId lief.
+  // Fachbereiche liegen in teamDashboard — Listener starten + One-Shot laden.
+  // Event-Wait allein reicht nicht: leeres applyConfig(null) oder Snapshot vor dem
+  // Listener lassen die Tabelle sonst dauerhaft ohne Haken.
   setTeamConfigTenantId(tenantId);
-  // Kurz auf Snapshot warten (Race: Tabelle sonst vor teamDashboard-Load leer).
-  if (!Object.keys(getDepartmentAssignments()).length) {
-    await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        window.removeEventListener('charculogic:team-config-changed', onReady);
-        resolve();
-      }, 2500);
-      function onReady() {
-        clearTimeout(timer);
-        window.removeEventListener('charculogic:team-config-changed', onReady);
-        resolve();
-      }
-      window.addEventListener('charculogic:team-config-changed', onReady, { once: true });
-    });
-  }
+  await ensureTeamConfigLoaded();
 
   const callable = getManageEmployeesCallable();
   if (!callable) {
@@ -3531,6 +3520,14 @@ function setDevDashboardTab(tabKey = 'overview') {
       setGlobalTenantId(dashboardState.selectedTenantId);
       setTeamConfigTenantId(dashboardState.selectedTenantId);
     }
+    // Soft-Nav / Tab-Wechsel: One-Shot nachziehen, sonst leere Haken trotz Firestore.
+    void ensureTeamConfigLoaded().then(() => {
+      syncEmployeeDepartmentsFromTeamConfig(dashboardState);
+      if (dashboardState.activeTab === 'users') {
+        renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
+      }
+    });
+    syncEmployeeDepartmentsFromTeamConfig(dashboardState);
     renderEmployeeTable(dashboardState.employees, dashboardState.currentUserUid);
   }
 }

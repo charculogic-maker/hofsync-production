@@ -322,22 +322,45 @@ export function extractActiveEmployeeNames(list = []) {
 }
 
 /**
- * Frische One-Shot-Ladung der kanonischen Team-Liste (settings/teamDashboard).
- * Aktualisiert den In-Memory-State von team-config — dieselbe Quelle wie Teamboard.
+ * Frische One-Shot-Ladung von settings/teamDashboard (Mitarbeiter + Fachbereiche).
+ * Aktualisiert den In-Memory-State — zuverlässiger als auf team-config-changed zu warten
+ * (Race: leeres applyConfig(null) oder Snapshot vor dem Event-Listener).
  */
 export async function ensureTeamEmployeesLoaded() {
+  const loaded = await ensureTeamConfigLoaded();
+  return loaded.employees;
+}
+
+/**
+ * One-Shot-Read von teamDashboard inkl. departmentAssignments.
+ * @returns {Promise<{ employees: string[], departmentAssignments: Record<string, DepartmentAssignment>, ok: boolean }>}
+ */
+export async function ensureTeamConfigLoaded() {
   const ref = configRef();
   if (!ref) {
-    return getTeamEmployees();
+    return {
+      employees: getTeamEmployees(),
+      departmentAssignments: getDepartmentAssignments(),
+      ok: false,
+    };
   }
   try {
     const snap = await ref.get();
     const config = normalizeConfig(snap.exists ? snap.data() : null);
     applyConfig(config);
+    return {
+      employees: [...configState.employees],
+      departmentAssignments: getDepartmentAssignments(),
+      ok: true,
+    };
   } catch (err) {
-    console.warn('[TeamConfig] ensureTeamEmployeesLoaded fehlgeschlagen:', err);
+    console.warn('[TeamConfig] ensureTeamConfigLoaded fehlgeschlagen:', err);
+    return {
+      employees: getTeamEmployees(),
+      departmentAssignments: getDepartmentAssignments(),
+      ok: false,
+    };
   }
-  return getTeamEmployees();
 }
 
 function getVerifyPinCallable() {
@@ -530,7 +553,14 @@ function subscribeTeamConfig() {
         applyConfig(normalizeConfig(snap.exists ? snap.data() : null));
       });
     },
-    (err) => console.warn('[TeamConfig] Stream:', err),
+    (err) => {
+      console.warn('[TeamConfig] Stream:', err);
+      // permission-denied / Netz: Listener freigeben, damit setTeamConfigTenantId erneut abonnieren kann.
+      try {
+        configState.unsubscribe?.();
+      } catch (_) { /* noop */ }
+      configState.unsubscribe = null;
+    },
   );
 }
 
@@ -890,8 +920,12 @@ export function setTeamConfigTenantId(tenantId) {
     setGlobalTenantId(next);
   }
 
-  // Gleicher Mandant, aber Listener fehlt (Init oft ohne tenantId / globalTenantId) → nachziehen.
-  if (tenantChanged || (configState.db && !configState.unsubscribe)) {
+  // Neu abonnieren wenn: Mandant gewechselt, Listener fehlt, oder Zuordnungen noch leer
+  // (z. B. früherer Stream mit permission-denied bevor Auth fertig war).
+  const needsSubscribe = tenantChanged
+    || (configState.db && !configState.unsubscribe)
+    || (configState.db && !Object.keys(configState.departmentAssignments).length);
+  if (needsSubscribe) {
     subscribeTeamConfig();
   }
   return configState.tenantId;

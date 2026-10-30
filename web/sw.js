@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-fachbereiche-db-ref-v3';
+const CACHE_NAME = 'charculogic-v20261030-fachbereiche-oneshot-v4';
 
-const CACHE_SCHEMA = 'p0-fachbereiche-db-ref-oct2026';
-/** Release – teamDashboard-Listener über configState.db (kein fremdes firestoreDb) */
-const RELEASED_AT = '2026-10-30T14:30:00+01:00';
+const CACHE_SCHEMA = 'p0-fachbereiche-oneshot-oct2026';
+/** Release – Fachbereiche: One-Shot teamDashboard-Load vor Nutzer-Tabelle */
+const RELEASED_AT = '2026-10-30T15:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
