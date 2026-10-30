@@ -88,6 +88,10 @@ import {
 } from './mhd-monitor-filter.js';
 import { calculateDiscount, loadDiscountMatrix } from './discount-matrix.js';
 import {
+  assessMhdDatePlausibility,
+  formatIsoDe as formatMhdGuardIsoDe,
+} from './mhd-date-guard.js';
+import {
   MHD_AUDIT_COLLECTION,
   buildMovementRecord,
   inferMovementAction,
@@ -2294,46 +2298,47 @@ function getHistoricShelfLifeDays(barcode) {
 }
 
 function checkMhdAnomaly(barcode, mhdDateStr, kategorie) {
-  const todayTime = new Date();
-  todayTime.setHours(0, 0, 0, 0);
-  const mhdTime = new Date(`${mhdDateStr}T00:00:00`);
-  if (Number.isNaN(mhdTime.getTime())) return null;
-
-  const restTage = Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
-
-  const isFresh = /frische|mopro|kühlware|kuehlware|aufschnitt/i.test(kategorie || '');
-  if (isFresh && restTage < 4) {
-    return {
-      restTage,
-      reason: `Nur ${restTage} Resttage bei Frische-/Kühlware – extrem kurz!`,
-    };
-  }
-
-  const historicDays = getHistoricShelfLifeDays(barcode);
-  if (historicDays && restTage < historicDays * 0.6) {
-    return {
-      restTage,
-      historicDays,
-      reason: `Nur ${restTage} Resttage statt üblicher ~${historicDays} Tage (${Math.round(restTage / historicDays * 100)}%).`,
-    };
-  }
-
-  return null;
+  const iso = normalizeDateInputToIso(mhdDateStr) || String(mhdDateStr || '').slice(0, 10);
+  const assessment = assessMhdDatePlausibility(iso, {
+    kategorie,
+    historicShelfDays: barcode ? getHistoricShelfLifeDays(barcode) : null,
+  });
+  if (!assessment || assessment.severity === 'ok') return null;
+  return {
+    ...assessment,
+    restTage: assessment.resttage,
+    reason: assessment.reason,
+  };
 }
 
+/**
+ * @param {object} anomaly Ergebnis von checkMhdAnomaly / assessMhdDatePlausibility
+ * @returns {Promise<'save'|'correct'>}
+ */
 function showMhdAnomalyWarning(anomaly) {
   return new Promise((resolve) => {
     mhdState.playFeedbackSound('alarm');
+    const severity = anomaly?.severity === 'block' ? 'block' : 'warn';
+    const title = anomaly?.title || 'MHD prüfen';
+    const hint = anomaly?.hint
+      || 'Bitte prüfen: Ist das MHD korrekt von der Verpackung abgelesen?';
+    const altHint = anomaly?.altIso
+      ? `<p class="learn-mode-desc" style="font-weight:800;color:var(--text-dark);">Alternative: ${escapeHtml(formatMhdGuardIsoDe(anomaly.altIso) || anomaly.altIso)}</p>`
+      : '';
+    const saveButton = severity === 'block'
+      ? ''
+      : '<button type="button" class="btn btn-learn-submit" id="btn-anomaly-save" style="background:var(--warning-color);">Trotzdem speichern</button>';
     const overlay = document.createElement('div');
     overlay.className = 'learn-mode-overlay';
     overlay.innerHTML = `
       <div class="learn-mode-card mhd-anomaly-card" role="alertdialog" aria-modal="true">
         <div class="mhd-anomaly-icon">⚠️</div>
-        <div class="learn-mode-title" style="color:var(--warning-color);">Ungewöhnlich kurzes MHD!</div>
-        <p class="learn-mode-desc">${escapeHtml(anomaly.reason)}</p>
-        <p class="learn-mode-desc" style="font-weight:800;color:var(--text-dark);">Bitte prüfen: Ist das MHD korrekt abgelesen?</p>
+        <div class="learn-mode-title" style="color:var(--warning-color);">${escapeHtml(title)}</div>
+        <p class="learn-mode-desc">${escapeHtml(anomaly?.reason || '')}</p>
+        <p class="learn-mode-desc" style="font-weight:800;color:var(--text-dark);">${escapeHtml(hint)}</p>
+        ${altHint}
         <div class="learn-mode-actions" style="display:flex;flex-direction:column;gap:10px;">
-          <button type="button" class="btn btn-learn-submit" id="btn-anomaly-save" style="background:var(--warning-color);">Trotzdem speichern</button>
+          ${saveButton}
           <button type="button" class="btn btn-learn-submit" id="btn-anomaly-correct" style="background:var(--primary-color);">Korrigieren</button>
         </div>
       </div>
@@ -2344,6 +2349,17 @@ function showMhdAnomalyWarning(anomaly) {
     document.getElementById('btn-anomaly-save')?.addEventListener('click', () => cleanup('save'));
     document.getElementById('btn-anomaly-correct')?.addEventListener('click', () => cleanup('correct'));
   });
+}
+
+/**
+ * Speichern nur nach Plausibilitäts-Check (block → immer korrigieren).
+ * @returns {Promise<boolean>} true = weiter speichern
+ */
+async function ensureMhdDatePlausible(mhdDateStr, { barcode = '', kategorie = '' } = {}) {
+  const anomaly = checkMhdAnomaly(barcode, mhdDateStr, kategorie);
+  if (!anomaly) return true;
+  const decision = await showMhdAnomalyWarning(anomaly);
+  return decision === 'save' && anomaly.severity !== 'block';
 }
 
 function createReceivingPostenId(barcode, mhdDate) {
@@ -3243,11 +3259,11 @@ function showLearnModeDialog(ean) {
       ? null
       : Math.ceil((mhdTime.getTime() - todayTime.getTime()) / 86400000);
 
-    const anomaly = checkMhdAnomaly(inventoryBarcode, mhdDate, kategorie);
-    if (anomaly) {
-      const decision = await showMhdAnomalyWarning(anomaly);
-      if (decision === 'correct') return;
-    }
+    const allowed = await ensureMhdDatePlausible(mhdDate, {
+      barcode: inventoryBarcode,
+      kategorie,
+    });
+    if (!allowed) return;
 
     const postenId = buildMhdBatchDocId(inventoryBarcode, mhdDate);
     const existingBatch = findExistingMhdBatch(inventoryBarcode, mhdDate);
@@ -5097,6 +5113,8 @@ async function saveStichprobeBatch(source, rawDate, rawQty) {
   const name = mhdProductName(source) || 'Artikel';
   const ean = cleanScannedBarcode(source.ean || source.barcode || source.scanBarcode);
   const kategorie = getProductCategory(source);
+  const allowed = await ensureMhdDatePlausible(iso, { barcode: ean, kategorie });
+  if (!allowed) return false;
   const tage = computeResttageFromMhd(iso);
   const actionKey = Number.isFinite(tage) ? resolveMhdActionKey(kategorie, tage, source) : 'ok';
   const postenId = createReceivingPostenId(ean || source.id || 'stichprobe', iso);
@@ -6268,7 +6286,7 @@ function getMhdDateChangeDraft(id) {
   };
 }
 
-function confirmMhdDateChange(id) {
+async function confirmMhdDateChange(id) {
   const draft = getMhdDateChangeDraft(id);
   if (!draft) {
     mhdState.showHUD('MHD fehlt', 'Bitte ein gültiges MHD eingeben.', '!');
@@ -6278,6 +6296,12 @@ function confirmMhdDateChange(id) {
     mhdState.showHUD('Keine Änderung', 'Das MHD ist bereits so eingetragen.');
     return;
   }
+
+  const allowed = await ensureMhdDatePlausible(draft.newIso, {
+    barcode: getProductBarcode(draft.prod),
+    kategorie: getProductCategory(draft.prod),
+  });
+  if (!allowed) return;
 
   const newDays = computeResttageFromMhd(draft.newIso);
   showUtilityDialog('Wirklich MHD ändern?', `
@@ -8422,7 +8446,7 @@ function applyScannerQuickAdjustQtyDelta(delta) {
   pulseReceivingScanFeedback({ vibrateMs: 30, merged: true });
 }
 
-function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
+async function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
   const item = getScannerQuickAdjustItem();
   const input = document.getElementById('scanner-qa-mhd-input');
   if (!item || !input) return false;
@@ -8435,6 +8459,14 @@ function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
     input.classList.add('is-missing', 'is-empty');
     return false;
   }
+  const allowed = await ensureMhdDatePlausible(iso, {
+    barcode: cleanScannedBarcode(item.ean || item.barcode || ''),
+    kategorie: item.kategorie || item.category || '',
+  });
+  if (!allowed) {
+    input.focus();
+    return false;
+  }
   if (!setCurrentDeliveryItemMhd(item.id, iso)) return false;
   const updated = currentDeliveryItems.find((row) => row.id === item.id);
   touchReceivingAutoScan(updated || item);
@@ -8444,7 +8476,7 @@ function applyScannerQuickAdjustMhdInput({ silent = false } = {}) {
   return true;
 }
 
-function confirmScannerQuickAdjust() {
+async function confirmScannerQuickAdjust() {
   const item = getScannerQuickAdjustItem();
   if (!item) {
     hideScannerQuickAdjust({ resumeListening: true });
@@ -8452,7 +8484,7 @@ function confirmScannerQuickAdjust() {
   }
   // Offene Eingabe zuerst übernehmen.
   if (!hasReceivingItemMhd(item)) {
-    const applied = applyScannerQuickAdjustMhdInput({ silent: true });
+    const applied = await applyScannerQuickAdjustMhdInput({ silent: true });
     if (!applied) {
       window.showToast?.('Bitte zuerst das MHD von der Verpackung eintippen.', 'warning');
       document.getElementById('scanner-qa-mhd-input')?.focus();
@@ -10103,11 +10135,17 @@ function bindReceivingControls() {
         const item = currentDeliveryItems.find((row) => row.id === mhdEditId);
         if (!item) return;
         openReceivingItemMhdEditor(item, {
-          onConfirm: (id, iso) => {
-            if (setCurrentDeliveryItemMhd(id, iso)) {
-              mhdState.playClickSound?.(1000, 0.05, 0.12);
-              window.showToast?.('MHD aktualisiert.', 'success');
-            }
+          onConfirm: async (id, iso) => {
+            const row = currentDeliveryItems.find((entry) => entry.id === id);
+            const allowed = await ensureMhdDatePlausible(iso, {
+              barcode: cleanScannedBarcode(row?.ean || row?.barcode || ''),
+              kategorie: row?.kategorie || row?.category || '',
+            });
+            if (!allowed) return false;
+            if (!setCurrentDeliveryItemMhd(id, iso)) return false;
+            mhdState.playClickSound?.(1000, 0.05, 0.12);
+            window.showToast?.('MHD aktualisiert.', 'success');
+            return true;
           },
         });
       }
@@ -10472,6 +10510,7 @@ function adjustCurrentDeliveryItemMhdByDays(itemId, days) {
 
 export {
   checkMhdAnomaly,
+  ensureMhdDatePlausible,
   finalizeDelivery,
   adjustCurrentDeliveryItemQuantity,
   bumpCurrentDeliveryItemQuantity,

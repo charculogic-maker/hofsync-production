@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261030-mhd-density-v1';
+const CACHE_NAME = 'charculogic-v20261030-mhd-ampel-toggle-v1';
 
 const CACHE_SCHEMA = 'p0-bedarf-reassign-oct2026';
 /** Release – Fachbereiche: Küche, Zerlegung, Wurstproduktion, Laden, Einkauf */

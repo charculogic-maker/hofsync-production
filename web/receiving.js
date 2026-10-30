@@ -884,15 +884,25 @@ export function openReceivingItemMhdEditor(item, options = {}) {
   };
   receivingMhdEditorCleanup = close;
 
-  const save = () => {
+  const save = async () => {
     const iso = readGermanDateField(input) || parseReceivingQuickMhdInput(input?.value || '');
     if (!iso) {
       window.showToast?.('Bitte das MHD von der Verpackung als TT.MM.JJJJ eintippen.', 'warning');
       input?.focus();
       return;
     }
-    close();
-    options.onConfirm?.(item.id, iso);
+    // onConfirm darf async sein (MHD-Plausibilität). false/undefined → Editor bleibt offen.
+    try {
+      const ok = await options.onConfirm?.(item.id, iso);
+      if (ok === false) {
+        input?.focus();
+        return;
+      }
+      close();
+    } catch (err) {
+      console.warn('[CharcuLogic Wareneingang] MHD-Übernahme abgebrochen:', err);
+      input?.focus();
+    }
   };
 
   overlay.addEventListener('click', (event) => {

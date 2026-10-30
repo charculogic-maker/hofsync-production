@@ -3612,48 +3612,33 @@ function bindOfficeAccessLock() {
   }
 }
 
-// --- DARK MODE ---
+// --- LADEN-DARSTELLUNG (nur Tag-Modus) ---
+// Eine feste, kontrastreiche Darstellung fürs Laden-iPhone – kein Nacht-Umschalter mehr.
 (function initTheme() {
   const THEME_KEY = 'charculogic.theme';
   const THEME_KEY_ALT = 'charculogic_theme';
-  const readSavedTheme = () => {
+  const applyLadenTheme = () => {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.style.colorScheme = 'light';
     try {
-      return localStorage.getItem(THEME_KEY) || localStorage.getItem(THEME_KEY_ALT) || '';
-    } catch (_) {
-      return '';
-    }
-  };
-  const writeSavedTheme = (theme) => {
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-      localStorage.setItem(THEME_KEY_ALT, theme);
+      localStorage.setItem(THEME_KEY, 'light');
+      localStorage.setItem(THEME_KEY_ALT, 'light');
     } catch (_) { /* private mode / blocked storage */ }
   };
-  const applyTheme = (theme) => {
-    const next = theme === 'dark' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', next);
-    document.documentElement.style.colorScheme = next;
-    const btn = document.getElementById('btn-theme-toggle');
-    if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
-  };
-
-  const saved = readSavedTheme();
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const isDark = saved ? saved === 'dark' : prefersDark;
-  applyTheme(isDark ? 'dark' : 'light');
+  applyLadenTheme();
 
   const btn = document.getElementById('btn-theme-toggle');
-  btn?.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
-    writeSavedTheme(next);
-  });
-
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (readSavedTheme()) return;
-    applyTheme(e.matches ? 'dark' : 'light');
-  });
+  if (btn) {
+    btn.hidden = true;
+    btn.setAttribute('aria-hidden', 'true');
+    btn.style.display = 'none';
+  }
+  const headerTheme = document.getElementById('header-tools-theme');
+  if (headerTheme) {
+    headerTheme.hidden = true;
+    headerTheme.setAttribute('aria-hidden', 'true');
+    headerTheme.style.display = 'none';
+  }
 })();
 
 // ============================================================================
@@ -4771,7 +4756,7 @@ function bindHeaderToolsDropdown() {
     const tool = item.getAttribute('data-header-tool');
     closeHeaderToolsMenu();
     if (tool === 'theme') {
-      document.getElementById('btn-theme-toggle')?.click();
+      // Darstellung ist fest (Laden-Tag-Modus) – Umschalter entfernt.
       return;
     }
     if (tool === 'refresh') {
@@ -5422,7 +5407,7 @@ let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-30T11:30:00+01:00';
+const APP_RELEASE_AT = '2026-10-30T12:00:00+01:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -5657,7 +5642,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261030-mhd-density-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261030-mhd-ampel-toggle-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

@@ -50,7 +50,7 @@ Das System ist als **White-Label-Lösung mit strikter Mandantentrennung** gebaut
 - Große Touch-Targets für feuchte Hände und Handschuhe
 - Primäre Aktionen im unteren Bildschirmdrittel (One-Hand-Ergonomie)
 - Taktiles Audio-Feedback (Web Audio API)
-- Dark Mode mit System-Voreinstellung und manuellem Umschalter
+- Feste Tag-Darstellung auf dem Laden-iPhone (kein Nacht-Umschalter – bessere Lesbarkeit bei Tageslicht/Neon)
 - Deutsche Bedienoberfläche; technische Fehler nur in `console.error`, Nutzer sehen freundliche Toasts (`web/operator-errors.js`)
 
 ---
