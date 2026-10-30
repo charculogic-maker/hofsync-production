@@ -3362,13 +3362,6 @@ button.mhd-ean-toggle.mhd-ean-toggle--full {
   color: #475569 !important;
 }
 
-.mhd-ampel--expired.mhd-ampel--absurd,
-.mhd-ampel-badge.mhd-ampel--absurd {
-  background: #7f1d1d;
-  color: #fff;
-  letter-spacing: 0.02em;
-}
-
 .mhd-badge {
   font-size: 12px;
   font-weight: 800;

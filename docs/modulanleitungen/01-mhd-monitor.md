@@ -83,7 +83,7 @@ Beim Einbuchen und Korrigieren prüft unsere App das Datum:
 
 - **Jahr offensichtlich falsch** (z. B. 2002 statt 2026) → Speichern wird blockiert, wir müssen korrigieren
 - **Schon abgelaufen** oder **Tag/Monat vertauscht** → Warnung mit Hinweis, bevor wir speichern
-- In der Liste erscheinen absurde MHDs als **DATUM PRÜFEN** (mit echtem Kalenderdatum)
+- In der Liste bleibt die Ampel unverändert: standardmäßig **Resttage**, Antippen zeigt das **echte MHD**
 
 ## Hinweise
 

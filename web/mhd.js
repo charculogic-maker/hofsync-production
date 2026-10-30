@@ -88,7 +88,6 @@ import {
 } from './mhd-monitor-filter.js';
 import { calculateDiscount, loadDiscountMatrix } from './discount-matrix.js';
 import {
-  absurdPastAmpelLabel,
   assessMhdDatePlausibility,
   formatIsoDe as formatMhdGuardIsoDe,
 } from './mhd-date-guard.js';
@@ -3826,8 +3825,6 @@ function resolveMhdAmpelTone(resttage) {
 
 function resolveMhdAmpelDaysLabel(resttage) {
   if (!Number.isFinite(resttage)) return '—';
-  const absurd = absurdPastAmpelLabel(resttage);
-  if (absurd) return absurd;
   if (resttage < 0) {
     const days = Math.abs(resttage);
     return resttage === -1 ? '🔴 GESTERN (-1 T)' : `🔴 -${days} TAGE`;
@@ -3839,28 +3836,23 @@ function resolveMhdAmpelDaysLabel(resttage) {
 
 function buildMhdAmpelBadgeHtml(resttage, prod = null) {
   const tone = resolveMhdAmpelTone(resttage);
-  const isAbsurdPast = Boolean(absurdPastAmpelLabel(resttage));
-  const toneClass = isAbsurdPast ? `${tone} mhd-ampel--absurd` : tone;
   const daysLabel = resolveMhdAmpelDaysLabel(resttage);
   const dateRaw = prod ? formatMhdBadgeDate(prod) : '';
   const canToggleDate = Boolean(dateRaw) && dateRaw !== '–';
   if (!canToggleDate) {
-    return `<span class="mhd-ampel-badge mhd-ampel--${toneClass}">${escapeHtml(daysLabel)}</span>`;
+    return `<span class="mhd-ampel-badge mhd-ampel--${tone}">${escapeHtml(daysLabel)}</span>`;
   }
   const dateLabel = `MHD ${dateRaw}`;
-  // Absurde Vergangenheit: zuerst das echte Datum zeigen, damit niemand „-8726 Tage“ übersieht.
-  const initialMode = isAbsurdPast ? 'date' : 'days';
-  const initialLabel = initialMode === 'date' ? dateLabel : daysLabel;
   return `<button
       type="button"
-      class="mhd-ampel-badge mhd-days-badge mhd-ampel--${toneClass}"
+      class="mhd-ampel-badge mhd-days-badge mhd-ampel--${tone}"
       data-mhd-days-badge="1"
       data-mhd-days-label="${escapeHtml(daysLabel)}"
       data-mhd-date-label="${escapeHtml(dateLabel)}"
-      data-mhd-badge-mode="${initialMode}"
-      aria-label="${initialMode === 'date' ? 'Resttage anzeigen' : 'MHD-Datum anzeigen'}"
-      title="Tippen für ${initialMode === 'date' ? 'Resttage' : 'MHD-Datum'}"
-    >${escapeHtml(initialLabel)}</button>`;
+      data-mhd-badge-mode="days"
+      aria-label="MHD-Datum anzeigen"
+      title="Tippen für MHD-Datum"
+    >${escapeHtml(daysLabel)}</button>`;
 }
 
 function formatMhdEanShortLabel(barcode) {

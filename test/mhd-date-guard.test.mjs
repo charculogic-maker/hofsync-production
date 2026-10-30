@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  absurdPastAmpelLabel,
   assessMhdDatePlausibility,
   resttageFromIsoDate,
   suggestDayMonthSwap,
@@ -57,9 +56,7 @@ describe('mhd-date-guard', () => {
     assert.equal(assessment.resttage, 5);
   });
 
-  it('kennzeichnet absurde Ampel-Labels', () => {
-    assert.equal(absurdPastAmpelLabel(-8726), '⚠️ DATUM PRÜFEN');
-    assert.equal(absurdPastAmpelLabel(-3), null);
+  it('berechnet Resttage für extremes Vergangenheit-Datum', () => {
     assert.equal(resttageFromIsoDate('2002-12-09', TODAY), -8726);
   });
 });

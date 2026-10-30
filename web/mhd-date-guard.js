@@ -197,13 +197,3 @@ export function assessMhdDatePlausibility(mhdIso, options = {}) {
     code: 'ok',
   };
 }
-
-/**
- * Ampel-Text für bereits eingetragene absurde MHDs in der Liste.
- * @param {number} resttage
- * @returns {string|null}
- */
-export function absurdPastAmpelLabel(resttage) {
-  if (!Number.isFinite(resttage) || resttage > -90) return null;
-  return '⚠️ DATUM PRÜFEN';
-}

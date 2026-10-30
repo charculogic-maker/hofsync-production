@@ -5642,7 +5642,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261030-mhd-lesen-guard-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261030-mhd-ampel-toggle-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
