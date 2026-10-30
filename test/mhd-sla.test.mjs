@@ -55,9 +55,20 @@ describe('MHD-SLA Zähllogik', () => {
     expect(isMhdSlaCriticalOpen(item, { todayIso: today, criticalMaxResttage: 2 })).to.equal(true);
   });
 
+  it('zählt absurde MHD-Tippfehler mit (Korrektur im Tageslauf)', () => {
+    const overdue = { menge: 1, mhdDate: '2026-09-28', status: 'aktiv' };
+    const farPast = { menge: 1, mhdDate: '2026-03-09', status: 'aktiv' };
+    const typoYear = { menge: 1, mhdDate: '2002-10-28', status: 'aktiv' };
+    expect(isMhdSlaCriticalOpen(overdue, { todayIso: today })).to.equal(true);
+    expect(isMhdSlaCriticalOpen(farPast, { todayIso: today })).to.equal(true);
+    expect(isMhdSlaCriticalOpen(typoYear, { todayIso: today })).to.equal(true);
+    expect(countMhdSlaCriticalOpen([overdue, farPast, typoYear], { todayIso: today })).to.equal(3);
+  });
+
   it('formatiert Banner-Text', () => {
     expect(formatMhdSlaBannerText(0)).to.equal('');
     expect(formatMhdSlaBannerText(1)).to.include('1 kritisches MHD');
     expect(formatMhdSlaBannerText(4)).to.include('4 kritische MHDs');
+    expect(formatMhdSlaBannerText(40)).to.include('40 kritische MHDs');
   });
 });

@@ -101,6 +101,7 @@ function isCriticalOpen(data = {}, { todayIso, criticalMaxResttage = DEFAULT_CRI
   if (isCheckedToday(data, todayIso)) return false;
   const resttage = resolveResttage(data, todayIso);
   if (!Number.isFinite(resttage)) return false;
+  // Absurde Vergangenheit bleibt kritisch, damit Tippfehler im Tageslauf korrigiert werden.
   return resttage <= criticalMaxResttage;
 }
 

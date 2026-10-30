@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261030-fachbereiche-dashboard-init-v5';
+const CACHE_NAME = 'charculogic-v20261030-mhd-sla-wrap-v3';
 
 const CACHE_SCHEMA = 'p0-fachbereiche-dashboard-init-oct2026';
 /** Release – /dev-dashboard initialisiert teamConfig (db+tenant) vor Nutzer-Tabelle */

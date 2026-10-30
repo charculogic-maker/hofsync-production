@@ -101,6 +101,7 @@ export function isMhdSlaCriticalOpen(item = {}, options = {}) {
     : MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE;
   const resttage = resolveMhdSlaResttage(item, todayIso, options.getResttage);
   if (!Number.isFinite(resttage)) return false;
+  // Auch absurde Vergangenheit (Tippfehler-Jahr) zählt mit — sonst fehlt der Korrektur-Anreiz im Tageslauf.
   return resttage <= maxRest;
 }
 
@@ -162,11 +163,11 @@ export function updateMhdSlaBanner(count = 0, { onOpen } = {}) {
   }
   banner.hidden = false;
   banner.classList.remove('hidden');
-  banner.innerHTML = `<strong>${escapeHtml(String(n))}</strong> ${escapeHtml(
-    n === 1
-      ? 'kritisches MHD heute noch offen – antippen zum Prüfen'
-      : 'kritische MHDs heute noch offen – antippen zum Prüfen',
-  )}`;
+  // Fließtext: Zahl in nowrap-Span, NBSP hält sie am Folgewort (kein „4“ über „0“).
+  const body = n === 1
+    ? 'kritisches MHD heute noch offen – antippen zum Prüfen'
+    : 'kritische MHDs heute noch offen – antippen zum Prüfen';
+  banner.innerHTML = `<span class="mhd-sla-banner-count">${escapeHtml(String(n))}</span>&nbsp;${escapeHtml(body)}`;
   if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
     banner.dataset.mhdSlaBound = '1';
     banner.addEventListener('click', (event) => {

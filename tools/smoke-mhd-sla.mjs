@@ -24,6 +24,12 @@ const fnSla = read('functions/mhdSla.js');
 assertIncludes(slaSrc, 'countMhdSlaCriticalOpen', 'Frontend Zähler');
 assertIncludes(slaSrc, 'updateMhdSlaBadge', 'Frontend Badge');
 assertIncludes(slaSrc, 'MHD_SLA_DEFAULT_CRITICAL_MAX_RESTTAGE = 1', 'Schwelle 1');
+assertIncludes(styleSrc, 'white-space: nowrap', 'Banner-Zähler nowrap');
+assertIncludes(slaSrc, 'mhd-sla-banner-count', 'Banner-Zähler-Span');
+assert.ok(
+  !slaSrc.includes('MHD_SLA_MIN_RESTTAGE_FOR_CRITICAL'),
+  'Keine Untergrenze: Tippfehler-MHDs bleiben im Tageslauf',
+);
 
 assertIncludes(mhdSrc, "from './mhd-sla.js'", 'mhd.js importiert mhd-sla');
 assertIncludes(mhdSrc, 'refreshMhdSlaIndicators()', 'SLA-Refresh angebunden');
@@ -33,7 +39,7 @@ assertIncludes(indexSrc, 'id="mhd-sla-banner"', 'Banner im Markup');
 assertIncludes(styleSrc, '.mhd-sla-banner', 'Banner-CSS');
 
 assertIncludes(swSrc, '/mhd-sla.js', 'SW cached mhd-sla.js');
-assertIncludes(swSrc, 'mhd-sla-reminder', 'SW Cache-Bump');
+assertIncludes(swSrc, 'mhd-sla-wrap', 'SW Cache-Bump');
 
 assertIncludes(fnSla, 'handleMhdSlaScheduled', 'Backend Scheduler Handler');
 assertIncludes(fnSla, "normalizedStage = stage === 's2' ? 's2' : 's1'", 'Backend Stufen s1/s2');
