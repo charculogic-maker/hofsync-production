@@ -97,6 +97,12 @@ import {
   inferMovementAction,
 } from './mhd-audit.js';
 import { refreshMhdSlaUi } from './mhd-sla.js';
+import {
+  buildMhdCaptureCorrectionMetaParts,
+  buildMhdQtyCorrectionFields,
+  resolveMhdQtyCorrectedAt,
+  resolveMhdRecordCreatedAt,
+} from './mhd-record-meta.js';
 import { readMhdCardUiSettings } from './admin-tenant-models.js';
 import {
   validateDeliveryUploadFile,
@@ -606,15 +612,23 @@ function getAuditActorName() {
   return active || resolveTeamSessionDisplayName();
 }
 
-function buildHiddenAuditFields() {
+/**
+ * Audit-Stempel für Writes.
+ * @param {{ isCreate?: boolean }} [options] isCreate=true nur bei Neu-Anlage (createdAt setzen).
+ *   Updates dürfen createdAt nie überschreiben – sonst landet „Korrigiert“ unter „Erfasst“.
+ */
+function buildHiddenAuditFields({ isCreate = false } = {}) {
   const actor = getAuditActorName();
   const fields = {
-    createdAt: serverTimestampFallback(),
     updatedAt: serverTimestampFallback(),
   };
+  if (isCreate) {
+    fields.createdAt = serverTimestampFallback();
+  }
   if (actor) {
     fields.scannedBy = actor;
     fields.employeeName = actor;
+    fields.lastModifiedBy = actor;
   }
   return fields;
 }
@@ -633,6 +647,7 @@ const MHD_LISTE_WRITE_FIELDS = new Set([
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy', 'employeeName',
   'lastModifiedBy', 'previousQuantity',
+  'qtyCorrectedAt', 'qtyCorrectedBy', 'mengeKorrigiertAt',
   'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
@@ -763,14 +778,19 @@ function sanitizeDeliveryPayload(payload) {
   return clean;
 }
 
-function buildHiddenQueuedAuditFields() {
+function buildHiddenQueuedAuditFields({ isCreate = false } = {}) {
   const actor = getAuditActorName();
   const nowIso = new Date().toISOString();
   const fields = {
-    createdAt: nowIso,
     updatedAt: nowIso,
   };
-  if (actor) fields.scannedBy = actor;
+  if (isCreate) {
+    fields.createdAt = nowIso;
+  }
+  if (actor) {
+    fields.scannedBy = actor;
+    fields.lastModifiedBy = actor;
+  }
   return fields;
 }
 
@@ -788,28 +808,35 @@ function syncInventoryActorBetweenModules() {
   return fromMhd || fromApp;
 }
 
-function withHiddenAudit(onlineData, queueData = onlineData) {
+function withHiddenAudit(onlineData, queueData = onlineData, options = {}) {
   syncInventoryActorBetweenModules();
   recordInventoryProfileActivity();
+  const isCreate = options.isCreate === true;
   return {
-    onlineData: { ...onlineData, ...buildHiddenAuditFields() },
-    queueData: { ...queueData, ...buildHiddenQueuedAuditFields() },
+    onlineData: { ...onlineData, ...buildHiddenAuditFields({ isCreate }) },
+    queueData: { ...queueData, ...buildHiddenQueuedAuditFields({ isCreate }) },
   };
 }
 
-function withSanitizedDeliveryAudit(onlineData, queueData = onlineData) {
-  const audited = withHiddenAudit(onlineData, queueData);
+function withSanitizedDeliveryAudit(onlineData, queueData = onlineData, options = {}) {
+  const audited = withHiddenAudit(onlineData, queueData, options);
   return {
     onlineData: sanitizeDeliveryPayload(audited.onlineData),
     queueData: sanitizeDeliveryPayload(audited.queueData),
   };
 }
 
-function withSanitizedMhdAudit(onlineData, queueData = onlineData) {
-  const audited = withHiddenAudit(onlineData, queueData);
+function withSanitizedMhdAudit(onlineData, queueData = onlineData, options = {}) {
+  const audited = withHiddenAudit(onlineData, queueData, options);
+  const stripCreateStamp = options.isCreate !== true;
+  const scrub = (payload) => {
+    const clean = sanitizeMhdListePayload(payload);
+    if (stripCreateStamp) delete clean.createdAt;
+    return clean;
+  };
   return {
-    onlineData: sanitizeMhdListePayload(audited.onlineData),
-    queueData: sanitizeMhdListePayload(audited.queueData),
+    onlineData: scrub(audited.onlineData),
+    queueData: scrub(audited.queueData),
   };
 }
 
@@ -1217,8 +1244,12 @@ function stageMhdChange(id, updates = {}, options = {}) {
     return;
   }
 
+  const qtyLocalKeys = new Set([
+    'qty', 'menge', 'previousQuantity', 'lastModifiedBy',
+    'qtyCorrectedAt', 'qtyCorrectedBy', 'mengeKorrigiertAt',
+  ]);
   const qtyOnlyLocal = options.localQtyPatch === true
-    && Object.keys(updates).every((key) => key === 'qty' || key === 'menge')
+    && Object.keys(updates).every((key) => qtyLocalKeys.has(key))
     && updates.qty != null
     && !mhdQtyCrossesZeroVisibility(prevQty, updates.qty);
 
@@ -1279,6 +1310,25 @@ function updateMhdStickySaveBar() {
   });
 }
 
+function enrichPendingMhdUpdatesForSave(id, updates = {}) {
+  const patch = { ...updates };
+  delete patch._qtyFrom;
+  delete patch.createdAt;
+  const qtyChanged = Object.prototype.hasOwnProperty.call(updates, 'qty')
+    || Object.prototype.hasOwnProperty.call(updates, 'menge');
+  if (qtyChanged && !patch.qtyCorrectedAt) {
+    const prev = mhdState.products.find((prod) => prod.id === id);
+    const previousQuantity = Number.isFinite(Number(updates._qtyFrom))
+      ? Number(updates._qtyFrom)
+      : (prev ? mhdItemQuantity(prev) : undefined);
+    Object.assign(patch, buildMhdQtyCorrectionFields({
+      previousQuantity,
+      actor: getAuditActorName(),
+    }));
+  }
+  return patch;
+}
+
 async function saveAllPendingMhdChanges() {
   const entries = Object.entries(mhdState.pendingChanges);
   if (!entries.length) return;
@@ -1294,7 +1344,8 @@ async function saveAllPendingMhdChanges() {
 
   try {
     for (const [id, updates] of entries) {
-      const audited = withSanitizedMhdAudit(updates);
+      const enriched = enrichPendingMhdUpdatesForSave(id, updates);
+      const audited = withSanitizedMhdAudit(enriched);
       await mhdState.writeOrQueueFirestore({
         collectionPath: mhdCollectionPath(),
         docId: id,
@@ -1322,8 +1373,7 @@ async function saveAllPendingMhdChanges() {
     }
     // Optimistic: gespeicherte Felder in Cache-Listen halten, bis der Snapshot nachzieht.
     for (const [id, updates] of entries) {
-      const localPatch = { ...updates };
-      delete localPatch._qtyFrom;
+      const localPatch = enrichPendingMhdUpdatesForSave(id, updates);
       const applyOptimistic = (list) => {
         if (!Array.isArray(list)) return;
         const idx = list.findIndex((entry) => entry.id === id);
@@ -3058,7 +3108,7 @@ function showLegacyLearnModeDialog(ean) {
       tenantId: mhdState.tenantId,
     };
 
-    const auditedProduct = withHiddenAudit(newProduct);
+    const auditedProduct = withHiddenAudit(newProduct, newProduct, { isCreate: true });
 
     try {
       await mhdState.writeOrQueueFirestore({
@@ -3314,13 +3364,31 @@ function showLearnModeDialog(ean) {
       tenantId: mhdState.tenantId,
       updatedAt: serverTimestampFallback(),
     });
-    const auditedProduct = withHiddenAudit(newProduct);
+    const auditedProduct = withHiddenAudit(newProduct, newProduct, { isCreate: !existingBatch });
     const writeOp = existingBatch ? 'update' : 'set';
     const newProductOnline = { ...auditedProduct.onlineData, updatedAt: serverTimestampFallback() };
     const queuedProduct = {
       ...auditedProduct.queueData,
       updatedAt: new Date().toISOString(),
     };
+    if (existingBatch) {
+      delete newProductOnline.createdAt;
+      delete queuedProduct.createdAt;
+      Object.assign(
+        newProductOnline,
+        buildMhdQtyCorrectionFields({
+          previousQuantity: Number(existingBatch.qty ?? existingBatch.menge ?? 0),
+          actor: getAuditActorName(),
+        }),
+      );
+      Object.assign(
+        queuedProduct,
+        buildMhdQtyCorrectionFields({
+          previousQuantity: Number(existingBatch.qty ?? existingBatch.menge ?? 0),
+          actor: getAuditActorName(),
+        }),
+      );
+    }
 
     try {
       if (btnLearnSave) {
@@ -3727,22 +3795,6 @@ function formatMhdDateForCardMeta(prod = {}) {
   return dotted || '';
 }
 
-function parseMhdRecordTimestamp(value) {
-  if (!value) return null;
-  if (typeof value.toDate === 'function') return value.toDate();
-  if (value instanceof Date) return value;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function resolveMhdRecordCreatedAt(prod = {}) {
-  return parseMhdRecordTimestamp(prod.createdAt)
-    || parseMhdRecordTimestamp(prod.wareneingangAt)
-    || parseMhdRecordTimestamp(prod.erfassungsDatum)
-    || parseMhdRecordTimestamp(prod.updatedAt)
-    || null;
-}
-
 function resolveMhdRecordActor(prod = {}) {
   const scannedBy = String(prod.scannedBy || '').trim();
   if (scannedBy) return scannedBy;
@@ -3753,15 +3805,34 @@ function resolveMhdRecordActor(prod = {}) {
 
 function formatMhdRecordTimestampLabel(prod = {}) {
   const createdAt = resolveMhdRecordCreatedAt(prod);
-  if (!createdAt) return '';
+  const correctedAt = resolveMhdQtyCorrectedAt(prod);
+  const parts = [];
 
-  const now = new Date();
-  const isToday = createdAt.toDateString() === now.toDateString();
-  const timeStr = createdAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  let label = isToday
-    ? `Erfasst: ${timeStr} Uhr`
-    : `Eingepflegt am ${createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${timeStr} Uhr`;
+  if (createdAt) {
+    const now = new Date();
+    const isToday = createdAt.toDateString() === now.toDateString();
+    const timeStr = createdAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    parts.push(isToday
+      ? `Erfasst: ${timeStr} Uhr`
+      : `Eingepflegt am ${createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${timeStr} Uhr`);
+  }
 
+  if (correctedAt) {
+    const sameInstant = createdAt
+      && Math.abs(correctedAt.getTime() - createdAt.getTime()) < 60_000;
+    if (!sameInstant) {
+      const corrDay = correctedAt.toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+      const corrTime = correctedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      parts.push(`Menge korrigiert am ${corrDay}, ${corrTime} Uhr`);
+    }
+  }
+
+  if (!parts.length) return '';
+  let label = parts.join(' · ');
   const actor = resolveMhdRecordActor(prod);
   if (actor) label += ` (${actor})`;
   return label;
@@ -3904,10 +3975,9 @@ function buildMhdCompactMetaLine(prod = {}) {
     || String(prod.brand || prod.marke || '').trim()
     || resolveMhdCardKuerzel(prod);
   if (teamOrKuerzel) parts.push(teamOrKuerzel);
-  const createdAt = resolveMhdRecordCreatedAt(prod);
-  if (createdAt) {
-    const dateStr = createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-    parts.push(`Erfasst: ${dateStr}`);
+  const captureParts = buildMhdCaptureCorrectionMetaParts(prod);
+  if (captureParts.length) {
+    parts.push(...captureParts);
   } else {
     const mhdDate = formatMhdDateForCardMeta(prod);
     if (mhdDate) parts.push(`MHD: ${mhdDate}`);
@@ -3939,10 +4009,11 @@ function buildMhdProductMetaHtml(prod = {}) {
     if (brand) parts.push(`<span>${escapeHtml(brand)}</span>`);
     if (secondaryLabel) parts.push(`<span>${escapeHtml(secondaryLabel)}</span>`);
   }
-  const createdAt = resolveMhdRecordCreatedAt(prod);
-  if (createdAt) {
-    const dateStr = createdAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-    parts.push(`<span>${escapeHtml(`Erfasst: ${dateStr}`)}</span>`);
+  const captureParts = buildMhdCaptureCorrectionMetaParts(prod);
+  if (captureParts.length) {
+    captureParts.forEach((label) => {
+      parts.push(`<span>${escapeHtml(label)}</span>`);
+    });
   } else {
     const mhdDate = formatMhdDateForCardMeta(prod);
     if (mhdDate) parts.push(`<span>${escapeHtml(`MHD: ${mhdDate}`)}</span>`);
@@ -5689,9 +5760,8 @@ async function restoreMhdQuantity(id, quantity, options = {}) {
   const updates = {
     qty: quantity,
     menge: quantity,
-    previousQuantity,
-    lastModifiedBy: actor || 'unbekannt',
     soldOut: options.soldOut === true ? true : false,
+    ...buildMhdQtyCorrectionFields({ previousQuantity, actor }),
   };
   if (options.clearSoldOutStatus) {
     Object.assign(updates, buildMhdActiveRestoreFields({ actor, useServerTimestamp: false }));
@@ -5764,8 +5834,7 @@ async function saveMhdCardQty(id, newQty) {
   const baseUpdates = {
     qty: newQty,
     menge: newQty,
-    previousQuantity,
-    lastModifiedBy: actor || 'unbekannt',
+    ...buildMhdQtyCorrectionFields({ previousQuantity, actor }),
   };
   if (newQty === 0) {
     Object.assign(baseUpdates, buildMhdZeroStockContract('ausverkauft', { actor }).queued);
@@ -5790,8 +5859,6 @@ async function saveMhdCardQty(id, newQty) {
         ...baseUpdates,
         qty: newQty,
         menge: newQty,
-        previousQuantity,
-        lastModifiedBy: actor || 'unbekannt',
       };
     }
     if (newQty === 0 && previousQuantity > 0) {
@@ -5826,18 +5893,21 @@ function adjustQty(id, change, options = {}) {
   if (!options.fromRepeat) {
     mhdState.playClickSound(change > 0 ? 1400 : 1100, 0.03, 0.12);
   }
+  const actor = getAuditActorName();
   if (newQty === 0) {
-    const actor = getAuditActorName();
     const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
     stageMhdChange(id, {
       ...zeroStock.queued,
-      previousQuantity: currentQty,
-      lastModifiedBy: actor || 'unbekannt',
+      ...buildMhdQtyCorrectionFields({ previousQuantity: currentQty, actor }),
     });
     if (currentQty > 0) armZeroQtyUndo(prod, currentQty);
     return true;
   }
-  stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
+  stageMhdChange(id, {
+    qty: newQty,
+    menge: newQty,
+    ...buildMhdQtyCorrectionFields({ previousQuantity: currentQty, actor }),
+  }, { localQtyPatch: true });
   return true;
 }
 
@@ -5930,18 +6000,21 @@ function commitMhdQtyFromNumpad() {
   if (newQty === currentQty) return;
 
   mhdState.playClickSound?.(900, 0.06, 0.14);
+  const actor = getAuditActorName();
   if (newQty === 0) {
-    const actor = getAuditActorName();
     const zeroStock = buildMhdZeroStockContract('ausverkauft', { actor });
     stageMhdChange(id, {
       ...zeroStock.queued,
-      previousQuantity: currentQty,
-      lastModifiedBy: actor || 'unbekannt',
+      ...buildMhdQtyCorrectionFields({ previousQuantity: currentQty, actor }),
     });
     if (currentQty > 0) armZeroQtyUndo(prod, currentQty);
     return;
   }
-  stageMhdChange(id, { qty: newQty, menge: newQty }, { localQtyPatch: true });
+  stageMhdChange(id, {
+    qty: newQty,
+    menge: newQty,
+    ...buildMhdQtyCorrectionFields({ previousQuantity: currentQty, actor }),
+  }, { localQtyPatch: true });
 }
 
 function openMhdQtyNumpad(id) {
@@ -8876,7 +8949,7 @@ function buildMhdRecordFromDeliveryItem(item, head, deliveryId, recordStatus, me
     employeeName: getActiveEmployee() || getAuditActorName(),
     tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    ...buildHiddenAuditFields(),
+    ...buildHiddenAuditFields({ isCreate: true }),
   });
 
   if (head.temperatur != null && !Number.isNaN(head.temperatur)) {
@@ -9013,7 +9086,7 @@ function buildDeliveryBundlePayload(head, {
     employeeName: getActiveEmployee() || getAuditActorName(),
     tenantId: resolveMhdTenantId() || mhdState.tenantId,
     updatedAt: serverTimestampFallback(),
-    ...buildHiddenAuditFields(),
+    ...buildHiddenAuditFields({ isCreate: true }),
   };
 
   if (meisterOverrideReason) {

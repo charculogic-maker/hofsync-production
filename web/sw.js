@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-sync-version-hint-v1';
+const CACHE_NAME = 'charculogic-v20261030-erfasst-korrektur-v1';
 
-const CACHE_SCHEMA = 'p0-mhd-sync-version-hint-oct2026';
+const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen */
-const RELEASED_AT = '2026-10-30T18:30:00+01:00';
+const RELEASED_AT = '2026-10-30T19:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -37,6 +37,8 @@ const CRITICAL_ASSETS = [
   '/barcode-normalize.js',
   '/mhd.js',
   '/mhd-sla.js',
+  '/mhd-record-meta.js',
+  '/mhd-date-guard.js',
   '/receiving.js',
   '/mhd-monitor-filter.js',
   '/mhd-rabatt.js',
@@ -317,6 +319,8 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/sync.js')
     || pathname.endsWith('/mhd.js')
     || pathname.endsWith('/mhd-sla.js')
+    || pathname.endsWith('/mhd-record-meta.js')
+    || pathname.endsWith('/mhd-date-guard.js')
     || pathname.endsWith('/receiving.js')
     || pathname.endsWith('/delivery-upload.js')
     || pathname.endsWith('/catalog-ean.js')

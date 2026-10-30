@@ -177,6 +177,7 @@ const MHD_LISTE_SYNC_FIELDS = new Set([
   'source', 'postentyp', 'wareneingangAt',
   'tenantId', 'updatedAt', 'createdAt', 'scannedBy',
   'lastModifiedBy', 'previousQuantity',
+  'qtyCorrectedAt', 'qtyCorrectedBy', 'mengeKorrigiertAt',
   'mhdActionStatus', 'lastMhdCheckDate', 'lastMhdCheckAt', 'lastCheckedDate', 'lastCheckedBy',
   'rabattiert', 'rabattiertAt',
   'kuecheAngefragt', 'kuecheAngefragtAt',
@@ -326,8 +327,13 @@ function isMhdListePath(collectionPath) {
 /** Neuer Posten wird angelegt, bestehender Posten wird gemerged. Kein update() auf fehlende Dokumente. */
 function upsertMhdListeDoc(ref, payload, firebase, writeOp) {
   const setPayload = { ...(payload || {}) };
-  if ((writeOp === 'set' || writeOp === 'create') && firebase?.firestore?.FieldValue?.serverTimestamp) {
-    setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  if (writeOp === 'set' || writeOp === 'create') {
+    if (firebase?.firestore?.FieldValue?.serverTimestamp) {
+      setPayload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+  } else {
+    // Merge-Updates dürfen die Erstaufnahme nie überschreiben (Mengenkorrektur ≠ Erfasst).
+    delete setPayload.createdAt;
   }
   return ref.set(setPayload, { merge: true });
 }
