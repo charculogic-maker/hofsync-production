@@ -77,6 +77,14 @@ Mit **Box** in der MHD-Karte merken wir einen Posten für die heutige **Retter-B
 
 **Drucken**, Rezeptvorschlag und Status (**Verkauft** / **Verwerfen**) erledigen wir im **Büro-Bereich** unter **Retter-Boxen** (Admin-Zugang). Am neutralen Laden-iPhone steht nur die **Box**-Aktion zur Verfügung.
 
+## MHD-Eingabe absichern
+
+Beim Einbuchen und Korrigieren prüft unsere App das Datum:
+
+- **Jahr offensichtlich falsch** (z. B. 2002 statt 2026) → Speichern wird blockiert, wir müssen korrigieren
+- **Schon abgelaufen** oder **Tag/Monat vertauscht** → Warnung mit Hinweis, bevor wir speichern
+- In der Liste erscheinen absurde MHDs als **DATUM PRÜFEN** (mit echtem Kalenderdatum)
+
 ## Hinweise
 
 - Die zweite Zeile zeigt **Hersteller / Zusatz** und das echte **MHD-Datum**

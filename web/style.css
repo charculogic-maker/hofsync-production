@@ -3230,9 +3230,9 @@ button.mhd-ampel-badge.mhd-days-badge.mhd-days-badge--date {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  color: #64748b !important;
+  color: #475569 !important;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   line-height: 1.35;
@@ -3359,7 +3359,14 @@ button.mhd-ean-toggle.mhd-ean-toggle--full {
 .status-ok .mhd-product-meta,
 .mhd-card.mhd-critical .mhd-product-meta,
 .mhd-card.mhd-critical .mhd-product-meta-line {
-  color: #64748b !important;
+  color: #475569 !important;
+}
+
+.mhd-ampel--expired.mhd-ampel--absurd,
+.mhd-ampel-badge.mhd-ampel--absurd {
+  background: #7f1d1d;
+  color: #fff;
+  letter-spacing: 0.02em;
 }
 
 .mhd-badge {
