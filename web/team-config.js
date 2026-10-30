@@ -855,11 +855,44 @@ export async function syncPushRegistration() {
   await registerFcmTokenIfPossible(employee);
 }
 
+/**
+ * Setzt den Mandanten für Team-Config. Bei Wechsel (oder wenn noch kein
+ * Snapshot-Listener läuft) wird teamDashboard neu abonniert — sonst bleiben
+ * departmentAssignments leer und die Nutzerverwaltung zeigt keine Fachbereiche.
+ * @param {string} tenantId
+ * @returns {string}
+ */
 export function setTeamConfigTenantId(tenantId) {
   const next = String(tenantId || '').trim();
-  if (!next || next === configState.tenantId) return configState.tenantId;
-  configState.tenantId = next;
+  if (!next) return configState.tenantId;
+
+  const tenantChanged = next !== configState.tenantId;
+  if (tenantChanged) {
+    configState.tenantId = next;
+    // Nicht die Zuordnung des vorherigen Mandanten anzeigen.
+    configState.departmentAssignments = {};
+  }
+
+  // Gleicher Mandant, aber Listener fehlt (Init oft ohne tenantId) → nachziehen.
+  if (tenantChanged || (configState.db && !configState.unsubscribe)) {
+    subscribeTeamConfig();
+  }
   return configState.tenantId;
+}
+
+/**
+ * Alle Fachbereiche als Mitwirkung (optional mit Primär).
+ * @param {string} [primaryDepartment]
+ * @param {{ canOrder?: boolean }} [options]
+ * @returns {DepartmentAssignment}
+ */
+export function buildAllDepartmentsAssignment(primaryDepartment = PRIMARY_DEPARTMENT_NONE, options = {}) {
+  const primary = normalizePrimaryDepartment(primaryDepartment, [...DEPARTMENT_KEYS]);
+  return normalizeDepartmentAssignmentEntry({
+    primaryDepartment: primary || PRIMARY_DEPARTMENT_NONE,
+    departments: [...DEPARTMENT_KEYS],
+    canOrder: options.canOrder === true,
+  });
 }
 
 export function initTeamConfigModule(databaseInstance, options = {}) {

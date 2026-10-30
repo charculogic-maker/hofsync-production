@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261030-mhd-ampel-toggle-v1';
+const CACHE_NAME = 'charculogic-v20261030-fachbereiche-bulk-v1';
 
-const CACHE_SCHEMA = 'p0-bedarf-reassign-oct2026';
-/** Release – Fachbereiche: Küche, Zerlegung, Wurstproduktion, Laden, Einkauf */
-const RELEASED_AT = '2026-10-30T09:15:00+01:00';
+const CACHE_SCHEMA = 'p0-fachbereiche-bulk-oct2026';
+/** Release – Fachbereiche laden + Sammelauswahl in der Nutzerverwaltung */
+const RELEASED_AT = '2026-10-30T13:00:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',

@@ -14995,7 +14995,7 @@ body.role-firebase-auth #team-login-card {
 
 @media (min-width: 800px) {
   .dev-dashboard-user-toolbar {
-    grid-template-columns: minmax(0, 1.4fr) minmax(140px, 0.7fr) auto;
+    grid-template-columns: minmax(0, 1.2fr) minmax(120px, 0.6fr) auto auto;
   }
 }
 
@@ -17146,6 +17146,33 @@ body.role-firebase-auth #team-login-card {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.dev-dashboard-dept-extra-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dev-dashboard-dept-quick-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #1d4ed8);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 4px;
+  min-height: 28px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dev-dashboard-dept-quick-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .dev-dashboard-dept-label {

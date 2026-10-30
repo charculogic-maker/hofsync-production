@@ -615,8 +615,8 @@
                         <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
                         <p class="dev-dashboard-intro">
                           Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe), Module und Fachbereiche
-                          (Metzgerei, Laden, Einkauf) je Person steuern. Der Betrieb gibt die Decke vor —
-                          Rolle und Nutzer können nur weniger freigeben.
+                          (Küche, Zerlegung, Wurstproduktion, Laden, Einkauf) je Person steuern.
+                          Über „Allen sichtbaren alle Fachbereiche“ zuerst alle zuordnen — danach einzelne Haken entfernen.
                         </p>
                       </div>
                       <label class="dev-dashboard-tenant-select-field" id="dev-dashboard-tenant-select-wrap" hidden>
@@ -639,6 +639,14 @@
                           <option value="helper">Aushilfe</option>
                         </select>
                       </label>
+                      <button
+                        type="button"
+                        class="dev-dashboard-action-btn"
+                        id="dev-dashboard-dept-bulk-all-btn"
+                        title="Setzt für alle sichtbaren Nutzer alle Fachbereiche (Primär bleibt, falls gesetzt)"
+                      >
+                        Allen sichtbaren alle Fachbereiche
+                      </button>
                       <button type="button" class="dev-dashboard-submit-btn" id="dev-dashboard-invite-open-btn">
                         Neuen Nutzer einladen
                       </button>
