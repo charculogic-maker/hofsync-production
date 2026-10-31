@@ -134,7 +134,7 @@ Pro Mandant konfigurierbar:
 | `rezeptAudit` | Rezept-Audit-Karte in Prod. |
 | `retterBox` | Retter-Box-Funktion im MHD (nur StevesHof) |
 
-**Runtime-Schalter:** `tenants/{tenantId}.enabledModules` (`mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `traceability`) — siehe `web/tenant-modules.js`, Toggle unter `/dev-dashboard`.
+**Runtime-Schalter:** `tenants/{tenantId}.enabledModules` (`mhd`, `receiving`, `kitchen`, `haccp`, `knowledge`, `buero`, `chargenDoku`/`traceability`, `retterBox`, …) — siehe `TENANT_MODULE_KEYS` in `web/tenant-modules.js`, Toggle unter `/dev-dashboard` → Plattform & Mandanten.
 
 Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danach filtert `applyRoleBasedUi()` nach Rolle und Mandant.
 

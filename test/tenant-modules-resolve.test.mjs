@@ -4,6 +4,7 @@
 import { expect } from 'chai';
 import {
   CANONICAL_MODULE_KEYS,
+  TENANT_MODULE_KEYS,
   effectiveModulesEqual,
   LAST_EFFECTIVE_MODULES_KEY,
   mergeEnabledModulesIntoBranding,
@@ -29,6 +30,11 @@ describe('resolveEffectiveModules', () => {
       'batches',
       'retterBox',
     ]);
+  });
+
+  it('führt retterBox in den Plattform-Toggles (TENANT_MODULE_KEYS)', () => {
+    expect(TENANT_MODULE_KEYS).to.include('retterBox');
+    expect(TENANT_MODULE_KEYS).to.include('chargenDoku');
   });
 
   it('nimmt Branding als Offline-Fallback und lässt Firestore führend', () => {

@@ -212,7 +212,7 @@ Unsere Betriebsdaten (MHD, Lieferungen, HACCP, Herkunft/Thekenklade) liegen in *
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Digitale Thekenklade | **Herkunft → Thekenklade** bzw. `/#thekenbuch` (Sprung auch von `/dev-dashboard` → Übersicht) |
 | Warenbewegungsbericht | `/dev-dashboard` → Tab **Protokoll**: Standard **seit vorgestern** (Buttons Heute / 7 Tage), Mitarbeiter und Aktion filtern; **Report als CSV exportieren** öffnet die Datei in Excel oder LibreOffice. Über **Korrigieren** ändern wir Umlautfehler, Menge oder MHD. Den Artikelnamen merken wir uns für alle Posten mit derselben EAN und für den nächsten Wareneingang auf dem Laden-iPhone; Menge und MHD gelten nur für diesen Posten. |
-| Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `chargenDoku`/`traceability`, `knowledge`) oder Abstimmung in `web/branding.js` |
+| Module freischalten | `/dev-dashboard` → Plattform & Mandanten → Modul-Checkboxen (`enabledModules`, inkl. `chargenDoku`/`traceability`, `knowledge`, `retterBox`) oder Abstimmung in `web/branding.js` |
 
 ---
 
