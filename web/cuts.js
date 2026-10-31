@@ -680,7 +680,7 @@ const CUT_GLOSSARY = [
     species: 'general',
     name: 'Graues Hackfleisch im Inneren (Qualität)',
     region: 'Qualitäts-Hinweis',
-    aliases: ['grau', 'graue Farbe', 'Hackfleisch grau', 'Metmyoglobin', 'Oxy-Myoglobin', 'Wolfhack grau'],
+    aliases: ['grau', 'graue Farbe', 'Hackfleisch grau', 'Metmyoglobin', 'Oxymyoglobin', 'Oxy-Myoglobin', 'Wolfhack grau', 'gewolft'],
     muscles: [],
     human: '',
     use: 'Grau oder bräunlich im Inneren von frisch gewolftem Hackfleisch ist kein Verderb, sondern normal: An der Oberfläche oxidiert Myoglobin zu hellerem Rot (Oxymyoglobin), im Kern fehlt Sauerstoff – dort wirkt Metmyoglobin grau-braun. Nach kurzer Luftexposition färbt sich auch die Mitte oft wieder rötlicher. Entscheidend sind frischer Geruch, Kühlkette und kein säuerlicher oder fauliger Geruch. Dem Kunden erklären: Die graue Farbe im Inneren sagt nichts über Frische aus – riechen, ansehen, kühl halten.',
