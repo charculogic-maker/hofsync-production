@@ -463,15 +463,47 @@ export function applySessionAccessModuleOverride(modules, options = {}) {
 }
 
 /**
+ * Entfernt Legacy-Sperren `knowledge: false` für admin/employee in role_modules.
+ * Helper behält knowledge:false (kein Theken-Modul).
+ *
+ * @param {object|null|undefined} raw
+ * @returns {{ patched: object|null|undefined, changed: boolean, roles: string[] }}
+ */
+export function stripLegacyKnowledgeDenials(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { patched: raw, changed: false, roles: [] };
+  }
+  /** @type {string[]} */
+  const roles = [];
+  /** @type {Record<string, unknown>} */
+  const patched = { ...raw };
+  ['admin', 'employee'].forEach((role) => {
+    const map = patched[role];
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return;
+    if (!Object.prototype.hasOwnProperty.call(map, 'knowledge')) return;
+    if (map.knowledge !== false) return;
+    patched[role] = { ...map, knowledge: true };
+    roles.push(role);
+  });
+  return {
+    patched: roles.length ? patched : raw,
+    changed: roles.length > 0,
+    roles,
+  };
+}
+
+/**
  * Normalisiert gespeicherte role_modules-Settings (admin/employee/helper).
+ * Legacy `employee.knowledge: false` / `admin.knowledge: false` werden vor dem Merge entfernt.
  * @param {object|null|undefined} raw
  * @returns {Record<string, Record<string, boolean>>}
  */
 export function normalizeRoleModuleDefaults(raw) {
+  const { patched } = stripLegacyKnowledgeDenials(raw);
   /** @type {Record<string, Record<string, boolean>>} */
   const result = {};
   TENANT_ROLES_FOR_MODULES.forEach((role) => {
-    const fromDoc = raw && typeof raw === 'object' ? raw[role] : null;
+    const fromDoc = patched && typeof patched === 'object' ? patched[role] : null;
     result[role] = resolveRoleModuleAllowlist(role, fromDoc ? { [role]: fromDoc } : null);
   });
   return result;
@@ -877,4 +909,5 @@ if (typeof window !== 'undefined') {
   window.normalizeAccessModuleMap = normalizeAccessModuleMap;
   window.normalizeRoleModuleDefaults = normalizeRoleModuleDefaults;
   window.resolveRoleModuleAllowlist = resolveRoleModuleAllowlist;
+  window.stripLegacyKnowledgeDenials = stripLegacyKnowledgeDenials;
 }

@@ -27,7 +27,7 @@ describe('Packtisch Abholbereit-Felder klar abgegrenzt', () => {
   it('hat eigene Panel-Styles und Cache-Buster', () => {
     assert.match(css, /\.customer-order-ready-panel\b/);
     assert.match(css, /\.customer-order-ready-title\b/);
-    assert.match(sw, /charculogic-v20261031-knowledge-employee-v1/);
+    assert.match(sw, /charculogic-v20261031-role-modules-knowledge-v1/);
     assert.match(html, /20261025-month-calendar/);
   });
 });

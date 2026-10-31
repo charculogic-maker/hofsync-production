@@ -10,6 +10,7 @@ import {
   normalizeAccessModuleMap,
   normalizeRoleModuleDefaults,
   resolveRoleModuleAllowlist,
+  stripLegacyKnowledgeDenials,
   TENANT_MODULE_KEYS,
   TENANT_ROLES_FOR_MODULES,
 } from './tenant-modules.js';
@@ -410,10 +411,29 @@ async function loadAndFillRoleModuleMatrix(dashboardStateRef = dashboardState) {
   let defaults = normalizeRoleModuleDefaults(null);
   if (db && tenantId) {
     try {
-      const snap = await db.collection('tenants').doc(tenantId)
-        .collection('settings').doc('role_modules').get();
+      const docRef = db.collection('tenants').doc(tenantId).collection('settings').doc('role_modules');
+      const snap = await docRef.get();
       if (snap.exists) {
-        defaults = normalizeRoleModuleDefaults(snap.data() || {});
+        const data = snap.data() || {};
+        const { patched, changed, roles } = stripLegacyKnowledgeDenials(data);
+        defaults = normalizeRoleModuleDefaults(patched);
+        if (changed) {
+          const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+            ? firebase.firestore.FieldValue.serverTimestamp()
+            : new Date().toISOString();
+          /** @type {Record<string, unknown>} */
+          const repair = {
+            knowledgeSanitizedAt: stamp,
+            knowledgeSanitizedBy: 'dev-dashboard-load',
+          };
+          roles.forEach((role) => {
+            const src = patched && typeof patched === 'object' ? patched[role] : null;
+            if (src && typeof src === 'object') repair[role] = src;
+          });
+          docRef.set(repair, { merge: true }).catch((err) => {
+            console.warn('[Dev-Dashboard] role_modules knowledge-Sanitize fehlgeschlagen:', err);
+          });
+        }
       }
     } catch (err) {
       console.warn('[Dev-Dashboard] role_modules laden fehlgeschlagen:', err);
@@ -484,7 +504,9 @@ function readRoleModuleMatrixFromDom() {
 
 async function persistRoleModuleDefaults(db, tenantId, roleModuleDefaults) {
   if (!db || !tenantId) throw new Error('Mandant fehlt.');
-  const normalized = normalizeRoleModuleDefaults(roleModuleDefaults);
+  // knowledge:false für employee/admin nie persistieren (Legacy-/UI-Fehlklick-Schutz).
+  const { patched } = stripLegacyKnowledgeDenials(roleModuleDefaults || {});
+  const normalized = normalizeRoleModuleDefaults(patched);
   const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
     : new Date().toISOString();

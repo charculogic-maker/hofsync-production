@@ -11,6 +11,7 @@ import {
   normalizeRoleModuleDefaults,
   resolveAccessModules,
   resolveRoleModuleAllowlist,
+  stripLegacyKnowledgeDenials,
 } from '../web/tenant-modules.js';
 
 describe('module access resolve (tenant ∩ role ∩ user)', () => {
@@ -98,5 +99,25 @@ describe('module access resolve (tenant ∩ role ∩ user)', () => {
     expect(normalized.helper.haccp).to.equal(true);
     expect(normalized.admin.buero).to.equal(true);
     expect(normalized.employee.knowledge).to.equal(true);
+  });
+
+  it('entfernt Legacy knowledge:false für employee/admin, Helper bleibt gesperrt', () => {
+    const { patched, changed, roles } = stripLegacyKnowledgeDenials({
+      employee: { knowledge: false, mhd: true },
+      helper: { knowledge: false, mhd: true },
+      admin: { knowledge: false, buero: true },
+    });
+    expect(changed).to.equal(true);
+    expect(roles).to.include.members(['employee', 'admin']);
+    expect(patched.employee.knowledge).to.equal(true);
+    expect(patched.admin.knowledge).to.equal(true);
+    expect(patched.helper.knowledge).to.equal(false);
+
+    const normalized = normalizeRoleModuleDefaults({
+      employee: { knowledge: false },
+      helper: { knowledge: false },
+    });
+    expect(normalized.employee.knowledge).to.equal(true);
+    expect(normalized.helper.knowledge).to.equal(false);
   });
 });

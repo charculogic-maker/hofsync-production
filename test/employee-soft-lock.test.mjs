@@ -130,7 +130,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for we-herkunft-lot', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261031-knowledge-employee-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261031-role-modules-knowledge-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
