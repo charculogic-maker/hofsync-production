@@ -1,16 +1,16 @@
 ---
 name: tenant-isolation-validator
 description: >-
-  Validates absolute Firestore data isolation between Hofladen tenants (e.g. StevesHof_Hauptbetrieb,
-  TorFabrik). Use when reviewing queries, security rules, Cloud Functions, storage paths, or tests
-  for cross-tenant reads and writes.
+  Validates absolute Firestore data isolation between Hofladen tenants (e.g. StevesHof_Hauptbetrieb
+  vs. tenant_b_isolation in tests). Use when reviewing queries, security rules, Cloud Functions,
+  storage paths, or tests for cross-tenant reads and writes.
 ---
 
 # Skill: Multi-Tenant Isolation Validator
 
 ## Purpose
 
-Ensures absolute data isolation between different shop tenants (e.g., `StevesHof_Hauptbetrieb`, `TorFabrik`) within the multi-tenant architecture.
+Ensures absolute data isolation between different shop tenants (e.g., `StevesHof_Hauptbetrieb` vs. a second tenant such as `tenant_b_isolation` in rules tests) within the multi-tenant architecture.
 
 ## When to Use
 

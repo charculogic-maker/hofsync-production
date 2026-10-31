@@ -44,7 +44,7 @@ describe('parseDeliveryNote – storage path isolation', () => {
   test('rejects cross-tenant path', () => {
     expect(() => assertTenantStoragePath(
       'StevesHof_Hauptbetrieb',
-      'tenants/TorFabrik/delivery_notes/1_ls.jpg',
+      'tenants/tenant_b_isolation/delivery_notes/1_ls.jpg',
     )).toThrow(/nicht zu diesem Mandanten/);
   });
 

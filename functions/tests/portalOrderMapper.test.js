@@ -13,7 +13,7 @@ describe('portalOrderMapper', () => {
   });
 
   test('fremde tenantId wird abgelehnt', () => {
-    expect(() => assertPortalTenantAllowed('TorFabrik')).toThrow(/nimmt Online-Vorbestellungen noch nicht an/i);
+    expect(() => assertPortalTenantAllowed('not_on_allowlist_tenant')).toThrow(/nimmt Online-Vorbestellungen noch nicht an/i);
   });
 
   test('buildReadyAt und Payload für Packtisch', () => {

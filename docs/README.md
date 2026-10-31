@@ -23,10 +23,11 @@ Thekenklade: Herkunft → Thekenklade  (/#thekenbuch)
 
 | Mandant | `tenantId` | App-Anzeige | Walkthrough |
 |---------|------------|-------------|-------------|
-| **StevesHof Hofladen** | `StevesHof_Hauptbetrieb` | CharcuLogic | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
-| **TorFabrik Krefeld** | `torfabrik` | CenterLogic | [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
+| **StevesHof Hofladen** | `StevesHof_Hauptbetrieb` | CharcuLogic / HofSync | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
 
 Weitere Mandanten folgen dem gleichen Muster: eigene Kollegen-Anleitung + Einträge in `web/branding.js` und `web/team-config.js`.
+
+> **Archiv:** TorFabrik Krefeld (`torfabrik`) ist kein aktiver Mandant mehr — siehe [docs/_archive/torfabrik/](./_archive/torfabrik/).
 
 ## Modulanleitungen (Screenshots)
 
@@ -43,13 +44,12 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 | Handbuch | Inhalt |
 |----------|--------|
 | [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Wareneingang, Herkunft/LMIV, Prod., HACCP, Auskunft, Offline |
-| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | Teamboard, Wareneingang, Herkunft/Thekenklade |
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, Module, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |
 | [NAVIGATION.md](./NAVIGATION.md) | Nav-Cheat-Sheet (Primär / Mehr / Admin) |
 | [CLAIMS_TABS_MAPPING.md](./CLAIMS_TABS_MAPPING.md) | Claims ↔ sichtbare Tabs (Rollen-Matrix) |
 
-Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
+Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
 
 ## Gesamtdokumentation App
 

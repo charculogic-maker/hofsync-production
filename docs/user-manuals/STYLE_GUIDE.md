@@ -5,7 +5,6 @@ Dieses Dokument definiert das **Corporate Design (CD)**, die **Design Tokens** u
 | Handbuch | Cursor-Referenz | Datei |
 |----------|-----------------|-------|
 | StevesHof — schlankes Hofladen-Terminal | `@ANLEITUNG_STEVESHOF.md` | [ANLEITUNG_STEVESHOF.md](./ANLEITUNG_STEVESHOF.md) |
-| TorFabrik — Großproduktion & OCR | `@ANLEITUNG_TORFABRIK.md` | [ANLEITUNG_TORFABRIK.md](./ANLEITUNG_TORFABRIK.md) |
 | White-Label Admin & Onboarding | `@ANLEITUNG_WHITELABEL_ADMIN.md` | [ANLEITUNG_WHITELABEL_ADMIN.md](./ANLEITUNG_WHITELABEL_ADMIN.md) |
 
 **Implementierung im Code:** `web/branding.js` · `web/style.css` · `web/operator-errors.js` · `web/teamboard-storage.js`
@@ -103,58 +102,23 @@ Kein Datenverlust bei kurzem Funkloch — Operatoren sehen **gelbe** Hinweise, k
 
 ---
 
-## 3. Mandant: TorFabrik (`torfabrik` / Dokumentation `TorFabrik_Werk_Nord`)
+## 3. Mandanten-Branding & Terminal-Storage
 
-**Produktname:** CenterLogic · **Handbuch:** `@ANLEITUNG_TORFABRIK.md`
+Neue Mandanten bekommen Farben und Modul-Flags über `web/branding.js` / Firestore-Profil — siehe [ANLEITUNG_WHITELABEL_ADMIN.md](./ANLEITUNG_WHITELABEL_ADMIN.md). Historisches TorFabrik-CD: [docs/_archive/torfabrik/](../_archive/torfabrik/).
 
-> **Hinweis:** Produktive `tenantId` in Firebase: `torfabrik`. Das CD-Banner in der Bedienungsanleitung nutzt die Marketing-Bezeichnung `TorFabrik_Werk_Nord`.
-
-### 3.1 Design Tokens
-
-| Token | Hex | Verwendung |
-|-------|-----|------------|
-| **Primary** | `#0f172a` | Slate-Black — industrielle Seriosität, hoher Kontrast |
-| **Accent** | `#1565c0` | Blau — aktive Prozesse, Links, KI-Aktionen |
-| **Warning** | `#ffb300` | Amber — MHD-Alarme, Lieferungs-Hinweise |
-| **Header (Branding)** | `#ffc20e` | Gelber Header-Balken (TorFabrik in `TENANT_BRANDING`) |
-
-### 3.2 High-Contrast Industrial UI
-
-| Prinzip | Umsetzung |
-|---------|-----------|
-| Kontrast | Dunkle Primärfarbe + helle Warn-Akzente |
-| Informationsdichte | Tabellen, Filter-Chips, Bereichs-Umschalter |
-| Solo-Ansicht | **„Alle meine Bereiche“** — aggregierte Aufgabenliste |
-| Modul-Skip | `wurstkueche: false` — kein Prod./WRS-Tab |
-
-### 3.3 OCR-Pipeline (3 Schritte)
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│ 1. ERFASSEN │ ──► │ 2. VORSCHAU  │ ──► │ 3. PERSISTIEREN │
-│ Foto/PDF    │     │ Tabelle edit │     │ inventory/…     │
-└─────────────┘     └──────────────┘     └─────────────────┘
-```
-
-| Schritt | UI-Zustand | Lock |
-|---------|------------|------|
-| **1 — Erfassen** | Tab **Neu** → **📸 Lieferschein scannen (KI)** | `ocrInFlight` — kein Doppel-Scan |
-| **2 — Vorschau** | Overlay-Tabelle: Artikel · Menge · Kategorie | Manuelle Korrektur vor Commit |
-| **3 — Persistieren** | **In Bestand speichern** | `saveInFlight` — kein Doppel-Save |
-
-Callable `parseDeliveryNote` erfordert **App Check** + Mandant `torfabrik`. Fehler → `@ANLEITUNG_TORFABRIK.md` Kapitel 3.3.
-
-### 3.4 localStorage-Präfix (`{tenantId}_`)
+### 3.1 localStorage-Präfix (`{tenantId}_`)
 
 Shared Terminals: Keys in `web/teamboard-storage.js`
 
-| Basis-Key | Beispiel (`torfabrik`) |
-|-----------|-------------------------|
-| `charculogic_active_employee` | `torfabrik_charculogic_active_employee` |
-| `charculogic_active_area` | `torfabrik_charculogic_active_area` |
-| `charculogic_active_shift` | `torfabrik_charculogic_active_shift` (Legacy) |
+| Basis-Key | Beispiel (`StevesHof_Hauptbetrieb`) |
+|-----------|-------------------------------------|
+| `charculogic_active_employee` | `StevesHof_Hauptbetrieb_charculogic_active_employee` |
+| `charculogic_active_area` | `StevesHof_Hauptbetrieb_charculogic_active_area` |
+| `charculogic_active_shift` | `…_charculogic_active_shift` (Legacy) |
 
 Logout (`web/auth.js` → `clearTeamboardTenantStorage`) löscht mandantenspezifische Keys — **kein Bereichs-Leak** beim Mandantenwechsel.
+
+Optionaler KI-Lieferschein (`parseDeliveryNote`) ist mandantenübergreifend möglich (App Check + Claims), derzeit in der Laden-App deaktiviert / archiviert unter `legacy/`.
 
 ---
 
@@ -231,7 +195,6 @@ Jedes Handbuch trägt am Dateianfang ein CD-Banner — siehe:
 
 - `@ANLEITUNG_WHITELABEL_ADMIN.md` — Slate Blue `#2C3E50`
 - `@ANLEITUNG_STEVESHOF.md` — Braun `#5D4037` / Orange `#EA580C`
-- `@ANLEITUNG_TORFABRIK.md` — Schwarz `#0F172A` / Blau `#1565C0`
 
 ---
 

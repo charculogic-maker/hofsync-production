@@ -47,7 +47,7 @@ craft_food_app/
 │   ├── tenant-modules.js         # enabledModules → Branding/Tab-Sichtbarkeit
 │   ├── teamboard-storage.js      # Mandanten-prefixierte localStorage-Keys (Shared Terminals)
 │   ├── operator-errors.js        # Deutsche Operator-Toasts (technische Details nur in console.error)
-│   ├── delivery-note.js          # KI-Lieferschein (TorFabrik, Callable)
+│   ├── delivery-note.js          # KI-Lieferschein (Callable, optional)
 │   ├── sync.js                   # Offline-Sync-Queue, writeFirestoreDocOrQueue
 │   ├── mhd.js                    # MHD-Monitor + Wareneingang
 │   ├── traceability.js           # LMIV-Herkunft + Thekenklade (Admin)
@@ -173,7 +173,7 @@ Details, App Check, Secrets (z. B. `GEMINI_API_KEY`) und Fallstricke: ➡️ [do
 | [docs/README.md](docs/README.md) | Übersicht aller Dokumente |
 | [docs/APP_DOKUMENTATION.md](docs/APP_DOKUMENTATION.md) | Ausführliche App-Doku (Ist-Stand, Module, Mandanten, Backend) |
 | [docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](docs/KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Tagesablauf **StevesHof** (CharcuLogic) |
-| [docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md](docs/KOLLEGEN_ANLEITUNG_TORFABRIK.md) | Tagesablauf **TorFabrik** (CenterLogic) |
+| [docs/_archive/torfabrik/](docs/_archive/torfabrik/) | Archiv: ehemaliger Mandant TorFabrik |
 | [docs/modulanleitungen/README.md](docs/modulanleitungen/README.md) | Visuelle Modulanleitungen (mit Screenshots) |
 | [docs/WHITE_LABEL_UPLOAD_ANLEITUNG.md](docs/WHITE_LABEL_UPLOAD_ANLEITUNG.md) | CSV-Import für Rezepte & MHD-Listen (Mandanten-Onboarding) |
 | [docs/TECHNIK_BACKEND.md](docs/TECHNIK_BACKEND.md) | Architektur, Datenmodell, Rules/Admin-Modell, Cloud Functions, Deployment |

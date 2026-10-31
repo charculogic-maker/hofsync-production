@@ -2,7 +2,7 @@
 
 Der Tab **Team** bündelt Kommunikation, Kundenbestellungen und den schnellen **Temperatur-Check**. Welche Reiter erscheinen, richtet sich nach den freigeschalteten Bereichen des Mandanten. Die Anmeldung erfolgt – wo Nachrichten und Bestellungen aktiv sind – immer zuerst unter **Start** (Name + PIN).
 
-**Mitarbeiter & PINs** sind mandantenabhängig (z. B. TorFabrik: Stephan, Boris, Aushilfe). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
+**Mitarbeiter & PINs** sind mandantenabhängig (z. B. StevesHof: Bettina, Finn, …). Sie werden aus `tenants/{tenantId}/settings/teamDashboard` geladen – siehe [Kollegen-Anleitungen](../README.md).
 
 > **StevesHof Hofladen:** Der Tab **Team** ist ausgeblendet — Temperaturen dokumentieren wir im Tab **HACCP**. Am Laden-iPhone melden wir uns mit dem Geräte-Zugang an und wählen danach unser **Profil** (ohne PIN) für MHD und Wareneingang.
 
@@ -73,4 +73,4 @@ Ohne Anmeldung bleibt der Bereich sichtbar, zeigt aber den Hinweis: *Bitte zuers
 
 ## Shared Terminals (gemeinsame Geräte)
 
-Auf Hofladen-Terminals, die von mehreren Betrieben oder Schichten genutzt werden, merkt sich die App Mitarbeiter und Bereich **pro Mandant** — nicht global im Browser. Technisch prefixiert `web/teamboard-storage.js` alle Terminal-Einstellungen mit der `tenantId` (z. B. `torfabrik_charculogic_active_employee`). Beim Betriebs-Logout werden mandantenspezifische Einstellungen gelöscht, damit keine Auswahl an den nächsten Mandanten „durchblutet“.
+Auf Hofladen-Terminals, die von mehreren Betrieben oder Schichten genutzt werden, merkt sich die App Mitarbeiter und Bereich **pro Mandant** — nicht global im Browser. Technisch prefixiert `web/teamboard-storage.js` alle Terminal-Einstellungen mit der `tenantId` (z. B. `StevesHof_Hauptbetrieb_charculogic_active_employee`). Beim Betriebs-Logout werden mandantenspezifische Einstellungen gelöscht, damit keine Auswahl an den nächsten Mandanten „durchblutet“.

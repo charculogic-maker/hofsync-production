@@ -56,10 +56,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
   });
 
   describe('TEST CASE 1: Cross-Tenant Isolation (SaaS Wall)', () => {
-    const torfabrikEmployee = () => authContext(
+    const tenantBEmployee = () => authContext(
       testEnv,
       'tf-employee-1',
-      TENANTS.TORFABRIK,
+      TENANTS.TENANT_B,
       'employee',
     );
 
@@ -70,20 +70,20 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     ];
 
     collections.forEach(({ name, docId, sample }) => {
-      const ownPath = tenantDocPath(TENANTS.TORFABRIK, name, docId);
+      const ownPath = tenantDocPath(TENANTS.TENANT_B, name, docId);
       const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, name, docId);
 
-      it(`denies torfabrik employee read/write on StevesHof ${name}`, async () => {
-        const ctx = torfabrikEmployee();
+      it(`denies tenant-B employee read/write on StevesHof ${name}`, async () => {
+        const ctx = tenantBEmployee();
         const payload = sample(TENANTS.STEVES_HOF);
 
         await expectFirestoreDeny(ctx, foreignPath, 'read');
         await expectFirestoreDeny(ctx, foreignPath, 'create', payload);
       });
 
-      it(`allows torfabrik employee read and write on own tenant ${name}`, async () => {
-        const ctx = torfabrikEmployee();
-        const payload = sample(TENANTS.TORFABRIK);
+      it(`allows tenant-B employee read and write on own tenant ${name}`, async () => {
+        const ctx = tenantBEmployee();
+        const payload = sample(TENANTS.TENANT_B);
 
         await expectFirestoreAllow(ctx, ownPath, 'create', payload);
         await expectFirestoreAllow(ctx, ownPath, 'read');
@@ -91,7 +91,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies cross-tenant collection list queries', async () => {
-      const ctx = torfabrikEmployee();
+      const ctx = tenantBEmployee();
       await seedFirestoreDoc(
         testEnv,
         tenantDocPath(TENANTS.STEVES_HOF, 'mhd_liste', 'hidden-item'),
@@ -107,10 +107,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
   });
 
   describe('TEST CASE 2: helper Role Constraints', () => {
-    const torfabrikHelper = () => authContext(
+    const tenantBHelper = () => authContext(
       testEnv,
       'tf-helper-1',
-      TENANTS.TORFABRIK,
+      TENANTS.TENANT_B,
       'helper',
     );
 
@@ -163,91 +163,91 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     beforeEach(async () => {
       await seedFirestoreDoc(
         testEnv,
-        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'seed-task'),
-        sampleTask(TENANTS.TORFABRIK, 'Seed Author'),
+        tenantDocPath(TENANTS.TENANT_B, 'tasks', 'seed-task'),
+        sampleTask(TENANTS.TENANT_B, 'Seed Author'),
       );
       await seedFirestoreDoc(
         testEnv,
-        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
-        sampleMhdItem(TENANTS.TORFABRIK),
+        tenantDocPath(TENANTS.TENANT_B, 'mhd_liste', 'seed-mhd'),
+        sampleMhdItem(TENANTS.TENANT_B),
       );
       await seedFirestoreDoc(
         testEnv,
-        tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
-        sampleSettings(TENANTS.TORFABRIK),
+        tenantDocPath(TENANTS.TENANT_B, 'settings', 'teamDashboard'),
+        sampleSettings(TENANTS.TENANT_B),
       );
     });
 
     it('allows helper to read tasks (teamboard) and mhd_liste (alarms)', async () => {
-      const ctx = torfabrikHelper();
+      const ctx = tenantBHelper();
 
       await expectFirestoreAllow(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'seed-task'),
+        tenantDocPath(TENANTS.TENANT_B, 'tasks', 'seed-task'),
         'read',
       );
       await expectFirestoreAllow(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'seed-mhd'),
+        tenantDocPath(TENANTS.TENANT_B, 'mhd_liste', 'seed-mhd'),
         'read',
       );
     });
 
     it('denies helper writes to inventory', async () => {
-      const ctx = torfabrikHelper();
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'inventory', 'helper-inject');
+      const ctx = tenantBHelper();
+      const path = tenantDocPath(TENANTS.TENANT_B, 'inventory', 'helper-inject');
 
       await expectFirestoreDeny(
         ctx,
         path,
         'create',
-        sampleInventoryItem(TENANTS.TORFABRIK),
+        sampleInventoryItem(TENANTS.TENANT_B),
       );
     });
 
     it('denies helper create/update/delete on operative collections and settings', async () => {
-      const ctx = torfabrikHelper();
+      const ctx = tenantBHelper();
 
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'mhd_liste', 'helper-mhd'),
+        tenantDocPath(TENANTS.TENANT_B, 'mhd_liste', 'helper-mhd'),
         'create',
-        sampleMhdItem(TENANTS.TORFABRIK),
+        sampleMhdItem(TENANTS.TENANT_B),
       );
 
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'helper-task'),
+        tenantDocPath(TENANTS.TENANT_B, 'tasks', 'helper-task'),
         'create',
-        sampleTask(TENANTS.TORFABRIK, 'Helper'),
+        sampleTask(TENANTS.TENANT_B, 'Helper'),
       );
 
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'settings', 'teamDashboard'),
+        tenantDocPath(TENANTS.TENANT_B, 'settings', 'teamDashboard'),
         'update',
-        { employees: ['Injected'], tenantId: TENANTS.TORFABRIK },
+        { employees: ['Injected'], tenantId: TENANTS.TENANT_B },
       );
 
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'mhd_audit', 'helper-audit'),
+        tenantDocPath(TENANTS.TENANT_B, 'mhd_audit', 'helper-audit'),
         'create',
-        sampleMhdAudit(TENANTS.TORFABRIK),
+        sampleMhdAudit(TENANTS.TENANT_B),
       );
     });
 
     it('allows helper to create immutable own-tenant HACCP logs only', async () => {
-      const ctx = torfabrikHelper();
-      const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'haccp_logs', 'helper-temperature');
+      const ctx = tenantBHelper();
+      const ownPath = tenantDocPath(TENANTS.TENANT_B, 'haccp_logs', 'helper-temperature');
       const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'haccp_logs', 'helper-temperature');
-      const devicePath = tenantDocPath(TENANTS.TORFABRIK, 'haccp_geraete', 'helper-device');
+      const devicePath = tenantDocPath(TENANTS.TENANT_B, 'haccp_geraete', 'helper-device');
 
       await expectFirestoreAllow(
         ctx,
         ownPath,
         'create',
-        sampleHaccpLog(TENANTS.TORFABRIK),
+        sampleHaccpLog(TENANTS.TENANT_B),
       );
       await expectFirestoreDeny(
         ctx,
@@ -270,20 +270,20 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
           id: 'helper-device',
           name: 'Helper Device',
           type: 'manual_temp',
-          tenantId: TENANTS.TORFABRIK,
+          tenantId: TENANTS.TENANT_B,
         },
       );
     });
 
     it('allows employee to create temperature round without wert/value/user fields', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-haccp', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'haccp_logs', 'temperature_round_2026-10-22');
+      const ctx = authContext(testEnv, 'tf-employee-haccp', TENANTS.TENANT_B, 'employee');
+      const path = tenantDocPath(TENANTS.TENANT_B, 'haccp_logs', 'temperature_round_2026-10-22');
 
       await expectFirestoreAllow(
         ctx,
         path,
         'create',
-        sampleHaccpRoundLog(TENANTS.TORFABRIK),
+        sampleHaccpRoundLog(TENANTS.TENANT_B),
       );
       await expectFirestoreDeny(
         ctx,
@@ -319,7 +319,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies stock updates across tenants or with product field changes', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-stock', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-stock', TENANTS.TENANT_B, 'employee');
 
       await expectFirestoreDeny(
         ctx,
@@ -443,7 +443,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies foreign tenant create on StevesHof wareneingang', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-we', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-we', TENANTS.TENANT_B, 'employee');
       await expectFirestoreDeny(
         ctx,
         deliveryPath,
@@ -464,10 +464,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('allows tenant users to append one task comment', async () => {
       for (const role of ['helper', 'employee', 'admin']) {
-        const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', `comment-${role}`);
-        await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+        const path = tenantDocPath(TENANTS.TENANT_B, 'tasks', `comment-${role}`);
+        await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TENANT_B, 'Seed Author'));
 
-        const ctx = authContext(testEnv, `tf-${role}-comment`, TENANTS.TORFABRIK, role);
+        const ctx = authContext(testEnv, `tf-${role}-comment`, TENANTS.TENANT_B, role);
         await expectFirestoreAllow(
           ctx,
           path,
@@ -478,8 +478,8 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies comments across tenants', async () => {
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'comment-cross-tenant');
-      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+      const path = tenantDocPath(TENANTS.TENANT_B, 'tasks', 'comment-cross-tenant');
+      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TENANT_B, 'Seed Author'));
 
       const ctx = authContext(testEnv, 'sh-employee-comment', TENANTS.STEVES_HOF, 'employee');
       await expectFirestoreDeny(
@@ -491,10 +491,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies comment updates that change task fields at the same time', async () => {
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'tasks', 'comment-mixed-update');
-      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TORFABRIK, 'Seed Author'));
+      const path = tenantDocPath(TENANTS.TENANT_B, 'tasks', 'comment-mixed-update');
+      await seedFirestoreDoc(testEnv, path, sampleTask(TENANTS.TENANT_B, 'Seed Author'));
 
-      const ctx = authContext(testEnv, 'tf-employee-comment-mixed', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-comment-mixed', TENANTS.TENANT_B, 'employee');
       await expectFirestoreDeny(
         ctx,
         path,
@@ -508,38 +508,38 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
   });
 
   describe('TEST CASE 3: Terminal Credentials Lockout', () => {
-    const torfabrikAdmin = () => authContext(
+    const tenantBAdmin = () => authContext(
       testEnv,
       'tf-admin-1',
-      TENANTS.TORFABRIK,
+      TENANTS.TENANT_B,
       'admin',
     );
 
     beforeEach(async () => {
       await seedFirestoreDoc(
         testEnv,
-        tenantDocPath(TENANTS.TORFABRIK, 'terminalCredentials', 'current'),
-        { tenantId: TENANTS.TORFABRIK, seedVersion: 1 },
+        tenantDocPath(TENANTS.TENANT_B, 'terminalCredentials', 'current'),
+        { tenantId: TENANTS.TENANT_B, seedVersion: 1 },
       );
       await seedFirestoreDoc(
         testEnv,
-        tenantDocPath(TENANTS.TORFABRIK, 'pinAttempts', 'some-uid'),
-        { count: 1, tenantId: TENANTS.TORFABRIK },
+        tenantDocPath(TENANTS.TENANT_B, 'pinAttempts', 'some-uid'),
+        { count: 1, tenantId: TENANTS.TENANT_B },
       );
     });
 
     it('denies admin read/write on terminalCredentials', async () => {
-      const ctx = torfabrikAdmin();
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'terminalCredentials', 'current');
+      const ctx = tenantBAdmin();
+      const path = tenantDocPath(TENANTS.TENANT_B, 'terminalCredentials', 'current');
 
       await expectFirestoreDeny(ctx, path, 'read');
-      await expectFirestoreDeny(ctx, path, 'write', { tenantId: TENANTS.TORFABRIK });
+      await expectFirestoreDeny(ctx, path, 'write', { tenantId: TENANTS.TENANT_B });
       await expectFirestoreDeny(ctx, path, 'delete');
     });
 
     it('denies admin read/write on pinAttempts', async () => {
-      const ctx = torfabrikAdmin();
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'pinAttempts', 'some-uid');
+      const ctx = tenantBAdmin();
+      const path = tenantDocPath(TENANTS.TENANT_B, 'pinAttempts', 'some-uid');
 
       await expectFirestoreDeny(ctx, path, 'read');
       await expectFirestoreDeny(ctx, path, 'write', { count: 99 });
@@ -547,67 +547,67 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
   });
 
-  describe('TEST CASE 3b: TorFabrik module isolation', () => {
-    const torfabrikAdmin = () => authContext(
+  describe('TEST CASE 3b: module isolation when kitchen disabled', () => {
+    const tenantBAdmin = () => authContext(
       testEnv,
       'tf-admin-no-production',
-      TENANTS.TORFABRIK,
+      TENANTS.TENANT_B,
       'admin',
     );
 
-    it('denies TorFabrik access to recipes and production batches', async () => {
-      const ctx = torfabrikAdmin();
-      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, {
-        displayName: 'TorFabrik',
+    it('denies Tenant-B access to recipes and production batches', async () => {
+      const ctx = tenantBAdmin();
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TENANT_B}`, {
+        displayName: 'Tenant B',
         status: 'active',
         enabledModules: { kitchen: false, wurstkueche: false, retterBox: false },
       });
 
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'rezepte', 'probe-recipe'),
+        tenantDocPath(TENANTS.TENANT_B, 'rezepte', 'probe-recipe'),
         'read',
       );
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'produktion_chargen', 'probe-batch'),
+        tenantDocPath(TENANTS.TENANT_B, 'produktion_chargen', 'probe-batch'),
         'read',
       );
       await expectFirestoreDeny(
         ctx,
-        tenantDocPath(TENANTS.TORFABRIK, 'produktion_chargen', 'probe-batch'),
+        tenantDocPath(TENANTS.TENANT_B, 'produktion_chargen', 'probe-batch'),
         'create',
-        { tenantId: TENANTS.TORFABRIK },
+        { tenantId: TENANTS.TENANT_B },
       );
     });
   });
 
   describe('TEST CASE 4: Storage Rules & Bulletin Board', () => {
-    const objectPath = bulletinObjectPath(TENANTS.TORFABRIK, 'image.jpg');
+    const objectPath = bulletinObjectPath(TENANTS.TENANT_B, 'image.jpg');
 
-    it('allows torfabrik admin bulletin upload (production path: bulletin/)', async () => {
-      const ctx = authContext(testEnv, 'tf-admin-storage', TENANTS.TORFABRIK, 'admin');
+    it('allows tenant-B admin bulletin upload (production path: bulletin/)', async () => {
+      const ctx = authContext(testEnv, 'tf-admin-storage', TENANTS.TENANT_B, 'admin');
       await expectStorageUploadAllow(ctx, objectPath);
     });
 
-    it('denies torfabrik employee bulletin upload', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-storage', TENANTS.TORFABRIK, 'employee');
+    it('denies tenant-B employee bulletin upload', async () => {
+      const ctx = authContext(testEnv, 'tf-employee-storage', TENANTS.TENANT_B, 'employee');
       await expectStorageUploadDeny(ctx, objectPath);
     });
 
-    it('denies torfabrik helper bulletin upload', async () => {
-      const ctx = authContext(testEnv, 'tf-helper-storage', TENANTS.TORFABRIK, 'helper');
+    it('denies tenant-B helper bulletin upload', async () => {
+      const ctx = authContext(testEnv, 'tf-helper-storage', TENANTS.TENANT_B, 'helper');
       await expectStorageUploadDeny(ctx, objectPath);
     });
 
-    it('denies StevesHof admin upload into torfabrik bulletin path', async () => {
+    it('denies StevesHof admin upload into tenant-B bulletin path', async () => {
       const ctx = authContext(testEnv, 'sh-admin-storage', TENANTS.STEVES_HOF, 'admin');
       await expectStorageUploadDeny(ctx, objectPath);
     });
 
     it('documents that bulletins/ (plural) is not a configured storage rule path', async () => {
-      const pluralPath = `tenants/${TENANTS.TORFABRIK}/bulletins/image.jpg`;
-      const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TORFABRIK, 'admin');
+      const pluralPath = `tenants/${TENANTS.TENANT_B}/bulletins/image.jpg`;
+      const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TENANT_B, 'admin');
       await expectStorageUploadDeny(ctx, pluralPath);
     });
   });
@@ -629,10 +629,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
   });
 
   describe('TEST CASE 5: system_errors write-only schema', () => {
-    const torfabrikEmployee = () => authContext(
+    const tenantBEmployee = () => authContext(
       testEnv,
       'tf-employee-telemetry',
-      TENANTS.TORFABRIK,
+      TENANTS.TENANT_B,
       'employee',
     );
 
@@ -651,21 +651,21 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     }
 
     it('allows authenticated client to append a valid system_errors document', async () => {
-      const ctx = torfabrikEmployee();
+      const ctx = tenantBEmployee();
       await expectFirestoreAllow(
         ctx,
-        telemetryPath(TENANTS.TORFABRIK, 'telemetry-ok'),
+        telemetryPath(TENANTS.TENANT_B, 'telemetry-ok'),
         'create',
-        validSystemError(TENANTS.TORFABRIK),
+        validSystemError(TENANTS.TENANT_B),
       );
     });
 
     it('denies employee read and any update or delete on system_errors', async () => {
-      const ctx = torfabrikEmployee();
-      const path = telemetryPath(TENANTS.TORFABRIK, 'telemetry-locked');
+      const ctx = tenantBEmployee();
+      const path = telemetryPath(TENANTS.TENANT_B, 'telemetry-locked');
 
       await seedFirestoreDoc(testEnv, path, {
-        tenantId: TENANTS.TORFABRIK,
+        tenantId: TENANTS.TENANT_B,
         errorCode: 'ERR_SEED',
         message: 'seed',
       });
@@ -674,17 +674,17 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await expectFirestoreDeny(ctx, path, 'update', { message: 'changed' });
       await expectFirestoreDeny(ctx, path, 'delete');
 
-      const admin = authContext(testEnv, 'tf-admin-telemetry', TENANTS.TORFABRIK, 'admin');
+      const admin = authContext(testEnv, 'tf-admin-telemetry', TENANTS.TENANT_B, 'admin');
       await expectFirestoreAllow(admin, path, 'read');
     });
 
     it('denies create on the global collection and across tenants', async () => {
-      const ctx = torfabrikEmployee();
+      const ctx = tenantBEmployee();
       await expectFirestoreDeny(
         ctx,
         'system_errors/telemetry-global',
         'create',
-        validSystemError(TENANTS.TORFABRIK),
+        validSystemError(TENANTS.TENANT_B),
       );
       await expectFirestoreDeny(
         ctx,
@@ -695,54 +695,54 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies create with foreign fields or oversized message', async () => {
-      const ctx = torfabrikEmployee();
+      const ctx = tenantBEmployee();
 
       await expectFirestoreDeny(
         ctx,
-        telemetryPath(TENANTS.TORFABRIK, 'telemetry-inject'),
+        telemetryPath(TENANTS.TENANT_B, 'telemetry-inject'),
         'create',
-        validSystemError(TENANTS.TORFABRIK, { injected: true }),
+        validSystemError(TENANTS.TENANT_B, { injected: true }),
       );
 
       await expectFirestoreDeny(
         ctx,
-        telemetryPath(TENANTS.TORFABRIK, 'telemetry-flood'),
+        telemetryPath(TENANTS.TENANT_B, 'telemetry-flood'),
         'create',
-        validSystemError(TENANTS.TORFABRIK, { message: 'x'.repeat(1000) }),
+        validSystemError(TENANTS.TENANT_B, { message: 'x'.repeat(1000) }),
       );
 
       await expectFirestoreDeny(
         ctx,
-        telemetryPath(TENANTS.TORFABRIK, 'telemetry-userid'),
+        telemetryPath(TENANTS.TENANT_B, 'telemetry-userid'),
         'create',
-        validSystemError(TENANTS.TORFABRIK, { userId: 'person-name' }),
+        validSystemError(TENANTS.TENANT_B, { userId: 'person-name' }),
       );
     });
   });
 
   describe('TEST CASE 6: chargendoku tenant isolation', () => {
-    const ownPath = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-own');
+    const ownPath = tenantDocPath(TENANTS.TENANT_B, 'chargendoku', 'trace-own');
     const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'chargendoku', 'trace-foreign');
-    const legacyOwnPath = tenantDocPath(TENANTS.TORFABRIK, 'traceabilityRecords', 'trace-legacy');
+    const legacyOwnPath = tenantDocPath(TENANTS.TENANT_B, 'traceabilityRecords', 'trace-legacy');
 
     it('allows employee create/read on own tenant chargendoku', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace', TENANTS.TORFABRIK, 'employee');
-      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-own' });
+      const ctx = authContext(testEnv, 'tf-employee-trace', TENANTS.TENANT_B, 'employee');
+      const payload = sampleTraceabilityRecord(TENANTS.TENANT_B, { id: 'trace-own' });
       await expectFirestoreAllow(ctx, ownPath, 'create', payload);
       await expectFirestoreAllow(ctx, ownPath, 'read');
     });
 
     it('denies cross-tenant read/create on StevesHof chargendoku', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-x', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-trace-x', TENANTS.TENANT_B, 'employee');
       const payload = sampleTraceabilityRecord(TENANTS.STEVES_HOF, { id: 'trace-foreign' });
       await expectFirestoreDeny(ctx, foreignPath, 'read');
       await expectFirestoreDeny(ctx, foreignPath, 'create', payload);
     });
 
     it('allows create with optional organicControlBody and organicAssociation', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-bio', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-bio');
-      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
+      const ctx = authContext(testEnv, 'tf-employee-trace-bio', TENANTS.TENANT_B, 'employee');
+      const path = tenantDocPath(TENANTS.TENANT_B, 'chargendoku', 'trace-bio');
+      const payload = sampleTraceabilityRecord(TENANTS.TENANT_B, {
         id: 'trace-bio',
         organicControlBody: 'DE-ÖKO-006',
         organicAssociation: 'Bioland',
@@ -751,9 +751,9 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies create when organicControlBody is not a string', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-bio-bad', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'chargendoku', 'trace-bio-bad');
-      const payload = sampleTraceabilityRecord(TENANTS.TORFABRIK, {
+      const ctx = authContext(testEnv, 'tf-employee-trace-bio-bad', TENANTS.TENANT_B, 'employee');
+      const path = tenantDocPath(TENANTS.TENANT_B, 'chargendoku', 'trace-bio-bad');
+      const payload = sampleTraceabilityRecord(TENANTS.TENANT_B, {
         id: 'trace-bio-bad',
         organicControlBody: 6,
         organicAssociation: 'EU-Bio',
@@ -765,13 +765,13 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await seedFirestoreDoc(
         testEnv,
         ownPath,
-        sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-own' }),
+        sampleTraceabilityRecord(TENANTS.TENANT_B, { id: 'trace-own' }),
       );
 
-      const admin = authContext(testEnv, 'tf-admin-trace', TENANTS.TORFABRIK, 'admin');
+      const admin = authContext(testEnv, 'tf-admin-trace', TENANTS.TENANT_B, 'admin');
       await expectFirestoreAllow(admin, ownPath, 'update', { status: 'archived' });
 
-      const employee = authContext(testEnv, 'tf-employee-trace-upd', TENANTS.TORFABRIK, 'employee');
+      const employee = authContext(testEnv, 'tf-employee-trace-upd', TENANTS.TENANT_B, 'employee');
       await expectFirestoreDeny(employee, ownPath, 'update', { status: 'active' });
     });
 
@@ -779,47 +779,47 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       await seedFirestoreDoc(
         testEnv,
         legacyOwnPath,
-        sampleTraceabilityRecord(TENANTS.TORFABRIK, { id: 'trace-legacy' }),
+        sampleTraceabilityRecord(TENANTS.TENANT_B, { id: 'trace-legacy' }),
       );
-      const ctx = authContext(testEnv, 'tf-employee-trace-legacy', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-trace-legacy', TENANTS.TENANT_B, 'employee');
       await expectFirestoreAllow(ctx, legacyOwnPath, 'read');
     });
 
     it('allows employee upload to own tenant chargendoku storage path', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-storage', TENANTS.TORFABRIK, 'employee');
-      await expectStorageUploadAllow(ctx, chargenDokuObjectPath(TENANTS.TORFABRIK, 'trace-own.jpg'));
+      const ctx = authContext(testEnv, 'tf-employee-trace-storage', TENANTS.TENANT_B, 'employee');
+      await expectStorageUploadAllow(ctx, chargenDokuObjectPath(TENANTS.TENANT_B, 'trace-own.jpg'));
     });
 
     it('denies cross-tenant chargendoku storage upload', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-trace-storage-x', TENANTS.TENANT_B, 'employee');
       await expectStorageUploadDeny(ctx, chargenDokuObjectPath(TENANTS.STEVES_HOF, 'trace-foreign.jpg'));
     });
   });
 
   describe('TEST CASE 6b: delivery_notes storage tenant isolation', () => {
     it('allows employee upload to own tenant delivery_notes path', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-delivery-storage', TENANTS.TORFABRIK, 'employee');
-      await expectStorageUploadAllow(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-own.jpg'));
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage', TENANTS.TENANT_B, 'employee');
+      await expectStorageUploadAllow(ctx, deliveryNotesObjectPath(TENANTS.TENANT_B, 'ls-own.jpg'));
     });
 
     it('denies cross-tenant delivery_notes storage upload', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-delivery-storage-x', TENANTS.TORFABRIK, 'employee');
+      const ctx = authContext(testEnv, 'tf-employee-delivery-storage-x', TENANTS.TENANT_B, 'employee');
       await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.STEVES_HOF, 'ls-foreign.jpg'));
     });
 
     it('denies helper write on delivery_notes', async () => {
-      const ctx = authContext(testEnv, 'tf-helper-delivery-storage', TENANTS.TORFABRIK, 'helper');
-      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.TORFABRIK, 'ls-helper.jpg'));
+      const ctx = authContext(testEnv, 'tf-helper-delivery-storage', TENANTS.TENANT_B, 'helper');
+      await expectStorageUploadDeny(ctx, deliveryNotesObjectPath(TENANTS.TENANT_B, 'ls-helper.jpg'));
     });
   });
 
   describe('TEST CASE 7: pushTokens read lockout', () => {
     it('denies employee read on pushTokens', async () => {
-      const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TORFABRIK, 'employee');
-      const path = tenantDocPath(TENANTS.TORFABRIK, 'pushTokens', 'token-1');
+      const ctx = authContext(testEnv, 'tf-employee-push', TENANTS.TENANT_B, 'employee');
+      const path = tenantDocPath(TENANTS.TENANT_B, 'pushTokens', 'token-1');
 
       await seedFirestoreDoc(testEnv, path, {
-        tenantId: TENANTS.TORFABRIK,
+        tenantId: TENANTS.TENANT_B,
         token: 'seed-token',
         employeeName: 'Seed',
       });
@@ -830,10 +830,10 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
   describe('TEST CASE 8: Tenant root status & delete (platform admin)', () => {
     const PLATFORM_DEV_ADMIN_UID = 'VYwMy5IAlAR26pj8ZbFfc5PNdou2';
-    const tenantRootPath = `tenants/${TENANTS.TORFABRIK}`;
+    const tenantRootPath = `tenants/${TENANTS.TENANT_B}`;
 
     const sampleTenantRoot = (overrides = {}) => ({
-      displayName: 'TorFabrik',
+      displayName: 'Tenant B',
       status: 'active',
       enabledModules: {
         start: true,
@@ -859,7 +859,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies tenant admin create on tenant root', async () => {
-      const ctx = authContext(testEnv, 'tf-admin-root', TENANTS.TORFABRIK, 'admin');
+      const ctx = authContext(testEnv, 'tf-admin-root', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(ctx, `tenants/other-tenant`, 'create', sampleTenantRoot());
     });
 
@@ -869,7 +869,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(platform, tenantRootPath, 'update', { status: 'inactive' });
 
-      const admin = authContext(testEnv, 'tf-admin-status', TENANTS.TORFABRIK, 'admin');
+      const admin = authContext(testEnv, 'tf-admin-status', TENANTS.TENANT_B, 'admin');
       // Muss einen echten Diff erzeugen (status wechseln), sonst ist affectedKeys leer
       // und die Admin-Modul-Update-Regel greift fälschlich.
       await expectFirestoreDeny(admin, tenantRootPath, 'update', { status: 'active' });
@@ -878,19 +878,19 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('allows platform admin delete and denies tenant admin delete', async () => {
       await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
 
-      const admin = authContext(testEnv, 'tf-admin-del', TENANTS.TORFABRIK, 'admin');
+      const admin = authContext(testEnv, 'tf-admin-del', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(admin, tenantRootPath, 'delete');
 
       const platform = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
       await expectFirestoreAllow(platform, tenantRootPath, 'delete');
     });
-    it('denies Tenant-Admin of TorFabrik reading/writing StevesHof tenant root & modules', async () => {
+    it('denies Tenant-Admin of Tenant-B reading/writing StevesHof tenant root & modules', async () => {
       const stevesRoot = `tenants/${TENANTS.STEVES_HOF}`;
       await seedFirestoreDoc(testEnv, stevesRoot, sampleTenantRoot({
         displayName: 'StevesHof',
       }));
 
-      const foreignAdmin = authContext(testEnv, 'tf-admin-cross-root', TENANTS.TORFABRIK, 'admin');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-cross-root', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(foreignAdmin, stevesRoot, 'read');
       await expectFirestoreDeny(foreignAdmin, stevesRoot, 'update', {
         enabledModules: { mhd: false },
@@ -899,7 +899,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('denies client updates of enabledModules and allows a displayName change', async () => {
       await seedFirestoreDoc(testEnv, tenantRootPath, sampleTenantRoot());
-      const ownAdmin = authContext(testEnv, 'tf-admin-modules', TENANTS.TORFABRIK, 'admin');
+      const ownAdmin = authContext(testEnv, 'tf-admin-modules', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(ownAdmin, tenantRootPath, 'update', {
         enabledModules: {
           start: true,
@@ -918,7 +918,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         enabledModules: { mhd: false },
       });
       await expectFirestoreAllow(ownAdmin, tenantRootPath, 'update', {
-        displayName: 'TorFabrik Krefeld',
+        displayName: 'Tenant B (isolation)',
       });
     });
   });
@@ -977,7 +977,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     });
 
     it('denies cross-tenant admin writes on StevesHof stammdaten and settings', async () => {
-      const foreignAdmin = authContext(testEnv, 'tf-admin-stammdaten', TENANTS.TORFABRIK, 'admin');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-stammdaten', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(foreignAdmin, stammdatenPath, 'update', { name: 'Cross Tenant' });
       await expectFirestoreDeny(foreignAdmin, settingsPath, 'update', settings);
     });
@@ -1045,7 +1045,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
       const admin = authContext(testEnv, 'sh-admin-employees', TENANTS.STEVES_HOF, 'admin');
       const employee = authContext(testEnv, 'sh-employee-employees', TENANTS.STEVES_HOF, 'employee');
-      const foreignAdmin = authContext(testEnv, 'tf-admin-employees', TENANTS.TORFABRIK, 'admin');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-employees', TENANTS.TENANT_B, 'admin');
       await expectFirestoreAllow(admin, employeePath, 'read');
       await expectFirestoreDeny(employee, employeePath, 'read');
       await expectFirestoreDeny(foreignAdmin, employeePath, 'read');
@@ -1065,7 +1065,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('allows employee and helper create/read/status-update; denies cross-tenant', async () => {
       const employee = authContext(testEnv, 'sh-employee-supply', TENANTS.STEVES_HOF, 'employee');
       const helper = authContext(testEnv, 'sh-helper-supply', TENANTS.STEVES_HOF, 'helper');
-      const foreign = authContext(testEnv, 'tf-employee-supply', TENANTS.TORFABRIK, 'employee');
+      const foreign = authContext(testEnv, 'tf-employee-supply', TENANTS.TENANT_B, 'employee');
 
       await expectFirestoreAllow(employee, alertPath, 'read');
       await expectFirestoreAllow(
@@ -1124,7 +1124,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('allows employee to upsert supply_catalog and admin to delete', async () => {
       const employee = authContext(testEnv, 'sh-employee-catalog', TENANTS.STEVES_HOF, 'employee');
       const admin = authContext(testEnv, 'sh-admin-catalog', TENANTS.STEVES_HOF, 'admin');
-      const foreign = authContext(testEnv, 'tf-employee-catalog', TENANTS.TORFABRIK, 'employee');
+      const foreign = authContext(testEnv, 'tf-employee-catalog', TENANTS.TENANT_B, 'employee');
 
       await expectFirestoreAllow(employee, catalogPath, 'read');
       await expectFirestoreAllow(
@@ -1199,7 +1199,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('denies employee write and cross-tenant admin access on cleaning tasks', async () => {
       const employee = authContext(testEnv, 'sh-employee-haccp-clean-w', TENANTS.STEVES_HOF, 'employee');
-      const foreignAdmin = authContext(testEnv, 'tf-admin-haccp-clean', TENANTS.TORFABRIK, 'admin');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-haccp-clean', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(
         employee,
         tenantDocPath(TENANTS.STEVES_HOF, 'haccp_cleaning_tasks', 'employee-inject'),
@@ -1216,8 +1216,8 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     const collections = ['mhd_audit', 'audit_logs'];
 
     collections.forEach((name) => {
-      it(`denies torfabrik employee read/write on StevesHof ${name}`, async () => {
-        const ctx = authContext(testEnv, 'tf-audit-emp', TENANTS.TORFABRIK, 'employee');
+      it(`denies tenant-B employee read/write on StevesHof ${name}`, async () => {
+        const ctx = authContext(testEnv, 'tf-audit-emp', TENANTS.TENANT_B, 'employee');
         const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, name, 'audit-cross-1');
         const payload = sampleMhdAudit(TENANTS.STEVES_HOF);
 
@@ -1294,8 +1294,8 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
   });
 
   describe('TEST CASE 11: product_master tenant isolation', () => {
-    it('denies torfabrik employee read/write on StevesHof product_master', async () => {
-      const ctx = authContext(testEnv, 'tf-master-emp', TENANTS.TORFABRIK, 'employee');
+    it('denies tenant-B employee read/write on StevesHof product_master', async () => {
+      const ctx = authContext(testEnv, 'tf-master-emp', TENANTS.TENANT_B, 'employee');
       const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200507');
       const payload = sampleProductMaster(TENANTS.STEVES_HOF);
 
@@ -1364,7 +1364,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
 
     it('allows tenant employee write and denies cross-tenant write', async () => {
       const own = authContext(testEnv, 'sh-cat-emp', TENANTS.STEVES_HOF, 'employee');
-      const foreign = authContext(testEnv, 'tf-cat-emp', TENANTS.TORFABRIK, 'employee');
+      const foreign = authContext(testEnv, 'tf-cat-emp', TENANTS.TENANT_B, 'employee');
       const ownPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '501');
       const foreignPath = tenantDocPath(TENANTS.STEVES_HOF, 'catalog_overrides', '500');
 
@@ -1427,8 +1427,8 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         status: 'active',
         enabledModules: { averyLabels: true, mhd: true },
       });
-      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TORFABRIK}`, {
-        displayName: 'TorFabrik',
+      await seedFirestoreDoc(testEnv, `tenants/${TENANTS.TENANT_B}`, {
+        displayName: 'Tenant B',
         status: 'active',
         enabledModules: { averyLabels: true, mhd: true },
       });
@@ -1455,7 +1455,7 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
     it('denies cross-tenant read/write on StevesHof avery draft', async () => {
       const path = draftPath(TENANTS.STEVES_HOF);
       await seedFirestoreDoc(testEnv, path, sampleDraft(TENANTS.STEVES_HOF));
-      const foreign = authContext(testEnv, 'tf-avery-emp', TENANTS.TORFABRIK, 'employee');
+      const foreign = authContext(testEnv, 'tf-avery-emp', TENANTS.TENANT_B, 'employee');
       await expectFirestoreDeny(foreign, path, 'read');
       await expectFirestoreDeny(foreign, path, 'create', sampleDraft(TENANTS.STEVES_HOF));
     });

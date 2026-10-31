@@ -16,7 +16,7 @@ import {
 } from '../web/admin-tenant-models.js';
 
 const TENANT_A = 'StevesHof_Hauptbetrieb';
-const TENANT_B = 'TorFabrik';
+const TENANT_B = 'tenant_b_isolation';
 
 function step(name, pass, extra = {}) {
   return { name, pass: Boolean(pass), ...extra };
@@ -315,7 +315,7 @@ const uiResult = await page.evaluate(async () => {
   });
   steps.push({
     name: 'resolveDashboardTenantId-uses-claim',
-    pass: resolveDashboardTenantId({ tenantId }, { tenantId: 'TorFabrik' }) === tenantId,
+    pass: resolveDashboardTenantId({ tenantId }, { tenantId: 'tenant_b_isolation' }) === tenantId,
   });
 
   const globalPanel = document.getElementById('dev-dashboard-global-panel');

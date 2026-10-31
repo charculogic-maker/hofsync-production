@@ -14,7 +14,7 @@ import {
 } from '../billingTiers.js';
 import { handleHofladenCheckout, isStripeCheckoutUrl } from '../hofladenCheckout.js';
 
-function authAs({ uid = 'uid-test', tenantId = 'torfabrik', role = 'admin', email = 'admin@example.de' } = {}) {
+function authAs({ uid = 'uid-test', tenantId = 'tenant_b_isolation', role = 'admin', email = 'admin@example.de' } = {}) {
   return { uid, token: { tenantId, role, email, isAdmin: role === 'admin' } };
 }
 
@@ -382,8 +382,8 @@ describe('Phase 3 callables', () => {
   test('setTenantModules rejects a tenant admin', async () => {
     const { handleSetTenantModules } = await import('../tenantAdmin.js');
     await expect(handleSetTenantModules({
-      auth: authAs({ role: 'admin', email: 'admin@torfabrik.de' }),
-      data: { targetTenantId: 'torfabrik', enabledModules: { mhd: true } },
+      auth: authAs({ role: 'admin', email: 'admin@example-tenant-b.de' }),
+      data: { targetTenantId: 'tenant_b_isolation', enabledModules: { mhd: true } },
     })).rejects.toMatchObject({ code: 'permission-denied' });
   });
 

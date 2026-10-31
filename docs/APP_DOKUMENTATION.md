@@ -16,7 +16,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 3. [Mandanten & White-Label](#3-mandanten--white-label)
 4. [Navigation & Module](#4-navigation--module)
 5. [StevesHof Hofladen (aktuell)](#5-steveshof-hofladen-aktuell)
-6. [TorFabrik Krefeld (aktuell)](#6-torfabrik-krefeld-aktuell)
+6. [Weitere Mandanten / Archiv](#6-weitere-mandanten--archiv)
 7. [Rollen & Sichtbarkeit](#7-rollen--sichtbarkeit)
 8. [Offline, Sync & PWA](#8-offline-sync--pwa)
 9. [Cloud Functions](#9-cloud-functions)
@@ -31,7 +31,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 
 ## 1. Produktüberblick
 
-**CharcuLogic** (Produktname am StevesHof) bzw. **CenterLogic** (TorFabrik) ist eine touch-optimierte, offline-fähige Betriebs-App für Hofläden und handwerkliche Metzgereien. Sie deckt den operativen Alltag ab:
+**CharcuLogic / HofSync** ist eine touch-optimierte, offline-fähige Betriebs-App für Hofläden und handwerkliche Metzgereien (White-Label möglich). Sie deckt den operativen Alltag ab:
 
 | Bereich | Funktion |
 |---------|----------|
@@ -96,7 +96,7 @@ Das System ist als **White-Label-Lösung mit strikter Mandantentrennung** gebaut
 | Alias (`.firebaserc`) | Projekt-ID | Typische Nutzung |
 |----------------------|------------|------------------|
 | `default` | `hofsync-production` | StevesHof-Produktion (`hofsync-production.web.app`) |
-| `whitelabel` | `charculogic-whitelabel-test` | TorFabrik-Test (`charculogic-whitelabel-test.web.app`) |
+| `whitelabel` | `charculogic-whitelabel-test` | White-Label-Test (`charculogic-whitelabel-test.web.app`) |
 
 Die Web-App wählt `apiKey` / `projectId` automatisch nach Hostname (`web/firebase-config.js`). Lokal: `?firebase=whitelabel` oder `?firebase=production` auf `localhost`.
 
@@ -122,7 +122,7 @@ Pro Mandant konfigurierbar:
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `traceability` / `chargenDoku` | Tab **Herkunft** (LMIV) inkl. Digitale Thekenklade |
-| `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
+| `wurstkueche` | Tab **Prod.** (über `enabledModules` / Branding steuerbar) |
 | `cutGlossary` / `knowledge` | Mehr → Auskunft (Theken-Auskunft); Cuts über dieselbe Seite |
 | `haccp` | **HACCP** (Mehr) |
 | `teamboard` | Tab **Start** (Teamboard) |
@@ -185,7 +185,6 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - Schnellwahl Standard-Charge (Alexanderwerk / OSKAR 20: 8 / 12 / 16 / 20 kg) skaliert Fleisch-, Schüttungs- und Gewürzmengen
 - Dynamisches DIN-A4-Produktionsdatenblatt (2 Seiten) mit Recipe-to-Print-Matrix, QUID/LMIV-Etikettentext und HACCP-Prüfpunkten
 - Fleischpreis-Update-Button nur für Büro-Admins
-- Modul deaktiviert für Mandant `torfabrik`
 
 ### HACCP (`web/haccp.js`)
 
@@ -283,33 +282,13 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich **Büro 
 
 ---
 
-## 6. TorFabrik Krefeld (aktuell)
+## 6. Weitere Mandanten / Archiv
 
-| Eigenschaft | Wert |
-|-------------|------|
-| `tenantId` | `torfabrik` |
-| App-Name | CenterLogic |
-| Firebase-Projekt | `charculogic-whitelabel-test` |
-| Hosting | `https://charculogic-whitelabel-test.web.app` |
+Aktiver dokumentierter Produktiv-Mandant: **StevesHof** (§5). Weitere Betriebe werden über White-Label Onboarding angelegt ([ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md)).
 
-### Aktive Module
+**Archiv:** Mandant **TorFabrik** (`torfabrik` / CenterLogic-Kunde Krefeld) ist nicht mehr aktiv. Historische Anleitungen: [docs/_archive/torfabrik/](./_archive/torfabrik/).
 
-| Modul | Status |
-|-------|--------|
-| MHD | ✅ |
-| Wareneingang | ✅ |
-| Herkunft / LMIV (`traceability`) | ✅ |
-| Wurstküche | ❌ (hardcoded + Branding) |
-| HACCP | ✅ |
-| Teamboard | ✅ |
-| Team + Bestellungen | ✅ |
-| KI-Lieferschein (Wareneingang) | ✅ (UI TorFabrik-only) |
-
-### Rollen am Laden
-
-- **Helper:** eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv
-- **Employee / Admin:** volle Modul-Sichtbarkeit gemäß Branding; Thekenklade unter **Herkunft → Thekenklade**
-- Mitarbeiter-PIN über Callable `verifyTerminalPin` + `terminalCredentials/current`
+Isolations-Tests nutzen einen synthetischen Zweitmandanten `tenant_b_isolation` (kein Produktiv-Kunde).
 
 ---
 
@@ -457,7 +436,7 @@ Alle Mandantendaten unter `tenants/{tenantId}/`:
 | `mhd_liste` | MHD-Posten |
 | `wareneingang_lieferungen` | Lieferungen inkl. Fotos |
 | `stammdaten` | Artikelstammdaten |
-| `inventory` | KI-Lieferschein-Bestand (TorFabrik) |
+| `inventory` | optionaler KI-Lieferschein-Bestand |
 | `rezepte` | Rezepturen |
 | `produktion_chargen` | Produktionschargen |
 | `fleischpreise` | Wochen-Fleischpreise (nur Functions schreiben) |
@@ -542,7 +521,7 @@ Dann `http://127.0.0.1:5173/index.html` — Firebase-Login erforderlich für Liv
 
 ```bash
 node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentials
-node tools/seed-tenant-bootstrap.mjs --tenant=torfabrik --project=charculogic-whitelabel-test --all
+node tools/seed-tenant-bootstrap.mjs --tenant=whitelabel_test --project=charculogic-whitelabel-test --all
 ```
 
 ---
@@ -582,7 +561,7 @@ craft_food_app/
 | [README.md](./README.md) | Übersicht aller Projekt-Dokumente |
 | [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md) | Security, Rules-Schemata, Functions im Detail |
 | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) | Tagesablauf StevesHof (Kollegen) |
-| [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) | Tagesablauf TorFabrik |
+| [docs/_archive/torfabrik/](./_archive/torfabrik/) | Archiv ehemaliger Mandant TorFabrik |
 | [user-manuals/ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone Handbuch |
 | [modulanleitungen/README.md](./modulanleitungen/README.md) | Screenshots pro Modul |
 | [WHITE_LABEL_UPLOAD_ANLEITUNG.md](./WHITE_LABEL_UPLOAD_ANLEITUNG.md) | CSV-Import Rezepte & MHD |

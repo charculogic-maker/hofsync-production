@@ -2,7 +2,7 @@
 
 Hier erfassen wir **Lieferungen**: Lieferschein-Fotos, Lieferant, Temperatur und die einzelnen **Posten** (Artikel mit MHD).
 
-> **TorFabrik (`torfabrik`):** Zusätzlich **„Lieferschein scannen (KI)“** (Gemini) – geparste Posten landen in `tenants/torfabrik/inventory`. Details: [KOLLEGEN_ANLEITUNG_TORFABRIK.md](../KOLLEGEN_ANLEITUNG_TORFABRIK.md).
+> **Hinweis:** Der frühere KI-Lieferschein-Flow ist in der Laden-App deaktiviert (Code unter `legacy/`).
 
 ## Zwei Bereiche
 

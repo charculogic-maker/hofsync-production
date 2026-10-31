@@ -2,11 +2,10 @@
  * Einmalige Mandanten-Initialisierung (Admin SDK) – kein Client-Seeding mehr.
  *
  * Beispiele:
- *   node tools/seed-tenant-bootstrap.mjs --tenant=torfabrik --project=charculogic-whitelabel-test --all
  *   node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentials
  *   node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --all
- *   node tools/seed-tenant-bootstrap.mjs --tenant=torfabrik --team
  *   node tools/seed-tenant-bootstrap.mjs --tenant=AP23 --project=charculogic-whitelabel-test --tenant-root
+ *   node tools/seed-tenant-bootstrap.mjs --tenant=whitelabel_test --project=charculogic-whitelabel-test --all
  */
 import { createRequire } from 'node:module';
 import admin from 'firebase-admin';
@@ -31,17 +30,6 @@ const DEFAULT_ENABLED_MODULES = {
 };
 
 const TENANT_ENABLED_MODULES = {
-  torfabrik: {
-    start: true,
-    team: true,
-    mhd: true,
-    receiving: true,
-    kitchen: false,
-    haccp: true,
-    knowledge: false,
-    buero: false,
-    chargenDoku: true,
-  },
   steveshof_hauptbetrieb: {
     start: false,
     team: false,
@@ -78,7 +66,6 @@ const TENANT_ENABLED_MODULES = {
 };
 
 const TENANT_DISPLAY_NAMES = {
-  torfabrik: 'TorFabrik Krefeld',
   steveshof_hauptbetrieb: 'StevesHof Hofladen',
   whitelabel_test: 'Whitelabel Testbetrieb',
   ap23: 'AP23',
@@ -98,23 +85,6 @@ const FLY_PREVENTION_HACCP_DEVICES = [
 ];
 
 const TENANT_PRESETS = {
-  torfabrik: {
-    team: {
-      employees: ['Stephan', 'Boris', 'Aushilfe'],
-      groups: {
-        center: { label: 'Center-Team', members: ['Stephan', 'Boris'] },
-        aushilfe: { label: 'Aushilfe', members: ['Aushilfe'] },
-      },
-    },
-    employeePins: {
-      Stephan: '1111',
-      Boris: '2222',
-      Aushilfe: '3333',
-    },
-    meisterPins: {
-      Meister: '7788',
-    },
-  },
   // Whitelabel: Firebase Auth + Rollen (kein PIN-Terminal).
   // patrik@charculogic.de → admin | rehm.patrik@gmail.com → employee (via Admin-Dashboard)
   whitelabel_test: {
@@ -187,7 +157,6 @@ function normalizeTenantKey(tenantId) {
 
 function resolvePreset(tenantId) {
   const key = normalizeTenantKey(tenantId);
-  if (key === 'torfabrik') return TENANT_PRESETS.torfabrik;
   if (key === 'steveshof_hauptbetrieb') return TENANT_PRESETS.steveshof_hauptbetrieb;
   if (key === 'whitelabel_test') return TENANT_PRESETS.whitelabel_test;
   if (key === 'ap23') return TENANT_PRESETS.ap23;
@@ -312,7 +281,7 @@ async function seedHaccpDevices(db, tenantId, { includeFlyPrevention = true } = 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.tenant) {
-    console.error('Bitte --tenant=<id> angeben (z. B. torfabrik oder StevesHof_Hauptbetrieb).');
+    console.error('Bitte --tenant=<id> angeben (z. B. StevesHof_Hauptbetrieb, whitelabel_test oder AP23).');
     process.exitCode = 1;
     return;
   }
@@ -325,7 +294,7 @@ async function main() {
   const preset = resolvePreset(args.tenant);
   const hasEnabledModules = Boolean(TENANT_ENABLED_MODULES[normalizeTenantKey(args.tenant)]);
   if (!preset && !hasEnabledModules) {
-    console.error(`Kein Preset für Mandant "${args.tenant}". Unterstützt: torfabrik, StevesHof_Hauptbetrieb, whitelabel_test, AP23.`);
+    console.error(`Kein Preset für Mandant "${args.tenant}". Unterstützt: StevesHof_Hauptbetrieb, whitelabel_test, AP23.`);
     process.exitCode = 1;
     return;
   }
