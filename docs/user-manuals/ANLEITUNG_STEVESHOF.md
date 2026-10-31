@@ -8,7 +8,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **Neu**: Wareneingang im Laden (Barcode-Scan, Lieferung abschließen)
 - **Herkunft**: LMIV-Fleischherkunft erfassen (Etikettfoto + Charge)
 - **Etiketten**: Avery-Zerlegeetiketten (Packliste / Herkunft → Bogen, Druck am Laden-PC)
-- **Prod.**: Rezepte, Produktion und WRS-Kalkulation
+- **Prod.**: Rezepte, Produktion und WRS-Kalkulation (Wurst-Rezept-Skalierer)
 
 Zusätzlich über das **Verwaltungs-Menü** ⚙️ (persönliche Admin-Konten): **HACCP**, **Thekenklade**, **Theken-Auskunft** (Allergene/Zutaten), **Büro · Chargen**, **Retter-Box**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer, Mein Betrieb, Protokoll — plus Sprungmarken zur Thekenklade, Retter-Box und Theken-Auskunft.
 

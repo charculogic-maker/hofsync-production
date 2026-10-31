@@ -21,7 +21,7 @@ CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteu
 | Thema | CenterLogic-Verhalten |
 |-------|------------------------|
 | **Tabs aktiv** | Start · Team · MHD · Neu · Herkunft · HACCP · Büro |
-| **Tab Prod. (Wurstküche)** | Für TorFabrik **deaktiviert** — Rezept-Skalierung läuft nicht über den WRS |
+| **Tab Prod. (Wurstküche)** | Für TorFabrik **deaktiviert** — Rezept-Skalierung läuft nicht über den WRS (Wurst-Rezept-Skalierer) |
 | **Herkunft / Thekenklade** | Tab **Herkunft** + Admin **/dev-dashboard → Rückverfolgbarkeit** (`enabledModules.traceability`) |
 | **Standard-Ansicht Aufgaben** | **„Alle meine Bereiche“** — Theke, Küche & Events, Halle auf einen Blick |
 | **Betriebsbereiche** | Theke · Küche & Events · Halle · Allgemein |

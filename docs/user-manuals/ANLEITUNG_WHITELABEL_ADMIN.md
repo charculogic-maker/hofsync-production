@@ -45,7 +45,7 @@ await admin.auth().setCustomUserClaims(uid, {
 
 | Rolle | Typische Nutzung |
 |-------|------------------|
-| `admin` | Leitstand, Rezepte, Bulletin, WRS-Preis-Trigger |
+| `admin` | Leitstand, Rezepte, Bulletin, WRS-Preis-Trigger (Wurst-Rezept-Skalierer) |
 | `employee` | Operative Erfassung (MHD, Wareneingang, Team) |
 | `helper` | Eingeschränkte Ansicht (nur Start + MHD lesen) |
 
