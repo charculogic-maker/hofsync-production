@@ -110,9 +110,11 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `haccp_logs/{id}` | HACCP-Protokolle | create: Mandanten-Mitglied (admin/employee/helper); optionale Zahlenfelder; **update/delete: gesperrt** (unveränderlich) |
 | `haccp_stale_archive/{id}` | Cold-Storage abgewiesener Protokolle | create: Nutzer; update/delete: Admin |
 | `tasks/{taskId}` | Aufgaben & Team-Infos | create: Nutzer; update: Admin **oder** reines Abhaken; delete: Admin |
+| `supply_alerts/{alertId}` | Interne Bedarfsmeldungen / Checkliste | read/create: Mandanten-Nutzer inkl. Helper; update: Admin **oder** Status-/Zuordnungs-Update; delete: Admin |
+| `supply_catalog/{itemId}` | Bedarfs-Stammdaten für wachsende Schnell-Buttons | read/create/update: Mandanten-Nutzer; delete: Admin |
 | `customerOrders/{orderId}` | Kundenbestellungen | create: Nutzer; update: Admin **oder** Status-Übergang; delete: Admin |
 | `bulletinBoard/current` | Nachricht des Tages | nur Admin |
-| `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter) | nur Admin |
+| `settings/teamDashboard` | Team-Konfiguration (Gruppen, Mitarbeiter, `departmentAssignments`) | nur Admin |
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
@@ -123,6 +125,71 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `priceRuns/{runId}` *(global)* | Fleischpreis-Lauf-Lifecycle | nur Admin SDK / Cloud Functions |
 
 Die maßgeblichen Schemata (erlaubte Felder, Pflichtfelder, Validierungen) stehen in `firebase.rules`.
+
+### 2.1 Bedarf / Schnellmelde (`quick-alert.js`)
+
+Der Bedarfspfad ist bewusst klein gehalten: Mitarbeitende sollen auf dem Laden-iPhone sofort melden und abhaken können, während die Zuständigkeit über die Team-Konfiguration gesteuert wird.
+
+#### Collections und Schreibwege
+
+| Pfad | Quelle im Client | Zweck |
+|------|------------------|-------|
+| `tenants/{tenantId}/supply_alerts/{alertId}` | `createSupplyAlert()`, `updateSupplyAlertStatus()`, `updateSupplyAlertAssignment()` | Offene Bedarfsliste, Status `open`/`in_progress`/`ordered`/`done`, optionale Person/Fachbereich |
+| `tenants/{tenantId}/supply_catalog/{itemId}` | `upsertSupplyCatalogFromReport()`, Admin-Tabelle `renderSupplyCatalogAdminTable()` | Stammdaten für Schnell-Buttons; Freitext erhöht `useCount` |
+| `tenants/{tenantId}/settings/teamDashboard` | `saveEmployeeDepartmentAssignment()` | Mitarbeiterliste, Gruppen und `departmentAssignments` (Primärbereich, Mitwirkung, `canOrder`) |
+
+Alle drei Pfade laufen über tenant-rooted Zugriffe: `getTenantCollection()` für Bedarf/Katalog und eine explizite `tenants/{tenantId}/settings/teamDashboard`-Referenz in `team-config.js`. Offline-Schreiben gehen über `writeFirestoreDocOrQueue()` und bleiben dadurch im mandantenpräfixierten Sync-Namensraum.
+
+#### Feldkontrakte
+
+`supply_alerts`:
+
+- Pflicht/Validierung bei Create: `tenantId == {tenantId}`, nicht-leere `title` und `createdBy`, `status == "open"`.
+- `category` ∈ `eigene_produktion`, `zukauf_fleisch_wurst`, `zukauf_laden`, `verbrauchsmaterial`, `sb_theke`, `sonstig` (`metzgerei_bedarf` nur Legacy).
+- `departmentTarget` ∈ `all`, `kueche`, `zerlegung`, `wurstproduktion`, `laden`, `einkauf` (`metzgerei` nur Legacy bis zur Neu-Zuordnung).
+- `urgency` ∈ `sofort`, `nachbestellen`; optionale `assignedTo` und `catalogItemId` sind Strings.
+- Update ohne Admin ist nur als Statuswechsel (`status`, `resolvedBy`, `resolvedAt`, `updatedAt`) oder Zuordnung (`assignedTo`, `departmentTarget`, `updatedAt`, `updatedBy`) erlaubt.
+
+`supply_catalog`:
+
+- `label` ist Pflicht und maximal 120 Zeichen; `normalizedKey` kommt aus `catalogKeyFromLabel()`.
+- `useCount` ist ein Integer `>= 0`; `quickEnabled` und `active` sind Booleans.
+- Schnell-Buttons erscheinen, wenn `quickEnabled === true`; ohne Admin-Eingriff wird das ab `QUICK_BUTTON_MIN_USES = 2` erreicht.
+- Löschen ist Admin-only, damit operative Nutzer nicht versehentlich Stammdaten entfernen.
+
+`settings/teamDashboard.departmentAssignments`:
+
+```json
+{
+  "Paddy": {
+    "primaryDepartment": "kueche",
+    "departments": ["kueche", "laden"],
+    "canOrder": true
+  }
+}
+```
+
+- `primaryDepartment` wird immer in `departments` aufgenommen.
+- Leerer Primärbereich + leere Mitwirkung ist erlaubt; `canOrder: true` kann auch ohne Fachbereich gesetzt sein.
+- Legacy-`metzgerei` wird in `team-config.js` zu `kueche` migriert; alte Bedarfsmeldungen mit `departmentTarget: "metzgerei"` bleiben für Produktionsbereiche sichtbar.
+- `saveEmployeeDepartmentAssignment()` nutzt `op: "update"` als Merge-Update, damit bestehende Team-Konfigurationsfelder erhalten bleiben; die Rules erlauben Legacy-`source` und Sync-`createdAt` für ältere `set`-Schreibwege.
+
+#### Sichtbarkeit und Bedienlogik
+
+- `subscribeSupplyAlerts()` liest offene Statuswerte (`open`, `in_progress`, `ordered`) mit `limit(40)`; `done` wird nicht mehr in der offenen Liste angezeigt.
+- `subscribeSupplyCatalog()` liest bis zu 200 Stammdateneinträge für Schnell-Buttons und Admin-Tabelle.
+- Eine Person sieht eine Meldung, wenn sie zugewiesen ist, sie selbst gemeldet hat, `departmentTarget == "all"` ist oder ihre Fachbereichs-Zuordnung passt.
+- Erledigen darf die zugewiesene Person, der Melder, jede passende Person mit Fachbereich/`canOrder` oder bei `departmentTarget == "all"` jeder, der die Zeile sieht.
+- `laden` und `einkauf` sehen sich gegenseitig; Produktionsbereiche (`kueche`, `zerlegung`, `wurstproduktion`) sehen nur ihren Bereich bzw. Legacy-`metzgerei`.
+
+#### Troubleshooting
+
+| Symptom | Prüfen |
+|---------|--------|
+| Schnell-Buttons fehlen | `supply_catalog.useCount >= 2` oder `quickEnabled: true`; Eintrag `active !== false`; richtiger `tenantId` |
+| Mitarbeiter sieht keine Bedarfsliste | Aktives Profil gesetzt (`charculogic:active-employee-changed`), `settings/teamDashboard.departmentAssignments` geladen, Fachbereich passt |
+| Admin-Haken bleiben leer | `/dev-dashboard` muss `setTeamConfigTenantId(tenantId)` und `ensureTeamConfigLoaded()` vor dem Rendern ausführen |
+| `permission-denied` beim Speichern | `firebase.rules` deployt, Claim-`tenantId` passt zum Pfad, Payload enthält nur erlaubte Felder |
 
 ---
 
@@ -535,9 +602,19 @@ npm install
 npm run test:rules
 ```
 
-Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `test/security-rules.test.mjs` — inkl. Cross-Tenant-Isolation, `system_errors`-Schema und `pushTokens`-Read-Deny.
+Dev-Dependencies: `@firebase/rules-unit-testing@^5`, `mocha`, `chai`. Suite: `test/security-rules.test.mjs` — inkl. Cross-Tenant-Isolation, `system_errors`-Schema, `pushTokens`-Read-Deny und Bedarf/`supply_alerts`-Rules.
 
 > **CI-Hinweis:** Emulator-Start schlägt fehl, wenn JDK &lt; 21 installiert ist. JDK 21+ auf Build-Runnern sicherstellen.
+
+### 6.3 Bedarf / Fachbereiche – statische Contract-Tests
+
+Für schnelle lokale Checks ohne Emulator:
+
+```bash
+npx mocha test/quick-supply-alerts.test.mjs test/department-assignment.test.mjs test/bedarf-department-dialog.test.mjs
+```
+
+Die Tests sichern Markup-IDs, `quick-alert.js`-Contracts, `teamDashboard.departmentAssignments`, Fachbereichs-Normalisierung und die Rules-Marker für Status-/Zuordnungsupdates ab. Bei Rules-Änderungen zusätzlich immer `npm run test:rules` ausführen.
 
 ---
 

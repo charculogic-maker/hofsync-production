@@ -40,7 +40,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 | **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
 | **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation (Wurst-Rezept-Skalierer), Chargen, DIN-A4-Datenblatt |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
-| **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
+| **Team & Bedarf** | Schwarzes Brett, Aufgaben, Schnellmelde-Bedarf, Kundenbestellungen (mandantenabhängig) |
 | **Büro** | Chargen-Archiv, Leitstand, Team-Konfiguration (Admin) |
 
 Das System ist als **White-Label-Lösung mit strikter Mandantentrennung** gebaut: Alle Betriebsdaten liegen unter `tenants/{tenantId}/…`. Mehrere Betriebe teilen sich dieselbe Firebase-Infrastruktur, können aber keine fremden Daten lesen oder schreiben.
@@ -140,7 +140,7 @@ Die Sichtbarkeit wird in `applyModuleVisibility()` (`web/app.js`) gesetzt; danac
 
 ## 4. Navigation & Module
 
-Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
+Alltagstabs und interne Seiten (mandanten- und rollenabhängig):
 
 | Tab-ID | Label | Seite | Hauptmodule | Kurzbeschreibung |
 |--------|-------|-------|-------------|------------------|
@@ -150,6 +150,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `receiving` | Neu | `page-receiving` | `mhd.js` | Wareneingang Laden/Metzgerei, Letzte Eingänge |
 | `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS, DIN-A4-Datenblatt |
+| `bedarf` | Bedarf | `page-bedarf` | `quick-alert.js`, `team-config.js` | Interne Bedarfsliste; Einstieg über ⚡/Start-CTA, kein Bottom-Nav-Tab |
 
 **Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
 **Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
@@ -218,6 +219,12 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 - **Teamboard** (`teamboard.js`): Mitarbeiter-PIN, Aufgaben, Bulletin, Push-Tokens
 - **Team-Tab** (`team-tab.js`): Unterpanels Nachrichten + Bestellungen
 - **Kundenbestellungen** (`customer-orders.js`): Annahme, Sammel-Pickliste, Status „abholbereit“, Gewichtsnachberechnung
+- **Bedarf / Schnellmelde** (`quick-alert.js`): eigene Seite `page-bedarf` ohne Bottom-Nav-Eintrag; geöffnet über den ⚡-Button im Header oder die Start-Kachel `#btn-supply-alert-start`.
+- **Workflow:** Mitarbeitende wählen ein Profil, melden Bedarf per Sofort-Eingabe oder Modal (`#modal-quick-alert`) und haken Zeilen wie eine Checkliste ab. Statuswerte: `open`, `in_progress`, `ordered`, `done`; `ordered` bleibt sichtbar, `done` verschwindet aus der offenen Liste.
+- **Fachbereiche:** Jede Meldung trägt `departmentTarget` (`all`, `kueche`, `zerlegung`, `wurstproduktion`, `laden`, `einkauf`; `metzgerei` nur Legacy). Sichtbarkeit folgt `teamDashboard.departmentAssignments`: Primärbereich + Mitwirkung sehen passende Zeilen; `canOrder` darf unabhängig vom Fachbereich als bestellt/erledigt markieren.
+- **Stammdaten:** Freitext-Meldungen füllen `supply_catalog`; Schnell-Buttons erscheinen automatisch ab `QUICK_BUTTON_MIN_USES = 2` oder manuell über `/dev-dashboard → Bedarfs-Stammdaten`.
+- **Zuordnung:** Offene Zeilen können nachträglich Person und Fachbereich bekommen (`#modal-bedarf-assign`). Melder und zugewiesene Person sehen die Meldung immer weiter.
+- **Datenpfade:** `tenants/{tenantId}/supply_alerts`, `tenants/{tenantId}/supply_catalog`, `tenants/{tenantId}/settings/teamDashboard` — keine globalen Bedarfssammlungen.
 
 ### Büro (`page-batches`)
 
