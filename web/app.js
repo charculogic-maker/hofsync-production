@@ -729,8 +729,16 @@ function hasAuthenticatedTenantContext(authSession = getAuthContext()) {
 function hasAdminModuleAccess(branding = window.BRANDING, employeeName) {
   try {
     if (!hasAuthenticatedTenantContext()) return false;
-    if (isFirebaseRoleAuth(branding)) return isOfficeUser();
     if (isOfficeUser()) return true;
+
+    // Firebase-Mitarbeiter an der Theke: Header-Zugang nur für freigegebene Module (z. B. Wissen).
+    if (isFirebaseRoleAuth(branding)) {
+      const session = getAuthContext();
+      if (session?.role === 'employee') {
+        return resolveSessionAllowedTabs(session).has('knowledge');
+      }
+      return false;
+    }
 
     if (!isProfileEmployeeAuth(branding)) return false;
 
@@ -1228,6 +1236,7 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
 function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
   try {
     const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
+    const sessionTabs = resolveSessionAllowedTabs(getAuthContext());
     const itemModuleMap = {
       haccp: isTenantModuleEnabled('haccp', branding),
       thekenbuch: hasModule('chargenDoku', branding),
@@ -1240,10 +1249,20 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
           || isTenantModuleEnabled('retterBox', branding)
         ),
     };
+    /** Admin-Dropdown-Eintrag → Session-Tab (Rollenfilter, damit Employee kein Büro sieht). */
+    const itemAccessTab = {
+      haccp: 'haccp',
+      thekenbuch: 'chargenDoku',
+      knowledge: 'knowledge',
+      buero: 'batches',
+      retterbox: 'batches',
+    };
     document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
       const moduleKey = item.getAttribute('data-admin-module');
       if (moduleKey === 'dashboard') return;
-      const enabled = canModules && itemModuleMap[moduleKey] !== false;
+      const accessTab = itemAccessTab[moduleKey];
+      const roleAllows = !accessTab || sessionTabs.has(accessTab);
+      const enabled = canModules && itemModuleMap[moduleKey] !== false && roleAllows;
       item.hidden = !enabled;
       item.style.display = enabled ? '' : 'none';
     });
@@ -5645,7 +5664,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261030-erfasst-korrektur-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261031-knowledge-employee-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

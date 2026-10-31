@@ -36,19 +36,18 @@ describe('Claims ↔ Tabs Mapping (B.4)', () => {
     expect(ACCESS_MODULE_TO_TAB).to.not.have.property('retterBox');
   });
 
-  it('Employee: Laden-Tabs ja, Wissen/Büro nein (Code-Defaults)', () => {
+  it('Employee: Laden-Tabs inkl. Wissen, Büro nein (Code-Defaults)', () => {
     const tabs = resolveTabsForClaimRole('employee', { tenantModules: TENANT_ALL_ON });
     expect(tabs).to.include.members([
       'mhd', 'receiving', 'orders', 'chargenDoku',
-      'teamboard', 'team', 'haccp', 'kitchen', 'avery',
+      'teamboard', 'team', 'haccp', 'kitchen', 'avery', 'knowledge',
     ]);
-    expect(tabs).to.not.include('knowledge');
     expect(tabs).to.not.include('batches');
     expect(DEFAULT_ROLE_MODULE_DEFAULTS.employee.buero).to.equal(false);
-    expect(DEFAULT_ROLE_MODULE_DEFAULTS.employee.knowledge).to.equal(false);
+    expect(DEFAULT_ROLE_MODULE_DEFAULTS.employee.knowledge).to.equal(true);
   });
 
-  it('Admin: wie Employee plus Wissen und Büro', () => {
+  it('Admin: wie Employee plus Büro', () => {
     const employee = new Set(resolveTabsForClaimRole('employee', { tenantModules: TENANT_ALL_ON }));
     const admin = resolveTabsForClaimRole('admin', { tenantModules: TENANT_ALL_ON });
     expect(admin).to.include.members([...employee]);
@@ -121,7 +120,7 @@ describe('Claims ↔ Tabs Mapping (B.4)', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261026-phase-d-header-v1'");
-    expect(appBoot).to.include('sw.js?v=20261026-phase-d-header');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-knowledge-employee-v1'");
+    expect(appBoot).to.include('sw.js?v=20261031-knowledge-employee-v1');
   });
 });

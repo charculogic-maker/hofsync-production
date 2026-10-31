@@ -104,8 +104,8 @@ describe('Phase D Admin-Feinschliff', () => {
     });
 
     it('bumpt den Service-Worker-Cache', () => {
-      expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261026-phase-d-header-v1'");
-      expect(app).to.include('sw.js?v=20261026-phase-d-header');
+      expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-knowledge-employee-v1'");
+      expect(app).to.include('sw.js?v=20261031-knowledge-employee-v1');
     });
   });
 });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261030-erfasst-korrektur-v1';
+const CACHE_NAME = 'charculogic-v20261031-knowledge-employee-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen */

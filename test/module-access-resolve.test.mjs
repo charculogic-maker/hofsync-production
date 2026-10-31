@@ -27,8 +27,11 @@ describe('module access resolve (tenant ∩ role ∩ user)', () => {
   it('liefert Code-Defaults je Rolle ohne Tenant-Settings', () => {
     expect(resolveRoleModuleAllowlist('helper').orders).to.equal(false);
     expect(resolveRoleModuleAllowlist('helper').mhd).to.equal(true);
+    expect(resolveRoleModuleAllowlist('helper').knowledge).to.equal(false);
     expect(resolveRoleModuleAllowlist('employee').buero).to.equal(false);
+    expect(resolveRoleModuleAllowlist('employee').knowledge).to.equal(true);
     expect(resolveRoleModuleAllowlist('admin').buero).to.equal(true);
+    expect(resolveRoleModuleAllowlist('admin').knowledge).to.equal(true);
   });
 
   it('lässt Tenant-Rollen-Overrides greifen', () => {
@@ -94,6 +97,6 @@ describe('module access resolve (tenant ∩ role ∩ user)', () => {
     expect(normalized.helper.mhd).to.equal(false);
     expect(normalized.helper.haccp).to.equal(true);
     expect(normalized.admin.buero).to.equal(true);
-    expect(normalized.employee.knowledge).to.equal(false);
+    expect(normalized.employee.knowledge).to.equal(true);
   });
 });

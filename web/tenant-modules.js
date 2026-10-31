@@ -103,7 +103,7 @@ export const DEFAULT_ROLE_MODULE_DEFAULTS = Object.freeze({
     kitchen: true,
     averyLabels: true,
     haccp: true,
-    knowledge: false,
+    knowledge: true,
     buero: false,
     chargenDoku: true,
     retterBox: true,
