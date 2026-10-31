@@ -111,7 +111,7 @@ describe('Wareneingang supplier split (Laden / Metzgerei)', () => {
     assert.ok(mhdSrc.includes('persistSupplierName'));
     assert.ok(mhdSrc.includes('writeLastDeliveryArea'));
     assert.ok(mhdSrc.includes('addTenantSupplierName'));
-    assert.match(swSrc, /charculogic-v20261031-role-modules-knowledge-v1/);
+    assert.match(swSrc, /charculogic-v20261031-wissen-gewolft-v1/);
     assert.ok(rulesSrc.includes("'laden'"));
     assert.ok(rulesSrc.includes("'metzgerei'"));
     assert.ok(rulesSrc.includes('isEmployeeOrAdmin(tenantId) && isSupplierSettings(document)'));
