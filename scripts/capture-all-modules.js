@@ -78,7 +78,7 @@ const MODULES = [
   {
     file: '05_rezepte_wrs.png',
     tab: 'kitchen',
-    label: 'WRS Rezept-Skalierer',
+    label: 'WRS (Wurst-Rezept-Skalierer)',
     prepare: prepareWrs,
   },
   {
