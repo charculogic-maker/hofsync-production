@@ -46,7 +46,7 @@ Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Le
 | **Etiketten** | Avery-Zerlegeetiketten vorbereiten (Packliste / Herkunft übernehmen, am Laden-PC drucken) |
 | **Prod.** | Rezepte, Produktion und WRS-Kalkulation (Wurst-Rezept-Skalierer) |
 
-**HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Verwaltungs-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer** (unser Betrieb ist vorausgewählt), **Einstellungen**, **Protokoll** (Warenbewegungen seit vorgestern, Export für Excel, Einträge korrigieren) und **Thekenklade**.
+**HACCP** und **Auskunft** (Theken-Auskunft) liegen unter **Mehr**. **Büro** und **Retter-Box** öffnen wir bei Bedarf über das **Verwaltungs-Menü** ⚙️ oben (Büro/Admin am Smartphone) bzw. die **Admin**-Leiste am Desktop. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer** (unser Betrieb ist vorausgewählt), **Einstellungen**, **Protokoll** (Warenbewegungen seit vorgestern, Export für Excel, Einträge korrigieren) und **Thekenklade**.
 
 Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit klar getrennten Bereichen **Laden-Alltag** und **Verwaltung**.
 
@@ -196,7 +196,7 @@ Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schne
 
 ## 4. Wissen nachlesen
 
-**Wissen** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort gibt es aufklappbare Bereiche:
+**Auskunft** öffnen wir unter **Mehr** (wenn freigeschaltet). Dort gibt es aufklappbare Bereiche:
 
 - **🧾 Theken-Auskunft (Allergene & Zutaten)**: Wir suchen Artikel oder Zutaten und tippen einen Treffer an – Allergene, Verkehrsbezeichnung und kundenkonforme Zutatenliste erscheinen sofort (auch offline aus dem gespeicherten Katalog).
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
@@ -232,7 +232,7 @@ Wenn der Kunde die Kiste mitnimmt, tippen wir **Als abgeholt markieren**. Unsere
 
 ## 6. Temperatur-Check (Qualität sichern)
 
-**HACCP** öffnen wir über das **Verwaltungs-Menü** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
+**HACCP** öffnen wir unter **Mehr** (wenn freigeschaltet). Dort tragen wir die aktuellen Werte unserer Kühlstellen ein und dokumentieren Reinigungen.
 
 1. **HACCP** öffnen.
 2. Wir sehen je Kühlstelle eine Karte, zum Beispiel **Kühlauslage Hofladen** oder **TK-Truhe**, mit dem Hinweis, welcher Wert in Ordnung ist (z. B. *„Alles gut bis 7 °C.“*).

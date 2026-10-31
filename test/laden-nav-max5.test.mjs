@@ -35,19 +35,19 @@ describe('Laden-Nav max. 5', () => {
     expect(mehr).to.be.greaterThan(doku);
   });
 
-  it('legt Start/Team/HACCP/Prod./Etiketten unter Mehr ab', () => {
+  it('legt Start/Team/HACCP/Prod./Etiketten/Auskunft unter Mehr ab', () => {
     expect(html).to.match(/id="mehr-nav-accordion"/);
     expect(html).to.match(/id="mehr-nav-trigger"/);
     expect(html).to.match(/id="mehr-nav-popover"/);
     const mehrBlock = html.match(/id="mehr-nav-popover"[\s\S]*?<\/div>\s*<button[^>]*id="mehr-nav-trigger"/);
     expect(mehrBlock, 'mehr popover').to.be.ok;
     const body = mehrBlock[0];
-    for (const tab of ['teamboard', 'team', 'haccp', 'kitchen', 'avery']) {
+    for (const tab of ['teamboard', 'team', 'haccp', 'kitchen', 'avery', 'knowledge']) {
       expect(body).to.include(`data-tab="${tab}"`);
       expect(body).to.include('data-nav-slot="mehr"');
     }
     expect(body).to.not.include('data-tab="mhd"');
-    expect(body).to.not.include('data-tab="knowledge"');
+    expect(body).to.match(/data-tab="knowledge"[\s\S]*?<span>Auskunft<\/span>/);
   });
 
   it('markiert Primärtabs mit data-nav-slot=primary', () => {
@@ -62,14 +62,15 @@ describe('Laden-Nav max. 5', () => {
     expect(app).to.match(/function syncMehrNavOverflow\s*\(/);
     expect(app).to.match(/function bindMehrNavAccordion\s*\(/);
     expect(app).to.match(/function syncMehrNavActiveState\s*\(/);
-    expect(app).to.include("MEHR_NAV_TAB_IDS = new Set(['teamboard', 'team', 'haccp', 'kitchen', 'avery'])");
+    expect(app).to.include("MEHR_NAV_TAB_IDS = new Set(['teamboard', 'team', 'haccp', 'kitchen', 'avery', 'knowledge'])");
     expect(app).to.include("PRIMARY_BOTTOM_NAV_TAB_IDS = new Set(['mhd', 'receiving', 'orders', 'chargenDoku'])");
     expect(app).to.match(/BOTTOM_NAV_TAB_PRIORITY\s*=\s*\['mhd',\s*'receiving',\s*'orders',\s*'chargenDoku'/);
+    expect(app).to.match(/'knowledge'\s*\]/);
   });
 
-  it('bumpt den Service-Worker-Cache für we-herkunft-lot', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-arch-mhd-nav-v1'");
-    expect(app).to.include("sw.js?v=20261031-arch-mhd-nav-v1");
+  it('bumpt den Service-Worker-Cache für nav-admin-dedupe', () => {
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-nav-admin-dedupe-v1'");
+    expect(app).to.include("sw.js?v=20261031-nav-admin-dedupe-v1");
   });
 
   it('FOUC-Boot synchronisiert Mehr-Trigger', () => {

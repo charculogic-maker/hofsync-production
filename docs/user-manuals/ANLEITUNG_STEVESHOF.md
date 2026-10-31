@@ -10,7 +10,7 @@ CharcuLogic ist für unseren Hofladen bewusst schlank konfiguriert. Wir arbeiten
 - **Etiketten**: Avery-Zerlegeetiketten (Packliste / Herkunft → Bogen, Druck am Laden-PC)
 - **Prod.**: Rezepte, Produktion und WRS-Kalkulation (Wurst-Rezept-Skalierer)
 
-Zusätzlich über das **Verwaltungs-Menü** ⚙️ (persönliche Admin-Konten): **HACCP**, **Thekenklade**, **Theken-Auskunft** (Allergene/Zutaten), **Büro · Chargen**, **Retter-Box**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer, Mein Betrieb, Protokoll — plus Sprungmarken zur Thekenklade, Retter-Box und Theken-Auskunft.
+Unter **Mehr**: **HACCP**, **Auskunft** (Theken-Auskunft / Allergene & Zutaten), Start, Team, Prod., Etiketten. **Thekenklade** liegt unter Primärtab **Herkunft**. Über das **Verwaltungs-Menü** ⚙️ (nur Büro/Admin am Smartphone; am Desktop die Sidebar **Admin**): **Büro · Chargen**, **Retter-Box**. Den Link **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins**; andere Zugänge werden zur Haupt-App zurückgeleitet. Dort: Übersicht, Nutzer, Mein Betrieb, Protokoll — plus Sprungmarken zur Thekenklade, Retter-Box und Theken-Auskunft.
 
 Die ausführliche Schritt-für-Schritt-Anleitung für den Liefertag steht unter [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md).
 

@@ -171,7 +171,8 @@ export const ENABLED_MODULE_TO_BRANDING = {
   retterBox: 'retterBox',
 };
 
-const ADMIN_MODULE_KEYS = ['haccp', 'knowledge', 'buero'];
+/** Module die das Header-⚙️ / Sidebar-Admin steuern (HACCP & Auskunft liegen unter Mehr). */
+const ADMIN_MODULE_KEYS = ['buero'];
 
 /**
  * Stale-While-Revalidate: letzte effektive Modul-Map für Zero-Flicker-Boot.

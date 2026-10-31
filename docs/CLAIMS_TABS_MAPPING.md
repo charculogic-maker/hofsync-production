@@ -37,7 +37,7 @@ Login ohne `tenantId` **und** `role` in den Claims schlägt fehl.
 | `haccp` | `haccp` | Mehr → HACCP |
 | `kitchen` | `kitchen` | Mehr → Prod. |
 | `averyLabels` | `avery` | Mehr → Etiketten |
-| `knowledge` | `knowledge` | Admin-Header / Theken-Auskunft (Employee + Admin) |
+| `knowledge` | `knowledge` | Mehr → Auskunft (Theken-Auskunft; Employee + Admin) |
 | `buero` | `batches` | Admin-Zone **Büro** |
 | `retterBox` | — | kein Nav-Tab (Modul-Flag only) |
 

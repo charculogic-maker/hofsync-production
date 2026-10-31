@@ -8810,7 +8810,7 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 
   /*
    * Smartphone: Büro / Admin / Dev-Tools raus aus der Fußleiste.
-   * Zugang bleibt über ⚙️ im Header (Tablet/Desktop ab 769px unverändert).
+   * Zugang bleibt über ⚙️ im Header; Desktop (≥769px) nutzt die Sidebar-Admin-Zone.
    */
   .nav-desktop-only,
   .app-nav-zone--admin {
@@ -9593,6 +9593,12 @@ body.profile-kitchen-readonly #btn-document-recipe-batch {
 @media (min-width: 769px) {
   .header-tools-dropdown {
     display: none;
+  }
+
+  /* Admin nur in der Sidebar — kein zweites ⚙️ parallel im Header. */
+  .admin-header-dropdown,
+  #admin-header-dropdown {
+    display: none !important;
   }
 
   .app-header-actions .header-action--secondary {
