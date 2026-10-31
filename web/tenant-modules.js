@@ -48,6 +48,7 @@ export const TENANT_MODULE_KEYS = [
   'knowledge',
   'buero',
   'chargenDoku',
+  'retterBox',
 ];
 
 /**
