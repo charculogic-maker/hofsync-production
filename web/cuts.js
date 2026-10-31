@@ -680,10 +680,10 @@ const CUT_GLOSSARY = [
     species: 'general',
     name: 'Graues Hackfleisch im Inneren (Qualität)',
     region: 'Qualitäts-Hinweis',
-    aliases: ['grau', 'graue Farbe', 'Hackfleisch grau', 'Metmyoglobin', 'Oxy-Myoglobin', 'Wolfhack grau'],
+    aliases: ['grau', 'graue Farbe', 'Hackfleisch grau', 'Metmyoglobin', 'Oxymyoglobin', 'Oxy-Myoglobin', 'Wolfhack grau', 'gewolft'],
     muscles: [],
     human: '',
-    use: 'Grau oder bräunlich im Inneren von frisch gewolkenem Hackfleisch ist kein Verderb, sondern normal: An der Oberfläche oxidiert Myoglobin zu hellem Rot (Oxy-Myoglobin), im Kern fehlt Sauerstoff – Metmyoglobin wirkt grau-braun. Nach kurzer Luftexposition färbt sich auch die Mitte oft wieder rötlicher. Entscheidend sind frischer Geruch, Kühlkette und kein säuerlicher oder fauliger Geruch. Dem Kunden erklären: Die graue Farbe im Inneren sagt nichts über Frische aus – riechen, ansehen, kühl halten.',
+    use: 'Grau oder bräunlich im Inneren von frisch gewolftem Hackfleisch ist kein Verderb, sondern normal: An der Oberfläche oxidiert Myoglobin zu hellerem Rot (Oxymyoglobin), im Kern fehlt Sauerstoff – dort wirkt Metmyoglobin grau-braun. Nach kurzer Luftexposition färbt sich auch die Mitte oft wieder rötlicher. Entscheidend sind frischer Geruch, Kühlkette und kein säuerlicher oder fauliger Geruch. Dem Kunden erklären: Die graue Farbe im Inneren sagt nichts über Frische aus – riechen, ansehen, kühl halten.',
     note: '',
   },
   {
@@ -695,7 +695,7 @@ const CUT_GLOSSARY = [
     aliases: ['Salami', 'Rohwurst', 'Brühwurst', 'Kochwurst', 'Rohpökelware', 'Lyoner', 'Mortadella', 'Mettwurst', 'Leberwurst'],
     muscles: [],
     human: '',
-    use: 'Rohwurst (z. B. Salami, Mettwurst, Landjäger): Roh gewolken, gesalzen und gepöckelt, oft mit Starterkulturen – reift wochenlang, wird nicht roh gegessen, sondern durch Reifung essfertig. Brühwurst (z. B. Lyoner, Mortadella, Bierwurst): Brät wird erwärmt und abgefüllt, dann heiß durchgezogen (Kerntemperatur über 72 °C) – nach Kühlung essfertig. Kochwurst (z. B. Leberwurst, Sulz, Blutwurst): Einlage oder Brät wird gekocht, teils fein gewolken – streichfähig oder in Scheiben. Merksatz fürs Team: Roh = reifen lassen · Brüh = heiß abgefüllt · Koch = durchgegart im Kessel.',
+    use: 'Rohwurst (z. B. Salami, Mettwurst, Landjäger): Roh gewolft, gesalzen und gepökelt, oft mit Starterkulturen – reift wochenlang und wird durch Reifung (ohne Kochen) essfertig. Brühwurst (z. B. Lyoner, Mortadella, Bierwurst): Brät wird abgefüllt und heiß durchgezogen (Kerntemperatur über 72 °C) – nach Kühlung essfertig. Kochwurst (z. B. Leberwurst, Sülze, Blutwurst): Einlage oder Brät wird gekocht, teils fein gewolft – streichfähig oder in Scheiben. Merksatz fürs Team: Roh = reifen lassen · Brüh = heiß durchziehen · Koch = durchgegart im Kessel.',
     note: '',
   },
   {
@@ -743,7 +743,7 @@ const CUT_GLOSSARY = [
     aliases: ['Nitritpökelsalz', 'NPS', 'grau', 'Verfärbung', 'ehrliche Wurst', 'ohne Chemie', 'Speisesalz', 'Umrötung'],
     muscles: [],
     human: '',
-    use: "Reines Muskelfleisch wird beim Erhitzen von Natur aus graubraun. Die Fleischindustrie nutzt Nitritpökelsalz (NPS), um Fleisch künstlich rosa zu färben ('Umrötung'). Im Betrieb verzichten wir komplett auf NPS und salzen traditionell mit reinem Speisesalz. Unsere Brüh- und Kochwürste (wie Fleischwurst oder Leberwurst) haben deshalb eine natürliche, handwerkliche Grau-Beige-Färbung. Ein Beweis für puren Geschmack ohne chemische Farbstoffe!",
+    use: "Reines Muskelfleisch wird beim Erhitzen von Natur aus graubraun. Die Fleischindustrie nutzt Nitritpökelsalz (NPS) zur Umrötung – dadurch bleibt Brüh-/Kochwurst rosa. Im Betrieb verzichten wir komplett auf NPS und salzen traditionell mit reinem Speisesalz. Unsere Brüh- und Kochwürste (wie Fleischwurst oder Leberwurst) haben deshalb eine natürliche, handwerkliche Grau-Beige-Färbung – ohne Nitrit-Umrötung.",
     note: '',
   },
   {

@@ -122,6 +122,6 @@ describe('Claims ↔ Tabs Mapping (B.4)', () => {
 
   it('bumpt den Service-Worker-Cache', () => {
     expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261026-phase-d-header-v1'");
-    expect(appBoot).to.include('sw.js?v=20261026-phase-d-header');
+    expect(appBoot).to.include('sw.js?v=20261031-wissen-gewolft-v1');
   });
 });
