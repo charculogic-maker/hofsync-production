@@ -11,6 +11,7 @@ import {
   normalizeRoleModuleDefaults,
   resolveAccessModules,
   resolveRoleModuleAllowlist,
+  stripLegacyKnowledgeDenials,
 } from '../web/tenant-modules.js';
 
 describe('module access resolve (tenant ∩ role ∩ user)', () => {
@@ -27,8 +28,11 @@ describe('module access resolve (tenant ∩ role ∩ user)', () => {
   it('liefert Code-Defaults je Rolle ohne Tenant-Settings', () => {
     expect(resolveRoleModuleAllowlist('helper').orders).to.equal(false);
     expect(resolveRoleModuleAllowlist('helper').mhd).to.equal(true);
+    expect(resolveRoleModuleAllowlist('helper').knowledge).to.equal(false);
     expect(resolveRoleModuleAllowlist('employee').buero).to.equal(false);
+    expect(resolveRoleModuleAllowlist('employee').knowledge).to.equal(true);
     expect(resolveRoleModuleAllowlist('admin').buero).to.equal(true);
+    expect(resolveRoleModuleAllowlist('admin').knowledge).to.equal(true);
   });
 
   it('lässt Tenant-Rollen-Overrides greifen', () => {
@@ -94,6 +98,26 @@ describe('module access resolve (tenant ∩ role ∩ user)', () => {
     expect(normalized.helper.mhd).to.equal(false);
     expect(normalized.helper.haccp).to.equal(true);
     expect(normalized.admin.buero).to.equal(true);
-    expect(normalized.employee.knowledge).to.equal(false);
+    expect(normalized.employee.knowledge).to.equal(true);
+  });
+
+  it('entfernt Legacy knowledge:false für employee/admin, Helper bleibt gesperrt', () => {
+    const { patched, changed, roles } = stripLegacyKnowledgeDenials({
+      employee: { knowledge: false, mhd: true },
+      helper: { knowledge: false, mhd: true },
+      admin: { knowledge: false, buero: true },
+    });
+    expect(changed).to.equal(true);
+    expect(roles).to.include.members(['employee', 'admin']);
+    expect(patched.employee.knowledge).to.equal(true);
+    expect(patched.admin.knowledge).to.equal(true);
+    expect(patched.helper.knowledge).to.equal(false);
+
+    const normalized = normalizeRoleModuleDefaults({
+      employee: { knowledge: false },
+      helper: { knowledge: false },
+    });
+    expect(normalized.employee.knowledge).to.equal(true);
+    expect(normalized.helper.knowledge).to.equal(false);
   });
 });

@@ -101,9 +101,11 @@ const TIER_MODULES = {
     retterBox: true,
     haccp: true,
     buero: true,
+    chargenDoku: true,
   }),
   metzgerei_pro: expandModuleFlags({
     ...allFlags(true),
+    chargenDoku: true,
     rezepte: true,
     wareneingangMetzgerei: true,
     rezeptAudit: true,
