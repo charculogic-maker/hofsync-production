@@ -1,5 +1,5 @@
 /**
- * Thekenklade wieder auffindbar: Herkunft-Nav, Admin-Shortcut, Deep-Link.
+ * Thekenklade auffindbar: Herkunft-Nav (Primär), Deep-Link — kein ⚙️-Doppel.
  */
 import { expect } from 'chai';
 import fs from 'node:fs';
@@ -23,12 +23,11 @@ describe('Thekenklade sichtbar', () => {
     expect(app).to.match(/headerTitle\.textContent\s*=\s*["']Herkunft["']/);
   });
 
-  it('bietet Admin-Shortcut Thekenklade im Header-Zahnrad', () => {
-    expect(html).to.match(/data-admin-module="thekenbuch"/);
-    expect(html).to.match(/Thekenklade/);
-    expect(app).to.match(/thekenbuch:\s*\{/);
+  it('führt Thekenklade über Herkunft (kein ⚙️-Shortcut)', () => {
+    expect(html).to.not.match(/data-admin-module="thekenbuch"/);
+    expect(html).to.match(/data-chargen-panel="book"[\s\S]*?Thekenklade/);
     expect(app).to.match(/activateThekenbuchPanel/);
-    expect(app).to.match(/thekenbuch:\s*hasModule\('chargenDoku'/);
+    expect(trace).to.match(/export function activateThekenbuchPanel/);
   });
 
   it('Deep-Link #thekenbuch öffnet die Buchansicht', () => {
@@ -52,7 +51,7 @@ describe('Thekenklade sichtbar', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-arch-mhd-nav-v1'");
-    expect(app).to.include('sw.js?v=20261031-arch-mhd-nav-v1');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-nav-admin-dedupe-v1'");
+    expect(app).to.include('sw.js?v=20261031-nav-admin-dedupe-v1');
   });
 });

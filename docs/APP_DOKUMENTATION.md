@@ -123,12 +123,12 @@ Pro Mandant konfigurierbar:
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `traceability` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
-| `cutGlossary` / `knowledge` | Wissen / Cuts (Admin-Header) |
-| `haccp` | **HACCP** (Admin-Header) |
+| `cutGlossary` / `knowledge` | Mehr → Auskunft (Theken-Auskunft); Cuts über dieselbe Seite |
+| `haccp` | **HACCP** (Mehr) |
 | `teamboard` | Tab **Start** (Teamboard) |
 | `team` | Tab **Team** (nur wenn explizit `true` oder abhängige Module aktiv) |
 | `orders` | Kundenbestellungen im Team-Tab |
-| `batches` | Tab **Büro** (Chargen & Leitstand, Admin-Header) |
+| `batches` | Tab **Büro** (Chargen & Leitstand, Admin-Zone) |
 | `rezeptAudit` | Rezept-Audit-Karte in Prod. |
 | `retterBox` | Retter-Box-Funktion im MHD (nur StevesHof) |
 
@@ -151,7 +151,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS, DIN-A4-Datenblatt |
 
-**Admin-Header** (nicht Bottom-Nav): `haccp`, `knowledge`/`cuts`, `batches` (Büro).  
+**Mehr-Nav:** `haccp`, `knowledge` (Label Auskunft). **Admin** (Header-⚙️ mobil / Sidebar desktop): `batches` (Büro), Retter-Box, Verwaltung.  
 **Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
 
 ### MHD-Monitor (`web/mhd.js`)
@@ -246,8 +246,8 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 | Wareneingang Metzgerei | ❌ |
 | Herkunft / LMIV (`traceability`) | ✅ |
 | Wurstküche / Prod. | ✅ |
-| HACCP | ✅ (Admin-Header; Seed/`enabledModules`) |
-| Wissen | optional (Admin-Header) |
+| HACCP | ✅ (Mehr; Seed/`enabledModules`) |
+| Wissen / Auskunft | optional (Mehr → Auskunft) |
 | Teamboard (Start) | ❌ |
 | Team (Bestellungen) | ❌ |
 | Kundenbestellungen (`orders`) | ❌ (Backend vorbereitet, UI aus) |

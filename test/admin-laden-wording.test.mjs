@@ -1,5 +1,5 @@
 /**
- * Phase C.4: Büro / Retter-Box / Wissen klar im Admin-Menü (Laden-Wording).
+ * Phase C.4: Büro / Retter-Box klar im Admin-Menü; Theken-Auskunft unter Mehr.
  */
 import { expect } from 'chai';
 import fs from 'node:fs';
@@ -14,9 +14,10 @@ describe('Admin Laden-Wording (Büro / Retter-Box / Theken-Auskunft)', () => {
   const app = read('web/app.js');
   const sw = read('web/sw.js');
 
-  it('nennt Wissen im ⚙️-Menü Theken-Auskunft', () => {
-    expect(html).to.match(/data-admin-module="knowledge"[^>]*>🧠 Theken-Auskunft</);
-    expect(app).to.match(/title:\s*'Theken-Auskunft'/);
+  it('legt Theken-Auskunft unter Mehr → Auskunft (nicht im ⚙️-Menü)', () => {
+    expect(html).to.not.match(/data-admin-module="knowledge"/);
+    expect(html).to.match(/data-tab="knowledge"[^>]*data-nav-slot="mehr"|data-nav-slot="mehr"[^>]*data-tab="knowledge"/);
+    expect(html).to.match(/id="tab-knowledge"[\s\S]*?<span>Auskunft<\/span>/);
     expect(app).to.match(/headerTitle\.textContent\s*=\s*["']Theken-Auskunft["']/);
   });
 
@@ -39,6 +40,7 @@ describe('Admin Laden-Wording (Büro / Retter-Box / Theken-Auskunft)', () => {
     expect(app).to.match(/function applyAdminModuleDeepLink/);
     expect(app).to.match(/retter-box/);
     expect(app).to.match(/theken-auskunft/);
+    expect(app).to.match(/moduleKey === 'knowledge'/);
     expect(html).to.match(/id="dev-dashboard-jump-retterbox"[^>]*href="\/#retter-box"/);
     expect(html).to.match(/id="dev-dashboard-jump-theken-auskunft"[^>]*href="\/#theken-auskunft"/);
   });
@@ -48,8 +50,16 @@ describe('Admin Laden-Wording (Büro / Retter-Box / Theken-Auskunft)', () => {
     expect(html).to.not.match(/id="nav-admin-dashboard"[\s\S]*?Dev-Dashboard/);
   });
 
+  it('versteckt Header-Verwaltung auf Desktop und hält hasAdminModuleAccess office-only', () => {
+    const style = read('web/style.css');
+    expect(style).to.match(/@media \(min-width:\s*769px\)[\s\S]*?#admin-header-dropdown[\s\S]*?display:\s*none\s*!important/);
+    expect(app).to.match(/function hasAdminModuleAccess/);
+    expect(app).to.match(/return isOfficeUser\(\)/);
+    expect(app).to.match(/if \(!isMobileNavViewport\(\)\) \{\s*hideAdminHeaderDropdown\(\)/);
+  });
+
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-arch-mhd-nav-v1'");
-    expect(app).to.include('sw.js?v=20261031-arch-mhd-nav-v1');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-nav-admin-dedupe-v1'");
+    expect(app).to.include('sw.js?v=20261031-nav-admin-dedupe-v1');
   });
 });

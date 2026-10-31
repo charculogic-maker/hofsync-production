@@ -396,9 +396,6 @@
                 <span class="admin-header-dropdown-trigger-label">Verwaltung</span>
               </button>
               <div class="admin-header-dropdown-menu" id="admin-header-dropdown-menu" role="menu" hidden>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="haccp">📋 HACCP</button>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="thekenbuch">📒 Thekenklade</button>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="knowledge">🧠 Theken-Auskunft</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro · Chargen</button>
                 <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="retterbox">📦 Retter-Box</button>
                 <a
@@ -3316,6 +3313,10 @@
                     <i>🏷️</i>
                     <span>Etiketten</span>
                   </button>
+                  <button class="nav-item nav-item--mehr" data-tab="knowledge" data-nav-slot="mehr" id="tab-knowledge" role="menuitem" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')" aria-label="Theken-Auskunft">
+                    <i>🧠</i>
+                    <span>Auskunft</span>
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -3329,11 +3330,6 @@
                   <span>Mehr</span>
                 </button>
               </div>
-              <!-- Wissen bleibt Header-only (ADMIN_HEADER_ONLY), nicht in der Fußleiste. -->
-              <button class="nav-item" data-tab="knowledge" id="tab-knowledge" hidden style="display: none;" onclick="window.fallbackShowTab && window.fallbackShowTab('knowledge')">
-                <i>📖</i>
-                <span>Wissen</span>
-              </button>
             </div>
           </div>
 

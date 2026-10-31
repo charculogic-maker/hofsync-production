@@ -664,20 +664,20 @@ const PROFILE_TAB_ALIASES = {
   herkunft: 'chargenDoku',
 };
 
-const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp']);
+const BOTTOM_NAV_TAB_IDS = new Set(['teamboard', 'team', 'orders', 'mhd', 'receiving', 'chargenDoku', 'kitchen', 'avery', 'haccp', 'knowledge']);
 /** Primärtabs in der Laden-Fußleiste (max. 4 + Mehr). */
 const PRIMARY_BOTTOM_NAV_TAB_IDS = new Set(['mhd', 'receiving', 'orders', 'chargenDoku']);
-/** Overflow unter „Mehr“: Start · Team · HACCP · Prod. · Etiketten. */
-const MEHR_NAV_TAB_IDS = new Set(['teamboard', 'team', 'haccp', 'kitchen', 'avery']);
-/** Admin-only in der Fußleiste: HACCP ist Alltag für alle Rollen → nicht hier. */
-const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['knowledge', 'cuts']);
+/** Overflow unter „Mehr“: Start · Team · HACCP · Prod. · Etiketten · Auskunft. */
+const MEHR_NAV_TAB_IDS = new Set(['teamboard', 'team', 'haccp', 'kitchen', 'avery', 'knowledge']);
+/** Header-only: Zerlege-Glossar bleibt ohne eigenen Fußleisten-Tab (über Auskunft). */
+const ADMIN_HEADER_ONLY_TAB_IDS = new Set(['cuts']);
 /** Büro & Co. gehören am Smartphone nicht in die Fußleiste (Zugang über ⚙️). */
 const DESKTOP_ONLY_NAV_TAB_IDS = new Set(['batches', 'buero']);
 const MOBILE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 const MOBILE_OPS_DEFAULT_TAB = 'mhd';
 
 /** Bottom-Nav-Reihenfolge für Fallback-Starttab (Primär zuerst, dann Mehr). */
-const BOTTOM_NAV_TAB_PRIORITY = ['mhd', 'receiving', 'orders', 'chargenDoku', 'teamboard', 'team', 'haccp', 'kitchen', 'avery'];
+const BOTTOM_NAV_TAB_PRIORITY = ['mhd', 'receiving', 'orders', 'chargenDoku', 'teamboard', 'team', 'haccp', 'kitchen', 'avery', 'knowledge'];
 
 const TAB_ID_TO_MODULE_KEY = {
   teamboard: 'start',
@@ -727,32 +727,11 @@ function hasAuthenticatedTenantContext(authSession = getAuthContext()) {
   }
 }
 
-function hasAdminModuleAccess(branding = window.BRANDING, employeeName) {
+/** Header-⚙️ / Sidebar-Admin: nur Büro-Konten (Office/Admin). Auskunft liegt unter Mehr. */
+function hasAdminModuleAccess(_branding = window.BRANDING, _employeeName) {
   try {
     if (!hasAuthenticatedTenantContext()) return false;
-    if (isOfficeUser()) return true;
-
-    // Firebase-Mitarbeiter an der Theke: Header-Zugang nur für freigegebene Module (z. B. Wissen).
-    if (isFirebaseRoleAuth(branding)) {
-      const session = getAuthContext();
-      if (session?.role === 'employee') {
-        return resolveSessionAllowedTabs(session).has('knowledge');
-      }
-      return false;
-    }
-
-    if (!isProfileEmployeeAuth(branding)) return false;
-
-    const activeProfile = String(
-      employeeName !== undefined ? employeeName : readActiveEmployee(),
-    ).trim();
-    if (!activeProfile) return false;
-    if (!isNamedProfileSession(activeProfile, branding)) return false;
-
-    const allowed = resolveProfileAllowedTabIds(
-      resolveProfileCapabilities(activeProfile, branding)?.allowedTabs || [],
-    );
-    return ['haccp', 'knowledge', 'wissen', 'batches', 'buero'].some((tabId) => allowed.has(tabId));
+    return isOfficeUser();
   } catch (err) {
     console.warn('[CharcuLogic Admin] Admin-Modul-Zugriff konnte nicht geprüft werden:', err);
     return false;
@@ -1210,6 +1189,11 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
   try {
     const dropdown = document.getElementById('admin-header-dropdown');
     if (!dropdown) return;
+    // Desktop: Admin nur in der Sidebar — kein paralleles Header-⚙️.
+    if (!isMobileNavViewport()) {
+      hideAdminHeaderDropdown();
+      return;
+    }
     if (!hasAuthenticatedTenantContext()) {
       hideAdminHeaderDropdown();
       return;
@@ -1239,9 +1223,6 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
     const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
     const sessionTabs = resolveSessionAllowedTabs(getAuthContext());
     const itemModuleMap = {
-      haccp: isTenantModuleEnabled('haccp', branding),
-      thekenbuch: hasModule('chargenDoku', branding),
-      knowledge: isTenantModuleEnabled('knowledge', branding),
       buero: isTenantModuleEnabled('buero', branding),
       retterbox: isTenantModuleEnabled('buero', branding)
         && (
@@ -1252,9 +1233,6 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
     };
     /** Admin-Dropdown-Eintrag → Session-Tab (Rollenfilter, damit Employee kein Büro sieht). */
     const itemAccessTab = {
-      haccp: 'haccp',
-      thekenbuch: 'chargenDoku',
-      knowledge: 'knowledge',
       buero: 'batches',
       retterbox: 'batches',
     };
@@ -3366,7 +3344,7 @@ function applyChargenDokuDeepLink() {
   return opened;
 }
 
-/** Deep-Links für Laden-Admin-Bereiche (⚙️-Menü / Dashboard-Sprungmarken). */
+/** Deep-Links: Theken-Auskunft (Mehr) sowie Büro/Retter-Box (Admin). */
 function resolveAdminModuleFromHash(hash = window.location.hash) {
   const clean = String(hash || '').replace(/^#/, '').trim().toLowerCase();
   if (!clean) return '';
@@ -3388,6 +3366,10 @@ function resolveAdminModuleFromHash(hash = window.location.hash) {
 function applyAdminModuleDeepLink() {
   const moduleKey = resolveAdminModuleFromHash();
   if (!moduleKey) return false;
+  // Auskunft ist Alltag unter Mehr — kein Office-Gate über openAdminDropdownModule.
+  if (moduleKey === 'knowledge') {
+    return showTab('knowledge');
+  }
   void openAdminDropdownModule(moduleKey);
   return true;
 }
@@ -4599,31 +4581,8 @@ function focusRetterBoxPanel() {
   } catch (_) { /* ignore */ }
 }
 
+/** Echte Admin-Module im Header-⚙️ (Mobile) / Sidebar (Desktop). HACCP & Auskunft liegen unter Mehr. */
 const ADMIN_DROPDOWN_MODULES = {
-  haccp: {
-    tabId: 'haccp',
-    pageId: 'page-haccp',
-    title: 'HACCP-Protokoll',
-    subtitle: 'Tageskontrollen',
-    activate: () => activateHaccpTab(),
-  },
-  thekenbuch: {
-    tabId: 'chargenDoku',
-    pageId: 'page-chargen-doku',
-    title: 'Thekenklade',
-    subtitle: 'Digitale Herkunft & LMIV',
-    activate: () => activateThekenbuchPanel(),
-  },
-  knowledge: {
-    tabId: 'knowledge',
-    pageId: 'page-knowledge',
-    title: 'Theken-Auskunft',
-    subtitle: 'Allergene, Zutaten & Fleisch-Lexikon',
-    activate: () => {
-      activateCounterRecipesTab();
-      activateCutGlossaryTab();
-    },
-  },
   buero: {
     tabId: 'batches',
     pageId: 'page-batches',
@@ -4715,7 +4674,13 @@ function bindAdminHeaderDropdown() {
 
     trigger.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
+      if (!hasAuthenticatedTenantContext()) {
+        hideAdminHeaderDropdown();
+        return;
+      }
+      const dashboardLink = document.getElementById('admin-header-dashboard-link');
+      const canOpen = hasAdminModuleAccess() || (dashboardLink && !dashboardLink.hidden);
+      if (!canOpen) {
         hideAdminHeaderDropdown();
         return;
       }
@@ -4821,10 +4786,8 @@ function bindHeaderToolsDropdown() {
 bindHeaderToolsDropdown();
 
 function showTab(tabId) {
+  // Nur Büro/Retter bleiben Admin-Module; HACCP & Auskunft laufen über Mehr-Nav.
   const adminModuleKey = {
-    haccp: 'haccp',
-    knowledge: 'knowledge',
-    cuts: 'knowledge',
     batches: 'buero',
     buero: 'buero',
   }[tabId] || '';
@@ -5684,7 +5647,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261031-arch-mhd-nav-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261031-nav-admin-dedupe-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
