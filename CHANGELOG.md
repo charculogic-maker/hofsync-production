@@ -4,6 +4,16 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 
 ---
 
+## [docs] - 2026-10-31
+
+### Dokumentation (Testversion / Nav-Cleanup)
+
+- **Kanone:** [docs/NAVIGATION.md](docs/NAVIGATION.md) — Primär / Mehr / ⚙️-Admin / Thekenklade.
+- Kollegen- und User-Manuals, Modulanleitungen, APP_DOKUMENTATION und Whitelabel-Admin an aktuelle Navigation angeglichen (Auskunft unter Mehr; Thekenklade unter Herkunft; Büro office-only).
+- Historische Einträge unten (z. B. v1.3.0 „Rückverfolgbarkeit“-Tab) bleiben als Changelog-Chronik stehen.
+
+---
+
 ## [v1.4.0] - 2026-09-15
 
 ### Hinzugefügt (Wareneingang & MHD)

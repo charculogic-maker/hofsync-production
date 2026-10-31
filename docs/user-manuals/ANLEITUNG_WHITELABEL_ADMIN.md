@@ -121,14 +121,14 @@ const TENANT_BRANDING = {
 |------|---------------|
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang); `wareneingangMetzgerei` zusätzlich den Metzgerei-Modus |
-| `traceability` | Tab **Herkunft** + Dev-Dashboard **Rückverfolgbarkeit** |
-| `wurstkueche` | Tab **Prod.** (Rezepte / WRS) |
-| `haccp` | Admin-Modul **HACCP** (und ggf. Team-Reiter Temperatur-Check, wenn Team aktiv) |
-| `orders` | Im Tab **Team** die Reiter **💬 Nachrichten** und **🛒 Bestellungen** |
-| `teamboard` | Tab **Start / Schwarzes Brett** und den Team-Reiter **💬 Nachrichten** |
-| `batches` | Tab **Büro / Chargen** |
-| `knowledge` / `cutGlossary` | Admin-Modul **Wissen** |
-| `retterBox` | Retter-Box-Angebot (mandantenspezifisch, rules-gestützt) |
+| `traceability` / `chargenDoku` | Tab **Herkunft** inkl. Unterseite **Thekenklade** (`/#thekenbuch`) |
+| `wurstkueche` | Mehr → **Prod.** (Rezepte / WRS) |
+| `haccp` | Mehr → **HACCP** (und ggf. Team-Reiter Temperatur-Check, wenn Team aktiv) |
+| `orders` | Primär **Packtisch**; im Tab **Team** die Reiter Nachrichten/Bestellungen (wenn Team an) |
+| `teamboard` | Mehr → **Start** / Schwarzes Brett und den Team-Reiter **Nachrichten** |
+| `batches` / `buero` | Admin ⚙️ / Sidebar → **Büro · Chargen** |
+| `knowledge` / `cutGlossary` | Mehr → **Auskunft** (Theken-Auskunft + Fleisch-Lexikon) |
+| `retterBox` | Admin ⚙️ → **Retter-Box** (mandantenspezifisch, rules-gestützt) |
 
 **MHD-Karten-Aktionen (localStorage / Betriebseinstellungen):**
 
@@ -154,7 +154,7 @@ Steuerung im Dev-Dashboard unter **Einstellungen → MHD-Karten-Aktionen** bzw. 
 
 | Mandant | `orders` | `haccp` | `teamboard` | Tab **Team** zeigt |
 |---------|----------|---------|-------------|--------------------|
-| `steveshof_hauptbetrieb` | `false` | oft via `enabledModules` | `false` | Tab Team ausgeblendet; HACCP über Admin-Menü |
+| `steveshof_hauptbetrieb` | `false` | oft via `enabledModules` | `false` | Tab Team ausgeblendet; HACCP unter **Mehr** |
 | `torfabrik` | `true` | `true` | (Standard `true`) | **Nachrichten · Bestellungen · Temperatur-Check** |
 | `DEFAULT_BRANDING` | `true` | `true` | `true` | **Nachrichten · Bestellungen · Temperatur-Check** |
 

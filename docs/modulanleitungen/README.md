@@ -4,18 +4,19 @@
 > **Zielgruppe:** Menschen, die einzelne App-Bereiche wie MHD, Neu, Prod. oder HACCP nachvollziehen wollen.
 > **Nicht hier:** Mandanten-Komplettanleitungen; diese sind über [docs/README.md](../README.md) verlinkt.
 
-Visuelle Anleitungen für alle Hauptbereiche der App (iPhone / PWA). StevesHof-Alltagstabs: **MHD**, **Neu**, **Herkunft**, **Prod.**. HACCP/Wissen/Büro über Admin-Menü. Funktionen sind mandantenübergreifend vergleichbar, einzelne Tabs können pro Betrieb fehlen.
+Visuelle Anleitungen für alle Hauptbereiche der Laden-App. StevesHof-Primärtabs: **MHD**, **Neu**, **Herkunft**, **Mehr**. Unter Mehr u. a. **HACCP**, **Prod.**, **Etiketten**, **Auskunft**. **Büro** nur über ⚙️ / Sidebar-Admin. Nav-Übersicht: [NAVIGATION.md](../NAVIGATION.md).
 
-| Modul | Tab (Leiste) | Details |
-|-------|----------------|---------|
-| Start & Aufgaben | **Start** | Screenshots `00-start` |
-| Team | **Team** | [06-team.md](./06-team.md) |
-| MHD-Monitor | **MHD** | [01-mhd-monitor.md](./01-mhd-monitor.md) |
-| Wareneingang | **Neu** | [02-wareneingang.md](./02-wareneingang.md) |
-| Herkunft (LMIV) | **Herkunft** | [07-herkunft.md](./07-herkunft.md) |
-| Wurstküche | **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
-| HACCP | **HACCP** (Admin) | [04-haccp.md](./04-haccp.md) |
-| Chargen / Büro | **Büro** (Admin) | [05-chargen.md](./05-chargen.md) |
+| Modul | Nav-Pfad | Details |
+|-------|----------|---------|
+| Start & Aufgaben | Mehr → **Start** | Screenshots `00-start` |
+| Team | Mehr → **Team** | [06-team.md](./06-team.md) |
+| MHD-Monitor | Primär **MHD** | [01-mhd-monitor.md](./01-mhd-monitor.md) |
+| Wareneingang | Primär **Neu** | [02-wareneingang.md](./02-wareneingang.md) |
+| Herkunft (LMIV) / Thekenklade | Primär **Herkunft** | [07-herkunft.md](./07-herkunft.md) |
+| Wurstküche | Mehr → **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
+| HACCP | Mehr → **HACCP** | [04-haccp.md](./04-haccp.md) |
+| Auskunft (Theken-Auskunft) | Mehr → **Auskunft** | Screenshot `steveshof-06-wissen.png` |
+| Chargen / Büro | ⚙️ / Admin → **Büro · Chargen** | [05-chargen.md](./05-chargen.md) |
 
 ## Kollegen-Walkthroughs (Tagesablauf)
 
@@ -39,7 +40,7 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 | `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
 | `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
 | `steveshof-05-haccp.png` | StevesHof: HACCP · Temperaturen |
-| `steveshof-06-wissen.png` | StevesHof: Wissen · Fleisch-Lexikon |
+| `steveshof-06-wissen.png` | StevesHof: Auskunft · Fleisch-Lexikon |
 | `01-mhd-monitor.png` | MHD: Zeitraum- und Kategoriefilter |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |

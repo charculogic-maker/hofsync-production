@@ -20,9 +20,9 @@ CenterLogic ist auf **hohes Tagesvolumen**, klare Prozesse und zentrale Teamsteu
 
 | Thema | CenterLogic-Verhalten |
 |-------|------------------------|
-| **Tabs aktiv** | Start · Team · MHD · Neu · Herkunft · HACCP · Büro |
+| **Tabs aktiv** | Primär MHD · Neu · Herkunft · Mehr; unter Mehr Start · Team · HACCP; Admin ⚙️: Büro |
 | **Tab Prod. (Wurstküche)** | Für TorFabrik **deaktiviert** — Rezept-Skalierung läuft nicht über den WRS (Wurst-Rezept-Skalierer) |
-| **Herkunft / Thekenklade** | Tab **Herkunft** + Admin **/dev-dashboard → Rückverfolgbarkeit** (`enabledModules.traceability`) |
+| **Herkunft / Thekenklade** | Tab **Herkunft** → Unterseite **Thekenklade** (`/#thekenbuch`; `enabledModules.chargenDoku`/`traceability`) |
 | **Standard-Ansicht Aufgaben** | **„Alle meine Bereiche“** — Theke, Küche & Events, Halle auf einen Blick |
 | **Betriebsbereiche** | Theke · Küche & Events · Halle · Allgemein |
 | **Wareneingang** | Tab **Neu** → Barcode-Serien-Scan (Metro / Jakob Bayen) |
@@ -39,7 +39,7 @@ TorFabrik nutzt den **Prod.-Tab nicht**; Dokumentation erfolgt über **HACCP**, 
 
 Für laufende Produktion und Events:
 
-1. Tab **HACCP** öffnen.
+1. **Mehr → HACCP** öffnen.
 2. Im Bereich **Produktions-Protokoll**:
    - **Kerntemperatur** und **pH-Wert** eintragen
    - **Chargen-Nummer** prüfen oder mit **⚡ Neu** erzeugen
@@ -59,12 +59,12 @@ Große Lieferungen (Metro, Jakob Bayen) erfassen wir im Tab **Neu** per **Barcod
 
 ### 2.3 Büro — Chargen & Rückverfolgung
 
-1. Tab **Büro** öffnen.
+1. **Büro · Chargen** über ⚙️ / Sidebar-Admin öffnen.
 2. **🔍 Charge, Rezept oder Macher suchen…** nutzen.
 3. Liste der gespeicherten Chargen prüfen (HACCP-Protokolle, ggf. historische Produktionseinträge).
 4. **Rezeptdaten-Prüfung:** Status Masterliste vs. Cloud — relevant, wenn Rezept-Module für euren Mandanten später aktiviert werden.
 
-> **Hinweis:** Büro-**Chargen** sind Produktionschargen. Die **LMIV-Fleischherkunft** (Etikett + LOT) läuft separat über Tab **Herkunft** und die digitale Thekenklade unter **/dev-dashboard → Rückverfolgbarkeit** — siehe [07-herkunft.md](../modulanleitungen/07-herkunft.md).
+> **Hinweis:** Büro-**Chargen** sind Produktionschargen. Die **LMIV-Fleischherkunft** (Etikett + LOT) läuft separat über Tab **Herkunft** und die Digitale Thekenklade unter **Herkunft → Thekenklade** — siehe [07-herkunft.md](../modulanleitungen/07-herkunft.md) · [NAVIGATION.md](../NAVIGATION.md).
 
 > **Hinweis für CenterLogic-Administratoren:** Mandanten mit aktivem Modul **Wurstküche** dokumentieren Chargen zusätzlich unter **Prod. → Charge dokumentieren** (Rezept, Macher, Verkaufseinheiten). TorFabrik konzentriert sich auf HACCP + Inventar.
 
@@ -72,7 +72,7 @@ Große Lieferungen (Metro, Jakob Bayen) erfassen wir im Tab **Neu** per **Barcod
 
 ## 3. Wareneingang — Barcode-Serien-Scan
 
-Der operative Wareneingang läuft über den **Barcode-Serien-Scan** im Tab **Neu** (LIFO-Karten, Mengen-/MHD-Korrektur). Der frühere KI-Lieferschein-/OCR-Flow ist in der Laden-PWA deaktiviert und für eine spätere Büro-Lösung archiviert.
+Der operative Wareneingang läuft über den **Barcode-Serien-Scan** im Tab **Neu** (LIFO-Karten, Mengen-/MHD-Korrektur). Der frühere KI-Lieferschein-/OCR-Flow ist in der Laden-App deaktiviert und für eine spätere Büro-Lösung archiviert.
 
 ### 3.1 Ablauf
 

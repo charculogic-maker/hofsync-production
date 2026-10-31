@@ -54,10 +54,10 @@ Login ohne `tenantId` **und** `role` in den Claims schlägt fehl.
 | HACCP | ✅ | ✅ | ✅ |
 | Prod. | ✅ | ✅ | ❌ |
 | Etiketten | ✅ | ✅ | ❌ |
-| Wissen | ✅ | ✅ | ❌ |
+| Auskunft (`knowledge`) | ✅ | ✅ | ❌ |
 | Büro | ❌ | ✅ | ❌ |
 
-**Employee vs Admin (Code-Default):** Admin hat zusätzlich **Büro** (`batches`). **Wissen** (`knowledge`) ist für Mitarbeiter an der Theke freigegeben. Operative Laden-Tabs sind für beide gleich, sofern die Tenant-Decke sie freigibt.
+**Employee vs Admin (Code-Default):** Admin hat zusätzlich **Büro** (`batches`) über ⚙️ / Sidebar-Admin. **Auskunft** (`knowledge`, Label in der Mehr-Nav) ist für Mitarbeiter an der Theke freigegeben. Operative Laden-Tabs sind für beide gleich, sofern die Tenant-Decke sie freigibt. Nav-Übersicht: [NAVIGATION.md](./NAVIGATION.md).
 
 Zusätzlich (nicht über Access-Keys, aber rollenabhängig in der UI):
 

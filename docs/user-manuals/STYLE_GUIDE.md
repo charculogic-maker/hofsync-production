@@ -85,9 +85,9 @@ try {
 | Feedback | Web Audio API | Kurze Klick-Töne als Haptik-Ersatz |
 | Navigation | unten fixiert | One-Hand-Ergonomie auf dem Laden-iPhone |
 
-**Module aktiv:** MHD · Wareneingang (**Laden**) · Herkunft / LMIV · Wurstküche / WRS (**Prod.**) · HACCP · Wissen (Admin)
+**Module aktiv:** MHD · Wareneingang (**Laden**) · Herkunft / LMIV · Wurstküche / WRS (**Prod.**) · HACCP · Auskunft (Mehr)
 
-**Hofladen-Terminal:** Startet nach Geräte-Zugang (`bestellung@steveshof-hofladen.de`) und **Profilwahl** im Tab **MHD**. Keine Mitarbeiter-PIN — stattdessen Profil-Picker für **MHD**, **Neu** und **Herkunft**. Team, Metzgerei und Büro sind am neutralen Terminal bewusst ausgeblendet. Alltagstabs: **MHD · Neu · Herkunft · Prod.** HACCP/Wissen/Büro über Admin-Menü; Thekenklade unter `/dev-dashboard → Rückverfolgbarkeit`. Der Alltags-Logout bleibt am Laden-iPhone verborgen.
+**Hofladen-Terminal:** Startet nach Geräte-Zugang (`bestellung@steveshof-hofladen.de`) und **Profilwahl** im Tab **MHD**. Keine Mitarbeiter-PIN — stattdessen Profil-Picker für **MHD**, **Neu** und **Herkunft**. Team und Metzgerei sind am neutralen Terminal bewusst ausgeblendet. Primär: **MHD · Neu · Herkunft · Mehr**; unter Mehr u. a. **Prod.**, **HACCP**, **Auskunft**. **Büro** nur für Büro/Admin über ⚙️ / Sidebar. Thekenklade unter **Herkunft → Thekenklade**. Der Alltags-Logout bleibt am Laden-iPhone verborgen.
 
 ### 2.3 Graceful Offline & Fallback
 
