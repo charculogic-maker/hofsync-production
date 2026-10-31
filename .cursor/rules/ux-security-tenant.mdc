@@ -14,6 +14,12 @@ Produktiv: Vanilla-JS PWA (`web/`) + Cloud Functions (`functions/`). Kein React/
 - Formular-Feedback sofort; Ladezustände sichtbar; Feedback via `showToast`.
 - UI-Texte: Laden-iPhone, Wir-Perspektive, kein Dev-Jargon (`shop-wording-cop`).
 
+### Wet-Finger UX vor Apple HIG
+
+- Touch-Targets mindestens **48 px**; Kernaktionen unten; kein Glass/Blur/zarte Transparenz am Terminal.
+- Keine Swipe-Gesten als Primärbedienung; kein Zeilenumbruch-/Kontrastproblem auf Smartphones.
+- Apple-HIG-/Landing-/CharcuLogicOS-Design-Prompts nicht auf die HofSync-PWA anwenden.
+
 ## Architektur
 
 - UI ≠ Business-Logik ≠ API. Persistenz über `tenant-db.js` / `sync.js` / Callables.

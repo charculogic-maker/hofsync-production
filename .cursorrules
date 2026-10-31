@@ -11,6 +11,20 @@ Kein React/Next, kein Tailwind, kein Shadcn. Bestehende Patterns erweitern, nich
 - Komponenten wiederverwenden: Nav-Tabs, Admin-Dropdown, Dev-Dashboard-Panels, Form-Fields, Toasts.
 - Keine generischen „AI-Dashboard“-Layouts; bestehende App-Shell und `/dev-dashboard` fortführen.
 
+## Wet-Finger UX vor Apple HIG (Pflicht)
+
+HofSync ist eine Theken-/Laden-iPhone-PWA (nasse/fettige Finger, Handschuhe, Stress).  
+**Apple HIG, Liquid Glass, zarte Transparenz und Gesten-UX haben hier keinen Vorrang.**
+
+Nicht-verhandelbar:
+
+1. **Touch-Targets ≥ 48 px** (Höhe und Breite) für jede bedienbare Fläche — Tabs, Buttons, Listenzeilen, Toggle, Icon-Hits. Nie auf 44 px oder darunter „verschlanken“.
+2. **Kernaktionen unten** (Daumen-/Thekenreichweite): Speichern, Buchen, Bestätigen, Weiter — nicht in schmalen Topbars oder Hover-Only-Controls verstecken.
+3. **Kein zartes UI am Terminal:** keine Glassmorphism-/Blur-Overlays, keine niedrigen Kontrast-Transparenzen, keine Hairline-Borders als einzige Trennung. Kontrast muss unter Ladenlicht und mit nassen Fingern lesbar bleiben.
+4. **Keine Swipe-/Edge-Gesten** als einzige oder primäre Bedienung (Wischen zum Löschen, Pull-to-Refresh als Pflichtpfad, versteckte Drawer). Explizite Buttons/Tabs.
+5. **Kein Zeilenumbruch-/Kontrast-Risiko auf Smartphones:** Labels kurz halten, Primärtext nicht in 10–11 px zwängen, kritische Statusfarben mit Text + Icon/Wort (nicht Farbe allein).
+6. Marketing-/Campus-/CharcuLogicOS-Design-Prompts (Apple-Skill, Landing-Polish) **nicht** auf `web/` übertragen — dort gilt ausschließlich dieses Wet-Finger-Regelwerk.
+
 ## Architektur
 
 Strikte Trennung einhalten:
