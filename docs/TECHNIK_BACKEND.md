@@ -4,7 +4,7 @@ Diese Doku richtet sich an Entwickler/Tech-Partner und beschreibt das Datenmodel
 
 > **Stand:** Juli 2026 — inkl. LMIV-Herkunftsmodul (`traceabilityRecords`, Digitale Thekenklade) und P0-Security-/Multi-Tenancy-Refactor.
 
-Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [TorFabrik](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
+Projektüberblick & Modulstruktur: [../README.md](../README.md) · Doku-Übersicht: [README.md](./README.md) · Endnutzer: [StevesHof](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · Modulanleitungen: [modulanleitungen/README.md](./modulanleitungen/README.md)
 
 Firebase-Projekte (siehe `.firebaserc` und `web/firebase-config.js`):
 
@@ -31,7 +31,6 @@ Bekannte Mandanten:
 |------------|---------|------------------------------|
 | `StevesHof_Hauptbetrieb` | StevesHof Hofladen | CharcuLogic, Hofladen-Profil: MHD + Neu + Herkunft + Prod. |
 | `superbiomarkt` | SuperBioMarkt – Bedientheke | CharcuLogic, Schlankes Profil: nur Herkunft (LMIV + Öko-Kontrollstelle) |
-| `torfabrik` | TorFabrik Krefeld | CenterLogic, ohne Wurstküche (`wurstkueche: false`) |
 
 Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
 
@@ -42,7 +41,7 @@ Die `tenantId` wird beim Login ermittelt (`web/auth.js`):
 **Kein Client-Seeding mehr:** Team-Konfiguration, Terminal-PINs, MHD-Bestand, Rezepte und HACCP-Defaults werden **nicht** beim Login aus dem Browser geschrieben. Einmalige Initialisierung nur über Admin SDK:
 
 ```bash
-node tools/seed-tenant-bootstrap.mjs --tenant=torfabrik --project=charculogic-whitelabel-test --all
+node tools/seed-tenant-bootstrap.mjs --tenant=whitelabel_test --project=charculogic-whitelabel-test --all
 node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentials
 ```
 
@@ -52,7 +51,7 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
 
-**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine WRS/Fleischpreis-Pipeline (Wurst-Rezept-Skalierer)-Pipeline für TorFabrik).
+**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine StevesHof-WRS/Fleischpreis-Pipeline im Testprojekt).
 
 **Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`). In Produktion ist Mandantenzuordnung **ausschließlich token-claim-gesteuert** — URL-Parameter oder Payload-Manipulation reichen nicht aus, um fremde `tenants/{tenantId}/…`-Pfade zu erreichen.
 
@@ -85,7 +84,7 @@ Auf gemeinsam genutzten iPhones oder Terminals wechseln Betriebs-Logins und Mita
 | `charculogic_active_area` | Gewählter Bereich / Schicht |
 | `charculogic_active_shift` | Legacy-Alias (Migration) |
 
-Beispiel: `torfabrik_charculogic_active_employee`.
+Beispiel: `StevesHof_Hauptbetrieb_charculogic_active_employee`.
 
 - **Lesen/Schreiben:** `web/teamboard.js` nutzt `scopedTeamboardStorageKey()`.
 - **Logout:** `web/auth.js` → `clearSessionCaches()` ruft `clearTeamboardTenantStorage(tenantId)` auf und leert mandantenspezifische Keys beim Betriebs-Abmelden.
@@ -115,7 +114,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter) | nur Admin |
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
-| `inventory/{id}` | KI-Lieferschein-Posten (TorFabrik) | Mandanten-Nutzer (schema-validiert) |
+| `inventory/{id}` | optionaler KI-Lieferschein-Bestand | Mandanten-Nutzer (schema-validiert) |
 | `traceabilityRecords/{id}` | LMIV-Herkunft / Thekenklade | create/read: Mandanten-Nutzer; update (Status)/delete: Admin |
 | `users/{uid}` *(global)* | Benutzerprofil (Rolle, Mandant) | read: eigener User |
 | `userTenants/{uid}` *(global)* | alternatives Profil/Mandanten-Mapping | nur serverseitig |
@@ -290,12 +289,12 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (TorFabrik)
+### 4.3 `parseDeliveryNote` – KI-Lieferschein (optional)
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
 - **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
 - **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
-- **Auth:** Mandant `torfabrik`, Rolle **keine Aushilfe**; Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`).
+- **Auth:** Mandanten-Nutzer (keine Helper-Rolle); Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`). Laden-UI derzeit deaktiviert.
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
 
 ### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)

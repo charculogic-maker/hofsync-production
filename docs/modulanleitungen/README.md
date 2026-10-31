@@ -1,4 +1,4 @@
-# Modulanleitungen – CharcuLogic / CenterLogic / HofSync
+# Modulanleitungen – CharcuLogic / HofSync
 
 > **Diese README:** Index der tab- und screenshotbezogenen Modul-Anleitungen.
 > **Zielgruppe:** Menschen, die einzelne App-Bereiche wie MHD, Neu, Prod. oder HACCP nachvollziehen wollen.
@@ -15,7 +15,9 @@ Visuelle Anleitungen für alle Hauptbereiche der Laden-App. StevesHof-Primärtab
 | Herkunft (LMIV) / Thekenklade | Primär **Herkunft** | [07-herkunft.md](./07-herkunft.md) |
 | Wurstküche | Mehr → **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
 | HACCP | Mehr → **HACCP** | [04-haccp.md](./04-haccp.md) |
-| Auskunft (Theken-Auskunft) | Mehr → **Auskunft** | Screenshot `steveshof-06-wissen.png` |
+
+| Auskunft (Theken-Auskunft) | Mehr → **Auskunft** | Screenshot `steveshof-06-auskunft.png` |
+
 | Chargen / Büro | ⚙️ / Admin → **Büro · Chargen** | [05-chargen.md](./05-chargen.md) |
 
 ## Kollegen-Walkthroughs (Tagesablauf)
@@ -23,7 +25,6 @@ Visuelle Anleitungen für alle Hauptbereiche der Laden-App. StevesHof-Primärtab
 | Mandant | Anleitung |
 |---------|-----------|
 | StevesHof (`StevesHof_Hauptbetrieb`) | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
-| TorFabrik Krefeld (`torfabrik`) | [KOLLEGEN_ANLEITUNG_TORFABRIK.md](../KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
 
 Übersicht: [docs/README.md](../README.md)
 
@@ -40,7 +41,9 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 | `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
 | `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
 | `steveshof-05-haccp.png` | StevesHof: HACCP · Temperaturen |
-| `steveshof-06-wissen.png` | StevesHof: Auskunft · Fleisch-Lexikon |
+
+| `steveshof-06-auskunft.png` | StevesHof: Auskunft · Fleisch-Lexikon |
+
 | `01-mhd-monitor.png` | MHD: Zeitraum- und Kategoriefilter |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |

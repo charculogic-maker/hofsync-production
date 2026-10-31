@@ -345,7 +345,7 @@ const shots = [
     },
   },
   {
-    file: 'steveshof-06-wissen.png',
+    file: 'steveshof-06-auskunft.png',
     label: 'Wissen · StevesHof',
     async prepare(page) {
       await injectSteveshofTerminalDemo(page);

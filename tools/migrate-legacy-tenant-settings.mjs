@@ -1,5 +1,5 @@
 /**
- * Migriert die früheren Shop-Sonderlocken von StevesHof und TorFabrik
+ * Migriert die früheren Shop-Sonderlocken von StevesHof
  * nach tenants/{tenantId}/settings/{terminal,profile,suppliers}.
  *
  * Die App liest betriebsName, defaultTeam, primaryColor und suppliers.names.
@@ -70,26 +70,6 @@ const TENANT_SETTINGS = {
         'Stautenhof',
         'Eigene Produktion',
       ],
-    },
-  },
-  torfabrik: {
-    terminal: {
-      isFixedTerminal: false,
-      bypassPin: false,
-      defaultOperatorName: 'Kaffee-Team',
-      terminalUser: 'barista@torfabrik.de',
-    },
-    profile: {
-      betriebsName: 'TorFabrik Krefeld',
-      appName: 'HofSync',
-      primaryColor: '#d97706',
-      primaryColorHover: '#b45309',
-      darkHeaderBg: '#78350f',
-      standardBereich: 'Laden',
-      defaultTeam: ['Barista 1', 'Röster', 'Laden-Team'],
-    },
-    suppliers: {
-      names: ['Rohkaffee-Import', 'Verpackung', 'Großhandel', 'Milchhof'],
     },
   },
 };

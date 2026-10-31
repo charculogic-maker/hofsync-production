@@ -19,13 +19,12 @@ Aktuelle Mandanten-IDs:
 | Betrieb | `tenantId` | Kollegen-Anleitung |
 |---------|------------|-------------------|
 | StevesHof Hofladen | `StevesHof_Hauptbetrieb` | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
-| TorFabrik Krefeld | `torfabrik` | [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
 
 Beispielpfade:
 
 ```text
 tenants/StevesHof_Hauptbetrieb/rezepte
-tenants/torfabrik/mhd_liste
+tenants/{tenantId}/mhd_liste
 ```
 
 ## Grundregeln

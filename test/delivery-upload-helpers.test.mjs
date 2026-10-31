@@ -55,8 +55,8 @@ describe('delivery-upload helper contract', () => {
 
   it('builds tenant-rooted delivery_notes path', () => {
     assert.equal(
-      buildDeliveryNoteStoragePath('TorFabrik', 'Foto_1.jpg', 1700000000000),
-      'tenants/TorFabrik/delivery_notes/1700000000000_Foto_1.jpg',
+      buildDeliveryNoteStoragePath('tenant_b_isolation', 'Foto_1.jpg', 1700000000000),
+      'tenants/tenant_b_isolation/delivery_notes/1700000000000_Foto_1.jpg',
     );
   });
 

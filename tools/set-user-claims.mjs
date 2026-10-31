@@ -6,7 +6,7 @@
  *
  * Usage:
  *   node tools/set-user-claims.mjs --uid=ABC123 --project=hofsync-production
- *   node tools/set-user-claims.mjs --tenant=torfabrik --project=charculogic-whitelabel-test
+ *   node tools/set-user-claims.mjs --tenant=StevesHof_Hauptbetrieb --project=charculogic-whitelabel-test
  *   node tools/set-user-claims.mjs --all --project=hofsync-production
  *   FIREBASE_PROJECT=hofsync-production node tools/set-user-claims.mjs --all
  */

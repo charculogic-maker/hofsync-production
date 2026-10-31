@@ -26,7 +26,7 @@ export const TEST_PROJECT_ID = process.env.FIREBASE_EMULATOR_PROJECT_ID
   || 'demo-charculogic-rules';
 
 export const TENANTS = {
-  TORFABRIK: 'torfabrik',
+  TENANT_B: 'tenant_b_isolation',
   STEVES_HOF: 'StevesHof_Hauptbetrieb',
 };
 

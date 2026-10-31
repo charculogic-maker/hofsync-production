@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 
 const TENANT_A = 'StevesHof_Hauptbetrieb';
-const TENANT_B = 'TorFabrik';
+const TENANT_B = 'tenant_b_isolation';
 
 function authAs({ uid = 'uid-test', tenantId, role, email = '', isAdmin } = {}) {
   const token = {

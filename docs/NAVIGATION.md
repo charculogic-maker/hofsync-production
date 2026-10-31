@@ -59,7 +59,9 @@ Auf der **Übersicht** gibt es Sprungmarken z. B. zur Thekenklade (`/#thekenbu
 
 | Rolle | Einstieg |
 |-------|----------|
-| Kollegen am Laden-iPhone | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [KOLLEGEN_ANLEITUNG_TORFABRIK.md](./KOLLEGEN_ANLEITUNG_TORFABRIK.md) |
+
+| Kollegen am Laden-iPhone | [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md](./KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) |
+
 | StevesHof Handbuch | [user-manuals/ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) |
 | Neuer Mandant / Admin | [user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) |
 | Technik & Ist-Stand | [APP_DOKUMENTATION.md](./APP_DOKUMENTATION.md) · [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md) |
