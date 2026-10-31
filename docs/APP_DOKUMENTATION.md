@@ -290,9 +290,7 @@ Aktiver dokumentierter Produktiv-Mandant: **StevesHof** (§5). Weitere Betriebe 
 
 **Archiv:** Mandant **TorFabrik** (`torfabrik` / CenterLogic-Kunde Krefeld) ist nicht mehr aktiv. Historische Anleitungen: [docs/_archive/torfabrik/](./_archive/torfabrik/).
 
-
 Isolations-Tests nutzen einen synthetischen Zweitmandanten `tenant_b_isolation` (kein Produktiv-Kunde).
-
 
 ---
 
