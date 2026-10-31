@@ -155,6 +155,8 @@ Steuerung im Dev-Dashboard unter **Einstellungen → MHD-Karten-Aktionen** bzw. 
 | Mandant | `orders` | `haccp` | `teamboard` | Tab **Team** zeigt |
 |---------|----------|---------|-------------|--------------------|
 | `steveshof_hauptbetrieb` | `false` | oft via `enabledModules` | `false` | Tab Team ausgeblendet; HACCP unter **Mehr** |
+
+
 | `DEFAULT_BRANDING` | `true` | `true` | `true` | **Nachrichten · Bestellungen · Temperatur-Check** |
 
 > **Kundenbestellungen für StevesHof:** Im Hofladen-Profil ist `orders: false`, daher erfasst StevesHof aktuell **keine** Kundenbestellungen über den Tab **Team**. Soll der Hofladen Bestellungen aufnehmen, in `TENANT_BRANDING.steveshof_hauptbetrieb.modules` `orders: true` setzen und die Service-Worker-Cache-Version erhöhen.

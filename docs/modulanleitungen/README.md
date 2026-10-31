@@ -15,7 +15,9 @@ Visuelle Anleitungen für alle Hauptbereiche der Laden-App. StevesHof-Primärtab
 | Herkunft (LMIV) / Thekenklade | Primär **Herkunft** | [07-herkunft.md](./07-herkunft.md) |
 | Wurstküche | Mehr → **Prod.** | [03-wurstkueche.md](./03-wurstkueche.md) *(nur wenn Modul aktiv)* |
 | HACCP | Mehr → **HACCP** | [04-haccp.md](./04-haccp.md) |
+
 | Auskunft (Theken-Auskunft) | Mehr → **Auskunft** | Screenshot `steveshof-06-auskunft.png` |
+
 | Chargen / Büro | ⚙️ / Admin → **Büro · Chargen** | [05-chargen.md](./05-chargen.md) |
 
 ## Kollegen-Walkthroughs (Tagesablauf)
@@ -39,7 +41,9 @@ Für Entwickler/Tech-Partner (Architektur, Datenmodell, Security-Rules, Cloud Fu
 | `steveshof-04-letzte-eingaenge-korrigieren.png` | StevesHof: **Letzte Eingänge** (Tab Neu, alle Nutzer) — Kategorie-Korrektur |
 | `steveshof-04-prod.png` | StevesHof: Prod.-Tab mit Rezeptliste |
 | `steveshof-05-haccp.png` | StevesHof: HACCP · Temperaturen |
+
 | `steveshof-06-auskunft.png` | StevesHof: Auskunft · Fleisch-Lexikon |
+
 | `01-mhd-monitor.png` | MHD: Zeitraum- und Kategoriefilter |
 | `01b-mhd-karte.png` | Beispiel-Posten mit Aktionen |
 | `01c-mhd-suche-offen.png` | Artikelsuche geöffnet |

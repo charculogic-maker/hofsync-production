@@ -44,6 +44,8 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 | Handbuch | Inhalt |
 |----------|--------|
 | [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Wareneingang, Herkunft/LMIV, Prod., HACCP, Auskunft, Offline |
+
+
 | [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, Module, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |
 | [NAVIGATION.md](./NAVIGATION.md) | Nav-Cheat-Sheet (Primär / Mehr / Admin) |

@@ -12,11 +12,13 @@ Chronologisches Protokoll der wichtigsten Meilensteine. **Neueste Einträge steh
 - Kollegen- und User-Manuals, Modulanleitungen, APP_DOKUMENTATION und Whitelabel-Admin an aktuelle Navigation angeglichen (Auskunft unter Mehr; Thekenklade unter Herkunft; Büro office-only).
 - Historische Einträge unten (z. B. v1.3.0 „Rückverfolgbarkeit“-Tab) bleiben als Changelog-Chronik stehen.
 
+
 ### Mandant TorFabrik archiviert
 
 - Anleitungen nach [docs/_archive/torfabrik/](docs/_archive/torfabrik/) verschoben.
 - Seed-/Migrations-Presets und aktive Doku bereinigt; Isolations-Tests nutzen `tenant_b_isolation`.
 - Screenshot `steveshof-06-wissen.png` → `steveshof-06-auskunft.png`.
+
 
 ---
 

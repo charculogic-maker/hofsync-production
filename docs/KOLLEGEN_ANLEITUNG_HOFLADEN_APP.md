@@ -207,7 +207,9 @@ Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schne
 
 Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir sie auch im Arbeitsalltag sicher treffen.
 
+
 ![StevesHof Auskunft · Fleisch-Lexikon](./modulanleitungen/screenshots/steveshof-06-auskunft.png)
+
 
 ---
 

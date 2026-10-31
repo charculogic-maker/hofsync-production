@@ -143,7 +143,9 @@ Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8
 
 Alle Balken und Filter sind groß genug für die Bedienung am Laden-iPhone.
 
+
 ![StevesHof Auskunft · Fleisch-Lexikon](../modulanleitungen/screenshots/steveshof-06-auskunft.png)
+
 
 ## 7. Kundenbestellungen und Sammel-Pickliste
 

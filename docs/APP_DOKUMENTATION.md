@@ -122,7 +122,9 @@ Pro Mandant konfigurierbar:
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
 | `traceability` / `chargenDoku` | Tab **Herkunft** (LMIV) inkl. Digitale Thekenklade |
+
 | `wurstkueche` | Tab **Prod.** (über `enabledModules` / Branding steuerbar) |
+
 | `cutGlossary` / `knowledge` | Mehr → Auskunft (Theken-Auskunft); Cuts über dieselbe Seite |
 | `haccp` | **HACCP** (Mehr) |
 | `teamboard` | Tab **Start** (Teamboard) |
@@ -288,7 +290,9 @@ Aktiver dokumentierter Produktiv-Mandant: **StevesHof** (§5). Weitere Betriebe 
 
 **Archiv:** Mandant **TorFabrik** (`torfabrik` / CenterLogic-Kunde Krefeld) ist nicht mehr aktiv. Historische Anleitungen: [docs/_archive/torfabrik/](./_archive/torfabrik/).
 
+
 Isolations-Tests nutzen einen synthetischen Zweitmandanten `tenant_b_isolation` (kein Produktiv-Kunde).
+
 
 ---
 
