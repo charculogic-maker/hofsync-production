@@ -44,11 +44,10 @@ In der unteren Navigation sehen wir typischerweise:
 |-----|-------|
 | **MHD** | Posten mit MHD im gewählten Zeitraum prüfen, Mengen korrigieren, Ware als OK, Raus oder Ausverkauft markieren (Küche/Box nur wenn in der Verwaltung freigeschaltet) |
 | **Neu** | Ware scannen, Posten sammeln, **Gesamte Lieferung abschließen** |
-| **Herkunft** | Etikett fotografieren, LOT und LMIV-Herkunft für die Theke speichern |
-| **Etiketten** | Avery-Bögen: Herkunft vorausfüllen, Packliste „Heute zu zerlegen/packen“ übernehmen, am Laden-PC drucken |
-| **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
+| **Herkunft** | Etikett fotografieren, LOT und LMIV-Herkunft speichern; Unterseite **Thekenklade** |
+| **Mehr** | u. a. **HACCP**, **Prod.**, **Etiketten**, **Auskunft** |
 
-Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACCP**, **Wissen**, **Büro** und die digitale Thekenklade (**/dev-dashboard → Rückverfolgbarkeit**) sind für persönliche Admin-Konten sichtbar; am neutralen Laden-iPhone bleibt dieser Verwaltungsbereich ausgeblendet.
+Die Metzgerei-Erfassung bleibt für `StevesHof_Hauptbetrieb` deaktiviert. **HACCP** und **Auskunft** liegen unter **Mehr** (wenn Module an). **Büro · Chargen**, **Retter-Box** und **Verwaltung** erscheinen nur für Büro/Admin über ⚙️ (mobil) bzw. die Sidebar **Admin** (Desktop). Die Digitale Thekenklade liegt unter **Herkunft → Thekenklade** (`/#thekenbuch`) — nicht mehr unter `/dev-dashboard`.
 
 ## 3. MHD-Monitor (vereinfacht)
 
@@ -108,13 +107,13 @@ Im Tab **Herkunft** erfassen wir die gesetzliche Fleisch-Rückverfolgbarkeit:
 4. **Tierart** wählen; bei einem Ursprungsland nur das Land, sonst die Mehrländer-Felder (bei Rind inkl. Zulassungsnummer Zerlegebetrieb).
 5. **Herkunft speichern** — Status danach **aktiv in der Theke**.
 
-Offline speichert unsere App den Eintrag lokal und synchronisiert ihn bei WLAN. Admins verwalten die Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Suche, Archivieren, Original-Etikett).
+Offline speichert unsere App den Eintrag lokal und synchronisiert ihn bei WLAN. Die Digitale Thekenklade öffnen wir unter **Herkunft → Thekenklade** (Suche, Archivieren, Original-Etikett); Deep-Link `/#thekenbuch`.
 
-Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [modulanleitungen/07-herkunft.md](../modulanleitungen/07-herkunft.md)
+Details: [KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md §2b](../KOLLEGEN_ANLEITUNG_HOFLADEN_APP.md) · [modulanleitungen/07-herkunft.md](../modulanleitungen/07-herkunft.md) · [NAVIGATION.md](../NAVIGATION.md)
 
 ### Wareneingang per Barcode (Tab Neu)
 
-Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Bei langen Karton-Barcodes mit `(01)…` etwas mehr Abstand halten — die App liest Artikelnummer und ggf. MHD. Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert.
+Im Tab **Neu** erfassen wir Lieferungen per **Barcode-Serien-Scan** (LIFO-Karten, Mengen-/MHD-Korrektur auf der Karte). Bei langen Karton-Barcodes mit `(01)…` etwas mehr Abstand halten — die App liest Artikelnummer und ggf. MHD. Der frühere KI-Lieferschein-Scan ist in der Laden-App deaktiviert.
 
 ### Gespeicherte Kategorien prüfen und korrigieren
 
@@ -134,9 +133,9 @@ Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8
 
 ![StevesHof Prod.-Tab mit Rezeptliste](../modulanleitungen/screenshots/steveshof-04-prod.png)
 
-## 6. Wissen
+## 6. Auskunft (Theken-Auskunft)
 
-**Wissen** öffnen wir über das **Verwaltungs-Menü**. Dort gibt es aufklappbare Bereiche:
+**Auskunft** öffnen wir unter **Mehr** (wenn freigeschaltet). Seitentitel: **Theken-Auskunft**. Dort gibt es aufklappbare Bereiche:
 
 - **🧾 Theken-Auskunft (Allergene & Zutaten)**: Schnellsuche und Filter (z. B. Glutenfrei, Rind, Feinkost) für Kundenfragen zu Allergenen und Zutaten – Detailansicht mit LMIV-Hinweis, auch offline verfügbar.
 - **🥩 Fleisch-Lexikon (Cuts)**: Suche nach Zuschnitten, regionalen Namen, Lage und Verwendung.
@@ -144,7 +143,7 @@ Im Rezept öffnen wir die **Tagesproduktion**, bei Bedarf die **Schnellwahl** (8
 
 Alle Balken und Filter sind groß genug für die Bedienung am Laden-iPhone.
 
-![StevesHof Wissen · Fleisch-Lexikon](../modulanleitungen/screenshots/steveshof-06-wissen.png)
+![StevesHof Auskunft · Fleisch-Lexikon](../modulanleitungen/screenshots/steveshof-06-wissen.png)
 
 ## 7. Kundenbestellungen und Sammel-Pickliste
 
@@ -162,7 +161,7 @@ Bei der Übergabe tippen wir **Als abgeholt markieren**. Unsere App zieht die ta
 
 ## 8. Temperatur-Check (HACCP)
 
-**HACCP** öffnen wir über das **Verwaltungs-Menü**. Dort dokumentieren wir Kühlungs-Temperaturen und Reinigungen. Der Tab **Team** ist für StevesHof deaktiviert — alle Tageskontrollen laufen hier.
+**HACCP** öffnen wir unter **Mehr**. Dort dokumentieren wir Kühlungs-Temperaturen und Reinigungen. Der Tab **Team** ist für StevesHof deaktiviert — alle Tageskontrollen laufen hier.
 
 1. **HACCP** öffnen.
 2. Je Kühlstelle (z. B. **Kühlauslage Hofladen**, **MoPro-Kühlung**, **TK-Truhe**) den aktuellen Wert in das große Feld **„____ °C“** eintippen.
@@ -209,9 +208,9 @@ Unsere Betriebsdaten (MHD, Lieferungen, HACCP, Herkunft/Thekenklade) liegen in *
 | App-Update | **↻** oben rechts; Notfall: `?reset=true` |
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
-| Digitale Thekenklade | `/dev-dashboard` → Tab **Rückverfolgbarkeit** |
+| Digitale Thekenklade | **Herkunft → Thekenklade** bzw. `/#thekenbuch` (Sprung auch von `/dev-dashboard` → Übersicht) |
 | Warenbewegungsbericht | `/dev-dashboard` → Tab **Protokoll**: Standard **seit vorgestern** (Buttons Heute / 7 Tage), Mitarbeiter und Aktion filtern; **Report als CSV exportieren** öffnet die Datei in Excel oder LibreOffice. Über **Korrigieren** ändern wir Umlautfehler, Menge oder MHD. Den Artikelnamen merken wir uns für alle Posten mit derselben EAN und für den nächsten Wareneingang auf dem Laden-iPhone; Menge und MHD gelten nur für diesen Posten. |
-| Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `traceability`) oder Abstimmung in `web/branding.js` |
+| Module freischalten | `/dev-dashboard` → Modul-Checkboxen (`enabledModules`, inkl. `chargenDoku`/`traceability`, `knowledge`) oder Abstimmung in `web/branding.js` |
 
 ---
 

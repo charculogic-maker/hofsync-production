@@ -17,7 +17,7 @@ Rabattstaffel ohne MHD-Modul aus (Super-Admin sieht alles).
 | Mitarbeiter / Helper | Sidebar / Bottom-Nav | Link **Verwaltung** ausgeblendet (`has-admin-nav` fehlt) | – |
 | Mitarbeiter / Helper | Klick auf `#nav-admin-dashboard` (falls manipulierbar) | Toast „Die Verwaltung ist nur für Betriebs-Admins.“, kein Wechsel | Callables/Rules blocken |
 | Mitarbeiter / Helper | Direktaufruf `/dev-dashboard` | Redirect auf `/` + Toast nach Reload | `useTenantAdminAuth()`; Callables `permission-denied` |
-| Tenant-Admin (A) | `/dev-dashboard` öffnen | Tabs Übersicht / Nutzer / Einstellungen / Protokoll / Thekenklade | Claim `role: admin` + `tenantId: A` |
+| Tenant-Admin (A) | `/dev-dashboard` öffnen | Tabs Übersicht / Nutzer / Mein Betrieb / Protokoll (+ Sprung Thekenklade `/#thekenbuch`) | Claim `role: admin` + `tenantId: A` |
 | Tenant-Admin (A) | Betrieb-Switcher (Super-Admin-Selector) | Selector unsichtbar / gesperrt | Rules: `request.auth.token.tenantId` |
 | Tenant-Admin (A) | Fremden Tenant B in Callable `tenantId` setzen | UI sendet nur eigenen Tenant; bei Manipulation Fehler-Toast | `assertAdminAccessForTenant` → `permission-denied` |
 | Tenant-Admin (A) | Einstellungen speichern (Name/Logo) | Lokaler Draft + Vorschau; Validation vor Speichern | Firestore: `displayName`/`logoUrl` nach Create für Tenant-Admin eingeschränkt; Module-Updates erlaubt |

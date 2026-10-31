@@ -7,9 +7,11 @@ Diese Anleitung gilt für unseren Hofladen bei **StevesHof**. Unsere App heißt 
 3. **Fleisch-Herkunft erfassen** (LMIV / Thekenklade)
 4. **Rezepte und Produktion öffnen**
 5. **Temperaturen und Reinigung dokumentieren** (HACCP)
-6. **Wissen nachlesen**
+6. **Auskunft nachschlagen** (Allergene, Zutaten, Fleisch-Lexikon)
 
 Nach dem Öffnen starten wir direkt in der **MHD-Kontrolle**.
+
+> **Navigation (Kurz):** Primär **MHD · Neu · Packtisch · Herkunft · Mehr** · unter Mehr u. a. **HACCP** und **Auskunft** · Thekenklade unter **Herkunft** · Büro/Verwaltung nur über ⚙️ (Büro/Admin). Ausführlich: [NAVIGATION.md](./NAVIGATION.md).
 
 ## Anmeldung am Laden-iPhone
 
@@ -42,13 +44,14 @@ Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Le
 |-----|-------|
 | **MHD** | Haltbarkeiten prüfen und Ware bearbeiten |
 | **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
-| **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
-| **Etiketten** | Avery-Zerlegeetiketten vorbereiten (Packliste / Herkunft übernehmen, am Laden-PC drucken) |
-| **Prod.** | Rezepte, Produktion und WRS-Kalkulation (Wurst-Rezept-Skalierer) |
+| **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft; Unterseite **Thekenklade** |
+| **Mehr** | Overflow: u. a. **HACCP**, **Prod.**, **Etiketten**, **Auskunft** |
 
-**HACCP** und **Auskunft** (Theken-Auskunft) liegen unter **Mehr**. **Büro** und **Retter-Box** öffnen wir bei Bedarf über das **Verwaltungs-Menü** ⚙️ oben (Büro/Admin am Smartphone) bzw. die **Admin**-Leiste am Desktop. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer** (unser Betrieb ist vorausgewählt), **Einstellungen**, **Protokoll** (Warenbewegungen seit vorgestern, Export für Excel, Einträge korrigieren) und **Thekenklade**.
+Unter **Mehr** (wenn freigeschaltet): **Start**, **Team**, **HACCP**, **Prod.** (Rezepte, Produktion, WRS), **Etiketten** (Avery), **Auskunft** (Theken-Auskunft / Allergene & Zutaten).
 
-Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit klar getrennten Bereichen **Laden-Alltag** und **Verwaltung**.
+**Büro** und **Retter-Box** öffnen wir bei Bedarf über das **Verwaltungs-Menü** ⚙️ oben (nur Büro/Admin am Smartphone) bzw. die **Admin**-Leiste am Desktop. Den Eintrag **Verwaltung** (`/dev-dashboard`) sehen nur **Betriebs-Admins** — andere Zugänge werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard**: **Übersicht**, **Nutzer**, **Mein Betrieb**, **Protokoll** (Warenbewegungen, CSV-Export, Einträge korrigieren). Auf der Übersicht liegen Sprungmarken zur Thekenklade, Retter-Box und Auskunft — kein eigener Tab „Rückverfolgbarkeit“.
+
+Auf großen Bildschirmen erscheint die Navigation als **linke Seitenleiste** mit **Laden-Alltag** und **Admin**.
 
 ---
 
@@ -140,7 +143,7 @@ Im Tab **Herkunft** hinterlegen wir die gesetzliche Fleisch-Rückverfolgbarkeit 
 
 Ohne WLAN speichert unsere App den Eintrag lokal und synchronisiert automatisch, sobald WLAN wieder verfügbar ist.
 
-Admins sehen alle Einträge unter **/dev-dashboard → Rückverfolgbarkeit** (Digitale Thekenklade: Suche nach LOT/Datum, Status umschalten, Original-Etikett für Kontrollen öffnen).
+Die **Digitale Thekenklade** öffnen wir unter **Herkunft → Thekenklade** (Suche nach LOT/Datum, Status umschalten, Original-Etikett öffnen). Deep-Link: `/#thekenbuch`. Von der Verwaltungs-Übersicht gibt es eine Sprungmarke dorthin.
 
 ---
 
@@ -167,7 +170,7 @@ Im Tab **Neu** erfassen wir Lieferungen zuverlässig per **Barcode-Serien-Scan**
 
 **Umverpackungen / Kartons:** Manche Lieferanten drucken lange Strichcodes mit Klammern wie `(01)…(15)…(10)…`. Wir halten das Laden-iPhone etwas weiter weg (ca. 25–40 cm). Die App liest die Artikelnummer und – wenn der Code es enthält – auch das MHD. Wenn die Kamera trotzdem stockt, tippen wir die Zahl unter dem Strichcode ein.
 
-Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert; der Fokus liegt auf dem schnellen Barcode-Flow.
+Der frühere KI-Lieferschein-Scan ist in der Laden-App deaktiviert; der Fokus liegt auf dem schnellen Barcode-Flow.
 
 ### Zuordnung nachträglich korrigieren
 
@@ -194,9 +197,9 @@ Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schne
 
 ---
 
-## 4. Wissen nachlesen
+## 4. Auskunft nachschlagen
 
-**Auskunft** öffnen wir unter **Mehr** (wenn freigeschaltet). Dort gibt es aufklappbare Bereiche:
+**Auskunft** öffnen wir unter **Mehr** (wenn freigeschaltet). Seitentitel: **Theken-Auskunft**. Dort gibt es aufklappbare Bereiche:
 
 - **🧾 Theken-Auskunft (Allergene & Zutaten)**: Wir suchen Artikel oder Zutaten und tippen einen Treffer an – Allergene, Verkehrsbezeichnung und kundenkonforme Zutatenliste erscheinen sofort (auch offline aus dem gespeicherten Katalog).
 - **🥩 Fleisch-Lexikon (Cuts)**: Wir suchen nach Zuschnitten, regionalen Namen und passenden Verwendungen.
@@ -204,7 +207,7 @@ Im Rezept stellen wir die Tagesmenge ein – bei Standardchargen über die Schne
 
 Die Filter im Fleisch-Lexikon sind für das Laden-iPhone groß genug, damit wir sie auch im Arbeitsalltag sicher treffen.
 
-![StevesHof Wissen · Fleisch-Lexikon](./modulanleitungen/screenshots/steveshof-06-wissen.png)
+![StevesHof Auskunft · Fleisch-Lexikon](./modulanleitungen/screenshots/steveshof-06-wissen.png)
 
 ---
 

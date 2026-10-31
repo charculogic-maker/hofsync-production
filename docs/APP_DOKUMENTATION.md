@@ -121,7 +121,7 @@ Pro Mandant konfigurierbar:
 | `mhdMonitor` | Tab **MHD** |
 | `wareneingang` | Tab **Neu** (Wareneingang) |
 | `wareneingangMetzgerei` | Metzgerei-Untermodus im Wareneingang |
-| `traceability` | Tab **Herkunft** (LMIV) + Dev-Dashboard Thekenklade |
+| `traceability` / `chargenDoku` | Tab **Herkunft** (LMIV) inkl. Digitale Thekenklade |
 | `wurstkueche` | Tab **Prod.** (zusätzlich: `torfabrik` ist hardcoded ausgeschlossen) |
 | `cutGlossary` / `knowledge` | Mehr → Auskunft (Theken-Auskunft); Cuts über dieselbe Seite |
 | `haccp` | **HACCP** (Mehr) |
@@ -151,8 +151,8 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 | `traceability` | Herkunft | `page-traceability` | `traceability.js` | LMIV-Erfassung (Etikett + LOT) |
 | `kitchen` | Prod. | `page-kitchen` | `production.js`, `beffe_calc.js`, `production-datasheet.js` | Rezepte, Produktion, WRS, DIN-A4-Datenblatt |
 
-**Mehr-Nav:** `haccp`, `knowledge` (Label Auskunft). **Admin** (Header-⚙️ mobil / Sidebar desktop): `batches` (Büro), Retter-Box, Verwaltung.  
-**Dev-Dashboard** (`/dev-dashboard`): Module/Mitarbeiter + Tab **Rückverfolgbarkeit** (Digitale Thekenklade).
+**Mehr-Nav:** `haccp`, `knowledge` (Label **Auskunft**), `kitchen` (Prod.), `avery` (Etiketten), Start/Team. **Admin** (Header-⚙️ mobil / Sidebar desktop, office-only): `batches` (Büro), Retter-Box, Verwaltung.  
+**Dev-Dashboard** (`/dev-dashboard`): Übersicht · Nutzer · Mein Betrieb · Protokoll (+ Plattform). Thekenklade über **Herkunft** bzw. Sprung `/#thekenbuch`. Nav-Cheat-Sheet: [NAVIGATION.md](./NAVIGATION.md).
 
 ### MHD-Monitor (`web/mhd.js`)
 
@@ -175,7 +175,7 @@ Untere Navigationsleiste — Alltagstabs (mandanten- und rollenabhängig):
 - Erfassungsmaske Tab **Herkunft**: Foto → Storage `tenants/{tenantId}/traceability/{recordId}.jpg`
 - Firestore `tenants/{tenantId}/traceabilityRecords` — Felder u. a. `lotNumber`, `healthMark`, `animalType`, `origin`, `status` (`active`|`archived`), `createdBy`
 - Create/Read: Mandanten-Nutzer; Status-Update/Delete: Admin
-- Admin-UI: `/dev-dashboard` → **Rückverfolgbarkeit** (Suche, Archiv, Detail inkl. Etikett)
+- Buch-UI: Tab **Herkunft → Thekenklade** (Suche, Archiv, Detail inkl. Etikett); Deep-Link `/#thekenbuch`
 - Abgrenzung: Büro-**Chargen** = Produktionschargen; Herkunft = LMIV-Thekenklade
 
 ### Wurstküche / Prod. (`web/production.js`, `web/beffe_calc.js`, `web/production-datasheet.js`)
@@ -262,10 +262,10 @@ Bettina, Efecan, Finn, Heiko, Melanie, Mimi, Nicole, Paddy, Stephie, Thomas, Aus
 |-----|----------|
 | MHD | ✅ (Start-Tab) |
 | Neu | ✅ |
-| Herkunft | ✅ |
-| Prod. | ✅ |
-| HACCP / Wissen / Büro | Admin-Menü (persönliche Admin-Konten) |
-| Team / Start | ❌ |
+| Herkunft | ✅ (inkl. Thekenklade) |
+| Mehr → Prod. / HACCP / Auskunft / Etiketten | ✅ wenn Modul an |
+| ⚙️ Büro / Retter / Verwaltung | nur Büro/Admin |
+| Team / Start | ❌ (`teamboard`/`team` aus) |
 
 ### Terminal-Modus (`web/app.js`)
 
@@ -279,7 +279,7 @@ Für die Kombination StevesHof + `bestellung@steveshof-hofladen.de`:
 
 ### Persönliche Admin-Konten
 
-Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **Büro** (Chargen, Leitstand, Team-Konfiguration) und die digitale Thekenklade unter `/dev-dashboard → Rückverfolgbarkeit`.
+Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich **Büro · Chargen** (⚙️ / Sidebar-Admin: Chargen, Leitstand, Team-Konfiguration) und die Digitale Thekenklade unter **Herkunft → Thekenklade**.
 
 ---
 
@@ -308,7 +308,7 @@ Z. B. `paddy@steveshof-hofladen.de` mit `role: admin` sehen zusätzlich Tab **B�
 ### Rollen am Laden
 
 - **Helper:** eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv
-- **Employee / Admin:** volle Modul-Sichtbarkeit gemäß Branding; Thekenklade unter `/dev-dashboard → Rückverfolgbarkeit`
+- **Employee / Admin:** volle Modul-Sichtbarkeit gemäß Branding; Thekenklade unter **Herkunft → Thekenklade**
 - Mitarbeiter-PIN über Callable `verifyTerminalPin` + `terminalCredentials/current`
 
 ---
@@ -336,18 +336,18 @@ Auflösung: **Tenant.enabledModules ∩ role_modules[role] ∩ allowedModules** 
 | Unterschied Employee vs Admin (Code-Default, alle Module an) | Employee | Admin |
 |--------------------------------------------------------------|:--------:|:-----:|
 | Primärtabs MHD · Neu · Packtisch · Herkunft | ✅ | ✅ |
-| Mehr: Start · Team · HACCP · Prod. · Etiketten | ✅ | ✅ |
-| Wissen (`knowledge`) | ❌ | ✅ |
-| Büro (`batches`) | ❌ | ✅ |
+| Mehr: Start · Team · HACCP · Prod. · Etiketten · Auskunft | ✅ | ✅ |
+| Auskunft (`knowledge`) | ✅ | ✅ |
+| Büro (`batches`) / ⚙️-Admin | ❌ | ✅ |
 
-Helper zusätzlich ohne Neu / Packtisch / Team / Prod. / Etiketten / Wissen / Büro (siehe Matrix in der Claims-Doku).
+Helper zusätzlich ohne Neu / Packtisch / Team / Prod. / Etiketten / Auskunft / Büro (siehe Matrix in der Claims-Doku).
 
 ### UI-Filter (`applyRoleBasedUi` in `web/app.js`)
 
 | Element | Helper | Employee | Admin (Büro) |
 |---------|--------|----------|----------------|
 | Tabs team, receiving, kitchen, batches | ausgeblendet | batches ausgeblendet | batches sichtbar |
-| Tab Wissen | ausgeblendet | ausgeblendet | sichtbar (wenn Modul an) |
+| Mehr → Auskunft (`knowledge`) | ausgeblendet | sichtbar (wenn Modul an) | sichtbar (wenn Modul an) |
 | Stammdaten, KI-Lieferschein, Office-Tools | ausgeblendet | ausgeblendet | sichtbar |
 | MHD Speichern-Leiste | ausgeblendet | sichtbar | sichtbar |
 | WRS „Preise aktualisieren“ | ausgeblendet | ausgeblendet | sichtbar |
@@ -589,16 +589,17 @@ craft_food_app/
 
 ### Bekannte Abweichungen älterer Anleitungen
 
-Einige Kollegen-Dokumente beschreiben noch den Tab **Team** mit Temperatur-Check oder aktive Kundenbestellungen am StevesHof-Laden-iPhone. **Aktueller Code:**
+Ältere Screenshots oder PDFs können noch „Wissen“ im Admin-Header oder „Rückverfolgbarkeit“ unter `/dev-dashboard` zeigen. **Aktueller Code (Okt 2026):**
 
-- Temperatur-Check liegt im Tab **HACCP** (nicht Team)
-- StevesHof: Tabs **Team** und **Start** sind deaktiviert (`team: false`, `teamboard: false`)
-- Kundenbestell-UI: `orders: false` (Backend Kunden-Signal ist vorbereitet)
-- Alltagstabs StevesHof: **MHD · Neu · Herkunft · Prod.**; HACCP/Wissen/Büro über Admin-Menü
-- LMIV-Thekenklade: `/dev-dashboard → Rückverfolgbarkeit` (`traceabilityRecords`)
+- Temperatur-Check liegt unter **Mehr → HACCP** (StevesHof: kein Team-Tab)
+- StevesHof: Tabs **Team** und **Start** deaktiviert (`team: false`, `teamboard: false`)
+- Kundenbestell-UI: `orders: false` (Backend vorbereitet)
+- Primär: **MHD · Neu · Herkunft · Mehr**; unter Mehr u. a. **Prod.**, **HACCP**, **Auskunft**
+- **Büro** nur über ⚙️ / Sidebar-Admin (office-only)
+- Digitale Thekenklade: **Herkunft → Thekenklade** (`/#thekenbuch`)
 
-Bei UI-Änderungen diese Doku und die Kollegen-Anleitungen gemeinsam pflegen.
+Kanone Navigation: [NAVIGATION.md](./NAVIGATION.md). Bei UI-Änderungen Doku und Kollegen-Anleitungen gemeinsam pflegen.
 
 ---
 
-*CharcuLogic / HofSync · Dokumentation generiert aus Codebase-Stand Juli 2026*
+*CharcuLogic / HofSync · Dokumentation Stand Oktober 2026*

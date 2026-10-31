@@ -17,9 +17,10 @@ Diese Anleitung gilt für den Mandanten **TorFabrik Krefeld** (`tenantId: torfab
 | **Team** | Stephan, Boris, Aushilfe (keine StevesHof-Namen) |
 | **Tab Prod.** | **Nicht aktiv** (keine Wurstküche im Center) |
 | **Wareneingang** | Kategorien: Getränke (Jakob Bayen), TK & Snacks (Metro), Zubehör & Hygiene (Metro) |
-| **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge für die Thekenklade (Modul `traceability`) |
-| **Wareneingang-Scan** | Tab **Neu** → Barcode-Serien-Scan (KI-Lieferschein in der Laden-PWA deaktiviert) |
+| **Herkunft (LMIV)** | Tab **Herkunft** — Etikett + Charge; Thekenklade unter **Herkunft → Thekenklade** |
+| **Wareneingang-Scan** | Tab **Neu** → Barcode-Serien-Scan (KI-Lieferschein in der Laden-App deaktiviert) |
 | **Rolle „helper“** | Eingeschränkte Ansicht (u. a. ohne Team/Neu); Herkunft kann sichtbar sein, wenn Modul aktiv |
+| **Navigation** | Primär + **Mehr** (HACCP, Auskunft, …); **Büro** über ⚙️ / Sidebar-Admin — siehe [NAVIGATION.md](./NAVIGATION.md) |
 
 ---
 
@@ -37,19 +38,15 @@ Die Namen in der Anmeldung kommen aus der **Team-Konfiguration** (`tenants/torfa
 
 ---
 
-## Tabs in der unteren Leiste (TorFabrik)
+## Tabs in der Navigation (TorFabrik)
 
-| Tab | Zweck |
-|-----|--------|
-| **Start** | PIN-Anmeldung, Nachricht des Tages, Aufgaben, Historie |
-| **Team** | Nachrichten, Kundenbestellungen, 🌡️ Temperatur-Check |
-| **MHD** | MHD-Alarme, Qualitätssicherung |
-| **Neu** | Wareneingang (Barcode-Scan) |
-| **Herkunft** | LMIV-Fleischherkunft (Etikettfoto, LOT, Thekenklade) |
-| **HACCP** | Temperatur- & Reinigungsprotokolle |
-| **Büro** | Chargen (falls genutzt), Leitstand (Admin) |
+| Ebene | Tabs |
+|-------|------|
+| **Primär** | **MHD** · **Neu** · **Packtisch** (wenn `orders`) · **Herkunft** · **Mehr** |
+| **Mehr** | **Start** · **Team** · **HACCP** · **Etiketten** (wenn an) · **Auskunft** (wenn `knowledge`) — **Prod.** bei TorFabrik ausgeblendet |
+| **Admin** (⚙️ mobil / Sidebar desktop, Büro/Admin) | **Büro · Chargen** · **Retter-Box** (wenn an) · **Verwaltung** |
 
-> Der Tab **Prod.** (Wurstküche) ist für TorFabrik **ausgeblendet**. Admins verwalten die Thekenklade unter **/dev-dashboard → Rückverfolgbarkeit**. Details: [modulanleitungen/07-herkunft.md](./modulanleitungen/07-herkunft.md).
+> Der Tab **Prod.** (Wurstküche) ist für TorFabrik **ausgeblendet**. Die Digitale Thekenklade liegt unter **Herkunft → Thekenklade** (`/#thekenbuch`). Details: [modulanleitungen/07-herkunft.md](./modulanleitungen/07-herkunft.md) · [NAVIGATION.md](./NAVIGATION.md).
 
 ---
 
@@ -94,7 +91,7 @@ Details: [modulanleitungen/01-mhd-monitor.md](./modulanleitungen/01-mhd-monitor.
 2. Artikel nacheinander per **Barcode scannen** (neueste Posten oben).
 3. Menge und MHD auf der Karte korrigieren, Lieferung abschließen (bei der Prüffrage **Jetzt abschließen** oder **Liste prüfen**).
 
-Der frühere KI-Lieferschein-Scan ist in der Laden-PWA deaktiviert. Metzgerei-Modus bleibt verfügbar, ist für das Center aber selten nötig.
+Der frühere KI-Lieferschein-Scan ist in der Laden-App deaktiviert. Metzgerei-Modus bleibt verfügbar, ist für das Center aber selten nötig.
 
 Details: [modulanleitungen/02-wareneingang.md](./modulanleitungen/02-wareneingang.md)
 
@@ -102,16 +99,25 @@ Details: [modulanleitungen/02-wareneingang.md](./modulanleitungen/02-wareneingan
 
 ## 5. HACCP
 
-Temperatur- und Reinigungskontrollen wie in der Standard-Anleitung.
+**HACCP** öffnen wir unter **Mehr**. Temperatur- und Reinigungskontrollen wie in der Standard-Anleitung.
 
 Details: [modulanleitungen/04-haccp.md](./modulanleitungen/04-haccp.md)
 
 ---
 
+## 5b. Herkunft / Thekenklade
+
+Tab **Herkunft** → Etikett + LOT erfassen. Buchansicht: **Herkunft → Thekenklade** (`/#thekenbuch`).
+
+Details: [modulanleitungen/07-herkunft.md](./modulanleitungen/07-herkunft.md)
+
+---
+
 ## 6. Büro (Admin: Stephan / Boris)
 
-1. Tab **Büro** → Chargen prüfen (falls Produktion dokumentiert wird).
-2. **Leitstand:** Nachricht des Tages, **Team-Konfiguration** (Mitarbeiterliste, Gruppen).
+1. **Büro · Chargen** über ⚙️ (mobil) bzw. Sidebar **Admin** (Desktop) öffnen.
+2. Chargen prüfen (falls Produktion dokumentiert wird).
+3. **Leitstand:** Nachricht des Tages, **Team-Konfiguration** (Mitarbeiterliste, Gruppen).
 
 ---
 

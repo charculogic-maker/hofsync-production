@@ -1,10 +1,23 @@
-# Dokumentation – CharcuLogic / CenterLogic (White-Label)
+# Dokumentation – CharcuLogic / HofSync (White-Label)
 
 > **Diese README:** Zentrale Landkarte für alle Projekt-Dokumente.
 > **Zielgruppe:** Team, Betreiber, Admins und Entwicklung, wenn ein passendes Handbuch gesucht wird.
 > **Nicht hier:** Vollständige Architekturdetails; diese stehen in [TECHNIK_BACKEND.md](./TECHNIK_BACKEND.md).
 
 Übersicht aller Anleitungen und technischen Unterlagen im Projekt.
+
+## Neu hier? Einstieg in 3 Schritten
+
+1. **[NAVIGATION.md](./NAVIGATION.md)** — wo finde ich MHD, Auskunft, Thekenklade, Büro? (Cheat-Sheet)
+2. **Eigene Kollegen-Anleitung** unten in der Mandanten-Tabelle — Tagesablauf am Laden-iPhone
+3. **Neuer Betrieb?** → [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) + Module/Rollen in [CLAIMS_TABS_MAPPING.md](./CLAIMS_TABS_MAPPING.md)
+
+```text
+Primär: MHD · Neu · Packtisch · Herkunft · Mehr
+Mehr:   Start · Team · HACCP · Prod. · Etiketten · Auskunft
+⚙️:     Büro · Chargen · Retter-Box · Verwaltung   (nur Büro/Admin)
+Thekenklade: Herkunft → Thekenklade  (/#thekenbuch)
+```
 
 ## Kollegen-Anleitungen (nach Mandant)
 
@@ -29,10 +42,12 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 | Handbuch | Inhalt |
 |----------|--------|
-| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Wareneingang, Herkunft/LMIV, Prod., HACCP, Wissen, Offline |
-| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | KI-Lieferschein, Teamboard, Dokumentation, Herkunft |
-| [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, App Check, Security |
+| [ANLEITUNG_STEVESHOF.md](./user-manuals/ANLEITUNG_STEVESHOF.md) | Laden-iPhone-Zugang, MHD inkl. Retter-Box, Wareneingang, Herkunft/LMIV, Prod., HACCP, Auskunft, Offline |
+| [ANLEITUNG_TORFABRIK.md](./user-manuals/ANLEITUNG_TORFABRIK.md) | Teamboard, Wareneingang, Herkunft/Thekenklade |
+| [ANLEITUNG_WHITELABEL_ADMIN.md](./user-manuals/ANLEITUNG_WHITELABEL_ADMIN.md) | Mandanten-Onboarding, Module, App Check, Security |
 | [STYLE_GUIDE.md](./user-manuals/STYLE_GUIDE.md) | Design System, Tokens, Fehler-Mapping (`@STYLE_GUIDE.md`) |
+| [NAVIGATION.md](./NAVIGATION.md) | Nav-Cheat-Sheet (Primär / Mehr / Admin) |
+| [CLAIMS_TABS_MAPPING.md](./CLAIMS_TABS_MAPPING.md) | Claims ↔ sichtbare Tabs (Rollen-Matrix) |
 
 Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_TORFABRIK.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
 

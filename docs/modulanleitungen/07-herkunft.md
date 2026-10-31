@@ -4,8 +4,9 @@ Fleisch-Rückverfolgbarkeit nach LMIV: Etikett fotografieren, Charge und Herkunf
 
 > **Tab:** **Herkunft** (untere Leiste, Primärslot) · Unterseiten **Erfassen** / **Thekenklade**  
 > **Code:** `web/traceability.js` · Modul-Key `chargenDoku` (Legacy: `traceability`)  
-> **Admin-Shortcut:** ⚙️ → **Thekenklade** oder `/#thekenbuch` (≤ 2 Taps)  
-> **Nicht verwechseln** mit Büro-**Chargen** (Produktionschargen) — siehe [05-chargen.md](./05-chargen.md).
+> **Buch öffnen:** **Herkunft → Thekenklade** oder Deep-Link `/#thekenbuch` (auch Sprung von `/dev-dashboard` → Übersicht)  
+> **Nicht verwechseln** mit Büro-**Chargen** (Produktionschargen) — siehe [05-chargen.md](./05-chargen.md).  
+> Nav-Übersicht: [NAVIGATION.md](../NAVIGATION.md).
 
 ## Erfassung am Laden-iPhone
 

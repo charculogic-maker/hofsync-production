@@ -2,6 +2,8 @@
 
 Dokumentation für Produktion (pH, Kerntemperatur, Charge) und **tägliche Betriebskontrollen** (Temperaturen, Reinigung, Kühlstellen).
 
+> **Nav:** **Mehr → HACCP** (nicht mehr im Header-⚙️). Übersicht: [NAVIGATION.md](../NAVIGATION.md).
+
 ![HACCP – Produktions-Protokoll](./screenshots/05-haccp.png)
 
 ## Bereich 1: Produktions-Protokoll (oben)
@@ -57,7 +59,7 @@ Der Bereich **Einrichten** ist für seltene Änderungen gedacht, zum Beispiel we
 
 ## Morgenroutine (Kurz)
 
-1. Tab **HACCP**
+1. **Mehr → HACCP**
 2. **Temperaturen** prüfen und bestätigen
 3. **Reinigung** dokumentieren
 4. Bei Produktion: pH, Kerntemperatur und Charge im oberen Bereich erfassen
