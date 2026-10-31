@@ -1,6 +1,6 @@
 # Wurstküche (Tab „Prod.“)
 
-Rezeptur, Skalierung (WRS/BEFFE) und Produktionsdokumentation.
+Rezeptur, Skalierung (WRS = Wurst-Rezept-Skalierer, inkl. BEFFE) und Produktionsdokumentation.
 
 ![Prod. – Rezeptliste](./screenshots/04-wurstkueche.png)
 
@@ -14,7 +14,7 @@ Zwei aufklappbare Bereiche:
 - **Kategorie-Button** antippen und Rezepte im Filterblatt eingrenzen
 - Rezept antippen → **Detailansicht** (Overlay)
 
-### WRS Kalkulation (unten, standardmäßig zu)
+### WRS-Kalkulation — Wurst-Rezept-Skalierer (unten, standardmäßig zu)
 
 - **Rezept** auswählen
 - **Zielgewicht (kg)** eintragen
@@ -39,7 +39,7 @@ Zurück mit **❌** oben links.
 ## Typischer Ablauf
 
 1. Tab **Prod.**
-2. Rezept suchen oder im WRS-Bereich skalieren
+2. Rezept suchen oder im WRS skalieren
 3. Menge planen / berechnen
 4. Produktion durchführen und dokumentieren
 5. Chargen-Daten stehen unter Tab **Büro** zur Verfügung

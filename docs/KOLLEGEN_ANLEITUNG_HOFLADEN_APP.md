@@ -44,7 +44,7 @@ Oben zeigt unsere App den **aktuellen Betrieb** (Name + Logo). In der unteren Le
 | **Neu** | Wareneingang: Posten scannen und Lieferung abschließen |
 | **Herkunft** | Fleisch-Etikett fotografieren und LMIV-Herkunft für die Theke erfassen |
 | **Etiketten** | Avery-Zerlegeetiketten vorbereiten (Packliste / Herkunft übernehmen, am Laden-PC drucken) |
-| **Prod.** | Rezepte, Produktion und WRS-Kalkulation |
+| **Prod.** | Rezepte, Produktion und WRS-Kalkulation (Wurst-Rezept-Skalierer) |
 
 **HACCP**, **Wissen** und **Büro** öffnen wir bei Bedarf über das **Verwaltungs-Menü** oben (persönliche Admin-Konten), nicht als Alltagstab in der unteren Leiste. Den Eintrag **Verwaltung** (/dev-dashboard) sehen nur **Betriebs-Admins** — andere Rollen werden zur Haupt-App zurückgeleitet. Unter **/dev-dashboard** gibt es **Übersicht**, **Nutzer** (unser Betrieb ist vorausgewählt), **Einstellungen**, **Protokoll** (Warenbewegungen seit vorgestern, Export für Excel, Einträge korrigieren) und **Thekenklade**.
 

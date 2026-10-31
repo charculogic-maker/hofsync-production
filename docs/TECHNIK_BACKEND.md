@@ -52,7 +52,7 @@ node tools/seed-tenant-bootstrap.mjs --tenant=StevesHof_Hauptbetrieb --credentia
 
 **Datensicherung:** Firestore **PITR** ist in der Default-Datenbank aktiv. Quellcode liegt in GitHub; Geräte-Offline-Queues sind nicht zentral gesichert.
 
-**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine WRS/Fleischpreis-Pipeline für TorFabrik).
+**Cloud Scheduler `fetchWeeklyMeatPrices`:** Läuft mittwochs 08:00 (`Europe/Berlin`) nur sinnvoll in **`hofsync-production`** (Mandant `StevesHof_Hauptbetrieb`, Secret `GEMINI_API_KEY`). Im Testprojekt **`charculogic-whitelabel-test`** wird der Lauf bewusst übersprungen (keine WRS/Fleischpreis-Pipeline (Wurst-Rezept-Skalierer)-Pipeline für TorFabrik).
 
 **Dev-Overrides:** `?firebase=whitelabel` und `?tenant=` funktionieren nur auf `localhost` / `127.0.0.1` (`web/dev-guards.js`). In Produktion ist Mandantenzuordnung **ausschließlich token-claim-gesteuert** — URL-Parameter oder Payload-Manipulation reichen nicht aus, um fremde `tenants/{tenantId}/…`-Pfade zu erreichen.
 

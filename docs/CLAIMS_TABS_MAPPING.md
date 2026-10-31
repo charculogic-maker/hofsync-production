@@ -37,7 +37,7 @@ Login ohne `tenantId` **und** `role` in den Claims schlägt fehl.
 | `haccp` | `haccp` | Mehr → HACCP |
 | `kitchen` | `kitchen` | Mehr → Prod. |
 | `averyLabels` | `avery` | Mehr → Etiketten |
-| `knowledge` | `knowledge` | Admin-Header / Wissen (kein Primärslot) |
+| `knowledge` | `knowledge` | Admin-Header / Theken-Auskunft (Employee + Admin) |
 | `buero` | `batches` | Admin-Zone **Büro** |
 | `retterBox` | — | kein Nav-Tab (Modul-Flag only) |
 
@@ -54,10 +54,10 @@ Login ohne `tenantId` **und** `role` in den Claims schlägt fehl.
 | HACCP | ✅ | ✅ | ✅ |
 | Prod. | ✅ | ✅ | ❌ |
 | Etiketten | ✅ | ✅ | ❌ |
-| Wissen | ❌ | ✅ | ❌ |
+| Wissen | ✅ | ✅ | ❌ |
 | Büro | ❌ | ✅ | ❌ |
 
-**Employee vs Admin (Code-Default):** Admin hat zusätzlich **Wissen** (`knowledge`) und **Büro** (`batches`). Operative Laden-Tabs sind für beide gleich, sofern die Tenant-Decke sie freigibt.
+**Employee vs Admin (Code-Default):** Admin hat zusätzlich **Büro** (`batches`). **Wissen** (`knowledge`) ist für Mitarbeiter an der Theke freigegeben. Operative Laden-Tabs sind für beide gleich, sofern die Tenant-Decke sie freigibt.
 
 Zusätzlich (nicht über Access-Keys, aber rollenabhängig in der UI):
 
@@ -72,6 +72,7 @@ Zusätzlich (nicht über Access-Keys, aber rollenabhängig in der UI):
 
 1. **Tenant** schaltet Modul global aus → Tab weg für alle Rollen.  
 2. **`settings/role_modules`** überschreibt Code-Defaults je Rolle.  
+   Legacy-Dokumente mit `employee.knowledge: false` / `admin.knowledge: false` werden beim Laden bereinigt (`stripLegacyKnowledgeDenials`) und per Migration `tools/migrate-role-modules-knowledge.mjs` in Firestore korrigiert. `helper.knowledge: false` bleibt gültig.
 3. **`allowedModules`** am Nutzer (Claim/Profil) kann einzelne Tabs zusätzlich sperren (fehlende Keys = erlaubt).
 
 Claims setzen:

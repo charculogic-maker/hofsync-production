@@ -38,7 +38,7 @@ Diese Dokumentation beschreibt den **aktuellen Ist-Zustand** der Anwendung — M
 | **MHD-Monitor** | Haltbarkeiten prüfen, Ware bearbeiten (OK / Raus / Küche / Ausverkauft) |
 | **Wareneingang** | Schnellerfassung per Barcode, Lieferungen dokumentieren |
 | **Herkunft (LMIV)** | Etikettfoto + Charge/LOT; digitale Thekenklade für Admins |
-| **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation, Chargen, DIN-A4-Datenblatt |
+| **Wurstküche / Prod.** | Rezepte, Produktion, WRS-Kalkulation (Wurst-Rezept-Skalierer), Chargen, DIN-A4-Datenblatt |
 | **HACCP** | Tageskontrollen (Temperaturen, Reinigung), Geräte einrichten |
 | **Team** | Schwarzes Brett, Aufgaben, Kundenbestellungen (mandantenabhängig) |
 | **Büro** | Chargen-Archiv, Leitstand, Team-Konfiguration (Admin) |

@@ -42,6 +42,7 @@ describe('Phase 3 tariffs', () => {
     expect(modules.orders).toBe(true);
     expect(modules.buero).toBe(true);
     expect(modules.batches).toBe(true);
+    expect(modules.chargenDoku).toBe(true);
     expect(modules.kitchen).toBe(false);
     expect(modules.wareneingangMetzgerei).toBe(false);
     expect(modules.rezeptAudit).toBe(false);
@@ -55,6 +56,7 @@ describe('Phase 3 tariffs', () => {
     expect(modules.wareneingangMetzgerei).toBe(true);
     expect(modules.rezeptAudit).toBe(true);
     expect(modules.haccp).toBe(true);
+    expect(modules.chargenDoku).toBe(true);
   });
 
   test('cancellation map closes every flag', () => {

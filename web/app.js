@@ -172,6 +172,7 @@ import {
   readActiveEmployeeFromStorage,
   readCachedEffectiveModules,
   resolveTabsForClaimRole,
+  stripLegacyKnowledgeDenials,
   subscribeTenantEnabledModules,
 } from './tenant-modules.js';
 import { getTenantDefaultTeam, getTerminalSettings, loadTenantShopSettings } from './tenant-settings.js';
@@ -729,8 +730,16 @@ function hasAuthenticatedTenantContext(authSession = getAuthContext()) {
 function hasAdminModuleAccess(branding = window.BRANDING, employeeName) {
   try {
     if (!hasAuthenticatedTenantContext()) return false;
-    if (isFirebaseRoleAuth(branding)) return isOfficeUser();
     if (isOfficeUser()) return true;
+
+    // Firebase-Mitarbeiter an der Theke: Header-Zugang nur für freigegebene Module (z. B. Wissen).
+    if (isFirebaseRoleAuth(branding)) {
+      const session = getAuthContext();
+      if (session?.role === 'employee') {
+        return resolveSessionAllowedTabs(session).has('knowledge');
+      }
+      return false;
+    }
 
     if (!isProfileEmployeeAuth(branding)) return false;
 
@@ -1228,6 +1237,7 @@ function syncAdminHeaderDropdown(branding = window.BRANDING) {
 function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
   try {
     const canModules = hasAuthenticatedTenantContext() && hasAdminModuleAccess(branding);
+    const sessionTabs = resolveSessionAllowedTabs(getAuthContext());
     const itemModuleMap = {
       haccp: isTenantModuleEnabled('haccp', branding),
       thekenbuch: hasModule('chargenDoku', branding),
@@ -1240,10 +1250,20 @@ function syncAdminHeaderDropdownItems(branding = window.BRANDING) {
           || isTenantModuleEnabled('retterBox', branding)
         ),
     };
+    /** Admin-Dropdown-Eintrag → Session-Tab (Rollenfilter, damit Employee kein Büro sieht). */
+    const itemAccessTab = {
+      haccp: 'haccp',
+      thekenbuch: 'chargenDoku',
+      knowledge: 'knowledge',
+      buero: 'batches',
+      retterbox: 'batches',
+    };
     document.querySelectorAll('.admin-header-dropdown-item[data-admin-module]').forEach((item) => {
       const moduleKey = item.getAttribute('data-admin-module');
       if (moduleKey === 'dashboard') return;
-      const enabled = canModules && itemModuleMap[moduleKey] !== false;
+      const accessTab = itemAccessTab[moduleKey];
+      const roleAllows = !accessTab || sessionTabs.has(accessTab);
+      const enabled = canModules && itemModuleMap[moduleKey] !== false && roleAllows;
       item.hidden = !enabled;
       item.style.display = enabled ? '' : 'none';
     });
@@ -3439,11 +3459,30 @@ async function loadRoleModuleDefaults(db, tenantId) {
     return fallback;
   }
   try {
-    const snap = await db.collection('tenants').doc(tenantId)
-      .collection('settings').doc('role_modules').get();
+    const docRef = db.collection('tenants').doc(tenantId).collection('settings').doc('role_modules');
+    const snap = await docRef.get();
     const data = snap.exists ? (snap.data() || {}) : {};
-    const normalized = normalizeRoleModuleDefaults(data);
+    const { patched, changed, roles } = stripLegacyKnowledgeDenials(data);
+    const normalized = normalizeRoleModuleDefaults(patched);
     window.__hofsyncRoleModuleDefaults = normalized;
+    // Self-Heal: Legacy employee/admin knowledge:false aus Firestore entfernen.
+    if (snap.exists && changed) {
+      const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
+        ? firebase.firestore.FieldValue.serverTimestamp()
+        : new Date().toISOString();
+      /** @type {Record<string, unknown>} */
+      const repair = {
+        knowledgeSanitizedAt: stamp,
+        knowledgeSanitizedBy: 'client-load',
+      };
+      roles.forEach((role) => {
+        const src = patched && typeof patched === 'object' ? patched[role] : null;
+        if (src && typeof src === 'object') repair[role] = src;
+      });
+      docRef.set(repair, { merge: true }).catch((err) => {
+        console.warn('[CharcuLogic] role_modules knowledge-Sanitize fehlgeschlagen:', err);
+      });
+    }
     return normalized;
   } catch (err) {
     console.warn('[CharcuLogic] role_modules konnten nicht geladen werden:', err);
