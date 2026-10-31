@@ -53,7 +53,7 @@ describe('Architektur: Modul-SSOT & Router', () => {
   });
 
   it('SW-Cache ist aktueller iOS-InPage-Print-Build', () => {
-    expect(read('web/sw.js')).to.match(/charculogic-v20261031-wissen-gewolft-v1/);
+    expect(read('web/sw.js')).to.match(/charculogic-v20261031-arch-mhd-nav-v1/);
     expect(read('web/sw.js')).to.match(/isStandaloneHtmlDoc/);
   });
 });

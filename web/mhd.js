@@ -1012,11 +1012,8 @@ function openMhdCriticalSlaView() {
   });
   updateMhdCompletionToggle();
   renderMhdList();
-  if (typeof window.showTab === 'function') {
-    window.showTab('mhd');
-  } else {
-    document.getElementById('tab-mhd')?.click();
-  }
+  // ARCH-GUARD: kein showTab aus MHD-Modul — Nav-Button löst fallbackShowTab aus.
+  document.getElementById('tab-mhd')?.click();
 }
 
 function isMhdAwaitingServerData() {
@@ -9656,7 +9653,8 @@ async function bridgeMetzgereiDeliveryToDocs({
   }
 
   clearLmivPendingLocal(deliveryId);
-  window.showTab?.('chargenDoku');
+  // ARCH-GUARD: kein showTab aus MHD/Wareneingang — Nav-Button löst fallbackShowTab aus.
+  document.getElementById('tab-chargen-doku')?.click();
   prefillChargenDokuFromReceiving({
     lotNumber,
     animalType,

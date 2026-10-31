@@ -35,7 +35,7 @@ describe('Packtisch Team-Aktivitätsprotokoll', () => {
   });
 
   it('hebt Cache für Activity-Log an', () => {
-    assert.match(sw, /charculogic-v20261031-wissen-gewolft-v1/);
+    assert.match(sw, /charculogic-v20261031-arch-mhd-nav-v1/);
     assert.match(html, /20261025-month-calendar|ready-fields-clarity|pickup-tbd|packtisch-ux|optional-ready-price|order-activity-log|packtisch-notes|wholesaler-ordered/);
   });
 });
