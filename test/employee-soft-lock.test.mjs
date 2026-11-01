@@ -25,10 +25,12 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('stores active employee under charculogic.activeEmployee and mirrors scoped key', () => {
-    expect(appJs).to.match(/SOFT_LOCK_EMPLOYEE_STORAGE_KEY\s*=\s*'charculogic\.activeEmployee'/);
+    expect(appJs).to.match(/SOFT_LOCK_EMPLOYEE_STORAGE_KEY\s*=\s*SOFT_LOCK_ACTIVE_EMPLOYEE_KEY/);
     expect(appJs).to.match(/function writeSoftLockEmployeeMirror/);
     expect(appJs).to.match(/function clearSoftLockEmployeeMirror/);
     expect(appJs).to.match(/localStorage\.setItem\(SOFT_LOCK_EMPLOYEE_STORAGE_KEY/);
+    const storageJs = read('web/teamboard-storage.js');
+    expect(storageJs).to.match(/SOFT_LOCK_ACTIVE_EMPLOYEE_KEY\s*=\s*'charculogic\.activeEmployee'/);
   });
 
   it('opens soft-lock modal from #btn-team and blocks close without selection', () => {
@@ -129,8 +131,20 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(appJs).to.match(/hasCache\s*=\s*cachedEmployees\.length\s*>\s*0/);
   });
 
-  it('bumps the service-worker cache for we-herkunft-lot', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261031-nav-admin-dedupe-v1'");
+
+  it('bootstraps auth-admin when teamDashboard has no employees (no forced modal)', () => {
+    expect(appJs).to.match(/async function maybeBootstrapActiveEmployeeWithoutTeamRoster/);
+    expect(appJs).to.match(/function hasConfiguredTeamDashboardEmployees/);
+    expect(appJs).to.match(/function resolveLoggedInAuthDisplayName/);
+    expect(appJs).to.match(/Tipp: Lege im Büro unter Nutzer deine Mitarbeiter an\./);
+    expect(appJs).to.match(/async function ensureSoftLockEmployeeSelected[\s\S]*?maybeBootstrapActiveEmployeeWithoutTeamRoster/);
+    const storageJs = read('web/teamboard-storage.js');
+    expect(storageJs).to.match(/SOFT_LOCK_ACTIVE_EMPLOYEE_KEY\s*=\s*'charculogic\.activeEmployee'/);
+    expect(storageJs).to.match(/export function persistTemporaryActiveEmployee/);
+  });
+
+  it('bumps the service-worker cache for onboarding-polish', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
