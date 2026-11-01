@@ -14284,6 +14284,14 @@ body.dev-dashboard-view[hidden] {
   font-size: 0.88rem;
 }
 
+.dev-dashboard-betrieb-modules-tariff-hint {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
 .dev-dashboard-employee-name strong {
   display: block;
 }
