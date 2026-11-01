@@ -363,13 +363,20 @@ function betriebModuleActive(enabledModules, control) {
  * Read-only Badges der aktiven Module in „Mein Betrieb“.
  * Keine Checkboxen — Schalten nur unter „Plattform & Mandanten“.
  */
+const BETRIEB_MODULE_TARIFF_HINT = 'Deine aktiven Module richten sich nach deinem gebuchten Tarif. Bei Fragen zur Freischaltung wende dich an den Support (patrik@charculogic.de).';
+
 function fillBetriebModuleToggles(dashboardStateRef = dashboardState) {
   const listEl = document.getElementById('dev-dashboard-betrieb-modules-list');
   const hint = document.getElementById('dev-dashboard-betrieb-modules-hint');
+  const tariffHint = document.getElementById('dev-dashboard-betrieb-modules-tariff-hint');
   if (hint) {
     hint.textContent = dashboardStateRef.isSuperAdmin
       ? 'Nur Anzeige. Module schaltest du unter „Plattform & Mandanten“.'
       : 'Nur Anzeige. Freischaltungen nimmt die Plattform-Verwaltung vor.';
+  }
+  if (tariffHint) {
+    tariffHint.textContent = BETRIEB_MODULE_TARIFF_HINT;
+    tariffHint.hidden = false;
   }
   if (!listEl) return;
 
@@ -389,9 +396,9 @@ function fillBetriebModuleToggles(dashboardStateRef = dashboardState) {
 }
 
 function roleLabelForModules(role) {
-  if (role === 'admin') return 'Admin';
-  if (role === 'helper') return 'Aushilfe';
-  return 'Mitarbeiter';
+  if (role === 'admin') return 'Betriebs-Admin — Vollzugriff (Inhaber, Betriebsleitung)';
+  if (role === 'helper') return 'Helper — Nur Lesen (Aushilfen, Theken-Terminal)';
+  return 'Employee — Erfassen & Buchen (MHD, Wareneingang, HACCP)';
 }
 
 function setRoleModulesStatus(message = '', tone = 'info') {
@@ -2587,9 +2594,9 @@ function bindEmployeeCreateForm(dashboardState) {
 }
 
 function employeeRowRoleLabel(role) {
-  if (role === 'admin') return 'Admin';
-  if (role === 'helper') return 'Aushilfe';
-  return 'Mitarbeiter';
+  if (role === 'admin') return 'Betriebs-Admin — Vollzugriff (Inhaber, Betriebsleitung)';
+  if (role === 'helper') return 'Helper — Nur Lesen (Aushilfen, Theken-Terminal)';
+  return 'Employee — Erfassen & Buchen (MHD, Wareneingang, HACCP)';
 }
 
 /**

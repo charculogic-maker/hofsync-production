@@ -1,8 +1,28 @@
 import { normalizeTenantId } from './tenant-db.js';
 
 export const ACTIVE_EMPLOYEE_STORAGE_KEY = 'charculogic_active_employee';
+/** Soft-Lock Spiegel laut Spec (zusätzlich zum scoped ACTIVE_EMPLOYEE_STORAGE_KEY). */
+export const SOFT_LOCK_ACTIVE_EMPLOYEE_KEY = 'charculogic.activeEmployee';
 export const ACTIVE_AREA_STORAGE_KEY = 'charculogic_active_area';
 export const LEGACY_SHIFT_STORAGE_KEY = 'charculogic_active_shift';
+
+/**
+ * Temporärer Soft-Lock-Name (z. B. Auth-Admin, wenn teamDashboard noch leer ist).
+ * Schreibt scoped Session-Key + unscoped/scoped Soft-Lock-Spiegel.
+ */
+export function persistTemporaryActiveEmployee(tenantId, employeeName) {
+  const cleanName = String(employeeName || '').trim();
+  if (!cleanName) return '';
+  writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, tenantId, cleanName);
+  writeScopedLocalStorageValue(SOFT_LOCK_ACTIVE_EMPLOYEE_KEY, tenantId, cleanName);
+  try {
+    localStorage.setItem(SOFT_LOCK_ACTIVE_EMPLOYEE_KEY, cleanName);
+  } catch (_) { /* private mode / quota */ }
+  try {
+    localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
+  } catch (_) { /* noop */ }
+  return cleanName;
+}
 
 export function scopedTeamboardStorageKey(baseKey, tenantId) {
   const prefix = normalizeTenantId(tenantId);
@@ -54,7 +74,7 @@ export function clearTeamboardTenantStorage(tenantId) {
   if (!prefix) return;
   [
     ACTIVE_EMPLOYEE_STORAGE_KEY,
-    'charculogic.activeEmployee',
+    SOFT_LOCK_ACTIVE_EMPLOYEE_KEY,
     ACTIVE_AREA_STORAGE_KEY,
     LEGACY_SHIFT_STORAGE_KEY,
   ].forEach((baseKey) => {
@@ -63,6 +83,6 @@ export function clearTeamboardTenantStorage(tenantId) {
     } catch (_) { /* noop */ }
   });
   try {
-    localStorage.removeItem('charculogic.activeEmployee');
+    localStorage.removeItem(SOFT_LOCK_ACTIVE_EMPLOYEE_KEY);
   } catch (_) { /* noop */ }
 }

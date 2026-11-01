@@ -120,7 +120,7 @@ describe('Claims ↔ Tabs Mapping (B.4)', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261031-nav-admin-dedupe-v1'");
-    expect(appBoot).to.include('sw.js?v=20261031-nav-admin-dedupe-v1');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
+    expect(appBoot).to.include('sw.js?v=20261101-onboarding-polish-v1');
   });
 });

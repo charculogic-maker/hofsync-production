@@ -624,7 +624,7 @@
                       <div>
                         <h2 class="dev-dashboard-section-title">Nutzerverwaltung</h2>
                         <p class="dev-dashboard-intro">
-                          Nutzer suchen, Rollen setzen (Admin / Mitarbeiter / Aushilfe), Module und Fachbereiche
+                          Nutzer suchen, Rollen setzen (Betriebs-Admin / Employee / Helper), Module und Fachbereiche
                           (Küche, Zerlegung, Wurstproduktion, Laden, Einkauf) je Person steuern.
                           Über „Allen sichtbaren alle Fachbereiche“ zuerst alle zuordnen — danach einzelne Haken entfernen.
                         </p>
@@ -644,9 +644,9 @@
                         <span>Rolle</span>
                         <select id="dev-dashboard-user-role-filter" aria-label="Nach Rolle filtern">
                           <option value="all">Alle</option>
-                          <option value="employee">Mitarbeiter</option>
-                          <option value="admin">Admin</option>
-                          <option value="helper">Aushilfe</option>
+                          <option value="employee">Employee — Erfassen &amp; Buchen (MHD, Wareneingang, HACCP)</option>
+                          <option value="admin">Betriebs-Admin — Vollzugriff (Inhaber, Betriebsleitung)</option>
+                          <option value="helper">Helper — Nur Lesen (Aushilfen, Theken-Terminal)</option>
                         </select>
                       </label>
                       <button
@@ -868,12 +868,18 @@
                           role="list"
                           aria-live="polite"
                         ></div>
+                        <p
+                          class="dev-dashboard-intro dev-dashboard-betrieb-modules-tariff-hint"
+                          id="dev-dashboard-betrieb-modules-tariff-hint"
+                        >
+                          Deine aktiven Module richten sich nach deinem gebuchten Tarif. Bei Fragen zur Freischaltung wende dich an den Support (patrik@charculogic.de).
+                        </p>
                       </fieldset>
                       
                       <fieldset class="dev-dashboard-permissions-fieldset" id="dev-dashboard-role-modules">
                         <legend>Module je Rolle</legend>
                         <p class="dev-dashboard-intro" id="dev-dashboard-role-modules-hint">
-                          Welche Bereiche Admin, Mitarbeiter und Aushilfe standardmäßig sehen.
+                          Welche Bereiche Betriebs-Admin, Employee und Helper standardmäßig sehen.
                           Einzelne Nutzer können darunter weiter eingeschränkt werden.
                         </p>
                         <div

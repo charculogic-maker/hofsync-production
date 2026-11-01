@@ -194,8 +194,10 @@ import {
   ACTIVE_AREA_STORAGE_KEY,
   clearTeamboardTenantStorage,
   LEGACY_SHIFT_STORAGE_KEY,
+  persistTemporaryActiveEmployee,
   readScopedLocalStorageValue,
   scopedTeamboardStorageKey,
+  SOFT_LOCK_ACTIVE_EMPLOYEE_KEY,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
 
@@ -230,8 +232,9 @@ const PROFILE_SESSION_IDLE_MS = 10 * 60 * 1000;
 const EMPLOYEE_INACTIVITY_MS = 600_000;
 const EMPLOYEE_ACTIVITY_EVENTS = ['touchstart', 'pointerdown', 'click', 'keydown'];
 /** Soft-Lock Speicherschlüssel laut Spec (zusätzlich zum mandanten-scoped Key). */
-const SOFT_LOCK_EMPLOYEE_STORAGE_KEY = 'charculogic.activeEmployee';
+const SOFT_LOCK_EMPLOYEE_STORAGE_KEY = SOFT_LOCK_ACTIVE_EMPLOYEE_KEY;
 const EMPLOYEE_PICKER_FALLBACK = ['Paddy', 'Laden-Team', 'Küche', 'Metzgerei', 'Büro'];
+const EMPTY_TEAM_ROSTER_TIP = 'Tipp: Lege im Büro unter Nutzer deine Mitarbeiter an.';
 const CACHED_EMPLOYEES_STORAGE_KEY = 'charculogic.cachedEmployees';
 /** Soft-Lock: nie endlos „Lade Mitarbeiter…“ – nach Timeout Fallback + Retry. */
 const EMPLOYEE_PICKER_LOAD_TIMEOUT_MS = 5000;
@@ -2311,8 +2314,82 @@ function bindEmployeeInactivityTracker() {
 }
 
 /**
+ * Anzeigename des eingeloggten Auth-Kontos (Betriebs-Admin / Firebase-User).
+ */
+function resolveLoggedInAuthDisplayName(authSession = getAuthContext()) {
+  try {
+    const fromSession = resolveFirebaseEmployeeName(authSession);
+    if (fromSession && fromSession !== 'Mitarbeiter') return fromSession;
+  } catch (_) { /* noop */ }
+  try {
+    const user = typeof firebase !== 'undefined' ? firebase.auth?.()?.currentUser : null;
+    const fromUser = String(user?.displayName || '').trim();
+    if (fromUser) return fromUser;
+    const emailLocal = String(user?.email || authSession?.email || '').split('@')[0].trim();
+    if (emailLocal) return emailLocal;
+  } catch (_) { /* noop */ }
+  return '';
+}
+
+/**
+ * Prüft, ob in settings/teamDashboard echte Mitarbeiter hinterlegt sind
+ * (ohne EMPLOYEE_PICKER_FALLBACK / Profil-Gäste).
+ */
+async function hasConfiguredTeamDashboardEmployees() {
+  try {
+    const fromTeamDashboard = await ensureTeamEmployeesLoaded();
+    const active = normalizeEmployeePickerNames(extractActiveEmployeeNames(fromTeamDashboard));
+    if (active.length && !isPlaceholderTeamEmployeeList(active)) return true;
+  } catch (err) {
+    console.warn('[HofSync Soft-Lock] teamDashboard-Check fehlgeschlagen:', err);
+  }
+  try {
+    const cached = normalizeEmployeePickerNames(extractActiveEmployeeNames(getTeamEmployees()));
+    if (cached.length && !isPlaceholderTeamEmployeeList(cached)) return true;
+  } catch (_) { /* noop */ }
+  return false;
+}
+
+/**
+ * Fail-Safe: eingeloggter Auth-Admin ohne Team-Roster → temporary activeEmployee,
+ * kein erzwungenes #modal-employee-picker.
+ * @returns {Promise<string>} gesetzter Name oder '' wenn Soft-Lock weitergelten soll
+ */
+async function maybeBootstrapActiveEmployeeWithoutTeamRoster() {
+  const authSession = getAuthContext();
+  const uid = String(authSession?.uid || '').trim();
+  let hasFirebaseUser = Boolean(uid);
+  if (!hasFirebaseUser) {
+    try {
+      hasFirebaseUser = Boolean(typeof firebase !== 'undefined' && firebase.auth?.()?.currentUser);
+    } catch (_) { /* noop */ }
+  }
+  if (!hasFirebaseUser) return '';
+
+  const hasRoster = await hasConfiguredTeamDashboardEmployees();
+  if (hasRoster) return '';
+
+  const adminName = resolveLoggedInAuthDisplayName(authSession);
+  if (!adminName) return '';
+
+  const tenantId = resolveInventoryStorageTenantKey()
+    || normalizeTenantId(getGlobalTenantId() || getTenantId());
+  persistTemporaryActiveEmployee(tenantId, adminName);
+  // Session-Spiegel + Badge/Events wie bei normaler Picker-Auswahl.
+  persistActiveEmployeeSession(adminName);
+  applyModuleVisibility(window.BRANDING || {});
+  ensureActiveTabAllowed();
+  try {
+    closeEmployeePickerModal({ force: true, pickedName: adminName });
+  } catch (_) { /* noop */ }
+  window.showToast?.(EMPTY_TEAM_ROSTER_TIP, 'info');
+  return adminName;
+}
+
+/**
  * Soft-Lock Guard: nach Login ohne activeEmployee Pflicht-Modal öffnen.
  * Nicht auf /dev-dashboard — dort gilt Admin-Auth, kein Laden-Picker.
+ * Fail-Safe: leeres teamDashboard + Auth-Login → Admin-Name, kein Zwangs-Modal.
  */
 async function ensureSoftLockEmployeeSelected() {
   if (isFirebaseRoleAuth()) return readActiveEmployee();
@@ -2327,6 +2404,12 @@ async function ensureSoftLockEmployeeSelected() {
   if (current && isTeamSessionName(current)) {
     // Anonyme Team-Session zählt nicht als persönliche Pflichtauswahl.
     clearActiveEmployeeForSoftLock();
+  }
+  const bootstrapped = await maybeBootstrapActiveEmployeeWithoutTeamRoster();
+  if (bootstrapped) {
+    updateEmployeeSessionBadge(bootstrapped);
+    resetEmployeeInactivityTimer();
+    return bootstrapped;
   }
   updateEmployeeSessionBadge('');
   return openEmployeePickerModal({ mandatory: true });
@@ -2447,6 +2530,10 @@ async function requireProfileSessionForInventory(options = {}) {
     if (existing && !isTeamSessionName(existing) && options.forcePicker !== true) {
       return existing;
     }
+    if (options.forcePicker !== true) {
+      const bootstrapped = await maybeBootstrapActiveEmployeeWithoutTeamRoster();
+      if (bootstrapped) return bootstrapped;
+    }
     return openEmployeePickerModal({ mandatory: true });
   }
 
@@ -2465,6 +2552,11 @@ async function requireProfileSessionForInventory(options = {}) {
   const current = readActiveEmployee();
   if (isNamedProfileSession(current, branding) && options.forcePicker !== true) {
     return current;
+  }
+
+  if (options.forcePicker !== true) {
+    const bootstrapped = await maybeBootstrapActiveEmployeeWithoutTeamRoster();
+    if (bootstrapped) return bootstrapped;
   }
 
   const picked = await openEmployeePickerModal({ mandatory: true });
@@ -5647,7 +5739,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261031-nav-admin-dedupe-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261101-onboarding-polish-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
