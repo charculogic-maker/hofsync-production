@@ -72,9 +72,13 @@ const traceState = {
   adminTenantId: '',
 };
 
-function readLmivPendingLocal() {
+export function lmivPendingStorageKeyForTenant(tenantId = '') {
+  const id = canonicalTenantId(tenantId);
+  return id ? `${id}_${LMIV_PENDING_STORAGE_KEY}` : '';
+}
+
+function parseLmivPendingLocal(raw) {
   try {
-    const raw = localStorage.getItem(LMIV_PENDING_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : null;
@@ -83,26 +87,59 @@ function readLmivPendingLocal() {
   }
 }
 
-function writeLmivPendingLocal(payload) {
+export function readLmivPendingLocal(tenantId = '') {
+  const currentTenantId = resolveTenantId(tenantId);
+  const scopedKey = lmivPendingStorageKeyForTenant(currentTenantId);
+  if (!scopedKey) return null;
+  try {
+    const scoped = parseLmivPendingLocal(localStorage.getItem(scopedKey));
+    const scopedTenantId = canonicalTenantId(scoped?.tenantId || currentTenantId);
+    if (scoped && scopedTenantId === currentTenantId) return scoped;
+
+    const legacy = parseLmivPendingLocal(localStorage.getItem(LMIV_PENDING_STORAGE_KEY));
+    const legacyTenantId = canonicalTenantId(legacy?.tenantId || '');
+    if (legacy && legacyTenantId && legacyTenantId === currentTenantId) {
+      localStorage.setItem(scopedKey, JSON.stringify(legacy));
+      localStorage.removeItem(LMIV_PENDING_STORAGE_KEY);
+      return legacy;
+    }
+  } catch (_) { /* ignore quota */ }
+  return null;
+}
+
+function writeLmivPendingLocal(payload, tenantId = '') {
+  const currentTenantId = resolveTenantId(tenantId || payload?.tenantId || '');
+  const scopedKey = lmivPendingStorageKeyForTenant(currentTenantId);
+  if (!scopedKey) return;
   try {
     if (!payload) {
-      localStorage.removeItem(LMIV_PENDING_STORAGE_KEY);
+      localStorage.removeItem(scopedKey);
+      const legacy = parseLmivPendingLocal(localStorage.getItem(LMIV_PENDING_STORAGE_KEY));
+      const legacyTenantId = canonicalTenantId(legacy?.tenantId || '');
+      if (!legacyTenantId || legacyTenantId === currentTenantId) {
+        localStorage.removeItem(LMIV_PENDING_STORAGE_KEY);
+      }
       return;
     }
-    localStorage.setItem(LMIV_PENDING_STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(scopedKey, JSON.stringify({
+      ...payload,
+      tenantId: currentTenantId,
+    }));
   } catch (_) { /* ignore quota */ }
 }
 
 export function stashLmivPendingFromReceiving(payload = {}) {
+  const tenantId = resolveTenantId(payload.tenantId || '');
+  if (!tenantId) return;
   const next = {
     deliveryId: String(payload.deliveryId || payload.lieferungId || '').trim(),
     lotNumber: String(payload.lotNumber || payload.receivingLot || '').trim(),
     animalType: String(payload.animalType || '').trim(),
-    tenantId: String(payload.tenantId || resolveTenantId() || '').trim(),
+    tenantId,
     at: new Date().toISOString(),
   };
   if (!next.deliveryId && !next.lotNumber) return;
-  writeLmivPendingLocal(next);
+  writeLmivPendingLocal(next, tenantId);
   syncReceivingLinkBanner();
 }
 
@@ -110,7 +147,7 @@ export function clearLmivPendingLocal(deliveryId = '') {
   const pending = readLmivPendingLocal();
   if (!pending) return;
   if (deliveryId && pending.deliveryId && pending.deliveryId !== deliveryId) return;
-  writeLmivPendingLocal(null);
+  writeLmivPendingLocal(null, pending.tenantId);
   syncReceivingLinkBanner();
 }
 
@@ -693,10 +730,15 @@ function fillCountrySelects() {
 }
 
 export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFunction, showHudCallback, options = {}) {
+  const previousTenantId = resolveTenantId(traceState.tenantId);
+  const nextTenantId = resolveTenantId(options.tenantId || traceState.tenantId);
   traceState.db = databaseInstance || null;
   traceState.writeOrQueueFirestore = writeOrQueueFirestoreFunction || null;
   traceState.showHUD = typeof showHudCallback === 'function' ? showHudCallback : () => {};
-  traceState.tenantId = options.tenantId || traceState.tenantId;
+  traceState.tenantId = nextTenantId || traceState.tenantId;
+  if (previousTenantId && nextTenantId && previousTenantId !== nextTenantId) {
+    traceState.receivingLink = null;
+  }
   traceState.getFirebase = typeof options.getFirebase === 'function' ? options.getFirebase : traceState.getFirebase;
   traceState.getCurrentUserId = typeof options.getCurrentUserId === 'function'
     ? options.getCurrentUserId
@@ -710,6 +752,8 @@ export function initTraceabilityModule(databaseInstance, writeOrQueueFirestoreFu
     syncOriginFieldsVisibility();
     syncReceivingLinkBanner();
     traceState.initialized = true;
+  } else {
+    syncReceivingLinkBanner();
   }
 }
 

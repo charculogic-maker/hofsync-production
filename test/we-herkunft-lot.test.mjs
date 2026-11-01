@@ -5,9 +5,34 @@ import { expect } from 'chai';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setGlobalTenantId } from '../web/tenant-db.js';
+import {
+  clearLmivPendingLocal,
+  lmivPendingStorageKeyForTenant,
+  readLmivPendingLocal,
+  stashLmivPendingFromReceiving,
+} from '../web/traceability.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+
+function createLocalStorageMock() {
+  const store = new Map();
+  return {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(String(key), String(value));
+    },
+    removeItem(key) {
+      store.delete(String(key));
+    },
+    clear() {
+      store.clear();
+    },
+  };
+}
 
 describe('Wareneingang ↔ Herkunft LOT-Kopplung', () => {
   const mhd = read('web/mhd.js');
@@ -61,5 +86,67 @@ describe('Wareneingang ↔ Herkunft LOT-Kopplung', () => {
   it('bumpt den Service-Worker-Cache', () => {
     expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
     expect(app).to.include('sw.js?v=20261101-onboarding-polish-v1');
+  });
+
+  describe('LMIV-Später-Stash', () => {
+    beforeEach(() => {
+      global.localStorage = createLocalStorageMock();
+      global.document = { getElementById: () => null };
+      global.window = { showToast: () => {} };
+      setGlobalTenantId('tenant_a');
+    });
+
+    afterEach(() => {
+      setGlobalTenantId('');
+      delete global.localStorage;
+      delete global.document;
+      delete global.window;
+    });
+
+    it('speichert offene Wareneingang-LMIV tenant-scoped', () => {
+      stashLmivPendingFromReceiving({
+        tenantId: 'tenant_a',
+        deliveryId: 'delivery-a',
+        lotNumber: 'LOT-A',
+        animalType: 'rind',
+      });
+      expect(localStorage.getItem(lmivPendingStorageKeyForTenant('tenant_a'))).to.include('LOT-A');
+
+      setGlobalTenantId('tenant_b');
+      expect(readLmivPendingLocal()).to.equal(null);
+
+      stashLmivPendingFromReceiving({
+        tenantId: 'tenant_b',
+        deliveryId: 'delivery-b',
+        lotNumber: 'LOT-B',
+        animalType: 'schwein',
+      });
+      expect(readLmivPendingLocal().lotNumber).to.equal('LOT-B');
+
+      setGlobalTenantId('tenant_a');
+      expect(readLmivPendingLocal().lotNumber).to.equal('LOT-A');
+      clearLmivPendingLocal();
+      expect(readLmivPendingLocal()).to.equal(null);
+
+      setGlobalTenantId('tenant_b');
+      expect(readLmivPendingLocal().lotNumber).to.equal('LOT-B');
+    });
+
+    it('migriert den Legacy-Key nur für den passenden Mandanten', () => {
+      localStorage.setItem('charculogic.lmivPending.v1', JSON.stringify({
+        tenantId: 'tenant_a',
+        deliveryId: 'delivery-a',
+        lotNumber: 'LOT-A',
+      }));
+
+      setGlobalTenantId('tenant_b');
+      expect(readLmivPendingLocal()).to.equal(null);
+      expect(localStorage.getItem('charculogic.lmivPending.v1')).to.include('LOT-A');
+
+      setGlobalTenantId('tenant_a');
+      expect(readLmivPendingLocal().lotNumber).to.equal('LOT-A');
+      expect(localStorage.getItem(lmivPendingStorageKeyForTenant('tenant_a'))).to.include('LOT-A');
+      expect(localStorage.getItem('charculogic.lmivPending.v1')).to.equal(null);
+    });
   });
 });
