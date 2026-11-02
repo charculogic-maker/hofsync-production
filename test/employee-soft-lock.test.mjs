@@ -143,8 +143,15 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(storageJs).to.match(/export function persistTemporaryActiveEmployee/);
   });
 
-  it('bumps the service-worker cache for onboarding-polish', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
+  it('does not bootstrap auth-admin when another configured roster source exists', () => {
+    expect(appJs).to.match(/function hasUsableConfiguredEmployeeNames/);
+    expect(appJs).to.match(/async function hasConfiguredTeamDashboardEmployees[\s\S]*?getTenantDefaultTeam\(\)/);
+    expect(appJs).to.match(/async function hasConfiguredTeamDashboardEmployees[\s\S]*?collection\('employees'\)\.get\(\)/);
+    expect(appJs).to.match(/Auth-Login irrtümlich als Laden-Mitarbeiter/);
+  });
+
+  it('bumps the service-worker cache for soft-lock roster fix', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261102-soft-lock-roster-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

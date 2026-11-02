@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1';
+const CACHE_NAME = 'charculogic-v20261102-soft-lock-roster-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen */

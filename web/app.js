@@ -2331,22 +2331,46 @@ function resolveLoggedInAuthDisplayName(authSession = getAuthContext()) {
   return '';
 }
 
+function hasUsableConfiguredEmployeeNames(list = []) {
+  const active = normalizeEmployeePickerNames(extractActiveEmployeeNames(list));
+  return active.length > 0 && !isPlaceholderTeamEmployeeList(active);
+}
+
 /**
- * Prüft, ob in settings/teamDashboard echte Mitarbeiter hinterlegt sind
- * (ohne EMPLOYEE_PICKER_FALLBACK / Profil-Gäste).
+ * Prüft, ob echte Mitarbeiter hinterlegt sind (ohne EMPLOYEE_PICKER_FALLBACK / Profil-Gäste).
+ * Muss dieselben persistenten Roster-Quellen wie der Picker beachten, sonst wird der
+ * Auth-Login irrtümlich als Laden-Mitarbeiter gesetzt.
  */
 async function hasConfiguredTeamDashboardEmployees() {
   try {
     const fromTeamDashboard = await ensureTeamEmployeesLoaded();
-    const active = normalizeEmployeePickerNames(extractActiveEmployeeNames(fromTeamDashboard));
-    if (active.length && !isPlaceholderTeamEmployeeList(active)) return true;
+    if (hasUsableConfiguredEmployeeNames(fromTeamDashboard)) return true;
   } catch (err) {
     console.warn('[HofSync Soft-Lock] teamDashboard-Check fehlgeschlagen:', err);
   }
   try {
-    const cached = normalizeEmployeePickerNames(extractActiveEmployeeNames(getTeamEmployees()));
-    if (cached.length && !isPlaceholderTeamEmployeeList(cached)) return true;
+    if (hasUsableConfiguredEmployeeNames(getTeamEmployees())) return true;
   } catch (_) { /* noop */ }
+  try {
+    if (hasUsableConfiguredEmployeeNames(getTenantDefaultTeam())) return true;
+  } catch (_) { /* noop */ }
+  try {
+    const tenantId = canonicalTenantId(getGlobalTenantId() || getTenantId());
+    const database = typeof db !== 'undefined' && db ? db : null;
+    if (tenantId && database) {
+      const nestedSnap = await database.collection('tenants').doc(tenantId).collection('employees').get();
+      const nestedNames = [];
+      nestedSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data() || {};
+        if (data.disabled === true || data.active === false || data.status === 'inactive') return;
+        const name = String(data.displayName || data.name || '').trim();
+        if (name) nestedNames.push(name);
+      });
+      if (normalizeEmployeePickerNames(nestedNames).length) return true;
+    }
+  } catch (err) {
+    console.warn('[HofSync Soft-Lock] tenants/.../employees-Check fehlgeschlagen:', err);
+  }
   return false;
 }
 
