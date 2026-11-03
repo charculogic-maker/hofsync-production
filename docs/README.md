@@ -53,6 +53,12 @@ Professionelle Anleitungen nach Mandant und Zielgruppe:
 
 Cursor-Referenzen: `@ANLEITUNG_STEVESHOF.md` · `@ANLEITUNG_WHITELABEL_ADMIN.md`
 
+## Produktportfolio
+
+| Dokument | Zielgruppe | Inhalt |
+|----------|------------|--------|
+| [PRODUKTPORTFOLIO.md](./PRODUKTPORTFOLIO.md) | Vertrieb, Partner, Onboarding | **Module, Pakete, Add-ons, White-Label** – verkaufs- und paketierbare Bausteine der Plattform |
+
 ## Gesamtdokumentation App
 
 | Dokument | Zielgruppe | Inhalt |
