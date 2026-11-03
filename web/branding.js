@@ -9,7 +9,7 @@ const DEFAULT_BRANDING = {
   logoUrl: '/icon-192.png',
   primaryColor: '#0284c7',
   primaryColorHover: '#0369a1',
-  darkHeaderBg: '#1c130e',
+  darkHeaderBg: '#2b1810',
   textOnHeader: '#ffffff',
   accentAlert: '#dc3545',
   lightBg: '#f1f5f9',
@@ -46,6 +46,7 @@ const TENANT_BRANDING = {
   steveshof_hauptbetrieb: {
     betriebsName: 'StevesHof Hofladen',
     appName: 'HofSync',
+    darkHeaderBg: '#2b1810',
     modules: {
       orders: true,
       team: true,
@@ -216,7 +217,7 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
   try {
     const manifestEl = document.getElementById('pwa-manifest');
     if (!manifestEl) return;
-    const splashColor = branding.darkHeaderBg || '#1c130e';
+    const splashColor = branding.darkHeaderBg || '#2b1810';
     const manifestData = {
       name: branding.betriebsName || 'Betriebs-Leitstand',
       short_name: branding.appName || 'CharcuLogic',

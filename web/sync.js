@@ -970,9 +970,17 @@ export async function writeFirestoreDocOrQueue({
   }
 }
 
+export function isSyncFlushInFlight() {
+  return flushInFlight === true;
+}
+
 export async function flushPendingSyncs() {
   if (flushInFlight) return;
   flushInFlight = true;
+  if (typeof document !== 'undefined') {
+    document.body.dataset.syncFlush = '1';
+  }
+  updateSyncIndicator();
   const queue = getPendingSyncs();
   try {
     if (!queue.length) {
@@ -1025,9 +1033,16 @@ export async function flushPendingSyncs() {
     refreshSyncConnectivityUi();
     if (failed.length === 0 && deadLetterCount === 0 && queue.length > 0) {
       window.showToast?.("Alle Offline-Daten synchronisiert!", "success");
+      try {
+        window.rememberSuccessfulSync?.();
+      } catch (_) { /* optional UI hook */ }
     }
   } finally {
     flushInFlight = false;
+    if (typeof document !== 'undefined') {
+      delete document.body.dataset.syncFlush;
+    }
+    updateSyncIndicator();
   }
 }
 
@@ -1035,21 +1050,31 @@ export function updateSyncIndicator() {
   if (typeof document === 'undefined') return;
   const dot = document.getElementById('sync-status-dot');
   const count = document.getElementById('sync-pending-count');
-  if (!dot) return;
   const pending = getPendingSyncs();
   const isOnline = navigator.onLine;
 
-  if (pending.length > 0) {
-    dot.className = 'sync-dot sync-dot--pending';
-    dot.title = `${pending.length} Eintrage warten auf Sync`;
-    if (count) { count.textContent = pending.length; count.style.display = 'inline'; }
-  } else if (!isOnline) {
-    dot.className = 'sync-dot sync-dot--offline';
-    dot.title = 'Offline';
-    if (count) count.style.display = 'none';
-  } else {
-    dot.className = 'sync-dot sync-dot--ok';
-    dot.title = 'Online & synchronisiert';
-    if (count) count.style.display = 'none';
+  if (dot) {
+    if (pending.length > 0 || flushInFlight) {
+      dot.className = 'sync-dot sync-dot--pending';
+      dot.title = pending.length
+        ? `${pending.length} Einträge warten auf Sync`
+        : 'Abgleich läuft';
+      if (count) {
+        count.textContent = String(pending.length || '');
+        count.style.display = pending.length ? 'inline' : 'none';
+      }
+    } else if (!isOnline) {
+      dot.className = 'sync-dot sync-dot--offline';
+      dot.title = 'Offline';
+      if (count) count.style.display = 'none';
+    } else {
+      dot.className = 'sync-dot sync-dot--ok';
+      dot.title = 'Online & synchronisiert';
+      if (count) count.style.display = 'none';
+    }
   }
+
+  try {
+    window.updateHeaderSyncProgress?.();
+  } catch (_) { /* optional chrome */ }
 }

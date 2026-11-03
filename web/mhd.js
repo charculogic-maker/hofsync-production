@@ -4508,11 +4508,19 @@ function buildMhdLoadingHtml() {
 
 function updateMhdServerSyncHint() {
   const hint = document.getElementById('mhd-server-sync-hint');
-  if (!hint) return;
   const show = isMhdAwaitingServerData();
-  hint.hidden = !show;
-  hint.classList.toggle('hidden', !show);
-  hint.setAttribute('aria-busy', show ? 'true' : 'false');
+  const wasLoading = Boolean(updateMhdServerSyncHint._wasLoading);
+  // Banner bleibt im DOM (Tests/Binder), steuert aber nur noch die Header-Progress-Line.
+  if (hint) {
+    hint.hidden = true;
+    hint.classList.add('hidden');
+    hint.setAttribute('aria-busy', show ? 'true' : 'false');
+  }
+  updateMhdServerSyncHint._wasLoading = show;
+  try {
+    window.setHeaderCloudLoading?.(show);
+    if (wasLoading && !show) window.rememberSuccessfulSync?.();
+  } catch (_) { /* optional chrome */ }
 }
 
 function buildMhdLoadErrorHtml() {

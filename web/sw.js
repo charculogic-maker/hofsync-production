@@ -1,7 +1,7 @@
-const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1';
+const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
-/** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen */
+/** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen (sync-version-hint). */
 const RELEASED_AT = '2026-10-30T19:00:00+01:00';
 
 const CRITICAL_ASSETS = [

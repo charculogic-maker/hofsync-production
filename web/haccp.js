@@ -708,7 +708,7 @@ function readActiveEmployeeName() {
 }
 
 /**
- * Mitarbeiter-Anzeige nur noch im Header (#btn-team / Status-Pille).
+ * Mitarbeiter-Anzeige nur noch im Header (#btn-header-employee / Status-Pille).
  * Content-Chips „Aktiver Mitarbeiter: …“ wurden entfernt (Wet-Finger UX).
  */
 function renderHaccpOperatorSelector() {

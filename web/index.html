@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#1c130e">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1c130e">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c130e">
+  <meta name="theme-color" content="#2b1810">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#2b1810">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#2b1810">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="">
   <!-- Kritischer Boot-Hintergrund: verhindert weißen FOUC bevor style.css/app.js laden. -->
   <style id="boot-splash-css">
     html, body {
-      background-color: #1c130e !important;
+      background-color: #2b1810 !important;
       color: #f5ede6;
       margin: 0;
       padding: 0;
@@ -21,7 +21,7 @@
   <script>
     /* Synchrones Theme-/Mandantenfarben-Boot — vor externem CSS/JS, kein spätes Repaint. */
     (function bootThemeSplash() {
-      var BOOT_BG = '#1c130e';
+      var BOOT_BG = '#2b1810';
       try {
         var root = document.documentElement;
         // Laden-iPhone: feste Tag-Darstellung (beste Lesbarkeit bei Tageslicht/Neon).
@@ -363,25 +363,116 @@
           </div>
         </div>
 
-        <!-- App Header: Tenant-Header + Aktionen -->
-        <header class="app-header">
-          <div class="tenant-header" id="tenant-header" aria-label="Aktueller Betrieb">
-            <img
-              class="tenant-header-logo brand-logo"
-              id="cldc-logo"
-              src="/icon-192.png"
-              alt=""
-              width="40"
-              height="40"
-              decoding="async"
-            />
-            <div class="tenant-header-text app-title-group">
+        <!-- App Header: eine kompakte 48px-Zeile + Safe-Area + Sync-Progress -->
+        <header class="app-header" id="header">
+          <div class="app-header-main" id="tenant-header" aria-label="Aktueller Betrieb">
+            <button
+              type="button"
+              class="header-brand-btn"
+              id="btn-sync-status"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="popover-sync-details"
+              title="Cloud-Status anzeigen"
+            >
+              <img
+                class="tenant-header-logo brand-logo header-brand-logo"
+                id="cldc-logo"
+                src="/icon-192.png"
+                alt=""
+                width="28"
+                height="28"
+                decoding="async"
+              />
               <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
-              <h1 class="tenant-header-page" id="header-title">MHD-Monitor</h1>
-            </div>
-          </div>
-          <div class="app-header-actions">
-            <div class="admin-header-dropdown" id="admin-header-dropdown" hidden style="display: none;">
+              <span class="sync-status-icon" id="sync-status-icon" aria-hidden="true">
+                <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
+                <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
+              </span>
+            </button>
+            <h1 class="header-module-title tenant-header-page" id="header-title">MHD-Monitor</h1>
+            <div class="app-header-actions">
+              <button
+                type="button"
+                id="btn-quick-alert"
+                class="btn-quick-alert"
+                aria-label="Schnellbedarf melden"
+                title="Schnellbedarf melden"
+              >
+                <span class="btn-quick-alert-icon" aria-hidden="true">⚡</span>
+                <span id="btn-quick-alert-badge" class="btn-quick-alert-badge" hidden>0</span>
+              </button>
+              <div class="header-employee-wrap" id="header-employee-wrap">
+                <button
+                  type="button"
+                  id="btn-header-employee"
+                  class="employee-session-badge btn-team-switch btn-header-employee"
+                  style="display: none;"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  aria-controls="popover-employee-menu"
+                  aria-label="Mitarbeiter und Profil"
+                  title="Mitarbeiter und Profil"
+                  data-legacy-btn-team="1"
+                >
+                  <span id="employee-session-name"></span>
+                </button>
+                <div
+                  class="header-profile-popover"
+                  id="popover-employee-menu"
+                  role="menu"
+                  hidden
+                >
+                  <div
+                    class="admin-header-dropdown header-profile-admin"
+                    id="admin-header-dropdown"
+                    hidden
+                    style="display: none;"
+                  >
+                    <div class="admin-header-dropdown-menu header-profile-menu-block" id="admin-header-dropdown-menu" role="group" hidden>
+                      <button type="button" class="admin-header-dropdown-item header-profile-item" role="menuitem" data-admin-module="buero">💼 Büro · Chargen</button>
+                      <button type="button" class="admin-header-dropdown-item header-profile-item" role="menuitem" data-admin-module="retterbox">📦 Retter-Box</button>
+                      <a
+                        class="admin-header-dropdown-item admin-header-dropdown-item--dashboard nav-mobile-admin-link header-profile-item"
+                        id="admin-header-dashboard-link"
+                        href="/dev-dashboard"
+                        role="menuitem"
+                        data-admin-module="dashboard"
+                        hidden
+                        style="display: none;"
+                      >🛠️ Verwaltung</a>
+                    </div>
+                  </div>
+                  <div class="header-tools-dropdown header-profile-tools" id="header-tools-dropdown">
+                    <div class="header-tools-menu header-profile-menu-block" id="header-tools-menu" role="group">
+                      <button type="button" class="header-tools-item header-profile-item" role="menuitem" id="header-tools-theme" data-header-tool="theme" hidden style="display:none;" aria-hidden="true">🌙 Darstellung</button>
+                      <button type="button" class="header-tools-item header-profile-item" role="menuitem" id="header-tools-refresh" data-header-tool="refresh">↻ App aktualisieren</button>
+                      <button type="button" class="header-tools-item header-profile-item" role="menuitem" id="header-tools-version" data-header-tool="version" data-app-version-badge>ℹ️ Version <span data-app-version-label>v1.5.1</span></button>
+                    </div>
+                  </div>
+                  <button type="button" class="header-profile-item" role="menuitem" data-profile-action="switch-employee" id="profile-switch-employee">👤 Mitarbeiter wechseln</button>
+                  <button type="button" class="header-profile-item header-action-btn" role="menuitem" id="header-logout-btn" style="display: none;">Abmelden</button>
+                </div>
+              </div>
+              <!-- Versteckte Sekundär-/Legacy-Controls für bestehende Binder -->
+              <button type="button" class="btn-theme-toggle header-action--secondary" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten" hidden style="display:none;">🌙</button>
+              <button type="button" class="app-refresh-btn header-action--secondary" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()" hidden style="display:none;">
+                <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
+              </button>
+              <button
+                type="button"
+                class="app-version-badge app-version-badge--header header-action--secondary"
+                id="app-version-badge-header"
+                data-app-version-badge
+                aria-haspopup="dialog"
+                title="Versionsinfo"
+                hidden
+                style="display:none;"
+              >
+                <span class="app-version-dot" aria-hidden="true"></span>
+                <span class="app-version-label" data-app-version-label>v1.5.1</span>
+                <span class="app-version-status" data-app-version-status>System aktuell</span>
+              </button>
               <button
                 type="button"
                 class="admin-header-dropdown-trigger"
@@ -391,25 +482,12 @@
                 aria-controls="admin-header-dropdown-menu"
                 aria-label="Verwaltungs-Menü"
                 title="Verwaltung"
+                hidden
+                style="display:none;"
               >
                 <span class="admin-header-dropdown-trigger-icon" aria-hidden="true">⚙️</span>
                 <span class="admin-header-dropdown-trigger-label">Verwaltung</span>
               </button>
-              <div class="admin-header-dropdown-menu" id="admin-header-dropdown-menu" role="menu" hidden>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="buero">💼 Büro · Chargen</button>
-                <button type="button" class="admin-header-dropdown-item" role="menuitem" data-admin-module="retterbox">📦 Retter-Box</button>
-                <a
-                  class="admin-header-dropdown-item admin-header-dropdown-item--dashboard nav-mobile-admin-link"
-                  id="admin-header-dashboard-link"
-                  href="/dev-dashboard"
-                  role="menuitem"
-                  data-admin-module="dashboard"
-                  hidden
-                  style="display: none;"
-                >🛠️ Verwaltung</a>
-              </div>
-            </div>
-            <div class="header-tools-dropdown" id="header-tools-dropdown">
               <button
                 type="button"
                 class="header-tools-trigger"
@@ -419,68 +497,56 @@
                 aria-controls="header-tools-menu"
                 aria-label="Weitere Kopfzeilen-Aktionen"
                 title="Mehr"
+                hidden
+                style="display:none;"
               >
                 <span aria-hidden="true">⋯</span>
               </button>
-              <div class="header-tools-menu" id="header-tools-menu" role="menu" hidden>
-                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-theme" data-header-tool="theme">🌙 Darstellung</button>
-                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-refresh" data-header-tool="refresh">↻ App aktualisieren</button>
-                <button type="button" class="header-tools-item" role="menuitem" id="header-tools-version" data-header-tool="version" data-app-version-badge>ℹ️ Version</button>
-              </div>
+              <div class="sync-indicator" id="sync-indicator" title="Sync-Status" hidden aria-hidden="true"></div>
+              <div class="app-badge" hidden aria-hidden="true"><span class="brand-app-name"></span></div>
             </div>
-            <button type="button" class="btn-theme-toggle header-action--secondary" id="btn-theme-toggle" aria-label="Dark Mode umschalten" title="Dark Mode umschalten">🌙</button>
-            <button type="button" class="app-refresh-btn header-action--secondary" id="app-refresh-btn" aria-label="App aktualisieren" title="App aktualisieren" onclick="window.forceAppUpdate && window.forceAppUpdate()">
-              <span class="app-refresh-btn-icon" aria-hidden="true">↻</span>
-            </button>
-            <div class="sync-indicator" id="sync-indicator" title="Sync-Status">
-              <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
-              <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
-            </div>
-            <button
-              type="button"
-              class="app-version-badge app-version-badge--header header-action--secondary"
-              id="app-version-badge-header"
-              data-app-version-badge
-              aria-haspopup="dialog"
-              title="Versionsinfo"
-            >
-              <span class="app-version-dot" aria-hidden="true"></span>
-              <span class="app-version-label" data-app-version-label>v1.5.1</span>
-              <span class="app-version-status" data-app-version-status>System aktuell</span>
-            </button>
-            <button
-              type="button"
-              id="btn-quick-alert"
-              class="btn-quick-alert"
-              aria-label="Schnellmeldung – Bedarf melden"
-              title="Bedarf melden"
-            >
-              <span class="btn-quick-alert-icon" aria-hidden="true">⚡</span>
-              <span id="btn-quick-alert-badge" class="btn-quick-alert-badge" hidden>0</span>
-            </button>
-            <button
-              type="button"
-              id="btn-team"
-              class="employee-session-badge btn-team-switch"
-              style="display: none;"
-              aria-label="Mitarbeiter wechseln"
-              title="Mitarbeiter wechseln"
-            >
-              <span id="employee-session-name"></span>
-            </button>
-            <button type="button" id="header-logout-btn" class="header-action-btn" style="display: none;">Abmelden</button>
-            <div class="app-badge"><span class="brand-app-name"></span></div>
           </div>
+          <div
+            id="header-sync-progressbar"
+            class="header-sync-progressbar"
+            role="progressbar"
+            aria-hidden="true"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          ></div>
         </header>
 
-        <div class="app-update-info" id="app-update-info" role="status" aria-live="polite">
+        <div
+          id="popover-sync-details"
+          class="popover-sync-details"
+          role="dialog"
+          aria-label="Cloud-Status"
+          hidden
+        >
+          <div class="popover-sync-details-row">
+            <span class="popover-sync-details-label">Verbindung</span>
+            <span id="sync-details-connection">Online</span>
+          </div>
+          <div class="popover-sync-details-row">
+            <span class="popover-sync-details-label">Zuletzt synchronisiert</span>
+            <span id="sync-details-last-sync">noch unbekannt</span>
+          </div>
+          <div class="popover-sync-details-row">
+            <span class="popover-sync-details-label">App-Stand</span>
+            <span id="sync-details-sw-version" data-app-version-label>v1.5.1</span>
+          </div>
+          <button type="button" class="btn btn-primary popover-sync-resync" id="btn-sync-now">Jetzt neu synchronisieren</button>
+        </div>
+
+        <!-- Legacy-Statuszeilen: aus dem Seitenfluss entfernt, IDs bleiben für Sync-/Changelog-Binder -->
+        <div class="app-update-info app-update-info--collapsed" id="app-update-info" role="status" aria-live="polite" hidden>
           <span id="app-update-info-text">Zuletzt aktualisiert: …</span>
           <span class="app-update-info-hint"> · Tippen: Was ist neu</span>
         </div>
 
         <div
           id="mhd-server-sync-hint"
-          class="mhd-server-sync-hint hidden"
+          class="mhd-server-sync-hint mhd-server-sync-hint--collapsed hidden"
           hidden
           role="status"
           aria-live="polite"

@@ -59,7 +59,7 @@ describe('Wareneingang ↔ Herkunft LOT-Kopplung', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
-    expect(app).to.include('sw.js?v=20261101-onboarding-polish-v1');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1'");
+    expect(app).to.include('sw.js?v=20261103-header-declutter-v1');
   });
 });
