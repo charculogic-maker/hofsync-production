@@ -21,7 +21,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(indexHtml).to.match(/id="modal-employee-picker"/);
     expect(indexHtml).to.match(/id="employee-picker-list"/);
     expect(indexHtml).to.match(/id="employee-picker-close"/);
-    expect(indexHtml).to.match(/id="btn-team"/);
+    expect(indexHtml).to.match(/id="btn-header-employee"/);
   });
 
   it('stores active employee under charculogic.activeEmployee and mirrors scoped key', () => {
@@ -33,7 +33,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(storageJs).to.match(/SOFT_LOCK_ACTIVE_EMPLOYEE_KEY\s*=\s*'charculogic\.activeEmployee'/);
   });
 
-  it('opens soft-lock modal from #btn-team and blocks close without selection', () => {
+  it('opens soft-lock modal from #btn-header-employee and blocks close without selection', () => {
     expect(appJs).to.match(/function openEmployeePickerModal/);
     expect(appJs).to.match(/function ensureSoftLockEmployeeSelected/);
     expect(appJs).to.match(/employeePickerState\.mandatory/);
@@ -143,8 +143,8 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(storageJs).to.match(/export function persistTemporaryActiveEmployee/);
   });
 
-  it('bumps the service-worker cache for onboarding-polish', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
+  it('bumps the service-worker cache for header-declutter', () => {
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

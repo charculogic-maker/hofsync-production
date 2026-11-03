@@ -16,9 +16,9 @@ describe('Mitarbeiter-Schnellwechsler (Header)', () => {
   const swJs = read('web/sw.js');
   const authJs = read('web/auth.js');
 
-  it('renders #btn-team as a real button type=button', () => {
+  it('renders #btn-header-employee as a real button type=button', () => {
     expect(indexHtml).to.match(
-      /<button[\s\S]*?id="btn-team"[\s\S]*?type="button"|<button[\s\S]*?type="button"[\s\S]*?id="btn-team"/,
+      /<button[\s\S]*?id="btn-header-employee"[\s\S]*?type="button"|<button[\s\S]*?type="button"[\s\S]*?id="btn-header-employee"/,
     );
     expect(indexHtml).to.match(/class="[^"]*btn-team-switch/);
     expect(indexHtml).to.not.match(/<div[^>]*id="employee-session-badge"/);
@@ -40,7 +40,7 @@ describe('Mitarbeiter-Schnellwechsler (Header)', () => {
     expect(appJs).to.match(/onClose:\s*\(\)\s*=>\s*close\(''\)/);
     expect(appJs).to.match(/data-team-switch-cancel/);
     expect(appJs).to.match(/profile-session-close/);
-    expect(authJs).to.match(/Team-Schnellwechsler \(#btn-team\)/);
+    expect(authJs).to.match(/Team-Schnellwechsler \(#btn-header-employee/);
   });
 
   it('applies touch-action manipulation and pointer cursor on the badge', () => {

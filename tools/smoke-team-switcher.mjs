@@ -24,11 +24,11 @@ await page.waitForFunction(() => typeof window.showTeamSwitcher === 'function', 
 
 const profileResult = await page.evaluate(async () => {
   const steps = [];
-  const btn = document.getElementById('btn-team');
+  const btn = document.getElementById('btn-header-employee') || document.getElementById('btn-team');
   if (!btn || btn.tagName !== 'BUTTON' || btn.type !== 'button') {
-    return { ok: false, steps, error: 'btn-team invalid' };
+    return { ok: false, steps, error: 'btn-header-employee invalid' };
   }
-  steps.push('btn-team ok');
+  steps.push('btn-header-employee ok');
   steps.push(`touch-action=${getComputedStyle(btn).touchAction}`);
 
   window.BRANDING = {

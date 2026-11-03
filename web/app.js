@@ -949,7 +949,10 @@ function closeAdminHeaderDropdownMenu() {
     const menu = document.getElementById('admin-header-dropdown-menu');
     const trigger = document.getElementById('admin-header-dropdown-btn');
     dropdown?.classList.remove('is-open');
-    if (menu) menu.hidden = true;
+    // Im Profil-Popover bleiben Admin-Einträge sichtbar, solange das Popover offen ist.
+    if (menu && !dropdown?.classList.contains('header-profile-admin')) {
+      menu.hidden = true;
+    }
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
   } catch (err) {
     console.warn('[CharcuLogic Admin] Dropdown-Menü konnte nicht geschlossen werden:', err);
@@ -2952,7 +2955,7 @@ function showAdminDevHint(title, desc = '') {
 
 function persistBootBrandColors(branding = {}) {
   try {
-    const splashBg = branding.darkHeaderBg || '#1c130e';
+    const splashBg = branding.darkHeaderBg || '#2b1810';
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(splashBg)) {
       localStorage.setItem('charculogic_brand_bg', splashBg);
     }
@@ -2998,7 +3001,7 @@ function applyBrandingCssVars(branding) {
   setVar('--primary-color', branding.primaryColor);
   setVar('--primary-color-hover', branding.primaryColorHover);
   setVar('--dark-header-bg', branding.darkHeaderBg);
-  const bootBg = branding.darkHeaderBg || '#1c130e';
+  const bootBg = branding.darkHeaderBg || '#2b1810';
   setVar('--boot-bg', bootBg);
   setVar('--accent-alert', branding.accentAlert);
   const headerText = branding.textOnHeader || '#ffffff';
@@ -3037,7 +3040,7 @@ function applyBranding() {
   const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
   if (appleTitleMeta) appleTitleMeta.setAttribute('content', appName);
 
-  const splashThemeColor = branding.darkHeaderBg || '#1c130e';
+  const splashThemeColor = branding.darkHeaderBg || '#2b1810';
   document.querySelectorAll('meta[name="theme-color"]').forEach((themeMeta) => {
     themeMeta.setAttribute('content', splashThemeColor);
   });
@@ -4565,7 +4568,8 @@ const appContent = document.getElementById('app-content');
 const headerTitle = document.getElementById('header-title');
 const headerSubtitle = document.getElementById('header-subtitle');
 const headerLogoutBtn = document.getElementById('header-logout-btn');
-const employeeSessionBadge = document.getElementById('btn-team')
+const employeeSessionBadge = document.getElementById('btn-header-employee')
+  || document.getElementById('btn-team')
   || document.getElementById('employee-session-badge');
 const employeeSessionName = document.getElementById('employee-session-name');
 
@@ -4754,58 +4758,60 @@ async function openAdminDropdownModule(moduleKey) {
   }
 }
 
+function syncAdminItemsInProfilePopover() {
+  const dropdown = document.getElementById('admin-header-dropdown');
+  const menu = document.getElementById('admin-header-dropdown-menu');
+  if (!dropdown || !menu) return;
+  // Desktop: Admin bleibt in der Sidebar — kein zweites Menü im Profil-Popover.
+  if (typeof isMobileNavViewport === 'function' && !isMobileNavViewport()) {
+    hideAdminHeaderDropdown();
+    return;
+  }
+  if (!hasAuthenticatedTenantContext()) {
+    hideAdminHeaderDropdown();
+    return;
+  }
+  const dashboardLink = document.getElementById('admin-header-dashboard-link');
+  const canOpen = hasAdminModuleAccess() || (dashboardLink && !dashboardLink.hidden);
+  if (!canOpen) {
+    hideAdminHeaderDropdown();
+    return;
+  }
+  dropdown.hidden = false;
+  dropdown.style.display = '';
+  menu.hidden = false;
+  dropdown.classList.add('is-open');
+}
+
 function bindAdminHeaderDropdown() {
   try {
     const dropdown = document.getElementById('admin-header-dropdown');
-    const trigger = document.getElementById('admin-header-dropdown-btn');
     const menu = document.getElementById('admin-header-dropdown-menu');
-    if (!dropdown || !trigger || !menu) return;
+    if (!dropdown || !menu) return;
     hideAdminHeaderDropdown();
     if (dropdown.dataset.bound === '1') return;
     dropdown.dataset.bound = '1';
-
-    trigger.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (!hasAuthenticatedTenantContext()) {
-        hideAdminHeaderDropdown();
-        return;
-      }
-      const dashboardLink = document.getElementById('admin-header-dashboard-link');
-      const canOpen = hasAdminModuleAccess() || (dashboardLink && !dashboardLink.hidden);
-      if (!canOpen) {
-        hideAdminHeaderDropdown();
-        return;
-      }
-      const willOpen = menu.hidden;
-      closeAdminHeaderDropdownMenu();
-      closeHeaderToolsMenu();
-      if (!willOpen) return;
-      dropdown.classList.add('is-open');
-      menu.hidden = false;
-      trigger.setAttribute('aria-expanded', 'true');
-    });
 
     menu.querySelectorAll('.admin-header-dropdown-item').forEach((item) => {
       item.addEventListener('click', async (event) => {
         event.stopPropagation();
         const moduleKey = item.getAttribute('data-admin-module');
         // /dev-dashboard: native Navigation + RBAC-Guard am Link.
-        if (moduleKey === 'dashboard') return;
+        if (moduleKey === 'dashboard') {
+          closeEmployeeProfilePopover();
+          return;
+        }
         if (!hasAuthenticatedTenantContext() || !hasAdminModuleAccess()) {
           hideAdminHeaderDropdown();
+          closeEmployeeProfilePopover();
           return;
         }
         if (!moduleKey) return;
         event.preventDefault();
         await openAdminDropdownModule(moduleKey);
         closeAdminHeaderDropdownMenu();
+        closeEmployeeProfilePopover();
       });
-    });
-
-    document.addEventListener('click', (event) => {
-      if (!dropdown.contains(event.target)) {
-        closeAdminHeaderDropdownMenu();
-      }
     });
 
     document.addEventListener('keydown', (event) => {
@@ -4822,30 +4828,22 @@ function closeHeaderToolsMenu() {
   const dropdown = document.getElementById('header-tools-dropdown');
   const trigger = document.getElementById('header-tools-btn');
   const menu = document.getElementById('header-tools-menu');
-  if (!dropdown || !trigger || !menu) return;
+  if (!dropdown || !menu) return;
   dropdown.classList.remove('is-open');
-  menu.hidden = true;
-  trigger.setAttribute('aria-expanded', 'false');
+  // Im Profil-Popover bleiben die Tool-Einträge sichtbar (kein Collapse).
+  if (!dropdown.classList.contains('header-profile-tools')) {
+    menu.hidden = true;
+  }
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
 }
 
-/** Mobile: Darstellung / Refresh / Version hinter ⋯, Primär bleibt ⚡ + Profil. */
+/** Seltene Kopfzeilen-Tools leben im Mitarbeiter-Popover (nicht mehr als ⋯ in der Hauptleiste). */
 function bindHeaderToolsDropdown() {
   const dropdown = document.getElementById('header-tools-dropdown');
-  const trigger = document.getElementById('header-tools-btn');
   const menu = document.getElementById('header-tools-menu');
-  if (!dropdown || !trigger || !menu || dropdown.dataset.bound === '1') return;
+  if (!dropdown || !menu || dropdown.dataset.bound === '1') return;
   dropdown.dataset.bound = '1';
-
-  trigger.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const willOpen = menu.hidden;
-    closeHeaderToolsMenu();
-    closeAdminHeaderDropdownMenu();
-    if (!willOpen) return;
-    dropdown.classList.add('is-open');
-    menu.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-  });
+  menu.hidden = false;
 
   menu.addEventListener('click', (event) => {
     const item = event.target.closest('[data-header-tool]');
@@ -4853,7 +4851,7 @@ function bindHeaderToolsDropdown() {
     event.preventDefault();
     event.stopPropagation();
     const tool = item.getAttribute('data-header-tool');
-    closeHeaderToolsMenu();
+    closeEmployeeProfilePopover();
     if (tool === 'theme') {
       // Darstellung ist fest (Laden-Tag-Modus) – Umschalter entfernt.
       return;
@@ -4867,15 +4865,60 @@ function bindHeaderToolsDropdown() {
       document.getElementById('app-version-badge-header')?.click();
     }
   });
-
-  document.addEventListener('click', (event) => {
-    if (!dropdown.contains(event.target)) closeHeaderToolsMenu();
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeHeaderToolsMenu();
-  });
 }
 bindHeaderToolsDropdown();
+
+function closeEmployeeProfilePopover() {
+  const menu = document.getElementById('popover-employee-menu');
+  const trigger = document.getElementById('btn-header-employee')
+    || document.getElementById('btn-team');
+  if (menu) menu.hidden = true;
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
+function openEmployeeProfilePopover() {
+  const menu = document.getElementById('popover-employee-menu');
+  const trigger = document.getElementById('btn-header-employee')
+    || document.getElementById('btn-team');
+  if (!menu || !trigger) return;
+  closeSyncDetailsPopover();
+  syncAdminItemsInProfilePopover();
+  menu.hidden = false;
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function bindEmployeeProfilePopover() {
+  const wrap = document.getElementById('header-employee-wrap');
+  const menu = document.getElementById('popover-employee-menu');
+  if (!wrap || !menu || wrap.dataset.profilePopoverBound === '1') return;
+  wrap.dataset.profilePopoverBound = '1';
+
+  menu.addEventListener('click', (event) => {
+    const actionBtn = event.target.closest('[data-profile-action]');
+    if (!(actionBtn instanceof HTMLElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const action = actionBtn.getAttribute('data-profile-action');
+    closeEmployeeProfilePopover();
+    if (action === 'switch-employee') {
+      if (isFirebaseRoleAuth()) {
+        window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+        return;
+      }
+      void openEmployeePickerModal({
+        mandatory: !readActiveEmployee() || isTeamSessionName(readActiveEmployee()),
+      });
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!wrap.contains(event.target)) closeEmployeeProfilePopover();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeEmployeeProfilePopover();
+  });
+}
+bindEmployeeProfilePopover();
 
 function showTab(tabId) {
   // Nur Büro/Retter bleiben Admin-Module; HACCP & Auskunft laufen über Mehr-Nav.
@@ -4965,8 +5008,8 @@ function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
   if (!button || button.dataset.teamSwitcherBound === '1') return;
   button.dataset.teamSwitcherBound = '1';
   button.style.cursor = 'pointer';
-  button.setAttribute('aria-label', 'Mitarbeiter wechseln');
-  button.setAttribute('title', 'Mitarbeiter wechseln');
+  button.setAttribute('aria-label', 'Mitarbeiter und Profil');
+  button.setAttribute('title', 'Mitarbeiter und Profil');
   if (button.tagName !== 'BUTTON') {
     button.setAttribute('role', 'button');
     button.setAttribute('tabindex', '0');
@@ -4979,12 +5022,18 @@ function bindTeamSwitcherHeaderButton(button = employeeSessionBadge) {
     const now = Date.now();
     if (now - lastOpenAt < 450) return;
     lastOpenAt = now;
-    if (isFirebaseRoleAuth()) {
-      window.showToast?.('Mitarbeiterwechsel läuft hier über die Betriebs-Anmeldung.', 'info');
+    const needsMandatoryPick = !readActiveEmployee() || isTeamSessionName(readActiveEmployee());
+    if (!isFirebaseRoleAuth() && needsMandatoryPick) {
+      // Soft-Lock: zuerst Namen wählen, danach Profil-Menü.
+      void openEmployeePickerModal({ mandatory: true });
       return;
     }
-    // Manuell: Soft-Lock Modal; ✕ nur erlaubt wenn bereits ein Name gesetzt ist.
-    void openEmployeePickerModal({ mandatory: !readActiveEmployee() || isTeamSessionName(readActiveEmployee()) });
+    const menu = document.getElementById('popover-employee-menu');
+    if (menu && !menu.hidden) {
+      closeEmployeeProfilePopover();
+      return;
+    }
+    openEmployeeProfilePopover();
   };
 
   button.addEventListener('pointerdown', openSwitcher);
@@ -5446,6 +5495,178 @@ function showSyncQueueDialog() {
 }
 
 window.showSyncQueueDialog = showSyncQueueDialog;
+
+const LAST_SUCCESSFUL_SYNC_KEY = 'charculogic.lastSuccessfulSyncAt';
+let headerCloudLoading = false;
+
+function readLastSuccessfulSyncAt() {
+  try {
+    return localStorage.getItem(LAST_SUCCESSFUL_SYNC_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberSuccessfulSync(at = new Date().toISOString()) {
+  try {
+    localStorage.setItem(LAST_SUCCESSFUL_SYNC_KEY, at);
+  } catch (_) { /* private mode */ }
+  refreshSyncDetailsPopoverContent();
+}
+
+function formatSyncRelativeAge(iso) {
+  const ms = Date.parse(iso || '');
+  if (!Number.isFinite(ms)) return 'noch unbekannt';
+  const ageSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (ageSec < 5) return 'gerade eben';
+  if (ageSec < 60) return `vor ${ageSec} Sekunden`;
+  const min = Math.floor(ageSec / 60);
+  if (min < 60) return `vor ${min} Minute${min === 1 ? '' : 'n'}`;
+  const hours = Math.floor(min / 60);
+  if (hours < 48) return `vor ${hours} Stunde${hours === 1 ? '' : 'n'}`;
+  return formatAppUpdateStamp(iso) || 'noch unbekannt';
+}
+
+function resolveSwCacheVersionLabel() {
+  const fromBadge = document.querySelector('[data-app-version-label]')?.textContent?.trim();
+  if (fromBadge) return fromBadge;
+  return window.HofSyncVersion?.label || 'v1.5.1';
+}
+
+function setHeaderCloudLoading(isLoading) {
+  headerCloudLoading = Boolean(isLoading);
+  updateHeaderSyncProgress();
+}
+
+window.setHeaderCloudLoading = setHeaderCloudLoading;
+window.rememberSuccessfulSync = rememberSuccessfulSync;
+
+function updateHeaderSyncProgress() {
+  const bar = document.getElementById('header-sync-progressbar');
+  const icon = document.getElementById('sync-status-icon');
+  if (!bar) return;
+  const pending = typeof getPendingSyncs === 'function' ? getPendingSyncs() : [];
+  const isOnline = navigator.onLine !== false;
+  const syncing = headerCloudLoading || pending.length > 0 || document.body?.dataset?.syncFlush === '1';
+
+  bar.classList.remove('is-active', 'is-offline', 'is-error');
+  icon?.classList.remove('is-syncing');
+
+  if (!isOnline) {
+    bar.classList.add('is-offline');
+    bar.setAttribute('aria-hidden', 'false');
+    bar.setAttribute('aria-label', 'Offline – Änderungen werden lokal gepuffert');
+    return;
+  }
+  if (syncing) {
+    bar.classList.add('is-active');
+    bar.setAttribute('aria-hidden', 'false');
+    bar.setAttribute('aria-label', 'Bestand wird abgeglichen');
+    icon?.classList.add('is-syncing');
+    return;
+  }
+  bar.setAttribute('aria-hidden', 'true');
+  bar.removeAttribute('aria-label');
+}
+window.updateHeaderSyncProgress = updateHeaderSyncProgress;
+
+function refreshSyncDetailsPopoverContent() {
+  const connectionEl = document.getElementById('sync-details-connection');
+  const lastSyncEl = document.getElementById('sync-details-last-sync');
+  const versionEl = document.getElementById('sync-details-sw-version');
+  const pending = typeof getPendingSyncs === 'function' ? getPendingSyncs() : [];
+  const isOnline = navigator.onLine !== false;
+
+  if (connectionEl) {
+    if (!isOnline) {
+      connectionEl.textContent = pending.length
+        ? `Offline-Puffer (${pending.length})`
+        : 'Offline-Puffer';
+    } else if (pending.length > 0) {
+      connectionEl.textContent = `Online · ${pending.length} wartend`;
+    } else if (headerCloudLoading) {
+      connectionEl.textContent = 'Online · Abgleich läuft';
+    } else {
+      connectionEl.textContent = 'Online';
+    }
+  }
+  if (lastSyncEl) {
+    lastSyncEl.textContent = formatSyncRelativeAge(readLastSuccessfulSyncAt());
+  }
+  if (versionEl) {
+    versionEl.textContent = resolveSwCacheVersionLabel();
+  }
+}
+
+function closeSyncDetailsPopover() {
+  const pop = document.getElementById('popover-sync-details');
+  const trigger = document.getElementById('btn-sync-status');
+  if (pop) pop.hidden = true;
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
+function openSyncDetailsPopover() {
+  const pop = document.getElementById('popover-sync-details');
+  const trigger = document.getElementById('btn-sync-status');
+  if (!pop || !trigger) return;
+  closeEmployeeProfilePopover();
+  refreshSyncDetailsPopoverContent();
+  pop.hidden = false;
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function bindSyncDetailsPopover() {
+  const trigger = document.getElementById('btn-sync-status');
+  const pop = document.getElementById('popover-sync-details');
+  const resyncBtn = document.getElementById('btn-sync-now');
+  if (!trigger || !pop || trigger.dataset.syncPopoverBound === '1') return;
+  trigger.dataset.syncPopoverBound = '1';
+
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!pop.hidden) {
+      closeSyncDetailsPopover();
+      return;
+    }
+    openSyncDetailsPopover();
+  });
+
+  resyncBtn?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSyncDetailsPopover();
+    const pending = typeof getPendingSyncs === 'function' ? getPendingSyncs() : [];
+    if (pending.length > 0) {
+      showSyncQueueDialog();
+      return;
+    }
+    document.body.dataset.syncFlush = '1';
+    updateHeaderSyncProgress();
+    try {
+      await flushPendingSyncs();
+      rememberSuccessfulSync();
+      window.showToast?.('Abgleich angestoßen.', 'success');
+    } catch (err) {
+      console.warn('[CharcuLogic Sync] Manueller Abgleich fehlgeschlagen:', err);
+      window.showToast?.('Abgleich gerade nicht möglich. Bitte WLAN prüfen.', 'warning');
+    } finally {
+      delete document.body.dataset.syncFlush;
+      updateHeaderSyncProgress();
+      updateSyncIndicator();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (pop.hidden) return;
+    if (pop.contains(event.target) || trigger.contains(event.target)) return;
+    closeSyncDetailsPopover();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeSyncDetailsPopover();
+  });
+}
+bindSyncDetailsPopover();
 document.getElementById('sync-indicator')?.addEventListener('click', showSyncQueueDialog);
 
 // --- BARCODE-SCANNER// --- BARCODE-SCANNER (Kamera + Lernmodus) ---
@@ -5557,17 +5778,20 @@ function resolveAppUpdateIso(swReleasedAt) {
 
 function renderAppUpdateInfo(swReleasedAt) {
   const textEl = document.getElementById('app-update-info-text');
-  if (!textEl) return;
   const releasedAt = swReleasedAt || APP_RELEASE_AT;
   rememberAppStand(releasedAt);
   const stamp = formatAppUpdateStamp(resolveAppUpdateIso(releasedAt));
-  textEl.textContent = stamp
-    ? `Zuletzt aktualisiert: ${stamp}`
-    : 'Zuletzt aktualisiert: noch unbekannt';
+  if (textEl) {
+    textEl.textContent = stamp
+      ? `Zuletzt aktualisiert: ${stamp}`
+      : 'Zuletzt aktualisiert: noch unbekannt';
+  }
   const infoEl = document.getElementById('app-update-info');
   if (infoEl) {
     infoEl.title = `App-Stand ${formatAppUpdateStamp(releasedAt) || releasedAt}`;
+    infoEl.hidden = true;
   }
+  refreshSyncDetailsPopoverContent();
 }
 
 function requestServiceWorkerVersion() {
@@ -5739,7 +5963,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261101-onboarding-polish-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261103-header-declutter-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

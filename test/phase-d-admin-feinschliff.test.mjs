@@ -100,12 +100,12 @@ describe('Phase D Admin-Feinschliff', () => {
       expect(app).to.match(/function bindHeaderToolsDropdown\s*\(/);
       expect(css).to.match(/\.header-tools-dropdown/);
       expect(css).to.match(/\.header-action--secondary/);
-      expect(css).to.match(/Sekundäraktionen/);
+      expect(css).to.match(/Profil-Popover|Sekundäraktionen/);
     });
 
     it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261101-onboarding-polish-v1'");
-    expect(app).to.include('sw.js?v=20261101-onboarding-polish-v1');
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1'");
+    expect(app).to.include('sw.js?v=20261103-header-declutter-v1');
     });
   });
 });

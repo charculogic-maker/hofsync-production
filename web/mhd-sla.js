@@ -155,20 +155,23 @@ export function updateMhdSlaBadge(count = 0) {
 export function updateMhdSlaBanner(count = 0, { onOpen, loading = false } = {}) {
   const banner = document.getElementById('mhd-sla-banner');
   if (!banner) return;
+  if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
+    banner.dataset.mhdSlaBound = '1';
+    banner.addEventListener('click', (event) => {
+      event.preventDefault();
+      onOpen();
+    });
+  }
   if (loading) {
-    banner.hidden = false;
-    banner.classList.remove('hidden');
-    banner.classList.add('mhd-sla-banner--loading');
-    banner.setAttribute('aria-busy', 'true');
-    banner.innerHTML = '<span class="mhd-sla-banner-loading-dot" aria-hidden="true"></span>'
-      + '&nbsp;Bestand wird geladen – kritische MHDs erscheinen gleich';
-    if (typeof onOpen === 'function' && banner.dataset.mhdSlaBound !== '1') {
-      banner.dataset.mhdSlaBound = '1';
-      banner.addEventListener('click', (event) => {
-        event.preventDefault();
-        onOpen();
-      });
-    }
+    // Ladezustand läuft über die Header-Progress-Line – kein Text-Banner mehr.
+    banner.hidden = true;
+    banner.classList.add('hidden');
+    banner.classList.remove('mhd-sla-banner--loading');
+    banner.removeAttribute('aria-busy');
+    banner.textContent = '';
+    try {
+      window.setHeaderCloudLoading?.(true);
+    } catch (_) { /* optional chrome */ }
     return;
   }
   banner.classList.remove('mhd-sla-banner--loading');

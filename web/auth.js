@@ -556,7 +556,7 @@ function bindHeaderLogoutButton() {
     try {
       window.showToast?.('Abgemeldet. System wird neu geladen...', 'warning');
       // Nur echter Logout löscht die Mitarbeiter-Sitzung — Modal-Abbrechen am
-      // Team-Schnellwechsler (#btn-team) darf clearSessionCaches nicht auslösen.
+      // Team-Schnellwechsler (#btn-header-employee / #btn-team) darf clearSessionCaches nicht auslösen.
       clearSessionCaches();
       authContext = null;
       await shutdownFirestoreClient();
