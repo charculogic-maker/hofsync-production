@@ -48,6 +48,10 @@ Dieser Kanal ist für Betriebe gedacht, die ihre eigenen Rezepturen importieren.
 - StevesHof-Rezepte dürfen nicht als Demo-Daten für andere Betriebe ausgeliefert werden.
 - Für neue Mandanten sollte die App entweder leer starten oder nur neutrale Beispielrezepte verwenden.
 
+### Campus WRS JSON-Import (Live)
+
+Mandanten-Admins können unter **Küche → Campus-Rezept importieren** ein JSON aus dem CharcuLogic Campus einspielen (`campus.recipe.export@1.0.0` oder Envelope). Backend: Callable `importCampusRecipe` → `tenants/{tenantId}/rezepte/{safeId}` (Default `createOnly`, optional `overwrite`).
+
 ### Erwartetes CSV-Format
 
 Eine Rezeptdatei darf mehrere Zeilen pro Rezept enthalten. Jede Zeile beschreibt eine Zutat.

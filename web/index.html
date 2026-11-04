@@ -2493,6 +2493,33 @@
                   </button>
                 </form>
               </details>
+              <details class="kitchen-collapsible kitchen-recipe-import-panel kitchen-production-zone hidden" id="kitchen-recipe-import-panel" hidden>
+                <summary>Campus-Rezept importieren</summary>
+                <p class="form-hint" style="margin: 0.5rem 0 0.75rem;">
+                  JSON aus CharcuLogic Campus („In Produktion übernehmen“) hier einfügen oder Datei wählen.
+                  Format: <code>campus.recipe.export@1.0.0</code> oder Envelope.
+                </p>
+                <label class="form-label" for="recipe-import-file">JSON-Datei</label>
+                <input type="file" id="recipe-import-file" class="input-text-touch" accept="application/json,.json">
+
+                <label class="form-label" for="recipe-import-json">JSON einfügen</label>
+                <textarea
+                  id="recipe-import-json"
+                  class="input-text-touch"
+                  rows="8"
+                  placeholder='{ "schema": "campus.recipe.export", … }'
+                  autocomplete="off"
+                ></textarea>
+
+                <label class="form-check" style="display:flex;align-items:center;gap:0.5rem;min-height:48px;margin:0.75rem 0;">
+                  <input type="checkbox" id="recipe-import-overwrite" style="width:24px;height:24px;">
+                  Bestehendes Rezept überschreiben
+                </label>
+
+                <button type="button" class="btn btn-primary" id="btn-recipe-import-campus" style="min-height:48px;">
+                  In Produktion übernehmen
+                </button>
+              </details>
               <div class="recipe-toolbar theke-recipe-toolbar">
                 <div class="recipe-search-panel">
                   <input

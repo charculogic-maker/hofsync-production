@@ -236,6 +236,16 @@ lazyExport('manageTenantEmployees', () => callable(
   withAdmin(async (request) => require('./manageTenantEmployees').handleManageTenantEmployees(request)),
 ));
 
+lazyExport('importCampusRecipe', () => callable(
+  {
+    ...CALLABLE_BASE_OPTIONS,
+    // Wie manageTenantEmployees: Vercel-Hosts + Auth/Admin; App Check aus.
+    cors: true,
+    enforceAppCheck: false,
+  },
+  withAdmin(async (request) => require('./campusRecipeImport').handleImportCampusRecipe(request)),
+));
+
 lazyExport('listPlatformTenants', () => callable(
   {
     ...CALLABLE_BASE_OPTIONS,

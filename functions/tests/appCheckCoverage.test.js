@@ -19,6 +19,7 @@ const APP_CHECK_CALLABLES = [
   { id: 'triggerManualMeatPriceRun', file: 'meatPrices.js', anchor: 'triggerManualMeatPriceRun' },
   { id: 'createTenantEmployee', file: 'createTenantEmployee.js', anchor: 'exports.createTenantEmployee' },
   { id: 'manageTenantEmployees', file: 'manageTenantEmployees.js', anchor: 'exports.manageTenantEmployees' },
+  { id: 'importCampusRecipe', file: 'campusRecipeImport.js', anchor: 'exports.importCampusRecipe' },
   { id: 'provisionDemoTenant', file: 'tenantAdmin.js', anchor: 'exports.provisionDemoTenant' },
   { id: 'archiveZeroStockBatches', file: 'mhdArchive.js', anchor: 'exports.archiveZeroStockBatches' },
 ];
@@ -30,6 +31,7 @@ const ON_CALL_SOURCE_FILES = [
   'meatPrices.js',
   'createTenantEmployee.js',
   'manageTenantEmployees.js',
+  'campusRecipeImport.js',
   'tenantAdmin.js',
   'mhdArchive.js',
 ];
@@ -65,10 +67,10 @@ describe('App Check coverage – Callable registration contract', () => {
       return sum + (matches?.length || 0);
     }, 0);
     expect(onCallCount).toBe(APP_CHECK_CALLABLES.length);
-    expect(APP_CHECK_CALLABLES).toHaveLength(10);
+    expect(APP_CHECK_CALLABLES).toHaveLength(11);
   });
 
-  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'manageTenantEmployees' && entry.id !== 'createTenantEmployee' && entry.id !== 'parseDeliveryNote' && entry.id !== 'reprocessDeliveryNoteDraft' && entry.id !== 'saveReconciledItems'))(
+  test.each(APP_CHECK_CALLABLES.filter((entry) => entry.id !== 'provisionDemoTenant' && entry.id !== 'manageTenantEmployees' && entry.id !== 'createTenantEmployee' && entry.id !== 'importCampusRecipe' && entry.id !== 'parseDeliveryNote' && entry.id !== 'reprocessDeliveryNoteDraft' && entry.id !== 'saveReconciledItems'))(
     '$id configures enforceAppCheck: true',
     ({ file, anchor }) => {
       const source = readFunctionSource(file);
@@ -141,6 +143,22 @@ describe('App Check coverage – Callable registration contract', () => {
     expect(exportBlock).toMatch(/cors:\s*true/);
     expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
     expect(exportBlock).toMatch(/handleManageTenantEmployees/);
+  });
+
+  test('importCampusRecipe allows Vercel hosts and still requires tenant admin', () => {
+    const source = readFunctionSource('campusRecipeImport.js');
+    expect(source).toMatch(/CALLABLE_BASE_OPTIONS\s*=\s*\{[\s\S]*?cors:\s*true/);
+    expect(source).toMatch(/CALLABLE_BASE_OPTIONS\s*=\s*\{[\s\S]*?enforceAppCheck:\s*false/);
+    expect(source).toMatch(/assertAdminAccessForTenant/);
+    expect(source).toMatch(/tenants\/\$\{tenantId\}\/rezepte/);
+
+    const index = readFunctionSource('index.js');
+    const exportAt = index.indexOf("lazyExport('importCampusRecipe'");
+    expect(exportAt).toBeGreaterThanOrEqual(0);
+    const exportBlock = index.slice(exportAt, exportAt + 700);
+    expect(exportBlock).toMatch(/cors:\s*true/);
+    expect(exportBlock).toMatch(/enforceAppCheck:\s*false/);
+    expect(exportBlock).toMatch(/handleImportCampusRecipe/);
   });
 
   test('createTenantEmployee allows Vercel hosts and still requires auth', () => {

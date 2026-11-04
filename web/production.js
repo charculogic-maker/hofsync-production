@@ -16,6 +16,7 @@ import {
   openProductionDatasheetPrint,
 } from './production-datasheet.js';
 import { generateIngredientDeclaration } from './domain-core.js';
+import { createHttpsCallable } from './firebase-functions.js';
 import { flushPendingSyncs } from './sync.js';
 import {
   THEKE_QUICK_FILTERS,
@@ -1643,6 +1644,96 @@ function initRecipeCreateForm() {
   });
 }
 
+function initCampusRecipeImportForm() {
+  const panel = document.getElementById('kitchen-recipe-import-panel');
+  const importBtn = document.getElementById('btn-recipe-import-campus');
+  const fileInput = document.getElementById('recipe-import-file');
+  if (!panel || !importBtn || importBtn.dataset.productionBound === '1') return;
+  importBtn.dataset.productionBound = '1';
+
+  if (fileInput && fileInput.dataset.productionBound !== '1') {
+    fileInput.dataset.productionBound = '1';
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const ta = document.getElementById('recipe-import-json');
+        if (ta) ta.value = text;
+      } catch (err) {
+        console.error('[Campus-Import] Datei lesen fehlgeschlagen:', err);
+        productionState.showHUD('Dateifehler', 'JSON-Datei konnte nicht gelesen werden.', '!');
+      }
+    });
+  }
+
+  importBtn.addEventListener('click', async () => {
+    productionState.playClickSound(1100, 0.05, 0.12);
+    await importCampusRecipeFromForm();
+  });
+}
+
+async function importCampusRecipeFromForm() {
+  if (!isProductionAdmin()) {
+    productionState.showHUD('Keine Berechtigung', 'Nur Admins können Campus-Rezepte importieren.', '!');
+    return;
+  }
+
+  const tenantId = requireProductionTenantId();
+  if (!tenantId) {
+    productionState.showHUD('Mandant fehlt', 'Import braucht einen Betriebskontext.', '!');
+    return;
+  }
+
+  const raw = document.getElementById('recipe-import-json')?.value.trim() || '';
+  if (!raw) {
+    productionState.showHUD('JSON fehlt', 'Bitte Campus-Export einfügen oder Datei wählen.', '!');
+    return;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    productionState.showHUD('JSON ungültig', 'Der Text ist kein gültiges JSON.', '!');
+    return;
+  }
+
+  const overwrite = Boolean(document.getElementById('recipe-import-overwrite')?.checked);
+  const importBtn = document.getElementById('btn-recipe-import-campus');
+  try {
+    if (importBtn) importBtn.disabled = true;
+    const callable = createHttpsCallable('importCampusRecipe', { timeout: 60000 });
+    const result = await callable({
+      tenantId,
+      mode: overwrite ? 'overwrite' : 'createOnly',
+      export: payload,
+    });
+    const data = result?.data || {};
+    productionState.showHUD(
+      'Import ok',
+      `„${data.name || 'Rezept'}" wurde ${data.overwritten ? 'aktualisiert' : 'angelegt'}.`,
+    );
+    productionState.playClickSound(1200, 0.06, 0.15);
+    const ta = document.getElementById('recipe-import-json');
+    if (ta) ta.value = '';
+    const fileInput = document.getElementById('recipe-import-file');
+    if (fileInput) fileInput.value = '';
+    renderRecipes();
+  } catch (error) {
+    console.error('[Campus-Import] fehlgeschlagen:', error);
+    const code = error?.code || error?.details?.code || '';
+    const msg = error?.message || 'Campus-Rezept konnte nicht importiert werden.';
+    if (String(code).includes('already-exists') || /existiert bereits/i.test(msg)) {
+      productionState.showHUD('Bereits vorhanden', 'Häkchen „Überschreiben“ setzen oder anderen Namen wählen.', '!');
+    } else {
+      productionState.showHUD('Importfehler', msg.replace(/^Firebase:\s*/i, '').slice(0, 160), '!');
+    }
+  } finally {
+    if (importBtn) importBtn.disabled = false;
+  }
+}
+
 async function documentRecipeBatch() {
   if (productionState.batchDocumentInFlight) return;
   if (!productionState.selectedRecipeId) {
@@ -1986,6 +2077,7 @@ export function initProductionModule(databaseInstance, writeOrQueueFirestoreFunc
     initRecipeDetailPanelEvents();
     bindRecipeListEvents();
     initRecipeCreateForm();
+    initCampusRecipeImportForm();
     initProductionControls();
     productionState.initialized = true;
   }
@@ -2017,11 +2109,13 @@ function restoreProductionDraftFields() {
 }
 
 function syncRecipeAdminFormVisibility() {
-  const panel = document.getElementById('kitchen-recipe-create-panel');
-  if (!panel) return;
   const visible = isProductionAdmin();
-  panel.hidden = !visible;
-  panel.classList.toggle('hidden', !visible);
+  for (const id of ['kitchen-recipe-create-panel', 'kitchen-recipe-import-panel']) {
+    const panel = document.getElementById(id);
+    if (!panel) continue;
+    panel.hidden = !visible;
+    panel.classList.toggle('hidden', !visible);
+  }
 }
 
 export function activateKitchenTab() {
