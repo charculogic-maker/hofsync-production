@@ -41,7 +41,7 @@ describe('Nutzer mobil (Karten + ⋯)', () => {
   });
 
   it('bumpt den Service-Worker-Cache für we-herkunft-lot', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1'");
     expect(app).to.include('sw.js?v=20261103-header-declutter-v1');
   });
 });

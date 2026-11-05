@@ -1,8 +1,8 @@
-const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1';
+const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
-/** Release – Cloud-Ladehinweis + Versionshinweis letzte 5 Änderungen (sync-version-hint). */
-const RELEASED_AT = '2026-10-30T19:00:00+01:00';
+/** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */
+const RELEASED_AT = '2026-11-05T14:20:00+01:00';
 
 const CRITICAL_ASSETS = [
   '/',
@@ -18,6 +18,7 @@ const CRITICAL_ASSETS = [
   '/libs/firebase-storage.js',
   '/app.js',
   '/app-version.js',
+  '/remote-reload.js',
   '/app-check.js',
   '/firebase-config.js',
   '/firebase-init.js',

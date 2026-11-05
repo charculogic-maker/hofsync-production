@@ -111,7 +111,7 @@ Genutzte Collections (alle unter `tenants/{tenantId}/`, sofern nicht anders ange
 | `tasks/{taskId}` | Aufgaben & Team-Infos | create: Nutzer; update: Admin **oder** reines Abhaken; delete: Admin |
 | `customerOrders/{orderId}` | Kundenbestellungen | create: Nutzer; update: Admin **oder** Status-Übergang; delete: Admin |
 | `bulletinBoard/current` | Nachricht des Tages | nur Admin |
-| `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter) | nur Admin |
+| `settings/{document}` | Team-Konfiguration (Gruppen, Mitarbeiter), `appReload` (Remote Neu-Laden) | nur Admin |
 | `pushTokens/{tokenId}` | FCM-Tokens je Gerät/Mitarbeiter | create/update: Mandanten-Nutzer; **read: gesperrt** |
 | `fleischpreise/{kw}` | KI-Wochennotierung Fleischpreise | **nur Cloud Function** (Client: `write: false`) |
 | `inventory/{id}` | optionaler KI-Lieferschein-Bestand | Mandanten-Nutzer (schema-validiert) |
@@ -288,6 +288,12 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
   2. Zielgruppe aus `settings/teamDashboard` (Mitarbeiter/Gruppen) auflösen, Autor ausschließen.
   3. FCM-Tokens aus `tenants/{tenantId}/pushTokens` ziehen.
   4. Push via `messaging().sendEachForMulticast` versenden.
+
+### 4.2b `notifyAppReloadRequired*` – Remote Neu-Laden
+
+- **Typ:** Firestore-Trigger (`onDocumentCreated` / `onDocumentUpdated`) auf `tenants/{tenantId}/settings/appReload`, Region `europe-west3`.
+- **Client:** Admin unter **Mein Betrieb → Stammdaten → Laden-iPhone neu laden** schreibt `required`, `requestId`, optional `message` / `notifyPush`. Laden-iPhone lauscht in `web/remote-reload.js` und zeigt Hinweis (erst speichern, dann Hard-Reload). Bestätigung ist geräteweise in `localStorage`.
+- **Push** (`functions/appReloadPush.js`): bei neuer `requestId` und `notifyPush !== false` Multicast an alle Tokens unter `tenants/{tenantId}/pushTokens`.
 
 ### 4.3 `parseDeliveryNote` – KI-Lieferschein (optional)
 

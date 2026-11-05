@@ -64,6 +64,12 @@ import {
 import { renderSupplyCatalogAdminTable } from './quick-alert.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { getNamedTenantCollection, initTenantDb, setGlobalTenantId } from './tenant-db.js';
+import {
+  clearRemoteAppReload,
+  DEFAULT_RELOAD_MESSAGE,
+  readRemoteAppReload,
+  requestRemoteAppReload,
+} from './remote-reload.js';
 import { persistProductMasterToFirestore } from './product-master.js';
 import { sanitizeProductName } from './utils.js';
 import {
@@ -1621,7 +1627,129 @@ function setBetriebSection(sectionKey = 'stammdaten', { updateHash = false } = {
   if (next === 'stammdaten') {
     void refreshDiscountMatrixUi(dashboardState.selectedTenantId);
     renderSupplyCatalogAdminTable();
+    void refreshRemoteReloadStatus(dashboardState);
   }
+}
+
+function formatRemoteReloadStatus(data) {
+  if (!data || data.required !== true) {
+    return 'Keine offene Neu-Laden-Anforderung.';
+  }
+  const when = data.requestedAt
+    ? (() => {
+      const ms = Date.parse(String(data.requestedAt));
+      if (!Number.isFinite(ms)) return String(data.requestedAt);
+      return new Date(ms).toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    })()
+    : 'unbekannt';
+  const by = data.requestedBy ? ` · von ${data.requestedBy}` : '';
+  return `Aktiv seit ${when}${by}. Laden-iPhones sehen den Hinweis, bis sie neu geladen haben.`;
+}
+
+async function refreshRemoteReloadStatus(dashboardStateRef = dashboardState) {
+  const statusEl = document.getElementById('dev-dashboard-remote-reload-status');
+  const messageEl = document.getElementById('dev-dashboard-remote-reload-message');
+  const tenantId = dashboardStateRef.selectedTenantId;
+  if (!statusEl) return;
+  if (!tenantId || !dashboardStateRef.db) {
+    statusEl.textContent = 'Kein Betrieb ausgewählt.';
+    return;
+  }
+  statusEl.textContent = 'Status wird geladen…';
+  try {
+    const data = await readRemoteAppReload(dashboardStateRef.db, tenantId);
+    statusEl.textContent = formatRemoteReloadStatus(data);
+    if (messageEl && data?.message && !messageEl.value.trim()) {
+      messageEl.value = String(data.message);
+    }
+  } catch (err) {
+    console.warn('[Dev-Dashboard] Reload-Status fehlgeschlagen:', err);
+    statusEl.textContent = 'Status konnte nicht geladen werden.';
+  }
+}
+
+function bindRemoteReloadAdmin(dashboardStateRef = dashboardState) {
+  const requestBtn = document.getElementById('dev-dashboard-remote-reload-request');
+  const clearBtn = document.getElementById('dev-dashboard-remote-reload-clear');
+  if (!requestBtn || requestBtn.dataset.bound === '1') return;
+  requestBtn.dataset.bound = '1';
+
+  const actor = () => String(
+    dashboardStateRef.actorEmail
+    || window.BRANDING?.betriebsName
+    || 'Büro',
+  ).trim();
+
+  requestBtn.addEventListener('click', () => {
+    const tenantId = dashboardStateRef.selectedTenantId;
+    const statusEl = document.getElementById('dev-dashboard-remote-reload-status');
+    if (!tenantId || !dashboardStateRef.db) {
+      if (statusEl) statusEl.textContent = 'Kein Betrieb ausgewählt.';
+      window.showToast?.('Bitte zuerst einen Betrieb wählen.', 'warning');
+      return;
+    }
+    const message = document.getElementById('dev-dashboard-remote-reload-message')?.value.trim()
+      || DEFAULT_RELOAD_MESSAGE;
+    const notifyPush = document.getElementById('dev-dashboard-remote-reload-push')?.checked !== false;
+    if (statusEl) statusEl.textContent = 'Anforderung wird gesendet…';
+    requestBtn.disabled = true;
+    void requestRemoteAppReload(dashboardStateRef.db, tenantId, {
+      message,
+      notifyPush,
+      requestedBy: actor(),
+    })
+      .then((payload) => {
+        recordAudit('settings', 'Laden-iPhone Neu-Laden angefordert', 'change');
+        window.showToast?.(
+          notifyPush
+            ? 'Neu-Laden angefordert. Hinweis und Push sind unterwegs.'
+            : 'Neu-Laden angefordert. Hinweis erscheint auf dem Laden-iPhone.',
+          'success',
+        );
+        if (statusEl) statusEl.textContent = formatRemoteReloadStatus(payload);
+      })
+      .catch((err) => {
+        console.error('[Dev-Dashboard] Reload-Anforderung fehlgeschlagen:', err);
+        if (statusEl) statusEl.textContent = 'Anforderung fehlgeschlagen.';
+        window.showToast?.('Neu-Laden konnte nicht angefordert werden.', 'error');
+      })
+      .finally(() => {
+        requestBtn.disabled = false;
+      });
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    const tenantId = dashboardStateRef.selectedTenantId;
+    const statusEl = document.getElementById('dev-dashboard-remote-reload-status');
+    if (!tenantId || !dashboardStateRef.db) {
+      if (statusEl) statusEl.textContent = 'Kein Betrieb ausgewählt.';
+      return;
+    }
+    if (statusEl) statusEl.textContent = 'Anforderung wird zurückgenommen…';
+    clearBtn.disabled = true;
+    void clearRemoteAppReload(dashboardStateRef.db, tenantId, { updatedBy: actor() })
+      .then(() => {
+        recordAudit('settings', 'Laden-iPhone Neu-Laden zurückgenommen', 'change');
+        window.showToast?.('Neu-Laden-Anforderung zurückgenommen.', 'success');
+        if (statusEl) statusEl.textContent = formatRemoteReloadStatus(null);
+      })
+      .catch((err) => {
+        console.error('[Dev-Dashboard] Reload zurücknehmen fehlgeschlagen:', err);
+        if (statusEl) statusEl.textContent = 'Zurücknehmen fehlgeschlagen.';
+        window.showToast?.('Anforderung konnte nicht zurückgenommen werden.', 'error');
+      })
+      .finally(() => {
+        clearBtn.disabled = false;
+      });
+  });
+
+  void refreshRemoteReloadStatus(dashboardStateRef);
 }
 
 function bindBetriebSubnav() {
@@ -3373,6 +3501,7 @@ function bindTenantSelector(dashboardStateRef, tenants) {
       setTeamConfigTenantId(dashboardStateRef.selectedTenantId);
     }
     void refreshEmployeeTable(dashboardStateRef);
+    void refreshRemoteReloadStatus(dashboardStateRef);
     applyDashboardVisibility(dashboardStateRef);
     if (dashboardStateRef.activeTab === 'settings') {
       syncDevDashboardHaccpAdmin({
@@ -3803,6 +3932,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindOverviewJumpLinks();
     bindSettingsForm(dashboardState);
     bindSmtpForm(dashboardState);
+    bindRemoteReloadAdmin(dashboardState);
     syncDevDashboardHaccpAdmin({
       db,
       tenantId: dashboardState.selectedTenantId,
