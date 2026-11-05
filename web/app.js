@@ -184,6 +184,7 @@ import {
   useTenantAdminAuth,
 } from './dev-dashboard.js';
 import { initAppVersionUi } from './app-version.js';
+import { initRemoteReloadWatcher } from './remote-reload.js';
 import {
   consumeTenantAdminRedirectToast,
   isPlatformSuperAdmin,
@@ -5530,7 +5531,7 @@ function formatSyncRelativeAge(iso) {
 function resolveSwCacheVersionLabel() {
   const fromBadge = document.querySelector('[data-app-version-label]')?.textContent?.trim();
   if (fromBadge) return fromBadge;
-  return window.HofSyncVersion?.label || 'v1.5.1';
+  return window.HofSyncVersion?.label || 'v1.5.2';
 }
 
 function setHeaderCloudLoading(isLoading) {
@@ -5725,7 +5726,7 @@ let serviceWorkerRegistration = null;
 let refreshingForSwUpdate = false;
 
 /** ISO-Zeitstempel des App-Stands – bei jedem Release mit CACHE_NAME in sw.js anheben. */
-const APP_RELEASE_AT = '2026-10-30T19:00:00+01:00';
+const APP_RELEASE_AT = '2026-11-05T14:20:00+01:00';
 const LAST_APP_UPDATE_STORAGE_KEY = 'charculogic.lastAppUpdateAt';
 const APP_STAND_STORAGE_KEY = 'charculogic.appStandReleasedAt';
 
@@ -5963,7 +5964,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261103-header-declutter-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261105-remote-reload-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);
@@ -6179,6 +6180,9 @@ async function bootstrapAuthenticatedApp() {
     purgeInvalidProfileSession(window.BRANDING);
     ensureActiveTabAllowed();
     startTenantLiveDataListeners();
+    if (nextSession?.tenantId) {
+      initRemoteReloadWatcher(db, { tenantId: nextSession.tenantId });
+    }
   });
   applyFixedTerminalSettings();
   purgeInvalidProfileSession(window.BRANDING);
@@ -6300,6 +6304,7 @@ async function bootstrapAuthenticatedApp() {
   // Fixed-Terminal: kein zweiter showPreferredStartTab — showInitialTab lief bereits einmal.
   updateSyncIndicator();
   startTenantLiveDataListeners();
+  initRemoteReloadWatcher(db, { tenantId });
   if (recipeModuleEnabled) {
     loadRecipesFromCloud();
     loadProductionBatchesFromCloud();

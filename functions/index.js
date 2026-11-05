@@ -463,6 +463,30 @@ lazyExport('notifyTeamEntryCreated', () => firestoreTrigger(
   },
 ));
 
+lazyExport('notifyAppReloadRequiredCreated', () => firestoreTrigger(
+  'google.cloud.firestore.document.v1.created',
+  {
+    document: 'tenants/{tenantId}/settings/appReload',
+    region: REGION,
+  },
+  async (event) => {
+    ensureAdminApp();
+    return require('./appReloadPush').handleAppReloadSettingsCreated(event);
+  },
+));
+
+lazyExport('notifyAppReloadRequiredUpdated', () => firestoreTrigger(
+  'google.cloud.firestore.document.v1.updated',
+  {
+    document: 'tenants/{tenantId}/settings/appReload',
+    region: REGION,
+  },
+  async (event) => {
+    ensureAdminApp();
+    return require('./appReloadPush').handleAppReloadSettingsUpdated(event);
+  },
+));
+
 lazyExport('onOrderReadySendSignal', () => firestoreTrigger(
   'google.cloud.firestore.document.v1.updated',
   {

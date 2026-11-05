@@ -7,13 +7,14 @@
  * die neuesten 5 Bullet-Punkte (getLatestReleaseHighlights).
  */
 
-export const APP_VERSION = '1.5.1';
+export const APP_VERSION = '1.5.2';
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
-export const APP_VERSION_TAG = `v${APP_VERSION}-20261030`;
-export const APP_RELEASE_DATE = '2026-10-30';
+export const APP_VERSION_TAG = `v${APP_VERSION}-20261105`;
+export const APP_RELEASE_DATE = '2026-11-05';
 
 /** Neueste zuerst – UI nimmt davon die ersten 5. */
 export const RELEASE_NOTES = Object.freeze([
+  'Büro kann Neu-Laden am Laden-iPhone anfordern (Hinweis: erst speichern, dann neu laden)',
   'Kritische-MHD-Banner: mehrstellige Zahlen (z. B. 40) brechen nicht mehr um',
   'Hinweis „Bestand wird geladen…“, bis die Cloud-Daten wirklich da sind',
   'Versionshinweis zeigt immer die letzten fünf Änderungen',
@@ -32,7 +33,7 @@ export function getLatestReleaseHighlights(limit = 5) {
 export const RELEASE_HIGHLIGHTS = getLatestReleaseHighlights(5);
 
 export const RELEASE_TOAST_MESSAGE =
-  'HofSync aktualisiert: Kritische-MHD-Banner lesbar, Ladehinweis bis Cloud-Daten da sind.';
+  'HofSync aktualisiert: Büro kann am Laden-iPhone ein Neu-Laden anfordern.';
 
 const SEEN_RELEASE_STORAGE_KEY = 'hofsync_seen_release_version';
 const RELEASE_TOAST_MS = 4000;

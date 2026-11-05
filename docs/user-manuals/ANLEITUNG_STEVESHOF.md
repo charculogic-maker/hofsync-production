@@ -187,11 +187,15 @@ Kurze WLAN-Ausfälle sind unkritisch. Bereits geladene Bereiche bleiben nutzbar;
 
 ## 10. App aktualisieren
 
-Nach einem Büro-Update laden wir die neue Version so:
+Nach einem Büro-Update — oder wenn unser Laden-iPhone **App-Update nötig** anzeigt — laden wir so neu:
 
 1. Offene Eingaben speichern oder abbrechen.
-2. Oben rechts **↻ App aktualisieren** tippen.
+2. Im Hinweis **App neu laden** tippen (oder oben rechts **↻ App aktualisieren**).
 3. Nach dem Neuladen ggf. Geräte-Zugang und Profil erneut wählen.
+
+Mit **Erst speichern** können wir den Hinweis kurz weglegen, speichern und danach in der orangen Leiste neu laden.
+
+Das Büro fordert das Neu-Laden unter **Verwaltung → Mein Betrieb → Stammdaten → Laden-iPhone neu laden** an (optional mit Push).
 
 Bei hartnäckigen Problemen (Schleife, weißer Bildschirm): einmal  
 `https://hofsync-production.web.app/?reset=true` in Safari öffnen.
@@ -207,7 +211,7 @@ Unsere Betriebsdaten (MHD, Lieferungen, HACCP, Herkunft/Thekenklade) liegen in *
 | Passwort Hofladen-Zugang ändern | Firebase Console → Authentication → Nutzer → `bestellung@steveshof-hofladen.de` → **Passwort zurücksetzen** |
 | Laden-iPhone neu anmelden | Geräte-Zugang `bestellung@…` + Profil wählen |
 | Profil fehlt beim Wareneingang / Herkunft | Namen aus der Liste oder **Andere** wählen |
-| App-Update | **↻** oben rechts; Notfall: `?reset=true` |
+| App-Update | Hinweis **App neu laden** oder **↻** oben rechts; Büro: Verwaltung → Laden-iPhone neu laden; Notfall: `?reset=true` |
 | Logout am festen Laden-iPhone | Im Alltagsbetrieb bewusst ausgeblendet, um versehentliches Abmelden zu vermeiden |
 | Meister-/Admin-Zugang | Persönliches Konto mit `tenantId: StevesHof_Hauptbetrieb` und `role: admin` verwenden, z. B. `paddy@steveshof-hofladen.de` |
 | Digitale Thekenklade | **Herkunft → Thekenklade** bzw. `/#thekenbuch` (Sprung auch von `/dev-dashboard` → Übersicht) |

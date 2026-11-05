@@ -130,6 +130,8 @@ const TENANT_BRANDING = {
 | `knowledge` / `cutGlossary` | Mehr → **Auskunft** (Theken-Auskunft + Fleisch-Lexikon) |
 | `retterBox` | Admin ⚙️ → **Retter-Box** (mandantenspezifisch, rules-gestützt) |
 
+**Laden-iPhone neu laden (ohne Anruf):** Unter `/dev-dashboard` → **Mein Betrieb → Stammdaten → Laden-iPhone neu laden** setzt `tenants/{tenantId}/settings/appReload`. Geräte zeigen „erst speichern, dann App neu laden“; optional Push via `notifyAppReloadRequired*`.
+
 **MHD-Karten-Aktionen (localStorage / Betriebseinstellungen):**
 
 | Flag | Standard | Wirkung |

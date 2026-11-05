@@ -69,7 +69,7 @@ describe('Laden-Nav max. 5', () => {
   });
 
   it('bumpt den Service-Worker-Cache für nav-admin-dedupe', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261103-header-declutter-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1'");
     expect(app).to.include("sw.js?v=20261103-header-declutter-v1");
   });
 

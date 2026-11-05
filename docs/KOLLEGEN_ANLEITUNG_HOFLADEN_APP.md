@@ -267,12 +267,14 @@ Ohne Internet ist das kein Problem: Unsere App zeigt dann **Lokal vorgemerkt** u
 
 ## App aktualisieren (nach Büro-Update)
 
-Wenn uns das Büro bittet, die App zu aktualisieren:
+Wenn uns das Büro bittet, die App zu aktualisieren — oder unser Laden-iPhone den Hinweis **App-Update nötig** zeigt:
 
 1. Offene Eingaben kurz **speichern** oder abbrechen.
-2. Oben rechts den **runden Pfeil ↻** tippen (**App aktualisieren**).
+2. **App neu laden** im Hinweis tippen (oder oben rechts den **runden Pfeil ↻**).
 3. Warten, bis die App neu lädt.
 4. Ggf. Geräte-Zugang und **Profil** erneut wählen.
+
+Mit **Erst speichern** blenden wir den großen Hinweis kurz aus, speichern fertig und tippen danach in der orangen Leiste erneut **App neu laden**.
 
 Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal  
 `https://hofsync-production.web.app/?reset=true` in Safari öffnen, dann Schritt 4.
@@ -291,7 +293,7 @@ Falls die App hängen bleibt (weißer Bildschirm, ständig Anmeldung): einmal
 | KI-Lieferschein-Button fehlt unter **Neu** | Absichtlich deaktiviert — Ware per Barcode scannen. |
 | **Box**-Button in der MHD-Karte | Retter-Box vormerken. Drucken und Verkauf im Büro-Bereich (Admin). |
 | Herkunft speichern schlägt fehl | Profil prüfen, Foto erneut aufnehmen, WLAN prüfen; Offline speichert unsere App nach. |
-| App-Update | Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |
+| App-Update | Hinweis **App neu laden** oder Pfeil **↻** oben rechts; bei hartnäckigen Problemen `?reset=true` (siehe oben). |
 
 ## Logout am Laden-iPhone
 

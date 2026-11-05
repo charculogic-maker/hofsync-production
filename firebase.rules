@@ -307,6 +307,28 @@ service cloud.firestore {
           || request.resource.data.updatedAt is timestamp);
     }
 
+    // Remote Hard-Reload für Laden-iPhones unter settings/appReload.
+    function isAppReloadSettings(docId) {
+      return docId == 'appReload'
+        && request.resource.data.keys().hasOnly([
+          'required', 'requestId', 'message', 'notifyPush',
+          'requestedAt', 'requestedBy', 'clearedAt',
+          'tenantId', 'updatedAt', 'updatedBy'
+        ])
+        && (!('required' in request.resource.data) || request.resource.data.required is bool)
+        && (!('requestId' in request.resource.data) || request.resource.data.requestId is string)
+        && (!('message' in request.resource.data) || request.resource.data.message is string)
+        && (!('notifyPush' in request.resource.data) || request.resource.data.notifyPush is bool)
+        && (!('requestedAt' in request.resource.data) || request.resource.data.requestedAt is string
+          || request.resource.data.requestedAt is timestamp)
+        && (!('requestedBy' in request.resource.data) || request.resource.data.requestedBy is string)
+        && (!('clearedAt' in request.resource.data) || request.resource.data.clearedAt is string
+          || request.resource.data.clearedAt is timestamp)
+        && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy is string)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string
+          || request.resource.data.updatedAt is timestamp);
+    }
+
     // Modul-Freigaben je Rolle (admin / employee / helper) unter settings/role_modules.
     function isRoleModuleMap(value) {
       return value is map
@@ -356,6 +378,7 @@ service cloud.firestore {
               || isSupplierSettings(document)
               || isDiscountMatrixSettings(document)
               || isRoleModulesSettings(document)
+              || isAppReloadSettings(document)
             )
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
