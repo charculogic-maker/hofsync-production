@@ -17807,3 +17807,389 @@ body.role-firebase-auth #team-login-card {
 [data-theme="dark"] .quick-alert-tile {
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* ===== HACCP Raum- & Geräteplan (Behörden-Audit) ===== */
+.haccp-floorplan-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 8px 0 14px;
+}
+
+.haccp-floorplan-upload-row .dev-dashboard-field {
+  flex: 1 1 240px;
+}
+
+.haccp-floorplan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.haccp-floorplan-filter-chip {
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid rgba(15, 23, 42, 0.16);
+  background: #fff;
+  color: #0f172a;
+  font-weight: 750;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.haccp-floorplan-filter-chip.is-active {
+  border-color: var(--primary-color, #166534);
+  background: color-mix(in srgb, var(--primary-color, #166534) 14%, #fff);
+}
+
+.haccp-floorplan-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+.haccp-floorplan-legend-wrap {
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .haccp-floorplan-workspace {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .haccp-floorplan-legend-wrap {
+    grid-column: 1 / -1;
+  }
+}
+
+.haccp-floorplan-dock-panel {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--light-bg, #f8fafc);
+}
+
+.haccp-floorplan-dock-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.haccp-floorplan-dock-item {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.haccp-floorplan-dock-item.is-selected {
+  border-color: var(--primary-color, #166534);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #166534) 25%, transparent);
+}
+
+.haccp-floorplan-dock-badge {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.haccp-floorplan-dock-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.haccp-floorplan-dock-text strong {
+  font-size: 14px;
+}
+
+.haccp-floorplan-dock-text small {
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
+.floorplan-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #e2e8f0;
+  overflow: visible;
+  touch-action: none;
+}
+
+.haccp-floorplan-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+  pointer-events: none;
+  user-select: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.haccp-floorplan-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: #475569;
+  font-weight: 650;
+  pointer-events: none;
+}
+
+.haccp-floorplan-pin-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.haccp-floorplan-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.haccp-floorplan-pin-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  min-width: 48px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 2px solid #0f172a;
+  background: #fff;
+  font-weight: 800;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+}
+
+.haccp-floorplan-pin-no {
+  font-size: 12px;
+}
+
+.haccp-floorplan-pin-remove {
+  position: absolute;
+  top: -10px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 28, 28, 0.45);
+  background: #fff;
+  color: #b91c1c;
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.haccp-floorplan-pin-tooltip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  min-width: 140px;
+  max-width: 220px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.haccp-floorplan-pin:hover .haccp-floorplan-pin-tooltip,
+.haccp-floorplan-pin:focus-within .haccp-floorplan-pin-tooltip {
+  display: block;
+}
+
+.haccp-floorplan-legend-wrap {
+  margin-top: 16px;
+}
+
+.haccp-legend-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.haccp-device-retired td {
+  opacity: 0.72;
+}
+
+.haccp-filter-hidden {
+  display: none !important;
+}
+
+.haccp-audit-print-header {
+  display: none;
+}
+
+/* Screen: print-zone is the live editor; body print class activates export layout */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm;
+  }
+
+  body.print-haccp-audit {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.print-haccp-audit * {
+    visibility: hidden !important;
+  }
+
+  body.print-haccp-audit > *:not(#haccp-audit-print-zone) {
+    display: none !important;
+  }
+
+  body.print-haccp-audit #haccp-audit-print-zone,
+  body.print-haccp-audit #haccp-audit-print-zone * {
+    visibility: visible !important;
+  }
+
+  body.print-haccp-audit #haccp-audit-print-zone {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    z-index: 99999 !important;
+    overflow: visible !important;
+  }
+
+  body.print-haccp-audit .no-print,
+  body.print-haccp-audit .haccp-floorplan-pin-remove,
+  body.print-haccp-audit .haccp-floorplan-pin-tooltip,
+  body.print-haccp-audit .haccp-floorplan-empty,
+  body.print-haccp-audit .haccp-floorplan-upload-row,
+  body.print-haccp-audit .haccp-floorplan-filters {
+    display: none !important;
+  }
+
+  body.print-haccp-audit .haccp-filter-hidden {
+    display: none !important;
+  }
+
+  body.print-haccp-audit .haccp-audit-print-header {
+    display: flex !important;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid #0f172a;
+    color: #000 !important;
+  }
+
+  body.print-haccp-audit .haccp-audit-print-header h1 {
+    margin: 0;
+    font-size: 16pt;
+  }
+
+  body.print-haccp-audit .haccp-audit-print-header p {
+    margin: 2px 0 0;
+    font-size: 10pt;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-workspace {
+    display: grid !important;
+    grid-template-columns: 58% 40% !important;
+    gap: 2% !important;
+    align-items: start !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-dock-panel {
+    display: none !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-stage {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-legend-wrap {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    margin-top: 0 !important;
+  }
+
+  body.print-haccp-audit .floorplan-viewport {
+    min-height: 0 !important;
+    height: 160mm !important;
+    aspect-ratio: auto !important;
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-image {
+    object-fit: contain !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-pin-marker {
+    box-shadow: none !important;
+    border-width: 1.5px !important;
+    min-height: 22px !important;
+    min-width: 34px !important;
+    padding: 2px 5px !important;
+    font-size: 9pt !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-legend-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8.5pt !important;
+    color: #000 !important;
+  }
+
+  body.print-haccp-audit .haccp-floorplan-legend-table th,
+  body.print-haccp-audit .haccp-floorplan-legend-table td {
+    border: 1px solid #334155 !important;
+    padding: 3px 5px !important;
+    vertical-align: top !important;
+  }
+
+  body.print-haccp-audit .dev-dashboard-table-wrap {
+    overflow: visible !important;
+  }
+}

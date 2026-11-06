@@ -3,6 +3,7 @@
  * Temperatur-Messpunkte + Reinigungsaufgaben (tenant-scoped).
  */
 import { canonicalTenantId } from './tenant-db.js';
+import { refreshHaccpFloorplanFromAdmin, syncHaccpFloorplan } from './dev-dashboard-haccp-floorplan.js';
 
 const WEEKDAY_LABELS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
@@ -175,21 +176,28 @@ function resetTaskForm() {
   syncTaskDayFieldVisibility();
 }
 
+function isRetiredDevice(device) {
+  return String(device?.status || '') === 'retired';
+}
+
 function renderDevicesTable() {
   const body = document.getElementById('dev-dashboard-haccp-devices-body');
   if (!body) return;
-  const rows = [...haccpAdminState.devices]
-    .filter((d) => d.isActive !== false && d.aktiv !== false)
+  const activeRows = [...haccpAdminState.devices]
+    .filter((d) => !isRetiredDevice(d) && d.isActive !== false && d.aktiv !== false)
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
       || String(a.name || '').localeCompare(String(b.name || ''), 'de'));
+  const retiredRows = [...haccpAdminState.devices]
+    .filter((d) => isRetiredDevice(d))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
 
-  if (!rows.length) {
+  if (!activeRows.length && !retiredRows.length) {
     body.innerHTML = '<tr><td colspan="5">Noch keine Messpunkte. Unten anlegen oder StevesHof-Standard nutzen.</td></tr>';
     setStatus('dev-dashboard-haccp-devices-status', '0 Messpunkte');
     return;
   }
 
-  body.innerHTML = rows.map((device) => `
+  const activeHtml = activeRows.map((device) => `
     <tr data-device-id="${escapeHtml(device.id)}">
       <td>
         <strong>${escapeHtml(device.name || '—')}</strong>
@@ -200,11 +208,36 @@ function renderDevicesTable() {
       <td>${escapeHtml(device.sortOrder ?? '—')}</td>
       <td class="dev-dashboard-haccp-row-actions">
         <button type="button" class="dev-dashboard-secondary-btn" data-haccp-edit-device="${escapeHtml(device.id)}">Bearbeiten</button>
+        <button type="button" class="dev-dashboard-secondary-btn" data-haccp-retire-device="${escapeHtml(device.id)}">Außer Betrieb nehmen</button>
         <button type="button" class="dev-dashboard-danger-btn" data-haccp-delete-device="${escapeHtml(device.id)}">Löschen</button>
       </td>
     </tr>
   `).join('');
-  setStatus('dev-dashboard-haccp-devices-status', `${rows.length} Messpunkt${rows.length === 1 ? '' : 'e'}`);
+
+  const retiredHtml = retiredRows.map((device) => `
+    <tr data-device-id="${escapeHtml(device.id)}" class="haccp-device-retired">
+      <td>
+        <strong>${escapeHtml(device.name || '—')}</strong>
+        <div class="dev-dashboard-haccp-meta">Außer Betrieb · Historie bleibt erhalten</div>
+      </td>
+      <td>${escapeHtml(device.bereich || '—')}</td>
+      <td>${escapeHtml(formatTempRange(device))}</td>
+      <td>${escapeHtml(device.sortOrder ?? '—')}</td>
+      <td class="dev-dashboard-haccp-row-actions">
+        <button type="button" class="dev-dashboard-secondary-btn" data-haccp-restore-device="${escapeHtml(device.id)}">Wieder aktivieren</button>
+        <button type="button" class="dev-dashboard-danger-btn" data-haccp-delete-device="${escapeHtml(device.id)}">Löschen</button>
+      </td>
+    </tr>
+  `).join('');
+
+  body.innerHTML = `${activeHtml}${retiredHtml}`;
+  const retiredNote = retiredRows.length
+    ? ` · ${retiredRows.length} außer Betrieb`
+    : '';
+  setStatus(
+    'dev-dashboard-haccp-devices-status',
+    `${activeRows.length} Messpunkt${activeRows.length === 1 ? '' : 'e'}${retiredNote}`,
+  );
 }
 
 function renderTasksTable() {
@@ -264,6 +297,7 @@ function startHaccpAdminLiveSync() {
   haccpAdminState.devicesUnsub = devicesCol.onSnapshot((snap) => {
     haccpAdminState.devices = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderDevicesTable();
+    refreshHaccpFloorplanFromAdmin(haccpAdminState.devices, haccpAdminState.tasks);
   }, (err) => {
     console.error('[Dev-Dashboard HACCP] Geräte-Sync:', err);
     setStatus('dev-dashboard-haccp-devices-status', 'Messpunkte konnten nicht geladen werden.', 'error');
@@ -272,6 +306,7 @@ function startHaccpAdminLiveSync() {
   haccpAdminState.tasksUnsub = tasksCol.onSnapshot((snap) => {
     haccpAdminState.tasks = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderTasksTable();
+    refreshHaccpFloorplanFromAdmin(haccpAdminState.devices, haccpAdminState.tasks);
   }, (err) => {
     console.error('[Dev-Dashboard HACCP] Aufgaben-Sync:', err);
     const permission = String(err?.code || '').includes('permission')
@@ -467,6 +502,58 @@ async function deleteDevice(deviceId) {
   }
 }
 
+async function retireDevice(deviceId) {
+  const device = haccpAdminState.devices.find((entry) => entry.id === deviceId);
+  if (!device) return;
+  if (!window.confirm(
+    `„${device.name}“ außer Betrieb nehmen?\nDer Messpunkt verschwindet vom Raumplan und aus dem Tagesrundgang. Alte Protokolle bleiben erhalten.`,
+  )) return;
+  const col = tenantCollection('haccp_geraete');
+  if (!col) return;
+  try {
+    await col.doc(deviceId).set({
+      status: 'retired',
+      isActive: false,
+      aktiv: false,
+      posX: null,
+      posY: null,
+      retiredAt: serverTimestamp(),
+      tenantId: canonicalTenantId(haccpAdminState.tenantId),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    haccpAdminState.recordAudit('settings', `HACCP-Messpunkt außer Betrieb: ${device.name}`, 'change');
+    window.showToast?.(`„${device.name}“ ist außer Betrieb.`, 'success');
+    if (document.getElementById('dev-dashboard-haccp-device-edit-id')?.value === deviceId) {
+      resetDeviceForm();
+    }
+  } catch (err) {
+    console.error('[Dev-Dashboard HACCP] Gerät außer Betrieb:', err);
+    window.showToast?.('Messpunkt konnte nicht außer Betrieb genommen werden.', 'error');
+  }
+}
+
+async function restoreDevice(deviceId) {
+  const device = haccpAdminState.devices.find((entry) => entry.id === deviceId);
+  if (!device) return;
+  const col = tenantCollection('haccp_geraete');
+  if (!col) return;
+  try {
+    await col.doc(deviceId).set({
+      status: 'active',
+      isActive: true,
+      aktiv: true,
+      retiredAt: null,
+      tenantId: canonicalTenantId(haccpAdminState.tenantId),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    haccpAdminState.recordAudit('settings', `HACCP-Messpunkt wieder aktiv: ${device.name}`, 'change');
+    window.showToast?.(`„${device.name}“ ist wieder aktiv.`, 'success');
+  } catch (err) {
+    console.error('[Dev-Dashboard HACCP] Gerät reaktivieren:', err);
+    window.showToast?.('Messpunkt konnte nicht wieder aktiviert werden.', 'error');
+  }
+}
+
 async function deleteTask(taskId) {
   const task = haccpAdminState.tasks.find((entry) => entry.id === taskId);
   if (!task) return;
@@ -580,6 +667,16 @@ function bindHaccpAdminControls() {
         if (device) fillDeviceForm(device);
         return;
       }
+      const retireBtn = event.target.closest('[data-haccp-retire-device]');
+      if (retireBtn) {
+        void retireDevice(retireBtn.dataset.haccpRetireDevice);
+        return;
+      }
+      const restoreBtn = event.target.closest('[data-haccp-restore-device]');
+      if (restoreBtn) {
+        void restoreDevice(restoreBtn.dataset.haccpRestoreDevice);
+        return;
+      }
       const deleteBtn = event.target.closest('[data-haccp-delete-device]');
       if (deleteBtn) void deleteDevice(deleteBtn.dataset.haccpDeleteDevice);
     });
@@ -608,6 +705,13 @@ export function syncDevDashboardHaccpAdmin(options = {}) {
   }
   bindHaccpAdminControls();
   startHaccpAdminLiveSync();
+  syncHaccpFloorplan({
+    db: haccpAdminState.db,
+    tenantId: haccpAdminState.tenantId,
+    devices: haccpAdminState.devices,
+    tasks: haccpAdminState.tasks,
+    recordAudit: haccpAdminState.recordAudit,
+  });
 }
 
 export function refreshDevDashboardHaccpAdmin() {

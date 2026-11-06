@@ -290,6 +290,11 @@ export function bulletinObjectPath(tenantId, fileName = 'image.jpg') {
   return `tenants/${tenantId}/bulletin/${fileName}`;
 }
 
+/** HACCP Grundriss: tenants/{tenantId}/haccp_plans/floorplan.png */
+export function haccpFloorplanObjectPath(tenantId, fileName = 'floorplan.png') {
+  return `tenants/${tenantId}/haccp_plans/${fileName}`;
+}
+
 export function sampleTraceabilityRecord(tenantId, overrides = {}) {
   return {
     id: 'trace-test-1',

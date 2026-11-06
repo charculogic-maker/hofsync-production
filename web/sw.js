@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261106-receiving-finalize-v1';
+const CACHE_NAME = 'charculogic-v20261106-haccp-floorplan-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */
@@ -64,6 +64,7 @@ const CRITICAL_ASSETS = [
   '/tenant-modules.js',
   '/dev-dashboard.js',
   '/dev-dashboard-haccp.js',
+  '/dev-dashboard-haccp-floorplan.js',
   '/fast-onboarding.js',
   '/admin-tenant-models.js',
   '/tenant-admin-auth.js',

@@ -1580,10 +1580,10 @@ function setSmtpFormStatus(message = '', tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
-const BETRIEB_SECTIONS = new Set(['stammdaten', 'module', 'hygiene', 'geraete', 'smtp']);
+const BETRIEB_SECTIONS = new Set(['stammdaten', 'module', 'hygiene', 'geraete', 'raumplan', 'smtp']);
 
 /**
- * Unterseiten in „Mein Betrieb“: Stammdaten | Module & Rollen | Hygiene | Geräte | SMTP.
+ * Unterseiten in „Mein Betrieb“: Stammdaten | Module & Rollen | Hygiene | Geräte | Raumplan | SMTP.
  */
 function setBetriebSection(sectionKey = 'stammdaten', { updateHash = false } = {}) {
   const next = BETRIEB_SECTIONS.has(sectionKey) ? sectionKey : 'stammdaten';
@@ -1613,7 +1613,7 @@ function setBetriebSection(sectionKey = 'stammdaten', { updateHash = false } = {
     } catch (_) { /* noop */ }
   }
 
-  if (next === 'geraete' || next === 'hygiene') {
+  if (next === 'geraete' || next === 'hygiene' || next === 'raumplan') {
     try {
       syncDevDashboardHaccpAdmin({
         db: dashboardState.db,
@@ -3706,6 +3706,9 @@ function resolveBetriebSectionFromHash(hash = '') {
     return 'geraete';
   }
   if (clean === 'betrieb-hygiene' || clean === 'hygiene') return 'hygiene';
+  if (clean === 'betrieb-raumplan' || clean === 'raumplan' || clean === 'haccp-raumplan' || clean === 'haccp-floorplan') {
+    return 'raumplan';
+  }
   if (clean === 'betrieb-smtp' || clean === 'smtp') return 'smtp';
   if (clean === 'betrieb-module' || clean === 'module' || clean === 'module-rollen') return 'module';
   if (clean === 'betrieb-stammdaten' || clean === 'stammdaten') return 'stammdaten';
@@ -3723,7 +3726,9 @@ function applyDevDashboardDeepLink() {
       ? 'dev-dashboard-haccp-setup'
       : section === 'hygiene'
         ? 'dev-dashboard-hygiene-setup'
-        : `betrieb-panel-${section}`;
+        : section === 'raumplan'
+          ? 'dev-dashboard-haccp-floorplan'
+          : `betrieb-panel-${section}`;
     const target = document.getElementById(targetId);
     if (!target) return;
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
