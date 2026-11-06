@@ -270,6 +270,14 @@ Firestore-Rules: **`priceRuns` — Client read/write: false** (nur Admin SDK / C
 
 #### Frontend – Wareneingang-Hilfen (Tab **Neu**)
 
+Modul-Schnitt:
+
+| Datei | Verantwortung |
+|-------|----------------|
+| `web/receiving.js` | LIFO-Karten, Scan-/Mengen-UI, Kategorie-Heuristik |
+| `web/receiving-finalize.js` | MHD-Pflicht vor Abschluss, Operator-Texte, Schreibreihenfolge |
+| `web/mhd.js` | Orchestrierung (`finalizeDelivery`, Live-Sync MHD-Monitor) |
+
 `web/app.js` → `applyRoleBasedUi()` setzt `hidden` auf Büro-only-Controls:
 
 | Element | Sichtbarkeit |
@@ -295,13 +303,14 @@ Die Rolle `helper` blendet den gesamten Tab **Neu** aus — damit auch **Letzte 
 - **Client:** Admin unter **Mein Betrieb → Stammdaten → Laden-iPhone neu laden** schreibt `required`, `requestId`, optional `message` / `notifyPush`. Laden-iPhone lauscht in `web/remote-reload.js` und zeigt Hinweis (erst speichern, dann Hard-Reload). Bestätigung ist geräteweise in `localStorage`.
 - **Push** (`functions/appReloadPush.js`): bei neuer `requestId` und `notifyPush !== false` Multicast an alle Tokens unter `tenants/{tenantId}/pushTokens`.
 
-### 4.3 `parseDeliveryNote` – KI-Lieferschein (optional)
+### 4.3 `parseDeliveryNote` – KI-Lieferschein (optional, Laden-UI aus)
 
 - **Typ:** Callable HTTPS (`onCall`), Region `europe-west3`, Secret `GEMINI_API_KEY`, Modell `gemini-2.5-flash`.
 - **App Check:** `enforceAppCheck: true` – Anfragen ohne gültiges App-Check-Token werden abgewiesen, bevor Gemini aufgerufen wird.
-- **Client:** `web/delivery-note.js` → Tab **Neu** → „Lieferschein scannen (KI)“.
+- **Client:** früher Tab **Neu** → „Lieferschein scannen (KI)“; produktive PWA-UI entfernt, Rest unter `legacy/` (`delivery-note.js`, `delivery-parser.js`, …).
 - **Auth:** Mandanten-Nutzer (keine Helper-Rolle); Tenant/Rolle nur aus Custom Claims (`functions/authContext.js`). Laden-UI derzeit deaktiviert.
 - **Limits:** max. Base64-Länge, MIME-Whitelist, serverseitige Schema-Validierung; Antwort als Vorschau (`previewOnly: true`).
+- **Wareneingang produktiv:** `web/receiving.js` (LIFO/Scan-UI) + `web/receiving-finalize.js` (MHD-Pflicht, Schreibreihenfolge `mhd_liste` → `wareneingang_lieferungen`) + Orchestrierung in `web/mhd.js`.
 
 ### 4.3a `parseMeatLabel` – KI-Fleisch-Etikett (LMIV / Bio)
 

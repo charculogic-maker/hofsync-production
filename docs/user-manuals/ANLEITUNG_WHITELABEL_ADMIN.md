@@ -279,7 +279,7 @@ Kritische Schreibpfade nutzen `inFlight`-Sperren + Button-Deaktivierung:
 - `customer-orders.js` — Bestellungen
 - `teamboard.js` — Aufgaben abschließen
 - `production.js` — Charge dokumentieren
-- `delivery-note.js` — OCR & Speichern
+- `legacy/delivery-note.js` — OCR & Speichern (Laden-UI derzeit deaktiviert)
 
 ---
 

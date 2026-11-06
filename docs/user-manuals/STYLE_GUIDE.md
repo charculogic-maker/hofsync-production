@@ -57,7 +57,7 @@ try {
 | **`finally` entsperrt immer** | Auch bei Fehler oder frühem `return` im `try` |
 | Kein stilles No-Op bei App Check | `waitForAppCheckReady()` lehnt bei Fehlstart ab |
 
-**Betroffene Module:** `customer-orders.js` · `teamboard.js` · `production.js` · `delivery-note.js` · WRS-Button (Wurst-Rezept-Skalierer) in `app.js`
+**Betroffene Module:** `customer-orders.js` · `teamboard.js` · `production.js` · `legacy/delivery-note.js` (KI-Lieferschein, Laden-UI aus) · WRS-Button (Wurst-Rezept-Skalierer) in `app.js`
 
 ---
 

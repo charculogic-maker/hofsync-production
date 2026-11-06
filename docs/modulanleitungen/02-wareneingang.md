@@ -28,11 +28,11 @@ Speichern-Buttons und **offene Lieferungen** gelten für die ganze Lieferung.
 1. Tab **Neu** → zuerst **Lieferant** wählen (Weiling, Naturverbund, Stautenhof, Sonstige oder Eigenproduktion)
 2. **Laden** öffnen und **Kategorie (Laden)** wählen — Frische, MoPro, Kühlware, Aufschnitt, TK, Getränke, Trockenware oder Gewürze
 3. **Barcode scannen** (grüner Button) oder **EAN** eintippen und **OK**
-4. **Bekannte EAN**: Posten landet sofort als **oberste Karte** in der Liste (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit
+4. **Bekannte EAN**: Posten landet sofort als **oberste Karte** in der Liste; das MHD bleibt leer, bis wir es von der Verpackung eintippen (Ausnahme: GS1-Kartoncode mit MHD). Der Scanner bleibt für den nächsten Artikel bereit, sobald wir im Overlay **Fertig** tippen.
 5. **Unbekannte EAN**: **Produktname** eintragen, Menge/MHD setzen und **➕ Posten hinzufügen**
 6. Optional **Hersteller / Zusatz** ergänzen (erscheint später in der MHD-Ansicht)
-7. Auf der Erfassungskarte korrigieren wir bei Bedarf **Menge** (Tap → Nummernpad), **MHD** (+3/+7/+14 Tage oder Tap auf das Datum) oder entfernen den Posten mit **✕**
-8. **💾 Gesamte Lieferung abschließen** — unsere App fragt kurz **Liste nochmals prüfen?** (Übersicht der Posten). Mit **Jetzt abschließen** buchen wir sofort, mit **Liste prüfen** springen wir zurück zu den Karten. Fehlt der Lieferant, erscheint zusätzlich ein Auswahl-Pop-up
+7. Auf der Erfassungskarte korrigieren wir bei Bedarf **Menge** (Tap → Nummernpad bzw. VPE +3/+5/+9) und **MHD** (Tap → Datum von der Verpackung als TT.MM.JJJJ) oder entfernen den Posten mit **✕**
+8. **💾 Gesamte Lieferung abschließen** — unsere App fragt kurz **Liste nochmals prüfen?** (Übersicht der Posten). Ohne MHD an jedem Posten lässt sich **nicht** abschließen. Mit **Jetzt abschließen** buchen wir sofort, mit **Liste prüfen** springen wir zurück zu den Karten. Fehlt der Lieferant, erscheint zusätzlich ein Auswahl-Pop-up
 9. Optional **Letzte Eingänge** — Kategorien nachträglich korrigieren (siehe unten; für alle Nutzer mit Tab **Neu**)
 10. Optional **Stammdaten** — nur Büro-/Admin-Zugang (gelernte EANs auf diesem Gerät)
 
@@ -71,39 +71,15 @@ Test- und Fehleinträge können dort auch **gelöscht** oder über **Posten anse
 ![EAN erkannt und Posten in der Lieferung](./screenshots/02c-posten-erkannt.png)
 
 - Bekannte EAN: Quittungston und neue Karte ganz oben
-- Auf der Karte: Menge tippen, MHD mit +3/+7/+14 anpassen oder Posten mit **✕** entfernen
+- Auf der Karte: Menge tippen, **MHD von der Verpackung** eintippen oder Posten mit **✕** entfernen
 
 ---
 
-## 📸 Lieferschein einlesen & abgleichen (KI-Wareneingang)
+## KI-Lieferschein (derzeit deaktiviert)
 
-Wir scannen Artikel wie gewohnt und gleichen sie mit dem Lieferschein ab.
+Der frühere KI-Lieferschein-Scan und -Abgleich ist in der Laden-App **ausgeschaltet** (Code unter `legacy/`). Am Laden-iPhone gilt der **Barcode-Serien-Scan** mit manuellem MHD von der Verpackung.
 
-### Ablauf
-
-1. Tab **Neu** → **Laden** → Artikel per **Barcode scannen** hinzufügen
-2. **📄 Lieferschein hochladen** (PDF aus der Dateien-App) oder **📸 Lieferschein scannen (KI)** (Kamera)
-3. Der **Lieferschein-Abgleich** zeigt:
-   - noch nicht erfasste LS-Artikel
-   - extra erfasste Posten
-   - Mengenabweichungen
-   - Übereinstimmungen
-4. Nach weiteren Scans **Abgleich aktualisieren**
-5. Optional fehlende LS-Artikel in den Bestand übernehmen
-
-**🔎 Lieferschein abgleichen** öffnet den letzten Abgleich erneut.
-### Vorgeschlagenes MHD aus Erfahrungswerten
-
-Das MHD ist bereits vorausgefüllt. Dafür schaut unsere App in die Erfahrungswerte der letzten Lieferungen:
-
-- Gab es denselben Artikel schon einmal, übernimmt sie die damals bewährte Haltbarkeits-Spanne und rechnet sie ab heute neu aus (Kennzeichen **Erfahrungswert**).
-- Kennt unsere App den Artikel noch nicht, nutzt sie einen Standardwert je Warengruppe — z. B. MoPro/Milch **14 Tage**, Wurst **10 Tage**, Trockenware **90 Tage**; sonst **7 Tage** (Kennzeichen **Standard-Haltbarkeit**).
-
-Wir können jedes vorgeschlagene MHD vor dem Einbuchen einfach als `TT.MM.JJJJ` anpassen. Mit jedem eingebuchten Lieferschein werden die Erfahrungswerte besser.
-
-### Bestand
-
-Beim Einbuchen erhöht unsere App den Bestand der gelieferten Artikel automatisch und legt jeden Artikel mit dem errechneten MHD im Tab **MHD** an.
+Beim Abschließen legt unsere App jeden Posten mit dem eingetragenen MHD im Tab **MHD** an und schreibt danach den Lieferungsbeleg.
 
 ---
 

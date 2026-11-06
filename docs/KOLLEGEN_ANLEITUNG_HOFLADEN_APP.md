@@ -109,13 +109,13 @@ Im Tab **Neu** erfassen wir Ware beim Einräumen — im Modus **Laden**. Oben w�
    - Trockenware
    - Gewürze
 4. **Barcode scannen** (grüner Button) oder EAN eintippen und **OK** tippen.
-5. Bei bekannter EAN: der Posten erscheint sofort als **oberste Karte** (mit vorgeschlagenem MHD); der Scanner bleibt für den nächsten Artikel bereit.
+5. Bei bekannter EAN: der Posten erscheint sofort als **oberste Karte**; wir tippen das **MHD von der Verpackung** ein (außer der Karton-Barcode enthält schon ein MHD). Erst dann **Fertig – weiter scannen**.
 6. Bei unbekannter EAN den **Produktnamen** ergänzen, Menge/MHD setzen und **➕ Posten hinzufügen**.
 7. Optional **Hersteller / Zusatz** eintragen (z. B. Bauer Meier) — erscheint später auch in der MHD-Karte.
-8. Auf der Karte Menge (Tap → Nummernpad), MHD (+3/+7/+14 oder Datum tippen) oder **✕** zum Entfernen nutzen.
+8. Auf der Karte Menge (Tap → Nummernpad bzw. VPE +3/+5/+9), MHD (Datum tippen) oder **✕** zum Entfernen nutzen.
 9. Den nächsten Artikel scannen — ohne nach unten zu scrollen.
 10. Wenn alle Artikel der Lieferung drin sind: **💾 Gesamte Lieferung abschließen** tippen.
-11. Unsere App fragt **Liste nochmals prüfen?** und zeigt die Posten kurz an. Mit **Jetzt abschließen** buchen wir sofort; mit **Liste prüfen** korrigieren wir Menge/MHD auf den Karten und tippen danach erneut abschließen.
+11. Unsere App fragt **Liste nochmals prüfen?** und zeigt die Posten kurz an. Fehlt irgendwo das MHD, lässt sich nicht abschließen. Mit **Jetzt abschließen** buchen wir sofort; mit **Liste prüfen** korrigieren wir Menge/MHD auf den Karten und tippen danach erneut abschließen.
 12. Bei Erfolg erscheint **Gesamte Lieferung erfolgreich gebucht!** — die Posten landen im **MHD-Monitor**.
 
 Fehlt der Lieferant beim Abschließen, öffnet unsere App ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird die Lieferung gebucht.
