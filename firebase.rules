@@ -651,11 +651,46 @@ service cloud.firestore {
           'protokollTyp', 'geraeteTyp',
           'sollMin', 'sollMax', 'einheit', 'intervall',
           'aktiv',
+          // Raumplan / Ausmusterung
+          'posX', 'posY', 'status', 'category', 'floorplanCategory',
+          'retiredAt',
           'tenantId', 'updatedAt', 'createdAt',
           'seedVersion', 'updatedBy'
         ])
         && isNonEmptyString(request.resource.data.name)
-        && request.resource.data.tenantId == tenantId;
+        && request.resource.data.tenantId == tenantId
+        && (
+          !('posX' in request.resource.data)
+          || request.resource.data.posX == null
+          || (request.resource.data.posX is number
+            && request.resource.data.posX >= 0
+            && request.resource.data.posX <= 100)
+        )
+        && (
+          !('posY' in request.resource.data)
+          || request.resource.data.posY == null
+          || (request.resource.data.posY is number
+            && request.resource.data.posY >= 0
+            && request.resource.data.posY <= 100)
+        );
+
+      allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
+    }
+
+    // =========================================================================
+    // HACCP RAUMPLAN-META (Grundriss-URL je Mandant)
+    // =========================================================================
+
+    match /tenants/{tenantId}/haccp_meta/{document} {
+      allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
+
+      allow create, update: if (isAdmin(tenantId) || isPlatformDevAdmin())
+        && hasOnly([
+          'tenantId', 'imageUrl', 'storagePath', 'contentType', 'fileName',
+          'width', 'height', 'updatedAt', 'createdAt', 'updatedBy'
+        ])
+        && request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.imageUrl);
 
       allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();
     }
@@ -672,6 +707,8 @@ service cloud.firestore {
           'id', 'name', 'category', 'period',
           'sortOrder', 'isProductionOnly', 'isActive',
           'targetDay',
+          // Raumplan
+          'posX', 'posY', 'bereich', 'area', 'floorplanCategory',
           'tenantId', 'updatedAt', 'createdAt',
           'updatedBy'
         ])
@@ -686,6 +723,20 @@ service cloud.firestore {
             && request.resource.data.targetDay >= 0
             && request.resource.data.targetDay <= 6
           )
+        )
+        && (
+          !('posX' in request.resource.data)
+          || request.resource.data.posX == null
+          || (request.resource.data.posX is number
+            && request.resource.data.posX >= 0
+            && request.resource.data.posX <= 100)
+        )
+        && (
+          !('posY' in request.resource.data)
+          || request.resource.data.posY == null
+          || (request.resource.data.posY is number
+            && request.resource.data.posY >= 0
+            && request.resource.data.posY <= 100)
         );
 
       allow delete: if isAdmin(tenantId) || isPlatformDevAdmin();

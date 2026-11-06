@@ -14,6 +14,7 @@ import {
   TENANTS,
   authContext,
   bulletinObjectPath,
+  haccpFloorplanObjectPath,
   createRulesTestEnvironment,
   expectFirestoreAllow,
   expectFirestoreDeny,
@@ -609,6 +610,62 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       const pluralPath = `tenants/${TENANTS.TENANT_B}/bulletins/image.jpg`;
       const ctx = authContext(testEnv, 'tf-admin-plural', TENANTS.TENANT_B, 'admin');
       await expectStorageUploadDeny(ctx, pluralPath);
+    });
+
+    it('allows tenant-B admin HACCP floorplan upload and denies cross-tenant', async () => {
+      const path = haccpFloorplanObjectPath(TENANTS.TENANT_B);
+      const adminB = authContext(testEnv, 'tf-admin-haccp-plan', TENANTS.TENANT_B, 'admin');
+      const employeeB = authContext(testEnv, 'tf-employee-haccp-plan', TENANTS.TENANT_B, 'employee');
+      const adminForeign = authContext(testEnv, 'sh-admin-haccp-plan', TENANTS.STEVES_HOF, 'admin');
+      await expectStorageUploadAllow(adminB, path);
+      await expectStorageUploadDeny(employeeB, path);
+      await expectStorageUploadDeny(adminForeign, path);
+    });
+  });
+
+  describe('TEST CASE 4b: HACCP floorplan meta & pin coordinates', () => {
+    it('allows admin to store floorplan meta and device pin coordinates in own tenant only', async () => {
+      const adminB = authContext(testEnv, 'tf-admin-haccp-meta', TENANTS.TENANT_B, 'admin');
+      const adminForeign = authContext(testEnv, 'sh-admin-haccp-meta', TENANTS.STEVES_HOF, 'admin');
+      const metaPath = tenantDocPath(TENANTS.TENANT_B, 'haccp_meta', 'floorplan');
+      const devicePath = tenantDocPath(TENANTS.TENANT_B, 'haccp_geraete', 'fleischtheke');
+      const foreignMeta = tenantDocPath(TENANTS.STEVES_HOF, 'haccp_meta', 'floorplan');
+
+      await expectFirestoreAllow(adminB, metaPath, 'create', {
+        tenantId: TENANTS.TENANT_B,
+        imageUrl: 'https://example.com/floorplan.png',
+        storagePath: `tenants/${TENANTS.TENANT_B}/haccp_plans/floorplan.png`,
+        contentType: 'image/png',
+        fileName: 'floorplan.png',
+        updatedBy: 'rules-test',
+      });
+
+      await expectFirestoreAllow(adminB, devicePath, 'create', {
+        id: 'fleischtheke',
+        name: 'Fleischtheke',
+        bereich: 'Verkauf',
+        type: 'manual_temp',
+        tempMin: 0,
+        tempMax: 2,
+        unit: '°C',
+        sortOrder: 10,
+        isActive: true,
+        aktiv: true,
+        posX: 42.5,
+        posY: 18,
+        status: 'active',
+        tenantId: TENANTS.TENANT_B,
+      });
+
+      await expectFirestoreDeny(adminForeign, foreignMeta, 'create', {
+        tenantId: TENANTS.TENANT_B,
+        imageUrl: 'https://example.com/leak.png',
+      });
+
+      await expectFirestoreDeny(adminForeign, metaPath, 'create', {
+        tenantId: TENANTS.TENANT_B,
+        imageUrl: 'https://example.com/leak.png',
+      });
     });
   });
 

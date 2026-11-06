@@ -472,7 +472,9 @@ function normalizeHaccpDevice(raw = {}) {
     if (raw.protokollTyp === 'reinigung') type = 'cleaning';
     else type = 'manual_temp';
   }
-  const isActive = raw.isActive !== false && raw.aktiv !== false;
+  const isActive = raw.isActive !== false
+    && raw.aktiv !== false
+    && String(raw.status || '') !== 'retired';
   let activeDays = null;
   if (Array.isArray(raw.activeDays)) {
     activeDays = raw.activeDays.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);

@@ -791,6 +791,7 @@
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-module" data-betrieb-section="module" aria-selected="false" aria-controls="betrieb-panel-module">Module &amp; Rollen</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-hygiene" data-betrieb-section="hygiene" aria-selected="false" aria-controls="betrieb-panel-hygiene">Hygiene</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-geraete" data-betrieb-section="geraete" aria-selected="false" aria-controls="betrieb-panel-geraete">Geräte</button>
+                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-raumplan" data-betrieb-section="raumplan" aria-selected="false" aria-controls="betrieb-panel-raumplan">Raumplan</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-smtp" data-betrieb-section="smtp" aria-selected="false" aria-controls="betrieb-panel-smtp">SMTP</button>
                   </nav>
                 </div>
@@ -1170,6 +1171,85 @@
                       </div>
 
                                             </div>
+                    </section>
+                  </div>
+
+                  <div id="betrieb-panel-raumplan" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-raumplan" data-betrieb-panel="raumplan" hidden>
+                    <section class="dev-dashboard-panel" id="dev-dashboard-haccp-floorplan" aria-label="HACCP Raum- und Geräteplan">
+                      <h2 class="dev-dashboard-section-title">🗺️ HACCP Raum- &amp; Geräteplan (Behörden-Audit)</h2>
+                      <p class="dev-dashboard-intro">
+                        Grundriss hinterlegen, Kühlstellen und Reinigungsstationen verorten, nach Kategorie filtern
+                        und als DIN-A4-Querformat für das Veterinäramt drucken.
+                      </p>
+                      <p class="dev-dashboard-intro" id="haccp-floorplan-status" aria-live="polite">Liste wird geladen…</p>
+
+                      <div class="haccp-floorplan-upload-row">
+                        <label class="dev-dashboard-field" for="haccp-floorplan-upload">
+                          <span>Grundriss-Datei (PNG, JPG, WebP · max. 5&nbsp;MB)</span>
+                          <input
+                            id="haccp-floorplan-upload"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                          >
+                        </label>
+                        <button type="button" class="dev-dashboard-submit-btn" id="haccp-floorplan-print-btn">
+                          🖨️ Prüfplan drucken / PDF-Export
+                        </button>
+                      </div>
+
+                      <div class="haccp-floorplan-filters" id="haccp-floorplan-filters" role="toolbar" aria-label="Prüfpunkt-Filter"></div>
+
+                      <div id="haccp-audit-print-zone" class="haccp-audit-print-zone">
+                        <header class="haccp-audit-print-header" aria-hidden="true">
+                          <div>
+                            <strong id="haccp-print-betrieb-name">Betrieb</strong>
+                            <span id="haccp-print-oeko">—</span>
+                          </div>
+                          <div>
+                            <h1>HACCP Prüf- &amp; Raumplan</h1>
+                            <p>Filter: <span data-haccp-print-filter>Gesamt</span> · Datum: <span id="haccp-print-date">—</span></p>
+                          </div>
+                        </header>
+
+                        <div class="haccp-floorplan-workspace">
+                          <aside class="haccp-floorplan-dock-panel no-print" aria-label="Nicht zugewiesene Prüfpunkte">
+                            <h3 class="dev-dashboard-subsection-title">Nicht zugewiesene Prüfpunkte</h3>
+                            <div id="haccp-floorplan-dock"></div>
+                          </aside>
+
+                          <div class="haccp-floorplan-stage">
+                            <div
+                              class="floorplan-viewport"
+                              id="haccp-floorplan-viewport"
+                              role="application"
+                              aria-label="Interaktiver HACCP-Grundriss"
+                            >
+                              <img id="haccp-floorplan-image" class="haccp-floorplan-image" alt="Betriebsgrundriss" hidden>
+                              <div id="haccp-floorplan-empty" class="haccp-floorplan-empty">
+                                Noch kein Grundriss. Bitte oben eine Bilddatei hochladen.
+                              </div>
+                              <div id="haccp-floorplan-pin-layer" class="haccp-floorplan-pin-layer"></div>
+                            </div>
+                          </div>
+
+                          <div class="haccp-floorplan-legend-wrap">
+                            <h3 class="dev-dashboard-subsection-title">Audit-Legende</h3>
+                            <div class="dev-dashboard-table-wrap">
+                              <table class="dev-dashboard-table haccp-floorplan-legend-table" aria-label="HACCP Audit-Legende">
+                                <thead>
+                                  <tr>
+                                    <th scope="col">Pin</th>
+                                    <th scope="col">Bezeichnung &amp; Standort</th>
+                                    <th scope="col">Vorgabe / Sollwert</th>
+                                    <th scope="col">Typ / Prüffrequenz</th>
+                                  </tr>
+                                </thead>
+                                <tbody id="haccp-floorplan-legend-body"></tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </section>
                   </div>
 
