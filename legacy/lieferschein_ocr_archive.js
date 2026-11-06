@@ -19,7 +19,8 @@
  * Produktive Reste in web/:
  * - delivery-upload.js (schlank) – Foto/PDF-Validierung für Metzgerei-Anhänge
  * - catalog-ean.js               – Stammdaten-EAN-Index für Barcode-Buchung
- * - receiving.js                 – MHD-Vorschlag (vorhersagenMhd) + LIFO-Karten
+ * - web/receiving.js             – LIFO-Karten (produktiver Scan; kein MHD-Vorschlag)
+ * - delivery-parser.js           – vorhersagenMhd nur im Legacy-KI-Flow
  */
 
 export {

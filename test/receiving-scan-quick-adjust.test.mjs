@@ -17,6 +17,7 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mhdSrc = readFileSync(path.join(root, 'web/mhd.js'), 'utf8');
+const receivingSrc = readFileSync(path.join(root, 'web/receiving.js'), 'utf8');
 const indexSrc = readFileSync(path.join(root, 'web/index.html'), 'utf8');
 
 describe('Wareneingang scan quick-adjust helpers', () => {
@@ -64,6 +65,8 @@ describe('Wareneingang scan quick-adjust helpers', () => {
     assert.ok(mhdSrc.includes('RECEIVING_SCAN_MHD_EMPTY'));
     assert.ok(mhdSrc.includes('manual-packaging'));
     assert.equal(mhdSrc.includes('suggestReceivingMhd(productName'), false);
+    assert.equal(receivingSrc.includes('export function suggestReceivingMhd'), false);
+    assert.equal(receivingSrc.includes('export function vorhersagenMhd'), false);
     assert.equal(indexSrc.includes('data-scanner-qa="mhd-add"'), false);
     assert.ok(indexSrc.includes('scanner-qa-mhd-input'));
     assert.ok(indexSrc.includes('MHD von der Verpackung'));

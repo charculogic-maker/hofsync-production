@@ -78,17 +78,17 @@ Bei Ware, die wir als **Retter-Box** anbieten wollen, tippen wir in der MHD-Kart
 
 Im Modus **Laden** sammeln wir Posten in einer Lieferung. Oben wählen wir den **Lieferant**. Der Zähler **Posten in Lieferung** zeigt, wie viele Artikel bereits drin sind. Am Ende tippen wir **💾 Gesamte Lieferung abschließen** — dann erscheinen die Posten im MHD-Monitor.
 
-Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Bekannte Artikel landen sofort als **oberste Karte** in der Liste; der Scanner bleibt für den nächsten Scan bereit. Menge und MHD korrigieren wir direkt auf der Karte (Nummernpad bzw. +3/+7/+14 Tage).
+Beim Einräumen ähnlicher Ware wählen wir die Kategorie nur einmal. Bekannte Artikel landen sofort als **oberste Karte** in der Liste; das MHD tippen wir von der Verpackung ein (GS1-Kartoncodes können das MHD mitbringen). Menge und MHD korrigieren wir direkt auf der Karte.
 
 Beispiel:
 
 1. **Neu** öffnen (Modus **Laden**) — ggf. zuerst Profil wählen.
 2. **Lieferant** wählen (z. B. Weiling).
 3. **MoPro** auswählen.
-4. Artikel scannen — bekannte EAN erscheint oben in der Liste; Menge/MHD bei Bedarf auf der Karte anpassen.
+4. Artikel scannen — bekannte EAN erscheint oben in der Liste; Menge/MHD von der Verpackung auf der Karte bzw. im Scanner-Overlay eintragen, dann **Fertig**.
 5. Den nächsten MoPro-Artikel scannen (kein Scrollen nach unten nötig).
 6. Wenn die Lieferung vollständig ist: **Gesamte Lieferung abschließen**.
-7. Bei der Frage **Liste nochmals prüfen?** entweder **Jetzt abschließen** (Überspringen) oder **Liste prüfen** und danach erneut abschließen.
+7. Bei der Frage **Liste nochmals prüfen?** entweder **Jetzt abschließen** oder **Liste prüfen** und danach erneut abschließen — ohne MHD an jedem Posten geht Abschließen nicht.
 8. Erst beim Wechsel zu Frische oder TK-Ware die Kategorie ändern.
 
 Fehlt der Lieferant beim Abschließen, erscheint ein Pop-up mit **Weiling**, **Naturverbund**, **Stautenhof** und **Sonstige**. Erst nach der Auswahl wird gebucht.

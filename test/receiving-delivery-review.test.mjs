@@ -61,4 +61,9 @@ describe('Wareneingang delivery review prompt', () => {
     assert.ok(indexSrc.includes('Jetzt abschließen'));
     assert.ok(indexSrc.includes('Liste prüfen'));
   });
+
+  it('disables proceed when packaging MHD is missing', () => {
+    assert.ok(mhdSrc.includes('proceedBtn.disabled = missingMhd'));
+    assert.ok(mhdSrc.includes('blockFinalizeWhenMhdMissing'));
+  });
 });

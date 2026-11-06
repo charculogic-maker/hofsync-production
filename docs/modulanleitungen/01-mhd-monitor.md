@@ -48,9 +48,9 @@ Jede Karte ist **ein Posten** (eigenes MHD / eigene Lieferung).
 - **MHD ändern**: korrigiert ein falsch erfasstes MHD nur für diesen Eintrag; vor dem Speichern bestätigen wir die Änderung
 - **✏️ Bearbeiten**: öffnet **Artikel-Stammdaten bearbeiten** (Bezeichnung, Marke, EAN, MoPro/Kühlware oder Trockenware); nach dem Speichern zeigt unsere App den Artikel im passenden Filter
 - **Menge**: **−** / **+** oder direkt in das Zahlenfeld tippen
-- **🗑️ Ausverkauft** oder Wischen nach **links**
-- **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken)*
-- **Reduziert**: Karte nach **rechts wischen**
+- **🗑️ Ausverkauft** (Button auf der Karte — kein Wischen)
+- **Aktionen**: **↩️ Raus** · **✓ OK** · **🥣 Küche** · **Box** *(nur StevesHof — Retter-Box vormerken; Küche/Box nur wenn freigeschaltet)*
+- **Reduziert**: über den Rabatt-Button auf der Karte (kein Wischen)
 
 ### 3. Artikel suchen (optional)
 
