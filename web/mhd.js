@@ -2,6 +2,7 @@
 // ARCH-GUARD: Daten-Loader (loadMhdFromCloud, Live-Sync, …) dürfen NIEMALS
 // showTab / switchTab / showPreferredStartTab / showInitialTab aufrufen —
 // nur lokalen State und den eigenen View-Container aktualisieren.
+// Wareneingang-UI-Helfer: receiving.js · Finalize-Regeln: receiving-finalize.js
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
 import { flushPendingSyncs, getPendingSyncs, isPermissionDeniedError } from './sync.js';
@@ -53,6 +54,11 @@ import {
   deliveryAreaToReceivingMode,
   defaultSuppliersForArea,
 } from './receiving.js';
+import {
+  buildFinalizePhaseFailureCopy,
+  buildMissingMhdFinalizeMessage,
+  shouldBlockDeliveryFinalizeForMissingMhd,
+} from './receiving-finalize.js';
 import { logAndMapOperatorError } from './operator-errors.js';
 import { logReceivingTemperatureCheck } from './haccp.js';
 import {
@@ -7699,19 +7705,30 @@ function showDeliveryReviewPrompt() {
     const reviewBtn = document.getElementById('delivery-review-check');
     const cancelBtn = document.getElementById('delivery-review-cancel');
     if (!modal || !proceedBtn || !reviewBtn) {
-      resolve('proceed');
+      resolve(shouldBlockDeliveryFinalizeForMissingMhd(currentDeliveryItems) ? 'review' : 'proceed');
       return;
     }
 
     const count = currentDeliveryItems.length;
     const supplier = readDeliveryHeadValues().supplier || 'ohne Lieferant';
+    const missingMhd = shouldBlockDeliveryFinalizeForMissingMhd(currentDeliveryItems);
+    const missingCopy = missingMhd ? buildMissingMhdFinalizeMessage(currentDeliveryItems) : null;
     if (desc) {
-      desc.textContent = count === 1
-        ? `1 Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`
-        : `${count} Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`;
+      desc.textContent = missingCopy
+        ? missingCopy.message
+        : (count === 1
+          ? `1 Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`
+          : `${count} Posten von ${supplier} – nochmals prüfen oder direkt abschließen?`);
     }
     if (listEl) {
       listEl.innerHTML = buildDeliveryReviewListHtml(currentDeliveryItems);
+    }
+    proceedBtn.disabled = missingMhd;
+    proceedBtn.setAttribute('aria-disabled', missingMhd ? 'true' : 'false');
+    if (missingMhd) {
+      proceedBtn.title = 'Bitte zuerst alle MHD von der Verpackung eintragen.';
+    } else {
+      proceedBtn.removeAttribute('title');
     }
 
     const close = (value) => {
@@ -7719,12 +7736,21 @@ function showDeliveryReviewPrompt() {
       reviewBtn.removeEventListener('click', onReview);
       cancelBtn?.removeEventListener('click', onCancel);
       modal.removeEventListener('click', onBackdrop);
+      proceedBtn.disabled = false;
+      proceedBtn.setAttribute('aria-disabled', 'false');
+      proceedBtn.removeAttribute('title');
       modal.classList.remove('is-open');
       modal.hidden = true;
       resolve(value);
     };
 
-    const onProceed = () => close('proceed');
+    const onProceed = () => {
+      if (shouldBlockDeliveryFinalizeForMissingMhd(currentDeliveryItems)) {
+        window.showToast?.(buildMissingMhdFinalizeMessage(currentDeliveryItems).message, 'warning');
+        return;
+      }
+      close('proceed');
+    };
     const onReview = () => close('review');
     const onCancel = () => close('cancel');
     const onBackdrop = (event) => {
@@ -7737,8 +7763,18 @@ function showDeliveryReviewPrompt() {
     reviewBtn.addEventListener('click', onReview);
     cancelBtn?.addEventListener('click', onCancel);
     modal.addEventListener('click', onBackdrop);
-    proceedBtn.focus();
+    (missingMhd ? reviewBtn : proceedBtn).focus();
   });
+}
+
+function blockFinalizeWhenMhdMissing() {
+  if (!shouldBlockDeliveryFinalizeForMissingMhd(currentDeliveryItems)) return false;
+  const { title, message } = buildMissingMhdFinalizeMessage(currentDeliveryItems);
+  setReceivingMode('schnell');
+  notifyReceivingValidation(title, message);
+  document.querySelector('.we-item-card--mhd-missing, .we-item-mhd-date--missing')
+    ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  return true;
 }
 
 function getReceivingQtyUnitFromCategory(warenKategorie = '') {
@@ -9684,6 +9720,8 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     return;
   }
 
+  if (blockFinalizeWhenMhdMissing()) return;
+
   const actor = await ensureReceivingActorOrWarn();
   if (!actor) return;
 
@@ -9691,12 +9729,12 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     const reviewChoice = await showDeliveryReviewPrompt();
     if (reviewChoice === 'review') {
       setReceivingMode('schnell');
-      document.getElementById('we-current-items-table')?.scrollIntoView?.({
-        behavior: 'smooth',
-        block: 'start',
-      });
+      document.querySelector('.we-item-card--mhd-missing, #we-current-items-table')
+        ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
       window.showToast?.(
-        'Liste prüfen – Menge oder MHD anpassen, dann erneut abschließen.',
+        shouldBlockDeliveryFinalizeForMissingMhd(currentDeliveryItems)
+          ? buildMissingMhdFinalizeMessage(currentDeliveryItems).message
+          : 'Liste prüfen – Menge oder MHD anpassen, dann erneut abschließen.',
         'info',
       );
       return;
@@ -9705,6 +9743,9 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       return;
     }
   }
+
+  // Harte MHD-Pflicht auch bei skipReviewPrompt / nach Review.
+  if (blockFinalizeWhenMhdMissing()) return;
 
   if (!beginReceivingSaveButtonLock(saveBtn, updateReceivingSaveButtonState)) return;
 
@@ -9779,8 +9820,10 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
   if (deliveryBundleOnline) deliveryBundleOnline.tenantId = activeTenantId;
   if (queuedBundle) queuedBundle.tenantId = activeTenantId;
 
-  let finalizeTargetPath = deliveryPath;
+  let finalizeTargetPath = mhdPath;
   let finalizeFailed = false;
+  let mhdPhaseSucceeded = false;
+  const itemCount = deliveryBundle.itemCount;
 
   try {
     if (saveBtn) {
@@ -9788,17 +9831,7 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       saveBtn.textContent = isDraftCompletion ? 'Schließe Lieferung ab...' : 'Speichere Lieferung...';
     }
 
-    await mhdState.writeOrQueueFirestore({
-      collectionPath: deliveryPath,
-      docId: deliveryId,
-      op: 'set',
-      onlineData: deliveryBundleOnline,
-      queueData: queuedBundle,
-      offlineMessage: 'Lieferung wird nachträglich synchronisiert.',
-      // Fehler-UI übernimmt finalizeDelivery (lokal sichern + ruhiger Toast).
-      silentPermissionDenied: true,
-    });
-
+    // Reihenfolge: zuerst MHD-Bestand, danach Lieferungsbeleg — kein Beleg ohne Posten.
     const catalog = await loadCatalogEanIndex();
     const mhdWrites = currentDeliveryItems.map(async (item) => {
       const matchedEan = lookupCatalogEan(catalog, {
@@ -9843,11 +9876,52 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
     if (rejectedMhdWrite) {
       finalizeFailed = true;
       console.error('[CharcuLogic MHD] MHD-Posten beim Abschließen fehlgeschlagen:', rejectedMhdWrite.reason);
-      window.showToast?.('Ein MHD-Posten konnte nicht gespeichert werden. Bitte erneut versuchen.', 'error');
-      mhdState.showHUD('Fehler', 'Lieferung nur teilweise gespeichert.', '!');
+      const copy = buildFinalizePhaseFailureCopy('mhd', { itemCount });
+      window.showToast?.(copy.toast, 'error');
+      mhdState.showHUD(copy.title, copy.message, '!');
       maybeResetOnFirestorePermissionError(rejectedMhdWrite.reason, 'finalizeDelivery-mhd');
       return;
     }
+    mhdPhaseSucceeded = true;
+
+    finalizeTargetPath = deliveryPath;
+    try {
+      await mhdState.writeOrQueueFirestore({
+        collectionPath: deliveryPath,
+        docId: deliveryId,
+        op: 'set',
+        onlineData: deliveryBundleOnline,
+        queueData: queuedBundle,
+        offlineMessage: 'Lieferungsbeleg wird nachträglich synchronisiert.',
+        // Fehler-UI übernimmt finalizeDelivery (lokal sichern + ruhiger Toast).
+        silentPermissionDenied: true,
+      });
+    } catch (deliveryErr) {
+      finalizeFailed = true;
+      console.error('[CharcuLogic MHD] Lieferungsbeleg nach MHD-Schreiben fehlgeschlagen:', deliveryErr);
+      const copy = buildFinalizePhaseFailureCopy('delivery', {
+        itemCount,
+        mhdWritten: mhdResults.filter((result) => result.status === 'fulfilled').length,
+      });
+      try {
+        await persistPendingDeliveryFallback({
+          head,
+          items: currentDeliveryItems,
+          photos: currentDeliveryPhotos,
+          deliveryId,
+          tenantId: activeTenantId,
+          errorMessage: String(deliveryErr?.message || deliveryErr || ''),
+        });
+      } catch (persistErr) {
+        console.warn('[CharcuLogic MHD] Pending-Delivery-Fallback fehlgeschlagen:', persistErr);
+        await persistDeliveryDraftToIndexedDB();
+      }
+      window.showToast?.(copy.toast, 'warning');
+      mhdState.showHUD(copy.title, copy.message, '!');
+      maybeResetOnFirestorePermissionError(deliveryErr, 'finalizeDelivery-delivery');
+      return;
+    }
+
     mhdState.playClickSound(1300, 0.08, 0.2);
     const metzBridgePayload = {
       deliveryBundle: { ...deliveryBundle },
@@ -9855,7 +9929,6 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       meisterOverrideReason,
     };
     resetReceivingForm();
-    const itemCount = deliveryBundle.itemCount;
     if (navigator.onLine) {
       try {
         await flushPendingSyncs();
@@ -9897,7 +9970,11 @@ async function finalizeDelivery({ skipReviewPrompt = false } = {}) {
       console.warn('[CharcuLogic MHD] Pending-Delivery-Fallback fehlgeschlagen:', persistErr);
       await persistDeliveryDraftToIndexedDB();
     }
-    if (isPermission) {
+    if (mhdPhaseSucceeded) {
+      const copy = buildFinalizePhaseFailureCopy('delivery', { itemCount, mhdWritten: itemCount });
+      window.showToast?.(copy.toast, 'warning');
+      mhdState.showHUD(copy.title, copy.message, '!');
+    } else if (isPermission) {
       window.showToast?.(
         '⚠️ Cloud-Sync verzögert: Lieferung lokal auf dem Gerät gesichert. Sync erfolgt automatisch.',
         'warning',

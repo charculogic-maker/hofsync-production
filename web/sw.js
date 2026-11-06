@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1';
+const CACHE_NAME = 'charculogic-v20261106-receiving-finalize-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */
@@ -41,6 +41,7 @@ const CRITICAL_ASSETS = [
   '/mhd-record-meta.js',
   '/mhd-date-guard.js',
   '/receiving.js',
+  '/receiving-finalize.js',
   '/mhd-monitor-filter.js',
   '/mhd-rabatt.js',
   '/discount-matrix.js',
@@ -323,6 +324,7 @@ self.addEventListener('fetch', (event) => {
     || pathname.endsWith('/mhd-record-meta.js')
     || pathname.endsWith('/mhd-date-guard.js')
     || pathname.endsWith('/receiving.js')
+    || pathname.endsWith('/receiving-finalize.js')
     || pathname.endsWith('/delivery-upload.js')
     || pathname.endsWith('/catalog-ean.js')
     || pathname.endsWith('/scanner.js')

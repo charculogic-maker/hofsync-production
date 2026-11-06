@@ -1,7 +1,7 @@
 /**
- * Wareneingang Schnellerfassung – LIFO-Karten, Mengen-Nummernpad, MHD-Schnelltasten,
- * smarte Auto-Kategorisierung (Keyword-Heuristik + EAN-Gedächtnis-Helfer).
- * State (currentDeliveryItems) bleibt in mhd.js; dieses Modul liefert UI-Helfer.
+ * Wareneingang Schnellerfassung – LIFO-Karten, Mengen-Nummernpad,
+ * MHD von der Verpackung (kein geratenes Datum), smarte Auto-Kategorisierung.
+ * State (currentDeliveryItems) bleibt in mhd.js; Finalize-Guards in receiving-finalize.js.
  */
 
 import { formatIsoToGerman, initGermanDateInputs, parseGermanDateToIso, readGermanDateField, setGermanDateField } from './date-input.js';
@@ -13,16 +13,6 @@ export const RECEIVING_DUPLICATE_SCAN_MS = 3000;
 export const RECEIVING_SCAN_MHD_EMPTY = '';
 /** VPE-Schnelltasten: 1+3=4, 1+5=6, 1+9=10 (Kisten-/Gebinde-Workflow). */
 export const RECEIVING_VPE_QTY_DELTAS = Object.freeze([3, 5, 9]);
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
-const MHD_FALLBACK_KEYWORDS = [
-  { test: /gefl(ü|ue)gel|h(ä|ae)hnchen|pute/i, tage: 4 },
-  { test: /frischfleisch|\brind\b|\bschwein\b|hack|galloway/i, tage: 5 },
-  { test: /wurst|aufschnitt|grillwurst|wiener/i, tage: 10 },
-  { test: /k(ä|ae)se|mopro|jogh?urt|milch/i, tage: 14 },
-  { test: /trockenware|konserven|vorrat|br(ö|oe)tchen/i, tage: 90 },
-];
-const MHD_FALLBACK_DEFAULT_TAGE = 7;
-const MHD_STANDARD_HINT = 'MHD-Vorschlag (Standard-Haltbarkeit)';
 
 /** Kanonische Wareneingangs-Kategorien (Werte wie in mhd.js RECEIVING_CATEGORIES). */
 export const RECEIVING_SMART_CATEGORIES = {
@@ -416,81 +406,6 @@ function startOfDayIso(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function toIsoDateOnly(value) {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-  if (ISO_DATE_RE.test(raw)) return raw.slice(0, 10);
-  const fromGerman = parseGermanDateToIso(raw);
-  if (fromGerman) return fromGerman;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? '' : startOfDayIso(parsed);
-}
-
-function diffInDays(fromIso, toIso) {
-  if (!fromIso || !toIso) return null;
-  const from = new Date(`${fromIso}T00:00:00`);
-  const to = new Date(`${toIso}T00:00:00`);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
-  return Math.round((to.getTime() - from.getTime()) / 86400000);
-}
-
-function addDaysIso(baseIso, days) {
-  const base = new Date(`${baseIso}T00:00:00`);
-  if (Number.isNaN(base.getTime())) return '';
-  base.setDate(base.getDate() + (Number(days) || 0));
-  return startOfDayIso(base);
-}
-
-function standardTageAusArtikelname(artikel) {
-  const text = String(artikel || '').trim();
-  for (const regel of MHD_FALLBACK_KEYWORDS) {
-    if (regel.test.test(text)) return regel.tage;
-  }
-  return MHD_FALLBACK_DEFAULT_TAGE;
-}
-
-/**
- * MHD-Vorschlag: Historie (Liefer-Spanne) oder Standard-Haltbarkeit nach Artikelname.
- */
-export function vorhersagenMhd(artikel, kategorie, history, todayIso = startOfDayIso()) {
-  const gesuchterName = String(artikel || '').trim().toLowerCase();
-  const eintraege = Array.isArray(history) ? history : [];
-  const spannen = [];
-
-  if (gesuchterName) {
-    for (const eintrag of eintraege) {
-      const name = String(eintrag?.produkt || eintrag?.name || '').trim().toLowerCase();
-      if (name !== gesuchterName) continue;
-
-      const lieferIso = toIsoDateOnly(eintrag?.wareneingangAt || eintrag?.erfassungsDatum || eintrag?.createdAt);
-      const damaligesMhd = toIsoDateOnly(eintrag?.mhd || eintrag?.mhdDate);
-      if (!lieferIso || !damaligesMhd) continue;
-
-      const spanne = diffInDays(lieferIso, damaligesMhd);
-      if (spanne == null || spanne < 0) continue;
-      spannen.push(spanne);
-    }
-  }
-
-  if (spannen.length > 0) {
-    const durchschnitt = Math.round(spannen.reduce((sum, tage) => sum + tage, 0) / spannen.length);
-    return {
-      mhdIso: addDaysIso(todayIso, durchschnitt),
-      tage: durchschnitt,
-      quelle: 'erfahrung',
-      hinweis: `Erfahrungswert der letzten Lieferungen (${durchschnitt} Tage haltbar)`,
-    };
-  }
-
-  const tage = standardTageAusArtikelname(artikel);
-  return {
-    mhdIso: addDaysIso(todayIso, tage),
-    tage,
-    quelle: 'standard',
-    hinweis: MHD_STANDARD_HINT,
-  };
-}
-
 /** ISO-Datum um N Tage verschieben. */
 export function shiftIsoDateByDays(iso, days) {
   const baseIso = parseGermanDateToIso(iso) || String(iso || '').slice(0, 10);
@@ -518,21 +433,6 @@ export function sortDeliveryItemsLifo(items) {
   const withStamp = items.filter((item) => Number.isFinite(Number(item?.addedAt)));
   if (withStamp.length !== items.length) return items.slice();
   return items.slice().sort((a, b) => Number(b.addedAt) - Number(a.addedAt));
-}
-
-/** MHD-Vorschlag aus Erfahrungswerten / Standard-Haltbarkeit. */
-export function suggestReceivingMhd(productName, category = '', history = []) {
-  try {
-    return vorhersagenMhd(productName, category, history, startOfDayIso());
-  } catch (err) {
-    console.warn('[CharcuLogic Wareneingang] MHD-Vorschlag fehlgeschlagen:', err);
-    return {
-      mhdIso: shiftIsoDateByDays(startOfDayIso(), 7),
-      tage: 7,
-      quelle: 'standard',
-      hinweis: 'MHD-Vorschlag (Standard-Haltbarkeit)',
-    };
-  }
 }
 
 /**
