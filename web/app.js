@@ -3540,7 +3540,7 @@ async function loadRoleModuleDefaults(db, tenantId) {
     const docRef = db.collection('tenants').doc(tenantId).collection('settings').doc('role_modules');
     const snap = await docRef.get();
     const data = snap.exists ? (snap.data() || {}) : {};
-    const { patched, changed, roles } = stripLegacyKnowledgeDenials(data);
+    const { patched, changed } = stripLegacyKnowledgeDenials(data);
     const normalized = normalizeRoleModuleDefaults(patched);
     window.__hofsyncRoleModuleDefaults = normalized;
     // Self-Heal: Legacy employee/admin knowledge:false aus Firestore entfernen.
@@ -3548,16 +3548,18 @@ async function loadRoleModuleDefaults(db, tenantId) {
       const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
         ? firebase.firestore.FieldValue.serverTimestamp()
         : new Date().toISOString();
-      /** @type {Record<string, unknown>} */
-      const repair = {
+      // Vollständiges Set (kein merge): merge + knowledgeSanitized*-Felder knickte
+      // Rules-hasOnly und blockierte danach jedes Speichern als Betriebs-Admin.
+      docRef.set({
+        admin: normalized.admin,
+        employee: normalized.employee,
+        helper: normalized.helper,
+        tenantId,
+        updatedAt: stamp,
+        updatedBy: 'client-load',
         knowledgeSanitizedAt: stamp,
         knowledgeSanitizedBy: 'client-load',
-      };
-      roles.forEach((role) => {
-        const src = patched && typeof patched === 'object' ? patched[role] : null;
-        if (src && typeof src === 'object') repair[role] = src;
-      });
-      docRef.set(repair, { merge: true }).catch((err) => {
+      }).catch((err) => {
         console.warn('[CharcuLogic] role_modules knowledge-Sanitize fehlgeschlagen:', err);
       });
     }
@@ -5964,7 +5966,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261106-receiving-finalize-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261109-role-modules-save-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

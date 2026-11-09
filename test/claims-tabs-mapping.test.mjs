@@ -120,7 +120,7 @@ describe('Claims ↔ Tabs Mapping (B.4)', () => {
   });
 
   it('bumpt den Service-Worker-Cache', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261109-role-modules-save-v1'");
     expect(appBoot).to.include('sw.js?v=20261103-header-declutter-v1');
   });
 });
