@@ -50,4 +50,24 @@ describe('Profile settings rules alignment', () => {
     expect(rules).to.include("'categoryOverrides'");
     expect(rules).to.match(/\|\| isDiscountMatrixSettings\(document\)/);
   });
+
+  it('erlaubt knowledgeSanitized*-Felder in settings/role_modules', () => {
+    expect(rules).to.match(/function roleModulesAllowedKeys/);
+    expect(rules).to.include("'knowledgeSanitizedAt'");
+    expect(rules).to.include("'knowledgeSanitizedBy'");
+    expect(rules).to.match(/function isRoleModulesSettings/);
+    expect(rules).to.match(/\|\| isRoleModulesSettings\(document\)/);
+  });
+
+  it('speichert role_modules ohne merge (kein Alt-Feld-Blocker)', () => {
+    expect(dashboard).to.match(/persistRoleModuleDefaults/);
+    expect(dashboard).to.match(/settings'\)\.doc\('role_modules'\)\.set\(\{/);
+    expect(dashboard).to.match(/updatedBy:\s*String\(dashboardState\.actorEmail/);
+    // Kein merge: true am role_modules-Persistenzpfad
+    const persistBlock = dashboard.slice(
+      dashboard.indexOf('async function persistRoleModuleDefaults'),
+      dashboard.indexOf('function bindRoleModuleSave'),
+    );
+    expect(persistBlock).to.not.match(/\{\s*merge:\s*true\s*\}/);
+  });
 });

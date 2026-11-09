@@ -428,22 +428,23 @@ async function loadAndFillRoleModuleMatrix(dashboardStateRef = dashboardState) {
       const snap = await docRef.get();
       if (snap.exists) {
         const data = snap.data() || {};
-        const { patched, changed, roles } = stripLegacyKnowledgeDenials(data);
+        const { patched, changed } = stripLegacyKnowledgeDenials(data);
         defaults = normalizeRoleModuleDefaults(patched);
         if (changed) {
           const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
             ? firebase.firestore.FieldValue.serverTimestamp()
             : new Date().toISOString();
-          /** @type {Record<string, unknown>} */
-          const repair = {
+          // Vollständiges Set (kein merge), damit Rules-hasOnly nicht an Alt-Feldern scheitert.
+          docRef.set({
+            admin: defaults.admin,
+            employee: defaults.employee,
+            helper: defaults.helper,
+            tenantId,
+            updatedAt: stamp,
+            updatedBy: 'dev-dashboard-load',
             knowledgeSanitizedAt: stamp,
             knowledgeSanitizedBy: 'dev-dashboard-load',
-          };
-          roles.forEach((role) => {
-            const src = patched && typeof patched === 'object' ? patched[role] : null;
-            if (src && typeof src === 'object') repair[role] = src;
-          });
-          docRef.set(repair, { merge: true }).catch((err) => {
+          }).catch((err) => {
             console.warn('[Dev-Dashboard] role_modules knowledge-Sanitize fehlgeschlagen:', err);
           });
         }
@@ -523,13 +524,16 @@ async function persistRoleModuleDefaults(db, tenantId, roleModuleDefaults) {
   const stamp = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp
     ? firebase.firestore.FieldValue.serverTimestamp()
     : new Date().toISOString();
+  // Ohne merge: ersetzt das Dokument vollständig. Merge würde Legacy-Felder
+  // (z. B. knowledgeSanitized*) behalten und die Rules-hasOnly knicken.
   await db.collection('tenants').doc(tenantId).collection('settings').doc('role_modules').set({
     admin: normalized.admin,
     employee: normalized.employee,
     helper: normalized.helper,
     tenantId,
     updatedAt: stamp,
-  }, { merge: true });
+    updatedBy: String(dashboardState.actorEmail || 'betriebs-admin').trim() || 'betriebs-admin',
+  });
   return normalized;
 }
 

@@ -350,17 +350,29 @@ service cloud.firestore {
         && (!('retterBox' in value) || value.retterBox is bool);
     }
 
+    // knowledgeSanitized* stammt aus Migration/Self-Heal (#286). hasOnly muss sie
+    // erlauben, sonst scheitert jedes merge-Update für Betriebs-Admins.
+    function roleModulesAllowedKeys() {
+      return [
+        'admin', 'employee', 'helper', 'tenantId', 'updatedAt', 'updatedBy',
+        'knowledgeSanitizedAt', 'knowledgeSanitizedBy'
+      ];
+    }
+
     function isRoleModulesSettings(docId) {
       return docId == 'role_modules'
-        && request.resource.data.keys().hasOnly([
-          'admin', 'employee', 'helper', 'tenantId', 'updatedAt', 'updatedBy'
-        ])
+        && request.resource.data.keys().hasOnly(roleModulesAllowedKeys())
         && (!('admin' in request.resource.data) || isRoleModuleMap(request.resource.data.admin))
         && (!('employee' in request.resource.data) || isRoleModuleMap(request.resource.data.employee))
         && (!('helper' in request.resource.data) || isRoleModuleMap(request.resource.data.helper))
         && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy is string)
         && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string
-          || request.resource.data.updatedAt is timestamp);
+          || request.resource.data.updatedAt is timestamp)
+        && (!('knowledgeSanitizedAt' in request.resource.data)
+          || request.resource.data.knowledgeSanitizedAt is string
+          || request.resource.data.knowledgeSanitizedAt is timestamp)
+        && (!('knowledgeSanitizedBy' in request.resource.data)
+          || request.resource.data.knowledgeSanitizedBy is string);
     }
 
     match /tenants/{tenantId}/settings/{document} {

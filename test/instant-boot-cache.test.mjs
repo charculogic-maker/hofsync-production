@@ -45,7 +45,7 @@ describe('Instant-Boot Cache-First', () => {
   });
 
   it('bumps SW cache for module-nav zero-flicker release', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261105-remote-reload-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261109-role-modules-save-v1'");
     expect(swJs).to.match(/isStandaloneHtmlDoc/);
   });
 
