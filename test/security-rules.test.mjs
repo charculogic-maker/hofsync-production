@@ -915,6 +915,21 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       }));
     });
 
+    it('allows platform admin create with tier/id/name/active and denies legacy modules field', async () => {
+      const ctx = testEnv.authenticatedContext(PLATFORM_DEV_ADMIN_UID);
+      await expectFirestoreAllow(ctx, `tenants/new-saas-tiered`, 'create', sampleTenantRoot({
+        id: 'new-saas-tiered',
+        name: 'Tiered SaaS',
+        displayName: 'Tiered SaaS',
+        tier: 'hofladen_komplett',
+        active: true,
+      }));
+      await expectFirestoreDeny(ctx, `tenants/new-saas-legacy-modules`, 'create', sampleTenantRoot({
+        displayName: 'Legacy Modules',
+        modules: { mhd: true },
+      }));
+    });
+
     it('denies tenant admin create on tenant root', async () => {
       const ctx = authContext(testEnv, 'tf-admin-root', TENANTS.TENANT_B, 'admin');
       await expectFirestoreDeny(ctx, `tenants/other-tenant`, 'create', sampleTenantRoot());

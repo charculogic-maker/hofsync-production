@@ -134,32 +134,77 @@ service cloud.firestore {
     // TENANT ROOT (enabledModules – platform dev admin writes)
     // =========================================================================
 
+    // Plattform-Super-Admin (UID und/oder bekannte Betriebs-E-Mail).
     function isPlatformDevAdmin() {
       return isAuthenticated()
-        && request.auth.uid in ['VYwMy5IAlAR26pj8ZbFfc5PNdou2'];
+        && (
+          request.auth.uid in ['VYwMy5IAlAR26pj8ZbFfc5PNdou2']
+          || request.auth.token.email == 'patrik@charculogic.de'
+        );
+    }
+
+    function isSuperAdmin() {
+      return isPlatformDevAdmin();
+    }
+
+    function tenantCreateAllowedKeys() {
+      return [
+        'id', 'name', 'displayName', 'tier', 'enabledModules',
+        'status', 'active', 'createdAt', 'updatedAt'
+      ];
+    }
+
+    function isValidTenantTier(value) {
+      return value is string
+        && value in ['mhd_retter', 'hofladen_komplett', 'metzgerei_pro', 'manual', ''];
     }
 
     match /tenants/{tenantId} {
       allow read: if isTenantMember(tenantId) || isPlatformDevAdmin();
-      allow create: if isPlatformDevAdmin()
-        && request.resource.data.keys().hasOnly(['enabledModules', 'displayName', 'createdAt', 'updatedAt', 'status'])
+      // Neuen Mandanten nur Super-Admin — Payload ohne Legacy-Feld `modules`.
+      allow create: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(tenantCreateAllowedKeys())
         && request.resource.data.enabledModules is map
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 120
-        && request.resource.data.status in ['active', 'inactive'];
+        && request.resource.data.status in ['active', 'inactive']
+        && (!('active' in request.resource.data) || request.resource.data.active is bool)
+        && (!('name' in request.resource.data)
+          || (
+            request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 120
+          ))
+        && (!('id' in request.resource.data)
+          || (
+            request.resource.data.id is string
+            && request.resource.data.id.size() > 0
+            && request.resource.data.id.size() <= 64
+          ))
+        && (!('tier' in request.resource.data) || isValidTenantTier(request.resource.data.tier));
       // Plattform-Super-Admin: Status und Firmenname (Mein Betrieb) für jeden Mandanten.
       allow update: if isPlatformDevAdmin()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['status', 'displayName', 'updatedAt'])
+             .hasOnly(['status', 'displayName', 'updatedAt', 'name', 'tier', 'active'])
         && (!('status' in request.resource.data.diff(resource.data).affectedKeys())
             || request.resource.data.status in ['active', 'inactive'])
+        && (!('active' in request.resource.data.diff(resource.data).affectedKeys())
+            || request.resource.data.active is bool)
+        && (!('tier' in request.resource.data.diff(resource.data).affectedKeys())
+            || isValidTenantTier(request.resource.data.tier))
         && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys())
             || (
               request.resource.data.displayName is string
               && request.resource.data.displayName.size() > 0
               && request.resource.data.displayName.size() <= 120
+            ))
+        && (!('name' in request.resource.data.diff(resource.data).affectedKeys())
+            || (
+              request.resource.data.name is string
+              && request.resource.data.name.size() > 0
+              && request.resource.data.name.size() <= 120
             ));
       allow update: if isTenantAdmin(tenantId)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['enabledModules'])

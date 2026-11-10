@@ -14862,6 +14862,47 @@ body.dev-dashboard-view[hidden] {
   gap: 8px 12px;
 }
 
+.dev-dashboard-tier-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.dev-dashboard-tier-btn {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dev-dashboard-tier-btn.is-active,
+.dev-dashboard-tier-btn[aria-pressed="true"] {
+  border-color: var(--primary-color, #1b5e20);
+  background: color-mix(in srgb, var(--primary-color, #1b5e20) 14%, #fff);
+  color: var(--primary-color, #1b5e20);
+}
+
+.dev-dashboard-tier-btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary-color, #1b5e20) 45%, #fff);
+  outline-offset: 2px;
+}
+
+.dev-dashboard-tenant-tier-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
 .dev-dashboard-module-badges {
   display: flex;
   flex-wrap: wrap;
