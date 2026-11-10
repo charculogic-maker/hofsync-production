@@ -85,8 +85,11 @@ describe('CSV product master importer', () => {
     assert.ok(dashSrc.includes('bindCsvProductImporter'));
     assert.ok(dashSrc.includes('importProductMasterRows'));
     assert.ok(dashSrc.includes('parseProductMasterCsv'));
-    assert.match(swSrc, /charculogic-v20261110-csv-import-v1/);
+    assert.match(swSrc, /charculogic-v20261110-csv-perm-v2/);
     assert.ok(swSrc.includes('/csv-product-importer.js'));
     assert.ok(rulesSrc.includes("'supplier'"));
+    assert.ok(rulesSrc.includes('canWriteProductMaster'));
+    assert.ok(rulesSrc.includes('request.auth.token.superAdmin == true'));
+    assert.ok(dashSrc.includes('[CSV-Import] Detailfehler beim Schreiben:'));
   });
 });

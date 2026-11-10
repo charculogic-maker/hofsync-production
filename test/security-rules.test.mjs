@@ -1447,7 +1447,34 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
         ctx,
         tenantDocPath(TENANTS.STEVES_HOF, 'product_master', '4012346200599'),
         'create',
-        sampleProductMaster(TENANTS.STEVES_HOF, { ean: '4012346200599', articleName: '' }),
+        sampleProductMaster(TENANTS.STEVES_HOF, {
+          id: '4012346200599',
+          ean: '4012346200599',
+          articleName: '',
+        }),
+      );
+    });
+
+    it('allows Super-Admin CSV import into a foreign tenant product_master', async () => {
+      const superCtx = testEnv.authenticatedContext('platform-super', {
+        email: 'patrik@charculogic.de',
+        superAdmin: true,
+        tenantId: 'platform',
+        role: 'admin',
+      });
+      const path = tenantDocPath(TENANTS.TENANT_B, 'product_master', '4006040007999');
+      await expectFirestoreAllow(
+        superCtx,
+        path,
+        'create',
+        sampleProductMaster(TENANTS.TENANT_B, {
+          id: '4006040007999',
+          ean: '4006040007999',
+          articleName: 'Bionella Schokocreme',
+          name: 'Bionella Schokocreme',
+          supplier: 'Rapunzel',
+          daysFresh: 45,
+        }),
       );
     });
   });

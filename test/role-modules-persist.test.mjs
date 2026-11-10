@@ -38,6 +38,6 @@ describe('role_modules Speichern (Betriebs-Admin)', () => {
   });
 
   it('bumpt Service-Worker-Cache für App-JS', () => {
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-import-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-perm-v2'");
   });
 });
