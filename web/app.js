@@ -2760,7 +2760,9 @@ function ensureEmployeeSessionForProtectedArea(branding = window.BRANDING) {
 window.isEmployeePinRequired = isEmployeePinRequired;
 window.isFirebaseRoleAuth = isFirebaseRoleAuth;
 window.isProfileEmployeeAuth = isProfileEmployeeAuth;
+window.isTeamSessionName = isTeamSessionName;
 window.resolveFirebaseEmployeeName = resolveFirebaseEmployeeName;
+window.resolveLoggedInAuthDisplayName = resolveLoggedInAuthDisplayName;
 window.syncFirebaseEmployeeSession = syncFirebaseEmployeeSession;
 window.resolveTeamSessionName = resolveTeamSessionName;
 window.ensureEmployeeSessionForProtectedArea = ensureEmployeeSessionForProtectedArea;
@@ -5972,7 +5974,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     initAppVersionUi();
 
-    navigator.serviceWorker.register('./sw.js?v=20261110-we-multitenant-v1')
+    navigator.serviceWorker.register('./sw.js?v=20261110-we-profile-actor-v1')
       .then((reg) => {
         serviceWorkerRegistration = reg;
         console.log('[CharcuLogic SW] Registriert, Scope:', reg.scope);

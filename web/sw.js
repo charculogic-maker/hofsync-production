@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261110-we-multitenant-v1';
+const CACHE_NAME = 'charculogic-v20261110-we-profile-actor-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */
