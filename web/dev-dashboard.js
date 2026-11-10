@@ -166,7 +166,26 @@ const TIER_LABELS = {
   mhd_retter: 'MHD-Retter',
   hofladen_komplett: 'Hofladen komplett',
   metzgerei_pro: 'Metzgerei Pro',
+  manual: 'Manuell',
 };
+
+/** Default-Tarif für „Neuen Betrieb anlegen“. */
+const DEFAULT_CREATE_TIER = 'hofladen_komplett';
+
+/**
+ * Tarif → Dashboard-Modul-Checkboxen (TENANT_MODULE_KEYS).
+ * Friendly-Namen aus dem Tarif-Prompt auf kanonische Keys gemappt.
+ */
+const TIER_UI_MODULE_PRESETS = Object.freeze({
+  mhd_retter: Object.freeze(['start', 'mhd', 'receiving', 'retterBox']),
+  hofladen_komplett: Object.freeze([
+    'start', 'team', 'orders', 'mhd', 'receiving', 'haccp', 'buero', 'retterBox',
+  ]),
+  metzgerei_pro: Object.freeze([
+    'start', 'team', 'orders', 'mhd', 'receiving', 'kitchen', 'averyLabels',
+    'haccp', 'knowledge', 'buero', 'chargenDoku', 'retterBox',
+  ]),
+});
 
 /** UI-Labels für Plattform-Tabelle und Read-Only-Badges in „Mein Betrieb“. */
 const MODULE_LABELS = {
@@ -2164,18 +2183,16 @@ function showDevDashboardPage() {
 }
 
 function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
-  const enabled = data.enabledModules && typeof data.enabledModules === 'object'
-    ? data.enabledModules
-    : {};
+  const enabled = normalizeUiModuleMap(
+    data.enabledModules && typeof data.enabledModules === 'object'
+      ? data.enabledModules
+      : {},
+  );
   const displayName = tenantLabelFromData(data, tenantId);
   const isActive = data.status !== 'inactive';
   const statusValue = isActive ? 'active' : 'inactive';
   const toggles = TENANT_MODULE_KEYS.map((key) => {
-    let checked = enabled[key] === true;
-    // Legacy: enabledModules.traceability → chargenDoku
-    if (key === 'chargenDoku' && !('chargenDoku' in enabled) && enabled.traceability === true) {
-      checked = true;
-    }
+    const checked = enabled[key] === true;
     const label = MODULE_LABELS[key] || key;
     return `
       <label class="dev-dashboard-toggle" title="${escapeHtml(label)}">
@@ -2190,6 +2207,8 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
     `;
   }).join('');
 
+  const tierButtons = renderTenantTierButtons(tenantId, enabled);
+
   if (compact) {
     return `
       <div class="dev-dashboard-tenant-compact" data-tenant-row="${tenantId}">
@@ -2197,6 +2216,7 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
           <strong>${displayName}</strong>
           <span class="dev-dashboard-tenant-sub">${tenantId}</span>
         </div>
+        ${tierButtons}
         <div class="dev-dashboard-toggles">${toggles}</div>
       </div>
     `;
@@ -2208,7 +2228,10 @@ function renderTenantRow(tenantId, data = {}, { compact = false } = {}) {
         <strong>${displayName}</strong>
         <span class="dev-dashboard-tenant-sub">${tenantId}</span>
       </td>
-      <td class="dev-dashboard-toggles">${toggles}</td>
+      <td class="dev-dashboard-toggles">
+        ${tierButtons}
+        ${toggles}
+      </td>
       <td>
         <label class="dev-dashboard-tenant-status" data-status="${statusValue}" title="Aktiv / Inaktiv">
           <input
@@ -2411,6 +2434,52 @@ function bindTenantToggleHandlers(db, statusEl) {
   });
 
   page.addEventListener('click', async (event) => {
+    const tierBtn = event.target.closest('[data-action="apply-tenant-tier"]');
+    if (tierBtn instanceof HTMLButtonElement) {
+      const tenantId = String(tierBtn.getAttribute('data-tenant-id') || '').trim();
+      const tierId = String(tierBtn.getAttribute('data-tier') || '').trim();
+      if (!tenantId || !tierId) return;
+      if (tierId === 'manual') {
+        window.showToast?.('Module einzeln anpassen — Tarif steht auf Manuell.', 'info');
+        return;
+      }
+      const row = document.querySelector(`[data-tenant-row="${tenantId}"]`);
+      const previousLabel = TIER_LABELS[tierId] || tierId;
+      tierBtn.disabled = true;
+      if (statusEl) statusEl.textContent = `Setze Tarif ${previousLabel} für ${tenantId}…`;
+      try {
+        const result = await applyTenantTierViaCallable(tenantId, tierId);
+        if (row && result?.enabledModules) {
+          TENANT_MODULE_KEYS.forEach((key) => {
+            const input = row.querySelector(`input[data-module-key="${key}"]`);
+            if (input instanceof HTMLInputElement) {
+              input.checked = result.enabledModules[key] === true;
+            }
+          });
+          row.querySelectorAll('[data-action="apply-tenant-tier"]').forEach((btn) => {
+            const active = btn.getAttribute('data-tier') === tierId;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+          });
+        }
+        if (tenantId === dashboardState.selectedTenantId && result?.enabledModules) {
+          dashboardState.tenantModules = { ...result.enabledModules };
+          renderOverviewCards(dashboardState);
+        }
+        recordAudit('modules', `Tarif ${previousLabel} gesetzt`, 'change');
+        if (statusEl) statusEl.textContent = `Tarif gespeichert: ${tenantId} · ${previousLabel}`;
+        window.showToast?.(`Tarif ${previousLabel} für ${tenantId} gesetzt.`, 'success');
+      } catch (error) {
+        console.error('[Dev-Dashboard] Tarif-Setzen fehlgeschlagen:', error);
+        const detail = formatCallableErrorMessage(error);
+        if (statusEl) statusEl.textContent = `Fehler: ${detail}`;
+        window.showToast?.(`Tarif speichern fehlgeschlagen: ${detail}`, 'error');
+      } finally {
+        tierBtn.disabled = false;
+      }
+      return;
+    }
+
     const btn = event.target.closest('[data-action="delete-tenant"]');
     if (!(btn instanceof HTMLButtonElement)) return;
 
@@ -2463,35 +2532,210 @@ function setTenantFormStatus(message = '', tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
+/**
+ * @param {string} tierId
+ * @returns {Record<string, boolean>}
+ */
+function buildTierUiModuleMap(tierId) {
+  const preset = TIER_UI_MODULE_PRESETS[tierId];
+  const enabled = new Set(Array.isArray(preset) ? preset : []);
+  /** @type {Record<string, boolean>} */
+  const map = {};
+  TENANT_MODULE_KEYS.forEach((key) => {
+    map[key] = enabled.has(key);
+  });
+  return map;
+}
+
+/**
+ * Liest die Create-Form-Checkboxen (Dashboard-Keys, inkl. false).
+ * @returns {Record<string, boolean>}
+ */
 function readCreateTenantEnabledModules() {
+  /** @type {Record<string, boolean>} */
   const raw = {};
   TENANT_MODULE_KEYS.forEach((key) => {
     const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
     raw[key] = input instanceof HTMLInputElement ? input.checked : false;
   });
-  return sanitizeEnabledModulesPayload(raw).enabledModules;
+  return raw;
+}
+
+/**
+ * Normalisiert Alias-Keys (mhdMonitor → mhd, …) auf TENANT_MODULE_KEYS.
+ * @param {Record<string, boolean>|null|undefined} enabled
+ * @returns {Record<string, boolean>}
+ */
+function normalizeUiModuleMap(enabled) {
+  const mods = enabled && typeof enabled === 'object' ? enabled : {};
+  return {
+    start: mods.start === true || mods.teamboard === true,
+    team: mods.team === true,
+    orders: mods.orders === true,
+    mhd: mods.mhd === true || mods.mhdMonitor === true,
+    receiving: mods.receiving === true || mods.wareneingang === true,
+    kitchen: mods.kitchen === true || mods.wurstkueche === true || mods.rezepte === true,
+    averyLabels: mods.averyLabels === true || mods.avery === true || mods.zerlegung === true,
+    haccp: mods.haccp === true,
+    knowledge: mods.knowledge === true,
+    buero: mods.buero === true || mods.batches === true,
+    chargenDoku: mods.chargenDoku === true || mods.cutting === true || mods.traceability === true,
+    retterBox: mods.retterBox === true,
+  };
+}
+
+/**
+ * @param {Record<string, boolean>|null|undefined} enabled
+ * @returns {'mhd_retter'|'hofladen_komplett'|'metzgerei_pro'|'manual'}
+ */
+function detectTierFromModuleMap(enabled) {
+  const mods = normalizeUiModuleMap(enabled);
+  const active = TENANT_MODULE_KEYS.filter((key) => mods[key] === true).sort().join('|');
+  const match = Object.keys(TIER_UI_MODULE_PRESETS).find((tierId) => {
+    const expected = TENANT_MODULE_KEYS
+      .filter((key) => TIER_UI_MODULE_PRESETS[tierId].includes(key))
+      .sort()
+      .join('|');
+    const unexpectedOn = TENANT_MODULE_KEYS.some(
+      (key) => mods[key] === true && !TIER_UI_MODULE_PRESETS[tierId].includes(key),
+    );
+    return !unexpectedOn && active === expected;
+  });
+  return match || 'manual';
+}
+
+function setCreateTierSelection(tierId, { applyModules = true } = {}) {
+  const select = document.getElementById('dev-dashboard-tenant-tier-select');
+  if (select) {
+    select.querySelectorAll('[data-tier]').forEach((btn) => {
+      const active = btn.getAttribute('data-tier') === tierId;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    select.dataset.selectedTier = tierId;
+  }
+  if (!applyModules || tierId === 'manual') return;
+  const map = buildTierUiModuleMap(tierId);
+  TENANT_MODULE_KEYS.forEach((key) => {
+    const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
+    if (input instanceof HTMLInputElement) input.checked = map[key] === true;
+  });
+}
+
+function getSelectedCreateTier() {
+  const select = document.getElementById('dev-dashboard-tenant-tier-select');
+  const fromDom = String(select?.dataset?.selectedTier || '').trim();
+  if (fromDom && (fromDom === 'manual' || TIER_UI_MODULE_PRESETS[fromDom])) return fromDom;
+  return detectTierFromModuleMap(readCreateTenantEnabledModules());
+}
+
+function syncCreateTierFromCheckboxes() {
+  setCreateTierSelection(detectTierFromModuleMap(readCreateTenantEnabledModules()), {
+    applyModules: false,
+  });
 }
 
 function resetTenantCreateForm() {
   const form = document.getElementById('dev-dashboard-tenant-form');
   if (form) form.reset();
-  TENANT_MODULE_KEYS.forEach((key) => {
-    const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
-    if (input instanceof HTMLInputElement) {
-      input.checked = key === 'chargenDoku';
-    }
-  });
   const idInput = document.getElementById('dev-dashboard-tenant-id');
   if (idInput) idInput.dataset.manual = '0';
+  setCreateTierSelection(DEFAULT_CREATE_TIER, { applyModules: true });
+}
+
+function currentAuthEmail() {
+  try {
+    const session = typeof window.getAuthContext === 'function' ? window.getAuthContext() : null;
+    const fromSession = String(session?.email || session?.user?.email || '').trim();
+    if (fromSession) return fromSession;
+  } catch (_) { /* noop */ }
+  try {
+    return String(firebase?.auth?.()?.currentUser?.email || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function canCreatePlatformTenant(user = null, authContext = null) {
+  try {
+    const session = authContext
+      || (typeof window.getAuthContext === 'function' ? window.getAuthContext() : null);
+    const authUser = user
+      || session?.user
+      || firebase?.auth?.()?.currentUser
+      || null;
+    return isPlatformSuperAdmin(authUser, session);
+  } catch (_) {
+    return false;
+  }
+}
+
+function formatTenantCreatePermissionMessage() {
+  const email = currentAuthEmail() || 'unbekannt';
+  return `Nur Super-Admins dürfen neue Mandanten anlegen. Eingeloggt als: ${email}`;
+}
+
+function renderTenantTierButtons(tenantId, enabledModules = {}) {
+  const detected = detectTierFromModuleMap(enabledModules);
+  const buttons = [
+    { id: 'mhd_retter', label: 'MHD-Retter (39 €)' },
+    { id: 'hofladen_komplett', label: 'Hofladen Komplett (79 €)' },
+    { id: 'metzgerei_pro', label: 'Metzgerei Pro (149 €)' },
+    { id: 'manual', label: 'Manuell' },
+  ].map(({ id, label }) => {
+    const active = id === detected;
+    return `
+      <button
+        type="button"
+        class="dev-dashboard-tier-btn${active ? ' is-active' : ''}"
+        data-action="apply-tenant-tier"
+        data-tenant-id="${escapeHtml(tenantId)}"
+        data-tier="${id}"
+        aria-pressed="${active ? 'true' : 'false'}"
+      >${escapeHtml(label)}</button>
+    `;
+  }).join('');
+  return `<div class="dev-dashboard-tenant-tier-row" data-tenant-tier-row="${escapeHtml(tenantId)}">${buttons}</div>`;
+}
+
+async function applyTenantTierViaCallable(tenantId, tierId) {
+  if (tierId === 'manual') return { skipped: true };
+  const callable = getSetTenantModulesCallable();
+  if (!callable) {
+    throw new Error('Cloud Function setTenantModules ist nicht erreichbar.');
+  }
+  const uiMap = buildTierUiModuleMap(tierId);
+  /** @type {Record<string, boolean>} */
+  const patch = {};
+  Object.entries(uiMap).forEach(([uiKey, enabled]) => {
+    const mapped = MODULE_KEY_TO_BACKEND[uiKey] || uiKey;
+    if (!VALID_BACKEND_MODULE_SET.has(mapped)) return;
+    patch[mapped] = enabled === true;
+  });
+  const sanitized = sanitizeEnabledModulesPayload(patch);
+  if (!Object.keys(sanitized.enabledModules).length) {
+    throw new Error('Tarif-Module wurden beim Sanitizing verworfen.');
+  }
+  const fieldPatch = buildEnabledModulesFieldPatch(sanitized.enabledModules);
+  await callable({
+    targetTenantId: tenantId,
+    enabledModules: sanitized.enabledModules,
+    modules: sanitized.modules,
+    ...fieldPatch,
+  });
+  return { skipped: false, enabledModules: uiMap };
 }
 
 function bindTenantCreateForm(db) {
   const form = document.getElementById('dev-dashboard-tenant-form');
   const nameInput = document.getElementById('dev-dashboard-tenant-name');
   const idInput = document.getElementById('dev-dashboard-tenant-id');
+  const tierSelect = document.getElementById('dev-dashboard-tenant-tier-select');
   if (!form || !nameInput || !idInput || form.dataset.bound === '1') return;
   form.dataset.bound = '1';
   idInput.dataset.manual = idInput.dataset.manual || '0';
+
+  setCreateTierSelection(DEFAULT_CREATE_TIER, { applyModules: true });
 
   nameInput.addEventListener('input', () => {
     if (idInput.dataset.manual === '1') return;
@@ -2500,6 +2744,26 @@ function bindTenantCreateForm(db) {
 
   idInput.addEventListener('input', () => {
     idInput.dataset.manual = '1';
+  });
+
+  if (tierSelect && tierSelect.dataset.bound !== '1') {
+    tierSelect.dataset.bound = '1';
+    tierSelect.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-tier]');
+      if (!btn || !tierSelect.contains(btn)) return;
+      const tierId = String(btn.getAttribute('data-tier') || '').trim();
+      if (!tierId) return;
+      setCreateTierSelection(tierId, { applyModules: tierId !== 'manual' });
+    });
+  }
+
+  TENANT_MODULE_KEYS.forEach((key) => {
+    const input = document.getElementById(`dev-dashboard-tenant-mod-${key}`);
+    if (!(input instanceof HTMLInputElement) || input.dataset.tierBound === '1') return;
+    input.dataset.tierBound = '1';
+    input.addEventListener('change', () => {
+      syncCreateTierFromCheckboxes();
+    });
   });
 
   form.addEventListener('submit', async (event) => {
@@ -2520,6 +2784,12 @@ function bindTenantCreateForm(db) {
       setTenantFormStatus('Firestore nicht verfügbar.', 'error');
       return;
     }
+    if (!canCreatePlatformTenant()) {
+      const message = formatTenantCreatePermissionMessage();
+      setTenantFormStatus(message, 'error');
+      window.showToast?.(message, 'error');
+      return;
+    }
 
     if (submitBtn) submitBtn.disabled = true;
     setTenantFormStatus('Lege Mandant an…');
@@ -2534,13 +2804,19 @@ function bindTenantCreateForm(db) {
       }
 
       const enabledModules = readCreateTenantEnabledModules();
+      const tier = getSelectedCreateTier();
+      const stamp = firebase.firestore.FieldValue.serverTimestamp();
+      // Nur Rules-Allowlist-Felder — kein Legacy-`modules` (sonst permission-denied).
       await ref.set({
+        id: tenantId,
+        name: displayName,
         displayName,
         status: 'active',
+        active: true,
+        tier: tier === 'manual' ? '' : tier,
         enabledModules,
-        modules: { ...enabledModules },
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: stamp,
+        updatedAt: stamp,
       });
 
       try {
@@ -2571,10 +2847,10 @@ function bindTenantCreateForm(db) {
     } catch (err) {
       console.error('[Dev-Dashboard] Mandanten-Anlage fehlgeschlagen:', err);
       const message = isPermissionDeniedError(err)
-        ? PERMISSION_DENIED_MESSAGE
+        ? formatTenantCreatePermissionMessage()
         : `Fehler: ${err?.message || 'Anlage fehlgeschlagen.'}`;
       setTenantFormStatus(message, 'error');
-      window.showToast?.('Mandant konnte nicht angelegt werden.', 'error');
+      window.showToast?.(message, 'error');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }
