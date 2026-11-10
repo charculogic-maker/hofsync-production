@@ -15161,6 +15161,93 @@ tr[data-employee-inactive="1"] {
   cursor: pointer;
 }
 
+/* Artikelstamm CSV-Import (Mein Betrieb → Stammdaten) */
+.csv-product-import-hint {
+  margin: 0;
+}
+
+.csv-product-import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 120px;
+  padding: 20px 16px;
+  border: 2px dashed var(--border-color, #cbd5e1);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--light-bg, #f8fafc) 80%, #fff);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.csv-product-import-dropzone:hover,
+.csv-product-import-dropzone:focus-visible,
+.csv-product-import-dropzone.is-dragover {
+  border-color: var(--primary-color, #2563eb);
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 8%, #fff);
+  outline: none;
+}
+
+.csv-product-import-dropzone-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-color, #0f172a);
+}
+
+.csv-product-import-dropzone-sub {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted, #64748b);
+}
+
+.csv-product-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.csv-product-import-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.csv-product-import-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 14%, #fff);
+  color: var(--primary-color, #2563eb);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.csv-product-import-file-name {
+  font-size: 0.88rem;
+  color: var(--text-muted, #64748b);
+  word-break: break-all;
+}
+
+.csv-product-import-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.csv-product-import-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--primary-color, #2563eb);
+  transition: width 0.2s ease;
+}
+
 .dev-dashboard-employee-status {
   margin-top: 12px;
   font-size: 14px;

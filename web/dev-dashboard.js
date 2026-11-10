@@ -71,6 +71,10 @@ import {
   requestRemoteAppReload,
 } from './remote-reload.js';
 import { persistProductMasterToFirestore } from './product-master.js';
+import {
+  importProductMasterRows,
+  parseProductMasterCsv,
+} from './csv-product-importer.js';
 import { sanitizeProductName } from './utils.js';
 import {
   refreshDevDashboardHaccpAdmin,
@@ -1782,6 +1786,224 @@ function bindRemoteReloadAdmin(dashboardStateRef = dashboardState) {
   });
 
   void refreshRemoteReloadStatus(dashboardStateRef);
+}
+
+/** @type {{ rows: Array<Record<string, unknown>>, fileName: string } | null} */
+let csvProductImportDraft = null;
+
+function setCsvProductImportStatus(message = '', tone = '') {
+  const statusEl = document.getElementById('csv-product-import-status');
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  if (tone) statusEl.dataset.tone = tone;
+  else delete statusEl.dataset.tone;
+}
+
+function resetCsvProductImportPreview() {
+  csvProductImportDraft = null;
+  const preview = document.getElementById('csv-product-import-preview');
+  const body = document.getElementById('csv-product-import-preview-body');
+  const progress = document.getElementById('csv-product-import-progress');
+  const bar = document.getElementById('csv-product-import-progress-bar');
+  const fileInput = document.getElementById('csv-product-import-file');
+  if (preview) preview.hidden = true;
+  if (body) body.innerHTML = '';
+  if (progress) {
+    progress.hidden = true;
+    progress.setAttribute('aria-valuenow', '0');
+  }
+  if (bar) bar.style.width = '0%';
+  if (fileInput) fileInput.value = '';
+  const confirmBtn = document.getElementById('csv-product-import-confirm');
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = '🚀 Jetzt Artikel in den Betrieb importieren';
+  }
+}
+
+function renderCsvProductImportPreview(rows = [], fileName = '') {
+  const preview = document.getElementById('csv-product-import-preview');
+  const body = document.getElementById('csv-product-import-preview-body');
+  const countEl = document.getElementById('csv-product-import-count');
+  const nameEl = document.getElementById('csv-product-import-file-name');
+  const confirmBtn = document.getElementById('csv-product-import-confirm');
+  if (!preview || !body) return;
+
+  const total = Array.isArray(rows) ? rows.length : 0;
+  if (countEl) countEl.textContent = `${total} Artikel erkannt`;
+  if (nameEl) nameEl.textContent = fileName || '';
+  if (confirmBtn) {
+    confirmBtn.textContent = total
+      ? `🚀 Jetzt ${total} Artikel in den Betrieb importieren`
+      : '🚀 Jetzt Artikel in den Betrieb importieren';
+    confirmBtn.disabled = total === 0;
+  }
+
+  body.innerHTML = rows.slice(0, 5).map((row) => `
+    <tr>
+      <td>${escapeHtml(row.ean || '')}</td>
+      <td>${escapeHtml(row.name || '')}</td>
+      <td>${escapeHtml(row.category || '')}</td>
+      <td>${escapeHtml(String(row.daysFresh ?? 7))}</td>
+      <td>${escapeHtml(row.supplier || '—')}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5">Keine gültigen Zeilen.</td></tr>';
+
+  preview.hidden = false;
+}
+
+async function handleCsvProductImportFile(file, dashboardStateRef = dashboardState) {
+  if (!file) return;
+  const canImport = Boolean(dashboardStateRef.isSuperAdmin || dashboardStateRef.selectedTenantId);
+  if (!canImport) {
+    setCsvProductImportStatus('Kein Betrieb ausgewählt.', 'error');
+    window.showToast?.('Bitte zuerst einen Betrieb wählen.', 'warning');
+    return;
+  }
+  // Dev-Dashboard ist bereits Admin-Gate; zusätzliche Absicherung.
+  if (!dashboardStateRef.isSuperAdmin && !dashboardStateRef.currentUserUid) {
+    setCsvProductImportStatus('Nur Betriebs-Admins dürfen importieren.', 'error');
+    window.showToast?.('Keine Berechtigung für den Artikelstamm-Import.', 'error');
+    return;
+  }
+
+  setCsvProductImportStatus('CSV wird gelesen…');
+  try {
+    const text = await file.text();
+    const parsed = parseProductMasterCsv(text);
+    if (!parsed.rows.length) {
+      resetCsvProductImportPreview();
+      setCsvProductImportStatus('Keine gültigen Artikelzeilen gefunden.', 'error');
+      window.showToast?.('CSV enthält keine importierbaren Artikel.', 'warning');
+      return;
+    }
+    csvProductImportDraft = { rows: parsed.rows, fileName: file.name || 'import.csv' };
+    renderCsvProductImportPreview(parsed.rows, csvProductImportDraft.fileName);
+    const skipHint = parsed.skipped
+      ? ` · ${parsed.skipped} Zeile(n) ohne Namen übersprungen`
+      : '';
+    setCsvProductImportStatus(
+      `${parsed.rows.length} Artikel erkannt (Trenner „${parsed.delimiter}“)${skipHint}.`,
+      'success',
+    );
+  } catch (err) {
+    console.error('[Dev-Dashboard] CSV-Parse fehlgeschlagen:', err);
+    resetCsvProductImportPreview();
+    setCsvProductImportStatus(String(err?.message || 'CSV konnte nicht gelesen werden.'), 'error');
+    window.showToast?.('CSV konnte nicht gelesen werden.', 'error');
+  }
+}
+
+function bindCsvProductImporter(dashboardStateRef = dashboardState) {
+  const dropzone = document.getElementById('csv-product-import-dropzone');
+  const fileInput = document.getElementById('csv-product-import-file');
+  const confirmBtn = document.getElementById('csv-product-import-confirm');
+  const cancelBtn = document.getElementById('csv-product-import-cancel');
+  if (!dropzone || !fileInput || dropzone.dataset.bound === '1') return;
+  dropzone.dataset.bound = '1';
+
+  const openPicker = () => fileInput.click();
+  dropzone.addEventListener('click', openPicker);
+  dropzone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openPicker();
+    }
+  });
+
+  ['dragenter', 'dragover'].forEach((type) => {
+    dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      dropzone.classList.add('is-dragover');
+    });
+  });
+  ['dragleave', 'drop'].forEach((type) => {
+    dropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      dropzone.classList.remove('is-dragover');
+    });
+  });
+  dropzone.addEventListener('drop', (event) => {
+    const file = event.dataTransfer?.files?.[0];
+    if (file) void handleCsvProductImportFile(file, dashboardStateRef);
+  });
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) void handleCsvProductImportFile(file, dashboardStateRef);
+  });
+
+  cancelBtn?.addEventListener('click', () => {
+    resetCsvProductImportPreview();
+    setCsvProductImportStatus('Import abgebrochen.');
+  });
+
+  confirmBtn?.addEventListener('click', () => {
+    const tenantId = String(dashboardStateRef.selectedTenantId || '').trim();
+    const db = dashboardStateRef.db;
+    const rows = csvProductImportDraft?.rows || [];
+    if (!tenantId || !db) {
+      setCsvProductImportStatus('Kein Betrieb ausgewählt.', 'error');
+      window.showToast?.('Bitte zuerst einen Betrieb wählen.', 'warning');
+      return;
+    }
+    if (!rows.length) {
+      setCsvProductImportStatus('Keine Vorschau geladen.', 'error');
+      return;
+    }
+    if (!dashboardStateRef.isSuperAdmin && !dashboardStateRef.currentUserUid) {
+      setCsvProductImportStatus('Keine Berechtigung.', 'error');
+      return;
+    }
+
+    const progress = document.getElementById('csv-product-import-progress');
+    const bar = document.getElementById('csv-product-import-progress-bar');
+    if (progress) progress.hidden = false;
+    if (bar) bar.style.width = '0%';
+    confirmBtn.disabled = true;
+    setCsvProductImportStatus('Import läuft…');
+
+    const editorLabel = String(
+      dashboardStateRef.actorEmail || 'Betriebs-Admin',
+    ).trim() || 'Betriebs-Admin';
+
+    void importProductMasterRows({
+      db,
+      tenantId,
+      rows,
+      editorLabel,
+      onProgress: (done, total) => {
+        const pct = total ? Math.round((done / total) * 100) : 0;
+        if (bar) bar.style.width = `${pct}%`;
+        if (progress) progress.setAttribute('aria-valuenow', String(pct));
+        setCsvProductImportStatus(`Importiere… ${done} / ${total}`);
+      },
+    })
+      .then((result) => {
+        recordAudit(
+          'settings',
+          `${result.imported} Artikel per CSV in product_master importiert`,
+          'change',
+        );
+        window.showToast?.(
+          `${result.imported} Artikel erfolgreich in product_master importiert.`,
+          'success',
+        );
+        setCsvProductImportStatus(
+          `${result.imported} Artikel importiert.`,
+          'success',
+        );
+        resetCsvProductImportPreview();
+      })
+      .catch((err) => {
+        console.error('[Dev-Dashboard] CSV-Import fehlgeschlagen:', err);
+        setCsvProductImportStatus(
+          String(err?.message || 'Import fehlgeschlagen.'),
+          'error',
+        );
+        window.showToast?.('Artikelstamm-Import fehlgeschlagen.', 'error');
+        confirmBtn.disabled = false;
+      });
+  });
 }
 
 function bindBetriebSubnav() {
@@ -4269,6 +4491,7 @@ export async function initDevDashboard(db, { currentUser, authContext } = {}) {
     bindSettingsForm(dashboardState);
     bindSmtpForm(dashboardState);
     bindRemoteReloadAdmin(dashboardState);
+    bindCsvProductImporter(dashboardState);
     syncDevDashboardHaccpAdmin({
       db,
       tenantId: dashboardState.selectedTenantId,
