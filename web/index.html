@@ -901,6 +901,81 @@
 
                     <section
                       class="dev-dashboard-panel"
+                      id="dev-dashboard-csv-product-import"
+                      aria-label="Artikelstamm-Import"
+                    >
+                      <h2 class="dev-dashboard-section-title">Artikelstamm-Import</h2>
+                      <p class="dev-dashboard-intro">
+                        Lieferanten- oder Kassen-CSV einlesen und in
+                        <code>product_master</code> dieses Betriebs schreiben.
+                        Nur Betriebs-Admins und Super-Admins.
+                      </p>
+                      <p class="dev-dashboard-intro csv-product-import-hint">
+                        Erkannte Spalten: EAN/Barcode, Artikelname, Kategorie, MHD-Tage
+                        (optional: ArtNr, Lieferant).
+                      </p>
+                      <div
+                        class="csv-product-import-dropzone"
+                        id="csv-product-import-dropzone"
+                        tabindex="0"
+                        role="button"
+                        aria-controls="csv-product-import-file"
+                        aria-label="CSV-Datei hier ablegen oder auswählen"
+                      >
+                        <input
+                          type="file"
+                          id="csv-product-import-file"
+                          class="csv-product-import-file"
+                          accept=".csv,text/csv,text/plain"
+                          hidden
+                        >
+                        <p class="csv-product-import-dropzone-title">CSV-Datei hier ablegen oder auswählen</p>
+                        <p class="csv-product-import-dropzone-sub">Semikolon- oder Komma-getrennt · UTF-8</p>
+                      </div>
+                      <p class="dev-dashboard-employee-status" id="csv-product-import-status" aria-live="polite"></p>
+                      <div id="csv-product-import-preview" class="csv-product-import-preview" hidden>
+                        <div class="csv-product-import-preview-head">
+                          <span class="csv-product-import-badge" id="csv-product-import-count">0 Artikel erkannt</span>
+                          <span class="csv-product-import-file-name" id="csv-product-import-file-name"></span>
+                        </div>
+                        <div class="dev-dashboard-table-wrap">
+                          <table class="dev-dashboard-table" aria-label="CSV-Vorschau">
+                            <thead>
+                              <tr>
+                                <th scope="col">EAN</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Kategorie</th>
+                                <th scope="col">MHD-Tage</th>
+                                <th scope="col">Lieferant</th>
+                              </tr>
+                            </thead>
+                            <tbody id="csv-product-import-preview-body"></tbody>
+                          </table>
+                        </div>
+                        <div
+                          class="csv-product-import-progress"
+                          id="csv-product-import-progress"
+                          hidden
+                          role="progressbar"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow="0"
+                        >
+                          <div class="csv-product-import-progress-bar" id="csv-product-import-progress-bar"></div>
+                        </div>
+                        <div class="dev-dashboard-haccp-form-actions">
+                          <button type="button" class="dev-dashboard-submit-btn" id="csv-product-import-confirm">
+                            🚀 Jetzt Artikel in den Betrieb importieren
+                          </button>
+                          <button type="button" class="dev-dashboard-secondary-btn" id="csv-product-import-cancel">
+                            Abbrechen
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section
+                      class="dev-dashboard-panel"
                       id="dev-dashboard-remote-reload"
                       aria-label="Laden-iPhone neu laden"
                     >

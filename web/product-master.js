@@ -44,7 +44,8 @@ function resolveDaysFresh(product = {}) {
 }
 
 export function writeLocalProductMasterEntry(product = {}) {
-  const barcode = cleanProductEan(product.barcode || product.ean || product.id);
+  const rawId = String(product.barcode || product.ean || product.id || '').trim();
+  const barcode = cleanProductEan(rawId) || rawId;
   const name = sanitizeProductName(product.name || product.articleName || product.produkt || '');
   if (!barcode || !name) return null;
   const productMaster = readLocalProductMaster();
@@ -78,7 +79,8 @@ export function writeLocalProductMasterEntry(product = {}) {
 }
 
 export function buildProductMasterDoc(tenantId, product = {}, editorLabel = '') {
-  const ean = cleanProductEan(product.ean || product.barcode || product.id);
+  const rawId = String(product.ean || product.barcode || product.id || '').trim();
+  const ean = cleanProductEan(rawId) || rawId;
   const articleName = sanitizeProductName(product.articleName || product.name || product.produkt || '');
   if (!ean || !articleName) return null;
   const category = resolveCategory(product);
@@ -93,6 +95,7 @@ export function buildProductMasterDoc(tenantId, product = {}, editorLabel = '') 
     category,
     kategorie: category,
     daysFresh: resolveDaysFresh(product),
+    supplier: sanitizeProductName(product.supplier || product.lieferant || ''),
     active: product.active !== false,
     createdAt: product.createdAt || nowIso,
     updatedAt: nowIso,

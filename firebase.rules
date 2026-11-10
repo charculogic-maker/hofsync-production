@@ -241,12 +241,14 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.articleName)
         && request.resource.data.keys().hasOnly([
           'tenantId', 'id', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
-          'daysFresh', 'active', 'createdAt', 'updatedAt', 'updatedBy'
+          'daysFresh', 'supplier', 'active', 'createdAt', 'updatedAt', 'updatedBy'
         ])
         && (!('daysFresh' in request.resource.data)
             || isIntGteZero(request.resource.data.daysFresh))
         && (!('active' in request.resource.data)
-            || request.resource.data.active is bool);
+            || request.resource.data.active is bool)
+        && (!('supplier' in request.resource.data)
+            || request.resource.data.supplier is string);
       allow delete: if isAdmin(tenantId);
     }
 
