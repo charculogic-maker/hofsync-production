@@ -191,8 +191,19 @@ const TAB_TO_CATALOG_KEY = Object.freeze({
   innereien: 'innereien',
 });
 
+function resolveAveryBetriebDefault() {
+  if (typeof window.getTenantDisplayName === 'function') {
+    const name = String(window.getTenantDisplayName() || '').trim();
+    if (name) return name;
+  }
+  const fromBranding = String(window.BRANDING?.betriebsName || '').trim();
+  if (fromBranding) return fromBranding;
+  return 'Mein Betrieb';
+}
+
 const DEFAULT_HEADER = Object.freeze({
-  betrieb: 'StevesHof Hofladen',
+  /** Wird zur Laufzeit durch getTenantDisplayName() ersetzt — kein StevesHof-Hardcode. */
+  betrieb: '',
   oeko: 'DE-ÖKO-006',
   schlachthof: 'Bio-Schlachthof Stautenhof Willich',
   ohrmarke: '',
@@ -1154,8 +1165,9 @@ function ensureHeaderDefaults() {
   if (!state.header.brand || state.header.brand === 'SH') {
     state.header.brand = brandFromName || 'SH';
   }
-  if (window.BRANDING?.betriebsName && state.header.betrieb === DEFAULT_HEADER.betrieb) {
-    state.header.betrieb = window.BRANDING.betriebsName;
+  const betriebDefault = resolveAveryBetriebDefault();
+  if (!String(state.header.betrieb || '').trim() || state.header.betrieb === DEFAULT_HEADER.betrieb) {
+    state.header.betrieb = betriebDefault;
   }
 }
 

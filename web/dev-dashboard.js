@@ -1583,8 +1583,16 @@ async function persistTenantBetrieb(db, tenantId, displayName, logoUrl, smtp = {
 
 function applyBrandingFromSettingsDraft(tenantId, draft) {
   if (!window.BRANDING || typeof window.BRANDING !== 'object') return;
-  if (draft.displayName) window.BRANDING.betriebsName = draft.displayName;
+  if (draft.displayName) {
+    window.BRANDING.betriebsName = draft.displayName;
+    if (typeof window.persistBrandTitle === 'function') {
+      window.persistBrandTitle(draft.displayName);
+    }
+  }
   if (draft.logoUrl) window.BRANDING.logoUrl = draft.logoUrl;
+  if (typeof window.syncCurrentTenantConfig === 'function') {
+    window.syncCurrentTenantConfig(tenantId, draft.displayName || window.BRANDING.betriebsName);
+  }
   if (typeof window.applyBranding === 'function') {
     window.applyBranding();
   }
@@ -3801,6 +3809,23 @@ function bindTenantSelector(dashboardStateRef, tenants) {
     if (dashboardStateRef.selectedTenantId) {
       setGlobalTenantId(dashboardStateRef.selectedTenantId);
       setTeamConfigTenantId(dashboardStateRef.selectedTenantId);
+    }
+    // Kopfzeile + Branding sofort auf den gewählten Mandanten umstellen.
+    if (typeof window.applyResolvedBranding === 'function') {
+      window.applyResolvedBranding(dashboardStateRef.selectedTenantId);
+    }
+    applyBrandingFromSettingsDraft(dashboardStateRef.selectedTenantId, {
+      displayName: dashboardStateRef.tenantDisplayName,
+      logoUrl: String(selected?.data?.logoUrl || '').trim(),
+    });
+    if (typeof window.syncCurrentTenantConfig === 'function') {
+      window.syncCurrentTenantConfig(
+        dashboardStateRef.selectedTenantId,
+        dashboardStateRef.tenantDisplayName,
+      );
+    }
+    if (typeof window.persistBrandTitle === 'function' && dashboardStateRef.tenantDisplayName) {
+      window.persistBrandTitle(dashboardStateRef.tenantDisplayName);
     }
     void refreshEmployeeTable(dashboardStateRef);
     void refreshRemoteReloadStatus(dashboardStateRef);
