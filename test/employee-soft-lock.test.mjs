@@ -115,6 +115,16 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
     expect(ordersJs).to.match(/employeeName:\s*employee/);
   });
 
+  it('accepts Soft-Lock/header employee for Wareneingang scans even when PIN auth is default', () => {
+    // Regression: test_auto_seed zeigte „LENA“ im Header, Scan blockierte mit „Profil fehlt“.
+    expect(mhdJs).to.match(/async function resolveInventoryActorForScan/);
+    expect(mhdJs).to.match(/window\.readActiveEmployee/);
+    expect(mhdJs).to.match(/isAnonymousTeamEmployeeName/);
+    expect(mhdJs).to.match(/processDeliveryItemBarcode[\s\S]*?ensureReceivingActorOrWarn/);
+    expect(appJs).to.match(/window\.isTeamSessionName\s*=\s*isTeamSessionName/);
+    expect(appJs).to.match(/window\.resolveLoggedInAuthDisplayName\s*=\s*resolveLoggedInAuthDisplayName/);
+  });
+
   it('styles the centered soft-lock overlay with scrollable list', () => {
     expect(styleCss).to.match(/\.employee-picker-overlay/);
     expect(styleCss).to.match(/\.employee-picker-overlay\.is-open/);
@@ -144,7 +154,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for header-declutter', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261110-we-multitenant-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261110-we-profile-actor-v1'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {
