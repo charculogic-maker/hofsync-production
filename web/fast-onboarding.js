@@ -1,11 +1,13 @@
 /**
  * Fast-Onboarding: Test-Mandant anlegen + Einladungs-Link (provisionDemoTenant).
- * Sichtbar für Büro-Admins (isOfficeUser) in #page-batches und im Dev-Dashboard.
+ * Nur Plattform-Super-Admin im Dev-Dashboard („Plattform & Mandanten“).
+ * Niemals in der Laden-/Büro-PWA für Betriebs-Admins.
  */
 import { FUNCTIONS_REGION, resolveFunctionsBaseUrl } from './firebase-functions.js';
 import { getFirebaseApp } from './firebase-init.js';
 import { isAppCheckInitialized, isRecaptchaAppCheckError, waitForAppCheckReady } from './app-check.js';
-import { getAuthContext, isOfficeUser } from './auth.js';
+import { getAuthContext, getFirebaseAuthUser } from './auth.js';
+import { isPlatformSuperAdmin } from './tenant-admin-auth.js';
 
 const MODULE_DEFS = [
   { key: 'mhdMonitor', label: 'MHD-Monitor' },
@@ -380,10 +382,15 @@ function bindForm(root) {
 }
 
 export function syncFastOnboardingVisibility() {
-  const show = isOfficeUser(getAuthContext());
+  const session = getAuthContext();
+  const user = getFirebaseAuthUser() || session?.user || null;
+  const show = isPlatformSuperAdmin(user, session);
   document.querySelectorAll('[data-fast-onboarding-card]').forEach((card) => {
-    card.hidden = !show;
-    if (show) bindForm(card);
+    // Defense-in-depth: never reveal outside the Super-Admin platform panel.
+    const inPlatformPanel = Boolean(card.closest('#dev-dashboard-view-platform'));
+    const visible = show && inPlatformPanel;
+    card.hidden = !visible;
+    if (visible) bindForm(card);
   });
 }
 
