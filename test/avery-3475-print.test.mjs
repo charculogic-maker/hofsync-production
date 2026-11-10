@@ -10,10 +10,14 @@ import {
   AVERY_LEGACY_CUT_IDS,
   AVERY_TRIMMINGS,
   CUSTOM_AGING_OPTIONS,
+  BEEF_CATALOG,
   GALLOWAY_CATALOG,
   addDaysIso,
   buildAveryLot,
   buildLabelHtml,
+  formatCutDisplayName,
+  getTenantBeefBreed,
+  resolveBeefSpeciesLabel,
   expandQueueToLabels,
   formatAgingZusatz,
   formatDateDe,
@@ -43,20 +47,61 @@ import {
 describe('Avery 3475 labels module', () => {
   it('exposes 24 labels and five PLU practice catalog groups', () => {
     expect(AVERY_LABELS_PER_SHEET).to.equal(24);
-    expect(Object.keys(GALLOWAY_CATALOG).sort()).to.deep.equal([
+    expect(BEEF_CATALOG).to.equal(GALLOWAY_CATALOG);
+    expect(Object.keys(BEEF_CATALOG).sort()).to.deep.equal([
       'innereien',
       'keule',
       'lappen',
       'ruecken',
       'schultern',
     ]);
-    expect(GALLOWAY_CATALOG.schultern.some((c) => /Brust/.test(c.name))).to.equal(true);
-    expect(GALLOWAY_CATALOG.schultern.every((c) => c.artNr)).to.equal(true);
-    expect(GALLOWAY_CATALOG.ruecken.some((c) => /Nacken/.test(c.name))).to.equal(false);
-    expect(GALLOWAY_CATALOG.lappen.some((c) => /Brust/.test(c.name))).to.equal(false);
-    expect(GALLOWAY_CATALOG.ruecken.some((c) => c.artNr === '514')).to.equal(true);
+    expect(BEEF_CATALOG.schultern.some((c) => /Brust/.test(c.name))).to.equal(true);
+    expect(BEEF_CATALOG.schultern.every((c) => c.artNr)).to.equal(true);
+    expect(BEEF_CATALOG.ruecken.some((c) => /Nacken/.test(c.name))).to.equal(false);
+    expect(BEEF_CATALOG.lappen.some((c) => /Brust/.test(c.name))).to.equal(false);
+    expect(BEEF_CATALOG.ruecken.some((c) => c.artNr === '514')).to.equal(true);
+    expect(BEEF_CATALOG.ruecken.every((c) => !/Galloway/i.test(c.name))).to.equal(true);
     expect(AVERY_CUT_CATALOG.length).to.be.above(40);
     expect(new Set(AVERY_CUT_CATALOG.map((c) => c.artNr)).size).to.equal(AVERY_CUT_CATALOG.length);
+  });
+
+  it('keeps label hero on cut name and strips breed prefixes', () => {
+    expect(formatLabelTitle('Rumpsteak')).to.equal('Rumpsteak');
+    expect(formatLabelTitle('Galloway Rumpsteak')).to.equal('Rumpsteak');
+    expect(formatLabelTitle('Rind · Roulade')).to.equal('Roulade');
+    const html = buildLabelHtml(
+      { name: 'Galloway Rumpsteak', artNr: '502', days: 28 },
+      { oeko: 'DE-ÖKO-006', printBetrieb: false, printPlu: true },
+      'LOT-1',
+    );
+    expect(html).to.include('Rumpsteak');
+    expect(html).to.not.match(/>\s*Galloway\s*</i);
+    expect(html).to.not.include('GALLOWAY');
+  });
+
+  it('uses optional beefBreed only for display helpers', () => {
+    const prev = globalThis.window;
+    globalThis.window = {
+      currentTenantConfig: { beefBreed: 'Galloway' },
+      BRANDING: { beefBreed: 'Galloway' },
+    };
+    try {
+      expect(getTenantBeefBreed()).to.equal('Galloway');
+      expect(resolveBeefSpeciesLabel()).to.equal('Galloway');
+      expect(formatCutDisplayName('Rumpsteak')).to.equal('Galloway · Rumpsteak');
+    } finally {
+      if (prev === undefined) delete globalThis.window;
+      else globalThis.window = prev;
+    }
+    globalThis.window = { currentTenantConfig: {}, BRANDING: {} };
+    try {
+      expect(getTenantBeefBreed()).to.equal('');
+      expect(resolveBeefSpeciesLabel()).to.equal('Rind');
+      expect(formatCutDisplayName('Rumpsteak')).to.equal('Rumpsteak');
+    } finally {
+      if (prev === undefined) delete globalThis.window;
+      else globalThis.window = prev;
+    }
   });
 
   it('maps trimmings to farm PLU numbers from Zerlege-HTML', () => {
