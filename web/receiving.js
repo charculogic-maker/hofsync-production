@@ -63,19 +63,66 @@ export const METZ_RECEIVING_CATEGORIES = [
   { value: 'Gewürze & Hilfsstoffe', label: 'Gewürze & Hilfsstoffe' },
 ];
 
-/** Standard-Lieferanten Laden (Fallback, wenn Firestore noch leer). */
-export const LADEN_DEFAULT_SUPPLIERS = Object.freeze([
+/** StevesHof Soft-Launch — nur für StevesHof_Hauptbetrieb. */
+export const STEVESHOF_LADEN_SUPPLIERS = Object.freeze([
   'Weiling',
   'Rapunzel',
   'Bartke',
+  'Sonstiger Lieferant…',
 ]);
 
-/** Standard-Lieferanten Metzgerei (Fallback, wenn Firestore noch leer). */
-export const METZ_DEFAULT_SUPPLIERS = Object.freeze([
+export const STEVESHOF_METZ_SUPPLIERS = Object.freeze([
   'Stautenhof',
   'Naturverbund',
   'Eigene Produktion',
+  'Sonstiger Lieferant…',
 ]);
+
+/**
+ * Neutrale Defaults für Neukunden / Showcase (ohne StevesHof-Hardcode).
+ * „Sonstiger Lieferant…“ ist UI-Aktion, nicht Listen-Eintrag — daher ohne Ellipsis-Duplikat
+ * in den Arrays; die Select-UI hängt die Aktion separat an.
+ */
+export const NEUTRAL_LADEN_SUPPLIERS = Object.freeze([
+  'Regionaler Großhandel',
+  'Direktlieferant Obst/Gemüse',
+  'Molkerei / Frische',
+]);
+
+export const NEUTRAL_METZ_SUPPLIERS = Object.freeze([
+  'Schlachthof / Zerlegebetrieb',
+  'Eigene Schlachtung',
+  'Gewürze & Hilfsstoffe',
+]);
+
+/** @deprecated Alias — neutrale Defaults (nicht StevesHof). */
+export const LADEN_DEFAULT_SUPPLIERS = NEUTRAL_LADEN_SUPPLIERS;
+/** @deprecated Alias — neutrale Defaults (nicht StevesHof). */
+export const METZ_DEFAULT_SUPPLIERS = NEUTRAL_METZ_SUPPLIERS;
+
+export function isStevesHofTenantId(tenantId = '') {
+  const key = String(tenantId || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return key === 'steveshof_hauptbetrieb' || key === 'steveshof';
+}
+
+export function resolveSupplierTenantId(explicitTenantId = '') {
+  const explicit = String(explicitTenantId || '').trim();
+  if (explicit) return explicit;
+  try {
+    if (typeof window !== 'undefined') {
+      const fromConfig = String(window.currentTenantConfig?.tenantId || '').trim();
+      if (fromConfig) return fromConfig;
+      const fromGlobal = String(window.getGlobalTenantId?.() || '').trim();
+      if (fromGlobal) return fromGlobal;
+      const cached = String(localStorage.getItem('charculogic_cached_tenant_id') || '').trim();
+      if (cached) return cached;
+    }
+  } catch (_) { /* private mode */ }
+  return '';
+}
 
 /** localStorage-Schlüssel für letzten Wareneingangs-Bereich. */
 export const LAST_DELIVERY_AREA_STORAGE_KEY = 'charculogic.lastDeliveryArea';
@@ -112,10 +159,45 @@ export function writeLastDeliveryArea(area, storage = globalThis.localStorage) {
   return normalized;
 }
 
-export function defaultSuppliersForArea(area = 'laden') {
-  return normalizeDeliveryArea(area) === 'metzgerei'
-    ? [...METZ_DEFAULT_SUPPLIERS]
-    : [...LADEN_DEFAULT_SUPPLIERS];
+/**
+ * Lieferanten-Fallback ohne Firestore-Dokument.
+ * StevesHof behält Weiling/Stautenhof; alle anderen → neutrale Listen.
+ * @param {'laden'|'metzgerei'|string} area
+ * @param {string} [tenantId]
+ */
+export function defaultSuppliersForArea(area = 'laden', tenantId = '') {
+  const stevesHof = isStevesHofTenantId(resolveSupplierTenantId(tenantId));
+  const metz = normalizeDeliveryArea(area) === 'metzgerei';
+  if (stevesHof) {
+    return metz
+      ? STEVESHOF_METZ_SUPPLIERS.filter((name) => !/^sonstig/i.test(name))
+      : STEVESHOF_LADEN_SUPPLIERS.filter((name) => !/^sonstig/i.test(name));
+  }
+  return metz ? [...NEUTRAL_METZ_SUPPLIERS] : [...NEUTRAL_LADEN_SUPPLIERS];
+}
+
+const OTHER_SUPPLIER_SEED = 'Sonstiger Lieferant…';
+
+function withOtherSupplierOption(list = []) {
+  const names = Array.isArray(list) ? list.map((n) => String(n || '').trim()).filter(Boolean) : [];
+  if (!names.some((n) => /^sonstig/i.test(n))) names.push(OTHER_SUPPLIER_SEED);
+  return names;
+}
+
+/** Payload für settings/suppliers beim Provisionieren neuer Mandanten. */
+export function buildDefaultSupplierSettings(tenantId, meta = {}) {
+  const id = String(tenantId || '').trim();
+  const laden = withOtherSupplierOption(defaultSuppliersForArea('laden', id));
+  const metzgerei = withOtherSupplierOption(defaultSuppliersForArea('metzgerei', id));
+  return {
+    tenantId: id,
+    laden,
+    metzgerei,
+    names: [...laden, ...metzgerei],
+    ...(meta.updatedBy !== undefined ? { updatedBy: meta.updatedBy } : {}),
+    ...(meta.updatedAt !== undefined ? { updatedAt: meta.updatedAt } : {}),
+    ...(meta.createdAt !== undefined ? { createdAt: meta.createdAt } : {}),
+  };
 }
 
 export const BIO_SCHWEIN_DELIVERY_TYPES = Object.freeze([
