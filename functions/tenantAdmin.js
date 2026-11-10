@@ -15,6 +15,7 @@ const {
 } = require('./billingTiers');
 const {
   buildStandardHaccpDeviceDocs,
+  buildMeisterStarterRecipeDocs,
   buildStandardPrinterSettings,
 } = require('./tenantPresets');
 
@@ -618,6 +619,23 @@ async function seedNewTenant(tenantRef, {
       createdAt: now,
     }),
   );
+  // Meister-Starterrezepte, wenn Küche/Rezepte-Modul im Tarif aktiv ist.
+  const kitchenEnabled = enabledModules?.kitchen === true
+    || enabledModules?.wurstkueche === true
+    || enabledModules?.kueche === true;
+  if (kitchenEnabled) {
+    buildMeisterStarterRecipeDocs(tenantId, {
+      createdAt: now,
+      updatedAt: now,
+      seedTag: 'meister-starter-recipes',
+      seedVersion: 1,
+    }).forEach(({ id: docId, data }) => {
+      batch.set(tenantRef.collection('rezepte').doc(docId), {
+        ...data,
+        updatedBy: actorUid,
+      });
+    });
+  }
   batch.set(getAdminDb().doc(`users/${adminUid}`), {
     email: adminEmail,
     displayName: companyName,

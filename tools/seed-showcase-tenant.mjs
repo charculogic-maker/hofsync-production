@@ -9,10 +9,14 @@
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import admin from 'firebase-admin';
+import {
+  MEISTER_STARTER_RECIPES,
+  buildMeisterStarterRecipeDocs,
+} from '../web/tenant-presets.js';
 
 const TENANT_ID = 'test_auto_seed';
 const DISPLAY_NAME = 'Fleischerei & Hofladen Musterbetrieb';
-const SEED_VERSION = 1;
+const SEED_VERSION = 2;
 const SEED_TAG = 'seed-showcase-tenant';
 
 const ENABLED_MODULES = Object.freeze({
@@ -193,62 +197,17 @@ function buildMhdItems(tenantId) {
   });
 }
 
-function buildShowcaseRecipe(tenantId) {
-  const chargeKg = 30;
-  const materials = [
-    { name: 'S II Magerfleisch', kg: 15, typ: 'base' },
-    { name: 'S IV Speck', kg: 7.5, typ: 'base' },
-    { name: 'Eisschüttung', kg: 7.5, typ: 'spice' },
-  ];
-  const ingredients = materials.map((row) => ({
-    name: row.name,
-    kg: row.kg,
-    pct: Number(((row.kg / chargeKg) * 100).toFixed(2)),
-    typ: row.typ,
-    allergen: false,
-    hinweis: '',
-  }));
+/** 7 DLS-/Meister-Starterrezepte für den Showcase-Mandanten. */
+function buildShowcaseRecipes(tenantId) {
+  return buildMeisterStarterRecipeDocs(tenantId, {
+    seedTag: SEED_TAG,
+    seedVersion: SEED_VERSION,
+  });
+}
 
-  return {
-    id: 'feine-schinkenwurst-dls',
-    data: {
-      id: 'feine-schinkenwurst-dls',
-      firestoreId: 'feine-schinkenwurst-dls',
-      name: 'Feine Schinkenwurst nach DLS (Spitzenqualität)',
-      kat: 'Brühwurst',
-      produktgattung: 'Schinkenwurst / Aufschnittwurst',
-      leitsatzNr: '2.222',
-      leitsatz: '2.222 (Feine Schinkenwurst)',
-      basis_g: '30.000,00',
-      standardChargeKg: chargeKg,
-      chargeKg,
-      chargePresetsKg: [10, 20, 30],
-      ingredients,
-      material: materials,
-      kpis: {
-        beffe: 12.8,
-        beffeIst: 12.8,
-        beffeSoll: 11.0,
-        beffeLabel: '≥ 11,0 % BEFFE (Ist 12,8 %)',
-        kutterEndTempMax: 12.0,
-        coreTempTarget: 72,
-        coreTempLabel: 'Kerntemperatur 72 °C',
-      },
-      kutterEndTempMax: 12.0,
-      kernTempTarget: 72,
-      tipp: 'Showcase-Rezept: Kutterendtemperatur max. 12,0 °C, Garprozess auf Kerntemperatur 72 °C.',
-      hinweis: 'BEFFE-Vorgabe ≥ 11,0 % · Ist 12,8 % · Charge 30 kg.',
-      anweisung_A: 'S II und S IV kalt vorbereiten, Eisschüttung bereitstellen.',
-      anweisung_B: 'Magerfleisch mit Salz und Schüttung fein kuttern; Speck kalt einarbeiten. Kutterendtemperatur max. 12,0 °C.',
-      anweisung_C: 'Brät blasenfrei füllen und portionieren.',
-      anweisung_D: 'Garprozess bis Kerntemperatur 72 °C, danach zügig rückkühlen.',
-      auditStatus: 'verified',
-      tenantId,
-      seedVersion: SEED_VERSION,
-      seedTag: SEED_TAG,
-      source: SEED_TAG,
-    },
-  };
+/** @deprecated Alias — liefert das erste Starterrezept (Schinkenwurst). */
+function buildShowcaseRecipe(tenantId) {
+  return buildShowcaseRecipes(tenantId)[0];
 }
 
 function buildHaccpDevices(tenantId) {
@@ -476,14 +435,18 @@ async function main() {
   const db = admin.firestore();
 
   const mhdDocs = buildMhdItems(args.tenant);
-  const recipe = buildShowcaseRecipe(args.tenant);
+  const recipes = buildShowcaseRecipes(args.tenant);
   const devices = buildHaccpDevices(args.tenant);
   const logs = buildHaccpLogs(args.tenant);
   const wareneingang = buildWareneingang(args.tenant);
 
   await upsertTenantRoot(db, args.tenant, args);
   await upsertDocs(db, `tenants/${args.tenant}/mhd_liste`, mhdDocs, args);
-  await upsertDocs(db, `tenants/${args.tenant}/rezepte`, [recipe], args);
+  // Altes Einzel-Rezept aus v1 entfernen (ersetzt durch 7er-Starterpack).
+  if (!args.dryRun) {
+    await db.doc(`tenants/${args.tenant}/rezepte/feine-schinkenwurst-dls`).delete().catch(() => null);
+  }
+  await upsertDocs(db, `tenants/${args.tenant}/rezepte`, recipes, args);
   await upsertDocs(db, `tenants/${args.tenant}/haccp_geraete`, devices, args);
   await upsertDocs(db, `tenants/${args.tenant}/haccp_logs`, logs, args);
   await upsertDocs(db, `tenants/${args.tenant}/wareneingang_lieferungen`, [wareneingang], args);
@@ -518,8 +481,10 @@ export {
   TENANT_ID,
   DISPLAY_NAME,
   ENABLED_MODULES,
+  MEISTER_STARTER_RECIPES,
   buildMhdItems,
   buildShowcaseRecipe,
+  buildShowcaseRecipes,
   buildHaccpLogs,
   buildWareneingang,
   slugId,

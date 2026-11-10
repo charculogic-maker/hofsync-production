@@ -3,10 +3,12 @@ import { expect } from 'chai';
 import {
   DISPLAY_NAME,
   ENABLED_MODULES,
+  MEISTER_STARTER_RECIPES,
   TENANT_ID,
   buildHaccpLogs,
   buildMhdItems,
   buildShowcaseRecipe,
+  buildShowcaseRecipes,
   buildWareneingang,
 } from '../tools/seed-showcase-tenant.mjs';
 
@@ -33,19 +35,34 @@ describe('seed-showcase-tenant builders', () => {
     expect(rows[1].data.rabattiert).to.equal(true);
   });
 
-  it('builds the DLS Schinkenwurst recipe at 30 kg', () => {
-    const recipe = buildShowcaseRecipe(TENANT_ID).data;
-    expect(recipe.name).to.include('Schinkenwurst');
-    expect(recipe.chargeKg).to.equal(30);
-    expect(recipe.material).to.deep.equal([
-      { name: 'S II Magerfleisch', kg: 15, typ: 'base' },
-      { name: 'S IV Speck', kg: 7.5, typ: 'base' },
-      { name: 'Eisschüttung', kg: 7.5, typ: 'spice' },
+  it('builds seven Meister starter recipes with neutral cuts', () => {
+    expect(MEISTER_STARTER_RECIPES).to.have.length(7);
+    const recipes = buildShowcaseRecipes(TENANT_ID);
+    expect(recipes).to.have.length(7);
+    expect(recipes.map((row) => row.id)).to.deep.equal([
+      'rezept_feine_schinkenwurst',
+      'rezept_rostbratwurst_grob',
+      'rezept_muenchner_weisswurst',
+      'rezept_bierwurst_dls',
+      'rezept_leberwurst_delikatess',
+      'rezept_rotwurst_thueringer',
+      'rezept_rinder_hackfleisch',
     ]);
-    expect(recipe.kpis.beffeIst).to.equal(12.8);
-    expect(recipe.kpis.beffeSoll).to.equal(11.0);
-    expect(recipe.kpis.kutterEndTempMax).to.equal(12.0);
-    expect(recipe.kpis.coreTempTarget).to.equal(72);
+    const schinken = recipes[0].data;
+    expect(schinken.name).to.include('Schinkenwurst');
+    expect(schinken.chargeKg).to.equal(30);
+    expect(schinken.meat).to.deep.equal([
+      { cut: 'S II', kg: 15 },
+      { cut: 'S IV', kg: 7.5 },
+    ]);
+    expect(schinken.waterIceKg).to.equal(7.5);
+    expect(schinken.kpis.beffeIst).to.equal(12.8);
+    expect(schinken.kpis.beffeSoll).to.equal(11.0);
+    expect(schinken.kpis.cutterEndTempMax).to.equal(12.0);
+    expect(schinken.kpis.coreTempTarget).to.equal(72.0);
+    expect(buildShowcaseRecipe(TENANT_ID).id).to.equal('rezept_feine_schinkenwurst');
+    const flat = JSON.stringify(recipes);
+    expect(flat).to.not.match(/Galloway/i);
   });
 
   it('builds three HACCP temperature logs by Paddy', () => {

@@ -3,9 +3,11 @@
  */
 import { expect } from 'chai';
 import {
+  MEISTER_STARTER_RECIPES,
   STANDARD_HACCP_DEVICES,
   STANDARD_PRINTER_SETTINGS,
   presetDeviceDocId,
+  buildMeisterStarterRecipeDocs,
   buildStandardHaccpDeviceDocs,
   buildStandardPrinterSettings,
 } from '../web/tenant-presets.js';
@@ -50,5 +52,17 @@ describe('tenant-presets (HACCP + Avery 3475)', () => {
     expect(payload.updatedBy).to.equal('test');
     expect(payload.marginTopMm).to.equal(4.5);
     expect(payload.scalePercent).to.equal(100);
+  });
+
+  it('liefert 7 Meister-Starterrezepte mit neutralen Sortierungen', () => {
+    expect(MEISTER_STARTER_RECIPES).to.have.length(7);
+    const docs = buildMeisterStarterRecipeDocs('demo_betrieb', { seedTag: 'test' });
+    expect(docs).to.have.length(7);
+    expect(docs.every((doc) => doc.data.tenantId === 'demo_betrieb')).to.equal(true);
+    expect(docs[3].data.name).to.include('Bierwurst');
+    expect(docs[3].data.meat.some((row) => row.cut === 'S I (Einlage)')).to.equal(true);
+    expect(docs[6].data.fatMaxPct).to.equal(20);
+    expect(docs[6].data.category).to.equal('frische');
+    expect(JSON.stringify(docs)).to.not.match(/Galloway/i);
   });
 });
