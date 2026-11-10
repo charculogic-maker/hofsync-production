@@ -372,13 +372,80 @@ function buildMeisterStarterRecipeDocs(tenantId, meta = {}) {
   return MEISTER_STARTER_RECIPES.map((recipe) => buildMeisterStarterRecipeDoc(recipe, tenantId, meta));
 }
 
+const OTHER_SUPPLIER_LABEL = 'Sonstiger Lieferant…';
+
+const STEVESHOF_SUPPLIERS_LADEN = Object.freeze([
+  'Weiling',
+  'Rapunzel',
+  'Bartke',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const STEVESHOF_SUPPLIERS_METZ = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Eigene Produktion',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const NEUTRAL_SUPPLIERS_LADEN = Object.freeze([
+  'Regionaler Großhandel',
+  'Direktlieferant Obst/Gemüse',
+  'Molkerei / Frische',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const NEUTRAL_SUPPLIERS_METZ = Object.freeze([
+  'Schlachthof / Zerlegebetrieb',
+  'Eigene Schlachtung',
+  'Gewürze & Hilfsstoffe',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+function isStevesHofTenantId(tenantId = '') {
+  const key = String(tenantId || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return key === 'steveshof_hauptbetrieb' || key === 'steveshof';
+}
+
+/**
+ * Neutrale Lieferanten für Neukunden; StevesHof behält Soft-Launch-Listen.
+ * @param {string} tenantId
+ * @param {{ updatedBy?: unknown, updatedAt?: unknown, createdAt?: unknown }} [meta]
+ */
+function buildDefaultSupplierSettings(tenantId, meta = {}) {
+  const id = String(tenantId || '').trim();
+  const stevesHof = isStevesHofTenantId(id);
+  const laden = stevesHof ? [...STEVESHOF_SUPPLIERS_LADEN] : [...NEUTRAL_SUPPLIERS_LADEN];
+  const metzgerei = stevesHof ? [...STEVESHOF_SUPPLIERS_METZ] : [...NEUTRAL_SUPPLIERS_METZ];
+  /** @type {Record<string, unknown>} */
+  const payload = {
+    tenantId: id,
+    laden,
+    metzgerei,
+    names: [...laden, ...metzgerei],
+  };
+  if (meta.updatedBy !== undefined) payload.updatedBy = meta.updatedBy;
+  if (meta.updatedAt !== undefined) payload.updatedAt = meta.updatedAt;
+  if (meta.createdAt !== undefined) payload.createdAt = meta.createdAt;
+  return payload;
+}
+
 module.exports = {
   STANDARD_HACCP_DEVICES,
   STANDARD_PRINTER_SETTINGS,
   MEISTER_STARTER_RECIPES,
+  NEUTRAL_SUPPLIERS_LADEN,
+  NEUTRAL_SUPPLIERS_METZ,
+  STEVESHOF_SUPPLIERS_LADEN,
+  STEVESHOF_SUPPLIERS_METZ,
   presetDeviceDocId,
   buildStandardHaccpDeviceDocs,
   buildStandardPrinterSettings,
   buildMeisterStarterRecipeDoc,
   buildMeisterStarterRecipeDocs,
+  buildDefaultSupplierSettings,
+  isStevesHofTenantId,
 };

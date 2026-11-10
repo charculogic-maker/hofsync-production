@@ -17,6 +17,7 @@ const {
   buildStandardHaccpDeviceDocs,
   buildMeisterStarterRecipeDocs,
   buildStandardPrinterSettings,
+  buildDefaultSupplierSettings,
 } = require('./tenantPresets');
 
 const REGION = 'europe-west3';
@@ -336,9 +337,6 @@ async function provisionDemoTenantInner(auth, data) {
 
 const DEFAULT_PRIMARY = '#0284c7';
 const BASELINE_TEAM = ['Betriebsleiter', 'Mitarbeiter 1'];
-const BASELINE_SUPPLIERS_LADEN = ['Weiling', 'Rapunzel', 'Bartke'];
-const BASELINE_SUPPLIERS_METZ = ['Stautenhof', 'Naturverbund', 'Eigene Produktion'];
-const BASELINE_SUPPLIERS = [...BASELINE_SUPPLIERS_LADEN, ...BASELINE_SUPPLIERS_METZ];
 
 function assertSuperAdmin(auth) {
   if (!auth) {
@@ -589,14 +587,14 @@ async function seedNewTenant(tenantRef, {
     updatedBy: actorUid,
     updatedAt: now,
   });
-  batch.set(tenantRef.collection('settings').doc('suppliers'), {
-    laden: BASELINE_SUPPLIERS_LADEN,
-    metzgerei: BASELINE_SUPPLIERS_METZ,
-    names: BASELINE_SUPPLIERS,
-    tenantId,
-    updatedBy: actorUid,
-    updatedAt: now,
-  });
+  batch.set(
+    tenantRef.collection('settings').doc('suppliers'),
+    buildDefaultSupplierSettings(tenantId, {
+      updatedBy: actorUid,
+      updatedAt: now,
+      createdAt: now,
+    }),
+  );
   batch.set(tenantRef.collection('settings').doc('categories'), {
     groups: baselineCategories(),
     tenantId,

@@ -381,8 +381,69 @@ export function buildStandardPrinterSettings(tenantId, meta = {}) {
   return payload;
 }
 
+const OTHER_SUPPLIER_LABEL = 'Sonstiger Lieferant…';
+
+const STEVESHOF_SUPPLIERS_LADEN = Object.freeze([
+  'Weiling',
+  'Rapunzel',
+  'Bartke',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const STEVESHOF_SUPPLIERS_METZ = Object.freeze([
+  'Stautenhof',
+  'Naturverbund',
+  'Eigene Produktion',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const NEUTRAL_SUPPLIERS_LADEN = Object.freeze([
+  'Regionaler Großhandel',
+  'Direktlieferant Obst/Gemüse',
+  'Molkerei / Frische',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+const NEUTRAL_SUPPLIERS_METZ = Object.freeze([
+  'Schlachthof / Zerlegebetrieb',
+  'Eigene Schlachtung',
+  'Gewürze & Hilfsstoffe',
+  OTHER_SUPPLIER_LABEL,
+]);
+
+function isStevesHofTenantId(tenantId = '') {
+  const key = String(tenantId || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return key === 'steveshof_hauptbetrieb' || key === 'steveshof';
+}
+
 /**
- * Idempotent: nur schreiben wenn haccp_geraete / printer / Starter-Rezepte fehlen.
+ * Neutrale Lieferanten für Neukunden; StevesHof behält Soft-Launch-Listen.
+ * @param {string} tenantId
+ * @param {{ updatedBy?: unknown, updatedAt?: unknown, createdAt?: unknown }} [meta]
+ */
+export function buildDefaultSupplierSettings(tenantId, meta = {}) {
+  const id = String(tenantId || '').trim();
+  const stevesHof = isStevesHofTenantId(id);
+  const laden = stevesHof ? [...STEVESHOF_SUPPLIERS_LADEN] : [...NEUTRAL_SUPPLIERS_LADEN];
+  const metzgerei = stevesHof ? [...STEVESHOF_SUPPLIERS_METZ] : [...NEUTRAL_SUPPLIERS_METZ];
+  /** @type {Record<string, unknown>} */
+  const payload = {
+    tenantId: id,
+    laden,
+    metzgerei,
+    names: [...laden, ...metzgerei],
+  };
+  if (meta.updatedBy !== undefined) payload.updatedBy = meta.updatedBy;
+  if (meta.updatedAt !== undefined) payload.updatedAt = meta.updatedAt;
+  if (meta.createdAt !== undefined) payload.createdAt = meta.createdAt;
+  return payload;
+}
+
+/**
+ * Idempotent: nur schreiben wenn haccp_geraete / printer / suppliers / Starter-Rezepte fehlen.
  * Schützt StevesHof und alle Mandanten mit bestehenden Geräten/Rezepten.
  *
  * @param {{
@@ -391,14 +452,17 @@ export function buildStandardPrinterSettings(tenantId, meta = {}) {
  *   updatedBy?: string,
  *   seedDevices?: boolean,
  *   seedPrinter?: boolean,
+ *   seedSuppliers?: boolean,
  *   seedRecipes?: boolean,
  * }} options
  * @returns {Promise<{
  *   devicesSeeded: boolean,
  *   printerSeeded: boolean,
+ *   suppliersSeeded: boolean,
  *   recipesSeeded: boolean,
  *   skippedDevices: boolean,
  *   skippedPrinter: boolean,
+ *   skippedSuppliers: boolean,
  *   skippedRecipes: boolean,
  * }>}
  */
@@ -408,6 +472,7 @@ export async function ensureTenantBranchPresets({
   updatedBy = 'tenant-presets',
   seedDevices = true,
   seedPrinter = true,
+  seedSuppliers = true,
   seedRecipes = false,
 }) {
   const id = String(tenantId || '').trim();
@@ -421,9 +486,11 @@ export async function ensureTenantBranchPresets({
 
   let skippedDevices = !seedDevices;
   let skippedPrinter = !seedPrinter;
+  let skippedSuppliers = !seedSuppliers;
   let skippedRecipes = !seedRecipes;
   let devicesSeeded = false;
   let printerSeeded = false;
+  let suppliersSeeded = false;
   let recipesSeeded = false;
 
   const batch = db.batch();
@@ -461,6 +528,23 @@ export async function ensureTenantBranchPresets({
     }
   }
 
+  if (seedSuppliers) {
+    const suppliersRef = db.collection('tenants').doc(id).collection('settings').doc('suppliers');
+    const suppliersSnap = await suppliersRef.get();
+    if (suppliersSnap.exists) {
+      skippedSuppliers = true;
+    } else {
+      batch.set(suppliersRef, buildDefaultSupplierSettings(id, {
+        updatedBy,
+        updatedAt: stamp,
+        createdAt: stamp,
+      }));
+      ops += 1;
+      suppliersSeeded = true;
+      skippedSuppliers = false;
+    }
+  }
+
   if (seedRecipes) {
     const recipesSnap = await db.collection('tenants').doc(id)
       .collection('rezepte').limit(1).get();
@@ -491,9 +575,11 @@ export async function ensureTenantBranchPresets({
   return {
     devicesSeeded,
     printerSeeded,
+    suppliersSeeded,
     recipesSeeded,
     skippedDevices,
     skippedPrinter,
+    skippedSuppliers,
     skippedRecipes,
   };
 }

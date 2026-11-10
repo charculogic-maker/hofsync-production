@@ -15,6 +15,7 @@ import {
   LADEN_DEFAULT_SUPPLIERS,
   METZ_DEFAULT_SUPPLIERS,
   normalizeDeliveryArea,
+  resolveSupplierTenantId,
 } from './receiving.js';
 
 export const NEUTRAL_SUPPLIERS = Object.freeze([...LADEN_DEFAULT_SUPPLIERS]);
@@ -50,7 +51,7 @@ export function getTenantSupplierNames(area = 'laden') {
   const key = normalizeDeliveryArea(area);
   const stored = supplierByArea[key] || [];
   if (stored.length) return [...stored];
-  return defaultSuppliersForArea(key);
+  return defaultSuppliersForArea(key, resolveSupplierTenantId(activeTenantId));
 }
 
 export function getTenantDefaultTeam() {

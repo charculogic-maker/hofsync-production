@@ -2253,9 +2253,7 @@
                       <span>Lieferant</span>
                       <select id="we-supplier" class="gastro-input" autocomplete="organization">
                         <option value="">-- Lieferant wählen --</option>
-                        <option value="Weiling">Weiling</option>
-                        <option value="Rapunzel">Rapunzel</option>
-                        <option value="Bartke">Bartke</option>
+                        <!-- Optionen kommen mandantenspezifisch aus renderSupplierSelect() -->
                         <option value="__sonstige__">Sonstiger Lieferant…</option>
                       </select>
                     </label>
@@ -3174,9 +3172,9 @@
                   <div id="team-config-groups" class="team-config-groups"></div>
                   <button type="button" class="btn btn-secondary btn-compact" id="team-config-add-group">+ Gruppe</button>
                   <label class="form-label" for="tenant-suppliers-laden">Lieferanten Laden (eine Zeile pro Name)</label>
-                  <textarea id="tenant-suppliers-laden" class="bulletin-message-input" rows="3" placeholder="Weiling&#10;Rapunzel&#10;Bartke"></textarea>
+                  <textarea id="tenant-suppliers-laden" class="bulletin-message-input" rows="3" placeholder="Regionaler Großhandel&#10;Direktlieferant Obst/Gemüse&#10;Molkerei / Frische"></textarea>
                   <label class="form-label" for="tenant-suppliers-metzgerei">Lieferanten Metzgerei (eine Zeile pro Name)</label>
-                  <textarea id="tenant-suppliers-metzgerei" class="bulletin-message-input" rows="3" placeholder="Stautenhof&#10;Naturverbund&#10;Eigene Produktion"></textarea>
+                  <textarea id="tenant-suppliers-metzgerei" class="bulletin-message-input" rows="3" placeholder="Schlachthof / Zerlegebetrieb&#10;Eigene Schlachtung&#10;Gewürze &amp; Hilfsstoffe"></textarea>
                   <label class="form-label" for="team-config-vapid">FCM VAPID-Schlüssel (optional, Push bei geschlossener App)</label>
                   <input type="text" id="team-config-vapid" class="input-text-touch" placeholder="Aus Firebase Console → Cloud Messaging">
                   <p class="admin-leitstand-hint">VAPID wird nur lokal im Browser gespeichert (pro Gerät).</p>
@@ -3604,9 +3602,7 @@
             <div class="supplier-pick-title" id="supplier-pick-title">Bitte Lieferant wählen</div>
             <p class="supplier-pick-desc" id="supplier-pick-desc">Ohne Lieferant können wir die Lieferung nicht abschließen.</p>
             <div class="supplier-pick-grid" id="supplier-pick-grid" role="group" aria-label="Lieferanten">
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Weiling">Weiling</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Rapunzel">Rapunzel</button>
-              <button type="button" class="btn btn-primary supplier-pick-option" data-supplier-pick="Bartke">Bartke</button>
+              <!-- Buttons kommen mandantenspezifisch aus renderSupplierPickGrid() -->
               <button type="button" class="btn btn-secondary supplier-pick-option" data-supplier-pick="__sonstige__">Sonstiger Lieferant…</button>
             </div>
             <label class="receiving-field hidden" id="supplier-pick-custom-wrap" for="supplier-pick-custom">

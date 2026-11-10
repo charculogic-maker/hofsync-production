@@ -4,9 +4,13 @@
  */
 import { getNamedTenantCollection } from './tenant-db.js';
 import { sanitizeProductName } from './utils.js';
+import { addPendingSync } from './sync.js';
 
 export const PRODUCT_MASTER_COLLECTION = 'product_master';
 export const PRODUCT_MASTER_STORAGE_KEY = 'charculogic.productMaster.v1';
+
+const DEFAULT_CATEGORY = '📦 Trockenware';
+const DEFAULT_DAYS_FRESH = 7;
 
 export function cleanProductEan(raw) {
   return String(raw || '').replace(/\D/g, '');
@@ -29,16 +33,34 @@ function writeLocalProductMasterMap(value) {
   }
 }
 
+function resolveCategory(product = {}) {
+  return String(product.kategorie || product.category || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY;
+}
+
+function resolveDaysFresh(product = {}) {
+  const raw = Number(product.daysFresh ?? product.tage ?? product.resttage);
+  if (Number.isFinite(raw) && raw >= 0) return Math.round(raw);
+  return DEFAULT_DAYS_FRESH;
+}
+
 export function writeLocalProductMasterEntry(product = {}) {
-  const barcode = cleanProductEan(product.barcode || product.ean);
+  const barcode = cleanProductEan(product.barcode || product.ean || product.id);
   const name = sanitizeProductName(product.name || product.articleName || product.produkt || '');
   if (!barcode || !name) return null;
   const productMaster = readLocalProductMaster();
+  const category = resolveCategory(product);
   const entry = {
+    id: barcode,
     barcode,
+    ean: barcode,
     name,
+    articleName: name,
     brand: sanitizeProductName(product.brand || product.marke || ''),
-    category: product.kategorie || product.category || '📦 Trockenware',
+    category,
+    kategorie: category,
+    daysFresh: resolveDaysFresh(product),
+    active: product.active !== false,
+    createdAt: product.createdAt || new Date().toISOString(),
   };
   productMaster[barcode] = entry;
   const scanBarcode = cleanProductEan(product.scanBarcode);
@@ -46,6 +68,8 @@ export function writeLocalProductMasterEntry(product = {}) {
     productMaster[scanBarcode] = {
       ...entry,
       barcode: scanBarcode,
+      ean: scanBarcode,
+      id: scanBarcode,
       einzelBarcode: barcode,
     };
   }
@@ -54,29 +78,65 @@ export function writeLocalProductMasterEntry(product = {}) {
 }
 
 export function buildProductMasterDoc(tenantId, product = {}, editorLabel = '') {
-  const ean = cleanProductEan(product.ean || product.barcode);
+  const ean = cleanProductEan(product.ean || product.barcode || product.id);
   const articleName = sanitizeProductName(product.articleName || product.name || product.produkt || '');
   if (!ean || !articleName) return null;
+  const category = resolveCategory(product);
+  const nowIso = new Date().toISOString();
   return {
     tenantId: String(tenantId || '').trim(),
+    id: ean,
     ean,
     articleName,
     name: articleName,
     brand: sanitizeProductName(product.brand || product.marke || ''),
-    category: product.category || product.kategorie || '',
-    updatedAt: new Date().toISOString(),
+    category,
+    kategorie: category,
+    daysFresh: resolveDaysFresh(product),
+    active: product.active !== false,
+    createdAt: product.createdAt || nowIso,
+    updatedAt: nowIso,
     updatedBy: String(editorLabel || product.updatedBy || '').trim(),
   };
+}
+
+function queueProductMasterWrite(tenantId, doc) {
+  const collectionPath = `tenants/${tenantId}/${PRODUCT_MASTER_COLLECTION}`;
+  return addPendingSync({
+    _syncType: 'firestore-doc',
+    _collectionPath: collectionPath,
+    _docId: doc.ean,
+    _op: 'set',
+    data: doc,
+  });
 }
 
 export async function persistProductMasterToFirestore(tenantId, product = {}, editorLabel = '') {
   const id = String(tenantId || '').trim();
   const doc = buildProductMasterDoc(id, product, editorLabel);
   if (!id || !doc) return null;
+  // Lokal immer zuerst — UI darf nicht auf Firestore warten.
   writeLocalProductMasterEntry(doc);
-  const col = getNamedTenantCollection(id, PRODUCT_MASTER_COLLECTION);
-  await col.doc(doc.ean).set(doc, { merge: true });
-  return doc;
+
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  if (offline) {
+    const queued = queueProductMasterWrite(id, doc);
+    if (!queued) {
+      console.warn('[HofSync] Artikel-Stammdaten: Offline-Queue voll.');
+    }
+    return { ...doc, queued: true };
+  }
+
+  try {
+    const col = getNamedTenantCollection(id, PRODUCT_MASTER_COLLECTION);
+    await col.doc(doc.ean).set(doc, { merge: true });
+    return doc;
+  } catch (err) {
+    console.warn('[HofSync] Artikel-Stammdaten: Schreibversuch fehlgeschlagen, queue:', err);
+    const queued = queueProductMasterWrite(id, doc);
+    if (!queued) throw err;
+    return { ...doc, queued: true, error: err };
+  }
 }
 
 function isFirestoreReadDenied(err) {
@@ -101,16 +161,24 @@ export async function hydrateProductMasterFromFirestore(tenantId) {
       throw err;
     }
     const local = readLocalProductMaster();
-    (snap?.docs || []).forEach((doc) => {
-      const data = doc.data ? doc.data() : (doc || {});
-      const ean = cleanProductEan(data.ean || doc.id);
+    (snap?.docs || []).forEach((docSnap) => {
+      const data = docSnap.data ? docSnap.data() : (docSnap || {});
+      const ean = cleanProductEan(data.ean || docSnap.id);
       const name = sanitizeProductName(data.articleName || data.name || '');
       if (!ean || !name) return;
+      const category = data.category || data.kategorie || DEFAULT_CATEGORY;
       local[ean] = {
+        id: ean,
         barcode: ean,
+        ean,
         name,
+        articleName: name,
         brand: sanitizeProductName(data.brand || ''),
-        category: data.category || data.kategorie || '📦 Trockenware',
+        category,
+        kategorie: category,
+        daysFresh: resolveDaysFresh(data),
+        active: data.active !== false,
+        createdAt: data.createdAt || undefined,
       };
     });
     writeLocalProductMasterMap(local);
