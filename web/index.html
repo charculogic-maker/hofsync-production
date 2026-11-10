@@ -637,7 +637,7 @@
                 >Nutzer</button>
                 <button
                   type="button"
-                  class="dev-dashboard-tab"
+                  class="dev-dashboard-tab desktop-only"
                   role="tab"
                   id="dev-dashboard-tab-platform"
                   data-dev-tab="platform"
@@ -841,7 +841,7 @@
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-module" data-betrieb-section="module" aria-selected="false" aria-controls="betrieb-panel-module">Module &amp; Rollen</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-hygiene" data-betrieb-section="hygiene" aria-selected="false" aria-controls="betrieb-panel-hygiene">Hygiene</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-geraete" data-betrieb-section="geraete" aria-selected="false" aria-controls="betrieb-panel-geraete">Geräte</button>
-                    <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-raumplan" data-betrieb-section="raumplan" aria-selected="false" aria-controls="betrieb-panel-raumplan">Raumplan</button>
+                    <button type="button" class="dev-dashboard-subnav-btn desktop-only" role="tab" id="betrieb-tab-raumplan" data-betrieb-section="raumplan" aria-selected="false" aria-controls="betrieb-panel-raumplan">Raumplan</button>
                     <button type="button" class="dev-dashboard-subnav-btn" role="tab" id="betrieb-tab-smtp" data-betrieb-section="smtp" aria-selected="false" aria-controls="betrieb-panel-smtp">SMTP</button>
                   </nav>
                 </div>
@@ -900,7 +900,7 @@
                     </section>
 
                     <section
-                      class="dev-dashboard-panel"
+                      class="dev-dashboard-panel desktop-only"
                       id="dev-dashboard-csv-product-import"
                       aria-label="Artikelstamm-Import"
                     >
@@ -973,6 +973,9 @@
                         </div>
                       </div>
                     </section>
+                    <p class="desktop-only-notice" role="note">
+                      📄 Artikelstamm-Import per CSV am Büro-PC oder Tablet verfügbar.
+                    </p>
 
                     <section
                       class="dev-dashboard-panel"
@@ -1013,7 +1016,7 @@
                     </section>
 
 <section
-                    class="dev-dashboard-panel"
+                    class="dev-dashboard-panel desktop-only"
                     id="dev-dashboard-supply-catalog"
                     aria-label="Bedarfs-Stammdaten"
                   >
@@ -1039,6 +1042,9 @@
                       </table>
                     </div>
                   </section>
+                  <p class="desktop-only-notice" role="note">
+                    📋 Bedarfs-Stammdaten &amp; Zuweisungen werden am Büro-PC oder Tablet gepflegt.
+                  </p>
 
                   
 <section
@@ -1301,7 +1307,7 @@
                     </section>
                   </div>
 
-                  <div id="betrieb-panel-raumplan" class="dev-dashboard-betrieb-panel" role="tabpanel" aria-labelledby="betrieb-tab-raumplan" data-betrieb-panel="raumplan" hidden>
+                  <div id="betrieb-panel-raumplan" class="dev-dashboard-betrieb-panel desktop-only" role="tabpanel" aria-labelledby="betrieb-tab-raumplan" data-betrieb-panel="raumplan" hidden>
                     <section class="dev-dashboard-panel" id="dev-dashboard-haccp-floorplan" aria-label="HACCP Raum- und Geräteplan">
                       <h2 class="dev-dashboard-section-title">🗺️ HACCP Raum- &amp; Geräteplan (Behörden-Audit)</h2>
                       <p class="dev-dashboard-intro">
@@ -1428,7 +1434,7 @@
                 </div>
               </div>
 
-              <div id="dev-dashboard-view-platform" class="dev-dashboard-view" role="tabpanel" aria-labelledby="dev-dashboard-tab-platform" hidden>
+              <div id="dev-dashboard-view-platform" class="dev-dashboard-view desktop-only" role="tabpanel" aria-labelledby="dev-dashboard-tab-platform" hidden>
                 <div class="dev-dashboard-grid">
                   <section
                     class="dev-dashboard-panel dev-dashboard-panel--global"

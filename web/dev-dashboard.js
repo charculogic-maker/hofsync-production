@@ -1618,11 +1618,21 @@ function setSmtpFormStatus(message = '', tone = 'info') {
 
 const BETRIEB_SECTIONS = new Set(['stammdaten', 'module', 'hygiene', 'geraete', 'raumplan', 'smtp']);
 
+/** Schmale Displays: Desktop-only Flächen (CSV, Plattform, Raumplan) per CSS ausgeblendet. */
+function isDevDashboardNarrowViewport() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 768px)').matches;
+}
+
 /**
  * Unterseiten in „Mein Betrieb“: Stammdaten | Module & Rollen | Hygiene | Geräte | Raumplan | SMTP.
  */
 function setBetriebSection(sectionKey = 'stammdaten', { updateHash = false } = {}) {
-  const next = BETRIEB_SECTIONS.has(sectionKey) ? sectionKey : 'stammdaten';
+  let next = BETRIEB_SECTIONS.has(sectionKey) ? sectionKey : 'stammdaten';
+  if (next === 'raumplan' && isDevDashboardNarrowViewport()) {
+    next = 'stammdaten';
+  }
   dashboardState.betriebSection = next;
 
   document.querySelectorAll('[data-betrieb-section]').forEach((btn) => {
@@ -4137,11 +4147,16 @@ function applyDashboardVisibility(dashboardStateRef) {
     globalPanel.hidden = !dashboardStateRef.isSuperAdmin;
   }
   syncRemoteReloadAdminVisibility(dashboardStateRef);
-  if (!dashboardStateRef.isSuperAdmin && dashboardStateRef.activeTab === 'platform') {
+  const narrowViewport = isDevDashboardNarrowViewport();
+  if ((!dashboardStateRef.isSuperAdmin || narrowViewport) && dashboardStateRef.activeTab === 'platform') {
     dashboardStateRef.activeTab = 'overview';
   }
-  if (dashboardStateRef.isSuperAdmin && needsTenantPick && dashboardStateRef.activeTab !== 'platform') {
+  // Plattform-Matrix ist mobil ausgeblendet — dort nicht erzwingen (sonst leerer Tab).
+  if (!narrowViewport && dashboardStateRef.isSuperAdmin && needsTenantPick && dashboardStateRef.activeTab !== 'platform') {
     dashboardStateRef.activeTab = 'platform';
+  }
+  if (narrowViewport && dashboardStateRef.betriebSection === 'raumplan') {
+    dashboardStateRef.betriebSection = 'stammdaten';
   }
   // Super-Admin braucht den Selector immer, um einen Betrieb zu wählen.
   if (tenantSelectWrap) {
@@ -4159,7 +4174,8 @@ function applyDashboardVisibility(dashboardStateRef) {
       btn.removeAttribute('title');
       return;
     }
-    if (needsTenantPick) {
+    // Mobil: Plattform-Tab unsichtbar — Tabs nicht sperren, sonst steckt Super-Admin fest.
+    if (needsTenantPick && !narrowViewport) {
       btn.disabled = true;
       btn.title = 'Zuerst Betrieb in Plattform wählen';
     } else {
@@ -4203,7 +4219,9 @@ if (typeof window !== 'undefined') {
 
 function setDevDashboardTab(tabKey = 'overview') {
   let nextTab = DEV_DASHBOARD_TABS.has(tabKey) ? tabKey : 'overview';
-  if (nextTab === 'platform' && !dashboardState.isSuperAdmin) nextTab = 'overview';
+  if (nextTab === 'platform' && (!dashboardState.isSuperAdmin || isDevDashboardNarrowViewport())) {
+    nextTab = 'overview';
+  }
   dashboardState.activeTab = nextTab;
 
   document.querySelectorAll('.dev-dashboard-tab').forEach((btn) => {
