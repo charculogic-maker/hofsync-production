@@ -15161,6 +15161,12 @@ tr[data-employee-inactive="1"] {
   cursor: pointer;
 }
 
+/* Laden-iPhone neu laden: nur Plattform-Super-Admin */
+body.role-betriebs-admin #dev-dashboard-remote-reload,
+#dev-dashboard-remote-reload[hidden] {
+  display: none !important;
+}
+
 /* Artikelstamm CSV-Import (Mein Betrieb → Stammdaten) */
 .csv-product-import-hint {
   margin: 0;

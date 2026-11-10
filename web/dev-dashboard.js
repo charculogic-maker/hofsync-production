@@ -1711,6 +1711,7 @@ async function refreshRemoteReloadStatus(dashboardStateRef = dashboardState) {
 }
 
 function bindRemoteReloadAdmin(dashboardStateRef = dashboardState) {
+  syncRemoteReloadAdminVisibility(dashboardStateRef);
   const requestBtn = document.getElementById('dev-dashboard-remote-reload-request');
   const clearBtn = document.getElementById('dev-dashboard-remote-reload-clear');
   if (!requestBtn || requestBtn.dataset.bound === '1') return;
@@ -1722,7 +1723,14 @@ function bindRemoteReloadAdmin(dashboardStateRef = dashboardState) {
     || 'Büro',
   ).trim();
 
+  const assertSuperAdmin = () => {
+    if (dashboardStateRef.isSuperAdmin) return true;
+    window.showToast?.('Nur die Plattform-Verwaltung darf Laden-iPhones neu laden.', 'warning');
+    return false;
+  };
+
   requestBtn.addEventListener('click', () => {
+    if (!assertSuperAdmin()) return;
     const tenantId = dashboardStateRef.selectedTenantId;
     const statusEl = document.getElementById('dev-dashboard-remote-reload-status');
     if (!tenantId || !dashboardStateRef.db) {
@@ -1761,6 +1769,7 @@ function bindRemoteReloadAdmin(dashboardStateRef = dashboardState) {
   });
 
   clearBtn?.addEventListener('click', () => {
+    if (!assertSuperAdmin()) return;
     const tenantId = dashboardStateRef.selectedTenantId;
     const statusEl = document.getElementById('dev-dashboard-remote-reload-status');
     if (!tenantId || !dashboardStateRef.db) {
@@ -4094,6 +4103,13 @@ function syncBetriebProgressivePanels(dashboardStateRef = dashboardState) {
   }
 }
 
+function syncRemoteReloadAdminVisibility(dashboardStateRef = dashboardState) {
+  const section = document.getElementById('dev-dashboard-remote-reload');
+  if (!section) return;
+  // Wartungswerkzeug nur für Plattform-Super-Admin — nie für Betriebs-Admins.
+  section.hidden = !dashboardStateRef.isSuperAdmin;
+}
+
 function applyDashboardVisibility(dashboardStateRef) {
   const globalPanel = document.getElementById('dev-dashboard-global-panel');
   const platformTab = document.getElementById('dev-dashboard-tab-platform');
@@ -4120,6 +4136,7 @@ function applyDashboardVisibility(dashboardStateRef) {
   if (globalPanel) {
     globalPanel.hidden = !dashboardStateRef.isSuperAdmin;
   }
+  syncRemoteReloadAdminVisibility(dashboardStateRef);
   if (!dashboardStateRef.isSuperAdmin && dashboardStateRef.activeTab === 'platform') {
     dashboardStateRef.activeTab = 'overview';
   }

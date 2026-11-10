@@ -69,6 +69,14 @@ describe('Remote Reload Wiring', () => {
     expect(indexHtml).to.include('dev-dashboard-remote-reload-request');
     expect(indexHtml).to.match(/Laden-iPhone neu laden/);
     expect(sw).to.include('/remote-reload.js');
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-perm-v2'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-reload-sa-v1'");
+  });
+
+  it('zeigt Laden-iPhone neu laden nur für Super-Admins', () => {
+    expect(indexHtml).to.match(/id="dev-dashboard-remote-reload"[\s\S]*?data-super-admin-only="1"/);
+    expect(indexHtml).to.match(/id="dev-dashboard-remote-reload"[\s\S]*?\bhidden\b/);
+    expect(dashboard).to.include('syncRemoteReloadAdminVisibility');
+    expect(dashboard).to.match(/section\.hidden\s*=\s*!dashboardStateRef\.isSuperAdmin/);
+    expect(dashboard).to.include('Nur die Plattform-Verwaltung darf Laden-iPhones neu laden.');
   });
 });
