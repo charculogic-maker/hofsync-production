@@ -31,7 +31,8 @@ assertIncludes(mhdSrc, 'RÜCKGÄNGIG', 'Undo-Button');
 assertIncludes(cssSrc, '.btn-mhd-action.btn-mhd-soldout', 'Sold-Out Styles');
 
 // 2) Warengruppen + Lieferanten + optionale Felder
-assertIncludes(htmlSrc, 'Lohnschlachtung Rind (Galloway / Eigenbestand)', 'HTML Rind');
+assertIncludes(htmlSrc, 'Lohnschlachtung Rind (Eigenbestand)', 'HTML Rind');
+assertNotIncludes(htmlSrc, 'Galloway / Eigenbestand', 'kein Galloway-Hardcode in Wareneingang');
 assertIncludes(htmlSrc, 'Lohnschlachtung Geflügel (Hühner / Eigenbestand)', 'HTML Geflügel');
 assertIncludes(htmlSrc, 'Bio-Schwein Zukauf (Hälften / Ganze / Teilstücke)', 'HTML Bio-Schwein');
 assertIncludes(htmlSrc, 'Zukauffleisch Rind/Kalb (Fremdbezug)', 'HTML Zukauf Rind/Kalb');
@@ -111,14 +112,14 @@ assert.equal(
 assert.equal(formatHaccpMeatTempWarning(7.0, 'Bio-Schwein Zukauf'), '');
 assert.ok(formatHaccpMeatTempWarning(7.1, 'Bio-Schwein Zukauf').includes('> 7,0'));
 
-// 4) Rind ohne Ohrmarke → Fallback-LOT
+// 4) Rind ohne Ohrmarke → Fallback-LOT (neutral RIND; GAL nur mit beefBreed=Galloway)
 assert.equal(
   buildGallowayFallbackLot({
     klassifizierung: 'Ochse',
     schlachtDatumIso: '2026-10-14',
     ohrmarke: '',
   }),
-  'GAL-OCHSE-20261014',
+  'RIND-OCHSE-20261014',
 );
 assert.equal(
   resolveMetzTraceLot({
@@ -127,8 +128,21 @@ assert.equal(
     klassifizierung: 'U3',
     schlachtDatumIso: '2026-10-14',
   }),
-  'GAL-U3-20261014',
+  'RIND-U3-20261014',
 );
+globalThis.window = {
+  currentTenantConfig: { beefBreed: 'Galloway' },
+  BRANDING: { beefBreed: 'Galloway' },
+};
+assert.equal(
+  buildGallowayFallbackLot({
+    klassifizierung: 'Ochse',
+    schlachtDatumIso: '2026-10-14',
+    ohrmarke: '',
+  }),
+  'GAL-OCHSE-20261014',
+);
+delete globalThis.window;
 assert.equal(
   resolveMetzTraceLot({
     category: 'Lohnschlachtung Rind',

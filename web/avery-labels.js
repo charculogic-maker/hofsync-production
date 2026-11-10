@@ -55,10 +55,11 @@ const CLOUD_WRITE_DEBOUNCE_MS = 400;
  */
 
 /**
- * Praxis-Katalog nach Zerlege-Baugruppen mit Kassen-PLU (StevesHof / BioOffice).
+ * Praxis-Katalog nach Zerlege-Baugruppen mit Kassen-PLU (neutral Rind).
  * Hals/Brust am Schultertisch; Brust nicht unter Lappen.
+ * Mandantenspezifische Rasse optional über currentTenantConfig.beefBreed (z. B. Galloway).
  */
-export const GALLOWAY_CATALOG = Object.freeze({
+export const BEEF_CATALOG = Object.freeze({
   schultern: Object.freeze([
     { id: 'sch-506', name: 'Schmorbraten Schulter', days: 14, tab: 'schulter', artNr: '506', aliases: ['Schmorbraten', 'Bug', 'Schulterbraten'] },
     { id: 'sch-510', name: 'Falsches Filet', days: 14, tab: 'schulter', artNr: '510' },
@@ -117,6 +118,45 @@ export const GALLOWAY_CATALOG = Object.freeze({
   ]),
 });
 
+/** @deprecated Alias — bitte BEEF_CATALOG nutzen. */
+export const GALLOWAY_CATALOG = BEEF_CATALOG;
+
+/**
+ * Optionale Rasse aus dem Mandantenprofil (z. B. „Galloway“ bei StevesHof).
+ * Leer = neutrales Rind / nur Teilstückname.
+ */
+export function getTenantBeefBreed() {
+  const cfg = (typeof window !== 'undefined' && window.currentTenantConfig) || {};
+  const fromConfig = String(cfg.beefBreed || cfg.rindRasse || '').trim();
+  if (fromConfig) return fromConfig;
+  const fromBranding = String(window.BRANDING?.beefBreed || '').trim();
+  return fromBranding;
+}
+
+/**
+ * Neutrale Tierart für UI/Herkunft: Rasse wenn gesetzt, sonst „Rind“.
+ */
+export function resolveBeefSpeciesLabel() {
+  return getTenantBeefBreed() || 'Rind';
+}
+
+/**
+ * Anzeigename für Katalog/UI: Teilstück zuerst.
+ * Mit beefBreed optional „Galloway · Rumpsteak“, sonst nur „Rumpsteak“.
+ * @param {string} cutName
+ * @param {{ includeBreed?: boolean }} [opts]
+ */
+export function formatCutDisplayName(cutName, opts = {}) {
+  const name = String(cutName || '').trim();
+  if (!name) return '';
+  if (opts.includeBreed === false) return name;
+  const breed = getTenantBeefBreed();
+  if (!breed) return name;
+  // Bereits rasse-präfixiert (Legacy-Entwürfe) nicht doppelt.
+  if (new RegExp(`^${breed}\\b`, 'i').test(name)) return name;
+  return `${breed} · ${name}`;
+}
+
 /** Abschnitte / Trimmings – Kassen-PLU wie Zerlege-HTML */
 export const AVERY_TRIMMINGS = Object.freeze([
   { id: 'tr-r1-mager', name: 'R I Mager', days: 0, tab: null, trim: true, artNr: '504', aliases: ['RI Mager', 'R1 Mager'] },
@@ -158,11 +198,11 @@ export const AVERY_LEGACY_CUT_IDS = Object.freeze({
 });
 
 export const AVERY_CUT_CATALOG = Object.freeze([
-  ...GALLOWAY_CATALOG.schultern,
-  ...GALLOWAY_CATALOG.ruecken,
-  ...GALLOWAY_CATALOG.keule,
-  ...GALLOWAY_CATALOG.lappen,
-  ...GALLOWAY_CATALOG.innereien,
+  ...BEEF_CATALOG.schultern,
+  ...BEEF_CATALOG.ruecken,
+  ...BEEF_CATALOG.keule,
+  ...BEEF_CATALOG.lappen,
+  ...BEEF_CATALOG.innereien,
   ...AVERY_TRIMMINGS,
 ]);
 
@@ -182,7 +222,7 @@ const TAB_META = Object.freeze({
   innereien: { label: 'Innereien & Knochen', hint: 'Leber, Herz, Zunge, Niere, Knochen' },
 });
 
-/** Map UI tab key → GALLOWAY_CATALOG key */
+/** Map UI tab key → BEEF_CATALOG key */
 const TAB_TO_CATALOG_KEY = Object.freeze({
   schultern: 'schultern',
   ruecken: 'ruecken',
@@ -1495,9 +1535,13 @@ export function storageHintForCut(cut) {
 export function formatLabelTitle(name) {
   const raw = String(name || '').trim();
   if (!raw) return '';
-  const m = /^(R\s+(?:I{1,3}|IV|V))\s+(.+)$/i.exec(raw);
+  // Kein statisches „GALLOWAY“ / Rasse im Hero — Teilstück bleibt Fokus („Inhalt zuerst“).
+  const withoutBreedPrefix = raw
+    .replace(/^(Galloway|Angus|Wagyu|Highland|Rind)(?:\s*[·\-–:]\s*|\s+)/i, '')
+    .trim() || raw;
+  const m = /^(R\s+(?:I{1,3}|IV|V))\s+(.+)$/i.exec(withoutBreedPrefix);
   if (m) return `${m[1].toUpperCase().replace(/\s+/g, ' ')} · ${m[2].trim()}`;
-  return raw;
+  return withoutBreedPrefix;
 }
 
 /**
@@ -1814,8 +1858,13 @@ function renderCatalog() {
   const host = document.getElementById('avery-catalog');
   if (!host) return;
   const catalogKey = TAB_TO_CATALOG_KEY[state.activeTab] || 'schultern';
-  const cuts = GALLOWAY_CATALOG[catalogKey] || [];
+  const cuts = BEEF_CATALOG[catalogKey] || [];
+  const species = resolveBeefSpeciesLabel();
+  const breed = getTenantBeefBreed();
   host.innerHTML = `
+    <p class="avery-catalog-species muted" data-beef-species="${escapeHtml(species)}">
+      Katalog: ${escapeHtml(breed ? `Rind · ${breed}` : 'Rind')} — Teilstückname steht auf dem Etikett im Fokus.
+    </p>
     <div class="avery-catalog-grid">
       ${cuts.map((cut) => {
         const qty = state.queue.find((row) => !row.isCustom && row.cutId === cut.id)?.qty || 0;
@@ -2465,3 +2514,11 @@ export function disableAveryLabelsModule() {
 
 /** Alias für ältere Imports / Tests */
 export const AVERY_CUT_CATALOG_FLAT = AVERY_CUT_CATALOG;
+
+if (typeof window !== 'undefined') {
+  window.BEEF_CATALOG = BEEF_CATALOG;
+  window.GALLOWAY_CATALOG = GALLOWAY_CATALOG;
+  window.getTenantBeefBreed = getTenantBeefBreed;
+  window.resolveBeefSpeciesLabel = resolveBeefSpeciesLabel;
+  window.formatCutDisplayName = formatCutDisplayName;
+}

@@ -51,6 +51,8 @@ const TENANT_BRANDING = {
     betriebsName: STEVESHOF_BRAND_TITLE,
     appName: 'HofSync',
     darkHeaderBg: '#2b1810',
+    /** Hofeigene Rasse — optionaler Zusatz in Avery/UI, Etikett-Hero bleibt Teilstück. */
+    beefBreed: 'Galloway',
     modules: {
       orders: true,
       team: true,
@@ -113,21 +115,39 @@ function persistBrandTitle(title) {
   return clean;
 }
 
-function syncCurrentTenantConfig(tenantId, displayName) {
+function resolveTenantBeefBreed(tenantId = '') {
+  const key = resolveEffectiveTenantId(tenantId);
+  const override = lookupTenantBranding(key);
+  if (override?.beefBreed) return String(override.beefBreed).trim();
+  const fromBranding = String(window.BRANDING?.beefBreed || '').trim();
+  if (fromBranding) return fromBranding;
+  // Soft-Launch: StevesHof ohne explizites Feld behält Galloway.
+  if (isStevesHofTenantKey(key)) return 'Galloway';
+  return '';
+}
+
+function syncCurrentTenantConfig(tenantId, displayName, extras = {}) {
   const id = String(tenantId || '').trim();
   const name = String(displayName || '').trim();
   const previous = (typeof window !== 'undefined' && window.currentTenantConfig
     && typeof window.currentTenantConfig === 'object')
     ? window.currentTenantConfig
     : {};
+  const beefBreed = extras.beefBreed !== undefined
+    ? String(extras.beefBreed || '').trim()
+    : (String(previous.beefBreed || '').trim() || resolveTenantBeefBreed(id));
   const next = {
     ...previous,
     tenantId: id || String(previous.tenantId || '').trim(),
     displayName: name || String(previous.displayName || '').trim(),
     name: name || String(previous.name || previous.displayName || '').trim(),
+    beefBreed,
   };
   if (typeof window !== 'undefined') {
     window.currentTenantConfig = next;
+    if (window.BRANDING && typeof window.BRANDING === 'object') {
+      window.BRANDING.beefBreed = beefBreed;
+    }
   }
   return next;
 }
@@ -254,7 +274,10 @@ function resolveBranding(tenantId) {
 function applyResolvedBranding(tenantId) {
   const key = resolveEffectiveTenantId(tenantId);
   window.BRANDING = resolveBranding(key);
-  syncCurrentTenantConfig(key, window.BRANDING?.betriebsName);
+  const beefBreed = resolveTenantBeefBreed(key);
+  if (beefBreed) window.BRANDING.beefBreed = beefBreed;
+  else delete window.BRANDING.beefBreed;
+  syncCurrentTenantConfig(key, window.BRANDING?.betriebsName, { beefBreed });
   // Nach Rebuild: gecachte enabledModules wieder einspielen (verhindert FOUC Branding-Defaults).
   try {
     const cached = typeof window.readCachedEffectiveModules === 'function'

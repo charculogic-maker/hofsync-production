@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261110-dynamic-branding-v1';
+const CACHE_NAME = 'charculogic-v20261110-beef-catalog-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */

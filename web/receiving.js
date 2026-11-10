@@ -36,12 +36,12 @@ export const METZ_DEFAULT_CATEGORY = 'Lohnschlachtung Rind';
 
 /**
  * Warengruppen für Fleisch- und Schlachtbetriebe (Metzgerei-Tab).
- * StevesHof: eigene Galloways + eigene Weidehühner; Bio-Schwein nur als Zukauf.
+ * Neutral „Rind“; optionale Rasse über currentTenantConfig.beefBreed.
  */
 export const METZ_RECEIVING_CATEGORIES = [
   {
     value: 'Lohnschlachtung Rind',
-    label: '🥩 Lohnschlachtung Rind (Galloway / Eigenbestand)',
+    label: '🥩 Lohnschlachtung Rind (Eigenbestand)',
   },
   {
     value: 'Lohnschlachtung Geflügel',
@@ -206,9 +206,9 @@ export function sanitizeLotToken(value = '', fallback = 'OCHSE') {
 
 /**
  * Fallback-Chargennummer ohne Ohrmarke:
- * `GAL-{Klassifizierung|OCHSE}-{YYYYMMDD}`
+ * `RIND-{Klassifizierung|OCHSE}-{YYYYMMDD}` bzw. `GAL-…` wenn beefBreed=Galloway.
  */
-export function buildGallowayFallbackLot({
+export function buildBeefFallbackLot({
   klassifizierung = '',
   schlachtDatumIso = '',
   ohrmarke = '',
@@ -219,11 +219,20 @@ export function buildGallowayFallbackLot({
   const ymd = /^\d{4}-\d{2}-\d{2}$/.test(iso)
     ? iso.replace(/-/g, '')
     : new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  return `GAL-${token}-${ymd}`;
+  const breed = String(
+    (typeof window !== 'undefined' && window.currentTenantConfig?.beefBreed)
+    || (typeof window !== 'undefined' && window.BRANDING?.beefBreed)
+    || '',
+  ).trim();
+  const prefix = /^galloway$/i.test(breed) ? 'GAL' : 'RIND';
+  return `${prefix}-${token}-${ymd}`;
 }
 
+/** @deprecated Alias — bitte buildBeefFallbackLot nutzen. */
+export const buildGallowayFallbackLot = buildBeefFallbackLot;
+
 /**
- * Rückverfolgungs-LOT: Ohrmarke hat Vorrang, sonst Galloway-Fallback bei Rind.
+ * Rückverfolgungs-LOT: Ohrmarke hat Vorrang, sonst Rind-Fallback bei Lohnschlachtung.
  */
 export function resolveMetzTraceLot({
   category = '',
@@ -234,7 +243,7 @@ export function resolveMetzTraceLot({
   const ear = String(ohrmarke || '').trim();
   if (ear) return ear;
   if (isLohnschlachtungRindCategory(category)) {
-    return buildGallowayFallbackLot({
+    return buildBeefFallbackLot({
       klassifizierung,
       schlachtDatumIso,
       ohrmarke: '',
