@@ -1348,7 +1348,29 @@
                         </div>
                         <fieldset class="dev-dashboard-permissions-fieldset">
                           <legend>Module (Start)</legend>
-                          <div class="dev-dashboard-permissions-row">
+                          <div
+                            class="dev-dashboard-tier-select"
+                            id="dev-dashboard-tenant-tier-select"
+                            role="group"
+                            aria-label="Tarif-Schnellwahl"
+                          >
+                            <button type="button" class="dev-dashboard-tier-btn" data-tier="mhd_retter">
+                              MHD-Retter (39&nbsp;€)
+                            </button>
+                            <button type="button" class="dev-dashboard-tier-btn is-active" data-tier="hofladen_komplett" aria-pressed="true">
+                              Hofladen Komplett (79&nbsp;€)
+                            </button>
+                            <button type="button" class="dev-dashboard-tier-btn" data-tier="metzgerei_pro">
+                              Metzgerei Pro (149&nbsp;€)
+                            </button>
+                            <button type="button" class="dev-dashboard-tier-btn" data-tier="manual">
+                              Manuell
+                            </button>
+                          </div>
+                          <p class="dev-dashboard-betrieb-modules-tariff-hint" id="dev-dashboard-tenant-tier-hint">
+                            Tarif setzt die Modul-Haken. Einzelne Änderungen springen auf „Manuell“.
+                          </p>
+                          <div class="dev-dashboard-permissions-row" id="dev-dashboard-tenant-module-row">
                             <label class="dev-dashboard-toggle dev-dashboard-toggle--compact">
                               <input id="dev-dashboard-tenant-mod-start" type="checkbox" data-module-key="start">
                               <span>Start</span>
