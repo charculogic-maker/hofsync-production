@@ -154,7 +154,7 @@ describe('Mitarbeiter Soft-Lock (#modal-employee-picker)', () => {
   });
 
   it('bumps the service-worker cache for header-declutter', () => {
-    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-import-v1'");
+    expect(swJs).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-perm-v2'");
   });
 
   it('re-applies module visibility when employee is picked or cleared', () => {

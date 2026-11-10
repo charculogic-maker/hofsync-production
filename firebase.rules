@@ -140,11 +140,43 @@ service cloud.firestore {
         && (
           request.auth.uid in ['VYwMy5IAlAR26pj8ZbFfc5PNdou2']
           || request.auth.token.email == 'patrik@charculogic.de'
+          || request.auth.token.superAdmin == true
         );
     }
 
     function isSuperAdmin() {
       return isPlatformDevAdmin();
+    }
+
+    /** product_master: Mandanten-Mitarbeiter/Admin ODER Plattform-Super-Admin (CSV-Import). */
+    function canWriteProductMaster(tenantId) {
+      return isEmployeeOrAdmin(tenantId) || isSuperAdmin();
+    }
+
+    function isProductMasterDoc(tenantId) {
+      return request.resource.data.tenantId == tenantId
+        && isNonEmptyString(request.resource.data.ean)
+        && isNonEmptyString(request.resource.data.articleName)
+        && request.resource.data.keys().hasOnly([
+          'tenantId', 'id', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
+          'daysFresh', 'supplier', 'active', 'createdAt', 'updatedAt', 'updatedBy'
+        ])
+        && (!('daysFresh' in request.resource.data)
+            || isIntGteZero(request.resource.data.daysFresh))
+        && (!('active' in request.resource.data)
+            || request.resource.data.active is bool)
+        && (!('supplier' in request.resource.data)
+            || request.resource.data.supplier is string)
+        && (!('name' in request.resource.data)
+            || request.resource.data.name is string)
+        && (!('category' in request.resource.data)
+            || request.resource.data.category is string)
+        && (!('updatedAt' in request.resource.data)
+            || request.resource.data.updatedAt is string
+            || request.resource.data.updatedAt is timestamp)
+        && (!('createdAt' in request.resource.data)
+            || request.resource.data.createdAt is string
+            || request.resource.data.createdAt is timestamp);
     }
 
     function tenantCreateAllowedKeys() {
@@ -232,24 +264,12 @@ service cloud.firestore {
         && request.resource.data.currentStock <= resource.data.currentStock;
     }
 
-    // Artikelname je EAN für künftige Wareneingänge (Protokoll-Korrektur + MHD-Bearbeiten)
-    match /tenants/{tenantId}/product_master/{ean} {
-      allow read: if isTenantUser(tenantId);
-      allow create, update: if isEmployeeOrAdmin(tenantId)
-        && request.resource.data.tenantId == tenantId
-        && isNonEmptyString(request.resource.data.ean)
-        && isNonEmptyString(request.resource.data.articleName)
-        && request.resource.data.keys().hasOnly([
-          'tenantId', 'id', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
-          'daysFresh', 'supplier', 'active', 'createdAt', 'updatedAt', 'updatedBy'
-        ])
-        && (!('daysFresh' in request.resource.data)
-            || isIntGteZero(request.resource.data.daysFresh))
-        && (!('active' in request.resource.data)
-            || request.resource.data.active is bool)
-        && (!('supplier' in request.resource.data)
-            || request.resource.data.supplier is string);
-      allow delete: if isAdmin(tenantId);
+    // Artikelname je EAN für künftige Wareneingänge (Protokoll-Korrektur + MHD-Bearbeiten + CSV-Import)
+    match /tenants/{tenantId}/product_master/{docId} {
+      allow read: if isTenantUser(tenantId) || isSuperAdmin();
+      allow create, update: if canWriteProductMaster(tenantId)
+        && isProductMasterDoc(tenantId);
+      allow delete: if isAdmin(tenantId) || isSuperAdmin();
     }
 
     // Legacy `source` + sync.js hängt bei op:'set' automatisch `createdAt` an.

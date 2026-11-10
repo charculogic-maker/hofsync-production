@@ -180,11 +180,16 @@ export function sampleMhdAudit(tenantId, extra = {}) {
 export function sampleProductMaster(tenantId, extra = {}) {
   return {
     tenantId,
+    id: '4012346200507',
     ean: '4012346200507',
     articleName: 'Cold Brew Süße Kräuter',
     name: 'Cold Brew Süße Kräuter',
     brand: '',
     category: '',
+    daysFresh: 7,
+    supplier: '',
+    active: true,
+    createdAt: '2026-09-03T12:00:00.000Z',
     updatedAt: '2026-09-03T12:00:00.000Z',
     updatedBy: 'Paddy',
     ...extra,

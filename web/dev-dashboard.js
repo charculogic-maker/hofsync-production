@@ -1995,12 +1995,10 @@ function bindCsvProductImporter(dashboardStateRef = dashboardState) {
         resetCsvProductImportPreview();
       })
       .catch((err) => {
-        console.error('[Dev-Dashboard] CSV-Import fehlgeschlagen:', err);
-        setCsvProductImportStatus(
-          String(err?.message || 'Import fehlgeschlagen.'),
-          'error',
-        );
-        window.showToast?.('Artikelstamm-Import fehlgeschlagen.', 'error');
+        console.error('[CSV-Import] Detailfehler beim Schreiben:', err);
+        const detail = String(err?.message || err || 'Import fehlgeschlagen.');
+        setCsvProductImportStatus(detail, 'error');
+        window.showToast?.(`Import fehlgeschlagen: ${detail}`, 'error');
         confirmBtn.disabled = false;
       });
   });

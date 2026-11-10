@@ -69,6 +69,6 @@ describe('Remote Reload Wiring', () => {
     expect(indexHtml).to.include('dev-dashboard-remote-reload-request');
     expect(indexHtml).to.match(/Laden-iPhone neu laden/);
     expect(sw).to.include('/remote-reload.js');
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-import-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-csv-perm-v2'");
   });
 });

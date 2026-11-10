@@ -154,7 +154,7 @@ describe('Wareneingang supplier split (Laden / Metzgerei)', () => {
     assert.ok(mhdSrc.includes('writeLastDeliveryArea'));
     assert.ok(mhdSrc.includes('addTenantSupplierName'));
     assert.ok(mhdSrc.includes('Bitte Artikelname und Mindesthaltbarkeit angeben'));
-    assert.match(swSrc, /charculogic-v20261110-csv-import-v1/);
+    assert.match(swSrc, /charculogic-v20261110-csv-perm-v2/);
     assert.ok(rulesSrc.includes("'laden'"));
     assert.ok(rulesSrc.includes("'metzgerei'"));
     assert.ok(rulesSrc.includes('isEmployeeOrAdmin(tenantId) && isSupplierSettings(document)'));

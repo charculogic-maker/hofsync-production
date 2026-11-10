@@ -314,16 +314,21 @@ export async function importProductMasterRows({
 
   const chunks = chunkArray(docs, CSV_IMPORT_BATCH_SIZE);
   let done = 0;
-  for (const chunk of chunks) {
-    const batch = db.batch();
-    chunk.forEach((doc) => {
-      const ref = db.collection('tenants').doc(id).collection('product_master').doc(doc.ean);
-      batch.set(ref, doc, { merge: true });
-      writeLocalProductMasterEntry(doc);
-    });
-    await batch.commit();
-    done += chunk.length;
-    if (typeof onProgress === 'function') onProgress(done, docs.length);
+  try {
+    for (const chunk of chunks) {
+      const batch = db.batch();
+      chunk.forEach((doc) => {
+        const ref = db.collection('tenants').doc(id).collection('product_master').doc(doc.ean);
+        batch.set(ref, doc, { merge: true });
+        writeLocalProductMasterEntry(doc);
+      });
+      await batch.commit();
+      done += chunk.length;
+      if (typeof onProgress === 'function') onProgress(done, docs.length);
+    }
+  } catch (error) {
+    console.error('[CSV-Import] Detailfehler beim Schreiben:', error);
+    throw error;
   }
 
   return { imported: docs.length, skipped: Math.max(0, (rows?.length || 0) - docs.length) };
