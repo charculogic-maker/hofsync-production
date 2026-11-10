@@ -6,6 +6,12 @@ import {
   scopedTeamboardStorageKey,
   writeScopedLocalStorageValue,
 } from './teamboard-storage.js';
+import { getAuthContext, getFirebaseAuthUser } from './auth.js';
+import { isTenantAdmin } from './tenant-admin-auth.js';
+import {
+  STANDARD_HACCP_DEVICES,
+  ensureTenantBranchPresets,
+} from './tenant-presets.js';
 
 function hasActiveFirebaseAuthUserForSelfHealing() {
   if (typeof window.hasActiveFirebaseAuthUser === 'function') {
@@ -40,84 +46,8 @@ function canStartHaccpFirestoreLiveSync() {
   return Boolean(authApi?.currentUser);
 }
 
-const DEFAULT_HACCP_DEVICES = [
-  {
-    name: 'Kühlauslage Hofladen',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 0,
-    tempMax: 7,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 10,
-    isActive: true,
-    protokollTyp: 'temperatur',
-    geraeteTyp: 'kuehlung',
-    sollMin: 0,
-    sollMax: 7,
-    einheit: '°C',
-    intervall: 'taeglich',
-    aktiv: true,
-  },
-  {
-    name: 'MoPro-Kühlung',
-    bereich: 'Verkauf',
-    type: 'manual_temp',
-    tempMin: 0,
-    tempMax: 7,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 20,
-    isActive: true,
-    protokollTyp: 'temperatur',
-    geraeteTyp: 'kuehlung',
-    sollMin: 0,
-    sollMax: 7,
-    einheit: '°C',
-    intervall: 'taeglich',
-    aktiv: true,
-  },
-  {
-    name: 'TK-Truhe',
-    bereich: 'Lager',
-    type: 'manual_temp',
-    tempMin: -24,
-    tempMax: -18,
-    unit: '°C',
-    activeDays: null,
-    sortOrder: 30,
-    isActive: true,
-    protokollTyp: 'temperatur',
-    geraeteTyp: 'tk',
-    sollMin: -24,
-    sollMax: -18,
-    einheit: '°C',
-    intervall: 'taeglich',
-    aktiv: true,
-  },
-  {
-    name: 'Schneidemaschine',
-    bereich: 'Produktion',
-    type: 'cleaning',
-    protokollTyp: 'reinigung',
-    geraeteTyp: 'geraet',
-    intervall: 'nach_benutzung',
-    aktiv: true,
-    isActive: true,
-    sortOrder: 900,
-  },
-  {
-    name: 'Vakuumierer',
-    bereich: 'Produktion',
-    type: 'cleaning',
-    protokollTyp: 'reinigung',
-    geraeteTyp: 'geraet',
-    intervall: 'nach_benutzung',
-    aktiv: true,
-    isActive: true,
-    sortOrder: 910,
-  },
-];
+/** Standard-Kühlstellen für Empty-State-Seed (gespiegelt in tenant-presets). */
+const DEFAULT_HACCP_DEVICES = STANDARD_HACCP_DEVICES;
 
 const FLY_PREVENTION_HACCP_DEVICES = [
   {
@@ -1478,13 +1408,21 @@ function renderTemperatureChecks() {
   const capturedCount = devices.filter((device) => isDeviceRequiredToday(device) && isDeviceCapturedInRound(device)).length;
 
   if (!devices.length) {
+    const canSeed = canSeedStandardHaccpDevices();
     return `
-      <div class="haccp-daily-intro">
+      <div class="haccp-daily-intro haccp-empty-presets">
         <strong>Temperatur-Rundgang</strong>
-        <span>Für diesen Betrieb sind noch keine Kühlstellen hinterlegt. Bitte im Büro unter „Mein Betrieb → Geräte“ die Messpunkte anlegen.</span>
+        <span>Noch keine Messstellen eingerichtet.</span>
+        ${canSeed ? `
+        <button type="button" class="btn btn-primary" data-haccp-seed-presets="1" style="margin-top:12px;">
+          Standard-Kühlstellen jetzt anlegen
+        </button>
+        ` : `
+        <span style="display:block;margin-top:8px;">Bitte im Büro unter „Mein Betrieb → Geräte“ die Messpunkte anlegen.</span>
         <button type="button" class="btn btn-primary" data-haccp-open-setup="1" style="margin-top:12px;">
           Messpunkte anlegen
         </button>
+        `}
       </div>
     `;
   }
@@ -1584,6 +1522,58 @@ function openHaccpMesspunkteSetup(section = 'geraete') {
   }
 }
 
+function canSeedStandardHaccpDevices() {
+  try {
+    const session = getAuthContext();
+    const user = getFirebaseAuthUser() || session?.user || null;
+    return isTenantAdmin(user, session);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Admin-Fallback: 3 Standard-Kühlstellen nur wenn Collection leer
+ * (StevesHof / bestehende Geräte bleiben unberührt).
+ */
+async function seedStandardHaccpDevicesFromEmptyState() {
+  if (!canSeedStandardHaccpDevices()) {
+    window.showToast?.('Nur Betriebs-Admins können Standard-Kühlstellen anlegen.', 'error');
+    return;
+  }
+  const tenantId = resolveHaccpTenantId();
+  const db = haccpState.db;
+  if (!tenantId || !db) {
+    window.showToast?.('Betrieb noch nicht geladen. Bitte kurz warten und erneut tippen.', 'error');
+    return;
+  }
+  try {
+    const existing = await db.collection('tenants').doc(tenantId)
+      .collection('haccp_geraete').limit(1).get();
+    if (!existing.empty) {
+      window.showToast?.('Messstellen sind bereits eingerichtet.', 'info');
+      return;
+    }
+    const result = await ensureTenantBranchPresets({
+      db,
+      tenantId,
+      updatedBy: 'haccp-empty-state',
+      seedDevices: true,
+      seedPrinter: false,
+    });
+    if (result.skippedDevices) {
+      window.showToast?.('Messstellen sind bereits eingerichtet.', 'info');
+      return;
+    }
+    window.showToast?.('Drei Standard-Kühlstellen sind angelegt.', 'success');
+    haccpState.showHUD?.('Fertig', 'Standard-Kühlstellen angelegt.', '✓');
+  } catch (err) {
+    console.error('[HofSync HACCP] Standard-Kühlstellen-Seed fehlgeschlagen:', err);
+    if (maybeResetOnFirestorePermissionError(err, 'HACCP-Preset-Seed')) return;
+    window.showToast?.('Standard-Kühlstellen konnten wir nicht anlegen.', 'error');
+  }
+}
+
 function bindStaticHaccpControls() {
   const dailyContainer = document.getElementById('haccp-daily-container');
   if (dailyContainer && dailyContainer.dataset.haccpDelegated !== '1') {
@@ -1597,6 +1587,14 @@ function bindStaticHaccpControls() {
       const openSetupBtn = event.target.closest('[data-haccp-open-setup]');
       if (openSetupBtn) {
         openHaccpMesspunkteSetup('geraete');
+        return;
+      }
+      const seedPresetsBtn = event.target.closest('[data-haccp-seed-presets]');
+      if (seedPresetsBtn) {
+        seedPresetsBtn.disabled = true;
+        void seedStandardHaccpDevicesFromEmptyState().finally(() => {
+          seedPresetsBtn.disabled = false;
+        });
         return;
       }
       const saveRoundBtn = event.target.closest('[data-haccp-save-round]');

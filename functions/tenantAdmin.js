@@ -13,6 +13,10 @@ const {
   applyModulePatch,
   TIER_IDS,
 } = require('./billingTiers');
+const {
+  buildStandardHaccpDeviceDocs,
+  buildStandardPrinterSettings,
+} = require('./tenantPresets');
 
 const REGION = 'europe-west3';
 
@@ -365,18 +369,6 @@ function colorPalette(primaryColor) {
   };
 }
 
-function deviceDocId(name) {
-  return String(name || 'geraet')
-    .toLowerCase()
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60) || 'geraet';
-}
-
 function baselineDiscountMatrix(actorUid) {
   const badge = (percent) => `🏷️ -${percent} % Aufkleber`;
   const kuehlware = [
@@ -414,44 +406,6 @@ function baselineCategories() {
     { name: 'Obst & Gemüse', mhdWarningDays: 1 },
     { name: 'Trockenware & Feinkost', mhdWarningDays: 7 },
     { name: 'Tiefkühlware (TK)', mhdWarningDays: 14 },
-  ];
-}
-
-function baselineHaccpDevices() {
-  return [
-    {
-      name: 'Kühlhaus 1 (Fleisch/MoPro)',
-      bereich: 'Kühlung',
-      protokollTyp: 'temperatur',
-      geraeteTyp: 'kuehlung',
-      sollMin: 0,
-      sollMax: 4,
-      einheit: '°C',
-      intervall: 'taeglich',
-      aktiv: true,
-    },
-    {
-      name: 'Verkaufstheke / Kühlregal',
-      bereich: 'Theke',
-      protokollTyp: 'temperatur',
-      geraeteTyp: 'kuehlung',
-      sollMin: 1,
-      sollMax: 7,
-      einheit: '°C',
-      intervall: 'taeglich',
-      aktiv: true,
-    },
-    {
-      name: 'Tiefkühltruhe',
-      bereich: 'Tiefkühlung',
-      protokollTyp: 'temperatur',
-      geraeteTyp: 'tk',
-      sollMin: -25,
-      sollMax: -15,
-      einheit: '°C',
-      intervall: 'taeglich',
-      aktiv: true,
-    },
   ];
 }
 
@@ -653,13 +607,17 @@ async function seedNewTenant(tenantRef, {
     tenantId,
     updatedAt: now,
   });
-  baselineHaccpDevices().forEach((device) => {
-    batch.set(tenantRef.collection('haccp_geraete').doc(deviceDocId(device.name)), {
-      ...device,
-      tenantId,
-      createdAt: now,
-    });
+  buildStandardHaccpDeviceDocs(tenantId, now).forEach(({ id: docId, data }) => {
+    batch.set(tenantRef.collection('haccp_geraete').doc(docId), data);
   });
+  batch.set(
+    tenantRef.collection('settings').doc('printer'),
+    buildStandardPrinterSettings(tenantId, {
+      updatedBy: actorUid,
+      updatedAt: now,
+      createdAt: now,
+    }),
+  );
   batch.set(getAdminDb().doc(`users/${adminUid}`), {
     email: adminEmail,
     displayName: companyName,
