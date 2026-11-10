@@ -240,9 +240,13 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.ean)
         && isNonEmptyString(request.resource.data.articleName)
         && request.resource.data.keys().hasOnly([
-          'tenantId', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
-          'updatedAt', 'updatedBy'
-        ]);
+          'tenantId', 'id', 'ean', 'articleName', 'name', 'brand', 'category', 'kategorie',
+          'daysFresh', 'active', 'createdAt', 'updatedAt', 'updatedBy'
+        ])
+        && (!('daysFresh' in request.resource.data)
+            || isIntGteZero(request.resource.data.daysFresh))
+        && (!('active' in request.resource.data)
+            || request.resource.data.active is bool);
       allow delete: if isAdmin(tenantId);
     }
 

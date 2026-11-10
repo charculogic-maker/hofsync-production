@@ -203,7 +203,8 @@ function currentSupplierOptions(area = currentDeliveryArea()) {
     const fromSettings = window.getTenantSupplierNames(key);
     if (Array.isArray(fromSettings) && fromSettings.length) return fromSettings;
   }
-  return defaultSuppliersForArea(key);
+  const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
+  return defaultSuppliersForArea(key, tenantId);
 }
 
 function renderSupplierSelect(selectEl, area = currentDeliveryArea()) {
@@ -2288,28 +2289,49 @@ async function loadVpeMasterFromCsv() {
 }
 
 function saveProductMaster(product) {
-  const barcode = cleanScannedBarcode(product.barcode || product.ean);
-  const name = sanitizeProductName(product.name);
-  if (!barcode || !name) return;
-  writeLocalProductMasterEntry({
+  const barcode = cleanScannedBarcode(product.barcode || product.ean || product.id);
+  const name = sanitizeProductName(product.name || product.articleName || product.produkt || '');
+  if (!barcode || !name) {
+    window.showToast?.('Bitte Artikelname und Mindesthaltbarkeit angeben.', 'warning');
+    return null;
+  }
+  const category = product.kategorie || product.category || '📦 Trockenware';
+  const localEntry = writeLocalProductMasterEntry({
+    id: barcode,
     barcode,
     ean: barcode,
     name,
-    brand: product.brand || '',
-    category: product.kategorie || product.category || '📦 Trockenware',
-    kategorie: product.kategorie || product.category,
+    brand: product.brand || product.marke || '',
+    category,
+    kategorie: category,
+    daysFresh: product.daysFresh ?? product.tage ?? product.resttage,
+    active: product.active !== false,
+    createdAt: product.createdAt,
     scanBarcode: product.scanBarcode,
   });
+  // Sofort im UI sichtbar, auch wenn Firestore noch leer / verzögert ist.
+  if (localEntry && !currentDeliveryItemProduct) {
+    currentDeliveryItemProduct = localEntry.name;
+  }
   const tenantId = canonicalTenantId(mhdState.tenantId || getGlobalTenantId());
-  if (!tenantId) return;
+  if (!tenantId) return localEntry;
   void persistProductMasterToFirestore(tenantId, {
+    id: barcode,
     ean: barcode,
     name,
-    brand: product.brand || '',
-    category: product.kategorie || product.category,
+    brand: product.brand || product.marke || '',
+    category,
+    kategorie: category,
+    daysFresh: product.daysFresh ?? product.tage ?? product.resttage,
+    active: true,
   }, getAuditActorName()).catch((err) => {
     console.warn('[CharcuLogic] Gemeinsame Artikeldaten konnten nicht gespeichert werden:', err);
+    window.showToast?.(
+      'Artikel lokal gespeichert – Sync folgt, sobald die Verbindung steht.',
+      'warning',
+    );
   });
+  return localEntry;
 }
 
 async function refreshSharedProductMaster() {
@@ -3292,9 +3314,11 @@ function showLearnModeDialog(ean) {
     const vpeSize = Math.max(2, parseFloat(String(inputVpeSize?.value || '6').replace(',', '.')) || 6);
     const inventoryBarcode = cleanScannedBarcode(productInfo?.einzelBarcode) || barcodeForSave;
 
-    if (!name) {
-      inputName?.focus();
-      mhdState.showHUD("Name fehlt", "Bitte einen Produktnamen eingeben.", "!");
+    if (!name || !mhdDate) {
+      if (!name) inputName?.focus();
+      else inputMhd?.focus();
+      mhdState.showHUD('Angaben fehlen', 'Bitte Artikelname und Mindesthaltbarkeit angeben.', '!');
+      window.showToast?.('Bitte Artikelname und Mindesthaltbarkeit angeben.', 'warning');
       return;
     }
 
@@ -8406,15 +8430,18 @@ async function addDeliveryItem() {
     return;
   }
   rememberReceivingHeadCategory(category);
-  if (!product) {
+  if (!product || !mhdDate) {
+    if (!product) {
+      if (!document.getElementById('we-product-manual-wrap')?.classList.contains('is-manual-open')) {
+        openReceivingManualCreateForm();
+      }
+    }
     notifyReceivingValidation(
-      'Produkt fehlt',
-      'EAN unbekannt – bitte „Artikel manuell anlegen“ nutzen und Namen eintragen.',
-      { focusId: 'we-product-name' },
+      'Angaben fehlen',
+      'Bitte Artikelname und Mindesthaltbarkeit angeben.',
+      { focusId: product ? 'we-mhd' : 'we-product-name' },
     );
-    if (!document.getElementById('we-product-manual-wrap')?.classList.contains('is-manual-open')) {
-      openReceivingManualCreateForm();
-    } else {
+    if (!product) {
       document.getElementById('we-product-name')?.focus()
         || document.getElementById('we-product-manual')?.focus();
     }
@@ -8425,14 +8452,6 @@ async function addDeliveryItem() {
       'Menge ungültig',
       `Bitte eine Menge in ${qtyUnit} größer 0 eingeben.`,
       { focusId: 'we-qty' },
-    );
-    return;
-  }
-  if (!mhdDate) {
-    notifyReceivingValidation(
-      'MHD fehlt',
-      'Bitte MHD als TT.MM.JJJJ eintippen, bevor der Posten zur Lieferung hinzugefügt wird.',
-      { focusId: 'we-mhd' },
     );
     return;
   }
