@@ -1,4 +1,4 @@
-const CACHE_NAME = 'charculogic-v20261109-role-modules-save-v1';
+const CACHE_NAME = 'charculogic-v20261110-tenant-presets-v1';
 
 const CACHE_SCHEMA = 'p0-mhd-erfasst-korrektur-oct2026';
 /** Release – Remote Neu-Laden-Hinweis für Laden-iPhones (settings/appReload). */
@@ -51,6 +51,7 @@ const CRITICAL_ASSETS = [
   '/delivery-upload.js',
   '/catalog-ean.js',
   '/haccp.js',
+  '/tenant-presets.js',
   '/production.js',
   '/avery-labels.js',
   '/rezepte.js',

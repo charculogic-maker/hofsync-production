@@ -1093,6 +1093,38 @@ describe('Firebase Security Rules (Custom Claims only)', function () {
       });
     });
 
+    it('allows tenant admin to create Avery 3475 settings/printer and denies employee', async () => {
+      const printerPath = tenantDocPath(TENANTS.STEVES_HOF, 'settings', 'printer');
+      const admin = authContext(testEnv, 'sh-admin-printer', TENANTS.STEVES_HOF, 'admin');
+      const employee = authContext(testEnv, 'sh-employee-printer', TENANTS.STEVES_HOF, 'employee');
+      const foreignAdmin = authContext(testEnv, 'tf-admin-printer', TENANTS.TENANT_B, 'admin');
+      const payload = {
+        labelType: 'avery_3475',
+        format: 'A4',
+        orientation: 'portrait',
+        columns: 3,
+        rows: 8,
+        labelWidthMm: 70,
+        labelHeightMm: 36,
+        marginTopMm: 4.5,
+        marginBottomMm: 4.5,
+        marginLeftMm: 0,
+        marginRightMm: 0,
+        scalePercent: 100,
+        tenantId: TENANTS.STEVES_HOF,
+        updatedBy: 'rules-test',
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+      await expectFirestoreAllow(admin, printerPath, 'create', payload);
+      await expectFirestoreAllow(admin, printerPath, 'read');
+      await expectFirestoreDeny(employee, printerPath, 'create', payload);
+      await expectFirestoreDeny(foreignAdmin, printerPath, 'create', {
+        ...payload,
+        tenantId: TENANTS.STEVES_HOF,
+      });
+    });
+
     it('allows tenant admin to read own employees profiles and denies cross-tenant', async () => {
       const employeePath = tenantDocPath(TENANTS.STEVES_HOF, 'employees', 'paddy');
       await seedFirestoreDoc(testEnv, employeePath, {

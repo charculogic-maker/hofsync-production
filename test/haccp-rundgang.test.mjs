@@ -87,7 +87,7 @@ describe('StevesHof HACCP seed (Laden & Lager)', () => {
 });
 
 describe('HACCP Empty-State Deep-Link', () => {
-  it('offers Messpunkte-Setup button and dashboard hash target', async () => {
+  it('offers Admin-Seed und Messpunkte-Setup button and dashboard hash target', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -97,12 +97,16 @@ describe('HACCP Empty-State Deep-Link', () => {
     const indexHtml = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
     expect(haccp).to.match(/data-haccp-open-setup/);
     expect(haccp).to.match(/Messpunkte anlegen/);
+    expect(haccp).to.match(/data-haccp-seed-presets/);
+    expect(haccp).to.match(/Standard-Kühlstellen jetzt anlegen/);
+    expect(haccp).to.match(/Noch keine Messstellen eingerichtet/);
     expect(haccp).to.match(/function openHaccpMesspunkteSetup/);
     expect(haccp).to.match(/dev-dashboard#/);
     expect(haccp).to.match(/haccp-setup|betrieb-hygiene/);
     expect(dashboard).to.match(/function applyDevDashboardDeepLink/);
     expect(dashboard).to.match(/function setBetriebSection/);
     expect(dashboard).to.match(/haccp-setup/);
+    expect(dashboard).to.match(/ensureTenantBranchPresets/);
     expect(dashboard).to.match(/setDevDashboardTab\('settings'\)/);
     expect(dashboard).to.match(/setBetriebSection\(section\)/);
     expect(indexHtml).to.match(/id="dev-dashboard-haccp-setup"/);

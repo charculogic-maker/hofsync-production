@@ -76,6 +76,7 @@ import {
   refreshDevDashboardHaccpAdmin,
   syncDevDashboardHaccpAdmin,
 } from './dev-dashboard-haccp.js';
+import { ensureTenantBranchPresets } from './tenant-presets.js';
 import { refreshDiscountMatrixUi } from './discount-matrix-ui.js';
 import {
   AUDIT_LOGS_COLLECTION,
@@ -2541,6 +2542,27 @@ function bindTenantCreateForm(db) {
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+
+      try {
+        // Idempotent: bestehende haccp_geraete (z. B. StevesHof) werden nie überschrieben.
+        await ensureTenantBranchPresets({
+          db,
+          tenantId,
+          updatedBy: 'dev-dashboard-create',
+        });
+      } catch (seedErr) {
+        console.error('[Dev-Dashboard] Branchen-Presets fehlgeschlagen:', seedErr);
+        setTenantFormStatus(
+          `Mandant „${displayName}“ angelegt — Standard-Kühlstellen/Drucker bitte später nachziehen.`,
+          'error',
+        );
+        window.showToast?.(
+          'Mandant angelegt. Standard-Messstellen konnten wir noch nicht anlegen.',
+          'warning',
+        );
+        resetTenantCreateForm();
+        return;
+      }
 
       resetTenantCreateForm();
       setTenantFormStatus(`Mandant „${displayName}“ (${tenantId}) angelegt.`, 'success');

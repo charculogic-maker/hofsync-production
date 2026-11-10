@@ -375,10 +375,49 @@ service cloud.firestore {
           || request.resource.data.knowledgeSanitizedBy is string);
     }
 
+    // Avery-3475-Druckdefaults unter settings/printer (Branchen-Preset).
+    function isPrinterSettings(docId) {
+      return docId == 'printer'
+        && request.resource.data.keys().hasOnly([
+          'labelType', 'format', 'orientation',
+          'columns', 'rows',
+          'labelWidthMm', 'labelHeightMm',
+          'marginTopMm', 'marginBottomMm', 'marginLeftMm', 'marginRightMm',
+          'scalePercent',
+          'tenantId', 'updatedAt', 'updatedBy', 'createdAt'
+        ])
+        && (!('labelType' in request.resource.data) || request.resource.data.labelType is string)
+        && (!('format' in request.resource.data) || request.resource.data.format is string)
+        && (!('orientation' in request.resource.data) || request.resource.data.orientation is string)
+        && (!('columns' in request.resource.data) || request.resource.data.columns is int
+          || request.resource.data.columns is float)
+        && (!('rows' in request.resource.data) || request.resource.data.rows is int
+          || request.resource.data.rows is float)
+        && (!('labelWidthMm' in request.resource.data) || request.resource.data.labelWidthMm is int
+          || request.resource.data.labelWidthMm is float)
+        && (!('labelHeightMm' in request.resource.data) || request.resource.data.labelHeightMm is int
+          || request.resource.data.labelHeightMm is float)
+        && (!('marginTopMm' in request.resource.data) || request.resource.data.marginTopMm is int
+          || request.resource.data.marginTopMm is float)
+        && (!('marginBottomMm' in request.resource.data) || request.resource.data.marginBottomMm is int
+          || request.resource.data.marginBottomMm is float)
+        && (!('marginLeftMm' in request.resource.data) || request.resource.data.marginLeftMm is int
+          || request.resource.data.marginLeftMm is float)
+        && (!('marginRightMm' in request.resource.data) || request.resource.data.marginRightMm is int
+          || request.resource.data.marginRightMm is float)
+        && (!('scalePercent' in request.resource.data) || request.resource.data.scalePercent is int
+          || request.resource.data.scalePercent is float)
+        && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy is string)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is string
+          || request.resource.data.updatedAt is timestamp)
+        && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is string
+          || request.resource.data.createdAt is timestamp);
+    }
+
     match /tenants/{tenantId}/settings/{document} {
       // Tenant-Nutzer + Plattform-Super-Admin (fremd-Mandant im Dev-Dashboard).
       allow read: if isTenantUser(tenantId) || isPlatformDevAdmin();
-      // Admin / Plattform: Settings inkl. SMTP-Profil, Rabattstaffel, Rollen-Module. Mitarbeiter: nur Lieferanten.
+      // Admin / Plattform: Settings inkl. SMTP-Profil, Rabattstaffel, Rollen-Module, Drucker. Mitarbeiter: nur Lieferanten.
       allow create, update: if request.resource.data.tenantId == tenantId
         && (
           (
@@ -391,6 +430,7 @@ service cloud.firestore {
               || isDiscountMatrixSettings(document)
               || isRoleModulesSettings(document)
               || isAppReloadSettings(document)
+              || isPrinterSettings(document)
             )
           )
           || (isEmployeeOrAdmin(tenantId) && isSupplierSettings(document))
