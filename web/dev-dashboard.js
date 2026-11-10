@@ -2828,11 +2828,15 @@ function bindTenantCreateForm(db) {
       });
 
       try {
-        // Idempotent: bestehende haccp_geraete (z. B. StevesHof) werden nie überschrieben.
+        // Idempotent: bestehende haccp_geraete/rezepte (z. B. StevesHof) werden nie überschrieben.
+        const kitchenOn = enabledModules?.kitchen === true
+          || enabledModules?.wurstkueche === true
+          || enabledModules?.kueche === true;
         await ensureTenantBranchPresets({
           db,
           tenantId,
           updatedBy: 'dev-dashboard-create',
+          seedRecipes: kitchenOn,
         });
       } catch (seedErr) {
         console.error('[Dev-Dashboard] Branchen-Presets fehlgeschlagen:', seedErr);
