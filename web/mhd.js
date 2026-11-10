@@ -10,6 +10,7 @@ import {
   getGlobalTenantId,
   getTenantCollection,
   canonicalTenantId,
+  normalizeTenantId,
   setGlobalTenantId,
 } from './tenant-db.js';
 import {
@@ -1914,10 +1915,33 @@ function openReceivingManualCreateForm() {
   setReceivingMode('schnell');
 }
 
+function resolveActiveEmployeeStorageTenantKey() {
+  return normalizeTenantId(resolveMhdTenantId());
+}
+
+function isAnonymousTeamEmployeeName(employeeName) {
+  const clean = String(employeeName || '').trim();
+  if (!clean) return true;
+  if (typeof window.isTeamSessionName === 'function') {
+    return window.isTeamSessionName(clean);
+  }
+  const normalized = clean.toLowerCase();
+  return normalized.startsWith('team ')
+    || normalized.endsWith('-team')
+    || normalized.endsWith(' team')
+    || /^laden-?team$/i.test(clean);
+}
+
 function getActiveEmployee() {
   try {
+    const fromScoped = readScopedLocalStorageValue(
+      ACTIVE_EMPLOYEE_STORAGE_KEY,
+      resolveActiveEmployeeStorageTenantKey(),
+    );
+    const fromApp = String(window.readActiveEmployee?.() || '').trim();
     return String(
-      readScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId())
+      fromScoped
+      || fromApp
       || mhdState.terminalEmployeeName
       || '',
     ).trim();
@@ -1931,24 +1955,47 @@ function setActiveEmployee(employeeName) {
   const cleanName = String(employeeName || '').trim();
   if (!cleanName) return;
   try {
-    writeScopedLocalStorageValue(ACTIVE_EMPLOYEE_STORAGE_KEY, resolveMhdTenantId(), cleanName);
+    writeScopedLocalStorageValue(
+      ACTIVE_EMPLOYEE_STORAGE_KEY,
+      resolveActiveEmployeeStorageTenantKey(),
+      cleanName,
+    );
     localStorage.removeItem(ACTIVE_EMPLOYEE_STORAGE_KEY);
   } catch (err) {
     console.warn('[CharcuLogic MHD] Aktive Mitarbeiter-Session konnte nicht gespeichert werden:', err);
+  }
+  if (typeof window.persistActiveEmployeeSession === 'function') {
+    try {
+      window.persistActiveEmployeeSession(cleanName);
+      return;
+    } catch (_) { /* fall through to local event */ }
   }
   window.dispatchEvent(new CustomEvent('charculogic:active-employee-changed', {
     detail: { employeeName: cleanName },
   }));
 }
 
+/**
+ * Liefert den aktuellen Erfasser für Scan/Wareneingang.
+ * Soft-Lock- und Firebase-Namen haben Vorrang vor dem PIN-Gate —
+ * sonst blockiert „Profil fehlt“ trotz sichtbarem Header-Namen (z. B. LENA).
+ */
 async function resolveInventoryActorForScan() {
+  const adopt = (name) => {
+    const clean = String(name || '').trim();
+    if (!clean || isAnonymousTeamEmployeeName(clean)) return '';
+    setActiveEmployee(clean);
+    return clean;
+  };
+
   if (window.isFirebaseRoleAuth?.()) {
-    const employeeName = window.syncFirebaseEmployeeSession?.()
+    return adopt(
+      window.syncFirebaseEmployeeSession?.()
       || window.resolveFirebaseEmployeeName?.()
-      || getActiveEmployee();
-    if (employeeName) setActiveEmployee(employeeName);
-    return employeeName || '';
+      || getActiveEmployee(),
+    );
   }
+
   if (window.isProfileEmployeeAuth?.()) {
     const firebaseReady = await window.ensureTenantFirebaseAuth?.();
     if (!firebaseReady) {
@@ -1960,21 +2007,28 @@ async function resolveInventoryActorForScan() {
       return '';
     }
     if (!window.isInventoryWriteReady?.()) {
-      const employeeName = await window.requireProfileSessionForInventory?.();
-      if (employeeName) setActiveEmployee(employeeName);
-      return employeeName || '';
+      return adopt(await window.requireProfileSessionForInventory?.());
     }
-    const employeeName = getActiveEmployee() || await window.requireProfileSessionForInventory?.();
-    if (employeeName) setActiveEmployee(employeeName);
-    return employeeName || '';
+    return adopt(getActiveEmployee() || await window.requireProfileSessionForInventory?.());
   }
+
+  // Bereits gewähltes Soft-Lock-/Header-Profil (auch bei employeeAuth=pin).
+  const existing = adopt(getActiveEmployee());
+  if (existing) return existing;
+
+  // Eingeloggter Firebase-Nutzer ohne Team-Roster → DisplayName als Erfasser.
+  const authName = adopt(
+    window.resolveFirebaseEmployeeName?.()
+    || window.resolveLoggedInAuthDisplayName?.(),
+  );
+  if (authName) return authName;
+
   if (window.isEmployeePinRequired?.() === false) {
-    const employeeName = getActiveEmployee()
-      || (typeof window.ensureEmployeeSessionForProtectedArea === 'function'
+    return adopt(
+      (typeof window.ensureEmployeeSessionForProtectedArea === 'function'
         ? window.ensureEmployeeSessionForProtectedArea()
-        : resolveTeamSessionDisplayName());
-    if (employeeName) setActiveEmployee(employeeName);
-    return employeeName || '';
+        : resolveTeamSessionDisplayName()),
+    );
   }
   return '';
 }
@@ -2859,9 +2913,9 @@ function applyBarcodeToDeliveryItemDraft(barcode, scanExtras = null) {
 }
 
 async function processDeliveryItemBarcode(decodedText, source = 'camera', scanExtras = null) {
-  const actor = await resolveInventoryActorForScan();
+  // Soft-Lock / Header-Profil nutzen; bei Bedarf Picker öffnen — kein stilles „Profil fehlt“.
+  const actor = await ensureReceivingActorOrWarn();
   if (!actor) {
-    mhdState.showHUD('Profil fehlt', 'Bitte zuerst ein Mitarbeiterprofil wählen.', '!');
     mhdState.closeScanner?.({ preserveScanState: true });
     return;
   }
@@ -8401,13 +8455,22 @@ async function ensureReceivingActorOrWarn() {
   const actor = await resolveInventoryActorForScan();
   if (actor) return actor;
   const softLockName = String(window.readActiveEmployee?.() || getActiveEmployee() || '').trim();
-  if (softLockName) return softLockName;
+  if (softLockName && !isAnonymousTeamEmployeeName(softLockName)) {
+    setActiveEmployee(softLockName);
+    return softLockName;
+  }
   if (typeof window.ensureSoftLockEmployeeSelected === 'function') {
     const picked = await window.ensureSoftLockEmployeeSelected();
-    if (picked) return picked;
+    if (picked && !isAnonymousTeamEmployeeName(picked)) {
+      setActiveEmployee(picked);
+      return picked;
+    }
   } else if (typeof window.openEmployeePickerModal === 'function') {
     const picked = await window.openEmployeePickerModal({ mandatory: true });
-    if (picked) return picked;
+    if (picked && !isAnonymousTeamEmployeeName(picked)) {
+      setActiveEmployee(picked);
+      return picked;
+    }
   }
   notifyReceivingValidation(
     'Profil fehlt',
