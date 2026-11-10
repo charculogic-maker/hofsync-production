@@ -51,18 +51,28 @@
         }
 
         // Synchroner Mandantentitel vor async Branding/Firestore — verhindert Flash.
+        // StevesHof nur, wenn der Cache-Mandant StevesHof ist; sonst neutral „Mein Betrieb“.
         var brandTitle = localStorage.getItem('charculogic_brand_title');
+        var cachedTenant = '';
+        try { cachedTenant = String(localStorage.getItem('charculogic_cached_tenant_id') || '').trim().toLowerCase(); } catch (eTenant) {}
+        var isStevesHofCache = cachedTenant === 'steveshof_hauptbetrieb' || cachedTenant === 'steveshof';
         if (!brandTitle || !String(brandTitle).trim()) {
-          brandTitle = 'StevesHof Hofladen';
+          brandTitle = isStevesHofCache ? 'StevesHof Hofladen' : 'Mein Betrieb';
           try { localStorage.setItem('charculogic_brand_title', brandTitle); } catch (e2) {}
+        } else if (String(brandTitle).trim() === 'StevesHof Hofladen' && cachedTenant && !isStevesHofCache) {
+          // Sticky Soft-Launch-Titel nach Mandantenwechsel entfernen.
+          brandTitle = 'Mein Betrieb';
+          try { localStorage.setItem('charculogic_brand_title', brandTitle); } catch (e3) {}
         }
         window.__charculogicBootBrandTitle = String(brandTitle).trim();
         function paintBootBrandTitle() {
-          var title = window.__charculogicBootBrandTitle || 'StevesHof Hofladen';
+          var title = window.__charculogicBootBrandTitle || 'Mein Betrieb';
           var nodes = document.querySelectorAll('.brand-betriebs-name');
           for (var n = 0; n < nodes.length; n += 1) {
             nodes[n].textContent = title;
           }
+          var headerTenant = document.getElementById('header-tenant-name');
+          if (headerTenant) headerTenant.textContent = title;
         }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', paintBootBrandTitle);
@@ -290,9 +300,10 @@
     };
 
     window.fallbackShowTab = function fallbackShowTab(tabId) {
-      const betriebsName = window.BRANDING?.betriebsName
+      const betriebsName = (typeof window.getTenantDisplayName === 'function' && window.getTenantDisplayName())
+        || window.BRANDING?.betriebsName
         || window.__charculogicBootBrandTitle
-        || 'StevesHof Hofladen';
+        || 'Mein Betrieb';
       const pageMap = {
         teamboard: { page: 'page-teamboard', title: 'Start' },
         team: { page: 'page-team', title: 'Team' },
@@ -384,7 +395,7 @@
                 height="28"
                 decoding="async"
               />
-              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">StevesHof Hofladen</span>
+              <span class="app-subtitle tenant-header-name brand-betriebs-name" id="header-subtitle">Mein Betrieb</span>
               <span class="sync-status-icon" id="sync-status-icon" aria-hidden="true">
                 <span class="sync-dot sync-dot--ok" id="sync-status-dot"></span>
                 <span class="sync-pending-count" id="sync-pending-count" style="display:none;">0</span>
@@ -588,7 +599,7 @@
                     decoding="async"
                   />
                   <div class="tenant-header-text dev-dashboard-topbar-titles">
-                    <span class="tenant-header-name brand-betriebs-name">StevesHof Hofladen</span>
+                    <span class="tenant-header-name brand-betriebs-name">Mein Betrieb</span>
                     <h1 class="dev-dashboard-page-title">Verwaltung</h1>
                     <p class="dev-dashboard-status" id="dev-dashboard-status" aria-live="polite">Lade…</p>
                   </div>
@@ -2217,7 +2228,7 @@
                   <div class="mhd-skeleton-card"></div>
                 </div>
                 <div class="mhd-loading-spinner" aria-hidden="true"></div>
-                <p class="mhd-loading-text">🔄 Frische-Bestand StevesHof wird geladen...</p>
+                <p class="mhd-loading-text" id="mhd-loading-text">🔄 Frische-Bestand wird geladen...</p>
               </div>
             </div>
           </div>
@@ -3482,7 +3493,7 @@
                 decoding="async"
               />
               <div class="app-nav-brand-text">
-                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">StevesHof Hofladen</span>
+                <span class="app-nav-brand-name brand-betriebs-name" id="app-nav-facility-name">Mein Betrieb</span>
                 <span class="app-nav-brand-hint">Laden-Alltag</span>
               </div>
             </div>

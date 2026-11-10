@@ -186,14 +186,26 @@ export async function loadTenantShopSettings(db, tenantId) {
     ]);
     terminalState = readTerminal(terminalDoc);
     profile = readProfile(profileDoc);
-    const rootSuppliers = tenantSnap?.exists ? (tenantSnap.data()?.suppliers || null) : null;
+    const tenantRoot = tenantSnap?.exists ? (tenantSnap.data() || null) : null;
+    const rootSuppliers = tenantRoot?.suppliers || null;
     applySupplierDoc(supplierDoc, rootSuppliers);
     defaultTeam = profile?.defaultTeam || [];
     if (profile?.terminalUser && !terminalState.terminalUser) {
       terminalState = { ...terminalState, terminalUser: profile.terminalUser };
     }
+    // Root-displayName als Fallback, falls settings/profile noch leer ist.
+    const rootDisplayName = String(
+      tenantRoot?.betriebsName || tenantRoot?.displayName || tenantRoot?.name || tenantRoot?.companyName || '',
+    ).trim();
+    if (rootDisplayName && !profile?.betriebsName) {
+      profile = { ...(profile || {}), betriebsName: rootDisplayName };
+    } else if (!profile && rootDisplayName) {
+      profile = { betriebsName: rootDisplayName };
+    }
     if (typeof window.applyTenantProfile === 'function') {
-      window.applyTenantProfile(profile, terminalState);
+      window.applyTenantProfile(profile, terminalState, id);
+    } else if (rootDisplayName && typeof window.syncCurrentTenantConfig === 'function') {
+      window.syncCurrentTenantConfig(id, rootDisplayName);
     }
   } catch (err) {
     console.warn('[CharcuLogic] Betriebs-Settings konnten nicht geladen werden:', err);

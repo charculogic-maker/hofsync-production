@@ -2974,6 +2974,10 @@ function persistBootBrandColors(branding = {}) {
 }
 
 function resolveHeaderBrandName() {
+  if (typeof window.getTenantDisplayName === 'function') {
+    const fromHelper = String(window.getTenantDisplayName() || '').trim();
+    if (fromHelper) return fromHelper;
+  }
   const fromBranding = String(window.BRANDING?.betriebsName || '').trim();
   if (fromBranding) return fromBranding;
   try {
@@ -2982,15 +2986,17 @@ function resolveHeaderBrandName() {
     ) || '').trim();
     if (cached) return cached;
   } catch (_) { /* private mode */ }
-  return window.DEFAULT_BRAND_TITLE || 'StevesHof Hofladen';
+  return window.DEFAULT_BRAND_TITLE || 'Mein Betrieb';
 }
 
 /** Mandantenname im Header — nie mit Modul-Untertiteln überschreiben. */
 function applyHeaderBrandName(name) {
-  const brandName = String(name || resolveHeaderBrandName()).trim() || 'StevesHof Hofladen';
+  const brandName = String(name || resolveHeaderBrandName()).trim() || 'Mein Betrieb';
   document.querySelectorAll('.brand-betriebs-name').forEach((el) => {
     el.textContent = brandName;
   });
+  const headerTenant = document.getElementById('header-tenant-name');
+  if (headerTenant) headerTenant.textContent = brandName;
   return brandName;
 }
 

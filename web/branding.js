@@ -1,6 +1,10 @@
 /******* CHARCULOGIC - WHITE LABEL CONFIGURATION *******/
-/** Stabiler Boot-Titel — verhindert Flash „Mein Hofladen“ / Modul-Untertitel. */
-export const DEFAULT_BRAND_TITLE = 'StevesHof Hofladen';
+/**
+ * Neutrales Boot-/Fallback-Label für unbekannte Mandanten.
+ * StevesHof bleibt über TENANT_BRANDING.steveshof_hauptbetrieb geschützt.
+ */
+export const DEFAULT_BRAND_TITLE = 'Mein Betrieb';
+export const STEVESHOF_BRAND_TITLE = 'StevesHof Hofladen';
 export const BRAND_TITLE_STORAGE_KEY = 'charculogic_brand_title';
 
 const DEFAULT_BRANDING = {
@@ -44,7 +48,7 @@ const TENANT_BRANDING = {
    * Firestore enabledModules bleibt führend; team und orders sind unabhängig.
    */
   steveshof_hauptbetrieb: {
-    betriebsName: 'StevesHof Hofladen',
+    betriebsName: STEVESHOF_BRAND_TITLE,
     appName: 'HofSync',
     darkHeaderBg: '#2b1810',
     modules: {
@@ -65,12 +69,40 @@ const TENANT_BRANDING = {
 
 const CACHED_TENANT_ID_KEY = 'charculogic_cached_tenant_id';
 
+function isStevesHofTenantKey(tenantKey) {
+  const key = normalizeTenantKey(tenantKey);
+  return key === 'steveshof_hauptbetrieb' || key === 'steveshof';
+}
+
 function readCachedBrandTitle() {
   try {
     const cached = String(localStorage.getItem(BRAND_TITLE_STORAGE_KEY) || '').trim();
     if (cached) return cached;
   } catch (_) { /* private mode */ }
-  return DEFAULT_BRAND_TITLE;
+  return '';
+}
+
+/**
+ * Titel nur wiederverwenden, wenn er zum aktuellen Mandanten passt —
+ * verhindert Sticky „StevesHof Hofladen“ nach Login in einen anderen Betrieb.
+ */
+function readCachedBrandTitleForTenant(tenantKey) {
+  const cachedTitle = readCachedBrandTitle();
+  if (!cachedTitle) return '';
+  const normalizedTenant = normalizeTenantKey(tenantKey);
+  const cachedTenant = readCachedTenantId();
+  if (normalizedTenant && cachedTenant && normalizedTenant !== cachedTenant) {
+    return '';
+  }
+  // Alter Soft-Launch-Cache: StevesHof-Titel nur für StevesHof-Mandanten behalten.
+  if (
+    cachedTitle === STEVESHOF_BRAND_TITLE
+    && normalizedTenant
+    && !isStevesHofTenantKey(normalizedTenant)
+  ) {
+    return '';
+  }
+  return cachedTitle;
 }
 
 function persistBrandTitle(title) {
@@ -79,6 +111,46 @@ function persistBrandTitle(title) {
     localStorage.setItem(BRAND_TITLE_STORAGE_KEY, clean);
   } catch (_) { /* private mode */ }
   return clean;
+}
+
+function syncCurrentTenantConfig(tenantId, displayName) {
+  const id = String(tenantId || '').trim();
+  const name = String(displayName || '').trim();
+  const previous = (typeof window !== 'undefined' && window.currentTenantConfig
+    && typeof window.currentTenantConfig === 'object')
+    ? window.currentTenantConfig
+    : {};
+  const next = {
+    ...previous,
+    tenantId: id || String(previous.tenantId || '').trim(),
+    displayName: name || String(previous.displayName || '').trim(),
+    name: name || String(previous.name || previous.displayName || '').trim(),
+  };
+  if (typeof window !== 'undefined') {
+    window.currentTenantConfig = next;
+  }
+  return next;
+}
+
+/**
+ * Sichtbarer Betriebsname für Header, Skeletons, Etiketten.
+ * StevesHof_Hauptbetrieb → „StevesHof Hofladen“; sonst Firestore-/Config-Name.
+ */
+function getTenantDisplayName() {
+  const cfg = (typeof window !== 'undefined' && window.currentTenantConfig) || {};
+  const fromConfig = String(cfg.displayName || cfg.name || '').trim();
+  if (fromConfig) return fromConfig;
+
+  const fromBranding = String(window.BRANDING?.betriebsName || '').trim();
+  if (fromBranding && fromBranding !== DEFAULT_BRAND_TITLE) return fromBranding;
+
+  const tenantKey = resolveEffectiveTenantId(cfg.tenantId || '');
+  const override = lookupTenantBranding(tenantKey);
+  if (override?.betriebsName) return String(override.betriebsName).trim();
+  if (isStevesHofTenantKey(tenantKey)) return STEVESHOF_BRAND_TITLE;
+
+  if (fromBranding) return fromBranding;
+  return DEFAULT_BRAND_TITLE;
 }
 
 function readTenantFromQueryString() {
@@ -158,25 +230,31 @@ function resolveBranding(tenantId) {
   if (!key && hasDistinctTenantBranding(window.BRANDING)) {
     return window.BRANDING;
   }
-  const cachedTitle = readCachedBrandTitle();
+  const cachedTitle = readCachedBrandTitleForTenant(key);
   const merged = {
     ...DEFAULT_BRANDING,
-    betriebsName: cachedTitle || DEFAULT_BRANDING.betriebsName,
+    betriebsName: DEFAULT_BRANDING.betriebsName,
     ...(tenantOverrides || {}),
     modules: {
       ...DEFAULT_BRANDING.modules,
       ...(tenantOverrides?.modules || {}),
     },
   };
-  // Tenant-Override gewinnt; sonst gecachten Mandantentitel behalten.
-  if (!tenantOverrides?.betriebsName && cachedTitle) {
+  // Tenant-Override gewinnt; sonst nur passenden Cache-Titel (kein Cross-Tenant-Leak).
+  if (tenantOverrides?.betriebsName) {
+    merged.betriebsName = tenantOverrides.betriebsName;
+  } else if (cachedTitle) {
     merged.betriebsName = cachedTitle;
+  } else if (isStevesHofTenantKey(key)) {
+    merged.betriebsName = STEVESHOF_BRAND_TITLE;
   }
   return merged;
 }
 
 function applyResolvedBranding(tenantId) {
-  window.BRANDING = resolveBranding(tenantId);
+  const key = resolveEffectiveTenantId(tenantId);
+  window.BRANDING = resolveBranding(key);
+  syncCurrentTenantConfig(key, window.BRANDING?.betriebsName);
   // Nach Rebuild: gecachte enabledModules wieder einspielen (verhindert FOUC Branding-Defaults).
   try {
     const cached = typeof window.readCachedEffectiveModules === 'function'
@@ -192,11 +270,14 @@ function applyResolvedBranding(tenantId) {
   initPwaManifestFromBranding(window.BRANDING);
 }
 
-function applyTenantProfile(profile, terminal) {
-  const current = window.BRANDING || resolveBranding();
+function applyTenantProfile(profile, terminal, tenantId = '') {
+  const current = window.BRANDING || resolveBranding(tenantId);
   const next = { ...current, modules: { ...(current.modules || {}) } };
-  if (profile?.betriebsName) {
-    next.betriebsName = persistBrandTitle(profile.betriebsName);
+  const profileName = String(
+    profile?.betriebsName || profile?.displayName || profile?.name || profile?.companyName || '',
+  ).trim();
+  if (profileName) {
+    next.betriebsName = persistBrandTitle(profileName);
   }
   if (profile?.appName) next.appName = profile.appName;
   if (profile?.primaryColor) next.primaryColor = profile.primaryColor;
@@ -208,6 +289,8 @@ function applyTenantProfile(profile, terminal) {
   if (terminalUser) next.terminalAuth = { email: terminalUser };
   if (terminal?.bypassPin === true) next.modules.employeePin = false;
   window.BRANDING = next;
+  const resolvedTenantId = String(tenantId || resolveEffectiveTenantId() || '').trim();
+  syncCurrentTenantConfig(resolvedTenantId, next.betriebsName);
   if (typeof window.applyBranding === 'function') window.applyBranding();
   initPwaManifestFromBranding(window.BRANDING);
 }
@@ -253,7 +336,13 @@ function initPwaManifestFromBranding(branding = window.BRANDING) {
 window.TENANT_BRANDING = TENANT_BRANDING;
 window.TENANT_BRANDING_INDEX = TENANT_BRANDING_INDEX;
 window.DEFAULT_BRAND_TITLE = DEFAULT_BRAND_TITLE;
+window.STEVESHOF_BRAND_TITLE = STEVESHOF_BRAND_TITLE;
 window.BRAND_TITLE_STORAGE_KEY = BRAND_TITLE_STORAGE_KEY;
+window.currentTenantConfig = window.currentTenantConfig || {
+  tenantId: '',
+  displayName: '',
+  name: '',
+};
 window.readCachedBrandTitle = readCachedBrandTitle;
 window.persistBrandTitle = persistBrandTitle;
 window.resolveBranding = resolveBranding;
@@ -262,6 +351,9 @@ window.resolveHostingDefaultTenant = resolveHostingDefaultTenant;
 window.isWhitelabelHostingContext = isWhitelabelHostingContext;
 window.applyResolvedBranding = applyResolvedBranding;
 window.applyTenantProfile = applyTenantProfile;
+window.syncCurrentTenantConfig = syncCurrentTenantConfig;
+window.getTenantDisplayName = getTenantDisplayName;
 window.BRANDING = resolveBranding();
-persistBrandTitle(window.BRANDING?.betriebsName || DEFAULT_BRAND_TITLE);
+syncCurrentTenantConfig(resolveEffectiveTenantId(), window.BRANDING?.betriebsName || DEFAULT_BRAND_TITLE);
+if (window.BRANDING?.betriebsName) persistBrandTitle(window.BRANDING.betriebsName);
 initPwaManifestFromBranding(window.BRANDING);
