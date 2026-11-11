@@ -14640,6 +14640,35 @@ body.dev-dashboard-view[hidden] {
   line-height: 1.45;
 }
 
+/* Desktop-only surfaces in Dev-Dashboard (CSV, Stammdaten-Tabelle, Plattform, Raumplan) */
+.desktop-only-notice {
+  display: none;
+  margin: 0.75rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-muted, #64748b);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .desktop-only-notice {
+    display: block !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-only-notice {
+    display: none !important;
+  }
+}
+
 .dev-dashboard-status {
   margin: 0;
   font-size: 0.82rem;

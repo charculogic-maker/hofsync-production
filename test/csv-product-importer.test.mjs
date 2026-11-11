@@ -85,7 +85,7 @@ describe('CSV product master importer', () => {
     assert.ok(dashSrc.includes('bindCsvProductImporter'));
     assert.ok(dashSrc.includes('importProductMasterRows'));
     assert.ok(dashSrc.includes('parseProductMasterCsv'));
-    assert.match(swSrc, /charculogic-v20261110-reload-sa-v1/);
+    assert.match(swSrc, /charculogic-v20261110-dashboard-responsive-v1/);
     assert.ok(swSrc.includes('/csv-product-importer.js'));
     assert.ok(rulesSrc.includes("'supplier'"));
     assert.ok(rulesSrc.includes('canWriteProductMaster'));

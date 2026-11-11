@@ -69,7 +69,7 @@ describe('Remote Reload Wiring', () => {
     expect(indexHtml).to.include('dev-dashboard-remote-reload-request');
     expect(indexHtml).to.match(/Laden-iPhone neu laden/);
     expect(sw).to.include('/remote-reload.js');
-    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-reload-sa-v1'");
+    expect(sw).to.include("const CACHE_NAME = 'charculogic-v20261110-dashboard-responsive-v1'");
   });
 
   it('zeigt Laden-iPhone neu laden nur für Super-Admins', () => {
